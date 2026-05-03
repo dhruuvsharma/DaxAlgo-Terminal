@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Session;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Threading;
@@ -22,6 +23,7 @@ public static class DependencyInjection
     {
         services.TryAddSingleton<IUiDispatcher, WpfDispatcher>();
         services.TryAddSingleton<IEventBus, EventBus>();
+        services.TryAddSingleton<SessionContext>();
 
         services.AddSingleton<IIbClient>(sp =>
         {

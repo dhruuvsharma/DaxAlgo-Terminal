@@ -17,13 +17,40 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />  <!-- Top menu -->
+            <RowDefinition Height="Auto" />  <!-- Disconnect banner -->
+            <RowDefinition Height="*" />    <!-- Dock -->
+            <RowDefinition Height="Auto" />  <!-- Status bar -->
         </Grid.RowDefinitions>
 
+        <!-- VS-style top menu -->
+        <Menu Grid.Row="0"
+              Background="{DynamicResource Background.Elevated}"
+              Foreground="{DynamicResource Text.Primary}"
+              BorderBrush="{DynamicResource Border.Brush}"
+              BorderThickness="0,0,0,1">
+
+            <MenuItem Header="_File">
+                <MenuItem Header="_Reconnect to TWS"
+                          Command="{Binding ReconnectCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit"
+                          Command="{Binding ExitCommand}"
+                          InputGestureText="Alt+F4" />
+            </MenuItem>
+
+            <MenuItem Header="_View">
+                <MenuItem Header="_Strategies"
+                          IsCheckable="True"
+                          IsChecked="{Binding IsStrategiesVisible, Mode=TwoWay}" />
+                <MenuItem Header="_Logs"
+                          IsCheckable="True"
+                          IsChecked="{Binding IsLogsVisible, Mode=TwoWay}" />
+            </MenuItem>
+        </Menu>
+
         <!-- Disconnect banner -->
-        <Border Grid.Row="0"
+        <Border Grid.Row="1"
                 Background="{DynamicResource Danger.Brush}"
                 Padding="12,6"
                 Visibility="{Binding IsDisconnected, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -37,7 +64,7 @@
         </Border>
 
         <!-- AvalonDock layout -->
-        <dock:DockingManager Grid.Row="1"
+        <dock:DockingManager Grid.Row="2"
                              x:Name="Dock"
                              AllowMixedOrientation="True"
                              DocumentsSource="{Binding OpenTabs}"
@@ -72,7 +99,12 @@
                     <!-- Left: Strategies -->
                     <dock:LayoutAnchorablePaneGroup DockWidth="240">
                         <dock:LayoutAnchorablePane>
-                            <dock:LayoutAnchorable Title="Strategies" CanClose="False" CanHide="False">
+                            <dock:LayoutAnchorable x:Name="StrategiesPane"
+                                                   Title="Strategies"
+                                                   ContentId="strategies"
+                                                   CanClose="True"
+                                                   CanHide="True"
+                                                   IsVisibleChanged="StrategiesPane_IsVisibleChanged">
                                 <Grid>
                                     <ListBox x:Name="StrategiesList"
                                              ItemsSource="{Binding Strategies}"
@@ -107,19 +139,19 @@
                         <dock:LayoutDocumentPane />
                     </dock:LayoutDocumentPaneGroup>
 
-                    <!-- Right placeholder: empty for v1 (kept for future panes) -->
-
                 </dock:LayoutPanel>
 
                 <!-- Bottom: Logs -->
                 <dock:LayoutRoot.BottomSide>
                     <dock:LayoutAnchorSide>
                         <dock:LayoutAnchorGroup>
-                            <dock:LayoutAnchorable Title="Logs"
+                            <dock:LayoutAnchorable x:Name="LogsPane"
+                                                   Title="Logs"
                                                    ContentId="logs"
                                                    AutoHideMinHeight="180"
-                                                   CanClose="False"
-                                                   CanHide="False">
+                                                   CanClose="True"
+                                                   CanHide="True"
+                                                   IsVisibleChanged="LogsPane_IsVisibleChanged">
                                 <ListBox ItemsSource="{Binding LogSink.Entries}"
                                          FontFamily="Consolas"
                                          FontSize="11"
@@ -146,7 +178,8 @@
         </dock:DockingManager>
 
         <!-- Status bar -->
-        <StatusBar Grid.Row="2">
+        <StatusBar Grid.Row="3">
+            <!-- Connection state dot + label -->
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
                     <Ellipse Width="10" Height="10" Margin="0,0,6,0">
@@ -171,10 +204,44 @@
                 </StackPanel>
             </StatusBarItem>
             <Separator />
+
+            <!-- Signed-in user · account -->
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="👤 " FontSize="11" />
+                    <TextBlock Text="{Binding SessionUserDisplay}" />
+                </StackPanel>
+            </StatusBarItem>
+            <Separator />
+
+            <!-- Mode badge -->
+            <StatusBarItem>
+                <Border Padding="6,2" CornerRadius="2">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLiveMode}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding ModeDisplayName}"
+                               Foreground="#1E1E1E"
+                               FontWeight="SemiBold"
+                               FontSize="10" />
+                </Border>
+            </StatusBarItem>
+            <Separator />
+
+            <!-- Clock -->
             <StatusBarItem>
                 <TextBlock Text="{Binding CurrentTime}" />
             </StatusBarItem>
             <Separator />
+
+            <!-- Tab count -->
             <StatusBarItem>
                 <TextBlock>
                     <Run Text="Tabs:" />

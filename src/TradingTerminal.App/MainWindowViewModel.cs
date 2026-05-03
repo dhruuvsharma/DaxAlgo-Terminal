@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -18,6 +19,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
     private readonly IEventBus _eventBus;
+    private readonly SessionContext _session;
+    private readonly IbConnectionMode _connectionMode;
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
 
@@ -26,11 +29,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         IMarketDataRepository repository,
         IEventBus eventBus,
         InMemoryLogSink logSink,
+        SessionContext session,
+        IbConnectionMode connectionMode,
         ILogger<MainWindowViewModel> logger)
     {
         _factory = factory;
         _repository = repository;
         _eventBus = eventBus;
+        _session = session;
+        _connectionMode = connectionMode;
         _logger = logger;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
@@ -43,11 +50,32 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         // Mirror connection state into our own observable property.
         repository.ConnectionState.Subscribe(s => ConnectionState = s);
+
+        _session.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(SessionUserDisplay));
+            OnPropertyChanged(nameof(IsAuthenticated));
+        };
     }
 
     public ObservableCollection<ITradingStrategy> Strategies { get; }
     public ObservableCollection<StrategyTabViewModel> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
+
+    public string ModeDisplayName => _connectionMode.DisplayName;
+    public bool IsLiveMode => _connectionMode.IsLive;
+
+    public bool IsAuthenticated => _session.IsAuthenticated;
+
+    public string SessionUserDisplay
+    {
+        get
+        {
+            if (!_session.IsAuthenticated) return "Not signed in";
+            var user = string.IsNullOrEmpty(_session.Username) ? "Anonymous" : _session.Username;
+            return $"{user} · {_session.AccountType}";
+        }
+    }
 
     [ObservableProperty]
     private ITradingStrategy? _selectedStrategy;
@@ -60,6 +88,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
+
+    /// <summary>Two-way: View → Strategies menu binds here; the dock pane's IsHidden flips on this.</summary>
+    [ObservableProperty]
+    private bool _isStrategiesVisible = true;
+
+    /// <summary>Two-way: View → Logs menu binds here; the dock pane's IsHidden flips on this.</summary>
+    [ObservableProperty]
+    private bool _isLogsVisible = true;
 
     public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
 
@@ -109,6 +145,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _logger.LogInformation("Reconnect requested by user");
         await _repository.ConnectAsync();
     }
+
+    [RelayCommand]
+    public void Exit()
+    {
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    [RelayCommand]
+    public void ShowStrategies() => IsStrategiesVisible = true;
+
+    [RelayCommand]
+    public void ShowLogs() => IsLogsVisible = true;
 
     public async Task StartAsync()
     {

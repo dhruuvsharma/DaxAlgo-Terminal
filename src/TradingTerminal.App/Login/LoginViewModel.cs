@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Session;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.App.Login;
@@ -16,6 +17,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly IMarketDataRepository _repository;
     private readonly CredentialStore _credentialStore;
     private readonly IbConnectionMode _connectionMode;
+    private readonly SessionContext _session;
     private readonly ILogger<LoginViewModel> _logger;
     private readonly IDisposable _stateSub;
 
@@ -24,12 +26,14 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         IMarketDataRepository repository,
         CredentialStore credentialStore,
         IbConnectionMode connectionMode,
+        SessionContext session,
         ILogger<LoginViewModel> logger)
     {
         _ibOptions = ibOptions.Value;
         _repository = repository;
         _credentialStore = credentialStore;
         _connectionMode = connectionMode;
+        _session = session;
         _logger = logger;
 
         AccountTypes = new[] { "Paper", "Live" };
@@ -138,6 +142,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             }
 
             PersistCredentials();
+            _session.SetSignedIn(Username, AccountType);
 
             // Visibly show the "Connected" state for a moment so the user gets explicit feedback
             // before the window flips to the main shell.
