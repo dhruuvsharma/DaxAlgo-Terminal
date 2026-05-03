@@ -10,9 +10,10 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
 
-                <!-- AvalonDock VS2013 dark base -->
-                <ResourceDictionary Source="pack://application:,,,/Dirkster.AvalonDock.Themes.VS2013;component/DarkBrushs.xaml" />
-                <ResourceDictionary Source="pack://application:,,,/Dirkster.AvalonDock.Themes.VS2013;component/DarkTheme.xaml" />
+                <!-- AvalonDock VS2013 Dark theme is applied per-DockingManager via the Theme property
+                     (see MainWindow.xaml). Merging its resource dictionaries directly here is fragile
+                     because the package id ("Dirkster.AvalonDock.Themes.VS2013") differs from the
+                     assembly name ("AvalonDock.Themes.VS2013"), and pack URIs need the assembly name. -->
 
                 <!-- Project dark theme overrides -->
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Brushes.xaml" />

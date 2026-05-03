@@ -5,6 +5,7 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:dock="https://github.com/Dirkster99/AvalonDock"
+                 xmlns:dockThemes="clr-namespace:AvalonDock.Themes;assembly=AvalonDock.Themes.VS2013"
                  xmlns:local="clr-namespace:TradingTerminal.App"
                  mc:Ignorable="d"
                  Title="Trading Terminal"
@@ -41,6 +42,10 @@
                              DocumentsSource="{Binding OpenTabs}"
                              ActiveContent="{Binding ActiveTab, Mode=TwoWay}"
                              Background="{DynamicResource Background.Primary}">
+
+            <dock:DockingManager.Theme>
+                <dockThemes:Vs2013DarkTheme />
+            </dock:DockingManager.Theme>
 
             <dock:DockingManager.DocumentHeaderTemplate>
                 <DataTemplate>
