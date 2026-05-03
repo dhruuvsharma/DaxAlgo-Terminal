@@ -1,5 +1,8 @@
 # TradingTerminal
 
+[![.NET 9](https://img.shields.io/badge/.NET-9.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A modular WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Streams market data from Interactive Brokers (TWS / IB Gateway). Ships v1 with one strategy — **Example Strategy** — that charts NVDA on a 3-minute timeframe.
 
 ## Highlights
@@ -169,3 +172,7 @@ Six tests covering:
 - **Synthetic data by default** — the build is green without `IBApi.dll`, and the app runs with `FakeIbClient` (random-walk bars). This was a deliberate trade-off so first-run works with zero IB setup. Real data is one config flag + one DLL away.
 - **Single account / no orders in v1** — the strategy is read-only (charting). No order routing, no position management, no PnL. Hooks (`IbClient` callbacks for orders / positions) are stubbed.
 - **Bar cadence in `FakeIbClient`** — synthetic bars tick once per second (regardless of the configured timeframe) so the chart is visibly "live" when you're demoing.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
