@@ -1,0 +1,62 @@
+# Build output
+bin/
+obj/
+out/
+[Bb]uild/
+[Pp]ublish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET
+*.dll
+*.pdb
+*.exe
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.tmp
+
+# Test output
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# Logs (project)
+logs/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Environment overrides
+appsettings.local.json
+appsettings.*.local.json
+
+# IB binaries (user must drop these locally)
+lib/IBApi.dll
+lib/IBApi.pdb
+
+# Don't ignore the lib placeholder
+!lib/.gitkeep
+
+# Claude local settings (project-level overrides)
+.claude/settings.local.json

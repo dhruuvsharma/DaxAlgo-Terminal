@@ -1,0 +1,12 @@
+# Drop IBApi.dll here
+
+The build expects `IBApi.dll` (and optionally `IBApi.pdb`) in this folder.
+You can copy it from your TWS API install, typically:
+
+  C:\TWS API\source\CSharpClient\IBApi\bin\Release\netstandard2.0\IBApi.dll
+
+If the file is missing the build still succeeds — `FakeIbClient` is registered
+by default and the app will run with synthesized bars.
+
+Setting `InteractiveBrokers:UseRealClient = true` in `appsettings.json`
+switches to the real client (the DLL must be present at that point).
