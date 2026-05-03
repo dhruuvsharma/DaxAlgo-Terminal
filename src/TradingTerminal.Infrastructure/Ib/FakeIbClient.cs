@@ -28,13 +28,17 @@ public sealed class FakeIbClient : IIbClient
 
     public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
 
-    public Task ConnectAsync(string host, int port, int clientId, CancellationToken ct = default)
+    public async Task ConnectAsync(string host, int port, int clientId, CancellationToken ct = default)
     {
         _logger.LogInformation("FakeIbClient connecting (host={Host}, port={Port}, clientId={ClientId})",
             host, port, clientId);
         _state.OnNext(Core.Domain.ConnectionState.Connecting);
+
+        // Brief simulated handshake so the UI's "Connecting..." state is visible in demo mode.
+        try { await Task.Delay(400, ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) { _state.OnNext(Core.Domain.ConnectionState.Disconnected); throw; }
+
         _state.OnNext(Core.Domain.ConnectionState.Connected);
-        return Task.CompletedTask;
     }
 
     public Task DisconnectAsync(CancellationToken ct = default)

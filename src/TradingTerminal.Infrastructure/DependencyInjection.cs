@@ -33,6 +33,24 @@ public static class DependencyInjection
             return ActivatorUtilities.CreateInstance<FakeIbClient>(sp);
         });
 
+        services.AddSingleton<IbConnectionMode>(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<InteractiveBrokersOptions>>().Value;
+#if HAS_IBAPI
+            if (opt.UseRealClient)
+                return new IbConnectionMode(
+                    IsLive: true,
+                    DisplayName: "Live TWS",
+                    Description: "Connected through the real TWS API. Make sure you're already signed in to TWS / IB Gateway (including 2FA).");
+#endif
+            return new IbConnectionMode(
+                IsLive: false,
+                DisplayName: "Demo mode",
+                Description: opt.UseRealClient
+                    ? "UseRealClient is enabled but lib/IBApi.dll wasn't present at build time — falling back to synthetic data."
+                    : "Synthetic data — set UseRealClient=true in appsettings.json and place lib/IBApi.dll to use real TWS.");
+        });
+
         services.AddSingleton<ConnectionManager>();
         services.AddSingleton<IMarketDataRepository, MarketDataRepository>();
 

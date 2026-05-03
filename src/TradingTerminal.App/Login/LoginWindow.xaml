@@ -7,7 +7,7 @@
                  xmlns:local="clr-namespace:TradingTerminal.App.Login"
                  mc:Ignorable="d"
                  Title="Trading Terminal — Sign in"
-                 Height="600" Width="460"
+                 Height="700" Width="480"
                  ResizeMode="NoResize"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
@@ -18,6 +18,7 @@
 
     <Grid Margin="32,16,32,24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -42,38 +43,70 @@
                        Margin="0,2,0,0" />
         </StackPanel>
 
-        <!-- Helper note -->
+        <!-- Mode badge -->
         <Border Grid.Row="1"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                CornerRadius="3"
+                Padding="10,6"
+                Margin="0,8,0,4"
+                HorizontalAlignment="Stretch">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsLiveMode}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel>
+                <TextBlock Text="{Binding ModeDisplayName}"
+                           FontWeight="Bold"
+                           Foreground="#1E1E1E" />
+                <TextBlock Text="{Binding ModeDescription}"
+                           TextWrapping="Wrap"
+                           FontSize="11"
+                           Foreground="#1E1E1E" />
+            </StackPanel>
+        </Border>
+
+        <!-- 2FA note -->
+        <Border Grid.Row="2"
                 Background="{DynamicResource Background.Surface}"
                 BorderBrush="{DynamicResource Border.Brush}"
                 BorderThickness="1"
                 Padding="10,6"
-                Margin="0,8,0,12">
+                Margin="0,4,0,12">
             <TextBlock TextWrapping="Wrap"
                        Foreground="{DynamicResource Text.Secondary}"
                        FontSize="11">
-                <Run Text="Make sure TWS or IB Gateway is running and you're logged in there." />
+                <Run FontWeight="SemiBold" Text="2FA is handled by TWS, not by this app." />
                 <LineBreak />
-                <Run Text="Username/password are stored locally only — TWS handles authentication itself." />
+                <Run Text="Open TWS or IB Gateway, complete the IBKR Mobile / OTP / security-key prompt there, then sign in below. The TWS API socket has no separate 2FA step — once TWS is logged in, this app just connects." />
             </TextBlock>
         </Border>
 
         <!-- Form fields -->
-        <StackPanel Grid.Row="2">
+        <StackPanel Grid.Row="3">
 
             <TextBlock Text="Username" Margin="0,0,0,4" />
             <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
                      mah:TextBoxHelper.Watermark="Your IB username (for display)"
+                     IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                      Margin="0,0,0,12" />
 
             <TextBlock Text="Password" Margin="0,0,0,4" />
             <PasswordBox x:Name="PasswordBox"
                          PasswordChanged="PasswordBox_PasswordChanged"
                          mah:TextBoxHelper.Watermark="Stored locally if you check Remember"
+                         IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                          Margin="0,0,0,12" />
 
             <CheckBox Content="Remember password on this machine (DPAPI-encrypted)"
                       IsChecked="{Binding RememberPassword}"
+                      IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                       Margin="0,0,0,8" />
 
             <Expander Header="Connection settings"
@@ -95,37 +128,85 @@
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="Port" Margin="4,0,0,4" />
                     <TextBox    Grid.Row="1" Grid.Column="0"
                                 Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                                 Margin="0,0,4,12" />
                     <TextBox    Grid.Row="1" Grid.Column="1"
                                 Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
+                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                                 Margin="4,0,0,12" />
 
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Client ID" Margin="0,0,4,4" />
                     <TextBlock Grid.Row="2" Grid.Column="1" Text="Account" Margin="4,0,0,4" />
                     <TextBox    Grid.Row="3" Grid.Column="0"
                                 Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
+                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                                 Margin="0,0,4,0" />
                     <ComboBox   Grid.Row="3" Grid.Column="1"
                                 ItemsSource="{Binding AccountTypes}"
                                 SelectedItem="{Binding AccountType}"
+                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                                 Margin="4,0,0,0" />
                 </Grid>
             </Expander>
         </StackPanel>
 
-        <!-- Status / error -->
-        <StackPanel Grid.Row="3" Margin="0,8,0,4">
-            <TextBlock Text="{Binding StatusMessage}"
-                       Foreground="{DynamicResource Text.Secondary}"
-                       Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}" />
-            <TextBlock Text="{Binding ErrorMessage}"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Danger.Brush}"
-                       Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}" />
+        <!-- Status / error / live state -->
+        <StackPanel Grid.Row="4" Margin="0,12,0,4">
+
+            <!-- Live connection state row (visible while connecting or after connected) -->
+            <StackPanel Orientation="Horizontal"
+                        Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentState}" Value="Connected">
+                                    <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentState}" Value="Failed">
+                                    <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{Binding CurrentState}"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" />
+                <TextBlock Text=" · " Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Big success indicator -->
+            <Border Background="{DynamicResource Bullish.Brush}"
+                    Padding="10,6"
+                    Margin="0,8,0,0"
+                    Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✓" FontSize="16" FontWeight="Bold"
+                               Foreground="#1E1E1E" Margin="0,0,8,0" />
+                    <TextBlock Text="Signed in successfully"
+                               FontWeight="SemiBold"
+                               Foreground="#1E1E1E" />
+                </StackPanel>
+            </Border>
+
+            <!-- Error message -->
+            <Border Background="{DynamicResource Danger.Brush}"
+                    Padding="10,6"
+                    Margin="0,8,0,0"
+                    Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                <TextBlock Text="{Binding ErrorMessage}"
+                           TextWrapping="Wrap"
+                           Foreground="White" />
+            </Border>
         </StackPanel>
 
         <!-- Buttons -->
-        <Grid Grid.Row="4" Margin="0,8,0,0">
+        <Grid Grid.Row="5" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -143,6 +224,7 @@
                     Content="Cancel"
                     Command="{Binding CancelCommand}"
                     IsCancel="True"
+                    IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
                     Margin="0,0,8,0"
                     MinWidth="80" />
             <Button Grid.Column="2"
@@ -155,7 +237,7 @@
         </Grid>
 
         <!-- Footer -->
-        <TextBlock Grid.Row="5"
+        <TextBlock Grid.Row="6"
                    Text="DaxAlgo Terminal · MIT licensed"
                    Foreground="{DynamicResource Text.Secondary}"
                    FontSize="10"
