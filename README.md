@@ -42,21 +42,27 @@ Out of the box the app uses a synthetic `FakeIbClient` so you get a live-looking
 
 ## Enabling real IB
 
-The TWS API is not on nuget.org. Follow these steps to wire up real market data:
+The TWS API isn't on nuget.org, but the build auto-resolves it from any of the following (in order). If at least one is present, `RealIbClient` is compiled in and selected when `UseRealClient: true`.
 
-1. Install the TWS API (https://www.interactivebrokers.com/en/trading/ib-api.php) — this drops a `TWS API` folder under `C:\TWS API\`.
-2. Locate `IBApi.dll`. Common path:
-   `C:\TWS API\source\CSharpClient\IBApi\bin\Release\netstandard2.0\IBApi.dll` (you may need to open the `.sln` under `C:\TWS API\source\CSharpClient\` and build it once).
-3. Copy `IBApi.dll` into `lib/` at the root of this repo.
-4. In `appsettings.json` set:
+1. **`lib/CSharpAPI.dll`** at the repo root (manual copy — most portable across machines).
+2. **`lib/IBApi.dll`** (legacy name, also accepted).
+3. **`$(TwsApiClientDll)` MSBuild property** if you prefer a custom path:
 
-   ```json
-   "InteractiveBrokers": {
-     "UseRealClient": true
-   }
+   ```powershell
+   dotnet build -p:TwsApiClientDll="D:\some\where\CSharpAPI.dll"
    ```
 
-5. Rebuild. The build picks up the DLL via a conditional reference and defines the `HAS_IBAPI` symbol — `RealIbClient` compiles in and is selected by DI.
+4. **`C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll`** — the default install path used by IBKR's TWS API installer. **If you installed TWS API to its default location, this just works — no copying required.**
+
+The build prints `IB CSharpAPI resolved from: <path>` so you can confirm which one was picked.
+
+After that, in `appsettings.json` set:
+
+```json
+"InteractiveBrokers": { "UseRealClient": true }
+```
+
+The repo defaults to `true` since the install at `C:\TWS API\` is a common case. Toggling it to `false` forces the synthetic client even when the DLL is available — useful for offline development.
 
 ### Configuring TWS / IB Gateway
 

@@ -5,17 +5,47 @@
     <Description>IB client wrappers, market-data repository, connection manager.</Description>
   </PropertyGroup>
 
-  <!-- Compile RealIbClient only when the IB binary is available in lib/. -->
-  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\lib\IBApi.dll')">
+  <!--
+    Resolve the IB CSharpAPI.dll. Search order:
+      1. lib/CSharpAPI.dll  (or lib/IBApi.dll for older copies — both supported)
+      2. $(TwsApiClientDll) MSBuild property if set externally
+      3. The default TWS API install path: C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll
+    If none exist, RealIbClient is excluded from compilation and the runtime falls back to FakeIbClient.
+  -->
+  <PropertyGroup>
+    <_LocalCSharpApiDll>$(MSBuildThisFileDirectory)..\..\lib\CSharpAPI.dll</_LocalCSharpApiDll>
+    <_LocalLegacyIbApiDll>$(MSBuildThisFileDirectory)..\..\lib\IBApi.dll</_LocalLegacyIbApiDll>
+    <_DefaultTwsInstallDll>C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll</_DefaultTwsInstallDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalCSharpApiDll)')">
+    <_ResolvedTwsApiDll>$(_LocalCSharpApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalLegacyIbApiDll)')">
+    <_ResolvedTwsApiDll>$(_LocalLegacyIbApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND '$(TwsApiClientDll)' != '' AND Exists('$(TwsApiClientDll)')">
+    <_ResolvedTwsApiDll>$(TwsApiClientDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_DefaultTwsInstallDll)')">
+    <_ResolvedTwsApiDll>$(_DefaultTwsInstallDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
     <DefineConstants>$(DefineConstants);HAS_IBAPI</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\lib\IBApi.dll')">
-    <Reference Include="IBApi">
-      <HintPath>..\..\lib\IBApi.dll</HintPath>
+  <ItemGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <Reference Include="CSharpAPI">
+      <HintPath>$(_ResolvedTwsApiDll)</HintPath>
       <Private>true</Private>
     </Reference>
+    <PackageReference Include="Google.Protobuf" Version="3.29.5" />
   </ItemGroup>
+
+  <Target Name="ReportIbApiResolution" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <Message Importance="high" Text="IB CSharpAPI resolved from: $(_ResolvedTwsApiDll)" />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
