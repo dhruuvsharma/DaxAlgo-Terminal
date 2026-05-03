@@ -41,8 +41,11 @@ public sealed class ConnectionManager : IAsyncDisposable
         _userRequestedDisconnect = false;
         _stateSub ??= _client.ConnectionState.Subscribe(OnClientStateChanged);
 
-        // Kick off the initial connect; the reconnect loop will take over on drops.
-        _loop = Task.Run(() => RunReconnectLoopAsync(_cts.Token));
+        // Idempotent: if a reconnect loop is already running, leave it alone.
+        // (Login screen calls this; MainWindow.Loaded calls it again — second call is a no-op.)
+        if (_loop is null || _loop.IsCompleted)
+            _loop = Task.Run(() => RunReconnectLoopAsync(_cts.Token));
+
         await Task.CompletedTask;
     }
 

@@ -4,8 +4,14 @@
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon\DaxAlgoLogo.ico</ApplicationIcon>
     <Description>WPF shell, DI bootstrap, MainWindow.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Icon\DaxAlgoLogo.ico" />
+    <Resource Include="Icon\DaxAlgoLogo.png" />
+  </ItemGroup>
 
   <PropertyGroup>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>

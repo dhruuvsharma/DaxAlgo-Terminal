@@ -34,6 +34,10 @@ dotnet build -c Release
 dotnet run --project src/TradingTerminal.App -c Release
 ```
 
+A login screen opens first — enter a username (display only) and your IB password (stored locally if you tick Remember; encrypted with Windows DPAPI under your user). Connection settings (Host / Port / Client ID / Account) live in the Connection settings expander; defaults match TWS Paper. Sign in attempts a real socket connection to TWS — on success the main shell opens.
+
+> **Note**: TWS / IB Gateway authenticates separately. Make sure you're logged in there first; the API only opens a socket to the running TWS instance.
+
 Out of the box the app uses a synthetic `FakeIbClient` so you get a live-looking chart with no IB setup. Click **Example Strategy** in the left pane to open the chart.
 
 ## Enabling real IB

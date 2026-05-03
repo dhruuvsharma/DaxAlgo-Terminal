@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using TradingTerminal.App.Logging;
+using TradingTerminal.App.Login;
 using TradingTerminal.App.Strategies;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies;
@@ -67,6 +68,11 @@ public partial class App : Application
                 // Plug-in registrations. Add a new strategy by adding one line here.
                 services.AddExampleStrategy();
 
+                // Login flow.
+                services.AddSingleton<CredentialStore>();
+                services.AddTransient<LoginViewModel>();
+                services.AddTransient<LoginWindow>();
+
                 services.AddSingleton<MainWindowViewModel>();
                 services.AddTransient<MainWindow>();
             })
@@ -74,10 +80,39 @@ public partial class App : Application
 
         await _host.StartAsync();
 
-        var window = _host.Services.GetRequiredService<MainWindow>();
-        MainWindow = window;
-        window.DataContext = _host.Services.GetRequiredService<MainWindowViewModel>();
-        window.Show();
+        // Hold the app open across the login → main-window transition (we briefly have no MainWindow
+        // assigned; OnLastWindowClose still terminates the app correctly when MainWindow ultimately closes).
+        ShutdownMode = ShutdownMode.OnLastWindowClose;
+
+        ShowLoginAndProceed();
+    }
+
+    private void ShowLoginAndProceed()
+    {
+        var loginWindow = _host!.Services.GetRequiredService<LoginWindow>();
+        var loginVm = _host.Services.GetRequiredService<LoginViewModel>();
+        loginWindow.DataContext = loginVm;
+
+        loginVm.LoginCompleted += OnLoginCompleted;
+        MainWindow = loginWindow;   // bridges window ownership during the login phase
+        loginWindow.Show();
+
+        void OnLoginCompleted(object? sender, bool success)
+        {
+            loginVm.LoginCompleted -= OnLoginCompleted;
+
+            if (!success)
+            {
+                Shutdown();
+                return;
+            }
+
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            mainWindow.DataContext = _host.Services.GetRequiredService<MainWindowViewModel>();
+            MainWindow = mainWindow;
+            mainWindow.Show();
+            loginWindow.Close();
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)

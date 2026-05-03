@@ -11,6 +11,7 @@
                  Title="Trading Terminal"
                  Height="800" Width="1280"
                  WindowStartupLocation="CenterScreen"
+                 Icon="pack://application:,,,/Icon/DaxAlgoLogo.ico"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
 
