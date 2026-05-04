@@ -89,7 +89,11 @@
         </Border>
 
         <!-- Form fields -->
-        <StackPanel Grid.Row="3">
+        <ScrollViewer Grid.Row="3"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,0,4,0">
+        <StackPanel>
 
             <TextBlock Text="Username" Margin="0,0,0,4" />
             <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
@@ -149,6 +153,7 @@
                 </Grid>
             </Expander>
         </StackPanel>
+        </ScrollViewer>
 
         <!-- Status / error / live state -->
         <StackPanel Grid.Row="4" Margin="0,12,0,4">
