@@ -94,61 +94,61 @@
             </dock:DockingManager.LayoutItemContainerStyle>
 
             <dock:LayoutRoot>
-                <dock:LayoutPanel Orientation="Horizontal">
+                <dock:LayoutPanel Orientation="Vertical">
 
-                    <!-- Left: Strategies -->
-                    <dock:LayoutAnchorablePaneGroup DockWidth="240">
+                    <dock:LayoutPanel Orientation="Horizontal">
+
+                        <!-- Left: Strategies -->
+                        <dock:LayoutAnchorablePaneGroup DockWidth="240">
+                            <dock:LayoutAnchorablePane>
+                                <dock:LayoutAnchorable x:Name="StrategiesPane"
+                                                       Title="Strategies"
+                                                       ContentId="strategies"
+                                                       CanClose="True"
+                                                       CanHide="True"
+                                                       IsVisibleChanged="StrategiesPane_IsVisibleChanged">
+                                    <Grid>
+                                        <ListBox x:Name="StrategiesList"
+                                                 ItemsSource="{Binding Strategies}"
+                                                 SelectedItem="{Binding SelectedStrategy}"
+                                                 MouseDoubleClick="StrategiesList_MouseDoubleClick">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="2">
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                                   TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                            <ListBox.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Open"
+                                                              Click="OpenStrategy_Click" />
+                                                    <MenuItem Header="Open in new tab"
+                                                              Click="OpenStrategy_Click" />
+                                                </ContextMenu>
+                                            </ListBox.ContextMenu>
+                                        </ListBox>
+                                    </Grid>
+                                </dock:LayoutAnchorable>
+                            </dock:LayoutAnchorablePane>
+                        </dock:LayoutAnchorablePaneGroup>
+
+                        <!-- Center: documents (strategy tabs) -->
+                        <dock:LayoutDocumentPaneGroup>
+                            <dock:LayoutDocumentPane />
+                        </dock:LayoutDocumentPaneGroup>
+
+                    </dock:LayoutPanel>
+
+                    <!-- Bottom: Logs (pinned) -->
+                    <dock:LayoutAnchorablePaneGroup DockHeight="200">
                         <dock:LayoutAnchorablePane>
-                            <dock:LayoutAnchorable x:Name="StrategiesPane"
-                                                   Title="Strategies"
-                                                   ContentId="strategies"
-                                                   CanClose="True"
-                                                   CanHide="True"
-                                                   IsVisibleChanged="StrategiesPane_IsVisibleChanged">
-                                <Grid>
-                                    <ListBox x:Name="StrategiesList"
-                                             ItemsSource="{Binding Strategies}"
-                                             SelectedItem="{Binding SelectedStrategy}"
-                                             MouseDoubleClick="StrategiesList_MouseDoubleClick">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Margin="2">
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                                    <TextBlock Text="{Binding Description}"
-                                                               Foreground="{DynamicResource Text.Secondary}"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                        <ListBox.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Open"
-                                                          Click="OpenStrategy_Click" />
-                                                <MenuItem Header="Open in new tab"
-                                                          Click="OpenStrategy_Click" />
-                                            </ContextMenu>
-                                        </ListBox.ContextMenu>
-                                    </ListBox>
-                                </Grid>
-                            </dock:LayoutAnchorable>
-                        </dock:LayoutAnchorablePane>
-                    </dock:LayoutAnchorablePaneGroup>
-
-                    <!-- Center: documents (strategy tabs) -->
-                    <dock:LayoutDocumentPaneGroup>
-                        <dock:LayoutDocumentPane />
-                    </dock:LayoutDocumentPaneGroup>
-
-                </dock:LayoutPanel>
-
-                <!-- Bottom: Logs -->
-                <dock:LayoutRoot.BottomSide>
-                    <dock:LayoutAnchorSide>
-                        <dock:LayoutAnchorGroup>
                             <dock:LayoutAnchorable x:Name="LogsPane"
                                                    Title="Logs"
                                                    ContentId="logs"
-                                                   AutoHideMinHeight="180"
                                                    CanClose="True"
                                                    CanHide="True"
                                                    IsVisibleChanged="LogsPane_IsVisibleChanged">
@@ -171,9 +171,10 @@
                                     </ListBox.ItemTemplate>
                                 </ListBox>
                             </dock:LayoutAnchorable>
-                        </dock:LayoutAnchorGroup>
-                    </dock:LayoutAnchorSide>
-                </dock:LayoutRoot.BottomSide>
+                        </dock:LayoutAnchorablePane>
+                    </dock:LayoutAnchorablePaneGroup>
+
+                </dock:LayoutPanel>
             </dock:LayoutRoot>
         </dock:DockingManager>
 
