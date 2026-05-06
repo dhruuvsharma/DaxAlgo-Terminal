@@ -3,7 +3,7 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A modular WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Streams market data from Interactive Brokers (TWS / IB Gateway). Ships v1 with one strategy — **Example Strategy** — that charts NVDA on a 3-minute timeframe.
+A modular WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Streams market data from Interactive Brokers (TWS / IB Gateway). Ships with one strategy — **RSI Overbought/Oversold** — that picks an instrument from a curated catalog (stocks, ETFs, futures, forex, indices) and charts the RSI in a separate window with a header-mounted Run/Stop button that gates the algo.
 
 ## Highlights
 
@@ -38,7 +38,7 @@ A login screen opens first — enter a username (display only) and your IB passw
 
 > **Note**: TWS / IB Gateway authenticates separately. Make sure you're logged in there first; the API only opens a socket to the running TWS instance.
 
-Out of the box the app uses a synthetic `FakeIbClient` so you get a live-looking chart with no IB setup. Click **Example Strategy** in the left pane to open the chart.
+Out of the box the app uses a synthetic `FakeIbClient` so you get a live-looking chart with no IB setup. Double-click **RSI** in the left Strategies pane to open the setup window — pick an instrument, set OB/OS thresholds, hit Continue, then arm the algo with the Run button on the title bar.
 
 ## Enabling real IB
 
@@ -132,7 +132,7 @@ TradingTerminal/
 │   ├── TradingTerminal.Core                Domain models + interfaces (no UI/IB deps)
 │   ├── TradingTerminal.Infrastructure      IbClient (real + fake), repository, ConnectionManager
 │   ├── TradingTerminal.UI                  ViewModelBase, dark theme, in-memory log sink
-│   └── TradingTerminal.Strategies.Example  Example NVDA strategy (view + vm)
+│   └── TradingTerminal.Strategies.Rsi      RSI overbought/oversold strategy (window + vm + catalog)
 └── tests/
     └── TradingTerminal.Tests               xUnit + FluentAssertions + NSubstitute
 ```
@@ -140,7 +140,7 @@ TradingTerminal/
 Project references form an acyclic graph:
 
 ```
-App   → Infrastructure, UI, Strategies.Example, Core
+App   → Infrastructure, UI, Strategies.Rsi, Core
 Strat → UI, Core
 Infra → Core
 UI    → Core
@@ -155,13 +155,11 @@ See `docs/architecture.md` for the full design rationale and key interface signa
 dotnet test
 ```
 
-Six tests covering:
+Tests cover:
 
 - `StrategyFactory` registers and resolves a strategy + sets `DataContext`.
 - `StrategyFactory` throws on unknown ids.
 - `MarketDataRepository.SubscribeBarsAsync` propagates the underlying client's "not connected" error.
-- `ExampleStrategyViewModel` appends streamed bars to the observable collection.
-- `ExampleStrategyViewModel` evicts oldest bar when capacity is exceeded.
 - `ConnectionManager` reconnects after the underlying client drops.
 
 ## Troubleshooting

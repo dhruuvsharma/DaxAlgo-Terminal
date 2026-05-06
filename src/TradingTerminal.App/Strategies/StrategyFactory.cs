@@ -1,4 +1,4 @@
-using System.Windows.Controls;
+using System.Windows;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
 
@@ -7,6 +7,8 @@ namespace TradingTerminal.App.Strategies;
 /// <summary>
 /// DI-backed factory. Each registered strategy must also register a
 /// <see cref="StrategyFactoryRegistration"/> describing how to build its (view, vm) pair.
+/// The view may be a <see cref="System.Windows.Controls.UserControl"/> (rendered in a tab)
+/// or a <see cref="Window"/> (shown as a separate window).
 /// </summary>
 public sealed class StrategyFactory : IStrategyFactory
 {
@@ -32,7 +34,7 @@ public sealed class StrategyFactory : IStrategyFactory
 
         var meta = All.First(s => s.Id == strategyId);
         var vm = (ViewModelBase)reg.ViewModelFactory(_provider);
-        var view = (UserControl)reg.ViewFactory(_provider);
+        var view = (FrameworkElement)reg.ViewFactory(_provider);
         view.DataContext = vm;
         return new StrategyHost(strategyId, meta.DisplayName, view, vm);
     }

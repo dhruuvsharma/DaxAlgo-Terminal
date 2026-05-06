@@ -21,7 +21,7 @@
     <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.Example\TradingTerminal.Strategies.Example.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.Rsi\TradingTerminal.Strategies.Rsi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

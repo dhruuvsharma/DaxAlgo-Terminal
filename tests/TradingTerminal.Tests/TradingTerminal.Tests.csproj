@@ -10,7 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\src\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\TradingTerminal.Strategies.Example\TradingTerminal.Strategies.Example.csproj" />
     <ProjectReference Include="..\..\src\TradingTerminal.App\TradingTerminal.App.csproj" />
   </ItemGroup>
 

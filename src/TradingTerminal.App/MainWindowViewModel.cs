@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
+using System.Windows;
 using System.Windows.Threading;
+using AvalonDock.Layout;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -41,7 +43,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
-        OpenTabs = new ObservableCollection<StrategyTabViewModel>();
+        OpenTabs = new ObservableCollection<LayoutDocument>();
+        _openWindows = new Dictionary<string, Window>(StringComparer.Ordinal);
+        _tabDisposables = new Dictionary<LayoutDocument, IDisposable>();
         LogSink = logSink;
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -58,8 +62,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         };
     }
 
+    private readonly Dictionary<string, Window> _openWindows;
+    private readonly Dictionary<LayoutDocument, IDisposable> _tabDisposables;
+
     public ObservableCollection<ITradingStrategy> Strategies { get; }
-    public ObservableCollection<StrategyTabViewModel> OpenTabs { get; }
+    public ObservableCollection<LayoutDocument> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
 
     public string ModeDisplayName => _connectionMode.DisplayName;
@@ -81,7 +88,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ITradingStrategy? _selectedStrategy;
 
     [ObservableProperty]
-    private StrategyTabViewModel? _activeTab;
+    private LayoutDocument? _activeTab;
 
     [ObservableProperty]
     private ConnectionState _connectionState = Core.Domain.ConnectionState.Disconnected;
@@ -114,16 +121,47 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             strategyId = SelectedStrategy.Id;
         }
 
-        var existing = OpenTabs.FirstOrDefault(t => t.StrategyId == strategyId);
-        if (existing is not null)
+        if (_openWindows.TryGetValue(strategyId, out var existingWindow))
         {
-            ActiveTab = existing;
+            existingWindow.Activate();
+            return;
+        }
+
+        var existingTab = OpenTabs.FirstOrDefault(t => t.ContentId == strategyId);
+        if (existingTab is not null)
+        {
+            ActiveTab = existingTab;
             _logger.LogDebug("Focused existing tab {Id}", strategyId);
             return;
         }
 
         var host = _factory.Create(strategyId);
-        var tab = new StrategyTabViewModel(host);
+
+        if (host.View is Window window)
+        {
+            var capturedId = strategyId;
+            window.Owner = Application.Current.MainWindow;
+            window.Closed += (_, _) =>
+            {
+                _openWindows.Remove(capturedId);
+                if (host.ViewModel is IDisposable d) d.Dispose();
+            };
+            _openWindows[capturedId] = window;
+            window.Show();
+            _eventBus.Publish(new StrategyOpenedEvent(host.StrategyId, host.DisplayName));
+            _logger.LogInformation("Opened strategy window {Id} ({Name})", host.StrategyId, host.DisplayName);
+            return;
+        }
+
+        var tab = new LayoutDocument
+        {
+            Title = host.DisplayName,
+            ContentId = host.StrategyId,
+            Content = host.View,
+            CanClose = true,
+        };
+        if (host.ViewModel is IDisposable disposable)
+            _tabDisposables[tab] = disposable;
         OpenTabs.Add(tab);
         ActiveTab = tab;
         _eventBus.Publish(new StrategyOpenedEvent(host.StrategyId, host.DisplayName));
@@ -131,12 +169,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void CloseTab(StrategyTabViewModel? tab)
+    public void CloseTab(LayoutDocument? tab)
     {
         if (tab is null) return;
         OpenTabs.Remove(tab);
         if (ReferenceEquals(ActiveTab, tab)) ActiveTab = OpenTabs.LastOrDefault();
-        if (tab.ViewModel is IDisposable disposable) disposable.Dispose();
+        if (_tabDisposables.Remove(tab, out var disposable)) disposable.Dispose();
     }
 
     [RelayCommand]
@@ -163,20 +201,4 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         try { await _repository.ConnectAsync(); }
         catch (Exception ex) { _logger.LogWarning(ex, "Initial connect failed"); }
     }
-}
-
-public sealed class StrategyTabViewModel
-{
-    public StrategyTabViewModel(StrategyHost host)
-    {
-        StrategyId = host.StrategyId;
-        DisplayName = host.DisplayName;
-        View = host.View;
-        ViewModel = host.ViewModel;
-    }
-
-    public string StrategyId { get; }
-    public string DisplayName { get; }
-    public object View { get; }
-    public object ViewModel { get; }
 }

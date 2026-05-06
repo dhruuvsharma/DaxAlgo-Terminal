@@ -12,7 +12,7 @@ using TradingTerminal.App.Strategies;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure;
-using TradingTerminal.Strategies.Example;
+using TradingTerminal.Strategies.Rsi;
 using TradingTerminal.UI.Logging;
 
 namespace TradingTerminal.App;
@@ -66,7 +66,7 @@ public partial class App : Application
                 services.AddSingleton<IStrategyFactory, StrategyFactory>();
 
                 // Plug-in registrations. Add a new strategy by adding one line here.
-                services.AddExampleStrategy();
+                services.AddRsiStrategy();
 
                 // Login flow.
                 services.AddSingleton<CredentialStore>();
