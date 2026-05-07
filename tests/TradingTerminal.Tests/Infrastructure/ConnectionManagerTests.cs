@@ -90,9 +90,13 @@ public sealed class ConnectionManagerTests
 
         public IAsyncEnumerable<Bar> SubscribeBarsAsync(
             Contract contract, BarSize barSize, CancellationToken ct = default)
-            => EmptyAsync(ct);
+            => EmptyAsync<Bar>(ct);
 
-        private static async IAsyncEnumerable<Bar> EmptyAsync(
+        public IAsyncEnumerable<Tick> SubscribeTicksAsync(
+            Contract contract, CancellationToken ct = default)
+            => EmptyAsync<Tick>(ct);
+
+        private static async IAsyncEnumerable<T> EmptyAsync<T>(
             [EnumeratorCancellation] CancellationToken ct)
         {
             await Task.Yield();

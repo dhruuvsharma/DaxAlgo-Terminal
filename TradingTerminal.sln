@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Tests", "te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.Rsi", "src\TradingTerminal.Strategies.Rsi\TradingTerminal.Strategies.Rsi.csproj", "{391CAA81-97D9-48AF-A455-22C15E142FA6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.CumulativeDelta", "src\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj", "{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -101,6 +103,18 @@ Global
 		{391CAA81-97D9-48AF-A455-22C15E142FA6}.Release|x64.Build.0 = Release|Any CPU
 		{391CAA81-97D9-48AF-A455-22C15E142FA6}.Release|x86.ActiveCfg = Release|Any CPU
 		{391CAA81-97D9-48AF-A455-22C15E142FA6}.Release|x86.Build.0 = Release|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Debug|x64.Build.0 = Debug|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Debug|x86.Build.0 = Debug|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Release|x64.ActiveCfg = Release|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Release|x64.Build.0 = Release|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Release|x86.ActiveCfg = Release|Any CPU
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,5 +126,6 @@ Global
 		{D2671FBF-0252-4F0B-A58D-052CB4040690} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{15438033-2B80-4BDE-8288-3E390410191C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{391CAA81-97D9-48AF-A455-22C15E142FA6} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{B7C5E4D2-8A11-4F32-9C4E-3F2A5B8D9E10} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

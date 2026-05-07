@@ -25,4 +25,14 @@ public interface IIbClient : IAsyncDisposable
         Contract contract,
         BarSize barSize,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Streaming tick-by-tick bid/ask quotes. The sequence completes when <paramref name="ct"/>
+    /// is cancelled or the connection is permanently lost. Like <see cref="SubscribeBarsAsync"/>,
+    /// implementations are responsible for marshalling raw IB callbacks onto a single producer
+    /// thread before yielding.
+    /// </summary>
+    IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract,
+        CancellationToken ct = default);
 }

@@ -67,6 +67,25 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
         }
     }
 
+    public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await foreach (var tick in _client.SubscribeTicksAsync(contract, ct))
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                yield return tick;
+            }
+            else
+            {
+                Tick marshalled = tick;
+                await _dispatcher.InvokeAsync(() => { /* ensure we're on UI before yielding */ });
+                yield return marshalled;
+            }
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _connection.DisposeAsync();

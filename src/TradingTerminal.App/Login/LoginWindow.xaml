@@ -126,6 +126,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Host" Margin="0,0,4,4" />
@@ -144,12 +146,23 @@
                     <TextBox    Grid.Row="3" Grid.Column="0"
                                 Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
                                 IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                Margin="0,0,4,0" />
+                                Margin="0,0,4,12" />
                     <ComboBox   Grid.Row="3" Grid.Column="1"
                                 ItemsSource="{Binding AccountTypes}"
                                 SelectedItem="{Binding AccountType}"
                                 IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                Margin="4,0,0,0" />
+                                Margin="4,0,0,12" />
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                               Text="Market data mode"
+                               Margin="0,0,0,4" />
+                    <ComboBox   Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                                ItemsSource="{Binding MarketDataTypes}"
+                                SelectedItem="{Binding SelectedMarketDataType}"
+                                DisplayMemberPath="DisplayName"
+                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                ToolTip="Switch to Delayed if you see IB error 10089 (no real-time market-data subscription)."
+                                Margin="0,0,0,0" />
                 </Grid>
             </Expander>
         </StackPanel>

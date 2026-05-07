@@ -30,4 +30,13 @@ public interface IMarketDataRepository
         Contract contract,
         BarSize barSize,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Streaming tick-by-tick bid/ask quotes. Marshalled to the UI dispatcher before
+    /// yielding so view-model consumers stay single-threaded. Cancellation via
+    /// <paramref name="ct"/> is the unsubscribe path.
+    /// </summary>
+    IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract,
+        CancellationToken ct = default);
 }

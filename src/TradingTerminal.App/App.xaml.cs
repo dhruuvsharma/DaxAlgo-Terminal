@@ -12,6 +12,7 @@ using TradingTerminal.App.Strategies;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure;
+using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.Rsi;
 using TradingTerminal.UI.Logging;
 
@@ -67,6 +68,7 @@ public partial class App : Application
 
                 // Plug-in registrations. Add a new strategy by adding one line here.
                 services.AddRsiStrategy();
+                services.AddCumulativeDeltaStrategy();
 
                 // Login flow.
                 services.AddSingleton<CredentialStore>();

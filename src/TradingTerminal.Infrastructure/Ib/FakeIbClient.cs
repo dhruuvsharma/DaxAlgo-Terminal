@@ -111,6 +111,53 @@ public sealed class FakeIbClient : IIbClient
             yield return bar;
     }
 
+    public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (_state.Value is not Core.Domain.ConnectionState.Connected)
+            throw new InvalidOperationException("Not connected.");
+
+        // ~5 ticks per second so the bid-tick rule has enough samples per bar to be interesting.
+        var step = TimeSpan.FromMilliseconds(200);
+        var ch = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true
+        });
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var bid = SeedPriceFor(contract.Symbol);
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(step, ct);
+
+                    // Random walk on the bid; ask = bid + small spread. Mostly small moves with
+                    // occasional bigger jumps so the delta accumulates a meaningful signed sum.
+                    var jump = (_rng.NextDouble() - 0.5) * 0.04;
+                    if (_rng.NextDouble() < 0.05)
+                        jump *= 4; // occasional outlier
+                    bid = Math.Max(0.01, bid + jump);
+                    var spread = 0.01 + _rng.NextDouble() * 0.02;
+                    var ask = bid + spread;
+                    var bidSize = (long)(1 + _rng.NextDouble() * 50);
+                    var askSize = (long)(1 + _rng.NextDouble() * 50);
+
+                    var tick = new Tick(DateTime.UtcNow, bid, ask, bidSize, askSize);
+                    if (!ch.Writer.TryWrite(tick)) break;
+                }
+            }
+            catch (OperationCanceledException) { /* expected */ }
+            finally { ch.Writer.TryComplete(); }
+        }, ct);
+
+        await foreach (var tick in ch.Reader.ReadAllAsync(ct))
+            yield return tick;
+    }
+
     private double SeedPriceFor(string symbol)
     {
         lock (_gate)

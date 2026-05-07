@@ -5,6 +5,8 @@ using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 // Note: do NOT `using IBApi;` here — it collides with TradingTerminal.Core.Domain on Bar/Contract.
@@ -25,6 +27,7 @@ namespace TradingTerminal.Infrastructure.Ib;
 public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
 {
     private readonly ILogger<RealIbClient> _logger;
+    private readonly IOptions<InteractiveBrokersOptions> _options;
     private readonly IBApi.EReaderSignal _signal = new IBApi.EReaderMonitorSignal();
     private readonly BehaviorSubject<ConnectionState> _state = new(Core.Domain.ConnectionState.Disconnected);
 
@@ -36,11 +39,13 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
 
     private readonly Dictionary<int, HistoricalRequest> _historical = new();
     private readonly Dictionary<int, Channel<Bar>> _streams = new();
+    private readonly Dictionary<int, TickStream> _tickStreams = new();
     private readonly object _gate = new();
 
-    public RealIbClient(ILogger<RealIbClient> logger)
+    public RealIbClient(ILogger<RealIbClient> logger, IOptions<InteractiveBrokersOptions> options)
     {
         _logger = logger;
+        _options = options;
     }
 
     public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
@@ -70,8 +75,32 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
         // nextValidId callback completes _connectTcs (= API handshake done).
         using var reg = ct.Register(() => _connectTcs?.TrySetCanceled());
         await _connectTcs.Task.ConfigureAwait(false);
+
+        // Apply session-level market-data type. Calling with 1 (Live) is harmless but explicit.
+        // 3/4 (Delayed / Delayed-Frozen) lets accounts without the underlying market-data
+        // subscription still receive quotes, at ~15 minute lag and lower update cadence.
+        var mdType = _options.Value.MarketDataType;
+        if (mdType is >= 1 and <= 4)
+        {
+            try
+            {
+                _client.reqMarketDataType(mdType);
+                _logger.LogInformation("IB market-data type set to {Type} ({Name})",
+                    mdType, MarketDataTypeName(mdType));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to set IB market-data type to {Type}", mdType);
+            }
+        }
+
         _state.OnNext(Core.Domain.ConnectionState.Connected);
     }
+
+    private static string MarketDataTypeName(int t) => t switch
+    {
+        1 => "Live", 2 => "Frozen", 3 => "Delayed", 4 => "Delayed-Frozen", _ => "Unknown"
+    };
 
     public Task DisconnectAsync(CancellationToken ct = default)
     {
@@ -143,6 +172,36 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
             yield return bar;
     }
 
+    public async IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract, [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (_client?.IsConnected() != true) throw new InvalidOperationException("Not connected.");
+
+        var reqId = Interlocked.Increment(ref _nextRequestId);
+        var stream = new TickStream();
+        lock (_gate) _tickStreams[reqId] = stream;
+
+        var ibContract = ToIbContract(contract);
+        // L1 streaming quotes — universally available where the user has any real-time market-data
+        // subscription. We synthesise Tick records from tickPrice/tickSize callbacks. This is the
+        // path that survives accounts without the (separately-priced) tick-by-tick subscription.
+        _client.reqMktData(reqId, ibContract,
+            genericTickList: string.Empty,
+            snapshot: false,
+            regulatorySnapshot: false,
+            mktDataOptions: null);
+
+        await using var _ = ct.Register(() =>
+        {
+            try { _client.cancelMktData(reqId); } catch { /* swallow */ }
+            stream.Channel.Writer.TryComplete();
+            lock (_gate) _tickStreams.Remove(reqId);
+        });
+
+        await foreach (var tick in stream.Channel.Reader.ReadAllAsync(ct))
+            yield return tick;
+    }
+
     private static IBApi.Contract ToIbContract(Core.Domain.Contract c) => new()
     {
         Symbol = c.Symbol,
@@ -196,6 +255,20 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
         public List<Bar> Bars { get; } = new();
     }
 
+    /// <summary>
+    /// Per-request quote accumulator. <c>reqMktData</c> delivers bid and ask updates as
+    /// independent callbacks; we keep the latest of each here so each emitted <see cref="Tick"/>
+    /// carries both sides.
+    /// </summary>
+    private sealed class TickStream
+    {
+        public Channel<Tick> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<Tick>();
+        public double Bid;
+        public double Ask;
+        public long BidSize;
+        public long AskSize;
+    }
+
     // ---------- EWrapper overrides (only what we use; everything else is no-op via DefaultEWrapper). ----------
 
     public override void nextValidId(int orderId)
@@ -232,6 +305,56 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
         stream?.Writer.TryWrite(ParseBar(bar));
     }
 
+    // ---------- L1 quote streaming via reqMktData. We synthesise Ticks on bid/ask price changes. ----------
+    // Field IDs (IBApi TickType): 1 = BID, 2 = ASK, 0 = BID_SIZE, 3 = ASK_SIZE.
+    // When reqMarketDataType(3 or 4) is in effect, IB emits *delayed* equivalents:
+    //   66 = DELAYED_BID, 67 = DELAYED_ASK, 75 = DELAYED_BID_SIZE, 76 = DELAYED_ASK_SIZE.
+    // We accept both so the strategy still works when the user has no live subscription.
+
+    public override void tickPrice(int reqId, int field, double price, IBApi.TickAttrib attribs)
+    {
+        TickStream? stream;
+        lock (_gate) _tickStreams.TryGetValue(reqId, out stream);
+        if (stream is null) return;
+
+        bool isBid = field is 1 or 66;
+        bool isAsk = field is 2 or 67;
+        if (!isBid && !isAsk) return;
+        if (price <= 0) return;
+
+        bool changed;
+        if (isBid)
+        {
+            changed = Math.Abs(price - stream.Bid) > double.Epsilon;
+            if (changed) stream.Bid = price;
+        }
+        else
+        {
+            changed = Math.Abs(price - stream.Ask) > double.Epsilon;
+            if (changed) stream.Ask = price;
+        }
+
+        if (!changed) return;
+        if (stream.Bid <= 0 || stream.Ask <= 0) return; // wait until we have both sides
+
+        stream.Channel.Writer.TryWrite(
+            new Tick(DateTime.UtcNow, stream.Bid, stream.Ask, stream.BidSize, stream.AskSize));
+    }
+
+    public override void tickSize(int reqId, int field, decimal size)
+    {
+        TickStream? stream;
+        lock (_gate) _tickStreams.TryGetValue(reqId, out stream);
+        if (stream is null) return;
+
+        switch (field)
+        {
+            case 0:  case 75: stream.BidSize = (long)size; break; // BID_SIZE / DELAYED_BID_SIZE
+            case 3:  case 76: stream.AskSize = (long)size; break; // ASK_SIZE / DELAYED_ASK_SIZE
+        }
+        // No emit — only price changes drive the bid-tick rule. Sizes ride along on next price update.
+    }
+
     public override void error(Exception e) =>
         _logger.LogError(e, "IB error");
 
@@ -250,13 +373,17 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
         {
             HistoricalRequest? req;
             Channel<Bar>? stream;
+            TickStream? tickStream;
             lock (_gate)
             {
                 _historical.TryGetValue(id, out req);
                 _streams.TryGetValue(id, out stream);
+                _tickStreams.TryGetValue(id, out tickStream);
             }
-            req?.Tcs.TrySetException(new InvalidOperationException($"IB {errorCode}: {errorMsg}"));
-            stream?.Writer.TryComplete(new InvalidOperationException($"IB {errorCode}: {errorMsg}"));
+            var ex = new InvalidOperationException($"IB {errorCode}: {errorMsg}");
+            req?.Tcs.TrySetException(ex);
+            stream?.Writer.TryComplete(ex);
+            tickStream?.Channel.Writer.TryComplete(ex);
         }
     }
 

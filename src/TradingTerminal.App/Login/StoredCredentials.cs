@@ -16,6 +16,7 @@ public sealed class StoredCredentials
     public int Port { get; set; } = 7497;
     public int ClientId { get; set; } = 1;
     public string AccountType { get; set; } = "Paper";
+    public int MarketDataType { get; set; } = 1;
     public bool RememberPassword { get; set; }
 
     /// <summary>Base64-encoded DPAPI ciphertext. Null when password is not remembered.</summary>

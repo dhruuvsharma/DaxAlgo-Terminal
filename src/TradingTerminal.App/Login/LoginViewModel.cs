@@ -37,6 +37,12 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         _logger = logger;
 
         AccountTypes = new[] { "Paper", "Live" };
+        MarketDataTypes = new[]
+        {
+            new MarketDataTypeOption(1, "Live (requires subscription)"),
+            new MarketDataTypeOption(3, "Delayed (free, ~15 min lag)"),
+            new MarketDataTypeOption(4, "Delayed-Frozen (free, last known)"),
+        };
 
         var stored = _credentialStore.Load();
         Username = stored.Username ?? string.Empty;
@@ -44,6 +50,8 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         Port = stored.Port;
         ClientId = stored.ClientId;
         AccountType = stored.AccountType;
+        var storedType = stored.MarketDataType is 1 or 3 or 4 ? stored.MarketDataType : 1;
+        SelectedMarketDataType = MarketDataTypes.First(o => o.Value == storedType);
         RememberPassword = stored.RememberPassword;
         Password = stored.Password ?? string.Empty;
 
@@ -52,6 +60,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     }
 
     public IReadOnlyList<string> AccountTypes { get; }
+    public IReadOnlyList<MarketDataTypeOption> MarketDataTypes { get; }
 
     public string ModeDisplayName => _connectionMode.DisplayName;
     public string ModeDescription => _connectionMode.Description;
@@ -80,6 +89,9 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private string _accountType = "Paper";
+
+    [ObservableProperty]
+    private MarketDataTypeOption? _selectedMarketDataType;
 
     [ObservableProperty]
     private bool _rememberPassword;
@@ -121,6 +133,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             _ibOptions.Port = Port;
             _ibOptions.ClientId = ClientId;
             _ibOptions.AccountType = AccountType;
+            _ibOptions.MarketDataType = SelectedMarketDataType?.Value ?? 1;
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -193,6 +206,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             Port = Port,
             ClientId = ClientId,
             AccountType = AccountType,
+            MarketDataType = SelectedMarketDataType?.Value ?? 1,
             RememberPassword = RememberPassword,
         };
         if (RememberPassword && !string.IsNullOrEmpty(Password))
@@ -203,3 +217,5 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     public void Dispose() => _stateSub.Dispose();
 }
+
+public sealed record MarketDataTypeOption(int Value, string DisplayName);
