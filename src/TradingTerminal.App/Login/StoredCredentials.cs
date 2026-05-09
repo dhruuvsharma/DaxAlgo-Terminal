@@ -28,6 +28,51 @@ public sealed class StoredCredentials
     public string NinjaDllPath { get; set; } = string.Empty;
     public string NinjaFuturesContractMonth { get; set; } = string.Empty;
 
+    // ---- cTrader-specific fields ----
+    public string CTraderClientId { get; set; } = string.Empty;
+    public long CTraderAccountId { get; set; }
+    public bool CTraderIsLive { get; set; }
+
+    /// <summary>Base64-encoded DPAPI ciphertext for the OAuth client secret.</summary>
+    public string? CTraderClientSecretEncryptedBase64 { get; set; }
+    /// <summary>Base64-encoded DPAPI ciphertext for the OAuth access token.</summary>
+    public string? CTraderAccessTokenEncryptedBase64 { get; set; }
+
+    [JsonIgnore]
+    public string? CTraderClientSecret
+    {
+        get => DecryptDpapi(CTraderClientSecretEncryptedBase64);
+        set => CTraderClientSecretEncryptedBase64 = EncryptDpapi(value);
+    }
+
+    [JsonIgnore]
+    public string? CTraderAccessToken
+    {
+        get => DecryptDpapi(CTraderAccessTokenEncryptedBase64);
+        set => CTraderAccessTokenEncryptedBase64 = EncryptDpapi(value);
+    }
+
+    private static string? DecryptDpapi(string? encryptedBase64)
+    {
+        if (string.IsNullOrEmpty(encryptedBase64)) return null;
+        try
+        {
+            var bytes = Convert.FromBase64String(encryptedBase64);
+            var plain = ProtectedData.Unprotect(bytes, optionalEntropy: null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plain);
+        }
+        catch (CryptographicException) { return null; }
+        catch (FormatException) { return null; }
+    }
+
+    private static string? EncryptDpapi(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        var encrypted = ProtectedData.Protect(
+            Encoding.UTF8.GetBytes(value), optionalEntropy: null, DataProtectionScope.CurrentUser);
+        return Convert.ToBase64String(encrypted);
+    }
+
     /// <summary>Base64-encoded DPAPI ciphertext. Null when password is not remembered.</summary>
     public string? PasswordEncryptedBase64 { get; set; }
 

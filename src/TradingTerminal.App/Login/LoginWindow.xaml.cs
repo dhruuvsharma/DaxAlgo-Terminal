@@ -17,9 +17,12 @@ public partial class LoginWindow : MetroWindow
     {
         if (e.NewValue is LoginViewModel vm)
         {
-            // Restore the remembered password into the PasswordBox (one-way; PasswordBox.Password
+            // Restore the remembered IB password into its PasswordBox (one-way; PasswordBox.Password
             // can't be data-bound for security reasons, so we wire it manually).
             PasswordBox.Password = vm.Password ?? string.Empty;
+            // Same for the cTrader OAuth secrets.
+            CTraderClientSecretBox.Password = vm.CTraderClientSecret ?? string.Empty;
+            CTraderAccessTokenBox.Password = vm.CTraderAccessToken ?? string.Empty;
         }
     }
 
@@ -34,5 +37,17 @@ public partial class LoginWindow : MetroWindow
     {
         if (DataContext is LoginViewModel vm && sender is PasswordBox pb)
             vm.Password = pb.Password;
+    }
+
+    private void CTraderClientSecretBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is LoginViewModel vm && sender is PasswordBox pb)
+            vm.CTraderClientSecret = pb.Password;
+    }
+
+    private void CTraderAccessTokenBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is LoginViewModel vm && sender is PasswordBox pb)
+            vm.CTraderAccessToken = pb.Password;
     }
 }

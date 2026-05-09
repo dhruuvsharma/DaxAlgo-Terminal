@@ -16,6 +16,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 {
     private readonly InteractiveBrokersOptions _ibOptions;
     private readonly NinjaTraderOptions _ntOptions;
+    private readonly CTraderOptions _ctOptions;
     private readonly IMarketDataRepository _repository;
     private readonly IBrokerSelector _brokerSelector;
     private readonly CredentialStore _credentialStore;
@@ -27,6 +28,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public LoginViewModel(
         IOptions<InteractiveBrokersOptions> ibOptions,
         IOptions<NinjaTraderOptions> ntOptions,
+        IOptions<CTraderOptions> ctOptions,
         IMarketDataRepository repository,
         IBrokerSelector brokerSelector,
         CredentialStore credentialStore,
@@ -36,6 +38,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     {
         _ibOptions = ibOptions.Value;
         _ntOptions = ntOptions.Value;
+        _ctOptions = ctOptions.Value;
         _repository = repository;
         _brokerSelector = brokerSelector;
         _credentialStore = credentialStore;
@@ -67,6 +70,12 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         NinjaDllPath = stored.NinjaDllPath;
         NinjaFuturesContractMonth = stored.NinjaFuturesContractMonth;
 
+        CTraderClientId = stored.CTraderClientId;
+        CTraderClientSecret = stored.CTraderClientSecret ?? string.Empty;
+        CTraderAccessToken = stored.CTraderAccessToken ?? string.Empty;
+        CTraderAccountId = stored.CTraderAccountId;
+        CTraderIsLive = stored.CTraderIsLive;
+
         // Live ConnectionState, mirrored into a property the XAML can read.
         _stateSub = _repository.ConnectionState.Subscribe(s => CurrentState = s);
     }
@@ -85,11 +94,13 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     public bool IsIbBrokerSelected => SelectedBroker == BrokerKind.InteractiveBrokers;
     public bool IsNinjaBrokerSelected => SelectedBroker == BrokerKind.NinjaTrader;
+    public bool IsCTraderBrokerSelected => SelectedBroker == BrokerKind.CTrader;
 
     public string SubtitleText => SelectedBroker switch
     {
         BrokerKind.InteractiveBrokers => "Sign in to your Interactive Brokers session",
         BrokerKind.NinjaTrader => "Connect to your NinjaTrader 8 session",
+        BrokerKind.CTrader => "Connect to your cTrader Open API session",
         _ => "Sign in",
     };
 
@@ -100,6 +111,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(IsIbBrokerSelected));
         OnPropertyChanged(nameof(IsNinjaBrokerSelected));
+        OnPropertyChanged(nameof(IsCTraderBrokerSelected));
         OnPropertyChanged(nameof(SubtitleText));
         OnPropertyChanged(nameof(ModeDisplayName));
         OnPropertyChanged(nameof(ModeDescription));
@@ -150,6 +162,23 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _ninjaFuturesContractMonth = string.Empty;
 
+    // ---- cTrader-specific fields ----
+
+    [ObservableProperty]
+    private string _cTraderClientId = string.Empty;
+
+    [ObservableProperty]
+    private string _cTraderClientSecret = string.Empty;
+
+    [ObservableProperty]
+    private string _cTraderAccessToken = string.Empty;
+
+    [ObservableProperty]
+    private long _cTraderAccountId;
+
+    [ObservableProperty]
+    private bool _cTraderIsLive;
+
     // ---- Connection state ----
 
     [ObservableProperty]
@@ -177,12 +206,19 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private void SelectNinja() => SelectedBroker = BrokerKind.NinjaTrader;
 
     [RelayCommand]
+    private void SelectCTrader() => SelectedBroker = BrokerKind.CTrader;
+
+    [RelayCommand]
     private async Task ConnectAsync()
     {
         ErrorMessage = null;
-        StatusMessage = SelectedBroker == BrokerKind.InteractiveBrokers
-            ? "Connecting to TWS..."
-            : "Connecting to NinjaTrader...";
+        StatusMessage = SelectedBroker switch
+        {
+            BrokerKind.InteractiveBrokers => "Connecting to TWS...",
+            BrokerKind.NinjaTrader => "Connecting to NinjaTrader...",
+            BrokerKind.CTrader => "Connecting to cTrader...",
+            _ => "Connecting...",
+        };
         IsConnecting = true;
         IsConnected = false;
 
@@ -190,19 +226,34 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         {
             // Push the user-supplied connection settings into the live options instance for the
             // active broker. Then flip the selector so the connection manager picks the right client.
-            if (SelectedBroker == BrokerKind.InteractiveBrokers)
+            switch (SelectedBroker)
             {
-                _ibOptions.Host = Host;
-                _ibOptions.Port = Port;
-                _ibOptions.ClientId = ClientId;
-                _ibOptions.AccountType = AccountType;
-                _ibOptions.MarketDataType = SelectedMarketDataType?.Value ?? 1;
-            }
-            else
-            {
-                _ntOptions.AccountName = string.IsNullOrWhiteSpace(NinjaAccountName) ? "Sim101" : NinjaAccountName.Trim();
-                _ntOptions.DllPath = NinjaDllPath?.Trim() ?? string.Empty;
-                _ntOptions.DefaultFuturesContractMonth = NinjaFuturesContractMonth?.Trim() ?? string.Empty;
+                case BrokerKind.InteractiveBrokers:
+                    _ibOptions.Host = Host;
+                    _ibOptions.Port = Port;
+                    _ibOptions.ClientId = ClientId;
+                    _ibOptions.AccountType = AccountType;
+                    _ibOptions.MarketDataType = SelectedMarketDataType?.Value ?? 1;
+                    break;
+                case BrokerKind.NinjaTrader:
+                    _ntOptions.AccountName = string.IsNullOrWhiteSpace(NinjaAccountName) ? "Sim101" : NinjaAccountName.Trim();
+                    _ntOptions.DllPath = NinjaDllPath?.Trim() ?? string.Empty;
+                    _ntOptions.DefaultFuturesContractMonth = NinjaFuturesContractMonth?.Trim() ?? string.Empty;
+                    break;
+                case BrokerKind.CTrader:
+                    _ctOptions.ClientId = CTraderClientId?.Trim() ?? string.Empty;
+                    _ctOptions.ClientSecret = CTraderClientSecret?.Trim() ?? string.Empty;
+                    _ctOptions.AccessToken = CTraderAccessToken?.Trim() ?? string.Empty;
+                    _ctOptions.CtidTraderAccountId = CTraderAccountId;
+                    _ctOptions.IsLive = CTraderIsLive;
+                    _ctOptions.Host = CTraderIsLive ? "live.ctraderapi.com" : "demo.ctraderapi.com";
+                    _ctOptions.Port = 5035;
+                    // Use real client whenever credentials are supplied. Empty creds → fall back to synthetic.
+                    _ctOptions.UseRealClient = !string.IsNullOrEmpty(_ctOptions.ClientId)
+                                            && !string.IsNullOrEmpty(_ctOptions.ClientSecret)
+                                            && !string.IsNullOrEmpty(_ctOptions.AccessToken)
+                                            && _ctOptions.CtidTraderAccountId != 0;
+                    break;
             }
 
             _brokerSelector.SetActive(SelectedBroker);
@@ -227,7 +278,13 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             }
 
             PersistCredentials();
-            var sessionAccount = SelectedBroker == BrokerKind.InteractiveBrokers ? AccountType : NinjaAccountName;
+            var sessionAccount = SelectedBroker switch
+            {
+                BrokerKind.InteractiveBrokers => AccountType,
+                BrokerKind.NinjaTrader => NinjaAccountName,
+                BrokerKind.CTrader => $"cTrader #{CTraderAccountId}",
+                _ => "Unknown",
+            };
             _session.SetSignedIn(Username, sessionAccount);
 
             // Visibly show the "Connected" state for a moment so the user gets explicit feedback
@@ -240,10 +297,18 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException)
         {
-            ErrorMessage = SelectedBroker == BrokerKind.InteractiveBrokers
-                ? $"Connection timed out after 15s. Verify TWS / IB Gateway is running on {Host}:{Port} and that API access is enabled. " +
-                  "If you have 2FA enabled, complete the 2FA prompt in TWS before signing in here."
-                : "Connection timed out after 15s. Verify NinjaTrader 8 is running and the AT Interface is enabled in Tools → Options.";
+            ErrorMessage = SelectedBroker switch
+            {
+                BrokerKind.InteractiveBrokers =>
+                    $"Connection timed out after 15s. Verify TWS / IB Gateway is running on {Host}:{Port} and that API access is enabled. " +
+                    "If you have 2FA enabled, complete the 2FA prompt in TWS before signing in here.",
+                BrokerKind.NinjaTrader =>
+                    "Connection timed out after 15s. Verify NinjaTrader 8 is running and the AT Interface is enabled in Tools → Options.",
+                BrokerKind.CTrader =>
+                    $"Connection timed out after 15s reaching {(_ctOptions.IsLive ? "live" : "demo")}.ctraderapi.com. " +
+                    "Check your internet connection and that the OAuth credentials + ctidTraderAccountId are correct.",
+                _ => "Connection timed out.",
+            };
             StatusMessage = null;
             _logger.LogWarning("Login connection timed out (broker={Broker})", SelectedBroker);
         }
@@ -264,18 +329,23 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     private string ResolveFailureMessage()
     {
-        if (SelectedBroker == BrokerKind.InteractiveBrokers)
+        return SelectedBroker switch
         {
-            return ActiveMode.IsLive
+            BrokerKind.InteractiveBrokers => ActiveMode.IsLive
                 ? "TWS reported a connection failure. Common causes: API access not enabled in TWS Global Config, " +
                   "wrong port (TWS Paper=7497, TWS Live=7496, Gateway Paper=4002, Gateway Live=4001), " +
                   "or client id already in use by another connection."
-                : "Connection failed in IB demo mode (this should be rare — check the log pane).";
-        }
-        return ActiveMode.IsLive
-            ? "NinjaTrader reported a connection failure. Make sure NinjaTrader 8 is running, signed in, " +
-              "and that Tools → Options → AT Interface → 'AT Interface enabled' is checked."
-            : "Connection failed in NinjaTrader demo mode (this should be rare — check the log pane).";
+                : "Connection failed in IB demo mode (this should be rare — check the log pane).",
+            BrokerKind.NinjaTrader => ActiveMode.IsLive
+                ? "NinjaTrader reported a connection failure. Make sure NinjaTrader 8 is running, signed in, " +
+                  "and that Tools → Options → AT Interface → 'AT Interface enabled' is checked."
+                : "Connection failed in NinjaTrader demo mode (this should be rare — check the log pane).",
+            BrokerKind.CTrader =>
+                "cTrader connection failed. Verify your OAuth client id, client secret, access token, " +
+                "and ctidTraderAccountId are correct, and that the access token hasn't expired. " +
+                "Generate credentials at https://connect.spotware.com/apps.",
+            _ => "Connection failed — check the log pane.",
+        };
     }
 
     private void PersistCredentials()
@@ -293,9 +363,16 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             NinjaAccountName = string.IsNullOrWhiteSpace(NinjaAccountName) ? "Sim101" : NinjaAccountName.Trim(),
             NinjaDllPath = NinjaDllPath?.Trim() ?? string.Empty,
             NinjaFuturesContractMonth = NinjaFuturesContractMonth?.Trim() ?? string.Empty,
+            CTraderClientId = CTraderClientId?.Trim() ?? string.Empty,
+            CTraderAccountId = CTraderAccountId,
+            CTraderIsLive = CTraderIsLive,
         };
         if (RememberPassword && !string.IsNullOrEmpty(Password))
             stored.Password = Password;
+        // cTrader OAuth secrets are always DPAPI-encrypted when the user provides them — there's
+        // no "remember" toggle because they're useless to copy by hand each session.
+        if (!string.IsNullOrEmpty(CTraderClientSecret)) stored.CTraderClientSecret = CTraderClientSecret;
+        if (!string.IsNullOrEmpty(CTraderAccessToken)) stored.CTraderAccessToken = CTraderAccessToken;
 
         _credentialStore.Save(stored);
     }

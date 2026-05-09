@@ -85,6 +85,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         BrokerKind.InteractiveBrokers => "Interactive Brokers",
         BrokerKind.NinjaTrader => "NinjaTrader",
+        BrokerKind.CTrader => "cTrader",
         _ => _brokerSelector.ActiveKind.ToString(),
     };
 

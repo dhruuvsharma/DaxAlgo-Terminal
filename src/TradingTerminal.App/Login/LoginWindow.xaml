@@ -7,7 +7,7 @@
                  xmlns:local="clr-namespace:TradingTerminal.App.Login"
                  mc:Ignorable="d"
                  Title="Trading Terminal — Sign in"
-                 Height="760" Width="520"
+                 Height="780" Width="600"
                  ResizeMode="NoResize"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
@@ -81,10 +81,12 @@
                        Margin="0,2,0,0" />
         </StackPanel>
 
-        <!-- Broker selector: two large tiles. Selected one gets an accent border.
+        <!-- Broker selector: three large tiles. Selected one gets an accent border.
              Vector glyphs are inlined so we don't depend on icon assets. -->
         <Grid Grid.Row="1" Margin="0,8,0,8">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="8" />
                 <ColumnDefinition Width="*" />
@@ -149,6 +151,36 @@
                     </StackPanel>
                 </StackPanel>
             </Button>
+
+            <!-- cTrader tile -->
+            <Button Grid.Column="4"
+                    Command="{Binding SelectCTraderCommand}"
+                    IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource BrokerTileButton}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCTraderBrokerSelected}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <StackPanel Orientation="Horizontal">
+                    <!-- cTrader monogram glyph -->
+                    <Border Width="32" Height="32" Background="#0277BD" CornerRadius="4"
+                            VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="cT" Foreground="White"
+                                   FontWeight="Bold" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="cTrader" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Text="Spotware Open API"
+                                   Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
+                    </StackPanel>
+                </StackPanel>
+            </Button>
         </Grid>
 
         <!-- Mode badge -->
@@ -203,6 +235,14 @@
                     <Run FontWeight="SemiBold" Text="NinjaTrader 8 must be running first." />
                     <LineBreak />
                     <Run Text="Start NinjaTrader 8 and sign in to your data feed. Enable Tools → Options → AT Interface → 'AT Interface enabled'. This app talks to NT via NTDirect.dll — no separate sign-in." />
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           FontSize="11"
+                           Visibility="{Binding IsCTraderBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Run FontWeight="SemiBold" Text="OAuth setup required (one-time)." />
+                    <LineBreak />
+                    <Run Text="Register an app at connect.spotware.com/apps to get your client id + secret, run the OAuth flow to obtain an access token, then paste the values below. The token is DPAPI-encrypted on disk." />
                 </TextBlock>
             </Grid>
         </Border>
@@ -335,6 +375,60 @@
                                    Foreground="{DynamicResource Text.Secondary}">
                             <Run FontWeight="SemiBold" Text="Heads up:" />
                             <Run Text="NTDirect doesn't expose historical bars — charts will show synthesized history until live ticks arrive. Real-time data and order routing work normally." />
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+
+                <!-- cTrader form -->
+                <StackPanel Visibility="{Binding IsCTraderBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+                    <TextBlock Text="Display name (optional)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                             mah:TextBoxHelper.Watermark="Shown in the status bar after sign-in"
+                             IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="OAuth client id" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding CTraderClientId, UpdateSourceTrigger=PropertyChanged}"
+                             mah:TextBoxHelper.Watermark="From connect.spotware.com/apps"
+                             IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="OAuth client secret" Margin="0,0,0,4" />
+                    <PasswordBox x:Name="CTraderClientSecretBox"
+                                 PasswordChanged="CTraderClientSecretBox_PasswordChanged"
+                                 mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine"
+                                 IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                 Margin="0,0,0,12" />
+
+                    <TextBlock Text="Access token" Margin="0,0,0,4" />
+                    <PasswordBox x:Name="CTraderAccessTokenBox"
+                                 PasswordChanged="CTraderAccessTokenBox_PasswordChanged"
+                                 mah:TextBoxHelper.Watermark="From the cTrader OAuth flow (refresh as needed)"
+                                 IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                 Margin="0,0,0,12" />
+
+                    <TextBlock Text="ctidTraderAccountId" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding CTraderAccountId, UpdateSourceTrigger=PropertyChanged}"
+                             mah:TextBoxHelper.Watermark="Numeric trading-account id (from GetAccountListByAccessToken)"
+                             IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                             Margin="0,0,0,12" />
+
+                    <CheckBox Content="Use live endpoint (live.ctraderapi.com) — uncheck for demo"
+                              IsChecked="{Binding CTraderIsLive}"
+                              IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                              Margin="0,0,0,8" />
+
+                    <Border Background="{DynamicResource Background.Surface}"
+                            BorderBrush="{DynamicResource Border.Brush}"
+                            BorderThickness="1"
+                            Padding="10,6"
+                            Margin="0,12,0,0">
+                        <TextBlock TextWrapping="Wrap"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}">
+                            <Run FontWeight="SemiBold" Text="Heads up:" />
+                            <Run Text="Access tokens expire (default ~30 days). When the token expires you'll need to re-run the OAuth refresh and paste the new token here." />
                         </TextBlock>
                     </Border>
                 </StackPanel>

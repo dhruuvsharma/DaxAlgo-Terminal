@@ -7,6 +7,7 @@ using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.Infrastructure.Brokers;
+using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.NinjaTrader;
@@ -90,6 +91,25 @@ public static class DependencyInjection
                 Description: opt.UseRealClient
                     ? "UseRealClient is enabled but NTDirect.dll wasn't present at build time — falling back to synthetic data."
                     : "Synthetic data — install NinjaTrader 8 and set NinjaTrader:UseRealClient=true to use the real bridge.");
+        });
+
+        // ---- cTrader (Spotware Open API 2.0) ----
+        // The cTrader.OpenAPI.Net package always restores, so the real client is always wired.
+        // If OAuth credentials are missing at connect time, ConnectAsync fails fast with a clear error.
+        // The synthetic FakeCTraderClient is kept around for tests/offline use but isn't on the DI graph.
+        services.AddSingleton<IBrokerClient>(sp =>
+            ActivatorUtilities.CreateInstance<RealCTraderClient>(sp));
+
+        services.AddSingleton<BrokerConnectionMode>(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<CTraderOptions>>().Value;
+            return new BrokerConnectionMode(
+                BrokerKind.CTrader,
+                IsLive: opt.IsLive,
+                DisplayName: opt.IsLive ? "Live cTrader" : "Demo cTrader",
+                Description: opt.IsLive
+                    ? "Connected to live.ctraderapi.com via Spotware Open API. OAuth credentials required."
+                    : "Connected to demo.ctraderapi.com via Spotware Open API. OAuth credentials required (paper account).");
         });
 
         // ---- Selector + connection plumbing ----
