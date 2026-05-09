@@ -10,7 +10,9 @@ using TradingTerminal.Infrastructure.Brokers;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
+#if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
+#endif
 using TradingTerminal.Infrastructure.Threading;
 
 namespace TradingTerminal.Infrastructure;
@@ -18,12 +20,16 @@ namespace TradingTerminal.Infrastructure;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the broker layer (IB + NinjaTrader), market-data repository, connection
-    /// manager, event bus, and UI dispatcher.
+    /// Registers the broker layer (real clients only — no synthetic fallbacks), market-data
+    /// repository, connection manager, event bus, and UI dispatcher.
     ///
-    /// Per-broker, the real client is wired only when its native binary resolved at
-    /// build time (<c>HAS_IBAPI</c> / <c>HAS_NTAPI</c>) AND the corresponding
-    /// <c>UseRealClient</c> option is true. Otherwise the synthetic fallback is used.
+    /// Per-broker availability:
+    ///   IB   — registered when <c>HAS_IBAPI</c> is defined (CSharpAPI.dll resolved at build).
+    ///   NT   — registered when <c>HAS_NTAPI</c> is defined (NTDirect.dll resolved at build).
+    ///   CT   — always registered (cTrader.OpenAPI.Net is a NuGet reference, always restored).
+    ///
+    /// "Live or paper" is the broker's own concept (TWS port 7497 vs 7496, cTrader demo vs live
+    /// endpoint, NT Sim101 vs funded account) — the connection itself is always real.
     /// </summary>
     public static IServiceCollection AddTradingTerminalInfrastructure(this IServiceCollection services)
     {
@@ -31,72 +37,31 @@ public static class DependencyInjection
         services.TryAddSingleton<IEventBus, EventBus>();
         services.TryAddSingleton<SessionContext>();
 
-        // ---- Interactive Brokers ----
+#if HAS_IBAPI
         services.AddSingleton<IBrokerClient>(sp =>
-        {
-            var opt = sp.GetRequiredService<IOptions<InteractiveBrokersOptions>>().Value;
-#if HAS_IBAPI
-            if (opt.UseRealClient)
-                return ActivatorUtilities.CreateInstance<RealIbClient>(sp);
-#endif
-            return ActivatorUtilities.CreateInstance<FakeIbClient>(sp);
-        });
+            ActivatorUtilities.CreateInstance<RealIbClient>(sp));
 
-        services.AddSingleton<BrokerConnectionMode>(sp =>
-        {
-            var opt = sp.GetRequiredService<IOptions<InteractiveBrokersOptions>>().Value;
-#if HAS_IBAPI
-            if (opt.UseRealClient)
-                return new BrokerConnectionMode(
-                    BrokerKind.InteractiveBrokers,
-                    IsLive: true,
-                    DisplayName: "Live TWS",
-                    Description: "Connected through the real TWS API. Make sure you're already signed in to TWS / IB Gateway (including 2FA).");
-#endif
-            return new BrokerConnectionMode(
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
                 BrokerKind.InteractiveBrokers,
-                IsLive: false,
-                DisplayName: "IB Demo",
-                Description: opt.UseRealClient
-                    ? "UseRealClient is enabled but lib/CSharpAPI.dll wasn't present at build time — falling back to synthetic data."
-                    : "Synthetic data — set UseRealClient=true in appsettings.json and place lib/CSharpAPI.dll to use real TWS.");
-        });
+                IsLive: true,
+                DisplayName: "Interactive Brokers",
+                Description: "Connected through the real TWS API. Make sure TWS / IB Gateway is signed in (including 2FA) before connecting."));
+#endif
 
-        // ---- NinjaTrader ----
+#if HAS_NTAPI
         services.AddSingleton<IBrokerClient>(sp =>
-        {
-            var opt = sp.GetRequiredService<IOptions<NinjaTraderOptions>>().Value;
-#if HAS_NTAPI
-            if (opt.UseRealClient)
-                return ActivatorUtilities.CreateInstance<RealNinjaClient>(sp);
-#endif
-            return ActivatorUtilities.CreateInstance<FakeNinjaClient>(sp);
-        });
+            ActivatorUtilities.CreateInstance<RealNinjaClient>(sp));
 
-        services.AddSingleton<BrokerConnectionMode>(sp =>
-        {
-            var opt = sp.GetRequiredService<IOptions<NinjaTraderOptions>>().Value;
-#if HAS_NTAPI
-            if (opt.UseRealClient)
-                return new BrokerConnectionMode(
-                    BrokerKind.NinjaTrader,
-                    IsLive: true,
-                    DisplayName: "Live NinjaTrader",
-                    Description: "Connected through NTDirect.dll. NinjaTrader 8 must already be running with the AT Interface enabled.");
-#endif
-            return new BrokerConnectionMode(
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
                 BrokerKind.NinjaTrader,
-                IsLive: false,
-                DisplayName: "NT Demo",
-                Description: opt.UseRealClient
-                    ? "UseRealClient is enabled but NTDirect.dll wasn't present at build time — falling back to synthetic data."
-                    : "Synthetic data — install NinjaTrader 8 and set NinjaTrader:UseRealClient=true to use the real bridge.");
-        });
+                IsLive: true,
+                DisplayName: "NinjaTrader",
+                Description: "Connected through NTDirect.dll. NinjaTrader 8 must be running with the AT Interface enabled."));
+#endif
 
-        // ---- cTrader (Spotware Open API 2.0) ----
-        // The cTrader.OpenAPI.Net package always restores, so the real client is always wired.
-        // If OAuth credentials are missing at connect time, ConnectAsync fails fast with a clear error.
-        // The synthetic FakeCTraderClient is kept around for tests/offline use but isn't on the DI graph.
+        // cTrader — always available.
         services.AddSingleton<IBrokerClient>(sp =>
             ActivatorUtilities.CreateInstance<RealCTraderClient>(sp));
 
@@ -108,11 +73,10 @@ public static class DependencyInjection
                 IsLive: opt.IsLive,
                 DisplayName: opt.IsLive ? "Live cTrader" : "Demo cTrader",
                 Description: opt.IsLive
-                    ? "Connected to live.ctraderapi.com via Spotware Open API. OAuth credentials required."
-                    : "Connected to demo.ctraderapi.com via Spotware Open API. OAuth credentials required (paper account).");
+                    ? "Connected to live.ctraderapi.com via Spotware Open API."
+                    : "Connected to demo.ctraderapi.com via Spotware Open API (paper account).");
         });
 
-        // ---- Selector + connection plumbing ----
         services.AddSingleton<IBrokerSelector, BrokerSelector>();
         services.AddSingleton<ConnectionManager>();
         services.AddSingleton<IMarketDataRepository, MarketDataRepository>();

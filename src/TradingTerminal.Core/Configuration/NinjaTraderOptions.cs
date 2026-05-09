@@ -21,12 +21,6 @@ public sealed class NinjaTraderOptions
     public string DllPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// When true the real NinjaTrader client is required (NTDirect.dll must be present).
-    /// When false (or when the DLL isn't found) the synthetic fallback client is used.
-    /// </summary>
-    public bool UseRealClient { get; set; }
-
-    /// <summary>
     /// NinjaTrader uses contract-month suffixes for futures (e.g. "ES 06-26"). When set, this
     /// suffix is appended to <c>Contract.Symbol</c> for futures lookups. Stocks/forex ignore it.
     /// </summary>

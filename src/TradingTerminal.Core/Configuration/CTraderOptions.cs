@@ -30,11 +30,6 @@ public sealed class CTraderOptions
     /// <summary>True when targeting the live endpoint (live.ctraderapi.com), false for demo.</summary>
     public bool IsLive { get; set; }
 
-    /// <summary>
-    /// When true the real cTrader client is required. When false the synthetic fallback is used.
-    /// </summary>
-    public bool UseRealClient { get; set; }
-
     public int ReconnectInitialDelaySeconds { get; set; } = 1;
     public int ReconnectMaxDelaySeconds { get; set; } = 30;
 }

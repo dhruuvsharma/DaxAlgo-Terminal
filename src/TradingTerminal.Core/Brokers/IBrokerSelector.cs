@@ -16,6 +16,12 @@ public interface IBrokerSelector
 
     BrokerConnectionMode ActiveMode { get; }
 
+    /// <summary>Brokers that have a registered <see cref="IBrokerClient"/> in DI.</summary>
+    IReadOnlyList<BrokerKind> AvailableKinds { get; }
+
+    /// <summary>True when a real client for <paramref name="kind"/> is registered (i.e. its SDK was present at build time).</summary>
+    bool IsAvailable(BrokerKind kind);
+
     /// <summary>Raised on the calling thread whenever <see cref="ActiveKind"/> changes.</summary>
     event EventHandler? ActiveChanged;
 

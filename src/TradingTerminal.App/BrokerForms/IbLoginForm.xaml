@@ -1,0 +1,75 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.IbLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:TradingTerminal.App.Login.Forms"
+             mc:Ignorable="d"
+             d:DesignHeight="400" d:DesignWidth="500">
+    <StackPanel>
+
+        <TextBlock Text="Username" Margin="0,0,0,4" />
+        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Your IB username (for display)"
+                 Margin="0,0,0,12" />
+
+        <TextBlock Text="Password" Margin="0,0,0,4" />
+        <PasswordBox x:Name="PasswordBox"
+                     PasswordChanged="PasswordBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="Stored locally if you check Remember"
+                     Margin="0,0,0,12" />
+
+        <CheckBox Content="Remember password on this machine (DPAPI-encrypted)"
+                  IsChecked="{Binding RememberPassword}"
+                  Margin="0,0,0,8" />
+
+        <Expander Header="Connection settings"
+                  IsExpanded="False"
+                  Foreground="{DynamicResource Text.Primary}">
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Host" Margin="0,0,4,4" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="Port" Margin="4,0,0,4" />
+                <TextBox    Grid.Row="1" Grid.Column="0"
+                            Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,0,4,12" />
+                <TextBox    Grid.Row="1" Grid.Column="1"
+                            Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="4,0,0,12" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client ID" Margin="0,0,4,4" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="Account" Margin="4,0,0,4" />
+                <TextBox    Grid.Row="3" Grid.Column="0"
+                            Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,0,4,12" />
+                <ComboBox   Grid.Row="3" Grid.Column="1"
+                            ItemsSource="{Binding AccountTypes}"
+                            SelectedItem="{Binding AccountType}"
+                            Margin="4,0,0,12" />
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                           Text="Market data mode"
+                           Margin="0,0,0,4" />
+                <ComboBox   Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                            ItemsSource="{Binding MarketDataTypes}"
+                            SelectedItem="{Binding SelectedMarketDataType}"
+                            DisplayMemberPath="DisplayName"
+                            ToolTip="Switch to Delayed if you see IB error 10089 (no real-time market-data subscription)."
+                            Margin="0,0,0,0" />
+            </Grid>
+        </Expander>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,54 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.NinjaLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:TradingTerminal.App.Login.Forms"
+             mc:Ignorable="d"
+             d:DesignHeight="400" d:DesignWidth="500">
+    <StackPanel>
+
+        <TextBlock Text="Display name (optional)" Margin="0,0,0,4" />
+        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Shown in the status bar after sign-in"
+                 Margin="0,0,0,12" />
+
+        <TextBlock Text="NinjaTrader account" Margin="0,0,0,4" />
+        <TextBox Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="e.g. Sim101 (default sim account)"
+                 Margin="0,0,0,12" />
+
+        <Expander Header="Connection settings"
+                  IsExpanded="False"
+                  Foreground="{DynamicResource Text.Primary}">
+            <StackPanel Margin="0,8,0,0">
+
+                <TextBlock Text="Default futures contract month (e.g. 06-26)" Margin="0,0,0,4" />
+                <TextBox Text="{Binding FuturesContractMonth, UpdateSourceTrigger=PropertyChanged}"
+                         mah:TextBoxHelper.Watermark="Optional — leave empty for stocks/forex"
+                         ToolTip="NinjaTrader expects futures as 'ES 06-26'. Set this once and we'll append it to bare symbols."
+                         Margin="0,0,0,12" />
+
+                <TextBlock Text="NTDirect.dll path (override)" Margin="0,0,0,4" />
+                <TextBox Text="{Binding DllPath, UpdateSourceTrigger=PropertyChanged}"
+                         mah:TextBoxHelper.Watermark="Leave empty to use the standard install path"
+                         ToolTip="Auto-resolves from %USERPROFILE%\Documents\NinjaTrader 8\bin64\NTDirect.dll if blank."
+                         Margin="0,0,0,0" />
+            </StackPanel>
+        </Expander>
+
+        <Border Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                Padding="10,6"
+                Margin="0,12,0,0">
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run FontWeight="SemiBold" Text="Heads up:" />
+                <Run Text="NTDirect doesn't expose historical bars — charts will show synthesized history until live ticks arrive. Real-time data and order routing work normally." />
+            </TextBlock>
+        </Border>
+    </StackPanel>
+</UserControl>

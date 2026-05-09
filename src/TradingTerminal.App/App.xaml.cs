@@ -8,7 +8,10 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Login;
+using TradingTerminal.App.Login.Forms;
+using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure;
@@ -31,7 +34,6 @@ public partial class App : Application
         base.OnStartup(e);
 
         var inMemoryLogSink = new InMemoryLogSink();
-
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
 
         _host = Host.CreateDefaultBuilder()
@@ -70,24 +72,39 @@ public partial class App : Application
 
                 services.AddSingleton<IStrategyFactory, StrategyFactory>();
 
-                // Plug-in registrations. Add a new strategy by adding one line here.
+                // Strategy plug-ins. Each is a one-line registration.
                 services.AddRsiStrategy();
                 services.AddCumulativeDeltaStrategy();
+
+                // Per-broker login forms (each registered as both its concrete type and as IBrokerLoginForm
+                // so the BrokerLoginFormFactory can enumerate them).
+                services.AddSingleton<IbLoginFormViewModel>();
+                services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<IbLoginFormViewModel>());
+                services.AddSingleton<NinjaLoginFormViewModel>();
+                services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<NinjaLoginFormViewModel>());
+                services.AddSingleton<CTraderLoginFormViewModel>();
+                services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<CTraderLoginFormViewModel>());
+                services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
 
                 // Login flow.
                 services.AddSingleton<CredentialStore>();
                 services.AddTransient<LoginViewModel>();
                 services.AddTransient<LoginWindow>();
 
+                // Main shell.
                 services.AddSingleton<MainWindowViewModel>();
                 services.AddTransient<MainWindow>();
+
+                // Factory-method seam over the shell windows. App.xaml.cs only references these
+                // — never the concrete LoginWindow / MainWindow / view-model types.
+                services.AddSingleton<ILoginShellFactory, LoginShellFactory>();
+                services.AddSingleton<IMainShellFactory, MainShellFactory>();
             })
             .Build();
 
         await _host.StartAsync();
 
-        // Hold the app open across the login → main-window transition (we briefly have no MainWindow
-        // assigned; OnLastWindowClose still terminates the app correctly when MainWindow ultimately closes).
+        // Hold the app open across the login → main-window transition.
         ShutdownMode = ShutdownMode.OnLastWindowClose;
 
         ShowLoginAndProceed();
@@ -95,30 +112,26 @@ public partial class App : Application
 
     private void ShowLoginAndProceed()
     {
-        var loginWindow = _host!.Services.GetRequiredService<LoginWindow>();
-        var loginVm = _host.Services.GetRequiredService<LoginViewModel>();
-        loginWindow.DataContext = loginVm;
-
-        loginVm.LoginCompleted += OnLoginCompleted;
-        MainWindow = loginWindow;   // bridges window ownership during the login phase
+        var loginFactory = _host!.Services.GetRequiredService<ILoginShellFactory>();
+        Window? loginWindow = null;
+        loginWindow = loginFactory.Create((_, success) => OnLoginCompleted(loginWindow!, success));
+        MainWindow = loginWindow;
         loginWindow.Show();
+    }
 
-        void OnLoginCompleted(object? sender, bool success)
+    private void OnLoginCompleted(Window loginWindow, bool success)
+    {
+        if (!success)
         {
-            loginVm.LoginCompleted -= OnLoginCompleted;
-
-            if (!success)
-            {
-                Shutdown();
-                return;
-            }
-
-            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-            mainWindow.DataContext = _host.Services.GetRequiredService<MainWindowViewModel>();
-            MainWindow = mainWindow;
-            mainWindow.Show();
-            loginWindow.Close();
+            Shutdown();
+            return;
         }
+
+        var mainFactory = _host!.Services.GetRequiredService<IMainShellFactory>();
+        var mainWindow = mainFactory.Create();
+        MainWindow = mainWindow;
+        mainWindow.Show();
+        loginWindow.Close();
     }
 
     protected override async void OnExit(ExitEventArgs e)

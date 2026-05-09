@@ -9,6 +9,9 @@
             <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
             <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
             <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+            <converters:ReferenceEqualsConverter x:Key="ReferenceEqualsConverter" />
+            <converters:BrokerInitialsConverter x:Key="BrokerInitialsConverter" />
+            <converters:BrokerSubtitleConverter x:Key="BrokerSubtitleConverter" />
 
             <ResourceDictionary.MergedDictionaries>
                 <!-- MahApps base -->

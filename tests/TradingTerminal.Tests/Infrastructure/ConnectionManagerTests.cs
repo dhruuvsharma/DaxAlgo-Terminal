@@ -56,6 +56,8 @@ public sealed class ConnectionManagerTests
         public BrokerKind ActiveKind => Active.Kind;
         public IBrokerClient Active { get; }
         public BrokerConnectionMode ActiveMode { get; }
+        public IReadOnlyList<BrokerKind> AvailableKinds => new[] { Active.Kind };
+        public bool IsAvailable(BrokerKind kind) => kind == Active.Kind;
         public event EventHandler? ActiveChanged { add { } remove { } }
         public void SetActive(BrokerKind kind) { /* single-broker test selector */ }
     }

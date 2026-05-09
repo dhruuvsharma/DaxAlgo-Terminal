@@ -1,0 +1,56 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.CTraderLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:TradingTerminal.App.Login.Forms"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="500">
+    <StackPanel>
+
+        <TextBlock Text="Display name (optional)" Margin="0,0,0,4" />
+        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Shown in the status bar after sign-in"
+                 Margin="0,0,0,12" />
+
+        <TextBlock Text="OAuth client id" Margin="0,0,0,4" />
+        <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="From connect.spotware.com/apps"
+                 Margin="0,0,0,12" />
+
+        <TextBlock Text="OAuth client secret" Margin="0,0,0,4" />
+        <PasswordBox x:Name="ClientSecretBox"
+                     PasswordChanged="ClientSecretBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine"
+                     Margin="0,0,0,12" />
+
+        <TextBlock Text="Access token" Margin="0,0,0,4" />
+        <PasswordBox x:Name="AccessTokenBox"
+                     PasswordChanged="AccessTokenBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="From the cTrader OAuth flow (refresh as needed)"
+                     Margin="0,0,0,12" />
+
+        <TextBlock Text="ctidTraderAccountId" Margin="0,0,0,4" />
+        <TextBox Text="{Binding AccountId, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Numeric trading-account id (from GetAccountListByAccessToken)"
+                 Margin="0,0,0,12" />
+
+        <CheckBox Content="Use live endpoint (live.ctraderapi.com) — uncheck for demo"
+                  IsChecked="{Binding IsLive}"
+                  Margin="0,0,0,8" />
+
+        <Border Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                Padding="10,6"
+                Margin="0,12,0,0">
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run FontWeight="SemiBold" Text="Heads up:" />
+                <Run Text="Access tokens expire (default ~30 days). When the token expires you'll need to re-run the OAuth refresh and paste the new token here." />
+            </TextBlock>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -24,10 +24,17 @@ public sealed class BrokerSelector : IBrokerSelector
         _clients = clients.ToDictionary(c => c.Kind);
         _modes = modes.ToDictionary(m => m.Broker);
         _logger = logger;
-        // Default to IB so the existing tests / dev workflow keep working until the user picks otherwise.
-        _active = _clients.ContainsKey(BrokerKind.InteractiveBrokers)
-            ? BrokerKind.InteractiveBrokers
-            : _clients.Keys.First();
+
+        if (_clients.Count == 0)
+            throw new InvalidOperationException(
+                "No broker clients registered. Build with at least one broker SDK present (TWS API for IB, NTDirect.dll for NinjaTrader, or always-on cTrader).");
+
+        // Default to IB when present (most users), else NinjaTrader, else whatever's available.
+        _active = _clients.ContainsKey(BrokerKind.InteractiveBrokers) ? BrokerKind.InteractiveBrokers
+                : _clients.ContainsKey(BrokerKind.NinjaTrader) ? BrokerKind.NinjaTrader
+                : _clients.Keys.First();
+
+        AvailableKinds = _clients.Keys.OrderBy(k => (int)k).ToArray();
     }
 
     public BrokerKind ActiveKind => _active;
@@ -36,12 +43,17 @@ public sealed class BrokerSelector : IBrokerSelector
 
     public BrokerConnectionMode ActiveMode => _modes[_active];
 
+    public IReadOnlyList<BrokerKind> AvailableKinds { get; }
+
+    public bool IsAvailable(BrokerKind kind) => _clients.ContainsKey(kind);
+
     public event EventHandler? ActiveChanged;
 
     public void SetActive(BrokerKind kind)
     {
         if (!_clients.ContainsKey(kind))
-            throw new InvalidOperationException($"Broker {kind} is not registered.");
+            throw new InvalidOperationException(
+                $"Broker {kind} is not available in this build. Install the corresponding SDK and rebuild.");
         if (_active == kind) return;
         _logger.LogInformation("Switching active broker {Old} -> {New}", _active, kind);
         _active = kind;
