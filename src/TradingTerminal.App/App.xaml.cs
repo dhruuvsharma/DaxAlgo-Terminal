@@ -59,6 +59,8 @@ public partial class App : Application
             {
                 services.Configure<InteractiveBrokersOptions>(
                     ctx.Configuration.GetSection(InteractiveBrokersOptions.SectionName));
+                services.Configure<NinjaTraderOptions>(
+                    ctx.Configuration.GetSection(NinjaTraderOptions.SectionName));
 
                 services.AddSingleton(inMemoryLogSink);
 

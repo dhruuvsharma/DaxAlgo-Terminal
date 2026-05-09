@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <UseWPF>true</UseWPF>
-    <Description>IB client wrappers, market-data repository, connection manager.</Description>
+    <Description>Broker client wrappers (IB, NinjaTrader), market-data repository, connection manager.</Description>
   </PropertyGroup>
 
   <!--
@@ -45,6 +45,44 @@
 
   <Target Name="ReportIbApiResolution" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedTwsApiDll)' != ''">
     <Message Importance="high" Text="IB CSharpAPI resolved from: $(_ResolvedTwsApiDll)" />
+  </Target>
+
+  <!--
+    Resolve NTDirect.dll for the NinjaTrader backend. Search order:
+      1. lib/NTDirect.dll (vendored copy)
+      2. $(NinjaTraderApiDll) MSBuild property
+      3. %USERPROFILE%\Documents\NinjaTrader 8\bin64\NTDirect.dll (standard install)
+    When found we (a) define HAS_NTAPI so RealNinjaClient compiles, and (b) copy the DLL
+    next to the assembly so P/Invoke resolves it without touching PATH.
+  -->
+  <PropertyGroup>
+    <_LocalNTDirectDll>$(MSBuildThisFileDirectory)..\..\lib\NTDirect.dll</_LocalNTDirectDll>
+    <_DefaultNTDirectDll>$(USERPROFILE)\Documents\NinjaTrader 8\bin64\NTDirect.dll</_DefaultNTDirectDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND Exists('$(_LocalNTDirectDll)')">
+    <_ResolvedNTDirectDll>$(_LocalNTDirectDll)</_ResolvedNTDirectDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND '$(NinjaTraderApiDll)' != '' AND Exists('$(NinjaTraderApiDll)')">
+    <_ResolvedNTDirectDll>$(NinjaTraderApiDll)</_ResolvedNTDirectDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND Exists('$(_DefaultNTDirectDll)')">
+    <_ResolvedNTDirectDll>$(_DefaultNTDirectDll)</_ResolvedNTDirectDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' != ''">
+    <DefineConstants>$(DefineConstants);HAS_NTAPI</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_ResolvedNTDirectDll)' != ''">
+    <None Include="$(_ResolvedNTDirectDll)">
+      <Link>NTDirect.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="ReportNTDirectResolution" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedNTDirectDll)' != ''">
+    <Message Importance="high" Text="NTDirect resolved from: $(_ResolvedNTDirectDll)" />
   </Target>
 
   <ItemGroup>

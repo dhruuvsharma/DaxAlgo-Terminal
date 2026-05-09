@@ -32,7 +32,7 @@
               BorderThickness="0,0,0,1">
 
             <MenuItem Header="_File">
-                <MenuItem Header="_Reconnect to TWS"
+                <MenuItem Header="_Reconnect to broker"
                           Command="{Binding ReconnectCommand}" />
                 <Separator />
                 <MenuItem Header="E_xit"
@@ -56,7 +56,7 @@
                 Padding="12,6"
                 Visibility="{Binding IsDisconnected, Converter={StaticResource BooleanToVisibilityConverter}}">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Disconnected from Interactive Brokers"
+                <TextBlock Text="{Binding DisconnectBannerText}"
                            Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
                 <Button Content="Reconnect"
                         Margin="16,0,0,0"

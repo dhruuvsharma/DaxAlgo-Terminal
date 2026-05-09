@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using TradingTerminal.Core.Brokers;
 
 namespace TradingTerminal.App.Login;
 
@@ -11,6 +12,9 @@ namespace TradingTerminal.App.Login;
 /// </summary>
 public sealed class StoredCredentials
 {
+    /// <summary>Which broker the user last signed in with. Drives the form shown on next launch.</summary>
+    public BrokerKind SelectedBroker { get; set; } = BrokerKind.InteractiveBrokers;
+
     public string? Username { get; set; }
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 7497;
@@ -18,6 +22,11 @@ public sealed class StoredCredentials
     public string AccountType { get; set; } = "Paper";
     public int MarketDataType { get; set; } = 1;
     public bool RememberPassword { get; set; }
+
+    // ---- NinjaTrader-specific fields ----
+    public string NinjaAccountName { get; set; } = "Sim101";
+    public string NinjaDllPath { get; set; } = string.Empty;
+    public string NinjaFuturesContractMonth { get; set; } = string.Empty;
 
     /// <summary>Base64-encoded DPAPI ciphertext. Null when password is not remembered.</summary>
     public string? PasswordEncryptedBase64 { get; set; }

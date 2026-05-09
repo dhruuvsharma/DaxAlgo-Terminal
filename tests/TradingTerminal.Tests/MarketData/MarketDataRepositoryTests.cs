@@ -1,9 +1,8 @@
 using System.Reactive.Subjects;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
-using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.Ib;
@@ -18,21 +17,20 @@ public sealed class MarketDataRepositoryTests
     [Fact]
     public async Task When_disconnected_subscribe_throws()
     {
-        var ib = Substitute.For<IIbClient>();
+        var client = Substitute.For<IBrokerClient>();
+        client.Kind.Returns(BrokerKind.InteractiveBrokers);
         var state = new BehaviorSubject<ConnectionState>(ConnectionState.Disconnected);
-        ib.ConnectionState.Returns(state);
+        client.ConnectionState.Returns(state);
 
-        // SubscribeBarsAsync throws synchronously when not connected — emulates FakeIbClient/RealIbClient guard.
-        ib.SubscribeBarsAsync(Arg.Any<Contract>(), Arg.Any<BarSize>(), Arg.Any<CancellationToken>())
-          .Returns(_ => throw new InvalidOperationException("Not connected."));
+        // SubscribeBarsAsync throws synchronously when not connected — emulates Fake/Real client guard.
+        client.SubscribeBarsAsync(Arg.Any<Contract>(), Arg.Any<BarSize>(), Arg.Any<CancellationToken>())
+              .Returns(_ => throw new InvalidOperationException("Not connected."));
 
-        var connection = new ConnectionManager(
-            ib,
-            Options.Create(new InteractiveBrokersOptions()),
-            NullLogger<ConnectionManager>.Instance);
+        var selector = new SingleClientSelector(client);
+        var connection = new ConnectionManager(selector, NullLogger<ConnectionManager>.Instance);
 
         var repo = new MarketDataRepository(
-            ib, connection, new ImmediateDispatcher(),
+            selector, connection, new ImmediateDispatcher(),
             NullLogger<MarketDataRepository>.Instance);
 
         var act = async () =>
@@ -46,5 +44,20 @@ public sealed class MarketDataRepositoryTests
 
         await act.Should().ThrowAsync<InvalidOperationException>()
                   .WithMessage("*Not connected*");
+    }
+
+    private sealed class SingleClientSelector : IBrokerSelector
+    {
+        public SingleClientSelector(IBrokerClient client)
+        {
+            Active = client;
+            ActiveMode = new BrokerConnectionMode(client.Kind, false, "Test", "Test");
+        }
+
+        public BrokerKind ActiveKind => Active.Kind;
+        public IBrokerClient Active { get; }
+        public BrokerConnectionMode ActiveMode { get; }
+        public event EventHandler? ActiveChanged { add { } remove { } }
+        public void SetActive(BrokerKind kind) { /* test selector — single client */ }
     }
 }

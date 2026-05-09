@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -14,25 +15,31 @@ namespace TradingTerminal.App.Login;
 public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 {
     private readonly InteractiveBrokersOptions _ibOptions;
+    private readonly NinjaTraderOptions _ntOptions;
     private readonly IMarketDataRepository _repository;
+    private readonly IBrokerSelector _brokerSelector;
     private readonly CredentialStore _credentialStore;
-    private readonly IbConnectionMode _connectionMode;
+    private readonly IEnumerable<BrokerConnectionMode> _allModes;
     private readonly SessionContext _session;
     private readonly ILogger<LoginViewModel> _logger;
     private readonly IDisposable _stateSub;
 
     public LoginViewModel(
         IOptions<InteractiveBrokersOptions> ibOptions,
+        IOptions<NinjaTraderOptions> ntOptions,
         IMarketDataRepository repository,
+        IBrokerSelector brokerSelector,
         CredentialStore credentialStore,
-        IbConnectionMode connectionMode,
+        IEnumerable<BrokerConnectionMode> allModes,
         SessionContext session,
         ILogger<LoginViewModel> logger)
     {
         _ibOptions = ibOptions.Value;
+        _ntOptions = ntOptions.Value;
         _repository = repository;
+        _brokerSelector = brokerSelector;
         _credentialStore = credentialStore;
-        _connectionMode = connectionMode;
+        _allModes = allModes;
         _session = session;
         _logger = logger;
 
@@ -45,6 +52,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         };
 
         var stored = _credentialStore.Load();
+        SelectedBroker = stored.SelectedBroker;
         Username = stored.Username ?? string.Empty;
         Host = stored.Host;
         Port = stored.Port;
@@ -55,6 +63,10 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         RememberPassword = stored.RememberPassword;
         Password = stored.Password ?? string.Empty;
 
+        NinjaAccountName = string.IsNullOrWhiteSpace(stored.NinjaAccountName) ? "Sim101" : stored.NinjaAccountName;
+        NinjaDllPath = stored.NinjaDllPath;
+        NinjaFuturesContractMonth = stored.NinjaFuturesContractMonth;
+
         // Live ConnectionState, mirrored into a property the XAML can read.
         _stateSub = _repository.ConnectionState.Subscribe(s => CurrentState = s);
     }
@@ -62,10 +74,38 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<string> AccountTypes { get; }
     public IReadOnlyList<MarketDataTypeOption> MarketDataTypes { get; }
 
-    public string ModeDisplayName => _connectionMode.DisplayName;
-    public string ModeDescription => _connectionMode.Description;
-    public bool IsDemoMode => !_connectionMode.IsLive;
-    public bool IsLiveMode => _connectionMode.IsLive;
+    private BrokerConnectionMode ActiveMode =>
+        _allModes.FirstOrDefault(m => m.Broker == SelectedBroker)
+        ?? new BrokerConnectionMode(SelectedBroker, false, SelectedBroker.ToString(), string.Empty);
+
+    public string ModeDisplayName => ActiveMode.DisplayName;
+    public string ModeDescription => ActiveMode.Description;
+    public bool IsDemoMode => !ActiveMode.IsLive;
+    public bool IsLiveMode => ActiveMode.IsLive;
+
+    public bool IsIbBrokerSelected => SelectedBroker == BrokerKind.InteractiveBrokers;
+    public bool IsNinjaBrokerSelected => SelectedBroker == BrokerKind.NinjaTrader;
+
+    public string SubtitleText => SelectedBroker switch
+    {
+        BrokerKind.InteractiveBrokers => "Sign in to your Interactive Brokers session",
+        BrokerKind.NinjaTrader => "Connect to your NinjaTrader 8 session",
+        _ => "Sign in",
+    };
+
+    [ObservableProperty]
+    private BrokerKind _selectedBroker = BrokerKind.InteractiveBrokers;
+
+    partial void OnSelectedBrokerChanged(BrokerKind value)
+    {
+        OnPropertyChanged(nameof(IsIbBrokerSelected));
+        OnPropertyChanged(nameof(IsNinjaBrokerSelected));
+        OnPropertyChanged(nameof(SubtitleText));
+        OnPropertyChanged(nameof(ModeDisplayName));
+        OnPropertyChanged(nameof(ModeDescription));
+        OnPropertyChanged(nameof(IsDemoMode));
+        OnPropertyChanged(nameof(IsLiveMode));
+    }
 
     [ObservableProperty]
     private string _username = string.Empty;
@@ -99,6 +139,19 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isAdvancedExpanded;
 
+    // ---- NinjaTrader-specific fields ----
+
+    [ObservableProperty]
+    private string _ninjaAccountName = "Sim101";
+
+    [ObservableProperty]
+    private string _ninjaDllPath = string.Empty;
+
+    [ObservableProperty]
+    private string _ninjaFuturesContractMonth = string.Empty;
+
+    // ---- Connection state ----
+
     [ObservableProperty]
     private bool _isConnecting;
 
@@ -118,22 +171,41 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public event EventHandler<bool>? LoginCompleted;
 
     [RelayCommand]
+    private void SelectIb() => SelectedBroker = BrokerKind.InteractiveBrokers;
+
+    [RelayCommand]
+    private void SelectNinja() => SelectedBroker = BrokerKind.NinjaTrader;
+
+    [RelayCommand]
     private async Task ConnectAsync()
     {
         ErrorMessage = null;
-        StatusMessage = "Connecting to TWS...";
+        StatusMessage = SelectedBroker == BrokerKind.InteractiveBrokers
+            ? "Connecting to TWS..."
+            : "Connecting to NinjaTrader...";
         IsConnecting = true;
         IsConnected = false;
 
         try
         {
-            // Push the user-supplied connection settings into the live options instance so the
-            // ConnectionManager picks them up on its next attempt.
-            _ibOptions.Host = Host;
-            _ibOptions.Port = Port;
-            _ibOptions.ClientId = ClientId;
-            _ibOptions.AccountType = AccountType;
-            _ibOptions.MarketDataType = SelectedMarketDataType?.Value ?? 1;
+            // Push the user-supplied connection settings into the live options instance for the
+            // active broker. Then flip the selector so the connection manager picks the right client.
+            if (SelectedBroker == BrokerKind.InteractiveBrokers)
+            {
+                _ibOptions.Host = Host;
+                _ibOptions.Port = Port;
+                _ibOptions.ClientId = ClientId;
+                _ibOptions.AccountType = AccountType;
+                _ibOptions.MarketDataType = SelectedMarketDataType?.Value ?? 1;
+            }
+            else
+            {
+                _ntOptions.AccountName = string.IsNullOrWhiteSpace(NinjaAccountName) ? "Sim101" : NinjaAccountName.Trim();
+                _ntOptions.DllPath = NinjaDllPath?.Trim() ?? string.Empty;
+                _ntOptions.DefaultFuturesContractMonth = NinjaFuturesContractMonth?.Trim() ?? string.Empty;
+            }
+
+            _brokerSelector.SetActive(SelectedBroker);
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -155,7 +227,8 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             }
 
             PersistCredentials();
-            _session.SetSignedIn(Username, AccountType);
+            var sessionAccount = SelectedBroker == BrokerKind.InteractiveBrokers ? AccountType : NinjaAccountName;
+            _session.SetSignedIn(Username, sessionAccount);
 
             // Visibly show the "Connected" state for a moment so the user gets explicit feedback
             // before the window flips to the main shell.
@@ -167,11 +240,12 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException)
         {
-            ErrorMessage = $"Connection timed out after 15s. " +
-                           $"Verify TWS / IB Gateway is running on {Host}:{Port} and that API access is enabled. " +
-                           $"If you have 2FA enabled, complete the 2FA prompt in TWS before signing in here.";
+            ErrorMessage = SelectedBroker == BrokerKind.InteractiveBrokers
+                ? $"Connection timed out after 15s. Verify TWS / IB Gateway is running on {Host}:{Port} and that API access is enabled. " +
+                  "If you have 2FA enabled, complete the 2FA prompt in TWS before signing in here."
+                : "Connection timed out after 15s. Verify NinjaTrader 8 is running and the AT Interface is enabled in Tools → Options.";
             StatusMessage = null;
-            _logger.LogWarning("Login connection timed out at {Host}:{Port}", Host, Port);
+            _logger.LogWarning("Login connection timed out (broker={Broker})", SelectedBroker);
         }
         catch (Exception ex)
         {
@@ -190,17 +264,25 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     private string ResolveFailureMessage()
     {
-        return _connectionMode.IsLive
-            ? "TWS reported a connection failure. Common causes: API access not enabled in TWS Global Config, " +
-              "wrong port (TWS Paper=7497, TWS Live=7496, Gateway Paper=4002, Gateway Live=4001), " +
-              "or client id already in use by another connection."
-            : "Connection failed in demo mode (this should be rare — check the log pane).";
+        if (SelectedBroker == BrokerKind.InteractiveBrokers)
+        {
+            return ActiveMode.IsLive
+                ? "TWS reported a connection failure. Common causes: API access not enabled in TWS Global Config, " +
+                  "wrong port (TWS Paper=7497, TWS Live=7496, Gateway Paper=4002, Gateway Live=4001), " +
+                  "or client id already in use by another connection."
+                : "Connection failed in IB demo mode (this should be rare — check the log pane).";
+        }
+        return ActiveMode.IsLive
+            ? "NinjaTrader reported a connection failure. Make sure NinjaTrader 8 is running, signed in, " +
+              "and that Tools → Options → AT Interface → 'AT Interface enabled' is checked."
+            : "Connection failed in NinjaTrader demo mode (this should be rare — check the log pane).";
     }
 
     private void PersistCredentials()
     {
         var stored = new StoredCredentials
         {
+            SelectedBroker = SelectedBroker,
             Username = string.IsNullOrWhiteSpace(Username) ? null : Username.Trim(),
             Host = Host,
             Port = Port,
@@ -208,6 +290,9 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             AccountType = AccountType,
             MarketDataType = SelectedMarketDataType?.Value ?? 1,
             RememberPassword = RememberPassword,
+            NinjaAccountName = string.IsNullOrWhiteSpace(NinjaAccountName) ? "Sim101" : NinjaAccountName.Trim(),
+            NinjaDllPath = NinjaDllPath?.Trim() ?? string.Empty,
+            NinjaFuturesContractMonth = NinjaFuturesContractMonth?.Trim() ?? string.Empty,
         };
         if (RememberPassword && !string.IsNullOrEmpty(Password))
             stored.Password = Password;

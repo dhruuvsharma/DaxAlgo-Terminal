@@ -7,7 +7,7 @@
                  xmlns:local="clr-namespace:TradingTerminal.App.Login"
                  mc:Ignorable="d"
                  Title="Trading Terminal — Sign in"
-                 Height="700" Width="480"
+                 Height="760" Width="520"
                  ResizeMode="NoResize"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
@@ -16,40 +16,148 @@
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
 
+    <mah:MetroWindow.Resources>
+        <!-- Broker tile button: large square with icon + label.
+             Uses dependency triggers to highlight the active broker via the IsChecked-style pattern below. -->
+        <Style x:Key="BrokerTileButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Selected-state border for the active broker tile. Applied via DataTrigger from code. -->
+    </mah:MetroWindow.Resources>
+
     <Grid Margin="32,16,32,24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />  <!-- Brand -->
+            <RowDefinition Height="Auto" />  <!-- Broker selector -->
+            <RowDefinition Height="Auto" />  <!-- Mode badge -->
+            <RowDefinition Height="Auto" />  <!-- 2FA / NT note -->
+            <RowDefinition Height="*" />     <!-- Form fields -->
+            <RowDefinition Height="Auto" />  <!-- Status -->
+            <RowDefinition Height="Auto" />  <!-- Buttons -->
+            <RowDefinition Height="Auto" />  <!-- Footer -->
         </Grid.RowDefinitions>
 
         <!-- Logo + brand -->
         <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,8">
             <Image Source="pack://application:,,,/Icon/DaxAlgoLogo.png"
-                   Width="80" Height="80"
+                   Width="64" Height="64"
                    RenderOptions.BitmapScalingMode="HighQuality" />
             <TextBlock Text="DaxAlgo Terminal"
                        HorizontalAlignment="Center"
-                       FontSize="20"
+                       FontSize="18"
                        FontWeight="SemiBold"
-                       Margin="0,8,0,0" />
-            <TextBlock Text="Sign in to your Interactive Brokers session"
+                       Margin="0,6,0,0" />
+            <TextBlock Text="{Binding SubtitleText}"
                        HorizontalAlignment="Center"
                        Foreground="{DynamicResource Text.Secondary}"
                        Margin="0,2,0,0" />
         </StackPanel>
 
+        <!-- Broker selector: two large tiles. Selected one gets an accent border.
+             Vector glyphs are inlined so we don't depend on icon assets. -->
+        <Grid Grid.Row="1" Margin="0,8,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Interactive Brokers tile -->
+            <Button Grid.Column="0"
+                    Command="{Binding SelectIbCommand}"
+                    IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource BrokerTileButton}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsIbBrokerSelected}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <StackPanel Orientation="Horizontal">
+                    <!-- IB monogram glyph: stylized "IB" badge -->
+                    <Border Width="32" Height="32" Background="#D32F2F" CornerRadius="4"
+                            VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="IB" Foreground="White"
+                                   FontWeight="Bold" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Interactive Brokers" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Text="TWS / IB Gateway"
+                                   Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
+                    </StackPanel>
+                </StackPanel>
+            </Button>
+
+            <!-- NinjaTrader tile -->
+            <Button Grid.Column="2"
+                    Command="{Binding SelectNinjaCommand}"
+                    IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource BrokerTileButton}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNinjaBrokerSelected}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                <Setter Property="BorderThickness" Value="2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <StackPanel Orientation="Horizontal">
+                    <!-- NT monogram glyph -->
+                    <Border Width="32" Height="32" Background="#1B5E20" CornerRadius="4"
+                            VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="NT" Foreground="White"
+                                   FontWeight="Bold" FontSize="14"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="NinjaTrader" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Text="NinjaTrader 8 (NTDirect)"
+                                   Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
+                    </StackPanel>
+                </StackPanel>
+            </Button>
+        </Grid>
+
         <!-- Mode badge -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 BorderBrush="{DynamicResource Border.Brush}"
                 BorderThickness="1"
                 CornerRadius="3"
                 Padding="10,6"
-                Margin="0,8,0,4"
+                Margin="0,4,0,4"
                 HorizontalAlignment="Stretch">
             <Border.Style>
                 <Style TargetType="Border">
@@ -72,106 +180,170 @@
             </StackPanel>
         </Border>
 
-        <!-- 2FA note -->
-        <Border Grid.Row="2"
+        <!-- Per-broker note: 2FA reminder for IB, AT-Interface reminder for NT -->
+        <Border Grid.Row="3"
                 Background="{DynamicResource Background.Surface}"
                 BorderBrush="{DynamicResource Border.Brush}"
                 BorderThickness="1"
                 Padding="10,6"
                 Margin="0,4,0,12">
-            <TextBlock TextWrapping="Wrap"
-                       Foreground="{DynamicResource Text.Secondary}"
-                       FontSize="11">
-                <Run FontWeight="SemiBold" Text="2FA is handled by TWS, not by this app." />
-                <LineBreak />
-                <Run Text="Open TWS or IB Gateway, complete the IBKR Mobile / OTP / security-key prompt there, then sign in below. The TWS API socket has no separate 2FA step — once TWS is logged in, this app just connects." />
-            </TextBlock>
+            <Grid>
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           FontSize="11"
+                           Visibility="{Binding IsIbBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Run FontWeight="SemiBold" Text="2FA is handled by TWS, not by this app." />
+                    <LineBreak />
+                    <Run Text="Open TWS or IB Gateway, complete the IBKR Mobile / OTP / security-key prompt there, then sign in below. The TWS API socket has no separate 2FA step — once TWS is logged in, this app just connects." />
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           FontSize="11"
+                           Visibility="{Binding IsNinjaBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Run FontWeight="SemiBold" Text="NinjaTrader 8 must be running first." />
+                    <LineBreak />
+                    <Run Text="Start NinjaTrader 8 and sign in to your data feed. Enable Tools → Options → AT Interface → 'AT Interface enabled'. This app talks to NT via NTDirect.dll — no separate sign-in." />
+                </TextBlock>
+            </Grid>
         </Border>
 
-        <!-- Form fields -->
-        <ScrollViewer Grid.Row="3"
+        <!-- Form fields: IB or NT, swapped by visibility -->
+        <ScrollViewer Grid.Row="4"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Padding="0,0,4,0">
-        <StackPanel>
+            <Grid>
 
-            <TextBlock Text="Username" Margin="0,0,0,4" />
-            <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
-                     mah:TextBoxHelper.Watermark="Your IB username (for display)"
-                     IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                     Margin="0,0,0,12" />
+                <!-- IB form -->
+                <StackPanel Visibility="{Binding IsIbBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
 
-            <TextBlock Text="Password" Margin="0,0,0,4" />
-            <PasswordBox x:Name="PasswordBox"
-                         PasswordChanged="PasswordBox_PasswordChanged"
-                         mah:TextBoxHelper.Watermark="Stored locally if you check Remember"
-                         IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                         Margin="0,0,0,12" />
+                    <TextBlock Text="Username" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                             mah:TextBoxHelper.Watermark="Your IB username (for display)"
+                             IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                             Margin="0,0,0,12" />
 
-            <CheckBox Content="Remember password on this machine (DPAPI-encrypted)"
-                      IsChecked="{Binding RememberPassword}"
-                      IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                      Margin="0,0,0,8" />
+                    <TextBlock Text="Password" Margin="0,0,0,4" />
+                    <PasswordBox x:Name="PasswordBox"
+                                 PasswordChanged="PasswordBox_PasswordChanged"
+                                 mah:TextBoxHelper.Watermark="Stored locally if you check Remember"
+                                 IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                 Margin="0,0,0,12" />
 
-            <Expander Header="Connection settings"
-                      IsExpanded="{Binding IsAdvancedExpanded}"
-                      Foreground="{DynamicResource Text.Primary}">
-                <Grid Margin="0,8,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                    <CheckBox Content="Remember password on this machine (DPAPI-encrypted)"
+                              IsChecked="{Binding RememberPassword}"
+                              IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                              Margin="0,0,0,8" />
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Host" Margin="0,0,4,4" />
-                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Port" Margin="4,0,0,4" />
-                    <TextBox    Grid.Row="1" Grid.Column="0"
-                                Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                Margin="0,0,4,12" />
-                    <TextBox    Grid.Row="1" Grid.Column="1"
-                                Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                Margin="4,0,0,12" />
+                    <Expander Header="Connection settings"
+                              IsExpanded="{Binding IsAdvancedExpanded}"
+                              Foreground="{DynamicResource Text.Primary}">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Client ID" Margin="0,0,4,4" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" Text="Account" Margin="4,0,0,4" />
-                    <TextBox    Grid.Row="3" Grid.Column="0"
-                                Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
-                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                Margin="0,0,4,12" />
-                    <ComboBox   Grid.Row="3" Grid.Column="1"
-                                ItemsSource="{Binding AccountTypes}"
-                                SelectedItem="{Binding AccountType}"
-                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                Margin="4,0,0,12" />
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Host" Margin="0,0,4,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Port" Margin="4,0,0,4" />
+                            <TextBox    Grid.Row="1" Grid.Column="0"
+                                        Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                                        IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                        Margin="0,0,4,12" />
+                            <TextBox    Grid.Row="1" Grid.Column="1"
+                                        Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
+                                        IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                        Margin="4,0,0,12" />
 
-                    <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
-                               Text="Market data mode"
-                               Margin="0,0,0,4" />
-                    <ComboBox   Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
-                                ItemsSource="{Binding MarketDataTypes}"
-                                SelectedItem="{Binding SelectedMarketDataType}"
-                                DisplayMemberPath="DisplayName"
-                                IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                                ToolTip="Switch to Delayed if you see IB error 10089 (no real-time market-data subscription)."
-                                Margin="0,0,0,0" />
-                </Grid>
-            </Expander>
-        </StackPanel>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Client ID" Margin="0,0,4,4" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="Account" Margin="4,0,0,4" />
+                            <TextBox    Grid.Row="3" Grid.Column="0"
+                                        Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"
+                                        IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                        Margin="0,0,4,12" />
+                            <ComboBox   Grid.Row="3" Grid.Column="1"
+                                        ItemsSource="{Binding AccountTypes}"
+                                        SelectedItem="{Binding AccountType}"
+                                        IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                        Margin="4,0,0,12" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                                       Text="Market data mode"
+                                       Margin="0,0,0,4" />
+                            <ComboBox   Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                                        ItemsSource="{Binding MarketDataTypes}"
+                                        SelectedItem="{Binding SelectedMarketDataType}"
+                                        DisplayMemberPath="DisplayName"
+                                        IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                        ToolTip="Switch to Delayed if you see IB error 10089 (no real-time market-data subscription)."
+                                        Margin="0,0,0,0" />
+                        </Grid>
+                    </Expander>
+                </StackPanel>
+
+                <!-- NinjaTrader form -->
+                <StackPanel Visibility="{Binding IsNinjaBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+                    <TextBlock Text="Display name (optional)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                             mah:TextBoxHelper.Watermark="Shown in the status bar after sign-in"
+                             IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="NinjaTrader account" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding NinjaAccountName, UpdateSourceTrigger=PropertyChanged}"
+                             mah:TextBoxHelper.Watermark="e.g. Sim101 (default sim account)"
+                             IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                             Margin="0,0,0,12" />
+
+                    <Expander Header="Connection settings"
+                              IsExpanded="{Binding IsAdvancedExpanded}"
+                              Foreground="{DynamicResource Text.Primary}">
+                        <StackPanel Margin="0,8,0,0">
+
+                            <TextBlock Text="Default futures contract month (e.g. 06-26)" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding NinjaFuturesContractMonth, UpdateSourceTrigger=PropertyChanged}"
+                                     mah:TextBoxHelper.Watermark="Optional — leave empty for stocks/forex"
+                                     IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                     ToolTip="NinjaTrader expects futures as 'ES 06-26'. Set this once and we'll append it to bare symbols."
+                                     Margin="0,0,0,12" />
+
+                            <TextBlock Text="NTDirect.dll path (override)" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding NinjaDllPath, UpdateSourceTrigger=PropertyChanged}"
+                                     mah:TextBoxHelper.Watermark="Leave empty to use the standard install path"
+                                     IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                                     ToolTip="Auto-resolves from %USERPROFILE%\Documents\NinjaTrader 8\bin64\NTDirect.dll if blank."
+                                     Margin="0,0,0,0" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Border Background="{DynamicResource Background.Surface}"
+                            BorderBrush="{DynamicResource Border.Brush}"
+                            BorderThickness="1"
+                            Padding="10,6"
+                            Margin="0,12,0,0">
+                        <TextBlock TextWrapping="Wrap"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}">
+                            <Run FontWeight="SemiBold" Text="Heads up:" />
+                            <Run Text="NTDirect doesn't expose historical bars — charts will show synthesized history until live ticks arrive. Real-time data and order routing work normally." />
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+            </Grid>
         </ScrollViewer>
 
         <!-- Status / error / live state -->
-        <StackPanel Grid.Row="4" Margin="0,12,0,4">
+        <StackPanel Grid.Row="5" Margin="0,12,0,4">
 
-            <!-- Live connection state row (visible while connecting or after connected) -->
             <StackPanel Orientation="Horizontal"
                         Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
                 <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
@@ -198,13 +370,12 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <!-- Big success indicator -->
             <Border Background="{DynamicResource Bullish.Brush}"
                     Padding="10,6"
                     Margin="0,8,0,0"
                     Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="✓" FontSize="16" FontWeight="Bold"
+                    <TextBlock Text="OK" FontSize="14" FontWeight="Bold"
                                Foreground="#1E1E1E" Margin="0,0,8,0" />
                     <TextBlock Text="Signed in successfully"
                                FontWeight="SemiBold"
@@ -212,7 +383,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- Error message -->
             <Border Background="{DynamicResource Danger.Brush}"
                     Padding="10,6"
                     Margin="0,8,0,0"
@@ -224,7 +394,7 @@
         </StackPanel>
 
         <!-- Buttons -->
-        <Grid Grid.Row="5" Margin="0,12,0,0">
+        <Grid Grid.Row="6" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -255,7 +425,7 @@
         </Grid>
 
         <!-- Footer -->
-        <TextBlock Grid.Row="6"
+        <TextBlock Grid.Row="7"
                    Text="DaxAlgo Terminal · MIT licensed"
                    Foreground="{DynamicResource Text.Secondary}"
                    FontSize="10"

@@ -9,40 +9,39 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
-namespace TradingTerminal.Infrastructure.Ib;
+namespace TradingTerminal.Infrastructure.NinjaTrader;
 
 /// <summary>
-/// Synthetic IB client. Used by default so the app builds and runs without the IB binary.
-/// Generates a plausible random walk per symbol and "ticks" a new closed bar on the
-/// configured cadence.
+/// Synthetic NinjaTrader client. Used when NTDirect.dll isn't available (build-time
+/// gate) or when the user explicitly opts out of the real client. Generates a
+/// plausible random-walk price stream so the rest of the app behaves identically
+/// regardless of the chosen broker.
 /// </summary>
-public sealed class FakeIbClient : IBrokerClient
+public sealed class FakeNinjaClient : IBrokerClient
 {
-    private readonly ILogger<FakeIbClient> _logger;
-    private readonly IOptions<InteractiveBrokersOptions> _options;
+    private readonly ILogger<FakeNinjaClient> _logger;
+    private readonly IOptions<NinjaTraderOptions> _options;
     private readonly BehaviorSubject<ConnectionState> _state = new(Core.Domain.ConnectionState.Disconnected);
-    private readonly Random _rng = new(42);
+    private readonly Random _rng = new(7);
     private readonly Dictionary<string, double> _lastPrice = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
 
-    public FakeIbClient(ILogger<FakeIbClient> logger, IOptions<InteractiveBrokersOptions> options)
+    public FakeNinjaClient(ILogger<FakeNinjaClient> logger, IOptions<NinjaTraderOptions> options)
     {
         _logger = logger;
         _options = options;
     }
 
-    public BrokerKind Kind => BrokerKind.InteractiveBrokers;
+    public BrokerKind Kind => BrokerKind.NinjaTrader;
 
     public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
         var opt = _options.Value;
-        _logger.LogInformation("FakeIbClient connecting (host={Host}, port={Port}, clientId={ClientId})",
-            opt.Host, opt.Port, opt.ClientId);
+        _logger.LogInformation("FakeNinjaClient connecting (account={Account})", opt.AccountName);
         _state.OnNext(Core.Domain.ConnectionState.Connecting);
 
-        // Brief simulated handshake so the UI's "Connecting..." state is visible in demo mode.
         try { await Task.Delay(400, ct).ConfigureAwait(false); }
         catch (OperationCanceledException) { _state.OnNext(Core.Domain.ConnectionState.Disconnected); throw; }
 
@@ -71,11 +70,7 @@ public sealed class FakeIbClient : IBrokerClient
             bars.Add(bar);
             price = next;
         }
-
         lock (_gate) { _lastPrice[contract.Symbol] = price; }
-
-        _logger.LogDebug("FakeIbClient produced {Count} historical {Size} bars for {Symbol}",
-            bars.Count, barSize.ToDisplayString(), contract.Symbol);
 
         return Task.FromResult<IReadOnlyList<Bar>>(bars);
     }
@@ -87,8 +82,6 @@ public sealed class FakeIbClient : IBrokerClient
         if (_state.Value is not Core.Domain.ConnectionState.Connected)
             throw new InvalidOperationException("Not connected.");
 
-        // For demo purposes synthesize bars on a sped-up cadence (1 bar per second)
-        // so the chart actually moves while you're watching.
         var step = TimeSpan.FromSeconds(1);
         var ch = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
         {
@@ -111,7 +104,7 @@ public sealed class FakeIbClient : IBrokerClient
                     if (!ch.Writer.TryWrite(bar)) break;
                 }
             }
-            catch (OperationCanceledException) { /* expected */ }
+            catch (OperationCanceledException) { }
             finally { ch.Writer.TryComplete(); }
         }, ct);
 
@@ -126,7 +119,6 @@ public sealed class FakeIbClient : IBrokerClient
         if (_state.Value is not Core.Domain.ConnectionState.Connected)
             throw new InvalidOperationException("Not connected.");
 
-        // ~5 ticks per second so the bid-tick rule has enough samples per bar to be interesting.
         var step = TimeSpan.FromMilliseconds(200);
         var ch = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
         {
@@ -142,23 +134,18 @@ public sealed class FakeIbClient : IBrokerClient
                 while (!ct.IsCancellationRequested)
                 {
                     await Task.Delay(step, ct);
-
-                    // Random walk on the bid; ask = bid + small spread. Mostly small moves with
-                    // occasional bigger jumps so the delta accumulates a meaningful signed sum.
                     var jump = (_rng.NextDouble() - 0.5) * 0.04;
-                    if (_rng.NextDouble() < 0.05)
-                        jump *= 4; // occasional outlier
+                    if (_rng.NextDouble() < 0.05) jump *= 4;
                     bid = Math.Max(0.01, bid + jump);
                     var spread = 0.01 + _rng.NextDouble() * 0.02;
                     var ask = bid + spread;
                     var bidSize = (long)(1 + _rng.NextDouble() * 50);
                     var askSize = (long)(1 + _rng.NextDouble() * 50);
-
                     var tick = new Tick(DateTime.UtcNow, bid, ask, bidSize, askSize);
                     if (!ch.Writer.TryWrite(tick)) break;
                 }
             }
-            catch (OperationCanceledException) { /* expected */ }
+            catch (OperationCanceledException) { }
             finally { ch.Writer.TryComplete(); }
         }, ct);
 
@@ -171,7 +158,6 @@ public sealed class FakeIbClient : IBrokerClient
         lock (_gate)
         {
             if (_lastPrice.TryGetValue(symbol, out var p)) return p;
-            // Stable but symbol-dependent base.
             var hash = Math.Abs(symbol.GetHashCode(StringComparison.Ordinal)) % 400;
             var seed = 50 + hash;
             _lastPrice[symbol] = seed;
@@ -181,7 +167,6 @@ public sealed class FakeIbClient : IBrokerClient
 
     private (Bar bar, double next) NextBar(double prevClose, DateTime ts)
     {
-        // Random walk with small drift. Bar's open == previous close.
         var open = prevClose;
         var drift = (_rng.NextDouble() - 0.5) * 0.6;
         var close = Math.Max(0.01, open + drift);

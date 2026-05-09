@@ -6,6 +6,7 @@ using AvalonDock.Layout;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
@@ -22,7 +23,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly IMarketDataRepository _repository;
     private readonly IEventBus _eventBus;
     private readonly SessionContext _session;
-    private readonly IbConnectionMode _connectionMode;
+    private readonly IBrokerSelector _brokerSelector;
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
 
@@ -32,14 +33,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         IEventBus eventBus,
         InMemoryLogSink logSink,
         SessionContext session,
-        IbConnectionMode connectionMode,
+        IBrokerSelector brokerSelector,
         ILogger<MainWindowViewModel> logger)
     {
         _factory = factory;
         _repository = repository;
         _eventBus = eventBus;
         _session = session;
-        _connectionMode = connectionMode;
+        _brokerSelector = brokerSelector;
         _logger = logger;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
@@ -60,6 +61,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             OnPropertyChanged(nameof(SessionUserDisplay));
             OnPropertyChanged(nameof(IsAuthenticated));
         };
+
+        _brokerSelector.ActiveChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(ModeDisplayName));
+            OnPropertyChanged(nameof(IsLiveMode));
+            OnPropertyChanged(nameof(ActiveBrokerLabel));
+            OnPropertyChanged(nameof(DisconnectBannerText));
+        };
     }
 
     private readonly Dictionary<string, Window> _openWindows;
@@ -69,8 +78,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<LayoutDocument> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
 
-    public string ModeDisplayName => _connectionMode.DisplayName;
-    public bool IsLiveMode => _connectionMode.IsLive;
+    public string ModeDisplayName => _brokerSelector.ActiveMode.DisplayName;
+    public bool IsLiveMode => _brokerSelector.ActiveMode.IsLive;
+
+    public string ActiveBrokerLabel => _brokerSelector.ActiveKind switch
+    {
+        BrokerKind.InteractiveBrokers => "Interactive Brokers",
+        BrokerKind.NinjaTrader => "NinjaTrader",
+        _ => _brokerSelector.ActiveKind.ToString(),
+    };
+
+    public string DisconnectBannerText => $"Disconnected from {ActiveBrokerLabel}";
 
     public bool IsAuthenticated => _session.IsAuthenticated;
 

@@ -1,6 +1,7 @@
 using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.Ib;
@@ -12,21 +13,24 @@ namespace TradingTerminal.Infrastructure.MarketData;
 /// Default <see cref="IMarketDataRepository"/>. Owns the <see cref="ConnectionManager"/>
 /// (so the rest of the app can call <see cref="ConnectAsync"/> idempotently) and marshals
 /// every emitted bar onto the UI thread before yielding to consumers.
+///
+/// Broker-neutral: the underlying client is resolved through <see cref="IBrokerSelector"/>
+/// so the same repository instance serves whichever broker the user picked at login.
 /// </summary>
 public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposable
 {
-    private readonly IIbClient _client;
+    private readonly IBrokerSelector _selector;
     private readonly ConnectionManager _connection;
     private readonly IUiDispatcher _dispatcher;
     private readonly ILogger<MarketDataRepository> _logger;
 
     public MarketDataRepository(
-        IIbClient client,
+        IBrokerSelector selector,
         ConnectionManager connection,
         IUiDispatcher dispatcher,
         ILogger<MarketDataRepository> logger)
     {
-        _client = client;
+        _selector = selector;
         _connection = connection;
         _dispatcher = dispatcher;
         _logger = logger;
@@ -43,7 +47,7 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
     {
         _logger.LogDebug("Historical {Symbol} {Size} duration={Duration}",
             contract.Symbol, barSize.ToDisplayString(), duration);
-        return await _client.RequestHistoricalBarsAsync(contract, barSize, duration, ct);
+        return await _selector.Active.RequestHistoricalBarsAsync(contract, barSize, duration, ct);
     }
 
     public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
@@ -52,7 +56,7 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
     {
         // Caller may be on a worker thread (test) or on the UI thread (live app).
         // Either way, marshal each yielded bar onto the UI thread so view-models stay simple.
-        await foreach (var bar in _client.SubscribeBarsAsync(contract, barSize, ct))
+        await foreach (var bar in _selector.Active.SubscribeBarsAsync(contract, barSize, ct))
         {
             if (_dispatcher.CheckAccess())
             {
@@ -71,7 +75,7 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
         Contract contract,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await foreach (var tick in _client.SubscribeTicksAsync(contract, ct))
+        await foreach (var tick in _selector.Active.SubscribeTicksAsync(contract, ct))
         {
             if (_dispatcher.CheckAccess())
             {
@@ -89,6 +93,6 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
     public async ValueTask DisposeAsync()
     {
         await _connection.DisposeAsync();
-        await _client.DisposeAsync();
+        await _selector.Active.DisposeAsync();
     }
 }

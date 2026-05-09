@@ -1,17 +1,25 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Core.MarketData;
 
 /// <summary>
-/// Internal abstraction over the TWS API. The repository owns this; nothing else should depend on it.
-/// Implementations are responsible for marshalling raw IB callbacks onto a single producer thread —
+/// Internal abstraction over a market-data + connection backend (IB, NinjaTrader, ...).
+/// The repository owns this; nothing else should depend on it. Implementations are
+/// responsible for marshalling raw broker callbacks onto a single producer thread —
 /// the repository takes care of UI-thread dispatch above this seam.
+///
+/// Each implementation reads its own connection settings from injected options
+/// (host/port/clientId for IB; account/dll-path for NinjaTrader), so <see cref="ConnectAsync"/>
+/// takes only a cancellation token.
 /// </summary>
-public interface IIbClient : IAsyncDisposable
+public interface IBrokerClient : IAsyncDisposable
 {
+    BrokerKind Kind { get; }
+
     IObservable<ConnectionState> ConnectionState { get; }
 
-    Task ConnectAsync(string host, int port, int clientId, CancellationToken ct = default);
+    Task ConnectAsync(CancellationToken ct = default);
 
     Task DisconnectAsync(CancellationToken ct = default);
 
@@ -28,9 +36,8 @@ public interface IIbClient : IAsyncDisposable
 
     /// <summary>
     /// Streaming tick-by-tick bid/ask quotes. The sequence completes when <paramref name="ct"/>
-    /// is cancelled or the connection is permanently lost. Like <see cref="SubscribeBarsAsync"/>,
-    /// implementations are responsible for marshalling raw IB callbacks onto a single producer
-    /// thread before yielding.
+    /// is cancelled or the connection is permanently lost. Implementations are responsible
+    /// for marshalling raw broker callbacks onto a single producer thread before yielding.
     /// </summary>
     IAsyncEnumerable<Tick> SubscribeTicksAsync(
         Contract contract,

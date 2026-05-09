@@ -3,8 +3,7 @@ using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.Ib;
@@ -18,17 +17,11 @@ public sealed class ConnectionManagerTests
     public async Task Reconnects_with_backoff_on_drop()
     {
         var client = new FlakyClient();
-        var options = Options.Create(new InteractiveBrokersOptions
-        {
-            Host = "127.0.0.1",
-            Port = 1,
-            ClientId = 1,
-            ReconnectInitialDelaySeconds = 1,
-            ReconnectMaxDelaySeconds = 1,
-        });
+        var selector = new TestBrokerSelector(client);
 
         await using var manager = new ConnectionManager(
-            client, options, NullLogger<ConnectionManager>.Instance);
+            selector, NullLogger<ConnectionManager>.Instance);
+        manager.ConfigureBackoff(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
 
         var states = new List<ConnectionState>();
         using var sub = manager.ConnectionState.Subscribe(states.Add);
@@ -52,15 +45,31 @@ public sealed class ConnectionManagerTests
         await manager.StopAsync();
     }
 
+    private sealed class TestBrokerSelector : IBrokerSelector
+    {
+        public TestBrokerSelector(IBrokerClient client)
+        {
+            Active = client;
+            ActiveMode = new BrokerConnectionMode(client.Kind, false, "Test", "Test");
+        }
+
+        public BrokerKind ActiveKind => Active.Kind;
+        public IBrokerClient Active { get; }
+        public BrokerConnectionMode ActiveMode { get; }
+        public event EventHandler? ActiveChanged { add { } remove { } }
+        public void SetActive(BrokerKind kind) { /* single-broker test selector */ }
+    }
+
     /// <summary>Connects, immediately disconnects on first attempt, then connects normally on retry.</summary>
-    private sealed class FlakyClient : IIbClient
+    private sealed class FlakyClient : IBrokerClient
     {
         private readonly BehaviorSubject<ConnectionState> _state = new(Core.Domain.ConnectionState.Disconnected);
         public int ConnectAttempts;
 
+        public BrokerKind Kind => BrokerKind.InteractiveBrokers;
         public IObservable<ConnectionState> ConnectionState => _state;
 
-        public Task ConnectAsync(string host, int port, int clientId, CancellationToken ct = default)
+        public Task ConnectAsync(CancellationToken ct = default)
         {
             var attempt = Interlocked.Increment(ref ConnectAttempts);
             _state.OnNext(Core.Domain.ConnectionState.Connecting);

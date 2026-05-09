@@ -1,8 +1,7 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
@@ -13,25 +12,41 @@ namespace TradingTerminal.Infrastructure.Ib;
 /// Surfaces a <see cref="ConnectionState"/> stream that consumers can subscribe to.
 /// Reconnect is triggered automatically when the underlying client's state drops to
 /// <see cref="ConnectionState.Disconnected"/> after at least one successful connection.
+///
+/// Broker-neutral: resolves the active <see cref="IBrokerClient"/> through
+/// <see cref="IBrokerSelector"/> and re-wires when the user switches brokers.
 /// </summary>
 public sealed class ConnectionManager : IAsyncDisposable
 {
-    private readonly IIbClient _client;
-    private readonly InteractiveBrokersOptions _options;
+    private static readonly TimeSpan DefaultInitialBackoff = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan DefaultMaxBackoff = TimeSpan.FromSeconds(30);
+
+    private readonly IBrokerSelector _selector;
     private readonly ILogger<ConnectionManager> _logger;
     private readonly BehaviorSubject<ConnectionState> _state = new(Core.Domain.ConnectionState.Disconnected);
     private readonly CancellationTokenSource _cts = new();
     private IDisposable? _stateSub;
+    private IBrokerClient? _wiredClient;
     private Task? _loop;
     private bool _userRequestedDisconnect;
     private bool _haveConnectedAtLeastOnce;
+    private TimeSpan _initialBackoff = DefaultInitialBackoff;
+    private TimeSpan _maxBackoff = DefaultMaxBackoff;
 
-    public ConnectionManager(IIbClient client, IOptions<InteractiveBrokersOptions> options,
-        ILogger<ConnectionManager> logger)
+    public ConnectionManager(IBrokerSelector selector, ILogger<ConnectionManager> logger)
     {
-        _client = client;
-        _options = options.Value;
+        _selector = selector;
         _logger = logger;
+        _selector.ActiveChanged += OnActiveBrokerChanged;
+    }
+
+    /// <summary>Optional: caller-supplied backoff override. Defaults are 1s → 30s.</summary>
+    public void ConfigureBackoff(TimeSpan initial, TimeSpan max)
+    {
+        if (initial <= TimeSpan.Zero) initial = DefaultInitialBackoff;
+        if (max < initial) max = initial;
+        _initialBackoff = initial;
+        _maxBackoff = max;
     }
 
     public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
@@ -39,7 +54,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     public async Task StartAsync(CancellationToken ct = default)
     {
         _userRequestedDisconnect = false;
-        _stateSub ??= _client.ConnectionState.Subscribe(OnClientStateChanged);
+        WireActiveClient();
 
         // Idempotent: if a reconnect loop is already running, leave it alone.
         // (Login screen calls this; MainWindow.Loaded calls it again — second call is a no-op.)
@@ -52,7 +67,8 @@ public sealed class ConnectionManager : IAsyncDisposable
     public async Task StopAsync(CancellationToken ct = default)
     {
         _userRequestedDisconnect = true;
-        await _client.DisconnectAsync(ct);
+        if (_wiredClient is not null)
+            await _wiredClient.DisconnectAsync(ct);
         _state.OnNext(Core.Domain.ConnectionState.Disconnected);
     }
 
@@ -60,10 +76,31 @@ public sealed class ConnectionManager : IAsyncDisposable
     {
         _logger.LogInformation("User-requested reconnect");
         _userRequestedDisconnect = false;
-        try { await _client.DisconnectAsync(ct); } catch { /* swallow */ }
+        try
+        {
+            if (_wiredClient is not null)
+                await _wiredClient.DisconnectAsync(ct);
+        }
+        catch { /* swallow */ }
         // Restart the loop if it has exited.
         if (_loop is null || _loop.IsCompleted)
             _loop = Task.Run(() => RunReconnectLoopAsync(_cts.Token));
+    }
+
+    private void OnActiveBrokerChanged(object? sender, EventArgs e)
+    {
+        _logger.LogInformation("Active broker changed to {Broker}; rewiring connection manager",
+            _selector.ActiveKind);
+        WireActiveClient();
+    }
+
+    private void WireActiveClient()
+    {
+        var next = _selector.Active;
+        if (ReferenceEquals(next, _wiredClient)) return;
+        _stateSub?.Dispose();
+        _wiredClient = next;
+        _stateSub = next.ConnectionState.Subscribe(OnClientStateChanged);
     }
 
     private void OnClientStateChanged(ConnectionState s)
@@ -74,39 +111,39 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     private async Task RunReconnectLoopAsync(CancellationToken ct)
     {
-        var initial = TimeSpan.FromSeconds(Math.Max(1, _options.ReconnectInitialDelaySeconds));
-        var max = TimeSpan.FromSeconds(Math.Max(initial.TotalSeconds, _options.ReconnectMaxDelaySeconds));
+        var initial = _initialBackoff;
+        var max = _maxBackoff;
         var delay = initial;
 
         while (!ct.IsCancellationRequested && !_userRequestedDisconnect)
         {
+            var client = _wiredClient ?? _selector.Active;
             try
             {
                 _state.OnNext(_haveConnectedAtLeastOnce
                     ? Core.Domain.ConnectionState.Reconnecting
                     : Core.Domain.ConnectionState.Connecting);
 
-                await _client.ConnectAsync(_options.Host, _options.Port, _options.ClientId, ct);
-                _logger.LogInformation("Connected to IB at {Host}:{Port} (clientId={ClientId})",
-                    _options.Host, _options.Port, _options.ClientId);
+                await client.ConnectAsync(ct);
+                _logger.LogInformation("Connected to {Broker}", client.Kind);
 
                 delay = initial; // reset backoff on success
 
                 // Wait until the client transitions away from Connected.
                 using var droppedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var dropped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                using var sub = _client.ConnectionState
+                using var sub = client.ConnectionState
                     .Where(s => s is Core.Domain.ConnectionState.Disconnected or Core.Domain.ConnectionState.Failed)
                     .Subscribe(_ => dropped.TrySetResult());
 
                 await dropped.Task.WaitAsync(ct);
                 if (_userRequestedDisconnect) break;
-                _logger.LogWarning("IB connection dropped — will retry");
+                _logger.LogWarning("{Broker} connection dropped — will retry", client.Kind);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "IB connect attempt failed");
+                _logger.LogWarning(ex, "{Broker} connect attempt failed", client.Kind);
             }
 
             if (_userRequestedDisconnect || ct.IsCancellationRequested) break;
@@ -120,6 +157,7 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _selector.ActiveChanged -= OnActiveBrokerChanged;
         _cts.Cancel();
         _stateSub?.Dispose();
         try { if (_loop is not null) await _loop.ConfigureAwait(false); }

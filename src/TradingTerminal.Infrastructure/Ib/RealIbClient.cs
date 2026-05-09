@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -17,14 +18,14 @@ namespace TradingTerminal.Infrastructure.Ib;
 /// <summary>
 /// Real Interactive Brokers client. Compiled only when the TWS CSharpAPI.dll is resolvable
 /// (lib/CSharpAPI.dll, $(TwsApiClientDll), or C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\).
-/// Wraps <see cref="IBApi.EClientSocket"/> behind <see cref="IIbClient"/>; callbacks come off
+/// Wraps <see cref="IBApi.EClientSocket"/> behind <see cref="IBrokerClient"/>; callbacks come off
 /// the IB reader thread into per-request channels.
 /// </summary>
 /// <remarks>
 /// Inherits <see cref="IBApi.DefaultEWrapper"/> so we only override the methods we actually use —
 /// the API has 170+ EWrapper callbacks and most aren't relevant to v1 (charts only, no orders).
 /// </remarks>
-public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
+public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
 {
     private readonly ILogger<RealIbClient> _logger;
     private readonly IOptions<InteractiveBrokersOptions> _options;
@@ -48,15 +49,18 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IIbClient
         _options = options;
     }
 
+    public BrokerKind Kind => BrokerKind.InteractiveBrokers;
+
     public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
 
-    public async Task ConnectAsync(string host, int port, int clientId, CancellationToken ct = default)
+    public async Task ConnectAsync(CancellationToken ct = default)
     {
+        var opt = _options.Value;
         _state.OnNext(Core.Domain.ConnectionState.Connecting);
         _client = new IBApi.EClientSocket(this, _signal);
         _connectTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _client.eConnect(host, port, clientId);
+        _client.eConnect(opt.Host, opt.Port, opt.ClientId);
 
         _reader = new IBApi.EReader(_client, _signal);
         _reader.Start();
