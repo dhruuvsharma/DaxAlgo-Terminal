@@ -1,77 +1,115 @@
-# TradingTerminal — Architecture Plan
+# DaxAlgo Terminal — Architecture
 
 ## Goal
 
 A modular trading terminal that:
 
 - Hosts strategies as plug-ins inside a single dockable WPF shell.
-- Streams market data from Interactive Brokers (TWS / IB Gateway).
+- Talks to **multiple brokers** through a single seam — picked by the user at login, swapped without any consumer noticing.
 - Adds new strategies with one DI-registration line, no shell edits.
-- Ships v1 with a single `Example Strategy` charting NVDA on a 3-minute timeframe.
+- Adds new brokers with one new `IBrokerClient` implementation + one DI block, no consumer changes.
+
+The shipped brokers exercise three very different transports on purpose, to prove the abstraction holds:
+
+| Broker | Transport | Process model | History | Live ticks | Auth |
+|---|---|---|---|---|---|
+| Interactive Brokers | TCP socket → `EClientSocket`/`EWrapper` (170+ callbacks) | TWS desktop app, local | Real (`reqHistoricalData`) | Real (`reqMktData` L1) | TWS handles 2FA itself |
+| NinjaTrader 8 | P/Invoke into `NTDirect.dll` (ANSI C ABI) | NT 8 desktop app, local, in-process bridge | None — synthesized | Real, polled at 200 ms | NT instance is the auth boundary |
+| cTrader | TLS + protobuf to Spotware cloud (`cTrader.OpenAPI.Net`) | None — pure-cloud, no local desktop required | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | OAuth 2.0 (clientId + secret + access token) |
+
+If the abstraction holds for all three, it holds for whatever comes next (Tradovate, Rithmic, dxTrade, …).
 
 ## Core principles
 
-1. **Strict MVVM** — view-models hold all logic; code-behind only for view-only concerns.
+1. **Strict MVVM** — view-models hold all logic; code-behind is for view-only concerns.
 2. **Strategies are plug-ins** — discovered via DI, never `new`'d by the shell.
-3. **IB lives behind a repository** — every consumer talks to `IMarketDataRepository`; nothing else sees `EClientSocket`/`EWrapper`.
-4. **Threading is a concern of one layer** — IB callbacks are marshalled to the UI dispatcher inside the repository. View-models stay single-threaded from their perspective.
-5. **Async streaming via `IAsyncEnumerable<Bar>`** — natural cancellation, easy to consume, easy to fake in tests.
+3. **Brokers are plug-ins too** — every broker call goes through `IBrokerClient`. View-models never see `EClientSocket`, `NTDirect`, or `OpenClient`.
+4. **One layer owns threading** — broker callbacks are marshalled to the UI dispatcher inside the repository. Everything above stays single-threaded from its perspective.
+5. **Async streaming via `IAsyncEnumerable<T>`** — natural cancellation, easy to consume, easy to fake in tests.
+6. **Reactive connection state** — `IObservable<ConnectionState>` flows from the connection manager up. Nothing polls.
 
 ## Solution layout
 
 ```
 TradingTerminal.sln
 ├── src/
-│   ├── TradingTerminal.App                 (WPF entry, DI bootstrap, MainWindow, shell)
-│   ├── TradingTerminal.Core                (Domain models + interfaces only — zero deps on UI/IB)
-│   ├── TradingTerminal.Infrastructure      (IbClient, MarketDataRepository, ConnectionManager)
-│   ├── TradingTerminal.UI                  (ViewModelBase, dark theme dictionaries, shared controls)
-│   └── TradingTerminal.Strategies.Example  (ExampleStrategy + view + view-model)
+│   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
+│   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
+│   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
+│   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
+│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
+│   │   ├── Events/                               IEventBus, EventBus
+│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository
+│   │   ├── Session/                              SessionContext
+│   │   └── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
+│   ├── TradingTerminal.Infrastructure
+│   │   ├── Brokers/                              BrokerSelector
+│   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), FakeIbClient, ConnectionManager
+│   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
+│   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
+│   │   ├── MarketData/                           MarketDataRepository
+│   │   └── Threading/                            IUiDispatcher, WpfDispatcher
+│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, in-memory log sink
+│   ├── TradingTerminal.Strategies.Rsi            RSI Overbought/Oversold strategy
+│   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper strategy
 └── tests/
-    └── TradingTerminal.Tests               (xUnit + FluentAssertions + NSubstitute)
+    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```
 
 Project reference graph (acyclic):
 
 ```
-App        → Infrastructure, UI, Strategies.Example, Core
+App        → Infrastructure, UI, Strategies.*, Core
 Strategies → UI, Core
 Infra      → Core
 UI         → Core
 Core       → (nothing)
 ```
 
-## Key interfaces (signatures)
+`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, or cTrader. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
 
-### Strategies
+## Key interfaces
 
-```csharp
-public interface ITradingStrategy
-{
-    string Id { get; }              // e.g. "example.nvda.3m"
-    string DisplayName { get; }     // e.g. "Example Strategy"
-    string Description { get; }
-}
-
-public interface IStrategyFactory
-{
-    IReadOnlyList<ITradingStrategy> All { get; }
-    StrategyHost Create(string strategyId);   // resolves view + vm pair via DI
-}
-
-public sealed record StrategyHost(string StrategyId, string DisplayName,
-                                  UserControl View, ViewModelBase ViewModel);
-```
-
-A strategy's registration extension lives in its own assembly:
+### Broker abstraction
 
 ```csharp
-public static IServiceCollection AddExampleStrategy(this IServiceCollection s) { ... }
+public enum BrokerKind { InteractiveBrokers, NinjaTrader, CTrader }
+
+public interface IBrokerClient : IAsyncDisposable
+{
+    BrokerKind Kind { get; }
+    IObservable<ConnectionState> ConnectionState { get; }
+
+    Task ConnectAsync(CancellationToken ct = default);
+    Task DisconnectAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
+        Contract contract, BarSize barSize, TimeSpan duration,
+        CancellationToken ct = default);
+
+    IAsyncEnumerable<Bar> SubscribeBarsAsync(
+        Contract contract, BarSize barSize, CancellationToken ct = default);
+
+    IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract, CancellationToken ct = default);
+}
+
+public interface IBrokerSelector
+{
+    BrokerKind ActiveKind { get; }
+    IBrokerClient Active { get; }
+    BrokerConnectionMode ActiveMode { get; }
+    event EventHandler? ActiveChanged;
+    void SetActive(BrokerKind kind);
+}
+
+public sealed record BrokerConnectionMode(
+    BrokerKind Broker, bool IsLive, string DisplayName, string Description);
 ```
 
-The shell never references concrete strategy types.
+`ConnectAsync` takes no host/port/clientId — each implementation reads its own configured options (`IOptions<InteractiveBrokersOptions>` / `IOptions<NinjaTraderOptions>` / `IOptions<CTraderOptions>`). This keeps the interface broker-agnostic.
 
-### Market data
+### Repository
 
 ```csharp
 public interface IMarketDataRepository
@@ -86,21 +124,51 @@ public interface IMarketDataRepository
 
     IAsyncEnumerable<Bar> SubscribeBarsAsync(
         Contract contract, BarSize barSize, CancellationToken ct = default);
+
+    IAsyncEnumerable<Tick> SubscribeTicksAsync(
+        Contract contract, CancellationToken ct = default);
 }
 ```
 
-`IIbClient` is the internal abstraction over the TWS API. `RealIbClient` (compiled when `IBApi.dll` is present in `lib/`) wraps the official `EClientSocket`/`EWrapper`. `FakeIbClient` is the default — synthesizes plausible bars so the app builds and runs without the IB binary.
+`MarketDataRepository` resolves `IBrokerSelector.Active` for every call and marshals every yielded bar/tick onto the UI dispatcher before handing it back. View-models stay single-threaded.
+
+### Connection management
 
 ```csharp
-internal interface IIbClient : IDisposable
+public sealed class ConnectionManager : IAsyncDisposable
 {
-    IObservable<ConnectionState> ConnectionState { get; }
-    Task ConnectAsync(string host, int port, int clientId, CancellationToken ct);
-    Task DisconnectAsync(CancellationToken ct);
-    Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(Contract c, BarSize size, TimeSpan duration, CancellationToken ct);
-    IAsyncEnumerable<Bar> SubscribeBarsAsync(Contract c, BarSize size, CancellationToken ct);
+    public ConnectionManager(IBrokerSelector selector, ILogger<ConnectionManager> logger);
+    public IObservable<ConnectionState> ConnectionState { get; }
+    public Task StartAsync(CancellationToken ct);
+    public Task StopAsync(CancellationToken ct);
+    public Task RequestReconnectAsync(CancellationToken ct);
+    public void ConfigureBackoff(TimeSpan initial, TimeSpan max);
 }
 ```
+
+The manager subscribes to `IBrokerSelector.ActiveChanged` and re-wires its underlying `IBrokerClient` when the user switches brokers — the reconnect loop continues seamlessly. Backoff is exponential (1 s → 30 s cap by default).
+
+### Strategies
+
+```csharp
+public interface ITradingStrategy
+{
+    string Id { get; }              // e.g. "rsi.overbought-oversold"
+    string DisplayName { get; }
+    string Description { get; }
+}
+
+public interface IStrategyFactory
+{
+    IReadOnlyList<ITradingStrategy> All { get; }
+    StrategyHost Create(string strategyId);
+}
+
+public sealed record StrategyHost(string StrategyId, string DisplayName,
+                                  UserControl View, ViewModelBase ViewModel);
+```
+
+Each strategy assembly registers itself via `services.AddXxxStrategy()`. The shell never references concrete strategy types.
 
 ### Cross-pane events
 
@@ -112,23 +180,16 @@ public interface IEventBus
 }
 ```
 
-### Connection management
-
-```csharp
-internal sealed class ConnectionManager
-{
-    // Owns the reconnect loop with exponential backoff (1s → 30s cap).
-    // Surfaces ConnectionState observable.
-    Task StartAsync(CancellationToken ct);
-    Task StopAsync(CancellationToken ct);
-}
-```
+Used for things like "strategy opened", "connection state changed" — anything where the originator and the listeners shouldn't know about each other.
 
 ## Domain models
 
 ```csharp
 public sealed record Bar(DateTime TimestampUtc, double Open, double High,
                          double Low, double Close, long Volume);
+
+public sealed record Tick(DateTime TimestampUtc, double Bid, double Ask,
+                          long BidSize, long AskSize);
 
 public sealed record Contract(string Symbol, string SecType, string Exchange,
                               string Currency, string PrimaryExchange);
@@ -139,47 +200,130 @@ public enum BarSize { OneMinute, ThreeMinutes, FiveMinutes, FifteenMinutes,
 public enum ConnectionState { Disconnected, Connecting, Connected, Reconnecting, Failed }
 ```
 
+Records, sealed by default, all in `Core`. No broker-specific fields leak in.
+
 ## Threading model
 
-| Source             | Thread                  | Marshalling                              |
-|--------------------|-------------------------|------------------------------------------|
-| `EWrapper` callbacks | IB reader thread       | Repository channels → `Dispatcher.InvokeAsync` |
-| Reconnect loop     | Background `Task`       | State pushed via `BehaviorSubject`       |
-| ViewModel updates  | UI thread               | All `ObservableProperty` writes here     |
-| Tests              | Caller's thread         | `FakeIbClient` runs synchronously        |
+| Source | Thread | Marshalling |
+|---|---|---|
+| `EWrapper` callbacks (IB) | IB reader thread | Per-request channels → repository → `Dispatcher.InvokeAsync` |
+| `NTDirect` polling loop (NT) | Background `Task` | Same channel + dispatch path |
+| `OpenClient` `IObservable<IMessage>` (cTrader) | Library worker | Same channel + dispatch path |
+| Reconnect loop | Background `Task` | State pushed via `BehaviorSubject` |
+| View-model updates | UI thread | All `[ObservableProperty]` writes happen here |
+| Tests | Caller's thread | Synthetic `IBrokerClient` substitutes run synchronously; `ImmediateDispatcher` skips the marshal |
+
+## Per-broker integration notes
+
+### Interactive Brokers — `RealIbClient` (gated by `#if HAS_IBAPI`)
+
+- Wraps `IBApi.EClientSocket`/`EWrapper`. We inherit `DefaultEWrapper` to get free no-ops on the 170+ callbacks we don't care about.
+- `eConnect` is async-by-callback: `nextValidId` resolves the connect TCS.
+- An `EReader` thread pumps incoming messages; `processMsgs` dispatches them to our overridden callbacks.
+- Per-request state lives in `Dictionary<int, …>` keyed by `reqId`, guarded by a single `lock`.
+- L1 quote stream synthesizes `Tick` records from `tickPrice`/`tickSize` callbacks. Field IDs 1/2/0/3 (live) and 66/67/75/76 (delayed) both honored — works whether or not the user has a real-time market-data subscription.
+
+### NinjaTrader 8 — `RealNinjaClient` (gated by `#if HAS_NTAPI`)
+
+- Pure P/Invoke into `NTDirect.dll`. Functions are ANSI C exports: `Connected`, `SubscribeMarketData`, `Bid`, `Ask`, `LastPrice`, `Volume`, `Command(...)` for orders.
+- NT must be running first — `NTDirect.Connected(0)` returns 0 only when NinjaTrader is up with the AT Interface enabled.
+- No callback API. Tick stream polls `Bid`/`Ask` at 200 ms; bar stream aggregates polled `LastPrice` over the bar window.
+- No historical-data export. `RequestHistoricalBarsAsync` synthesizes a series anchored on the current `LastPrice` so charts have a baseline.
+- L1 sizes aren't exposed via `Bid`/`Ask` — `Tick.BidSize` / `Tick.AskSize` come back as 0.
+
+### cTrader — `RealCTraderClient` (always wired)
+
+- Uses the `cTrader.OpenAPI.Net` package's `OpenClient` — TLS socket, protobuf framing, internal heartbeat.
+- Connect → `ProtoOAApplicationAuthReq` → `ProtoOAAccountAuthReq` → one-shot `ProtoOASymbolsListReq` to populate the symbol catalog.
+- Per-call request/response correlation via a per-call `clientMsgId` + a `Dictionary<string, TaskCompletionSource<IMessage>>`. Incoming `ProtoMessage` envelopes are inspected, the inner payload decoded by `PayloadType`, and routed to the matching pending TCS.
+- Spot events (`ProtoOASpotEvent`) bypass the request/response router — each `SubscribeTicksAsync` filter their stream by `SymbolId` directly.
+- Wire prices are `ulong` scaled by `10^Digits` per symbol. We learn `Digits` lazily via `ProtoOASymbolByIdReq` on first subscribe.
+- Trendbars are encoded relative to `Low` (`Low + DeltaOpen/DeltaHigh/DeltaClose`). Reconstructed and rescaled in `RequestHistoricalBarsAsync`.
+- Access tokens expire — `ProtoOAErrorRes` surfaces this clearly; the user re-runs the OAuth refresh and pastes the new token.
+
+## Login flow
+
+```
+                   ┌───────────────────────────────────┐
+                   │        LoginWindow shows          │
+                   │ ┌─────────┐ ┌─────────┐ ┌────────┐│
+                   │ │   IB    │ │   NT    │ │cTrader ││
+                   │ └────┬────┘ └────┬────┘ └────┬───┘│
+                   └──────┼───────────┼───────────┼────┘
+                          ▼           ▼           ▼
+                  one form per broker, conditional on SelectedBroker
+                                       │
+                                       ▼
+                       user clicks "Sign in"
+                                       │
+                                       ▼
+        ┌──────────────────────────────────────────────────────┐
+        │ LoginViewModel.ConnectAsync:                         │
+        │  1. Push form values into the active broker's        │
+        │     IOptions<XxxOptions>                             │
+        │  2. brokerSelector.SetActive(SelectedBroker)         │
+        │     → ConnectionManager re-wires                     │
+        │  3. repository.ConnectAsync(ct)                      │
+        │  4. Wait on ConnectionState observable for Connected │
+        │     or Failed (15 s timeout)                         │
+        └──────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+                          ┌────────────────────────┐
+                          │ MainWindow takes over. │
+                          │ ConnectionManager owns │
+                          │ reconnect loop.        │
+                          └────────────────────────┘
+```
+
+The user's selection persists in `connection.json` (under `%LOCALAPPDATA%\DaxAlgoTerminal\`) so the next launch reopens to the same broker form. IB password and cTrader OAuth secrets are DPAPI-encrypted under `DataProtectionScope.CurrentUser`.
 
 ## Shell layout (AvalonDock)
 
 ```
-+---------------------------------------------------+
-|  Title bar (MetroWindow chrome, dark)             |
-|  [Disconnect banner — only when not Connected]    |
-+----------------+----------------------------------+
-| Strategies     |  Document pane                   |
-|  - Example     |   [Example: NVDA 3m] [...]       |
-|                |                                  |
-|                |  (chart, parameters)             |
-+----------------+----------------------------------+
-|  Logs (collapsible, in-memory Serilog sink)       |
-+---------------------------------------------------+
-|  Status: ● Connected  | NVDA 12:34:56 | tabs: 1   |
-+---------------------------------------------------+
++-------------------------------------------------------+
+|  MetroWindow chrome (dark)                            |
+|  [Disconnect banner — only when not Connected]        |
++----------------+--------------------------------------+
+| Strategies     |  Document pane                       |
+|  - RSI         |   [RSI: NVDA 3m] [Cumulative Delta]  |
+|  - CumDelta    |                                      |
+|                |  (chart, parameters, controls)       |
++----------------+--------------------------------------+
+|  Logs (pinned, in-memory Serilog sink)                |
++-------------------------------------------------------+
+|  ● Connected | dhruv · cTrader #1234 | Live cTrader   |
++-------------------------------------------------------+
 ```
 
-## Phase plan
+The status-bar mode badge reflects the active broker's `BrokerConnectionMode` — green when live, yellow when synthetic, plus the broker's own display name. It updates live when the user switches brokers.
 
-| # | Output                                                              |
-|---|---------------------------------------------------------------------|
-| 1 | This plan + repo skeleton, `.gitignore`, `.editorconfig`            |
-| 2 | All csproj, DI bootstrap, MahApps + AvalonDock shell, dark theme    |
-| 3 | `IbClient` (real + fake), `MarketDataRepository`, `ConnectionManager` |
-| 4 | `ExampleStrategy` view + vm + ScottPlot binding                     |
-| 5 | ListBox-to-tab wiring, disconnect banner, logs pane, status bar     |
-| 6 | Four required xUnit tests                                           |
-| 7 | README, XML doc comments, formatting pass                           |
+## Testing strategy
+
+Tests live in `tests/TradingTerminal.Tests` and use xUnit + FluentAssertions + NSubstitute:
+
+- **`StrategyFactory` tests** — registers a strategy, resolves it by id, sets the `DataContext`. Throws on unknown ids. Uses a `[WpfFact]` STA test for the WPF-touching part.
+- **`MarketDataRepository.SubscribeBarsAsync`** — propagates the underlying `IBrokerClient`'s "not connected" error. Uses a `SingleClientSelector` test double so the test exercises the full pipeline (selector → manager → repository → consumer) without a real broker.
+- **`ConnectionManager`** — reconnects after the underlying client drops, observable transitions through `Connecting → Connected → Reconnecting`. Uses a `FlakyClient` that fails its first connection.
+
+The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as a smoke test for the full DI graph.
+
+## Code-style preferences
+
+- File-scoped namespaces.
+- `internal` by default; `public` only at module boundaries.
+- No comments unless the *why* is non-obvious. Identifiers should explain the *what*.
+- No defensive null-checks on internal calls — trust the type system. Validate at boundaries (config load, broker callbacks, user input).
+- No `ConfigureAwait(false)` in WPF view-model code (we *want* to resume on the UI thread). Use it in pure-library code if any is added.
+- Records for value types (`Bar`, `Tick`, `Contract`). Sealed by default.
+- Prefer `IReadOnlyList<T>` over `List<T>` in public signatures.
 
 ## Assumptions
 
-- **Target framework: `net9.0-windows`.** Only the .NET 9 SDK is installed on this machine; .NET 8 isn't available. WPF works identically on net9.
-- **IB binary delivery.** The TWS API is not on nuget.org. The build expects `lib/IBApi.dll` (copied from the user's TWS API install — usually `C:\TWS API\source\CSharpClient\IBApi\bin\Release\netstandard2.0\IBApi.dll`). When absent, the `FakeIbClient` is registered by default so the app still builds, runs, and demos the chart with synthetic bars. Setting `InteractiveBrokers:UseRealClient = true` in `appsettings.json` switches to the real client.
-- **Default IB port 7497** (paper trading socket on TWS). Switch to 7496 for live or 4002 for IB Gateway as needed.
+- **`net9.0-windows`.** Only the .NET 9 SDK is installed on the dev box. WPF works identically.
+- **Synthetic data is always usable.** `Fake*Client` per broker means the build runs even with zero broker setup.
+- **Per-broker SDK delivery.**
+  - IB: `CSharpAPI.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or the standard `C:\TWS API\…` path. Build prints the resolved path.
+  - NT: `NTDirect.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or `%USERPROFILE%\Documents\NinjaTrader 8\bin64\`. Copied next to the assembly so P/Invoke finds it.
+  - cTrader: `cTrader.OpenAPI.Net` from NuGet — always restored, no gate.
+- **Single account per broker, read-mostly v1.** The included strategies are read-only (chart + signals). Order plumbing is in place via broker-specific `Command(...)` / `ProtoOANewOrderReq` paths but not yet exposed to strategies.
