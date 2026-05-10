@@ -5,7 +5,7 @@
 [![WPF](https://img.shields.io/badge/UI-WPF%20%2B%20MahApps%20%2B%20AvalonDock-blueviolet)](#)
 [![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader-orange)](#brokers)
 
-A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Picks a broker at login (Interactive Brokers, NinjaTrader, or cTrader) and routes everything downstream — historical bars, live ticks, connection state, reconnect logic — through a single `IBrokerClient` seam. Ships with two strategies: **RSI Overbought/Oversold** and **Cumulative Delta Scalper**.
+A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Picks a broker at login (Interactive Brokers, NinjaTrader, or cTrader) and routes everything downstream — historical bars, live ticks, connection state, reconnect logic — through a single `IBrokerClient` seam. Ships with two strategies (**RSI Overbought/Oversold** and **Cumulative Delta Scalper** — sniper-mode port of the cTrader cBot, with a 5-confirmation gate, multi-session GMT filter, and per-session/daily caps) and a Telegram notifier that fans out signal events to your phone.
 
 The repo is structured as an honest engineering exercise: clean MVVM, plug-in architecture, end-to-end async streaming, broker-neutral abstractions over three very different transports (TCP socket, P/Invoke, TLS+protobuf), and a testable threading model.
 
@@ -26,6 +26,7 @@ The repo is structured as an honest engineering exercise: clean MVVM, plug-in ar
 - **AvalonDock** layout (left: strategies pane, center: strategy tabs, bottom: pinned logs, status bar with live broker mode badge).
 - **ScottPlot 5** candlestick chart (auto-scrolling, last ~200 bars, configurable timeframe).
 - **Logs pane** wired through Serilog with a custom in-memory sink.
+- **Telegram notifier** — strategies publish a `StrategyNotification` to an `INotificationPublisher`; a hosted background worker drains a bounded `Channel<>` and fans out to every enabled `INotificationTransport`. Ships with a Telegram Bot API transport. Configured live from a Settings tab with hot-reload via `IOptionsMonitor`.
 - **xUnit + FluentAssertions + NSubstitute** tests — broker-agnostic via the `IBrokerClient` seam, including a `[WpfFact]` STA test for WPF-touching code.
 
 ## Brokers
@@ -211,8 +212,39 @@ The corresponding `appsettings.json` keys (overridable but the login screen is t
 | `CTrader:IsLive` | `false` | Cosmetic — the host string above is what actually routes. |
 | `Logging:MinimumLevel` | `Information` | `Verbose` / `Debug` / `Information` / `Warning` / `Error`. |
 | `Logging:FilePath` | `logs/terminal-.log` | Daily rolling, relative to the app's working directory. |
+| `Notifications:QueueCapacity` | `256` | Bounded channel size; oldest dropped on overflow. |
+| `Notifications:Telegram:Enabled` | `false` | Master toggle for the Telegram transport. |
+| `Notifications:Telegram:BotToken` | (empty) | Token from @BotFather. Edit via the Settings tab — the value is persisted to `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`, which overlays `appsettings.json`. |
+| `Notifications:Telegram:ChatId` | (empty) | Numeric chat ID or `@channelname`. |
+| `Notifications:Telegram:IncludeIdleSignals` | `false` | When false, drop signals fired below the strategy's armed threshold. |
 
 OAuth secrets and passwords are not in `appsettings.json` — they live in a DPAPI-encrypted `connection.json` under `%LOCALAPPDATA%\DaxAlgoTerminal\`.
+
+## Notifications (Telegram)
+
+Strategies publish `StrategyNotification` events to `INotificationPublisher` whenever a signal fires. A hosted background worker drains a bounded `Channel<StrategyNotification>` and fans each message out to every enabled `INotificationTransport`. The Telegram transport posts to the Bot API via a named `HttpClient`.
+
+**Setup:** *Settings → Notifications…* in the main shell. Paste the bot token from [@BotFather](https://t.me/BotFather) and a chat ID (numeric for users/groups, or `@channelname` for public channels — get one via [@userinfobot](https://t.me/userinfobot)), tick **Enabled**, **Save**, then **Send test**.
+
+**Persistence:** the Settings tab writes to `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`. That file is layered into the host configuration with `reloadOnChange: true`, so `IOptionsMonitor<NotificationsOptions>` reflects edits live — no restart.
+
+**Defaults** in `appsettings.json`:
+
+```json
+"Notifications": {
+  "QueueCapacity": 256,
+  "Telegram": {
+    "Enabled": false,
+    "BotToken": "",
+    "ChatId": "",
+    "IncludeIdleSignals": false
+  }
+}
+```
+
+`IncludeIdleSignals` is the toggle for low-confirmation/sub-armed signals — the dashboard surfaces these as `(idle)` lines and Telegram drops them by default. The publisher itself doesn't filter — that's the transport's call, so each future channel decides for itself.
+
+**Adding a transport** (e.g. Discord, Slack): add a class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus one DI line in `NotificationsServiceCollectionExtensions.cs`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`.
 
 ## Adding a new strategy
 
@@ -257,10 +289,12 @@ The `MarketDataRepository`, `ConnectionManager`, all view-models, and every stra
 TradingTerminal/
 ├── src/
 │   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
+│   │   └── Notifications/                        Settings tab VM/View + per-user notifications.json writer
 │   ├── TradingTerminal.Core                      Domain models + interfaces (no UI/broker deps)
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
 │   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository
 │   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
+│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
 │   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
 │   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
 │   │   ├── Events/                               IEventBus, EventBus
@@ -271,10 +305,11 @@ TradingTerminal/
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
 │   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
 │   │   ├── MarketData/                           MarketDataRepository
+│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram transport, options
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
 │   ├── TradingTerminal.UI                        ViewModelBase, dark theme, log sink
 │   ├── TradingTerminal.Strategies.Rsi            RSI Overbought/Oversold strategy
-│   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper strategy
+│   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper (sniper-mode, 5-confirmation gate)
 └── tests/
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```

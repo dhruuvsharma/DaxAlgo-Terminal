@@ -62,7 +62,7 @@
         <!-- ===== Setup form ===== -->
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="520"
+            <Border MaxWidth="560"
                     VerticalAlignment="Center"
                     Background="{DynamicResource Background.Surface}"
                     BorderBrush="{DynamicResource Border.Brush}"
@@ -70,9 +70,9 @@
                     Padding="24"
                     Margin="0,24">
                 <StackPanel>
-                    <TextBlock Text="Configure Cumulative Delta Scalper"
+                    <TextBlock Text="Configure Cumulative Delta Scalper (Sniper)"
                                FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock Text="Bid-tick rule on each tick → bar deltas → sliding-window cumulative delta. Trigger on cross of ±threshold."
+                    <TextBlock Text="Tick uptick/downtick → bar deltas → sliding-window cumulative delta. Trigger on cross of ±threshold gated by up to five confirmations (momentum, HTF EMA, EMA slope, ADX, dynamic spread)."
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource Text.Secondary}"
                                Margin="0,0,0,16" />
@@ -126,48 +126,180 @@
                                    Margin="4,0,0,0" />
                     </Grid>
 
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Min ATR" Margin="0,0,4,4" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Max ATR" Margin="4,0,0,4" />
-                        <TextBox   Grid.Row="1" Grid.Column="0"
-                                   Text="{Binding MinAtr, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
-                                   Margin="0,0,4,0" />
-                        <TextBox   Grid.Row="1" Grid.Column="1"
-                                   Text="{Binding MaxAtr, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
-                                   Margin="4,0,0,0" />
-                    </Grid>
+                    <!-- Sniper filters -->
+                    <Expander Header="Sniper filters (5-confirmation gate)"
+                              IsExpanded="True"
+                              Margin="0,0,0,12">
+                        <StackPanel Margin="0,8,0,0">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Min confirmations (0–5)" Margin="0,0,4,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="EMA slope bars" Margin="4,0,0,4" />
+                                <TextBox   Grid.Row="1" Grid.Column="0"
+                                           Text="{Binding MinConfirmations, UpdateSourceTrigger=PropertyChanged}"
+                                           Margin="0,0,4,0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding EmaSlopeBars, UpdateSourceTrigger=PropertyChanged}"
+                                           Margin="4,0,0,0" />
+                            </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="ADX threshold" Margin="0,0,4,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Spread avg ×" Margin="4,0,0,4" />
+                                <TextBox   Grid.Row="1" Grid.Column="0"
+                                           Text="{Binding AdxThreshold, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
+                                           Margin="0,0,4,0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding SpreadAvgMultiplier, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}"
+                                           Margin="4,0,0,0" />
+                            </Grid>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Spread history size" Margin="0,0,4,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Max spread (price)" Margin="4,0,0,4" />
+                                <TextBox   Grid.Row="1" Grid.Column="0"
+                                           Text="{Binding SpreadHistorySize, UpdateSourceTrigger=PropertyChanged}"
+                                           Margin="0,0,4,0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding MaxSpread, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
+                                           Margin="4,0,0,0" />
+                            </Grid>
+                            <CheckBox Content="Use HTF filter (15m EMA(50) — needed for confirmations 2 &amp; 3)"
+                                      IsChecked="{Binding UseHtfFilter}" />
+                        </StackPanel>
+                    </Expander>
 
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Max daily signals" Margin="0,0,4,4" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Cooldown (min)" Margin="4,0,0,4" />
-                        <TextBox   Grid.Row="1" Grid.Column="0"
-                                   Text="{Binding MaxDailyTrades, UpdateSourceTrigger=PropertyChanged}"
-                                   Margin="0,0,4,0" />
-                        <TextBox   Grid.Row="1" Grid.Column="1"
-                                   Text="{Binding CooldownMinutes, UpdateSourceTrigger=PropertyChanged}"
-                                   Margin="4,0,0,0" />
-                    </Grid>
+                    <!-- Volatility -->
+                    <Expander Header="Volatility (ATR gate)"
+                              Margin="0,0,0,12">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Min ATR" Margin="0,0,4,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Max ATR" Margin="4,0,0,4" />
+                            <TextBox   Grid.Row="1" Grid.Column="0"
+                                       Text="{Binding MinAtr, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
+                                       Margin="0,0,4,0" />
+                            <TextBox   Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding MaxAtr, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
+                                       Margin="4,0,0,0" />
+                        </Grid>
+                    </Expander>
 
-                    <CheckBox Content="Use HTF filter (15m EMA(50))"
-                              IsChecked="{Binding UseHtfFilter}" Margin="0,0,0,4" />
-                    <CheckBox Content="Use session filter (London 08-12 GMT, NY 13-17 GMT)"
-                              IsChecked="{Binding UseSessionFilter}" Margin="0,0,0,16" />
+                    <!-- Sessions -->
+                    <Expander Header="Sessions (GMT)"
+                              IsExpanded="True"
+                              Margin="0,0,0,12">
+                        <StackPanel Margin="0,8,0,0">
+                            <CheckBox Content="Use session filter"
+                                      IsChecked="{Binding UseSessionFilter}" Margin="0,0,0,6" />
+                            <CheckBox Content="Overlap only (London / NY overlap)"
+                                      IsChecked="{Binding OverlapOnly}" Margin="0,0,0,8" />
+
+                            <TextBlock Text="Overlap window" Foreground="{DynamicResource Text.Secondary}" Margin="0,4,0,4" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Text="{Binding OverlapStartHour, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="1" Text="{Binding OverlapStartMin, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="2" Text="{Binding OverlapEndHour, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="3" Text="{Binding OverlapEndMin, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <CheckBox Content="Asia"
+                                      IsChecked="{Binding UseAsiaSession}" Margin="0,4,0,4" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Text="{Binding AsiaStartHour, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="1" Text="{Binding AsiaEndHour, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <CheckBox Content="London"
+                                      IsChecked="{Binding UseLondonSession}" Margin="0,4,0,4" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Text="{Binding LondonStartHour, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="1" Text="{Binding LondonEndHour, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <CheckBox Content="New York"
+                                      IsChecked="{Binding UseNewYorkSession}" Margin="0,4,0,4" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Text="{Binding NewYorkStartHour, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="1" Text="{Binding NewYorkStartMin, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0" />
+                                <TextBox Grid.Column="2" Text="{Binding NewYorkEndHour, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                    <!-- Risk caps -->
+                    <Expander Header="Risk caps"
+                              Margin="0,0,0,16">
+                        <StackPanel Margin="0,8,0,0">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Max daily signals" Margin="0,0,4,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Max signals / session" Margin="4,0,0,4" />
+                                <TextBox   Grid.Row="1" Grid.Column="0"
+                                           Text="{Binding MaxDailySignals, UpdateSourceTrigger=PropertyChanged}"
+                                           Margin="0,0,4,0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding MaxSignalsPerSession, UpdateSourceTrigger=PropertyChanged}"
+                                           Margin="4,0,0,0" />
+                            </Grid>
+                            <TextBlock Text="Min seconds between signals" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding MinSecondsBetweenSignals, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Expander>
 
                     <Border Background="{DynamicResource Danger.Brush}"
                             Padding="10,6"
@@ -259,6 +391,10 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Bid" />
@@ -271,26 +407,42 @@
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Spread" />
                             <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastSpreadPoints, StringFormat=F5, FallbackValue=—}" />
+                                       Text="{Binding LastSpread, StringFormat=F5, FallbackValue=—}" />
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Live Δ (bar)" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Avg spread" />
                             <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                                       Text="{Binding AvgSpread, StringFormat=F5, FallbackValue=—}" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Live Δ (bar)" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource DashValueStyle}"
                                        Text="{Binding LiveDelta}" />
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Σ cumΔ (window)" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Σ cumΔ (window)" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource DashValueStyle}"
                                        Text="{Binding CumulativeDelta}" />
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="ATR(14)" />
-                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="ATR(14)" />
+                            <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource DashValueStyle}"
                                        Text="{Binding LastAtr, StringFormat=F5, FallbackValue=—}" />
 
-                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="EMA(50) 15m" />
-                            <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="EMA(50) 15m" />
+                            <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource DashValueStyle}"
                                        Text="{Binding LastEmaHtf, StringFormat=F5, FallbackValue=—}" />
 
-                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Signals today" />
-                            <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                            <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="ADX(14) 15m" />
+                            <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                                       Text="{Binding LastAdx, StringFormat=F1, FallbackValue=—}" />
+
+                            <TextBlock Grid.Row="9" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Session" />
+                            <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                                       Text="{Binding ActiveSession}" />
+
+                            <TextBlock Grid.Row="10" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Last conf" />
+                            <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource DashValueStyle}"
+                                       Text="{Binding LastConfirmationScore, StringFormat='{}{0}/5'}" />
+
+                            <TextBlock Grid.Row="11" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Signals today" />
+                            <TextBlock Grid.Row="11" Grid.Column="1" Style="{StaticResource DashValueStyle}"
                                        Text="{Binding TodaySignalCount}" />
                         </Grid>
 

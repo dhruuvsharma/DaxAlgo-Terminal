@@ -5,7 +5,9 @@ using System.Windows.Threading;
 using AvalonDock.Layout;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.App.Notifications;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -19,11 +21,14 @@ namespace TradingTerminal.App;
 
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
+    private const string NotificationsSettingsTabId = "settings.notifications";
+
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
     private readonly IEventBus _eventBus;
     private readonly SessionContext _session;
     private readonly IBrokerSelector _brokerSelector;
+    private readonly IServiceProvider _services;
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
 
@@ -34,6 +39,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         InMemoryLogSink logSink,
         SessionContext session,
         IBrokerSelector brokerSelector,
+        IServiceProvider services,
         ILogger<MainWindowViewModel> logger)
     {
         _factory = factory;
@@ -41,6 +47,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _eventBus = eventBus;
         _session = session;
         _brokerSelector = brokerSelector;
+        _services = services;
         _logger = logger;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
@@ -214,6 +221,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     public void ShowLogs() => IsLogsVisible = true;
+
+    [RelayCommand]
+    public void OpenNotificationsSettings()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == NotificationsSettingsTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<NotificationsSettingsViewModel>();
+        var view = _services.GetRequiredService<NotificationsSettingsView>();
+        view.DataContext = vm;
+
+        var tab = new LayoutDocument
+        {
+            Title = "Notifications",
+            ContentId = NotificationsSettingsTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
 
     public async Task StartAsync()
     {

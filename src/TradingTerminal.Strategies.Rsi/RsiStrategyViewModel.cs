@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Notifications;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.Strategies.Rsi;
@@ -14,12 +15,20 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
     public const int RsiPeriod = RsiCalculator.DefaultPeriod;
 
     private readonly IMarketDataRepository _repository;
+    private readonly INotificationPublisher _notifications;
     private readonly ILogger<RsiStrategyViewModel> _logger;
     private CancellationTokenSource? _streamCts;
 
-    public RsiStrategyViewModel(IMarketDataRepository repository, ILogger<RsiStrategyViewModel> logger)
+    private enum RsiZone { Neutral, Overbought, Oversold }
+    private RsiZone _lastZone = RsiZone.Neutral;
+
+    public RsiStrategyViewModel(
+        IMarketDataRepository repository,
+        INotificationPublisher notifications,
+        ILogger<RsiStrategyViewModel> logger)
     {
         _repository = repository;
+        _notifications = notifications;
         _logger = logger;
 
         Instruments = InstrumentCatalog.All;
@@ -191,11 +200,28 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
         if (LastRsi is not { } rsi) return;
         if (!IsAlgoRunning) return;
 
+        var zone = rsi >= Overbought ? RsiZone.Overbought
+                 : rsi <= Oversold   ? RsiZone.Oversold
+                                     : RsiZone.Neutral;
+
+        if (zone == _lastZone) return;
+        _lastZone = zone;
+        if (zone == RsiZone.Neutral) return;
+
         var label = SelectedInstrument?.DisplayName ?? "(none)";
-        if (rsi >= Overbought)
-            _logger.LogInformation("[RSI ARMED] {Symbol} OVERBOUGHT — RSI={Rsi:F2} (would short)", label, rsi);
-        else if (rsi <= Oversold)
-            _logger.LogInformation("[RSI ARMED] {Symbol} OVERSOLD — RSI={Rsi:F2} (would long)", label, rsi);
+        var direction = zone == RsiZone.Overbought ? "SHORT" : "LONG";
+        var phrase = zone == RsiZone.Overbought ? "OVERBOUGHT — would short" : "OVERSOLD — would long";
+
+        _logger.LogInformation("[RSI ARMED] {Symbol} {Phrase} — RSI={Rsi:F2}", label, phrase, rsi);
+
+        _ = _notifications.PublishAsync(new StrategyNotification(
+            Kind: NotificationKind.Signal,
+            StrategyId: "rsi.overbought.oversold",
+            StrategyName: "RSI",
+            Symbol: label,
+            Direction: direction,
+            Message: $"{phrase}  (RSI={rsi:F2}, OB={Overbought:F0}, OS={Oversold:F0})",
+            TimestampUtc: DateTime.UtcNow));
     }
 
     public async Task StopStreamAsync()

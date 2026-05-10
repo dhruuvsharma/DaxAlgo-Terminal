@@ -1,0 +1,35 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using TradingTerminal.Core.Notifications;
+using TradingTerminal.Infrastructure.Notifications.Telegram;
+
+namespace TradingTerminal.Infrastructure.Notifications;
+
+public static class NotificationsServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers the notifications pipeline:
+    ///   - <see cref="INotificationPublisher"/> (the dispatcher) as a singleton hosted service
+    ///   - one <see cref="INotificationTransport"/> per supported channel (currently Telegram)
+    ///   - HttpClient via IHttpClientFactory for the Telegram transport
+    /// </summary>
+    public static IServiceCollection AddNotifications(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<NotificationsOptions>(configuration.GetSection(NotificationsOptions.SectionName));
+
+        services.AddSingleton<NotificationDispatcher>();
+        services.AddSingleton<INotificationPublisher>(sp => sp.GetRequiredService<NotificationDispatcher>());
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<NotificationDispatcher>());
+
+        services.AddHttpClient(TelegramTransport.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddSingleton<TelegramTransport>();
+        services.AddSingleton<INotificationTransport>(sp => sp.GetRequiredService<TelegramTransport>());
+
+        return services;
+    }
+}

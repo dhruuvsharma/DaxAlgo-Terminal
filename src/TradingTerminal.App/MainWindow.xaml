@@ -48,6 +48,11 @@
                           IsCheckable="True"
                           IsChecked="{Binding IsLogsVisible, Mode=TwoWay}" />
             </MenuItem>
+
+            <MenuItem Header="_Settings">
+                <MenuItem Header="_Notifications…"
+                          Command="{Binding OpenNotificationsSettingsCommand}" />
+            </MenuItem>
         </Menu>
 
         <!-- Disconnect banner -->

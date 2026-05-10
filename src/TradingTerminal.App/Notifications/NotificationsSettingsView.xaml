@@ -1,0 +1,67 @@
+<UserControl x:Class="TradingTerminal.App.Notifications.NotificationsSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}"
+             d:DesignHeight="500" d:DesignWidth="600">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+
+            <TextBlock Text="Notifications"
+                       FontSize="20" FontWeight="SemiBold"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="Send strategy signals to a Telegram chat. Create a bot via @BotFather, then grab a numeric chat ID (use @userinfobot) or a channel username like @mychannel."
+                       Foreground="{DynamicResource Text.Secondary}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,16" />
+
+            <Border BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Telegram"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+
+                    <CheckBox Content="Enabled"
+                              IsChecked="{Binding TelegramEnabled, Mode=TwoWay}"
+                              Margin="0,0,0,12" />
+
+                    <TextBlock Text="Bot token" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding TelegramBotToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="Chat ID  (numeric for users/groups, or @channelname)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding TelegramChatId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <CheckBox Content="Also send idle (unarmed) signals"
+                              IsChecked="{Binding IncludeIdleSignals, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,16,0,0">
+                <Button Content="Save"
+                        Command="{Binding SaveCommand}"
+                        Padding="16,6"
+                        Margin="0,0,8,0" />
+                <Button Content="Send test"
+                        Command="{Binding SendTestCommand}"
+                        Padding="16,6" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       TextWrapping="Wrap"
+                       Margin="0,12,0,0"
+                       Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -11,10 +11,12 @@ using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
+using TradingTerminal.App.Notifications;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure;
+using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.Rsi;
 using TradingTerminal.UI.Logging;
@@ -43,6 +45,10 @@ public partial class App : Application
                 cfg.SetBasePath(assemblyDir);
                 cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
                 cfg.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
+
+                // Per-user override file edited by the Settings tab. Layered last so the
+                // UI's writes win over what's shipped in appsettings.json.
+                cfg.AddJsonFile(NotificationsUserFile.Path, optional: true, reloadOnChange: true);
             })
             .UseSerilog((ctx, services, lc) =>
             {
@@ -69,6 +75,7 @@ public partial class App : Application
                 services.AddSingleton(inMemoryLogSink);
 
                 services.AddTradingTerminalInfrastructure();
+                services.AddNotifications(ctx.Configuration);
 
                 services.AddSingleton<IStrategyFactory, StrategyFactory>();
 
@@ -94,6 +101,10 @@ public partial class App : Application
                 // Main shell.
                 services.AddSingleton<MainWindowViewModel>();
                 services.AddTransient<MainWindow>();
+
+                // Settings views.
+                services.AddTransient<NotificationsSettingsViewModel>();
+                services.AddTransient<NotificationsSettingsView>();
 
                 // Factory-method seam over the shell windows. App.xaml.cs only references these
                 // — never the concrete LoginWindow / MainWindow / view-model types.

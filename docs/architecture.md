@@ -34,12 +34,14 @@ If the abstraction holds for all three, it holds for whatever comes next (Tradov
 TradingTerminal.sln
 ├── src/
 │   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
+│   │   └── Notifications/                        Settings tab VM/View + per-user notifications.json writer
 │   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
 │   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
 │   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
 │   │   ├── Events/                               IEventBus, EventBus
 │   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository
+│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
 │   │   ├── Session/                              SessionContext
 │   │   └── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
 │   ├── TradingTerminal.Infrastructure
@@ -48,10 +50,11 @@ TradingTerminal.sln
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
 │   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
 │   │   ├── MarketData/                           MarketDataRepository
+│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram transport, options
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
 │   ├── TradingTerminal.UI                        ViewModelBase, dark theme, in-memory log sink
 │   ├── TradingTerminal.Strategies.Rsi            RSI Overbought/Oversold strategy
-│   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper strategy
+│   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper (sniper-mode, 5-confirmation gate)
 └── tests/
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```
@@ -181,6 +184,32 @@ public interface IEventBus
 ```
 
 Used for things like "strategy opened", "connection state changed" — anything where the originator and the listeners shouldn't know about each other.
+
+### Notifications
+
+```csharp
+public interface INotificationPublisher
+{
+    ValueTask PublishAsync(StrategyNotification notification, CancellationToken ct = default);
+}
+
+public interface INotificationTransport
+{
+    string Name { get; }
+    bool IsEnabled { get; }
+    Task SendAsync(StrategyNotification notification, CancellationToken ct);
+}
+
+public sealed record StrategyNotification(
+    NotificationKind Kind, string StrategyId, string StrategyName,
+    string Symbol, string? Direction, string Message, DateTime TimestampUtc);
+```
+
+Strategies inject `INotificationPublisher` and call `PublishAsync` whenever a signal fires (e.g. `RsiStrategyViewModel.EvaluateSignal`, `CumulativeDeltaViewModel.EvaluateSignal`). Calls return immediately — under the hood, the publisher writes to a bounded `Channel<StrategyNotification>` (drop-oldest on overflow). A single hosted background worker (`NotificationDispatcher : IHostedService`) drains the channel and fans each message out to every transport that reports `IsEnabled`. Transport failures are caught, logged, and isolated — one channel can't block another.
+
+Settings (bot token, chat ID, enable flag) live in `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`, layered onto host configuration with `reloadOnChange: true`. Transports read `IOptionsMonitor<NotificationsOptions>.CurrentValue` on each send, so edits from the Settings tab take effect without a restart.
+
+Adding a transport (Discord, Slack, email) = one class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/` + one DI line. The dispatcher discovers transports via `IEnumerable<INotificationTransport>`.
 
 ## Domain models
 

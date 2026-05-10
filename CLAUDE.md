@@ -10,6 +10,7 @@ A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Three broker back
 - **Charts**: ScottPlot 5.
 - **DI**: `Microsoft.Extensions.DependencyInjection`.
 - **Logging**: Serilog with custom in-memory sink for the Logs pane.
+- **Notifications**: `INotificationPublisher` (Core) → bounded `Channel<>` + hosted `NotificationDispatcher` (Infra) → `INotificationTransport`s (currently Telegram). Settings tab persists to `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`, hot-reloaded via `IOptionsMonitor`.
 - **Tests**: xUnit + FluentAssertions + NSubstitute. WPF-touching tests use `[WpfFact]` (`Xunit.StaFact`).
 - **Brokers** — one IBrokerClient implementation per:
   - **IB** — `RealIbClient` compiled when `CSharpAPI.dll` resolves (lib/, MSBuild prop, or `C:\TWS API\…`). Else `FakeIbClient`.
