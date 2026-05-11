@@ -60,3 +60,8 @@ lib/IBApi.pdb
 
 # Claude local settings (project-level overrides)
 .claude/settings.local.json
+
+# Backtest scratch output (synthetic parquet datasets, run outputs)
+*.parquet
+bt-results/
+bt-data*/

@@ -49,6 +49,11 @@
                           IsChecked="{Binding IsLogsVisible, Mode=TwoWay}" />
             </MenuItem>
 
+            <MenuItem Header="_Tools">
+                <MenuItem Header="_Backtest…"
+                          Command="{Binding OpenBacktestCommand}" />
+            </MenuItem>
+
             <MenuItem Header="_Settings">
                 <MenuItem Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />

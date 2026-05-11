@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
@@ -22,6 +23,7 @@ namespace TradingTerminal.App;
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private const string NotificationsSettingsTabId = "settings.notifications";
+    private const string BacktestTabId = "tools.backtest";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -221,6 +223,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     public void ShowLogs() => IsLogsVisible = true;
+
+    [RelayCommand]
+    public void OpenBacktest()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == BacktestTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<BacktestViewModel>();
+        var view = _services.GetRequiredService<BacktestView>();
+        view.DataContext = vm;
+
+        var tab = new LayoutDocument
+        {
+            Title = "Backtest",
+            ContentId = BacktestTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
 
     [RelayCommand]
     public void OpenNotificationsSettings()

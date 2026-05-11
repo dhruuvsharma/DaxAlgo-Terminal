@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
@@ -105,6 +106,10 @@ public partial class App : Application
                 // Settings views.
                 services.AddTransient<NotificationsSettingsViewModel>();
                 services.AddTransient<NotificationsSettingsView>();
+
+                // Backtest tab — view + view-model resolved lazily when the user opens it.
+                services.AddTransient<BacktestViewModel>();
+                services.AddTransient<BacktestView>();
 
                 // Factory-method seam over the shell windows. App.xaml.cs only references these
                 // — never the concrete LoginWindow / MainWindow / view-model types.

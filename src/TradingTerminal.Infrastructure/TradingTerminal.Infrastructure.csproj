@@ -100,6 +100,8 @@
     <!-- Spotware-published cTrader Open API 2.0 client (TLS + protobuf framing). Always restored;
          the RealCTraderClient compiles unconditionally. -->
     <PackageReference Include="cTrader.OpenAPI.Net" Version="1.4.4" />
+    <!-- Columnar tick/bar storage for the backtest engine. -->
+    <PackageReference Include="Parquet.Net" Version="5.0.2" />
   </ItemGroup>
 
 </Project>

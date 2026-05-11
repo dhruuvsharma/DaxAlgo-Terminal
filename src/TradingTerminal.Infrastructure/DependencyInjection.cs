@@ -7,6 +7,8 @@ using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.Infrastructure.Brokers;
+using TradingTerminal.Core.Time;
+using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
@@ -14,6 +16,8 @@ using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.NinjaTrader;
 #endif
 using TradingTerminal.Infrastructure.Threading;
+using TradingTerminal.Infrastructure.Time;
+using TradingTerminal.Infrastructure.Trading;
 
 namespace TradingTerminal.Infrastructure;
 
@@ -80,6 +84,10 @@ public static class DependencyInjection
         services.AddSingleton<IBrokerSelector, BrokerSelector>();
         services.AddSingleton<ConnectionManager>();
         services.AddSingleton<IMarketDataRepository, MarketDataRepository>();
+
+        // Trading seam.
+        services.TryAddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IOrderRouter, LiveOrderRouter>();
 
         return services;
     }

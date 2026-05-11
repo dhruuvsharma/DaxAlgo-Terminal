@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Ib;
 using Xunit;
 
@@ -106,6 +107,14 @@ public sealed class ConnectionManagerTests
         public IAsyncEnumerable<Tick> SubscribeTicksAsync(
             Contract contract, CancellationToken ct = default)
             => EmptyAsync<Tick>(ct);
+
+        public IObservable<OrderEvent> OrderEvents { get; } = Observable.Empty<OrderEvent>();
+
+        public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default) =>
+            throw new NotSupportedException();
 
         private static async IAsyncEnumerable<T> EmptyAsync<T>(
             [EnumeratorCancellation] CancellationToken ct)

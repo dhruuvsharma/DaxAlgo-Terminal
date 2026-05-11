@@ -65,12 +65,25 @@ Core       → (nothing)
 - **Trendbars use relative encoding** (Low + DeltaOpen/DeltaHigh/DeltaClose). Reconstruct OHLC then divide by `10^Digits`.
 - **Per-call correlation via `clientMsgId`** + a `Dictionary<string, TaskCompletionSource<IMessage>>`. Spot events bypass the request/response router; subscribers filter the OpenClient's stream by `SymbolId` directly.
 
+## Backtesting
+
+- **Engine seam.** `IBacktestStrategy` (in `Core/Backtest/`) is the engine-facing contract — `OnStart`/`OnTick`/`OnOrderEvent`/`OnEnd`. Strategies place orders through `IOrderRouter` (in `Core/Trading/`), never through `IBrokerClient` directly. Live: `LiveOrderRouter` delegates to the active broker. Backtest: `BacktestOrderRouter` pushes into a `SimulatedOrderBook` evaluated by `L1FillModel` on every tick.
+- **Data.** Tick streams live in parquet via `ParquetTickReader`/`Writer` (`Infrastructure/Backtest/Persistence/`). Row-group buffered; epoch-microsecond timestamps. The CLI's `synth` subcommand generates a mean-reverting random walk for smoke testing.
+- **Surfaces.** Two: `TradingTerminal.Backtest.Cli` (headless, `daxalgo-backtest.exe`), and the **Tools → Backtest** tab in the WPF shell (`App/Backtest/`).
+- **Adding a backtest strategy.** Implement `IBacktestStrategy`, then register in `Infrastructure/Backtest/Strategies/` (or your own assembly). Add to `BacktestStrategyCatalog.cs` (UI dropdown) and `ResolveStrategy` in CLI `Program.cs`.
+- **Stats.** `StatisticsCalculator` computes Sharpe/Sortino annualised from the median equity-sample gap; max drawdown as a fraction of peak; per-trade win-rate/profit-factor/expectancy. Equity is sampled at most once per minute of simulated time.
+- **OMS stubs.** `IBrokerClient.PlaceOrderAsync`/`CancelOrderAsync`/`OrderEvents` exist but the three real clients throw `NotSupportedException`. That's the seam OMS will fill — don't add a `LiveOrderRouter → broker.PlaceOrderAsync` path until OMS lands.
+
 ## Build & run
 
 ```powershell
 dotnet build
 dotnet test
 dotnet run --project src/TradingTerminal.App
+
+# Backtest CLI (after build):
+src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe synth --output bt-data.parquet --ticks 10000
+src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe run --strategy meanReversion --symbol TEST --data bt-data.parquet
 ```
 
 Build prints, when applicable:

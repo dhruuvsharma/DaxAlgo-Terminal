@@ -246,6 +246,42 @@ Strategies publish `StrategyNotification` events to `INotificationPublisher` whe
 
 **Adding a transport** (e.g. Discord, Slack): add a class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus one DI line in `NotificationsServiceCollectionExtensions.cs`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`.
 
+## Backtesting
+
+A first-class tick-level backtest engine ships with the terminal. Strategies that implement `IBacktestStrategy` run against a parquet tick file through the same `IOrderRouter` seam they'd use live, so the engine measures simulated fills, P&L, equity curve, Sharpe/Sortino, drawdown, and trade statistics.
+
+**Surfaces:**
+
+- **CLI** (`daxalgo-backtest`) — headless, scriptable, parameter-sweep friendly.
+- **Tools → Backtest** in the WPF shell — strategy picker, run/cancel, ScottPlot equity curve, trades grid, stats panel.
+
+**Synthesise a dataset and run a backtest:**
+
+```powershell
+dotnet build src\TradingTerminal.Backtest.Cli
+
+# Generate 10k ticks of a mean-reverting random walk
+.\src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe synth `
+    --output bt-data.parquet --ticks 10000
+
+# Run the mean-reversion demo strategy
+.\src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe run `
+    --strategy meanReversion --symbol TEST --data bt-data.parquet `
+    --tick-size 0.01 --slippage-ticks 1 --starting-cash 10000
+```
+
+Outputs land in `./bt-results/`: `summary.json` (stats + metadata), `trades.csv`, `equity.csv`.
+
+**Architecture:**
+
+- `Core/Backtest/IBacktestStrategy` — implementation gets `OnStart`/`OnTick`/`OnOrderEvent`/`OnEnd` callbacks and an `IOrderRouter` for fills.
+- `Infrastructure/Backtest/BacktestSession` — orchestrates the replay loop, advances `SimulatedClock`, evaluates `SimulatedOrderBook` against each tick, and tracks P&L through `TradeLedger`.
+- `Infrastructure/Backtest/L1FillModel` — market orders cross the spread plus `slippageTicks × tickSize`; limit/stop fill when the relevant touch crosses the level.
+- `Infrastructure/Backtest/Persistence` — streaming `ParquetTickReader`/`Writer`, row-group buffered (default 50k rows).
+- `Infrastructure/Backtest/StatisticsCalculator` — Sharpe/Sortino annualised from the median equity-sample gap; max drawdown as a fraction of peak.
+
+Adding a backtest strategy = one class implementing `IBacktestStrategy` + one entry in `BacktestStrategyCatalog` (UI) / `ResolveStrategy` (CLI).
+
 ## Adding a new strategy
 
 1. Create a new project: `src/TradingTerminal.Strategies.MyStrategy/`. Reference `Core` and `UI`.
@@ -289,29 +325,39 @@ The `MarketDataRepository`, `ConnectionManager`, all view-models, and every stra
 TradingTerminal/
 ├── src/
 │   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
+│   │   ├── Backtest/                             Backtest tab (view, view-model, strategy catalog)
 │   │   └── Notifications/                        Settings tab VM/View + per-user notifications.json writer
+│   ├── TradingTerminal.Backtest.Cli              Headless backtest runner (daxalgo-backtest exe)
 │   ├── TradingTerminal.Core                      Domain models + interfaces (no UI/broker deps)
+│   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats, Trade, EquityPoint
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
 │   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository
 │   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
 │   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
 │   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
+│   │   ├── Time/                                 IClock
+│   │   ├── Trading/                              IOrderRouter, OrderRequest/Result/Event, OrderSide/Type/State
 │   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
 │   │   ├── Events/                               IEventBus, EventBus
 │   │   └── Session/                              SessionContext
 │   ├── TradingTerminal.Infrastructure
+│   │   ├── Backtest/                             Engine — HistoricalBrokerClient seam (deferred), SimulatedClock, L1FillModel,
+│   │   │                                          SimulatedOrderBook, BacktestSession, TradeLedger, StatisticsCalculator,
+│   │   │                                          Persistence/ParquetTick{Reader,Writer}, Strategies/Buy{And}Hold + MeanReversion
 │   │   ├── Brokers/                              BrokerSelector
-│   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), FakeIbClient, ConnectionManager
-│   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
-│   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
+│   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), ConnectionManager
+│   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI)
+│   │   ├── CTrader/                              RealCTraderClient
 │   │   ├── MarketData/                           MarketDataRepository
 │   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram transport, options
+│   │   ├── Time/                                 SystemClock
+│   │   ├── Trading/                              LiveOrderRouter (delegates to active IBrokerClient)
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
 │   ├── TradingTerminal.UI                        ViewModelBase, dark theme, log sink
 │   ├── TradingTerminal.Strategies.Rsi            RSI Overbought/Oversold strategy
 │   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper (sniper-mode, 5-confirmation gate)
 └── tests/
-    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
+    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute (includes backtest engine tests)
 ```
 
 ## Tests

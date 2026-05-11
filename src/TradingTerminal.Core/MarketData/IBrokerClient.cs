@@ -1,5 +1,6 @@
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Trading;
 
 namespace TradingTerminal.Core.MarketData;
 
@@ -42,4 +43,25 @@ public interface IBrokerClient : IAsyncDisposable
     IAsyncEnumerable<Tick> SubscribeTicksAsync(
         Contract contract,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Order lifecycle events (acks, fills, cancels, rejects) for every order submitted
+    /// through <see cref="PlaceOrderAsync"/>. Hot observable — multicast to all subscribers.
+    /// Real broker clients that don't yet support OMS return <c>Observable.Empty</c>.
+    /// </summary>
+    IObservable<OrderEvent> OrderEvents { get; }
+
+    /// <summary>
+    /// Submits an order. The returned <see cref="OrderResult"/> reflects state at submission
+    /// time only; subsequent transitions (fills, cancels) are pushed through
+    /// <see cref="OrderEvents"/>. <see cref="OrderRequest.ClientOrderId"/> is an idempotency
+    /// key: re-submitting with the same id MUST NOT produce a second order.
+    /// </summary>
+    Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Cancels a working order by its client-assigned id. Idempotent — cancelling an
+    /// already-terminal order is a no-op.
+    /// </summary>
+    Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default);
 }
