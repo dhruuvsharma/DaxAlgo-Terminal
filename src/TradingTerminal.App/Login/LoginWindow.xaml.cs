@@ -19,6 +19,13 @@ public partial class LoginWindow : MetroWindow
         DataContextChanged += OnDataContextChanged;
     }
 
+    // DESIGN-NOTE: we new the three login-form UserControls here rather than resolving
+    // them from DI because they live in the same WPF project — MarkupCompilePass1 needs
+    // their generated `InitializeComponent` types visible at compile time, and that
+    // forces same-assembly construction. They have no injectable dependencies today (the
+    // VMs do, and they're already DI-resolved on LoginViewModel). If any of these
+    // UserControls ever need injected services, move them to a separate assembly and
+    // register them in DI alongside their VMs.
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.NewValue is not LoginViewModel vm) return;

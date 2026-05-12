@@ -214,14 +214,15 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
 
         _logger.LogInformation("[RSI ARMED] {Symbol} {Phrase} — RSI={Rsi:F2}", label, phrase, rsi);
 
-        _ = _notifications.PublishAsync(new StrategyNotification(
+        _notifications.PublishAsync(new StrategyNotification(
             Kind: NotificationKind.Signal,
             StrategyId: "rsi.overbought.oversold",
             StrategyName: "RSI",
             Symbol: label,
             Direction: direction,
             Message: $"{phrase}  (RSI={rsi:F2}, OB={Overbought:F0}, OS={Oversold:F0})",
-            TimestampUtc: DateTime.UtcNow));
+            TimestampUtc: DateTime.UtcNow))
+            .FireAndForgetSafe(_logger, "RSI signal publish");
     }
 
     public async Task StopStreamAsync()

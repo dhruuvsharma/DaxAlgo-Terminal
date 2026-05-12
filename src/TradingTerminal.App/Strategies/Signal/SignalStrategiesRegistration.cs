@@ -41,13 +41,20 @@ public static class SignalStrategiesRegistration
             services.AddSingleton(new StrategyFactoryRegistration(
                 StrategyId: liveId,
                 ViewFactory: sp => sp.GetRequiredService<LiveSignalStrategyView>(),
-                ViewModelFactory: sp => new LiveSignalStrategyViewModel(
-                    captured,
-                    sp.GetRequiredService<IMarketDataRepository>(),
-                    sp.GetRequiredService<INotificationPublisher>(),
-                    sp.GetRequiredService<IClock>(),
-                    sp.GetRequiredService<ISignalGeneratorRouterFactory>(),
-                    sp.GetRequiredService<ILogger<LiveSignalStrategyViewModel>>())));
+                ViewModelFactory: sp =>
+                {
+                    // Per-strategy logger category so log filtering by id is possible
+                    // (otherwise all 22 hosts would log under "LiveSignalStrategyViewModel").
+                    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+                    var logger = loggerFactory.CreateLogger($"LiveSignalStrategy.{captured.Id}");
+                    return new LiveSignalStrategyViewModel(
+                        captured,
+                        sp.GetRequiredService<IMarketDataRepository>(),
+                        sp.GetRequiredService<INotificationPublisher>(),
+                        sp.GetRequiredService<IClock>(),
+                        sp.GetRequiredService<ISignalGeneratorRouterFactory>(),
+                        logger);
+                }));
         }
 
         return services;

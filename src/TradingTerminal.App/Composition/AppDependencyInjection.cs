@@ -6,8 +6,10 @@ using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
 using TradingTerminal.App.Strategies.Signal;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.Rsi;
 
@@ -63,6 +65,11 @@ public static class AppDependencyInjection
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
 
+        // MainWindowViewModel is Singleton because there's one main shell at a time and
+        // it holds the docked tab collection / active strategy list. It resolves
+        // BacktestViewModel / NotificationsSettingsViewModel transiently on each open,
+        // so opening a tab twice gets a fresh VM — service-locator pattern is intentional
+        // for lazy tab construction.
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<MainWindow>();
 
@@ -72,9 +79,13 @@ public static class AppDependencyInjection
     }
 
     /// <summary>Backtest tab — view + view-model resolved lazily when the user opens it
-    /// from Tools → Backtest.</summary>
+    /// from Tools → Backtest. <see cref="IBacktestSession"/> is the engine seam so the VM
+    /// stays testable; transient lifetime so each open of the tab gets a fresh session
+    /// object (the session itself is stateless across runs, but the lifetime aligns with
+    /// the VM's).</summary>
     public static IServiceCollection AddBacktestSurface(this IServiceCollection services)
     {
+        services.AddTransient<IBacktestSession, BacktestSession>();
         services.AddTransient<BacktestViewModel>();
         services.AddTransient<BacktestView>();
         return services;

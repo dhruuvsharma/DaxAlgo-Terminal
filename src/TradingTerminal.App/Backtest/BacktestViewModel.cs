@@ -8,27 +8,29 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
-using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.App.Backtest;
 
 /// <summary>
-/// View-model for the Backtest tab. Holds the run configuration, kicks off
-/// <see cref="BacktestSession"/> on a background task, and exposes the resulting trades
-/// + equity curve + stats for binding. The XAML embeds a <c>ScottPlot.WPF.WpfPlot</c>
+/// View-model for the Backtest tab. Holds the run configuration, kicks off the engine
+/// via <see cref="IBacktestSession"/> on a background task, and exposes the resulting
+/// trades + equity curve + stats for binding. The XAML embeds a <c>ScottPlot.WPF.WpfPlot</c>
 /// and gets the equity samples through <see cref="EquityCurve"/>.
 /// </summary>
 public sealed partial class BacktestViewModel : ViewModelBase
 {
     private readonly ILogger<BacktestViewModel> _logger;
+    private readonly IBacktestSession _session;
     private CancellationTokenSource? _runCts;
 
     public BacktestViewModel(
         IBacktestStrategyRegistry registry,
+        IBacktestSession session,
         ILogger<BacktestViewModel> logger)
     {
         _logger = logger;
+        _session = session;
         Strategies = new ObservableCollection<BacktestStrategyOption>(registry.All);
         SelectedStrategy = Strategies.FirstOrDefault();
         Trades = new ObservableCollection<Trade>();
@@ -106,7 +108,7 @@ public sealed partial class BacktestViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(() =>
-                new BacktestSession().RunAsync(config, strategy, ct), ct);
+                _session.RunAsync(config, strategy, risk: null, ct), ct);
 
             foreach (var t in result.Trades) Trades.Add(t);
             foreach (var p in result.EquityCurve) EquityCurve.Add(p);

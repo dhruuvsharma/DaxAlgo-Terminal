@@ -399,14 +399,15 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             GuardReason = $"CONF {conf}/5 (need {MinConfirmations})";
             // Record a low-conf attempt as an idle signal so the user can tune the bar.
             PushSignalLine($"{DateTime.Now:HH:mm:ss}  (idle)  {direction} cumΔ={cumDelta} conf={conf}/5");
-            _ = _notifications.PublishAsync(new StrategyNotification(
+            _notifications.PublishAsync(new StrategyNotification(
                 Kind: NotificationKind.IdleSignal,
                 StrategyId: "cumulative.delta.scalper",
                 StrategyName: "Cumulative Delta",
                 Symbol: symbol,
                 Direction: direction,
                 Message: $"(idle) {direction} cumΔ={cumDelta} conf={conf}/5",
-                TimestampUtc: DateTime.UtcNow));
+                TimestampUtc: DateTime.UtcNow))
+                .FireAndForgetSafe(_logger, "cumdelta low-conf idle");
             return;
         }
 
@@ -415,14 +416,15 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         if (!IsAlgoRunning)
         {
             PushSignalLine($"{DateTime.Now:HH:mm:ss}  (idle)  {direction} cumΔ={cumDelta} conf={conf}/5");
-            _ = _notifications.PublishAsync(new StrategyNotification(
+            _notifications.PublishAsync(new StrategyNotification(
                 Kind: NotificationKind.IdleSignal,
                 StrategyId: "cumulative.delta.scalper",
                 StrategyName: "Cumulative Delta",
                 Symbol: symbol,
                 Direction: direction,
                 Message: $"(idle) {direction} cumΔ={cumDelta} conf={conf}/5",
-                TimestampUtc: DateTime.UtcNow));
+                TimestampUtc: DateTime.UtcNow))
+                .FireAndForgetSafe(_logger, "cumdelta unarmed idle");
             return;
         }
 
@@ -435,14 +437,15 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _logger.LogInformation("[CumulativeDelta] SNIPER {Direction} cumDelta={CumDelta} conf={Conf}/5 session={Session}",
             direction, cumDelta, conf, _currentSession);
 
-        _ = _notifications.PublishAsync(new StrategyNotification(
+        _notifications.PublishAsync(new StrategyNotification(
             Kind: NotificationKind.Signal,
             StrategyId: "cumulative.delta.scalper",
             StrategyName: "Cumulative Delta",
             Symbol: symbol,
             Direction: direction,
             Message: $"SNIPER {direction}  cumΔ={cumDelta}  conf={conf}/5  session={_currentSession}",
-            TimestampUtc: DateTime.UtcNow));
+            TimestampUtc: DateTime.UtcNow))
+            .FireAndForgetSafe(_logger, "cumdelta sniper signal");
     }
 
     // ---------- Confirmations ----------

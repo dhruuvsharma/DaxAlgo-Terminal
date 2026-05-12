@@ -29,7 +29,7 @@ public sealed partial class LiveSignalStrategyViewModel : ViewModelBase, IDispos
 
     private readonly IMarketDataRepository _repository;
     private readonly INotificationPublisher _notifications;
-    private readonly ILogger<LiveSignalStrategyViewModel> _logger;
+    private readonly ILogger _logger;
     private readonly BacktestStrategyOption _option;
     private readonly IClock _clock;
     private readonly ISignalGeneratorRouterFactory _routerFactory;
@@ -39,13 +39,19 @@ public sealed partial class LiveSignalStrategyViewModel : ViewModelBase, IDispos
     private IBacktestStrategy? _strategy;
     private IDisposable? _eventSubscription;
 
+    /// <summary>
+    /// <paramref name="logger"/> is untyped (<see cref="ILogger"/> not <see cref="ILogger{T}"/>)
+    /// so the registration can supply a per-strategy category like
+    /// <c>LiveSignalStrategy.bollinger</c> instead of the same shared
+    /// <c>LiveSignalStrategyViewModel</c> category for all 22 hosts.
+    /// </summary>
     public LiveSignalStrategyViewModel(
         BacktestStrategyOption option,
         IMarketDataRepository repository,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
-        ILogger<LiveSignalStrategyViewModel> logger)
+        ILogger logger)
     {
         _option = option;
         _repository = repository;
@@ -178,14 +184,15 @@ public sealed partial class LiveSignalStrategyViewModel : ViewModelBase, IDispos
         var direction = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";
         var msg = $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
 
-        _ = _notifications.PublishAsync(new StrategyNotification(
+        _notifications.PublishAsync(new StrategyNotification(
             Kind: NotificationKind.Signal,
             StrategyId: _option.Id,
             StrategyName: _option.DisplayName,
             Symbol: symbol,
             Direction: direction,
             Message: msg,
-            TimestampUtc: entry.TimestampUtc));
+            TimestampUtc: entry.TimestampUtc))
+            .FireAndForgetSafe(_logger, $"signal publish {_option.Id}");
     }
 
     public void Dispose()

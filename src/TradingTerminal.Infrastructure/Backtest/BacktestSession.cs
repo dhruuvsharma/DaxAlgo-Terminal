@@ -19,7 +19,7 @@ namespace TradingTerminal.Infrastructure.Backtest;
 /// transitions on the caller's task. Concurrency belongs at the parameter-sweep layer
 /// (run N sessions in parallel), not inside a single session.
 /// </summary>
-public sealed class BacktestSession
+public sealed class BacktestSession : IBacktestSession
 {
     public Task<BacktestResult> RunAsync(
         BacktestConfig config,
