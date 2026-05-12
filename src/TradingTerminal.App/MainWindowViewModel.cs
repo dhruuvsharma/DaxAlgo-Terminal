@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
+using TradingTerminal.App.Research;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -26,6 +27,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string NotificationsSettingsTabId = "settings.notifications";
     private const string BacktestTabId = "tools.backtest";
     private const string RecorderTabId = "tools.recorder";
+    private const string ResearchTabId = "tools.research";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -240,6 +242,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Backtest",
             ContentId = BacktestTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenResearch()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ResearchTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<FactorResearchViewModel>();
+        var view = _services.GetRequiredService<FactorResearchView>();
+        view.DataContext = vm;
+
+        var tab = new LayoutDocument
+        {
+            Title = "Factor research",
+            ContentId = ResearchTabId,
             Content = view,
             CanClose = true,
         };

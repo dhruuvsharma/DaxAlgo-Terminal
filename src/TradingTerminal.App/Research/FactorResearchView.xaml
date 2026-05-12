@@ -1,0 +1,137 @@
+<UserControl x:Class="TradingTerminal.App.Research.FactorResearchView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="950"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Factor research" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="Load a parquet tick file, compute the standard feature panel (returns, vol, microprice deviation, queue imbalance, spread), inspect pairwise correlations, and decile-sort one feature against forward returns to see if it has predictive shape."
+                       Foreground="{DynamicResource Text.Secondary}"
+                       TextWrapping="Wrap"
+                       Margin="0,2,0,0" />
+        </StackPanel>
+
+        <!-- File picker + compute config -->
+        <Grid Grid.Row="1" Margin="0,12,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Data" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Grid.Column="1" Text="{Binding DataPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     FontFamily="Consolas" />
+            <Button Grid.Column="2" Content="Browse…" Command="{Binding BrowseDataCommand}"
+                    Padding="12,4" Margin="8,0,0,0" />
+            <Button Grid.Column="3" Content="Compute" Command="{Binding ComputeCommand}"
+                    IsEnabled="{Binding IsComputing, Converter={StaticResource InverseBooleanConverter}}"
+                    Padding="20,4" Margin="8,0,0,0" />
+        </Grid>
+
+        <!-- Params row -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="60" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="60" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="60" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="160" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="BarTicks" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <TextBox   Grid.Column="1" Text="{Binding BarTicks, Mode=TwoWay}" />
+            <TextBlock Grid.Column="3" Text="VolWindow" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <TextBox   Grid.Column="4" Text="{Binding VolWindow, Mode=TwoWay}" />
+            <TextBlock Grid.Column="6" Text="ForwardBars" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <TextBox   Grid.Column="7" Text="{Binding ForwardBars, Mode=TwoWay}" />
+            <TextBlock Grid.Column="9" Text="Feature" VerticalAlignment="Center" Margin="0,0,4,0" />
+            <ComboBox  Grid.Column="10"
+                       ItemsSource="{Binding FeatureChoices}"
+                       SelectedItem="{Binding SelectedFeature, Mode=TwoWay}" />
+        </Grid>
+
+        <!-- Body: correlation matrix + decile grid side by side -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0" LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top" Text="Pairwise correlation" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <DataGrid ItemsSource="{Binding Correlations}"
+                          AutoGenerateColumns="True"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserResizeRows="False"
+                          RowHeaderWidth="0" />
+            </DockPanel>
+
+            <DockPanel Grid.Column="2" LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,4">
+                    <Run Text="Decile sort —" />
+                    <Run Text="{Binding SelectedFeature}" />
+                    <Run Text=" (fwd " />
+                    <Run Text="{Binding ForwardBars}" />
+                    <Run Text=" bars)" />
+                </TextBlock>
+                <DataGrid ItemsSource="{Binding Deciles}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserResizeRows="False"
+                          RowHeaderWidth="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Decile"      Binding="{Binding Decile}" Width="60" />
+                        <DataGridTextColumn Header="N"           Binding="{Binding Count}" Width="60" />
+                        <DataGridTextColumn Header="LowerEdge"   Binding="{Binding LowerEdge, StringFormat=F6}" Width="100" />
+                        <DataGridTextColumn Header="UpperEdge"   Binding="{Binding UpperEdge, StringFormat=F6}" Width="100" />
+                        <DataGridTextColumn Header="MeanFwdReturn" Binding="{Binding MeanForwardReturn, StringFormat=F6}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Grid>
+
+        <!-- Footer -->
+        <Grid Grid.Row="4" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" />
+            <TextBlock Grid.Column="1" Foreground="{DynamicResource Text.Secondary}">
+                <Run Text="Bars:" />
+                <Run Text="{Binding BarsComputed}" />
+            </TextBlock>
+            <TextBlock Grid.ColumnSpan="2"
+                       Text="{Binding ValidationError}"
+                       Foreground="#E06C75"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding ValidationError, Converter={StaticResource StringToVisibilityConverter}}" />
+        </Grid>
+    </Grid>
+</UserControl>

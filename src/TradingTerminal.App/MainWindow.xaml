@@ -54,6 +54,8 @@
                           Command="{Binding OpenBacktestCommand}" />
                 <MenuItem Header="_Record live ticks…"
                           Command="{Binding OpenRecorderCommand}" />
+                <MenuItem Header="_Factor research…"
+                          Command="{Binding OpenResearchCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Settings">

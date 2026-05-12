@@ -4,6 +4,7 @@ using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
+using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
 using TradingTerminal.App.Strategies.Signal;
@@ -105,6 +106,14 @@ public static class AppDependencyInjection
     {
         services.AddTransient<TickRecorderViewModel>();
         services.AddTransient<TickRecorderView>();
+        return services;
+    }
+
+    /// <summary>Factor research notebook tab — opens from Tools → Factor research.</summary>
+    public static IServiceCollection AddResearchSurface(this IServiceCollection services)
+    {
+        services.AddTransient<FactorResearchViewModel>();
+        services.AddTransient<FactorResearchView>();
         return services;
     }
 }
