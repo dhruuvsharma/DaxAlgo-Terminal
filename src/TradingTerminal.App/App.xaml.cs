@@ -12,6 +12,7 @@ using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
+using TradingTerminal.App.Strategies.Signal;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
@@ -83,6 +84,12 @@ public partial class App : Application
                 // Strategy plug-ins. Each is a one-line registration.
                 services.AddRsiStrategy();
                 services.AddCumulativeDeltaStrategy();
+
+                // Live signal-mode wrappers around every backtest strategy — one entry in
+                // the left Strategies pane per BacktestStrategyCatalog item. Each picks an
+                // instrument, subscribes to live ticks, and publishes a notification on
+                // every order the strategy would submit (no actual execution).
+                services.AddSignalGeneratorStrategies();
 
                 // Per-broker login forms (each registered as both its concrete type and as IBrokerLoginForm
                 // so the BrokerLoginFormFactory can enumerate them).
