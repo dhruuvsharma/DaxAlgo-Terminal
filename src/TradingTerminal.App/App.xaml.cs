@@ -78,6 +78,7 @@ public partial class App : Application
                 services.AddShell();
                 services.AddBacktestSurface();
                 services.AddSettingsSurface();
+                services.AddRecordingSurface();
             })
             .Build();
 

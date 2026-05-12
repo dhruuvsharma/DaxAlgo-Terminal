@@ -3,6 +3,7 @@ using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.App.Notifications;
+using TradingTerminal.App.Recording;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
 using TradingTerminal.App.Strategies.Signal;
@@ -96,6 +97,14 @@ public static class AppDependencyInjection
     {
         services.AddTransient<NotificationsSettingsViewModel>();
         services.AddTransient<NotificationsSettingsView>();
+        return services;
+    }
+
+    /// <summary>Live tick recorder tab — opens from Tools → Record live ticks.</summary>
+    public static IServiceCollection AddRecordingSurface(this IServiceCollection services)
+    {
+        services.AddTransient<TickRecorderViewModel>();
+        services.AddTransient<TickRecorderView>();
         return services;
     }
 }

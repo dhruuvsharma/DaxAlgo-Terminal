@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
+using TradingTerminal.App.Recording;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -24,6 +25,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private const string NotificationsSettingsTabId = "settings.notifications";
     private const string BacktestTabId = "tools.backtest";
+    private const string RecorderTabId = "tools.recorder";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -238,6 +240,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Backtest",
             ContentId = BacktestTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenRecorder()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == RecorderTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<TickRecorderViewModel>();
+        var view = _services.GetRequiredService<TickRecorderView>();
+        view.DataContext = vm;
+
+        var tab = new LayoutDocument
+        {
+            Title = "Record ticks",
+            ContentId = RecorderTabId,
             Content = view,
             CanClose = true,
         };
