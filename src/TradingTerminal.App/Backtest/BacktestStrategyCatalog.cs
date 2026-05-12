@@ -84,5 +84,27 @@ public static class BacktestStrategyCatalog
             Id: "pullback",
             DisplayName: "Trend pullback continuation (index)",
             Build: contract => new PullbackContinuationStrategy(contract)),
+
+        // ── L2 / depth-of-market themed (cTrader DOM territory) ───────────────────────
+        new BacktestStrategyOption(
+            Id: "bookPressure",
+            DisplayName: "Order-book pressure / cumulative imbalance (L2)",
+            Build: contract => new BookPressureStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "liquiditySweep",
+            DisplayName: "Liquidity-sweep / aggressive-flow detector (L2)",
+            Build: contract => new LiquiditySweepStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "iceberg",
+            DisplayName: "Iceberg / hidden-liquidity detector (L2)",
+            Build: contract => new IcebergDetectionStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "vpin",
+            DisplayName: "Order-flow toxicity / VPIN-style (L2)",
+            Build: contract => new OrderFlowToxicityStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "thinBook",
+            DisplayName: "Thin-book breakout filter (L2)",
+            Build: contract => new ThinBookFilterStrategy(contract)),
     };
 }

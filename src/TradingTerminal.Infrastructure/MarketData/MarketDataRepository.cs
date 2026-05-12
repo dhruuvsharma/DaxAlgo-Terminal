@@ -90,6 +90,26 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
         }
     }
 
+    public async IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract,
+        int levels = 10,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await foreach (var snapshot in _selector.Active.SubscribeDepthAsync(contract, levels, ct))
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                yield return snapshot;
+            }
+            else
+            {
+                DepthSnapshot marshalled = snapshot;
+                await _dispatcher.InvokeAsync(() => { /* ensure we're on UI before yielding */ });
+                yield return marshalled;
+            }
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _connection.DisposeAsync();

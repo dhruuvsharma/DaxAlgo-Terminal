@@ -45,6 +45,23 @@ public interface IBrokerClient : IAsyncDisposable
         CancellationToken ct = default);
 
     /// <summary>
+    /// Streaming L2 order-book snapshots. Each emitted <see cref="DepthSnapshot"/> is a
+    /// consistent view of the book at the time of the underlying broker event — the
+    /// implementation is responsible for reconstructing snapshots from incremental
+    /// (add/delete/replace) feeds before yielding.
+    ///
+    /// Only some brokers support L2: cTrader does (<c>ProtoOASubscribeDepthQuotesReq</c>);
+    /// Interactive Brokers does (<c>reqMktDepth</c>, not yet wired); NinjaTrader's NTDirect
+    /// surface does not. Implementations without depth support throw
+    /// <see cref="NotSupportedException"/>; callers should be prepared to fall back to L1
+    /// (<see cref="SubscribeTicksAsync"/>).
+    /// </summary>
+    IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract,
+        int levels = 10,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Order lifecycle events (acks, fills, cancels, rejects) for every order submitted
     /// through <see cref="PlaceOrderAsync"/>. Hot observable — multicast to all subscribers.
     /// Real broker clients that don't yet support OMS return <c>Observable.Empty</c>.

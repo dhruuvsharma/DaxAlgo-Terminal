@@ -83,8 +83,14 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "gapfade" => new GapFadeStrategy(contract),
     "eodmomentum" or "endofday" => new EndOfDayMomentumStrategy(contract),
     "pullback" or "pullbackcontinuation" => new PullbackContinuationStrategy(contract),
+    // L2 / depth-of-market themed
+    "bookpressure" or "cumimbalance" => new BookPressureStrategy(contract),
+    "liquiditysweep" or "sweep" => new LiquiditySweepStrategy(contract),
+    "iceberg" => new IcebergDetectionStrategy(contract),
+    "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
+    "thinbook" => new ThinBookFilterStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback, bookPressure, liquiditySweep, iceberg, vpin, thinBook.")
 };
 
 static void PrintSummary(BacktestResult result)

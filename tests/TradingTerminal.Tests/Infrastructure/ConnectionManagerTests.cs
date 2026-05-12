@@ -108,6 +108,10 @@ public sealed class ConnectionManagerTests
             Contract contract, CancellationToken ct = default)
             => EmptyAsync<Tick>(ct);
 
+        public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+            Contract contract, int levels = 10, CancellationToken ct = default)
+            => EmptyAsync<DepthSnapshot>(ct);
+
         public IObservable<OrderEvent> OrderEvents { get; } = Observable.Empty<OrderEvent>();
 
         public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>

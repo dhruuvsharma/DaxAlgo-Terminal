@@ -215,6 +215,15 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
             yield return tick;
     }
 
+    public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract, int levels = 10, CancellationToken ct = default) =>
+        // IB's L2 API is reqMktDepth(reqId, contract, numRows, isSmartDepth, options) with the
+        // updateMktDepth(L2) / updateMktDepthL2 callbacks. Wiring it requires plumbing the
+        // additional callbacks into MessageHandler and reconstructing the book per-side. Not
+        // implemented yet — falls through so callers can degrade to L1.
+        throw new NotSupportedException(
+            "Interactive Brokers depth (reqMktDepth) is not wired in this build. Use cTrader for L2 or subscribe to L1 via SubscribeTicksAsync.");
+
     private static IBApi.Contract ToIbContract(Core.Domain.Contract c) => new()
     {
         Symbol = c.Symbol,

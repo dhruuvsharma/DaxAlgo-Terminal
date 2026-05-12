@@ -44,4 +44,108 @@ public static class Microstructure
 
     /// <summary>Half-spread in price units for a tick.</summary>
     public static double HalfSpread(Tick t) => HalfSpread(t.Bid, t.Ask);
+
+    // ── Multi-level (L2) helpers ─────────────────────────────────────────────────────────
+    //
+    // These work on a <see cref="DepthSnapshot"/> — Bids sorted descending, Asks ascending.
+    // When the snapshot is empty on one side, "<side> total" defaults to 0; ratios that
+    // would divide by zero return a sensible neutral (0 or the mid). All functions are O(N)
+    // where N is the level count.
+
+    /// <summary>
+    /// Multi-level queue imbalance: cumulative bid size minus cumulative ask size, divided
+    /// by the sum, taken across at most <paramref name="depthLevels"/> top levels on each
+    /// side. Returns a value in [-1, 1]; positive ⇒ heavier bid book.
+    /// </summary>
+    public static double CumulativeImbalance(DepthSnapshot snapshot, int depthLevels = 5)
+    {
+        long bidSum = 0, askSum = 0;
+        for (var i = 0; i < Math.Min(depthLevels, snapshot.Bids.Count); i++) bidSum += snapshot.Bids[i].Size;
+        for (var i = 0; i < Math.Min(depthLevels, snapshot.Asks.Count); i++) askSum += snapshot.Asks[i].Size;
+        var total = bidSum + askSum;
+        return total <= 0 ? 0 : (double)(bidSum - askSum) / total;
+    }
+
+    /// <summary>
+    /// Size-weighted mid across all (or top <paramref name="depthLevels"/>) levels:
+    /// <c>(Σ bidSize·bidPrice + Σ askSize·askPrice) / Σ all sizes</c>. Generalises the
+    /// L1 microprice to the full visible book. Falls back to <see cref="DepthSnapshot.BestBid"/>
+    /// / <see cref="DepthSnapshot.BestAsk"/> mid when the book is empty.
+    /// </summary>
+    public static double WeightedMidPrice(DepthSnapshot snapshot, int depthLevels = 5)
+    {
+        double notional = 0; long sizeSum = 0;
+        for (var i = 0; i < Math.Min(depthLevels, snapshot.Bids.Count); i++)
+        {
+            var lvl = snapshot.Bids[i];
+            notional += lvl.Price * lvl.Size;
+            sizeSum += lvl.Size;
+        }
+        for (var i = 0; i < Math.Min(depthLevels, snapshot.Asks.Count); i++)
+        {
+            var lvl = snapshot.Asks[i];
+            notional += lvl.Price * lvl.Size;
+            sizeSum += lvl.Size;
+        }
+        if (sizeSum <= 0) return (snapshot.BestBid + snapshot.BestAsk) * 0.5;
+        return notional / sizeSum;
+    }
+
+    /// <summary>
+    /// Total resting size on a single side across the top <paramref name="depthLevels"/>.
+    /// "Book pressure" as Cartea-Jaimungal use the term in their HFT papers.
+    /// </summary>
+    public static long SideDepth(IReadOnlyList<DepthLevel> side, int depthLevels = 5)
+    {
+        long s = 0;
+        for (var i = 0; i < Math.Min(depthLevels, side.Count); i++) s += side[i].Size;
+        return s;
+    }
+
+    /// <summary>
+    /// Estimated slippage in price units when sweeping <paramref name="quantity"/> through
+    /// the requested side of the book. Walks levels in order, accumulating filled size
+    /// until <paramref name="quantity"/> is consumed; returns the average fill price minus
+    /// the touch (so positive means cost vs the touch). When the book is shallower than
+    /// the requested size, returns the worst-level price difference; callers can detect
+    /// insufficient liquidity via <paramref name="fullyFilled"/>.
+    /// </summary>
+    public static double EstimatedSlippage(
+        IReadOnlyList<DepthLevel> side,
+        long quantity,
+        out bool fullyFilled)
+    {
+        fullyFilled = false;
+        if (side.Count == 0 || quantity <= 0) return 0;
+        long remaining = quantity;
+        double notional = 0;
+        var touch = side[0].Price;
+        foreach (var lvl in side)
+        {
+            var take = Math.Min(remaining, lvl.Size);
+            notional += lvl.Price * take;
+            remaining -= take;
+            if (remaining <= 0) { fullyFilled = true; break; }
+        }
+        var filled = quantity - remaining;
+        if (filled <= 0) return 0;
+        var avg = notional / filled;
+        return Math.Abs(avg - touch);
+    }
+
+    /// <summary>
+    /// Largest "gap" between consecutive price levels on one side, expressed as a price
+    /// difference. A wide gap ⇒ thin book ⇒ slippage spikes when a sweep crosses it.
+    /// Returns 0 for a book with fewer than 2 levels.
+    /// </summary>
+    public static double LargestLevelGap(IReadOnlyList<DepthLevel> side)
+    {
+        var max = 0d;
+        for (var i = 1; i < side.Count; i++)
+        {
+            var gap = Math.Abs(side[i].Price - side[i - 1].Price);
+            if (gap > max) max = gap;
+        }
+        return max;
+    }
 }

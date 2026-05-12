@@ -39,4 +39,15 @@ public interface IMarketDataRepository
     IAsyncEnumerable<Tick> SubscribeTicksAsync(
         Contract contract,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Streaming L2 order-book snapshots, marshalled to the UI dispatcher. Only available
+    /// when the active broker supports depth (cTrader does; IB will when wired; NinjaTrader
+    /// doesn't). Falls through whatever <see cref="NotSupportedException"/> the broker
+    /// throws — callers should be ready to degrade to <see cref="SubscribeTicksAsync"/>.
+    /// </summary>
+    IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract,
+        int levels = 10,
+        CancellationToken ct = default);
 }

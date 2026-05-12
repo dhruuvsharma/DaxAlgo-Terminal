@@ -237,6 +237,15 @@ public sealed class RealNinjaClient : IBrokerClient
             yield return tick;
     }
 
+    public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract, int levels = 10, CancellationToken ct = default) =>
+        // NinjaTrader's NTDirect surface doesn't expose L2 — depth in NT8 requires the
+        // NinjaScript SuperDOM / OrderFlow component, not the AT Interface. Use cTrader
+        // for L2 from this terminal, or pair this broker selector with a dedicated NT8
+        // NinjaScript bridge add-on (out of scope today).
+        throw new NotSupportedException(
+            "NinjaTrader's NTDirect API does not expose L2 depth. Use cTrader for L2 from this terminal.");
+
     private void EnsureSubscribed(string instrument)
     {
         lock (_gate)

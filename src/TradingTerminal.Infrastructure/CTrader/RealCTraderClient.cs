@@ -281,6 +281,98 @@ public sealed class RealCTraderClient : IBrokerClient
         }
     }
 
+    public async IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract, int levels = 10,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (_client is null) throw new InvalidOperationException("Not connected.");
+        var symbol = await ResolveSymbolAsync(contract.Symbol, ct).ConfigureAwait(false);
+        var scale = Math.Pow(10, symbol.Digits);
+
+        // Local order-book reconstruction. Spotware emits incremental ProtoOADepthEvent
+        // batches with NewQuotes (add/replace by quote id) and DeletedQuotes (remove by id).
+        // Each ProtoOADepthQuote carries either a Bid OR an Ask price + Size; we route it
+        // to the right side's map keyed by Id. After each event we emit a consistent
+        // top-N snapshot. The lock guards the per-symbol books from a hypothetical race
+        // with snapshot construction; today the OpenClient observable is single-threaded
+        // but we don't want to depend on that.
+        var bidBook = new Dictionary<ulong, DepthLevel>();
+        var askBook = new Dictionary<ulong, DepthLevel>();
+        var bookLock = new object();
+
+        var ch = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true,
+        });
+
+        using var depthSub = _client!.OfType<ProtoOADepthEvent>()
+            // Note: ProtoOADepthEvent.SymbolId is uint64 (unlike ProtoOASpotEvent's int64),
+            // so we cast for the comparison. SymbolInfo.SymbolId is long.
+            .Where(e => (long)e.SymbolId == symbol.SymbolId)
+            .Subscribe(evt =>
+            {
+                lock (bookLock)
+                {
+                    foreach (var deletedId in evt.DeletedQuotes)
+                    {
+                        bidBook.Remove(deletedId);
+                        askBook.Remove(deletedId);
+                    }
+                    foreach (var q in evt.NewQuotes)
+                    {
+                        if (q.HasBid)
+                        {
+                            bidBook[q.Id] = new DepthLevel(q.Bid / scale, (long)q.Size);
+                            askBook.Remove(q.Id);
+                        }
+                        else if (q.HasAsk)
+                        {
+                            askBook[q.Id] = new DepthLevel(q.Ask / scale, (long)q.Size);
+                            bidBook.Remove(q.Id);
+                        }
+                    }
+
+                    var bidsList = bidBook.Values
+                        .OrderByDescending(l => l.Price)
+                        .Take(levels)
+                        .ToList();
+                    var asksList = askBook.Values
+                        .OrderBy(l => l.Price)
+                        .Take(levels)
+                        .ToList();
+                    ch.Writer.TryWrite(new DepthSnapshot(DateTime.UtcNow, bidsList, asksList));
+                }
+            });
+
+        await SendAndAwaitAsync<ProtoOASubscribeDepthQuotesRes>(
+            new ProtoOASubscribeDepthQuotesReq
+            {
+                CtidTraderAccountId = _accountId,
+                SymbolId = { symbol.SymbolId },
+            }, ct).ConfigureAwait(false);
+
+        try
+        {
+            await foreach (var snapshot in ch.Reader.ReadAllAsync(ct))
+                yield return snapshot;
+        }
+        finally
+        {
+            try
+            {
+                if (_client is not null)
+                    await _client.SendMessage(new ProtoOAUnsubscribeDepthQuotesReq
+                    {
+                        CtidTraderAccountId = _accountId,
+                        SymbolId = { symbol.SymbolId },
+                    }).ConfigureAwait(false);
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "cTrader depth unsubscribe failed for {Sym}", contract.Symbol); }
+            ch.Writer.TryComplete();
+        }
+    }
+
     private async Task<SymbolInfo> ResolveSymbolAsync(string symbolName, CancellationToken ct)
     {
         SymbolInfo? cached;
@@ -429,6 +521,8 @@ public sealed class RealCTraderClient : IBrokerClient
                 (int)ProtoOAPayloadType.ProtoOaSymbolsListRes => ProtoOASymbolsListRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaSymbolByIdRes => ProtoOASymbolByIdRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaSubscribeSpotsRes => ProtoOASubscribeSpotsRes.Parser.ParseFrom(envelope.Payload),
+                (int)ProtoOAPayloadType.ProtoOaSubscribeDepthQuotesRes => ProtoOASubscribeDepthQuotesRes.Parser.ParseFrom(envelope.Payload),
+                (int)ProtoOAPayloadType.ProtoOaUnsubscribeDepthQuotesRes => ProtoOAUnsubscribeDepthQuotesRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaGetTrendbarsRes => ProtoOAGetTrendbarsRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaErrorRes => ProtoOAErrorRes.Parser.ParseFrom(envelope.Payload),
                 _ => null,
