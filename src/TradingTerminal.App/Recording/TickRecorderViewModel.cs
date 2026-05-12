@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
-using TradingTerminal.Strategies.SignalHosts;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.Backtest.Persistence;

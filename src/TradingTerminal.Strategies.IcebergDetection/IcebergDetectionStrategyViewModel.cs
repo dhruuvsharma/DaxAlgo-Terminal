@@ -1,0 +1,41 @@
+﻿using Microsoft.Extensions.Logging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Notifications;
+using TradingTerminal.Core.Time;
+using TradingTerminal.Core.Trading;
+using TradingTerminal.Infrastructure.Backtest.Strategies;
+using TradingTerminal.UI;
+
+namespace TradingTerminal.Strategies.IcebergDetection;
+
+/// <summary>
+/// Live signal-mode VM for Iceberg / hidden-liquidity detector (L2). Parameter <c>[ObservableProperty]</c>s mirror
+/// the underlying <see cref="IcebergDetectionStrategy"/> constructor â€” add / rename / re-bind to your
+/// own XAML to expose more knobs.
+/// </summary>
+public sealed partial class IcebergDetectionStrategyViewModel : LiveSignalStrategyViewModelBase
+{
+    [ObservableProperty] private int _stickyTicks = 200;
+    [ObservableProperty] private double _priceStabilityEpsilon = 1e-9;
+    [ObservableProperty] private int _holdTicks = 100;
+    [ObservableProperty] private long _quantity = 1;
+
+    public IcebergDetectionStrategyViewModel(
+        IMarketDataRepository repository,
+        INotificationPublisher notifications,
+        IClock clock,
+        ISignalGeneratorRouterFactory routerFactory,
+        ILogger<IcebergDetectionStrategyViewModel> logger)
+        : base(
+            strategyId: "iceberg.detection",
+            strategyDisplayName: "Iceberg / hidden-liquidity detector (L2)",
+            repository, notifications, clock, routerFactory, logger)
+    {
+    }
+
+    protected override IBacktestStrategy BuildStrategy(Contract contract) =>
+        new TradingTerminal.Infrastructure.Backtest.Strategies.IcebergDetectionStrategy(contract, StickyTicks, PriceStabilityEpsilon, HoldTicks, Quantity);
+}

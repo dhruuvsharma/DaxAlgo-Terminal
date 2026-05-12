@@ -11,9 +11,29 @@ using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Strategies.AnomalyDetector;
+using TradingTerminal.Strategies.AvellanedaStoikov;
+using TradingTerminal.Strategies.Bollinger;
+using TradingTerminal.Strategies.BookPressure;
+using TradingTerminal.Strategies.ConnorsRsi2;
 using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.EodMomentum;
+using TradingTerminal.Strategies.GapFade;
+using TradingTerminal.Strategies.IcebergDetection;
+using TradingTerminal.Strategies.LiquiditySweep;
+using TradingTerminal.Strategies.LondonOpenBreakout;
+using TradingTerminal.Strategies.MaCrossover;
+using TradingTerminal.Strategies.Macd;
+using TradingTerminal.Strategies.Microprice;
+using TradingTerminal.Strategies.OnlineRegressionAlpha;
+using TradingTerminal.Strategies.OrderFlowToxicity;
+using TradingTerminal.Strategies.OrnsteinUhlenbeck;
+using TradingTerminal.Strategies.PullbackContinuation;
 using TradingTerminal.Strategies.Rsi;
-using TradingTerminal.Strategies.SignalHosts;
+using TradingTerminal.Strategies.ThinBookFilter;
+using TradingTerminal.Strategies.TrendFilter;
+using TradingTerminal.Strategies.Twap;
+using TradingTerminal.Strategies.VolatilityTargeted;
 
 namespace TradingTerminal.App.Composition;
 
@@ -32,13 +52,41 @@ public static class AppDependencyInjection
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
 
-        // Dedicated live strategies (chart + signals, own view-model per strategy).
+        // Dedicated live strategies — each in its own project, opens as a MetroWindow.
         services.AddRsiStrategy();
         services.AddCumulativeDeltaStrategy();
 
-        // Signal-mode hosts — one left-pane entry per backtest strategy. Each opens as a
-        // MetroWindow (same pattern as RSI / Cumulative Delta).
-        services.AddSignalHostStrategies();
+        // HFT / microstructure
+        services.AddMicropriceStrategy();
+        services.AddOrnsteinUhlenbeckStrategy();
+        services.AddAvellanedaStoikovStrategy();
+        services.AddTwapStrategy();
+
+        // Forex baselines
+        services.AddBollingerStrategy();
+        services.AddMaCrossoverStrategy();
+        services.AddConnorsRsi2Strategy();
+        services.AddLondonOpenBreakoutStrategy();
+        services.AddMacdStrategy();
+
+        // Index baselines
+        services.AddTrendFilterStrategy();
+        services.AddVolatilityTargetedStrategy();
+        services.AddGapFadeStrategy();
+        services.AddEodMomentumStrategy();
+        services.AddPullbackContinuationStrategy();
+
+        // L2 / depth-of-market
+        services.AddBookPressureStrategy();
+        services.AddLiquiditySweepStrategy();
+        services.AddIcebergDetectionStrategy();
+        services.AddOrderFlowToxicityStrategy();
+        services.AddThinBookFilterStrategy();
+
+        // ML / AI
+        services.AddOnlineRegressionAlphaStrategy();
+        services.AddAnomalyDetectorStrategy();
+
         return services;
     }
 

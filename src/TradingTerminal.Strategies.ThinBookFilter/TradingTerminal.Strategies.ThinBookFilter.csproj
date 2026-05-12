@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <Description>Thin-book breakout filter (L2) â€” live signal-mode wrapper around the ThinBookFilterStrategy backtest implementation.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>
