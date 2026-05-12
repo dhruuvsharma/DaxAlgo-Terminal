@@ -1,0 +1,90 @@
+using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.App.Backtest;
+using TradingTerminal.App.Login;
+using TradingTerminal.App.Login.Forms;
+using TradingTerminal.App.Notifications;
+using TradingTerminal.App.Shell;
+using TradingTerminal.App.Strategies;
+using TradingTerminal.App.Strategies.Signal;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Strategies;
+using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.Rsi;
+
+namespace TradingTerminal.App.Composition;
+
+/// <summary>
+/// Per-feature DI extension methods used by <c>App.xaml.cs</c>. Splitting these out turns
+/// the composition root into a short, readable manifest — each line is a feature module.
+/// Adding a new module: write a new <c>AddXxx</c> method here and call it from
+/// <c>App.OnStartup</c>.
+/// </summary>
+public static class AppDependencyInjection
+{
+    /// <summary>Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers
+    /// around every entry in the backtest catalog.</summary>
+    public static IServiceCollection AddStrategyPlugins(this IServiceCollection services)
+    {
+        services.AddSingleton<IStrategyFactory, StrategyFactory>();
+        services.AddBacktestStrategyCatalog();
+
+        // Dedicated live strategies (chart + signals, own view-model per strategy).
+        services.AddRsiStrategy();
+        services.AddCumulativeDeltaStrategy();
+
+        // Signal-mode hosts — one left-pane entry per backtest strategy.
+        services.AddSignalGeneratorStrategies();
+        return services;
+    }
+
+    /// <summary>Per-broker login forms. Each form is registered as both its concrete type
+    /// (for the factory's GetRequiredService lookup) and as <see cref="IBrokerLoginForm"/>
+    /// (so the factory can enumerate them).</summary>
+    public static IServiceCollection AddBrokerLoginForms(this IServiceCollection services)
+    {
+        services.AddSingleton<IbLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<IbLoginFormViewModel>());
+
+        services.AddSingleton<NinjaLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<NinjaLoginFormViewModel>());
+
+        services.AddSingleton<CTraderLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<CTraderLoginFormViewModel>());
+
+        services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
+        return services;
+    }
+
+    /// <summary>The login + main-shell windows and their view-models, plus the factory
+    /// seam over them so <c>App.xaml.cs</c> never references the concrete window types.</summary>
+    public static IServiceCollection AddShell(this IServiceCollection services)
+    {
+        services.AddSingleton<CredentialStore>();
+        services.AddTransient<LoginViewModel>();
+        services.AddTransient<LoginWindow>();
+
+        services.AddSingleton<MainWindowViewModel>();
+        services.AddTransient<MainWindow>();
+
+        services.AddSingleton<ILoginShellFactory, LoginShellFactory>();
+        services.AddSingleton<IMainShellFactory, MainShellFactory>();
+        return services;
+    }
+
+    /// <summary>Backtest tab — view + view-model resolved lazily when the user opens it
+    /// from Tools → Backtest.</summary>
+    public static IServiceCollection AddBacktestSurface(this IServiceCollection services)
+    {
+        services.AddTransient<BacktestViewModel>();
+        services.AddTransient<BacktestView>();
+        return services;
+    }
+
+    /// <summary>Settings dialogs (today: notifications). Add new settings tabs here.</summary>
+    public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
+    {
+        services.AddTransient<NotificationsSettingsViewModel>();
+        services.AddTransient<NotificationsSettingsView>();
+        return services;
+    }
+}

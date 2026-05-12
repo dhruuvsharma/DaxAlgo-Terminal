@@ -6,21 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using TradingTerminal.App.Backtest;
+using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
-using TradingTerminal.App.Login;
-using TradingTerminal.App.Login.Forms;
-using TradingTerminal.App.Shell;
-using TradingTerminal.App.Strategies;
-using TradingTerminal.App.Strategies.Signal;
 using TradingTerminal.App.Notifications;
-using TradingTerminal.Core.Brokers;
+using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Configuration;
-using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.Notifications;
-using TradingTerminal.Strategies.CumulativeDelta;
-using TradingTerminal.Strategies.Rsi;
 using TradingTerminal.UI.Logging;
 
 namespace TradingTerminal.App;
@@ -67,6 +59,7 @@ public partial class App : Application
             })
             .ConfigureServices((ctx, services) =>
             {
+                // Options
                 services.Configure<InteractiveBrokersOptions>(
                     ctx.Configuration.GetSection(InteractiveBrokersOptions.SectionName));
                 services.Configure<NinjaTraderOptions>(
@@ -74,59 +67,17 @@ public partial class App : Application
                 services.Configure<CTraderOptions>(
                     ctx.Configuration.GetSection(CTraderOptions.SectionName));
 
+                // Cross-cutting infrastructure
                 services.AddSingleton(inMemoryLogSink);
-
                 services.AddTradingTerminalInfrastructure();
                 services.AddNotifications(ctx.Configuration);
 
-                services.AddSingleton<IStrategyFactory, StrategyFactory>();
-
-                // Backtest strategy registry — exposes BacktestStrategyCatalog.All as an
-                // injectable IBacktestStrategyRegistry so view-models don't reach into the
-                // static directly.
-                services.AddBacktestStrategyCatalog();
-
-                // Strategy plug-ins. Each is a one-line registration.
-                services.AddRsiStrategy();
-                services.AddCumulativeDeltaStrategy();
-
-                // Live signal-mode wrappers around every backtest strategy — one entry in
-                // the left Strategies pane per BacktestStrategyCatalog item. Each picks an
-                // instrument, subscribes to live ticks, and publishes a notification on
-                // every order the strategy would submit (no actual execution).
-                services.AddSignalGeneratorStrategies();
-
-                // Per-broker login forms (each registered as both its concrete type and as IBrokerLoginForm
-                // so the BrokerLoginFormFactory can enumerate them).
-                services.AddSingleton<IbLoginFormViewModel>();
-                services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<IbLoginFormViewModel>());
-                services.AddSingleton<NinjaLoginFormViewModel>();
-                services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<NinjaLoginFormViewModel>());
-                services.AddSingleton<CTraderLoginFormViewModel>();
-                services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<CTraderLoginFormViewModel>());
-                services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
-
-                // Login flow.
-                services.AddSingleton<CredentialStore>();
-                services.AddTransient<LoginViewModel>();
-                services.AddTransient<LoginWindow>();
-
-                // Main shell.
-                services.AddSingleton<MainWindowViewModel>();
-                services.AddTransient<MainWindow>();
-
-                // Settings views.
-                services.AddTransient<NotificationsSettingsViewModel>();
-                services.AddTransient<NotificationsSettingsView>();
-
-                // Backtest tab — view + view-model resolved lazily when the user opens it.
-                services.AddTransient<BacktestViewModel>();
-                services.AddTransient<BacktestView>();
-
-                // Factory-method seam over the shell windows. App.xaml.cs only references these
-                // — never the concrete LoginWindow / MainWindow / view-model types.
-                services.AddSingleton<ILoginShellFactory, LoginShellFactory>();
-                services.AddSingleton<IMainShellFactory, MainShellFactory>();
+                // Feature modules — each is a one-line manifest entry.
+                services.AddStrategyPlugins();
+                services.AddBrokerLoginForms();
+                services.AddShell();
+                services.AddBacktestSurface();
+                services.AddSettingsSurface();
             })
             .Build();
 
