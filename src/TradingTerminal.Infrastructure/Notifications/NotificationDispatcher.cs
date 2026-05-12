@@ -18,6 +18,7 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
 {
     private readonly Channel<StrategyNotification> _channel;
     private readonly IEnumerable<INotificationTransport> _transports;
+    private readonly IEnumerable<INotificationEnricher> _enrichers;
     private readonly ILogger<NotificationDispatcher> _logger;
     private CancellationTokenSource? _cts;
     private Task? _loop;
@@ -25,6 +26,7 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
     public NotificationDispatcher(
         IOptions<NotificationsOptions> options,
         IEnumerable<INotificationTransport> transports,
+        IEnumerable<INotificationEnricher> enrichers,
         ILogger<NotificationDispatcher> logger)
     {
         var capacity = Math.Max(8, options.Value.QueueCapacity);
@@ -35,6 +37,7 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
             SingleWriter = false,
         });
         _transports = transports;
+        _enrichers = enrichers;
         _logger = logger;
     }
 
@@ -73,7 +76,17 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
                 var enabled = _transports.Where(t => t.IsEnabled).ToArray();
                 if (enabled.Length == 0) continue;
 
-                var sends = enabled.Select(t => SendOne(t, n, ct));
+                // Run enrichers sequentially — order matters (each sees the previous one's
+                // mutation) and the typical count is ≤ 1 so concurrency wouldn't help.
+                var enriched = n;
+                foreach (var enricher in _enrichers)
+                {
+                    if (!enricher.ShouldRun(enriched)) continue;
+                    try { enriched = await enricher.EnrichAsync(enriched, ct); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Enricher {Enricher} threw; using original", enricher.GetType().Name); }
+                }
+
+                var sends = enabled.Select(t => SendOne(t, enriched, ct));
                 await Task.WhenAll(sends);
             }
         }

@@ -8,6 +8,8 @@ public sealed class NotificationsOptions
 
     public DiscordOptions Discord { get; set; } = new();
 
+    public OllamaOptions Ollama { get; set; } = new();
+
     /// <summary>
     /// Bounded queue depth. When full, the oldest notification is dropped with a logged
     /// warning. Tunable in case a strategy gets chatty.
@@ -27,6 +29,27 @@ public sealed class TelegramOptions
 
     /// <summary>If false, the transport drops <see cref="Core.Notifications.NotificationKind.IdleSignal"/> messages.</summary>
     public bool IncludeIdleSignals { get; set; }
+}
+
+public sealed class OllamaOptions
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>Ollama HTTP base URL. Default Ollama listens on localhost:11434.</summary>
+    public string Endpoint { get; set; } = "http://localhost:11434";
+
+    /// <summary>Model tag pulled in Ollama (e.g. "llama3.2", "phi3.5", "mistral"). Free, runs locally.</summary>
+    public string Model { get; set; } = "llama3.2";
+
+    /// <summary>
+    /// Maximum wall-clock seconds the enricher will wait for the model to respond before
+    /// falling through and dispatching the original notification. Keep low (≤ 5s) so a
+    /// flaky local Ollama doesn't backlog the dispatcher.
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 4;
+
+    /// <summary>System prompt prepended to every request. Empty = use a default.</summary>
+    public string SystemPrompt { get; set; } = "";
 }
 
 public sealed class DiscordOptions

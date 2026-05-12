@@ -57,6 +57,14 @@ internal static class NotificationsUserFile
                 ["Username"] = options.Discord.Username,
                 ["IncludeIdleSignals"] = options.Discord.IncludeIdleSignals,
             },
+            ["Ollama"] = new JsonObject
+            {
+                ["Enabled"] = options.Ollama.Enabled,
+                ["Endpoint"] = options.Ollama.Endpoint,
+                ["Model"] = options.Ollama.Model,
+                ["TimeoutSeconds"] = options.Ollama.TimeoutSeconds,
+                ["SystemPrompt"] = options.Ollama.SystemPrompt,
+            },
         };
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

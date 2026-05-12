@@ -41,6 +41,12 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _discordUsername = "";
     [ObservableProperty] private bool _discordIncludeIdleSignals;
 
+    [ObservableProperty] private bool _ollamaEnabled;
+    [ObservableProperty] private string _ollamaEndpoint = "http://localhost:11434";
+    [ObservableProperty] private string _ollamaModel = "llama3.2";
+    [ObservableProperty] private int _ollamaTimeoutSeconds = 4;
+    [ObservableProperty] private string _ollamaSystemPrompt = "";
+
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _hasUnsavedChanges;
 
@@ -52,6 +58,11 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     partial void OnDiscordWebhookUrlChanged(string value) => HasUnsavedChanges = true;
     partial void OnDiscordUsernameChanged(string value) => HasUnsavedChanges = true;
     partial void OnDiscordIncludeIdleSignalsChanged(bool value) => HasUnsavedChanges = true;
+    partial void OnOllamaEnabledChanged(bool value) => HasUnsavedChanges = true;
+    partial void OnOllamaEndpointChanged(string value) => HasUnsavedChanges = true;
+    partial void OnOllamaModelChanged(string value) => HasUnsavedChanges = true;
+    partial void OnOllamaTimeoutSecondsChanged(int value) => HasUnsavedChanges = true;
+    partial void OnOllamaSystemPromptChanged(string value) => HasUnsavedChanges = true;
 
     private void LoadFromOptions(NotificationsOptions o)
     {
@@ -63,6 +74,11 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
         DiscordWebhookUrl = o.Discord.WebhookUrl;
         DiscordUsername = o.Discord.Username;
         DiscordIncludeIdleSignals = o.Discord.IncludeIdleSignals;
+        OllamaEnabled = o.Ollama.Enabled;
+        OllamaEndpoint = o.Ollama.Endpoint;
+        OllamaModel = o.Ollama.Model;
+        OllamaTimeoutSeconds = o.Ollama.TimeoutSeconds;
+        OllamaSystemPrompt = o.Ollama.SystemPrompt;
         HasUnsavedChanges = false;
     }
 
@@ -86,6 +102,14 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
                 WebhookUrl = DiscordWebhookUrl?.Trim() ?? "",
                 Username = DiscordUsername?.Trim() ?? "",
                 IncludeIdleSignals = DiscordIncludeIdleSignals,
+            },
+            Ollama = new OllamaOptions
+            {
+                Enabled = OllamaEnabled,
+                Endpoint = OllamaEndpoint?.Trim() ?? "",
+                Model = OllamaModel?.Trim() ?? "",
+                TimeoutSeconds = OllamaTimeoutSeconds,
+                SystemPrompt = OllamaSystemPrompt ?? "",
             },
         };
 
