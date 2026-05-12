@@ -19,5 +19,9 @@ public static class BacktestStrategyCatalog
             Id: "meanReversion",
             DisplayName: "Mean reversion (demo)",
             Build: contract => new MeanReversionStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "donchianBreakout",
+            DisplayName: "Donchian breakout (demo)",
+            Build: contract => new DonchianBreakoutStrategy(contract)),
     };
 }

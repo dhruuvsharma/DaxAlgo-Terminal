@@ -50,6 +50,13 @@ internal static class NotificationsUserFile
                 ["ChatId"] = options.Telegram.ChatId,
                 ["IncludeIdleSignals"] = options.Telegram.IncludeIdleSignals,
             },
+            ["Discord"] = new JsonObject
+            {
+                ["Enabled"] = options.Discord.Enabled,
+                ["WebhookUrl"] = options.Discord.WebhookUrl,
+                ["Username"] = options.Discord.Username,
+                ["IncludeIdleSignals"] = options.Discord.IncludeIdleSignals,
+            },
         };
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

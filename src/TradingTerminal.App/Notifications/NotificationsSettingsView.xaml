@@ -13,7 +13,7 @@
             <TextBlock Text="Notifications"
                        FontSize="20" FontWeight="SemiBold"
                        Margin="0,0,0,4" />
-            <TextBlock Text="Send strategy signals to a Telegram chat. Create a bot via @BotFather, then grab a numeric chat ID (use @userinfobot) or a channel username like @mychannel."
+            <TextBlock Text="Send strategy signals to Telegram and/or a Discord channel. Each transport is independent — enable either, both, or neither."
                        Foreground="{DynamicResource Text.Secondary}"
                        TextWrapping="Wrap"
                        Margin="0,0,0,16" />
@@ -21,7 +21,8 @@
             <Border BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="1"
                     CornerRadius="3"
-                    Padding="16">
+                    Padding="16"
+                    Margin="0,0,0,12">
                 <StackPanel>
                     <TextBlock Text="Telegram"
                                FontWeight="SemiBold"
@@ -43,6 +44,34 @@
 
                     <CheckBox Content="Also send idle (unarmed) signals"
                               IsChecked="{Binding IncludeIdleSignals, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+
+            <Border BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Discord"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+
+                    <CheckBox Content="Enabled"
+                              IsChecked="{Binding DiscordEnabled, Mode=TwoWay}"
+                              Margin="0,0,0,12" />
+
+                    <TextBlock Text="Webhook URL  (Edit Channel → Integrations → Webhooks → Copy URL)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding DiscordWebhookUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="Username override (optional)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding DiscordUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <CheckBox Content="Also send idle (unarmed) signals"
+                              IsChecked="{Binding DiscordIncludeIdleSignals, Mode=TwoWay}" />
                 </StackPanel>
             </Border>
 

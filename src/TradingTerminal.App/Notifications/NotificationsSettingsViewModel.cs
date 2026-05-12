@@ -36,6 +36,11 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _telegramChatId = "";
     [ObservableProperty] private bool _includeIdleSignals;
 
+    [ObservableProperty] private bool _discordEnabled;
+    [ObservableProperty] private string _discordWebhookUrl = "";
+    [ObservableProperty] private string _discordUsername = "";
+    [ObservableProperty] private bool _discordIncludeIdleSignals;
+
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _hasUnsavedChanges;
 
@@ -43,6 +48,10 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     partial void OnTelegramBotTokenChanged(string value) => HasUnsavedChanges = true;
     partial void OnTelegramChatIdChanged(string value) => HasUnsavedChanges = true;
     partial void OnIncludeIdleSignalsChanged(bool value) => HasUnsavedChanges = true;
+    partial void OnDiscordEnabledChanged(bool value) => HasUnsavedChanges = true;
+    partial void OnDiscordWebhookUrlChanged(string value) => HasUnsavedChanges = true;
+    partial void OnDiscordUsernameChanged(string value) => HasUnsavedChanges = true;
+    partial void OnDiscordIncludeIdleSignalsChanged(bool value) => HasUnsavedChanges = true;
 
     private void LoadFromOptions(NotificationsOptions o)
     {
@@ -50,6 +59,10 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
         TelegramBotToken = o.Telegram.BotToken;
         TelegramChatId = o.Telegram.ChatId;
         IncludeIdleSignals = o.Telegram.IncludeIdleSignals;
+        DiscordEnabled = o.Discord.Enabled;
+        DiscordWebhookUrl = o.Discord.WebhookUrl;
+        DiscordUsername = o.Discord.Username;
+        DiscordIncludeIdleSignals = o.Discord.IncludeIdleSignals;
         HasUnsavedChanges = false;
     }
 
@@ -66,6 +79,13 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
                 BotToken = TelegramBotToken?.Trim() ?? "",
                 ChatId = TelegramChatId?.Trim() ?? "",
                 IncludeIdleSignals = IncludeIdleSignals,
+            },
+            Discord = new DiscordOptions
+            {
+                Enabled = DiscordEnabled,
+                WebhookUrl = DiscordWebhookUrl?.Trim() ?? "",
+                Username = DiscordUsername?.Trim() ?? "",
+                IncludeIdleSignals = DiscordIncludeIdleSignals,
             },
         };
 
@@ -91,14 +111,18 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
             StatusMessage = "Save first — the test uses the saved configuration.";
             return;
         }
-        if (!TelegramEnabled || string.IsNullOrWhiteSpace(TelegramBotToken) || string.IsNullOrWhiteSpace(TelegramChatId))
+        var telegramReady = TelegramEnabled
+            && !string.IsNullOrWhiteSpace(TelegramBotToken)
+            && !string.IsNullOrWhiteSpace(TelegramChatId);
+        var discordReady = DiscordEnabled && !string.IsNullOrWhiteSpace(DiscordWebhookUrl);
+        if (!telegramReady && !discordReady)
         {
-            StatusMessage = "Telegram is not configured.";
+            StatusMessage = "No transport is configured.";
             return;
         }
 
         StatusMessage = "Sending…";
         await _publisher.PublishAsync(StrategyNotification.Test());
-        StatusMessage = "Test queued. Check Telegram (and the Logs pane for failures).";
+        StatusMessage = "Test queued. Check the configured channel (and the Logs pane for failures).";
     }
 }
