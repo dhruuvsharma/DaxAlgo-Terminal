@@ -16,10 +16,12 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 
 return args[0] switch
 {
-    "run"   => await RunBacktestAsync(args[1..]),
-    "synth" => await SynthAsync(args[1..]),
-    "sweep" => await SweepAsync(args[1..]),
-    _       => UnknownCommand(args[0]),
+    "run"          => await RunBacktestAsync(args[1..]),
+    "synth"        => await SynthAsync(args[1..]),
+    "sweep"        => await SweepAsync(args[1..]),
+    "walkforward"  => await WalkForwardAsync(args[1..]),
+    "mc"           => await MonteCarloAsync(args[1..]),
+    _              => UnknownCommand(args[0]),
 };
 
 static int UnknownCommand(string cmd)
@@ -340,6 +342,251 @@ static double[] ParseDoubleList(string raw) =>
         .Select(s => double.Parse(s, CultureInfo.InvariantCulture))
         .ToArray();
 
+// Walk-forward needs to instantiate each strategy FRESH per window — strategies are
+// stateful (rolling indicators, position trackers), so reusing an instance across
+// train→test→next-window would leak state. The existing BuildXxxGrid helpers return
+// pre-built instances; here we re-parse the same param grids into Funcs.
+static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> BuildWalkForwardGrid(
+    string strategyId, Contract contract, Args a) => strategyId switch
+{
+    "meanreversion" or "mean-reversion" => BuildMeanReversionBuilders(a),
+    "donchianbreakout" or "donchian" or "breakout" => BuildDonchianBuilders(a),
+    "microprice" => BuildMicropriceBuilders(a),
+    "ornsteinuhlenbeck" or "ou" => BuildOuBuilders(a),
+    _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
+};
+
+static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildMeanReversionBuilders(Args a)
+{
+    var lookbacks = ParseIntList(a.Optional("lookback") ?? "50,100,200");
+    var entries = ParseDoubleList(a.Optional("entry") ?? "0.05,0.10,0.20");
+    var stops = ParseDoubleList(a.Optional("stop") ?? "0.20,0.40");
+    var qty = a.Int("qty", 1);
+    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
+    foreach (var l in lookbacks)
+        foreach (var e in entries)
+            foreach (var s in stops)
+            {
+                int lc = l; double ec = e, sc = s;
+                list.Add(($"mr-lk{lc}-e{ec.ToString(CultureInfo.InvariantCulture)}-s{sc.ToString(CultureInfo.InvariantCulture)}",
+                    c => new MeanReversionStrategy(c, lc, ec, sc, qty)));
+            }
+    return list;
+}
+
+static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildDonchianBuilders(Args a)
+{
+    var lookbacks = ParseIntList(a.Optional("lookback") ?? "50,100,200");
+    var trails = ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40");
+    var qty = a.Int("qty", 1);
+    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
+    foreach (var l in lookbacks)
+        foreach (var s in trails)
+        {
+            int lc = l; double sc = s;
+            list.Add(($"don-lk{lc}-trail{sc.ToString(CultureInfo.InvariantCulture)}",
+                c => new DonchianBreakoutStrategy(c, lc, sc, qty)));
+        }
+    return list;
+}
+
+static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildMicropriceBuilders(Args a)
+{
+    var thresholds = ParseDoubleList(a.Optional("threshold") ?? "0.0005,0.001,0.002");
+    var holds = ParseIntList(a.Optional("hold") ?? "20,50,100");
+    var qty = a.Int("qty", 1);
+    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
+    foreach (var t in thresholds)
+        foreach (var h in holds)
+        {
+            double tc = t; int hc = h;
+            list.Add(($"mp-t{tc.ToString(CultureInfo.InvariantCulture)}-h{hc}",
+                c => new MicropriceStrategy(c, tc, hc, qty)));
+        }
+    return list;
+}
+
+static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildOuBuilders(Args a)
+{
+    var lookbacks = ParseIntList(a.Optional("lookback") ?? "300,500,1000");
+    var entries = ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5");
+    var qty = a.Int("qty", 1);
+    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
+    foreach (var l in lookbacks)
+        foreach (var ez in entries)
+        {
+            int lc = l; double ezc = ez;
+            list.Add(($"ou-lk{lc}-z{ezc.ToString(CultureInfo.InvariantCulture)}",
+                c => new OrnsteinUhlenbeckStrategy(c, lookback: lc, entryZ: ezc, quantity: qty)));
+        }
+    return list;
+}
+
+static async Task<int> WalkForwardAsync(string[] argv)
+{
+    var a = new Args(argv);
+    var strategyId = a.Required("strategy").ToLowerInvariant();
+    var symbol = a.Required("symbol");
+    var dataPath = a.Required("data");
+    var windows = Math.Max(2, a.Int("windows", 5));
+    var trainFraction = Math.Clamp(a.Double("train-fraction", 0.7), 0.1, 0.95);
+    var output = a.Optional("output") ?? "walkforward.csv";
+    var maxParallel = Math.Max(1, a.Int("parallel", Environment.ProcessorCount));
+
+    // Scan once to learn the dataset's time range. For typical files this is cheap; for
+    // huge files, parquet's row-group metadata would let us short-circuit, but the existing
+    // reader streams ticks so a single pass is good enough.
+    DateTime? minTs = null, maxTs = null;
+    long tickCount = 0;
+    await foreach (var t in ParquetTickReader.ReadAsync(dataPath, ct: CancellationToken.None))
+    {
+        minTs ??= t.TimestampUtc;
+        maxTs = t.TimestampUtc;
+        tickCount++;
+    }
+    if (minTs is null || maxTs is null || tickCount == 0)
+    {
+        Console.Error.WriteLine("Dataset is empty.");
+        return 2;
+    }
+
+    var totalSpan = maxTs.Value - minTs.Value;
+    var winSpan = totalSpan / windows;
+    var contract = Contract.UsStock(symbol);
+
+    var baseConfig = new BacktestConfig(
+        Contract: contract,
+        TickDataPath: dataPath,
+        TickSize: a.Double("tick-size", 0.01),
+        SlippageTicks: a.Int("slippage-ticks", 0),
+        ContractMultiplier: a.Double("multiplier", 1.0),
+        StartingCash: a.Double("starting-cash", 100_000));
+
+    var grid = BuildWalkForwardGrid(strategyId, contract, a);
+
+    Console.WriteLine($"Walk-forward: {windows} windows × {grid.Count} configs, train_frac={trainFraction:F2}");
+    Console.WriteLine($"  data span: {minTs.Value:O} → {maxTs.Value:O}");
+
+    var rows = new List<string>
+    {
+        "Window,TrainFromUtc,TrainToUtc,TestFromUtc,TestToUtc,BestParams,TrainSharpe,OosTrades,OosReturn,OosSharpe,OosMaxDrawdown,OosEndingCash"
+    };
+    var ic = CultureInfo.InvariantCulture;
+    using var gate = new SemaphoreSlim(maxParallel);
+
+    for (var w = 0; w < windows; w++)
+    {
+        var winStart = minTs.Value + winSpan * w;
+        var winEnd = (w == windows - 1) ? maxTs.Value : winStart + winSpan;
+        var trainCutoff = winStart + (winEnd - winStart) * trainFraction;
+
+        var trainResults = new List<(string Label, Func<Contract, IBacktestStrategy> Build, double Sharpe)>();
+        var trainTasks = grid.Select(async cell =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                var cfg = baseConfig with { FromUtc = winStart, ToUtc = trainCutoff };
+                var s = new BacktestSession();
+                var r = await s.RunAsync(cfg, cell.Builder(contract));
+                lock (trainResults) trainResults.Add((cell.Label, cell.Builder, r.Stats?.Sharpe ?? double.MinValue));
+            }
+            finally { gate.Release(); }
+        });
+        await Task.WhenAll(trainTasks);
+
+        var best = trainResults.OrderByDescending(t => t.Sharpe).First();
+        var oosCfg = baseConfig with { FromUtc = trainCutoff, ToUtc = winEnd };
+        var oosResult = await new BacktestSession().RunAsync(oosCfg, best.Build(contract));
+        var os = oosResult.Stats;
+
+        rows.Add(string.Join(",", new[]
+        {
+            w.ToString(ic),
+            winStart.ToString("O", ic),
+            trainCutoff.ToString("O", ic),
+            trainCutoff.ToString("O", ic),
+            winEnd.ToString("O", ic),
+            Escape(best.Label),
+            best.Sharpe.ToString("F4", ic),
+            (os?.TradeCount ?? 0).ToString(ic),
+            (os?.TotalReturn ?? 0).ToString("F6", ic),
+            (os?.Sharpe ?? 0).ToString("F4", ic),
+            (os?.MaxDrawdown ?? 0).ToString("F6", ic),
+            oosResult.EndingCash.ToString("F4", ic),
+        }));
+        Console.WriteLine($"  W{w}: best train={best.Label} (sharpe {best.Sharpe:F2}) → OOS trades={os?.TradeCount ?? 0} sharpe={os?.Sharpe ?? 0:F2}");
+    }
+
+    await File.WriteAllLinesAsync(output, rows);
+    Console.WriteLine($"Wrote {rows.Count - 1} window rows to {Path.GetFullPath(output)}");
+    return 0;
+}
+
+static async Task<int> MonteCarloAsync(string[] argv)
+{
+    var a = new Args(argv);
+    var tradesCsv = a.Required("trades");
+    var simulations = a.Int("simulations", 10_000);
+    var startingCash = a.Double("starting-cash", 100_000);
+    var seed = a.Int("seed", -1);
+
+    if (!File.Exists(tradesCsv))
+    {
+        Console.Error.WriteLine($"Trades file not found: {tradesCsv}");
+        return 2;
+    }
+
+    var pnls = new List<double>();
+    int grossPnlIdx = -1;
+    foreach (var (line, lineNo) in await File.ReadAllLinesAsync(tradesCsv).ContinueWith(t => t.Result.Select((l, i) => (l, i))))
+    {
+        if (lineNo == 0)
+        {
+            var header = line.Split(',');
+            for (var i = 0; i < header.Length; i++)
+                if (header[i].Equals("GrossPnl", StringComparison.OrdinalIgnoreCase) ||
+                    header[i].Equals("gross_pnl", StringComparison.OrdinalIgnoreCase))
+                    grossPnlIdx = i;
+            if (grossPnlIdx < 0)
+            {
+                Console.Error.WriteLine("Trades CSV must contain a GrossPnl column.");
+                return 2;
+            }
+            continue;
+        }
+        var cells = line.Split(',');
+        if (cells.Length <= grossPnlIdx) continue;
+        if (double.TryParse(cells[grossPnlIdx], NumberStyles.Float, CultureInfo.InvariantCulture, out var pnl))
+            pnls.Add(pnl);
+    }
+
+    if (pnls.Count == 0)
+    {
+        Console.Error.WriteLine("No parseable trades.");
+        return 2;
+    }
+
+    Console.WriteLine($"Monte Carlo: {simulations} simulations × {pnls.Count} trades");
+    var result = MonteCarlo.Run(pnls, startingCash, simulations, seed);
+
+    var ic = CultureInfo.InvariantCulture;
+    Console.WriteLine();
+    Console.WriteLine("                            P5         P25         P50         P75         P95");
+    Console.WriteLine($"  Final equity     {Fmt(result.FinalEquityPercentiles, "F2", ic)}");
+    Console.WriteLine($"  Sharpe           {Fmt(result.SharpePercentiles,      "F4", ic)}");
+    Console.WriteLine($"  Max drawdown     {Fmt(result.MaxDrawdownPercentiles, "F4", ic)}");
+    Console.WriteLine();
+    Console.WriteLine($"  Mean final equity   : {result.MeanFinalEquity.ToString("F2", ic)}  (σ {result.StdFinalEquity.ToString("F2", ic)})");
+    Console.WriteLine($"  Mean Sharpe         : {result.MeanSharpe.ToString("F4", ic)}  (σ {result.StdSharpe.ToString("F4", ic)})");
+    Console.WriteLine($"  Mean max drawdown   : {result.MeanMaxDrawdown.ToString("P2", ic)}");
+    Console.WriteLine($"  P(profit > 0)       : {result.ProbabilityOfProfit.ToString("P1", ic)}");
+    return 0;
+}
+
+static string Fmt(IReadOnlyList<double> p, string fmt, CultureInfo ic) =>
+    string.Join("  ", p.Select(v => v.ToString(fmt, ic).PadLeft(10)));
+
 static void PrintHelp()
 {
     Console.WriteLine("daxalgo-backtest run \\");
@@ -375,4 +622,20 @@ static void PrintHelp()
     Console.WriteLine("    [--qty <n>]              Default 1");
     Console.WriteLine("    [--output <path.csv>]    Default sweep-results.csv");
     Console.WriteLine("    [--parallel <n>]         Default = CPU count");
+    Console.WriteLine();
+    Console.WriteLine("daxalgo-backtest walkforward \\");
+    Console.WriteLine("    --strategy <id>          meanReversion | donchianBreakout | microprice | ou");
+    Console.WriteLine("    --symbol <ticker>");
+    Console.WriteLine("    --data <path.parquet>");
+    Console.WriteLine("    [--windows <n>]          Number of rolling windows (default 5)");
+    Console.WriteLine("    [--train-fraction <f>]   Fraction of each window used for training (default 0.7)");
+    Console.WriteLine("    [--output <path.csv>]    Default walkforward.csv");
+    Console.WriteLine("    [--parallel <n>]         Default = CPU count");
+    Console.WriteLine("    [grid params]            Same as 'sweep' for the chosen strategy");
+    Console.WriteLine();
+    Console.WriteLine("daxalgo-backtest mc \\");
+    Console.WriteLine("    --trades <path.csv>      Trades CSV from a prior 'run'");
+    Console.WriteLine("    [--simulations <n>]      Default 10000");
+    Console.WriteLine("    [--starting-cash <n>]    Default 100000");
+    Console.WriteLine("    [--seed <int>]           Default -1 (non-deterministic)");
 }
