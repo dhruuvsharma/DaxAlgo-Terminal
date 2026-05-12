@@ -81,6 +81,11 @@ public partial class App : Application
 
                 services.AddSingleton<IStrategyFactory, StrategyFactory>();
 
+                // Backtest strategy registry — exposes BacktestStrategyCatalog.All as an
+                // injectable IBacktestStrategyRegistry so view-models don't reach into the
+                // static directly.
+                services.AddBacktestStrategyCatalog();
+
                 // Strategy plug-ins. Each is a one-line registration.
                 services.AddRsiStrategy();
                 services.AddCumulativeDeltaStrategy();

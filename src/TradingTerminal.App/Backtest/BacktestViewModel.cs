@@ -24,10 +24,12 @@ public sealed partial class BacktestViewModel : ViewModelBase
     private readonly ILogger<BacktestViewModel> _logger;
     private CancellationTokenSource? _runCts;
 
-    public BacktestViewModel(ILogger<BacktestViewModel> logger)
+    public BacktestViewModel(
+        IBacktestStrategyRegistry registry,
+        ILogger<BacktestViewModel> logger)
     {
         _logger = logger;
-        Strategies = new ObservableCollection<BacktestStrategyOption>(BacktestStrategyCatalog.All);
+        Strategies = new ObservableCollection<BacktestStrategyOption>(registry.All);
         SelectedStrategy = Strategies.FirstOrDefault();
         Trades = new ObservableCollection<Trade>();
         EquityCurve = new ObservableCollection<EquityPoint>();

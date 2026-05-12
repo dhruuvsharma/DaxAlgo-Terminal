@@ -1,15 +1,35 @@
+using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 
 namespace TradingTerminal.App.Backtest;
 
 /// <summary>
-/// Registry of strategies the Backtest tab can run. Today it lists the demo
-/// <c>BuyAndHoldStrategy</c>; Phase 7 ports the live strategies (RSI / Cumulative
-/// Delta) into <see cref="Core.Backtest.IBacktestStrategy"/> adapters and adds them here.
+/// Seed list of strategies the backtest engine knows about. Held here as a
+/// <see cref="IReadOnlyList{T}"/> rather than as injected singletons so the list is
+/// usable both at DI-registration time (for the signal-host loop in
+/// <c>SignalStrategiesRegistration</c>, which runs before the service provider exists)
+/// and at runtime (via <see cref="IBacktestStrategyRegistry"/>).
+///
+/// Adding a strategy: append to <see cref="All"/>. The registry rebuilds on next start.
+/// Future work could register options dynamically through DI; today the catalog stays
+/// canonical to keep the registration story simple.
 /// </summary>
 public static class BacktestStrategyCatalog
 {
+    /// <summary>
+    /// Wires the registry: registers each catalog entry as a <see cref="BacktestStrategyOption"/>
+    /// singleton plus the default <see cref="IBacktestStrategyRegistry"/> that aggregates them.
+    /// View-models inject <c>IBacktestStrategyRegistry</c> instead of touching this static.
+    /// </summary>
+    public static IServiceCollection AddBacktestStrategyCatalog(this IServiceCollection services)
+    {
+        foreach (var option in All)
+            services.AddSingleton(option);
+        services.AddSingleton<IBacktestStrategyRegistry, BacktestStrategyRegistry>();
+        return services;
+    }
+
     public static IReadOnlyList<BacktestStrategyOption> All { get; } = new[]
     {
         new BacktestStrategyOption(
