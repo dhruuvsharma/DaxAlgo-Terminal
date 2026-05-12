@@ -3,6 +3,7 @@ using TradingTerminal.Backtest.Cli;
 using TradingTerminal.Backtest.Cli.Output;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
@@ -22,6 +23,7 @@ return args[0] switch
     "walkforward"  => await WalkForwardAsync(args[1..]),
     "mc"           => await MonteCarloAsync(args[1..]),
     "tca"          => await TcaAsync(args[1..]),
+    "features"     => await FeaturesAsync(args[1..]),
     _              => UnknownCommand(args[0]),
 };
 
@@ -646,6 +648,88 @@ static async Task<int> TcaAsync(string[] argv)
     return 0;
 }
 
+static async Task<int> FeaturesAsync(string[] argv)
+{
+    var a = new Args(argv);
+    var dataPath = a.Required("data");
+    var output = a.Optional("output") ?? "features.csv";
+    var barTicks = a.Int("bar-ticks", 100);
+    var volWindow = a.Int("vol-window", 20);
+    var upper = a.Double("upper-barrier", 0.10);
+    var lower = a.Double("lower-barrier", 0.10);
+    var timeout = a.Int("timeout-bars", 20);
+
+    if (!File.Exists(dataPath))
+    {
+        Console.Error.WriteLine($"Data file not found: {dataPath}");
+        return 2;
+    }
+
+    Console.WriteLine($"Loading ticks from {dataPath}…");
+    var ticks = new List<Tick>();
+    await foreach (var t in ParquetTickReader.ReadAsync(dataPath))
+        ticks.Add(t);
+
+    Console.WriteLine($"Aggregating {ticks.Count} ticks → {barTicks}-tick bars + features…");
+    var bars = FactorComputation.ComputeBars(ticks, barTicks, volWindow);
+
+    // For triple-barrier we need a high/low per bar. Recompute from the raw ticks since
+    // ComputeBars only retains close. (Pure additional pass; could be merged into
+    // ComputeBars if we ever care about CPU here.)
+    var highs = new double[bars.Count];
+    var lows = new double[bars.Count];
+    for (var b = 0; b < bars.Count; b++)
+    {
+        double hi = double.MinValue, lo = double.MaxValue;
+        for (var i = b * barTicks; i < (b + 1) * barTicks; i++)
+        {
+            var mid = (ticks[i].Bid + ticks[i].Ask) * 0.5;
+            if (mid > hi) hi = mid;
+            if (mid < lo) lo = mid;
+        }
+        highs[b] = hi; lows[b] = lo;
+    }
+    var indexed = bars.Select((b, i) => (Bar: b, Index: i)).ToArray();
+    var labelled = TripleBarrierLabeler.Apply(
+        indexed,
+        close: x => x.Bar.Close,
+        high: x => highs[x.Index],
+        low: x => lows[x.Index],
+        upperBarrier: upper,
+        lowerBarrier: lower,
+        timeoutBars: timeout);
+
+    var ic = CultureInfo.InvariantCulture;
+    var lines = new List<string>(bars.Count + 1)
+    {
+        "timestamp_utc,close,log_return,rolling_vol,microprice_dev,queue_imbalance,spread,label,bars_to_outcome"
+    };
+    foreach (var lb in labelled)
+    {
+        var b = lb.Bar.Bar;
+        lines.Add(string.Join(",", new[]
+        {
+            b.TimestampUtc.ToString("O", ic),
+            b.Close.ToString("F6", ic),
+            b.LogReturn.ToString("F8", ic),
+            b.RollingVol.ToString("F8", ic),
+            b.MicropriceDeviation.ToString("F8", ic),
+            b.QueueImbalance.ToString("F6", ic),
+            b.Spread.ToString("F8", ic),
+            ((int)lb.Label).ToString(ic),
+            lb.BarsToOutcome.ToString(ic),
+        }));
+    }
+    await File.WriteAllLinesAsync(output, lines);
+
+    var pos = labelled.Count(l => l.Label == TripleBarrierLabeler.Label.Positive);
+    var neg = labelled.Count(l => l.Label == TripleBarrierLabeler.Label.Negative);
+    var neu = labelled.Count - pos - neg;
+    Console.WriteLine($"Wrote {labelled.Count} rows to {Path.GetFullPath(output)}");
+    Console.WriteLine($"  Labels:  +1 {pos}  ({(double)pos / labelled.Count:P1})   0 {neu}  ({(double)neu / labelled.Count:P1})   -1 {neg}  ({(double)neg / labelled.Count:P1})");
+    return 0;
+}
+
 static void PrintHelp()
 {
     Console.WriteLine("daxalgo-backtest run \\");
@@ -701,4 +785,13 @@ static void PrintHelp()
     Console.WriteLine("daxalgo-backtest tca \\");
     Console.WriteLine("    --results <dir>          Backtest results dir (must contain fills.csv)");
     Console.WriteLine("    [--output <path.json>]   Optional: write full report as JSON");
+    Console.WriteLine();
+    Console.WriteLine("daxalgo-backtest features \\");
+    Console.WriteLine("    --data <path.parquet>    Tick data");
+    Console.WriteLine("    [--output <path.csv>]    Default features.csv");
+    Console.WriteLine("    [--bar-ticks <n>]        Ticks per aggregated bar (default 100)");
+    Console.WriteLine("    [--vol-window <n>]       Bars used in rolling-vol (default 20)");
+    Console.WriteLine("    [--upper-barrier <px>]   Take-profit barrier from entry (default 0.10)");
+    Console.WriteLine("    [--lower-barrier <px>]   Stop-loss  barrier from entry (default 0.10)");
+    Console.WriteLine("    [--timeout-bars <n>]     Vertical barrier in bars   (default 20)");
 }

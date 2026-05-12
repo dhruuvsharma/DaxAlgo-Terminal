@@ -1,7 +1,7 @@
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
-namespace TradingTerminal.App.Research;
+namespace TradingTerminal.Core.Ml;
 
 /// <summary>
 /// Computes a panel of microstructure features from a tick stream, plus the standard

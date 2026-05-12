@@ -1,6 +1,6 @@
 using FluentAssertions;
-using TradingTerminal.App.Research;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Ml;
 using Xunit;
 
 namespace TradingTerminal.Tests.Research;

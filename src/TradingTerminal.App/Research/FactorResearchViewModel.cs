@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
 using TradingTerminal.UI;
 
