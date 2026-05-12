@@ -39,13 +39,26 @@ public sealed class BacktestSession : IBacktestSession
 
         var ledger = new TradeLedger(config.ContractMultiplier, config.StartingCash, config.FeeModel);
         var equity = new List<EquityPoint>();
+        var fills = new List<FillRecord>();
         DateTime? lastSample = null;
+        Tick? lastTickForFillContext = null;
 
         var orderEventTask = Task.CompletedTask;
         using var sub = router.OrderEvents.Subscribe(evt =>
         {
             if (evt.LastFillQuantity > 0 && evt.LastFillPrice is { } px)
+            {
                 ledger.OnFill(evt.TimestampUtc, evt.Side, evt.LastFillQuantity, px, evt.Liquidity);
+                var mid = lastTickForFillContext is { } lt ? (lt.Bid + lt.Ask) * 0.5 : px;
+                fills.Add(new FillRecord(
+                    TimestampUtc: evt.TimestampUtc,
+                    ClientOrderId: evt.ClientOrderId,
+                    Side: evt.Side,
+                    Quantity: evt.LastFillQuantity,
+                    Price: px,
+                    MidAtFill: mid,
+                    Liquidity: evt.Liquidity));
+            }
 
             orderEventTask = orderEventTask.ContinueWith(
                 _ => strategy.OnOrderEventAsync(evt, ct),
@@ -61,6 +74,7 @@ public sealed class BacktestSession : IBacktestSession
                            config.TickDataPath, config.FromUtc, config.ToUtc, ct))
         {
             clock.SetTo(tick.TimestampUtc);
+            lastTickForFillContext = tick;
             orderBook.OnTick(tick);
 
             await orderEventTask.ConfigureAwait(false);
@@ -88,7 +102,9 @@ public sealed class BacktestSession : IBacktestSession
             ? ledger.Equity((t.Bid + t.Ask) * 0.5)
             : config.StartingCash;
 
-        var bare = new BacktestResult(ledger.Trades, equity, config.StartingCash, endingCash, TotalFees: ledger.TotalFees);
+        var bare = new BacktestResult(
+            ledger.Trades, equity, config.StartingCash, endingCash,
+            TotalFees: ledger.TotalFees, Fills: fills);
         return bare with { Stats = StatisticsCalculator.Calculate(bare) };
     }
 }

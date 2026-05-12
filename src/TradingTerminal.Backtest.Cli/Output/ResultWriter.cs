@@ -33,7 +33,7 @@ internal static class ResultWriter
 
         await WriteCsvAsync(
             Path.Combine(outputDir, "trades.csv"),
-            "entry_utc,exit_utc,side,quantity,entry_price,exit_price,gross_pnl",
+            "entry_utc,exit_utc,side,quantity,entry_price,exit_price,GrossPnl",
             result.Trades.Select(t => string.Create(CultureInfo.InvariantCulture,
                 $"{t.EntryUtc:O},{t.ExitUtc:O},{t.Side},{t.Quantity},{t.EntryPrice},{t.ExitPrice},{t.GrossPnl}")),
             ct).ConfigureAwait(false);
@@ -44,6 +44,16 @@ internal static class ResultWriter
             result.EquityCurve.Select(p => string.Create(CultureInfo.InvariantCulture,
                 $"{p.TimestampUtc:O},{p.Equity}")),
             ct).ConfigureAwait(false);
+
+        if (result.Fills is { Count: > 0 } fills)
+        {
+            await WriteCsvAsync(
+                Path.Combine(outputDir, "fills.csv"),
+                "timestamp_utc,client_order_id,side,quantity,price,mid_at_fill,liquidity",
+                fills.Select(f => string.Create(CultureInfo.InvariantCulture,
+                    $"{f.TimestampUtc:O},{f.ClientOrderId},{f.Side},{f.Quantity},{f.Price},{f.MidAtFill},{f.Liquidity}")),
+                ct).ConfigureAwait(false);
+        }
     }
 
     private static async Task WriteCsvAsync(string path, string header, IEnumerable<string> rows, CancellationToken ct)

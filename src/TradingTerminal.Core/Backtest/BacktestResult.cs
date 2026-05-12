@@ -11,4 +11,5 @@ public sealed record BacktestResult(
     double StartingCash,
     double EndingCash,
     BacktestStatistics? Stats = null,
-    double TotalFees = 0d);
+    double TotalFees = 0d,
+    IReadOnlyList<FillRecord>? Fills = null);

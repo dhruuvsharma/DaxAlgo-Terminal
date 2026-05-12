@@ -21,6 +21,7 @@ return args[0] switch
     "sweep"        => await SweepAsync(args[1..]),
     "walkforward"  => await WalkForwardAsync(args[1..]),
     "mc"           => await MonteCarloAsync(args[1..]),
+    "tca"          => await TcaAsync(args[1..]),
     _              => UnknownCommand(args[0]),
 };
 
@@ -587,6 +588,64 @@ static async Task<int> MonteCarloAsync(string[] argv)
 static string Fmt(IReadOnlyList<double> p, string fmt, CultureInfo ic) =>
     string.Join("  ", p.Select(v => v.ToString(fmt, ic).PadLeft(10)));
 
+static async Task<int> TcaAsync(string[] argv)
+{
+    var a = new Args(argv);
+    var resultsDir = a.Required("results");
+    var fillsPath = Path.Combine(resultsDir, "fills.csv");
+    if (!File.Exists(fillsPath))
+    {
+        Console.Error.WriteLine($"Fills file not found: {fillsPath}");
+        Console.Error.WriteLine("Run 'daxalgo-backtest run' first — it now emits fills.csv alongside trades.csv.");
+        return 2;
+    }
+
+    var fills = new List<FillRecord>();
+    var lines = await File.ReadAllLinesAsync(fillsPath);
+    for (var i = 1; i < lines.Length; i++)
+    {
+        var c = lines[i].Split(',');
+        if (c.Length < 7) continue;
+        fills.Add(new FillRecord(
+            TimestampUtc: DateTime.Parse(c[0], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            ClientOrderId: c[1],
+            Side: Enum.Parse<OrderSide>(c[2]),
+            Quantity: long.Parse(c[3], CultureInfo.InvariantCulture),
+            Price: double.Parse(c[4], CultureInfo.InvariantCulture),
+            MidAtFill: double.Parse(c[5], CultureInfo.InvariantCulture),
+            Liquidity: Enum.Parse<LiquidityFlag>(c[6])));
+    }
+    if (fills.Count == 0)
+    {
+        Console.Error.WriteLine("No fills to analyse.");
+        return 2;
+    }
+
+    var report = TransactionCostAnalysis.Compute(fills);
+    var ic = CultureInfo.InvariantCulture;
+    Console.WriteLine($"TCA report: {report.FillCount} fills, total qty {report.TotalQuantity}");
+    Console.WriteLine($"  TWAP mid              : {report.TwapMid.ToString("F4", ic)}");
+    Console.WriteLine($"  VWAP fill             : {report.VwapFill.ToString("F4", ic)}");
+    Console.WriteLine($"  Implementation shortfall: {report.ImplementationShortfall.ToString("F4", ic)}  (signed; + = cost vs benchmark)");
+    Console.WriteLine($"  Mean slippage         : {report.MeanSlippage.ToString("F4", ic)}");
+    Console.WriteLine($"  VWAP-weighted slip    : {report.VwapSlippage.ToString("F4", ic)}");
+    Console.WriteLine($"  Slippage P50 / P90 / P99: {report.SlippageP50.ToString("F4", ic)} / {report.SlippageP90.ToString("F4", ic)} / {report.SlippageP99.ToString("F4", ic)}");
+    Console.WriteLine($"  Maker / Taker mix     : {report.MakerFraction.ToString("P1", ic)} / {report.TakerFraction.ToString("P1", ic)}");
+    Console.WriteLine();
+    Console.WriteLine("  Hour  Fills  MeanSlip   MakerFrac");
+    foreach (var h in report.ByHourUtc)
+        Console.WriteLine($"  {h.Hour,4:D2}  {h.Fills,5:D}  {h.MeanSlippage,8:F4}  {h.MakerFraction,8:P1}");
+
+    var outPath = a.Optional("output");
+    if (outPath is not null)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(outPath, json);
+        Console.WriteLine($"Wrote JSON report to {Path.GetFullPath(outPath)}");
+    }
+    return 0;
+}
+
 static void PrintHelp()
 {
     Console.WriteLine("daxalgo-backtest run \\");
@@ -638,4 +697,8 @@ static void PrintHelp()
     Console.WriteLine("    [--simulations <n>]      Default 10000");
     Console.WriteLine("    [--starting-cash <n>]    Default 100000");
     Console.WriteLine("    [--seed <int>]           Default -1 (non-deterministic)");
+    Console.WriteLine();
+    Console.WriteLine("daxalgo-backtest tca \\");
+    Console.WriteLine("    --results <dir>          Backtest results dir (must contain fills.csv)");
+    Console.WriteLine("    [--output <path.json>]   Optional: write full report as JSON");
 }
