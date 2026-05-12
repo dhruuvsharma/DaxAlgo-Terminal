@@ -71,8 +71,20 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
     "avellanedastoikov" or "as" or "marketmaker" => new AvellanedaStoikovStrategy(contract),
     "twap" => new TwapExecutionStrategy(contract, OrderSide.Buy),
+    // Forex baselines
+    "bollinger" or "bb" => new BollingerReversionStrategy(contract),
+    "macrossover" or "goldencross" or "ma" => new MovingAverageCrossoverStrategy(contract),
+    "rsi2" or "connorsrsi" => new RsiTwoPeriodStrategy(contract),
+    "londonopen" or "lob" => new LondonOpenBreakoutStrategy(contract),
+    "macd" => new MacdCrossoverStrategy(contract),
+    // Index baselines
+    "trendfilter" or "sma200" => new TrendFilterStrategy(contract),
+    "voltarget" or "voltargeting" => new VolatilityTargetedStrategy(contract),
+    "gapfade" => new GapFadeStrategy(contract),
+    "eodmomentum" or "endofday" => new EndOfDayMomentumStrategy(contract),
+    "pullback" or "pullbackcontinuation" => new PullbackContinuationStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback.")
 };
 
 static void PrintSummary(BacktestResult result)
