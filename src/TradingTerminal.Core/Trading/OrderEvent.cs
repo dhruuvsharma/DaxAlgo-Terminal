@@ -15,4 +15,5 @@ public sealed record OrderEvent(
     double? AverageFillPrice,
     long LastFillQuantity = 0,
     double? LastFillPrice = null,
-    string? RejectReason = null);
+    string? RejectReason = null,
+    LiquidityFlag Liquidity = LiquidityFlag.Taker);

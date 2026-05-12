@@ -79,11 +79,16 @@ public sealed class SimulatedOrderBook
                 : OrderState.PartiallyFilled;
             order.State = newState;
 
+            var liquidity = order.Request.Type == OrderType.Limit
+                ? LiquidityFlag.Maker
+                : LiquidityFlag.Taker;
+
             _events.OnNext(new OrderEvent(
                 tick.TimestampUtc, order.Request.ClientOrderId, order.BrokerOrderId,
                 order.Request.Side, newState,
                 order.FilledQuantity, order.AveragePrice,
-                LastFillQuantity: qty, LastFillPrice: price));
+                LastFillQuantity: qty, LastFillPrice: price,
+                Liquidity: liquidity));
 
             if (newState == OrderState.Filled)
                 _byClientId.Remove(order.Request.ClientOrderId);

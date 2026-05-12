@@ -37,7 +37,7 @@ public sealed class BacktestSession
         var orderBook = new SimulatedOrderBook(clock, fillModel);
         var router = new BacktestOrderRouter(orderBook, risk);
 
-        var ledger = new TradeLedger(config.ContractMultiplier, config.StartingCash);
+        var ledger = new TradeLedger(config.ContractMultiplier, config.StartingCash, config.FeeModel);
         var equity = new List<EquityPoint>();
         DateTime? lastSample = null;
 
@@ -45,7 +45,7 @@ public sealed class BacktestSession
         using var sub = router.OrderEvents.Subscribe(evt =>
         {
             if (evt.LastFillQuantity > 0 && evt.LastFillPrice is { } px)
-                ledger.OnFill(evt.TimestampUtc, evt.Side, evt.LastFillQuantity, px);
+                ledger.OnFill(evt.TimestampUtc, evt.Side, evt.LastFillQuantity, px, evt.Liquidity);
 
             orderEventTask = orderEventTask.ContinueWith(
                 _ => strategy.OnOrderEventAsync(evt, ct),
@@ -88,7 +88,7 @@ public sealed class BacktestSession
             ? ledger.Equity((t.Bid + t.Ask) * 0.5)
             : config.StartingCash;
 
-        var bare = new BacktestResult(ledger.Trades, equity, config.StartingCash, endingCash);
+        var bare = new BacktestResult(ledger.Trades, equity, config.StartingCash, endingCash, TotalFees: ledger.TotalFees);
         return bare with { Stats = StatisticsCalculator.Calculate(bare) };
     }
 }

@@ -10,4 +10,5 @@ public sealed record BacktestResult(
     IReadOnlyList<EquityPoint> EquityCurve,
     double StartingCash,
     double EndingCash,
-    BacktestStatistics? Stats = null);
+    BacktestStatistics? Stats = null,
+    double TotalFees = 0d);

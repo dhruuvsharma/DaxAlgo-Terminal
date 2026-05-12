@@ -3,6 +3,7 @@ using TradingTerminal.Backtest.Cli;
 using TradingTerminal.Backtest.Cli.Output;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
@@ -45,7 +46,8 @@ static async Task<int> RunBacktestAsync(string[] argv)
         TickSize: a.Double("tick-size", 0.01),
         SlippageTicks: a.Int("slippage-ticks", 0),
         ContractMultiplier: a.Double("multiplier", 1.0),
-        StartingCash: a.Double("starting-cash", 100_000));
+        StartingCash: a.Double("starting-cash", 100_000),
+        FeeModel: ResolveFeeModel(a));
 
     var strategy = ResolveStrategy(strategyId, config.Contract);
 
@@ -65,8 +67,12 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
     "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
     "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
+    "microprice" => new MicropriceStrategy(contract),
+    "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
+    "avellanedastoikov" or "as" or "marketmaker" => new AvellanedaStoikovStrategy(contract),
+    "twap" => new TwapExecutionStrategy(contract, OrderSide.Buy),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap.")
 };
 
 static void PrintSummary(BacktestResult result)
@@ -79,10 +85,30 @@ static void PrintSummary(BacktestResult result)
     Console.WriteLine($"  Total return        : {s.TotalReturn.ToString("P2", ic)}");
     Console.WriteLine($"  Sharpe (annualized) : {s.Sharpe.ToString("F2", ic)}");
     Console.WriteLine($"  Sortino             : {s.Sortino.ToString("F2", ic)}");
+    Console.WriteLine($"  Calmar              : {s.Calmar.ToString("F2", ic)}");
+    Console.WriteLine($"  Omega               : {s.Omega.ToString("F2", ic)}");
     Console.WriteLine($"  Max drawdown        : {s.MaxDrawdown.ToString("P2", ic)}");
+    Console.WriteLine($"  Ulcer index         : {s.UlcerIndex.ToString("F4", ic)}");
+    Console.WriteLine($"  Recovery factor     : {s.RecoveryFactor.ToString("F2", ic)}");
     Console.WriteLine($"  Win rate            : {s.WinRate.ToString("P1", ic)}");
     Console.WriteLine($"  Profit factor       : {s.ProfitFactor.ToString("F2", ic)}");
     Console.WriteLine($"  Expectancy / trade  : {s.Expectancy.ToString("F4", ic)}");
+    Console.WriteLine($"  Max consec. losses  : {s.MaxConsecutiveLosses.ToString(ic)}");
+    Console.WriteLine($"  Total fees / rebates: {result.TotalFees.ToString("F4", ic)}");
+}
+
+static IFeeModel? ResolveFeeModel(Args a)
+{
+    var taker = a.Optional("taker-fee");
+    var maker = a.Optional("maker-rebate");
+    var bps = a.Optional("fee-bps");
+    if (bps is not null)
+        return new BpsFeeModel(double.Parse(bps, CultureInfo.InvariantCulture));
+    if (taker is not null || maker is not null)
+        return new MakerTakerFeeModel(
+            takerFeePerUnit: double.Parse(taker ?? "0", CultureInfo.InvariantCulture),
+            makerRebatePerUnit: double.Parse(maker ?? "0", CultureInfo.InvariantCulture));
+    return null;
 }
 
 static async Task<int> SynthAsync(string[] argv)
@@ -98,18 +124,34 @@ static async Task<int> SynthAsync(string[] argv)
     var origin = DateTime.UtcNow.Date;
     var mid = startMid;
 
+    var varySizes = a.Optional("vary-sizes") != "false";
+
     await using var writer = new ParquetTickWriter(output);
     for (var i = 0; i < ticks; i++)
     {
         // Mean-reverting random walk so the demo strategies have something to chew on.
         mid += (rng.NextDouble() - 0.5) * spread * 4;
         mid += (startMid - mid) * 0.001;
+
+        // Occasional "spread-widen" event lets market-maker / breakout strategies actually
+        // get hit. ~1% of ticks have 3x spread, 1‑bid/1‑ask sizes (a fast quote).
+        var burst = rng.NextDouble() < 0.01;
+        var thisSpread = burst ? spread * 3 : spread;
+
+        long bidSize = 10, askSize = 10;
+        if (varySizes)
+        {
+            // Sizes ~Poisson-ish around 10, asymmetric so microprice has something to say.
+            bidSize = Math.Max(1, (long)Math.Round(5 + rng.NextDouble() * 30));
+            askSize = Math.Max(1, (long)Math.Round(5 + rng.NextDouble() * 30));
+        }
+
         await writer.WriteAsync(new Tick(
             origin.AddSeconds(i),
-            Bid: mid - spread * 0.5,
-            Ask: mid + spread * 0.5,
-            BidSize: 10,
-            AskSize: 10));
+            Bid: mid - thisSpread * 0.5,
+            Ask: mid + thisSpread * 0.5,
+            BidSize: bidSize,
+            AskSize: askSize));
     }
     Console.WriteLine($"Wrote {ticks} synthetic ticks to {Path.GetFullPath(output)}");
     return 0;
@@ -139,7 +181,10 @@ static async Task<int> SweepAsync(string[] argv)
     {
         "meanreversion" or "mean-reversion" => BuildMeanReversionGrid(contract, a),
         "donchianbreakout" or "donchian" or "breakout" => BuildDonchianGrid(contract, a),
-        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion or donchianBreakout."),
+        "microprice" => BuildMicropriceGrid(contract, a),
+        "ornsteinuhlenbeck" or "ou" => BuildOuGrid(contract, a),
+        "avellanedastoikov" or "as" or "marketmaker" => BuildAvellanedaGrid(contract, a),
+        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, or avellanedaStoikov."),
     };
 
     Console.WriteLine($"Sweep: {grid.Count} configurations on {symbol} (parallel={maxParallel})");
@@ -147,7 +192,7 @@ static async Task<int> SweepAsync(string[] argv)
     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
     var rows = new System.Collections.Concurrent.ConcurrentBag<string>();
     var ic = CultureInfo.InvariantCulture;
-    rows.Add("Label,Trades,TotalReturn,Sharpe,Sortino,MaxDrawdown,WinRate,ProfitFactor,Expectancy,EndingCash");
+    rows.Add("Label,Trades,TotalReturn,Sharpe,Sortino,Calmar,Omega,MaxDrawdown,UlcerIndex,MaxConsecLosses,WinRate,ProfitFactor,Expectancy,Fees,EndingCash");
 
     using var gate = new SemaphoreSlim(maxParallel);
     var tasks = grid.Select(async cell =>
@@ -165,10 +210,15 @@ static async Task<int> SweepAsync(string[] argv)
                 (s?.TotalReturn ?? 0).ToString("F6", ic),
                 (s?.Sharpe ?? 0).ToString("F4", ic),
                 (s?.Sortino ?? 0).ToString("F4", ic),
+                (s?.Calmar ?? 0).ToString("F4", ic),
+                (s?.Omega ?? 0).ToString("F4", ic),
                 (s?.MaxDrawdown ?? 0).ToString("F6", ic),
+                (s?.UlcerIndex ?? 0).ToString("F6", ic),
+                (s?.MaxConsecutiveLosses ?? 0).ToString(ic),
                 (s?.WinRate ?? 0).ToString("F4", ic),
                 (s?.ProfitFactor ?? 0).ToString("F4", ic),
                 (s?.Expectancy ?? 0).ToString("F6", ic),
+                result.TotalFees.ToString("F4", ic),
                 result.EndingCash.ToString("F4", ic),
             }));
             Console.WriteLine($"  {cell.Label}: trades={s?.TradeCount ?? 0}, sharpe={s?.Sharpe ?? 0:F2}, ret={s?.TotalReturn ?? 0:P2}");
@@ -220,6 +270,48 @@ static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildDonchianGrid(
     return grid;
 }
 
+static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildMicropriceGrid(Contract contract, Args a)
+{
+    var thresholds = ParseDoubleList(a.Optional("threshold") ?? "0.0005,0.001,0.002");
+    var holds = ParseIntList(a.Optional("hold") ?? "20,50,100");
+    var qty = a.Int("qty", 1);
+
+    var grid = new List<(string, IBacktestStrategy)>();
+    foreach (var t in thresholds)
+        foreach (var h in holds)
+            grid.Add(($"mp-t{t.ToString(CultureInfo.InvariantCulture)}-h{h}",
+                new MicropriceStrategy(contract, t, h, qty)));
+    return grid;
+}
+
+static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildOuGrid(Contract contract, Args a)
+{
+    var lookbacks = ParseIntList(a.Optional("lookback") ?? "300,500,1000");
+    var entries = ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5");
+    var qty = a.Int("qty", 1);
+
+    var grid = new List<(string, IBacktestStrategy)>();
+    foreach (var l in lookbacks)
+        foreach (var ez in entries)
+            grid.Add(($"ou-lk{l}-z{ez.ToString(CultureInfo.InvariantCulture)}",
+                new OrnsteinUhlenbeckStrategy(contract, lookback: l, entryZ: ez, quantity: qty)));
+    return grid;
+}
+
+static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildAvellanedaGrid(Contract contract, Args a)
+{
+    var gammas = ParseDoubleList(a.Optional("gamma") ?? "0.05,0.10,0.20");
+    var ks = ParseDoubleList(a.Optional("k") ?? "1.0,1.5,3.0");
+    var qty = a.Int("qty", 1);
+
+    var grid = new List<(string, IBacktestStrategy)>();
+    foreach (var g in gammas)
+        foreach (var k in ks)
+            grid.Add(($"as-g{g.ToString(CultureInfo.InvariantCulture)}-k{k.ToString(CultureInfo.InvariantCulture)}",
+                new AvellanedaStoikovStrategy(contract, gamma: g, k: k, quoteSize: qty)));
+    return grid;
+}
+
 static int[] ParseIntList(string raw) =>
     raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(s => int.Parse(s, CultureInfo.InvariantCulture))
@@ -243,6 +335,9 @@ static void PrintHelp()
     Console.WriteLine("    [--multiplier <n>]       Default 1");
     Console.WriteLine("    [--starting-cash <n>]    Default 100000");
     Console.WriteLine("    [--output <dir>]         Default ./bt-results");
+    Console.WriteLine("    [--taker-fee <n>]        Per-unit taker fee (with --maker-rebate uses MakerTakerFeeModel)");
+    Console.WriteLine("    [--maker-rebate <n>]     Per-unit maker rebate (positive value)");
+    Console.WriteLine("    [--fee-bps <n>]          Flat bps fee on notional (overrides taker/maker)");
     Console.WriteLine();
     Console.WriteLine("daxalgo-backtest synth \\");
     Console.WriteLine("    --output <path.parquet>  Where to write the synthetic dataset");

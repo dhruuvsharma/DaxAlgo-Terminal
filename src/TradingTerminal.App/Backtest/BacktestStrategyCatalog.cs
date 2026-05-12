@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 
 namespace TradingTerminal.App.Backtest;
@@ -23,5 +24,21 @@ public static class BacktestStrategyCatalog
             Id: "donchianBreakout",
             DisplayName: "Donchian breakout (demo)",
             Build: contract => new DonchianBreakoutStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "microprice",
+            DisplayName: "Microprice deviation (microstructure)",
+            Build: contract => new MicropriceStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "ornsteinUhlenbeck",
+            DisplayName: "Ornstein-Uhlenbeck mean reversion",
+            Build: contract => new OrnsteinUhlenbeckStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "avellanedaStoikov",
+            DisplayName: "Avellaneda-Stoikov market maker",
+            Build: contract => new AvellanedaStoikovStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "twap",
+            DisplayName: "TWAP buy execution",
+            Build: contract => new TwapExecutionStrategy(contract, OrderSide.Buy)),
     };
 }

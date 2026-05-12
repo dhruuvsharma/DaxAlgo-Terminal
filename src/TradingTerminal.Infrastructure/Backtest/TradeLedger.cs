@@ -12,23 +12,30 @@ namespace TradingTerminal.Infrastructure.Backtest;
 internal sealed class TradeLedger
 {
     private readonly double _multiplier;
+    private readonly IFeeModel _feeModel;
     private readonly List<Trade> _trades = new();
     private readonly Queue<Lot> _openLots = new();
 
-    public TradeLedger(double multiplier, double startingCash)
+    public TradeLedger(double multiplier, double startingCash, IFeeModel? feeModel = null)
     {
         _multiplier = multiplier;
+        _feeModel = feeModel ?? ZeroFeeModel.Instance;
         Cash = startingCash;
     }
 
     public double Cash { get; private set; }
     public long NetPosition { get; private set; }
+    public double TotalFees { get; private set; }
     public IReadOnlyList<Trade> Trades => _trades;
 
-    public void OnFill(DateTime utc, OrderSide side, long qty, double price)
+    public void OnFill(DateTime utc, OrderSide side, long qty, double price, LiquidityFlag liquidity = LiquidityFlag.Taker)
     {
         var signed = side == OrderSide.Buy ? qty : -qty;
         Cash -= signed * price * _multiplier;
+
+        var fee = _feeModel.Fee(side, qty, price, liquidity);
+        Cash -= fee;
+        TotalFees += fee;
 
         var remaining = qty;
         while (remaining > 0 && _openLots.Count > 0 && Math.Sign(_openLots.Peek().SignedQty) != Math.Sign(signed))
