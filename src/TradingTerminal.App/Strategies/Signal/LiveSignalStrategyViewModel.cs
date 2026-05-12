@@ -9,7 +9,6 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
-using TradingTerminal.Infrastructure.Time;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.App.Strategies.Signal;
@@ -32,7 +31,8 @@ public sealed partial class LiveSignalStrategyViewModel : ViewModelBase, IDispos
     private readonly INotificationPublisher _notifications;
     private readonly ILogger<LiveSignalStrategyViewModel> _logger;
     private readonly BacktestStrategyOption _option;
-    private readonly IClock _clock = new SystemClock();
+    private readonly IClock _clock;
+    private readonly ISignalGeneratorRouterFactory _routerFactory;
 
     private CancellationTokenSource? _streamCts;
     private SignalGeneratorRouter? _router;
@@ -43,11 +43,15 @@ public sealed partial class LiveSignalStrategyViewModel : ViewModelBase, IDispos
         BacktestStrategyOption option,
         IMarketDataRepository repository,
         INotificationPublisher notifications,
+        IClock clock,
+        ISignalGeneratorRouterFactory routerFactory,
         ILogger<LiveSignalStrategyViewModel> logger)
     {
         _option = option;
         _repository = repository;
         _notifications = notifications;
+        _clock = clock;
+        _routerFactory = routerFactory;
         _logger = logger;
 
         Instruments = SignalInstrumentCatalog.All;
@@ -86,7 +90,7 @@ public sealed partial class LiveSignalStrategyViewModel : ViewModelBase, IDispos
 
         _streamCts = new CancellationTokenSource();
         _strategy = _option.Build(SelectedInstrument.Contract);
-        _router = new SignalGeneratorRouter();
+        _router = _routerFactory.Create();
         _router.SignalEmitted += OnSignalEmitted;
         _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
         {

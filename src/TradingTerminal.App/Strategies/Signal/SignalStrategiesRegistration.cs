@@ -4,6 +4,7 @@ using TradingTerminal.App.Backtest;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Time;
 
 namespace TradingTerminal.App.Strategies.Signal;
 
@@ -24,6 +25,7 @@ public static class SignalStrategiesRegistration
     public static IServiceCollection AddSignalGeneratorStrategies(this IServiceCollection services)
     {
         services.AddTransient<LiveSignalStrategyView>();
+        services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
 
         foreach (var option in BacktestStrategyCatalog.All)
         {
@@ -43,6 +45,8 @@ public static class SignalStrategiesRegistration
                     captured,
                     sp.GetRequiredService<IMarketDataRepository>(),
                     sp.GetRequiredService<INotificationPublisher>(),
+                    sp.GetRequiredService<IClock>(),
+                    sp.GetRequiredService<ISignalGeneratorRouterFactory>(),
                     sp.GetRequiredService<ILogger<LiveSignalStrategyViewModel>>())));
         }
 
