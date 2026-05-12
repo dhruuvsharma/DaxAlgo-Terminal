@@ -11,11 +11,11 @@ A modular trading terminal that:
 
 The shipped brokers exercise three very different transports on purpose, to prove the abstraction holds:
 
-| Broker | Transport | Process model | History | Live ticks | Auth |
-|---|---|---|---|---|---|
-| Interactive Brokers | TCP socket → `EClientSocket`/`EWrapper` (170+ callbacks) | TWS desktop app, local | Real (`reqHistoricalData`) | Real (`reqMktData` L1) | TWS handles 2FA itself |
-| NinjaTrader 8 | P/Invoke into `NTDirect.dll` (ANSI C ABI) | NT 8 desktop app, local, in-process bridge | None — synthesized | Real, polled at 200 ms | NT instance is the auth boundary |
-| cTrader | TLS + protobuf to Spotware cloud (`cTrader.OpenAPI.Net`) | None — pure-cloud, no local desktop required | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | OAuth 2.0 (clientId + secret + access token) |
+| Broker | Transport | Process model | History | Live ticks | L2 depth | Auth |
+|---|---|---|---|---|---|---|
+| Interactive Brokers | TCP socket → `EClientSocket`/`EWrapper` (170+ callbacks) | TWS desktop app, local | Real (`reqHistoricalData`) | Real (`reqMktData` L1) | `reqMktDepth` exists, not yet wired — throws | TWS handles 2FA itself |
+| NinjaTrader 8 | P/Invoke into `NTDirect.dll` (ANSI C ABI) | NT 8 desktop app, local, in-process bridge | None — synthesized | Real, polled at 200 ms | Not exposed by `NTDirect` — needs a NinjaScript bridge, out of scope | NT instance is the auth boundary |
+| cTrader | TLS + protobuf to Spotware cloud (`cTrader.OpenAPI.Net`) | None — pure-cloud, no local desktop required | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | Real, push (`ProtoOASubscribeDepthQuotesReq` / `ProtoOADepthEvent`, incremental new/deleted quotes → local book reconstruction → `DepthSnapshot`s) | OAuth 2.0 (clientId + secret + access token) |
 
 If the abstraction holds for all three, it holds for whatever comes next (Tradovate, Rithmic, dxTrade, …).
 
@@ -106,6 +106,9 @@ public interface IBrokerClient : IAsyncDisposable
 
     IAsyncEnumerable<Tick> SubscribeTicksAsync(
         Contract contract, CancellationToken ct = default);
+
+    IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(
+        Contract contract, int levels = 10, CancellationToken ct = default);
 }
 
 public interface IBrokerSelector
@@ -245,7 +248,7 @@ public interface IOrderRouter
 
 Strategies are router-only — they never see `IBrokerClient`. `LiveOrderRouter` (Infra) delegates to the active broker; `BacktestOrderRouter` (Infra) routes into a `SimulatedOrderBook` evaluated by `L1FillModel` on every tick, after consulting an optional `IRiskManager`.
 
-Fifteen-plus textbook strategies ship — HFT/microstructure (Avellaneda-Stoikov, microprice, OU, TWAP), FX baselines (Bollinger, MA cross, RSI(2), London open, MACD), and S&P 500 baselines (200-SMA trend filter, vol targeting, gap fade, EOD momentum, pullback continuation). They share two helper modules in `Core/MarketData/`: `Indicators` (streaming SMA, EMA, Wilder RSI, ATR, rolling Bessel-corrected stdev) and `Microstructure` (microprice, queue imbalance, half-spread).
+Twenty-plus textbook strategies ship — HFT/microstructure (Avellaneda-Stoikov, microprice, OU, TWAP), FX baselines (Bollinger, MA cross, RSI(2), London open, MACD), S&P 500 baselines (200-SMA trend filter, vol targeting, gap fade, EOD momentum, pullback continuation), and L2 / depth-of-market (book pressure / cumulative imbalance, liquidity sweep, iceberg detection, VPIN-style toxicity, thin-book filter). The L2-themed strategies compute on L1 sizes today since the backtest parquet schema is L1-only; each has a docstring marking the exact line that switches to a `DepthSnapshot` computation when L2 ticks land. They share two helper modules in `Core/MarketData/`: `Indicators` (streaming SMA, EMA, Wilder RSI, ATR, rolling Bessel-corrected stdev) and `Microstructure` (L1: microprice, queue imbalance, half-spread; L2: `CumulativeImbalance`, `WeightedMidPrice`, `SideDepth`, `EstimatedSlippage`, `LargestLevelGap`).
 
 ### Risk + fees
 
@@ -274,6 +277,13 @@ public sealed record Bar(DateTime TimestampUtc, double Open, double High,
 
 public sealed record Tick(DateTime TimestampUtc, double Bid, double Ask,
                           long BidSize, long AskSize);
+
+public sealed record DepthLevel(double Price, long Size);
+
+public sealed record DepthSnapshot(
+    DateTime TimestampUtc,
+    IReadOnlyList<DepthLevel> Bids,  // sorted descending
+    IReadOnlyList<DepthLevel> Asks); // sorted ascending
 
 public sealed record Contract(string Symbol, string SecType, string Exchange,
                               string Currency, string PrimaryExchange);
@@ -324,6 +334,7 @@ Records, sealed by default, all in `Core`. No broker-specific fields leak in.
 - Wire prices are `ulong` scaled by `10^Digits` per symbol. We learn `Digits` lazily via `ProtoOASymbolByIdReq` on first subscribe.
 - Trendbars are encoded relative to `Low` (`Low + DeltaOpen/DeltaHigh/DeltaClose`). Reconstructed and rescaled in `RequestHistoricalBarsAsync`.
 - Access tokens expire — `ProtoOAErrorRes` surfaces this clearly; the user re-runs the OAuth refresh and pastes the new token.
+- **L2 depth** is wired via `ProtoOASubscribeDepthQuotesReq` + `ProtoOADepthEvent`. Each event carries `NewQuotes` (add/replace, keyed by quote id) and `DeletedQuotes` (remove by id). Quotes are one-sided (either `Bid` or `Ask` set, not both); we maintain `Dictionary<ulong, DepthLevel>` per side and emit a consistent top-N `DepthSnapshot` after each event. `ProtoOADepthEvent.SymbolId` is `uint64` (not `int64` like `ProtoOASpotEvent`) — the filter casts before comparing.
 
 ## Login flow
 

@@ -34,9 +34,9 @@ The repo is structured as an honest engineering exercise: clean MVVM, plug-in ar
 
 | Broker | Transport | Real client status | Notes |
 |---|---|---|---|
-| **Interactive Brokers** | TCP socket → `EClientSocket` | ✅ when `CSharpAPI.dll` is found at build time (auto-discovers the standard `C:\TWS API\…` install) | TWS/IB Gateway must be running and signed in. 2FA is handled by TWS, not by this app. Best stocks/options/futures coverage. |
-| **NinjaTrader 8** | `NTDirect.dll` P/Invoke (ANSI) | ✅ when `NTDirect.dll` is found at build time + `UseRealClient=true` | NT 8 must be running with **Tools → Options → AT Interface → AT Interface enabled**. NTDirect doesn't expose historical bars (we synthesize) or L1 sizes. Real-time prices, volume, and `Command(...)`-style order routing work. |
-| **cTrader** | TLS + protobuf to `demo.ctraderapi.com` / `live.ctraderapi.com` | ✅ always wired (NuGet package always restores) | Requires OAuth setup at [connect.spotware.com/apps](https://connect.spotware.com/apps): clientId + clientSecret + accessToken + ctidTraderAccountId. Real `ProtoOAGetTrendbarsReq` history, push-based `ProtoOASpotEvent` ticks, full symbol catalog. |
+| **Interactive Brokers** | TCP socket → `EClientSocket` | ✅ when `CSharpAPI.dll` is found at build time (auto-discovers the standard `C:\TWS API\…` install) | TWS/IB Gateway must be running and signed in. 2FA is handled by TWS, not by this app. Best stocks/options/futures coverage. L2 depth (`reqMktDepth`) is not yet wired — `SubscribeDepthAsync` throws. |
+| **NinjaTrader 8** | `NTDirect.dll` P/Invoke (ANSI) | ✅ when `NTDirect.dll` is found at build time + `UseRealClient=true` | NT 8 must be running with **Tools → Options → AT Interface → AT Interface enabled**. NTDirect doesn't expose historical bars (we synthesize) or L1 sizes. Real-time prices, volume, and `Command(...)`-style order routing work. **No L2** — NT's depth lives behind NinjaScript SuperDOM, not the AT Interface. |
+| **cTrader** | TLS + protobuf to `demo.ctraderapi.com` / `live.ctraderapi.com` | ✅ always wired (NuGet package always restores) | Requires OAuth setup at [connect.spotware.com/apps](https://connect.spotware.com/apps): clientId + clientSecret + accessToken + ctidTraderAccountId. Real `ProtoOAGetTrendbarsReq` history, push-based `ProtoOASpotEvent` ticks, full symbol catalog. **L2 depth** wired via `ProtoOASubscribeDepthQuotesReq` / `ProtoOADepthEvent` with incremental new/deleted quotes → local book reconstruction → emitted `DepthSnapshot`s. |
 
 When the real client for a given broker isn't wired, the synthetic `Fake*Client` runs instead — a plausible random-walk that lets you exercise the UI and strategies with zero broker setup.
 
@@ -291,6 +291,11 @@ Fifteen-plus canonical strategies live behind one `IBacktestStrategy` plug-in se
 | Index | `gapFade` | Detect overnight gap, fade toward previous close. |
 | Index | `eodMomentum` | Take direction of day's open-to-now return in the last N% of the UTC session (Gao-Han-Li-Zhou 2018). |
 | Index | `pullback` | Trend filter + N-tick pullback + resumption entry, pct stop/target ("buy the dip"). |
+| L2 / DOM | `bookPressure` | Cumulative order-book imbalance signal (Cartea-Jaimungal-Penalva). Trades touch sizes today; generalises to `Microstructure.CumulativeImbalance` over a `DepthSnapshot` when L2 ticks land. |
+| L2 / DOM | `liquiditySweep` | Aggressive-flow / sweep detector — rolling-mean depth + same-side price drop. |
+| L2 / DOM | `iceberg` | Hidden-liquidity sticky-touch heuristic; trades toward the iceberg-supported side. |
+| L2 / DOM | `vpin` | VPIN-style order-flow toxicity (Easley, López de Prado, O'Hara 2012). Mean-reverts against high toxicity. |
+| L2 / DOM | `thinBook` | Breakout entry gated by a depth threshold — passes on thin-book setups. |
 
 These are textbook reference implementations, not curve-fit production systems — their PnL is regime-dependent, especially on the demo synthetic dataset. Pair with real broker tick data through the same parquet pipeline to evaluate seriously.
 
@@ -321,7 +326,8 @@ dotnet build src\TradingTerminal.Backtest.Cli
 
 - **`IFeeModel`** (Core/Trading) — three concrete models ship: `ZeroFeeModel` (default), `MakerTakerFeeModel` (per-unit rebates and fees), `BpsFeeModel` (flat bps on notional). The simulated order book tags each fill as `Maker` (limit) or `Taker` (market/stop) via `OrderEvent.Liquidity`, so the right side of the schedule fires automatically. CLI flags: `--taker-fee`, `--maker-rebate`, `--fee-bps`.
 - **`IRiskManager`** (Core/Risk) — per-symbol absolute-position cap and per-UTC-day realised-loss cap. Wraps `BacktestOrderRouter`; rejections surface as `OrderState.Rejected` `OrderEvent`s on the strategy's existing event stream. Same accounting will be re-used by the live router when the OMS lands.
-- **`Microstructure` helpers** (Core/MarketData) — `Microprice`, `QueueImbalance`, `HalfSpread` pure functions with `Tick` overloads, plus `Indicators.{SimpleMovingAverage, RollingStdev, ExponentialMovingAverage, RelativeStrengthIndex, AverageTrueRange}` streaming primitives shared by the strategy library.
+- **`Microstructure` helpers** (Core/MarketData) — L1: `Microprice`, `QueueImbalance`, `HalfSpread` (pure functions with `Tick` overloads). L2 (consume `DepthSnapshot`): `CumulativeImbalance`, `WeightedMidPrice`, `SideDepth`, `EstimatedSlippage(side, qty, out fullyFilled)`, `LargestLevelGap`. Plus `Indicators.{SimpleMovingAverage, RollingStdev, ExponentialMovingAverage, RelativeStrengthIndex, AverageTrueRange}` streaming primitives shared by the strategy library.
+- **L2 / depth-of-market** (Core/Domain) — `DepthLevel(Price, Size)` and `DepthSnapshot(TimestampUtc, Bids, Asks)` records flow through `IBrokerClient.SubscribeDepthAsync` and the repository (UI-marshalled). Wired in `RealCTraderClient` via `ProtoOASubscribeDepthQuotesReq` / `ProtoOADepthEvent` (incremental new/deleted quotes → reconstructed snapshots). IB and NT throw `NotSupportedException` — IB has a `reqMktDepth` path that's pending callback plumbing; NT's `NTDirect` doesn't expose L2 at all.
 
 ### Architecture
 
@@ -428,7 +434,7 @@ Coverage (31+ tests, growing):
 - **Backtest engine** — buy-then-sell across a synthetic tick window produces one trade with the expected price/PnL; parquet tick round-trips preserve byte-for-byte content; stats calculator returns expected Sharpe / Sortino / drawdown on a known curve.
 - **Fee model** — Maker/Taker per-unit and Bps-on-notional charge correctly; taker fees reduce ending cash and surface on `BacktestResult.TotalFees`.
 - **Risk manager** — per-symbol cap rejects accumulating positions, daily loss cap rejects after threshold and resets at UTC midnight, fills are idempotent.
-- **Microstructure helpers** — microprice leans toward the thinner side, falls back to mid when sizes are zero; queue imbalance is bounded and signed.
+- **Microstructure helpers** — L1: microprice leans toward the thinner side, falls back to mid when sizes are zero; queue imbalance is bounded and signed. L2: `CumulativeImbalance` saturates with heavy bid/ask books, `WeightedMidPrice` pulls toward the heavier side, `EstimatedSlippage` walks levels (correct avg-fill and insufficient-liquidity flag), `LargestLevelGap` picks the biggest step.
 - **Indicators** — SMA/EMA/Wilder-RSI/ATR/rolling-stdev math (Bessel correction, RSI saturation in both directions, EMA recursion).
 - **MarketDataRepository.SubscribeBarsAsync** propagates the underlying client's "not connected" error through the broker selector.
 
