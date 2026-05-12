@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Threading;
-using AvalonDock.Layout;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +10,7 @@ using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Research;
+using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -57,9 +57,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
-        OpenTabs = new ObservableCollection<LayoutDocument>();
+        OpenTabs = new ObservableCollection<DockTab>();
         _openWindows = new Dictionary<string, Window>(StringComparer.Ordinal);
-        _tabDisposables = new Dictionary<LayoutDocument, IDisposable>();
+        _tabDisposables = new Dictionary<DockTab, IDisposable>();
         LogSink = logSink;
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -85,10 +85,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     private readonly Dictionary<string, Window> _openWindows;
-    private readonly Dictionary<LayoutDocument, IDisposable> _tabDisposables;
+    private readonly Dictionary<DockTab, IDisposable> _tabDisposables;
 
     public ObservableCollection<ITradingStrategy> Strategies { get; }
-    public ObservableCollection<LayoutDocument> OpenTabs { get; }
+    public ObservableCollection<DockTab> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
 
     public string ModeDisplayName => _brokerSelector.ActiveMode.DisplayName;
@@ -120,7 +120,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private ITradingStrategy? _selectedStrategy;
 
     [ObservableProperty]
-    private LayoutDocument? _activeTab;
+    private DockTab? _activeTab;
 
     [ObservableProperty]
     private ConnectionState _connectionState = Core.Domain.ConnectionState.Disconnected;
@@ -185,7 +185,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var tab = new LayoutDocument
+        var tab = new DockTab
         {
             Title = host.DisplayName,
             ContentId = host.StrategyId,
@@ -201,7 +201,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void CloseTab(LayoutDocument? tab)
+    public void CloseTab(DockTab? tab)
     {
         if (tab is null) return;
         OpenTabs.Remove(tab);
@@ -238,7 +238,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var view = _services.GetRequiredService<BacktestView>();
         view.DataContext = vm;
 
-        var tab = new LayoutDocument
+        var tab = new DockTab
         {
             Title = "Backtest",
             ContentId = BacktestTabId,
@@ -259,7 +259,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var view = _services.GetRequiredService<FactorResearchView>();
         view.DataContext = vm;
 
-        var tab = new LayoutDocument
+        var tab = new DockTab
         {
             Title = "Factor research",
             ContentId = ResearchTabId,
@@ -280,7 +280,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var view = _services.GetRequiredService<TickRecorderView>();
         view.DataContext = vm;
 
-        var tab = new LayoutDocument
+        var tab = new DockTab
         {
             Title = "Record ticks",
             ContentId = RecorderTabId,
@@ -301,7 +301,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var view = _services.GetRequiredService<NotificationsSettingsView>();
         view.DataContext = vm;
 
-        var tab = new LayoutDocument
+        var tab = new DockTab
         {
             Title = "Notifications",
             ContentId = NotificationsSettingsTabId,

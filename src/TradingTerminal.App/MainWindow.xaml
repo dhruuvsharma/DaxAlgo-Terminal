@@ -96,6 +96,22 @@
                 </DataTemplate>
             </dock:DockingManager.DocumentHeaderTemplate>
 
+            <!-- Map DockTab POCO → LayoutDocument wrapper properties. Without this, AvalonDock
+                 just stringifies the wrapper's Content as the document body. -->
+            <dock:DockingManager.LayoutItemContainerStyle>
+                <Style TargetType="{x:Type dock:LayoutDocumentItem}">
+                    <Setter Property="Title"     Value="{Binding Model.Title}" />
+                    <Setter Property="ContentId" Value="{Binding Model.ContentId}" />
+                    <Setter Property="CanClose"  Value="{Binding Model.CanClose}" />
+                </Style>
+            </dock:DockingManager.LayoutItemContainerStyle>
+
+            <dock:DockingManager.LayoutItemTemplate>
+                <DataTemplate>
+                    <ContentControl Content="{Binding Content}" />
+                </DataTemplate>
+            </dock:DockingManager.LayoutItemTemplate>
+
             <dock:LayoutRoot>
                 <dock:LayoutPanel Orientation="Vertical">
 
