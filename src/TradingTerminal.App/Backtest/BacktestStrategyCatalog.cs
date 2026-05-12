@@ -126,5 +126,15 @@ public static class BacktestStrategyCatalog
             Id: "thinBook",
             DisplayName: "Thin-book breakout filter (L2)",
             Build: contract => new ThinBookFilterStrategy(contract)),
+
+        // ── ML / AI driven ────────────────────────────────────────────────────────────
+        new BacktestStrategyOption(
+            Id: "onlineRegressionAlpha",
+            DisplayName: "Online-regression alpha (RLS)",
+            Build: contract => new OnlineRegressionAlphaStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "anomalyDetector",
+            DisplayName: "Rolling z-score anomaly detector",
+            Build: contract => new AnomalyDetectorStrategy(contract)),
     };
 }

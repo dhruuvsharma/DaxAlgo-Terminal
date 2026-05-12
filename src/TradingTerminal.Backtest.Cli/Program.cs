@@ -94,8 +94,11 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "iceberg" => new IcebergDetectionStrategy(contract),
     "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
     "thinbook" => new ThinBookFilterStrategy(contract),
+    // ML / AI driven
+    "onlineregressionalpha" or "rls" or "onlineregression" => new OnlineRegressionAlphaStrategy(contract),
+    "anomalydetector" or "anomaly" or "zscore" => new AnomalyDetectorStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback, bookPressure, liquiditySweep, iceberg, vpin, thinBook.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback, bookPressure, liquiditySweep, iceberg, vpin, thinBook, onlineRegressionAlpha, anomalyDetector.")
 };
 
 static void PrintSummary(BacktestResult result)
