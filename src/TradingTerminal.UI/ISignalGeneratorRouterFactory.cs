@@ -12,7 +12,7 @@ public interface ISignalGeneratorRouterFactory
 }
 
 /// <summary>Default impl — vanilla <c>new()</c>. Replaceable in tests via a mock.</summary>
-internal sealed class SignalGeneratorRouterFactory : ISignalGeneratorRouterFactory
+public sealed class SignalGeneratorRouterFactory : ISignalGeneratorRouterFactory
 {
     public SignalGeneratorRouter Create() => new();
 }

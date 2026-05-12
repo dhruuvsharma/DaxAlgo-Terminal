@@ -11,6 +11,7 @@ using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.UI;
 using TradingTerminal.Strategies.AnomalyDetector;
 using TradingTerminal.Strategies.AvellanedaStoikov;
 using TradingTerminal.Strategies.Bollinger;
@@ -51,6 +52,10 @@ public static class AppDependencyInjection
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
+
+        // Shared signal-strategy infrastructure used by every per-strategy project's VM.
+        // Lives here once so the 21 Add<Name>Strategy() extensions stay one-liners.
+        services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
 
         // Dedicated live strategies — each in its own project, opens as a MetroWindow.
         services.AddRsiStrategy();
