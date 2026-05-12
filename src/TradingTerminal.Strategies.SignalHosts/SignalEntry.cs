@@ -1,6 +1,6 @@
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>
 /// One signal row in the live signal log. Produced every time the wrapped

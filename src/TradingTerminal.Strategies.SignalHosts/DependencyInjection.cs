@@ -1,30 +1,30 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TradingTerminal.App.Backtest;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
+using TradingTerminal.Infrastructure.Backtest;
 
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>
 /// Registers every entry in <see cref="BacktestStrategyCatalog"/> as a live signal-mode
 /// strategy: one <see cref="ITradingStrategy"/> descriptor (so it appears in the left
-/// Strategies pane) and one <see cref="StrategyFactoryRegistration"/> (so opening it
-/// builds a <see cref="LiveSignalStrategyViewModel"/> configured for that strategy plus a
-/// shared <see cref="LiveSignalStrategyView"/>).
+/// Strategies pane) plus a <see cref="StrategyFactoryRegistration"/> that builds a
+/// <see cref="LiveSignalStrategyWindow"/> per open — same pattern as RSI / Cumulative
+/// Delta, so each strategy opens as its own MetroWindow rather than as a docked tab.
 ///
-/// Strategy ids are prefixed with <c>signal.</c> so they don't collide with the
-/// dedicated live strategies (<c>rsi.overbought.oversold</c>, <c>cumulative-delta</c>).
+/// Strategy ids are prefixed with <c>signal.</c> so they don't collide with the dedicated
+/// live strategies (<c>rsi.overbought.oversold</c>, <c>cumulative-delta</c>).
 /// </summary>
-public static class SignalStrategiesRegistration
+public static class DependencyInjection
 {
     public const string IdPrefix = "signal.";
 
-    public static IServiceCollection AddSignalGeneratorStrategies(this IServiceCollection services)
+    public static IServiceCollection AddSignalHostStrategies(this IServiceCollection services)
     {
-        services.AddTransient<LiveSignalStrategyView>();
+        services.AddTransient<LiveSignalStrategyWindow>();
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
 
         foreach (var option in BacktestStrategyCatalog.All)
@@ -40,7 +40,7 @@ public static class SignalStrategiesRegistration
 
             services.AddSingleton(new StrategyFactoryRegistration(
                 StrategyId: liveId,
-                ViewFactory: sp => sp.GetRequiredService<LiveSignalStrategyView>(),
+                ViewFactory: sp => sp.GetRequiredService<LiveSignalStrategyWindow>(),
                 ViewModelFactory: sp =>
                 {
                     // Per-strategy logger category so log filtering by id is possible

@@ -3,7 +3,7 @@ using System.Reactive.Subjects;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>
 /// <see cref="IOrderRouter"/> for the live "signal generator" mode. Each <c>PlaceOrderAsync</c>

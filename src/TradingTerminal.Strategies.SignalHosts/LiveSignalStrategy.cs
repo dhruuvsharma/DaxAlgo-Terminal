@@ -1,6 +1,6 @@
 using TradingTerminal.Core.Strategies;
 
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>
 /// <see cref="ITradingStrategy"/> descriptor for a live "signal generator" wrapper around

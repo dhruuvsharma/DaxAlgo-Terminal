@@ -1,8 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 
-namespace TradingTerminal.App.Backtest;
+namespace TradingTerminal.Infrastructure.Backtest;
 
 /// <summary>
 /// Seed list of strategies the backtest engine knows about. Held here as a

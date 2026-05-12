@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using TradingTerminal.App.Backtest;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -11,7 +10,7 @@ using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.UI;
 
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>
 /// Hosts one <see cref="IBacktestStrategy"/> in "live signal" mode. Subscribes to live

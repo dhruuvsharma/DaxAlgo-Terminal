@@ -1,6 +1,6 @@
 using TradingTerminal.Core.Domain;
 
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>User-facing instrument label paired with the broker contract it resolves to.</summary>
 public sealed record SignalInstrument(string DisplayName, string Category, Contract Contract);
@@ -11,7 +11,7 @@ public sealed record SignalInstrument(string DisplayName, string Category, Contr
 /// RSI strategy has a wider catalog of its own; intentionally not shared so each
 /// strategy assembly stays self-contained.)
 /// </summary>
-internal static class SignalInstrumentCatalog
+public static class SignalInstrumentCatalog
 {
     private const string CatEtf = "Index ETFs";
     private const string CatStock = "US Stocks";

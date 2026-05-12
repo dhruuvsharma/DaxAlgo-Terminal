@@ -1,4 +1,6 @@
-namespace TradingTerminal.App.Backtest;
+using TradingTerminal.Core.Backtest;
+
+namespace TradingTerminal.Infrastructure.Backtest;
 
 /// <summary>
 /// The runtime source of available backtest strategies. Consumers (BacktestViewModel,

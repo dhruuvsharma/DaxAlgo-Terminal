@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.App.Backtest;

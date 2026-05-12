@@ -23,6 +23,7 @@
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.Rsi\TradingTerminal.Strategies.Rsi.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.SignalHosts\TradingTerminal.Strategies.SignalHosts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

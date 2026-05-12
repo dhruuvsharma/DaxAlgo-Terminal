@@ -1,4 +1,4 @@
-namespace TradingTerminal.App.Strategies.Signal;
+namespace TradingTerminal.Strategies.SignalHosts;
 
 /// <summary>
 /// Builds fresh <see cref="SignalGeneratorRouter"/> instances. One per Start press — the

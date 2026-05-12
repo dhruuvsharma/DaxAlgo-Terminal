@@ -1,7 +1,6 @@
-using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 
-namespace TradingTerminal.App.Backtest;
+namespace TradingTerminal.Core.Backtest;
 
 /// <summary>
 /// Display + factory pair for a strategy that can be backtested. Held by the

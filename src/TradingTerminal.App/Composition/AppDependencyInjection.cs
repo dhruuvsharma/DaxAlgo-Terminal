@@ -7,13 +7,13 @@ using TradingTerminal.App.Recording;
 using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
-using TradingTerminal.App.Strategies.Signal;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.Rsi;
+using TradingTerminal.Strategies.SignalHosts;
 
 namespace TradingTerminal.App.Composition;
 
@@ -36,8 +36,9 @@ public static class AppDependencyInjection
         services.AddRsiStrategy();
         services.AddCumulativeDeltaStrategy();
 
-        // Signal-mode hosts — one left-pane entry per backtest strategy.
-        services.AddSignalGeneratorStrategies();
+        // Signal-mode hosts — one left-pane entry per backtest strategy. Each opens as a
+        // MetroWindow (same pattern as RSI / Cumulative Delta).
+        services.AddSignalHostStrategies();
         return services;
     }
 
