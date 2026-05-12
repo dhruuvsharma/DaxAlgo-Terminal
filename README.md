@@ -93,6 +93,8 @@ Core       → (nothing)
 `Core` has zero deps on UI / WPF / IB / NT / cTrader. Adding a new broker = a new `IBrokerClient` implementation in `Infrastructure/<Broker>/` and one DI registration block. Adding a new strategy = a new project + one DI line in `App.xaml.cs`. The shell stays untouched.
 
 See `docs/architecture.md` for the full design rationale and key interface signatures.
+See `docs/user-guide.md` for the end-user manual (login, strategies, notifications,
+backtesting, factor research, recorder, CLI).
 
 ## Prerequisites
 
@@ -341,28 +343,33 @@ Adding a backtest strategy = one class implementing `IBacktestStrategy` + one en
 
 ## Adding a new strategy
 
-1. Create a new project: `src/TradingTerminal.Strategies.MyStrategy/`. Reference `Core` and `UI`.
-2. Add `MyStrategy : ITradingStrategy`, `MyStrategyView : UserControl`, `MyStrategyViewModel : ViewModelBase`.
-3. Add a DI extension:
+Each strategy is its own project (`src/TradingTerminal.Strategies.<Name>/`) following the
+same 6-file shape as RSI / Cumulative Delta and every other strategy on disk. The fastest
+path is to copy an existing project, rename, and edit:
 
-   ```csharp
-   public static IServiceCollection AddMyStrategy(this IServiceCollection services)
-   {
-       services.AddSingleton<ITradingStrategy, MyStrategy>();
-       services.AddTransient<MyStrategyViewModel>();
-       services.AddTransient<MyStrategyView>();
-       services.AddSingleton(new StrategyFactoryRegistration(
-           StrategyId: "my.strategy.id",
-           ViewFactory: sp => sp.GetRequiredService<MyStrategyView>(),
-           ViewModelFactory: sp => sp.GetRequiredService<MyStrategyViewModel>()));
-       return services;
-   }
-   ```
+1. Copy the closest existing project under `src/`. Rename the directory, the `.csproj`,
+   and the per-strategy class prefix (e.g. `BollingerStrategy*` → `MyStrategy*`).
+2. Files in the new project:
+   - `MyStrategy.cs` — `ITradingStrategy` descriptor with `Id`/`DisplayName`/`Description`.
+   - `MyStrategyViewModel.cs` — extends `LiveSignalStrategyViewModelBase` (in
+     `TradingTerminal.UI`). Declare your parameters as `[ObservableProperty]`s, override
+     `BuildStrategy(Contract contract)` to return your engine-side `IBacktestStrategy` impl.
+   - `MyStrategyWindow.xaml`(`.cs`) — a `MetroWindow`. Surface parameter inputs, controls,
+     charts however you want.
+   - `DependencyInjection.cs` — one `AddMyStrategy()` extension that registers the
+     descriptor, VM, view, and a `StrategyFactoryRegistration`.
+3. Add a `<ProjectReference>` to your new project in `TradingTerminal.App.csproj`.
+4. Add `services.AddMyStrategy();` to `AppDependencyInjection.AddStrategyPlugins()`.
+5. Add the project entry to `TradingTerminal.sln`.
 
-4. In `App.xaml.cs` `ConfigureServices`, add **one line**: `services.AddMyStrategy();`.
-5. Add the project as a reference of `TradingTerminal.App`.
+The new strategy shows up in the left pane on next launch and opens as its own window.
 
-The new strategy shows up in the left pane on next launch.
+### Generator for the boilerplate
+
+If you're scaffolding many strategies at once, edit the manifest in
+`scripts/gen-strategy-projects.ps1` and re-run it. The script overwrites the generated
+files in each project, so customise *new* files in those projects (or fork the generator)
+rather than editing the ones it produces.
 
 ## Adding a new broker
 
@@ -382,15 +389,23 @@ The `MarketDataRepository`, `ConnectionManager`, all view-models, and every stra
 TradingTerminal/
 ├── src/
 │   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
-│   │   ├── Backtest/                             Backtest tab (view, view-model, strategy catalog)
-│   │   └── Notifications/                        Settings tab VM/View + per-user notifications.json writer
+│   │   ├── Backtest/                             Backtest tab view + view-model
+│   │   ├── Composition/                          Per-feature DI extensions (manifest for App.OnStartup)
+│   │   ├── Login/ Login/Forms/                   Login window + per-broker form view-models
+│   │   ├── Notifications/                        Settings tab VM/View + per-user notifications.json writer
+│   │   ├── Recording/                            Live tick recorder tab
+│   │   ├── Research/                             Factor research tab
+│   │   ├── Shell/                                DockTab POCO, MainShellFactory, LoginShellFactory
+│   │   └── Strategies/                           StrategyFactory (DI-backed)
 │   ├── TradingTerminal.Backtest.Cli              Headless backtest runner (daxalgo-backtest exe)
 │   ├── TradingTerminal.Core                      Domain models + interfaces (no UI/broker deps)
-│   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/…), Trade, EquityPoint
+│   │   ├── Backtest/                             IBacktestStrategy, IBacktestSession, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/…),
+│   │   │                                          Trade, EquityPoint, FillRecord, TransactionCostAnalysis, MonteCarlo, BacktestStrategyOption
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
-│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure helpers, Indicators (SMA/EMA/RSI/ATR/stdev)
-│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
-│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
+│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure (L1+L2), Indicators (SMA/EMA/RSI/ATR/stdev)
+│   │   ├── Ml/                                   TripleBarrierLabeler, OnlineLinearRegression, FactorComputation
+│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState, DepthLevel, DepthSnapshot
+│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport, INotificationEnricher
 │   │   ├── Risk/                                 IRiskManager, RiskManager, RiskOptions
 │   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
 │   │   ├── Time/                                 IClock
@@ -402,24 +417,53 @@ TradingTerminal/
 │   │   ├── Backtest/                             Engine — SimulatedClock, L1FillModel, SimulatedOrderBook (tags Maker/Taker),
 │   │   │                                          BacktestOrderRouter (risk-aware), BacktestSession, TradeLedger (fee-aware),
 │   │   │                                          StatisticsCalculator, Persistence/ParquetTick{Reader,Writer},
-│   │   │                                          Strategies/ (BuyAndHold, MeanReversion, DonchianBreakout, AvellanedaStoikov,
-│   │   │                                          Microprice, OrnsteinUhlenbeck, Twap, Bollinger, MovingAverageCrossover,
-│   │   │                                          RsiTwoPeriod, LondonOpenBreakout, MacdCrossover, TrendFilter,
-│   │   │                                          VolatilityTargeted, GapFade, EndOfDayMomentum, PullbackContinuation)
+│   │   │                                          IBacktestStrategyRegistry, BacktestStrategyCatalog,
+│   │   │                                          Strategies/ (24 IBacktestStrategy implementations — engine-side logic;
+│   │   │                                          the live wrappers live in TradingTerminal.Strategies.<Name>/)
 │   │   ├── Brokers/                              BrokerSelector
 │   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), ConnectionManager
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI)
-│   │   ├── CTrader/                              RealCTraderClient
+│   │   ├── CTrader/                              RealCTraderClient (live spot + L2 depth)
 │   │   ├── MarketData/                           MarketDataRepository
-│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram + Discord transports, options
+│   │   ├── Notifications/                        Dispatcher (channel + hosted worker + enricher pipeline),
+│   │   │                                          Telegram + Discord transports, Ollama commentary enricher
 │   │   ├── Time/                                 SystemClock
 │   │   ├── Trading/                              LiveOrderRouter (delegates to active IBrokerClient)
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
-│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, log sink
-│   ├── TradingTerminal.Strategies.Rsi            RSI Overbought/Oversold strategy
-│   └── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper (sniper-mode, 5-confirmation gate)
+│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, log sink, DockTabStyleSelector, TaskExtensions,
+│   │                                              shared live-signal plumbing: SignalGeneratorRouter, ISignalGeneratorRouterFactory,
+│   │                                              SignalEntry, TradeableInstrument + SignalInstrumentCatalog,
+│   │                                              LiveSignalStrategyViewModelBase (base class for the per-strategy VMs)
+│   ├── TradingTerminal.Strategies.Rsi              RSI Overbought/Oversold strategy
+│   ├── TradingTerminal.Strategies.CumulativeDelta  Cumulative Delta Scalper (sniper-mode, 5-confirmation gate)
+│   ├── TradingTerminal.Strategies.Microprice       Microprice deviation (HFT)
+│   ├── TradingTerminal.Strategies.OrnsteinUhlenbeck OU mean reversion (HFT)
+│   ├── TradingTerminal.Strategies.AvellanedaStoikov Avellaneda-Stoikov market maker (HFT)
+│   ├── TradingTerminal.Strategies.Twap             TWAP buy execution (HFT)
+│   ├── TradingTerminal.Strategies.Bollinger        Bollinger band reversion (Forex)
+│   ├── TradingTerminal.Strategies.MaCrossover      Golden / death cross (Forex)
+│   ├── TradingTerminal.Strategies.ConnorsRsi2      Connors RSI(2) reversion (Forex)
+│   ├── TradingTerminal.Strategies.LondonOpenBreakout London-open breakout (Forex)
+│   ├── TradingTerminal.Strategies.Macd             MACD signal crossover (Forex)
+│   ├── TradingTerminal.Strategies.TrendFilter      200-SMA trend filter (Index)
+│   ├── TradingTerminal.Strategies.VolatilityTargeted Volatility targeting (Index)
+│   ├── TradingTerminal.Strategies.GapFade          Overnight gap fade (Index)
+│   ├── TradingTerminal.Strategies.EodMomentum      End-of-day momentum (Index)
+│   ├── TradingTerminal.Strategies.PullbackContinuation Trend pullback continuation (Index)
+│   ├── TradingTerminal.Strategies.BookPressure     Cumulative imbalance (L2)
+│   ├── TradingTerminal.Strategies.LiquiditySweep   Sweep / aggressive-flow detector (L2)
+│   ├── TradingTerminal.Strategies.IcebergDetection Sticky-touch iceberg heuristic (L2)
+│   ├── TradingTerminal.Strategies.OrderFlowToxicity VPIN-style toxicity (L2)
+│   ├── TradingTerminal.Strategies.ThinBookFilter   Thin-book breakout filter (L2)
+│   ├── TradingTerminal.Strategies.OnlineRegressionAlpha RLS-fit alpha (ML)
+│   └── TradingTerminal.Strategies.AnomalyDetector  Rolling z-score anomaly detector (ML)
+├── scripts/
+│   └── gen-strategy-projects.ps1                 Boilerplate generator for the per-strategy projects above
+├── docs/
+│   ├── architecture.md                           Design rationale, key interfaces, dep graph
+│   └── user-guide.md                             End-user manual (login, strategies, notifications, backtest, etc.)
 └── tests/
-    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute (includes backtest engine tests)
+    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute (59 tests across engine, ML, microstructure)
 ```
 
 ## Tests

@@ -23,13 +23,13 @@ A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Three broker back
 
 ```
 App        → Infrastructure, UI, Strategies.*, Core
-Strategies → UI, Core
+Strategies → Infrastructure, UI, Core      (the live UI wrappers instantiate engine-side IBacktestStrategy impls)
 Infra      → Core
 UI         → Core
 Core       → (nothing)
 ```
 
-`Core` has zero deps on UI / WPF / IB / NT / cTrader. New domain types go there. **New broker code goes in `Infrastructure/<Broker>/` behind `IBrokerClient` — view-models never see `EClientSocket`/`NTDirect`/`OpenClient`.** New strategies are their own `TradingTerminal.Strategies.<Name>` project.
+`Core` has zero deps on UI / WPF / IB / NT / cTrader. New domain types go there. **New broker code goes in `Infrastructure/<Broker>/` behind `IBrokerClient` — view-models never see `EClientSocket`/`NTDirect`/`OpenClient`.** New strategies are their own `TradingTerminal.Strategies.<Name>` project; the engine-side `IBacktestStrategy` implementation still lives in `Infrastructure/Backtest/Strategies/`, and the per-strategy live project wraps it via the shared `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`).
 
 ## Architectural rules
 

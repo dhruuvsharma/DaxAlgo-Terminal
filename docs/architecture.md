@@ -74,13 +74,13 @@ Project reference graph (acyclic):
 
 ```
 App        → Infrastructure, UI, Strategies.*, Core
-Strategies → UI, Core
+Strategies → Infrastructure, UI, Core   (live VM wraps an engine-side IBacktestStrategy)
 Infra      → Core
 UI         → Core
 Core       → (nothing)
 ```
 
-`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, or cTrader. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
+`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, or cTrader. New abstractions go into `Core`; new SDK calls go into `Infrastructure`. The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin live-UI wrappers — they hold the `MetroWindow`, view-model, and `ITradingStrategy` descriptor, but the actual signal logic (which they instantiate inside `BuildStrategy(contract)`) lives in `Infrastructure/Backtest/Strategies/`. That split keeps the same `IBacktestStrategy` reusable from both the backtest engine and the live signal mode.
 
 ## Key interfaces
 
