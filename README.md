@@ -5,7 +5,7 @@
 [![WPF](https://img.shields.io/badge/UI-WPF%20%2B%20MahApps%20%2B%20AvalonDock-blueviolet)](#)
 [![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader-orange)](#brokers)
 
-A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Picks a broker at login (Interactive Brokers, NinjaTrader, or cTrader) and routes everything downstream — historical bars, live ticks, connection state, reconnect logic — through a single `IBrokerClient` seam. Ships with two strategies (**RSI Overbought/Oversold** and **Cumulative Delta Scalper** — sniper-mode port of the cTrader cBot, with a 5-confirmation gate, multi-session GMT filter, and per-session/daily caps) and a Telegram notifier that fans out signal events to your phone.
+A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Picks a broker at login (Interactive Brokers, NinjaTrader, or cTrader) and routes everything downstream — historical bars, live ticks, connection state, reconnect logic — through a single `IBrokerClient` seam. Ships with two live strategies (**RSI Overbought/Oversold** and **Cumulative Delta Scalper** — sniper-mode port of the cTrader cBot, with a 5-confirmation gate, multi-session GMT filter, and per-session/daily caps), a notifier that fans signals out to **Telegram and Discord**, and a **tick-level backtest engine** with 15+ canonical strategies (HFT/microstructure, FX baselines, S&P 500 baselines) plus a per-symbol risk manager and maker/taker fee model.
 
 The repo is structured as an honest engineering exercise: clean MVVM, plug-in architecture, end-to-end async streaming, broker-neutral abstractions over three very different transports (TCP socket, P/Invoke, TLS+protobuf), and a testable threading model.
 
@@ -26,8 +26,9 @@ The repo is structured as an honest engineering exercise: clean MVVM, plug-in ar
 - **AvalonDock** layout (left: strategies pane, center: strategy tabs, bottom: pinned logs, status bar with live broker mode badge).
 - **ScottPlot 5** candlestick chart (auto-scrolling, last ~200 bars, configurable timeframe).
 - **Logs pane** wired through Serilog with a custom in-memory sink.
-- **Telegram notifier** — strategies publish a `StrategyNotification` to an `INotificationPublisher`; a hosted background worker drains a bounded `Channel<>` and fans out to every enabled `INotificationTransport`. Ships with a Telegram Bot API transport. Configured live from a Settings tab with hot-reload via `IOptionsMonitor`.
-- **xUnit + FluentAssertions + NSubstitute** tests — broker-agnostic via the `IBrokerClient` seam, including a `[WpfFact]` STA test for WPF-touching code.
+- **Multi-transport notifier** — strategies publish a `StrategyNotification` to an `INotificationPublisher`; a hosted background worker drains a bounded `Channel<>` and fans out to every enabled `INotificationTransport`. Ships with **Telegram** (Bot API) and **Discord** (channel webhook) transports. Configured live from a Settings tab with hot-reload via `IOptionsMonitor`.
+- **Tick-level backtest engine** with a parquet tick store, L1 fill model, simulated order book, `IOrderRouter` seam shared with live, per-symbol `IRiskManager`, pluggable `IFeeModel` (zero / maker-taker / bps), and an extended stats suite (Sharpe, Sortino, **Calmar, Omega, Ulcer index, recovery factor, max consecutive losses, downside deviation**) — plus a **15+ strategy library** spanning HFT/microstructure (Avellaneda-Stoikov MM, microprice, Ornstein-Uhlenbeck), FX baselines (Bollinger, MA crossover, Connors RSI(2), London open breakout, MACD), and S&P 500 baselines (200-SMA trend filter, vol targeting, gap fade, end-of-day momentum, pullback continuation). Headless CLI with a `sweep` subcommand that grids parameters in parallel.
+- **xUnit + FluentAssertions + NSubstitute** tests — broker-agnostic via the `IBrokerClient` seam, including a `[WpfFact]` STA test for WPF-touching code. 31+ tests covering indicators, microstructure helpers, fee model, risk manager, backtest engine, broker selector, and strategy factory.
 
 ## Brokers
 
@@ -217,14 +218,20 @@ The corresponding `appsettings.json` keys (overridable but the login screen is t
 | `Notifications:Telegram:BotToken` | (empty) | Token from @BotFather. Edit via the Settings tab — the value is persisted to `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`, which overlays `appsettings.json`. |
 | `Notifications:Telegram:ChatId` | (empty) | Numeric chat ID or `@channelname`. |
 | `Notifications:Telegram:IncludeIdleSignals` | `false` | When false, drop signals fired below the strategy's armed threshold. |
+| `Notifications:Discord:Enabled` | `false` | Master toggle for the Discord transport. |
+| `Notifications:Discord:WebhookUrl` | (empty) | Channel webhook URL: *Edit Channel → Integrations → Webhooks → Copy URL*. |
+| `Notifications:Discord:Username` | `DaxAlgo Terminal` | Optional username override. Empty = use webhook default. |
+| `Notifications:Discord:IncludeIdleSignals` | `false` | Same semantics as the Telegram knob. |
 
 OAuth secrets and passwords are not in `appsettings.json` — they live in a DPAPI-encrypted `connection.json` under `%LOCALAPPDATA%\DaxAlgoTerminal\`.
 
-## Notifications (Telegram)
+## Notifications (Telegram + Discord)
 
-Strategies publish `StrategyNotification` events to `INotificationPublisher` whenever a signal fires. A hosted background worker drains a bounded `Channel<StrategyNotification>` and fans each message out to every enabled `INotificationTransport`. The Telegram transport posts to the Bot API via a named `HttpClient`.
+Strategies publish `StrategyNotification` events to `INotificationPublisher` whenever a signal fires. A hosted background worker drains a bounded `Channel<StrategyNotification>` and fans each message out to every enabled `INotificationTransport`. Two transports ship: **Telegram** (Bot API) and **Discord** (channel webhook), each via its own named `HttpClient`. Both are independent — enable either, both, or neither.
 
-**Setup:** *Settings → Notifications…* in the main shell. Paste the bot token from [@BotFather](https://t.me/BotFather) and a chat ID (numeric for users/groups, or `@channelname` for public channels — get one via [@userinfobot](https://t.me/userinfobot)), tick **Enabled**, **Save**, then **Send test**.
+**Telegram setup:** paste the bot token from [@BotFather](https://t.me/BotFather) and a chat ID (numeric for users/groups, or `@channelname` for public channels — get one via [@userinfobot](https://t.me/userinfobot)) into the Telegram block on *Settings → Notifications…*.
+
+**Discord setup:** in the destination Discord channel, *Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL*. Paste that URL into the Discord block in the Settings tab. Optional: set a username override. Tick **Enabled**, **Save**, then **Send test**.
 
 **Persistence:** the Settings tab writes to `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`. That file is layered into the host configuration with `reloadOnChange: true`, so `IOptionsMonitor<NotificationsOptions>` reflects edits live — no restart.
 
@@ -238,49 +245,93 @@ Strategies publish `StrategyNotification` events to `INotificationPublisher` whe
     "BotToken": "",
     "ChatId": "",
     "IncludeIdleSignals": false
+  },
+  "Discord": {
+    "Enabled": false,
+    "WebhookUrl": "",
+    "Username": "DaxAlgo Terminal",
+    "IncludeIdleSignals": false
   }
 }
 ```
 
-`IncludeIdleSignals` is the toggle for low-confirmation/sub-armed signals — the dashboard surfaces these as `(idle)` lines and Telegram drops them by default. The publisher itself doesn't filter — that's the transport's call, so each future channel decides for itself.
+`IncludeIdleSignals` is the toggle for low-confirmation/sub-armed signals — the dashboard surfaces these as `(idle)` lines and each transport drops them by default. The publisher itself doesn't filter — that's the transport's call, so each future channel decides for itself.
 
-**Adding a transport** (e.g. Discord, Slack): add a class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus one DI line in `NotificationsServiceCollectionExtensions.cs`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`.
+**Adding a transport** (e.g. Slack, email, SMS): add a class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus one DI line in `NotificationsServiceCollectionExtensions.cs`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`. The Telegram and Discord transports are the reference implementations to mirror.
 
 ## Backtesting
 
-A first-class tick-level backtest engine ships with the terminal. Strategies that implement `IBacktestStrategy` run against a parquet tick file through the same `IOrderRouter` seam they'd use live, so the engine measures simulated fills, P&L, equity curve, Sharpe/Sortino, drawdown, and trade statistics.
+A first-class tick-level backtest engine ships with the terminal. Strategies that implement `IBacktestStrategy` run against a parquet tick file through the same `IOrderRouter` seam they'd use live, so the engine measures simulated fills, P&L, equity curve, drawdown, and a broad performance suite.
 
 **Surfaces:**
 
-- **CLI** (`daxalgo-backtest`) — headless, scriptable, parameter-sweep friendly.
+- **CLI** (`daxalgo-backtest`) — headless, scriptable, three subcommands: `synth` (generate synthetic ticks), `run` (single backtest), `sweep` (parameter grid → CSV).
 - **Tools → Backtest** in the WPF shell — strategy picker, run/cancel, ScottPlot equity curve, trades grid, stats panel.
 
-**Synthesise a dataset and run a backtest:**
+### Strategy library
+
+Fifteen-plus canonical strategies live behind one `IBacktestStrategy` plug-in seam — pickable from the WPF dropdown or via `--strategy <id>` in the CLI:
+
+| Family | Strategy id | What it does |
+|---|---|---|
+| Demo | `buyAndHold` | Market-buy on the first tick, sell on the last. Engine smoke-test. |
+| Demo | `meanReversion` | Rolling-mean reversion with fixed thresholds. |
+| Demo | `donchianBreakout` | N-tick Donchian channel break, trailing-mid stop. |
+| HFT | `avellanedaStoikov` | Avellaneda-Stoikov optimal market maker (inventory-shifted reservation, online variance EMA, configurable requote cadence). |
+| HFT | `microprice` | Size-weighted microprice deviation scalper. |
+| HFT | `ornsteinUhlenbeck` | Online AR(1)-fit OU process, z-score entry/exit bands. |
+| HFT | `twap` | TWAP parent-order slicer with tail flush. |
+| Forex | `bollinger` | Bollinger band reversion (Bollinger 2001). |
+| Forex | `maCrossover` | Fast/slow SMA cross, golden/death-cross (Murphy 1999). |
+| Forex | `rsi2` | Connors RSI(2) reversion (Connors 2008). |
+| Forex | `londonOpen` | Asian-range / London-open breakout with ATR trail (Volman 2011). |
+| Forex | `macd` | 12/26/9 MACD signal-line crossover (Appel 2005). |
+| Index | `trendFilter` | Long when price > 200-period SMA, else flat (Faber 2007). |
+| Index | `volTarget` | Position sized to target_vol / realized_vol_ewma (AQR risk-parity overlay). |
+| Index | `gapFade` | Detect overnight gap, fade toward previous close. |
+| Index | `eodMomentum` | Take direction of day's open-to-now return in the last N% of the UTC session (Gao-Han-Li-Zhou 2018). |
+| Index | `pullback` | Trend filter + N-tick pullback + resumption entry, pct stop/target ("buy the dip"). |
+
+These are textbook reference implementations, not curve-fit production systems — their PnL is regime-dependent, especially on the demo synthetic dataset. Pair with real broker tick data through the same parquet pipeline to evaluate seriously.
+
+### Synthesise a dataset and run a backtest
 
 ```powershell
 dotnet build src\TradingTerminal.Backtest.Cli
 
-# Generate 10k ticks of a mean-reverting random walk
+# Generate 10k ticks of a mean-reverting random walk with variable L1 sizes
 .\src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe synth `
     --output bt-data.parquet --ticks 10000
 
-# Run the mean-reversion demo strategy
+# Run a strategy with maker/taker fees
 .\src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe run `
+    --strategy avellanedaStoikov --symbol TEST --data bt-data.parquet `
+    --tick-size 0.01 --taker-fee 0.01 --maker-rebate 0.005
+
+# Grid-sweep parameters in parallel
+.\src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe sweep `
     --strategy meanReversion --symbol TEST --data bt-data.parquet `
-    --tick-size 0.01 --slippage-ticks 1 --starting-cash 10000
+    --lookback "50,100,200" --entry "0.05,0.10,0.20" --stop "0.20,0.40" `
+    --output sweep.csv --parallel 8
 ```
 
-Outputs land in `./bt-results/`: `summary.json` (stats + metadata), `trades.csv`, `equity.csv`.
+`run` outputs land in `./bt-results/`: `summary.json` (stats + metadata), `trades.csv`, `equity.csv`. `sweep` outputs a single CSV with 15 columns including Sharpe, Sortino, **Calmar, Omega, max-drawdown, Ulcer index, max consecutive losses**, win rate, profit factor, expectancy, fees / rebates, and ending cash.
 
-**Architecture:**
+### Fees, risk, and execution realism
+
+- **`IFeeModel`** (Core/Trading) — three concrete models ship: `ZeroFeeModel` (default), `MakerTakerFeeModel` (per-unit rebates and fees), `BpsFeeModel` (flat bps on notional). The simulated order book tags each fill as `Maker` (limit) or `Taker` (market/stop) via `OrderEvent.Liquidity`, so the right side of the schedule fires automatically. CLI flags: `--taker-fee`, `--maker-rebate`, `--fee-bps`.
+- **`IRiskManager`** (Core/Risk) — per-symbol absolute-position cap and per-UTC-day realised-loss cap. Wraps `BacktestOrderRouter`; rejections surface as `OrderState.Rejected` `OrderEvent`s on the strategy's existing event stream. Same accounting will be re-used by the live router when the OMS lands.
+- **`Microstructure` helpers** (Core/MarketData) — `Microprice`, `QueueImbalance`, `HalfSpread` pure functions with `Tick` overloads, plus `Indicators.{SimpleMovingAverage, RollingStdev, ExponentialMovingAverage, RelativeStrengthIndex, AverageTrueRange}` streaming primitives shared by the strategy library.
+
+### Architecture
 
 - `Core/Backtest/IBacktestStrategy` — implementation gets `OnStart`/`OnTick`/`OnOrderEvent`/`OnEnd` callbacks and an `IOrderRouter` for fills.
-- `Infrastructure/Backtest/BacktestSession` — orchestrates the replay loop, advances `SimulatedClock`, evaluates `SimulatedOrderBook` against each tick, and tracks P&L through `TradeLedger`.
-- `Infrastructure/Backtest/L1FillModel` — market orders cross the spread plus `slippageTicks × tickSize`; limit/stop fill when the relevant touch crosses the level.
+- `Infrastructure/Backtest/BacktestSession` — orchestrates the replay loop, advances `SimulatedClock`, evaluates `SimulatedOrderBook` against each tick, runs the optional `IRiskManager` before submission, and tracks P&L through `TradeLedger` (which also deducts fees per fill).
+- `Infrastructure/Backtest/L1FillModel` — market orders cross the spread plus `slippageTicks × tickSize`; limit/stop fill when the relevant touch crosses the level. Limits are tagged as Maker; market/stop as Taker.
 - `Infrastructure/Backtest/Persistence` — streaming `ParquetTickReader`/`Writer`, row-group buffered (default 50k rows).
-- `Infrastructure/Backtest/StatisticsCalculator` — Sharpe/Sortino annualised from the median equity-sample gap; max drawdown as a fraction of peak.
+- `Infrastructure/Backtest/StatisticsCalculator` — Sharpe/Sortino annualised from the median equity-sample gap; plus Calmar (annualised CAGR / MDD), Omega (Σ gains / Σ losses), Ulcer index (RMS of pct drawdowns), recovery factor, downside deviation, max consecutive losses.
 
-Adding a backtest strategy = one class implementing `IBacktestStrategy` + one entry in `BacktestStrategyCatalog` (UI) / `ResolveStrategy` (CLI).
+Adding a backtest strategy = one class implementing `IBacktestStrategy` + one entry in `BacktestStrategyCatalog` (UI) / `ResolveStrategy` (CLI). The shared `Indicators` and `Microstructure` modules cover most building blocks — there's rarely a reason to roll your own SMA/EMA/RSI.
 
 ## Adding a new strategy
 
@@ -329,27 +380,32 @@ TradingTerminal/
 │   │   └── Notifications/                        Settings tab VM/View + per-user notifications.json writer
 │   ├── TradingTerminal.Backtest.Cli              Headless backtest runner (daxalgo-backtest exe)
 │   ├── TradingTerminal.Core                      Domain models + interfaces (no UI/broker deps)
-│   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats, Trade, EquityPoint
+│   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/…), Trade, EquityPoint
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
-│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository
+│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure helpers, Indicators (SMA/EMA/RSI/ATR/stdev)
 │   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
 │   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
+│   │   ├── Risk/                                 IRiskManager, RiskManager, RiskOptions
 │   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
 │   │   ├── Time/                                 IClock
-│   │   ├── Trading/                              IOrderRouter, OrderRequest/Result/Event, OrderSide/Type/State
+│   │   ├── Trading/                              IOrderRouter, OrderRequest/Result/Event (+LiquidityFlag), IFeeModel (zero/maker-taker/bps)
 │   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
 │   │   ├── Events/                               IEventBus, EventBus
 │   │   └── Session/                              SessionContext
 │   ├── TradingTerminal.Infrastructure
-│   │   ├── Backtest/                             Engine — HistoricalBrokerClient seam (deferred), SimulatedClock, L1FillModel,
-│   │   │                                          SimulatedOrderBook, BacktestSession, TradeLedger, StatisticsCalculator,
-│   │   │                                          Persistence/ParquetTick{Reader,Writer}, Strategies/Buy{And}Hold + MeanReversion
+│   │   ├── Backtest/                             Engine — SimulatedClock, L1FillModel, SimulatedOrderBook (tags Maker/Taker),
+│   │   │                                          BacktestOrderRouter (risk-aware), BacktestSession, TradeLedger (fee-aware),
+│   │   │                                          StatisticsCalculator, Persistence/ParquetTick{Reader,Writer},
+│   │   │                                          Strategies/ (BuyAndHold, MeanReversion, DonchianBreakout, AvellanedaStoikov,
+│   │   │                                          Microprice, OrnsteinUhlenbeck, Twap, Bollinger, MovingAverageCrossover,
+│   │   │                                          RsiTwoPeriod, LondonOpenBreakout, MacdCrossover, TrendFilter,
+│   │   │                                          VolatilityTargeted, GapFade, EndOfDayMomentum, PullbackContinuation)
 │   │   ├── Brokers/                              BrokerSelector
 │   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), ConnectionManager
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI)
 │   │   ├── CTrader/                              RealCTraderClient
 │   │   ├── MarketData/                           MarketDataRepository
-│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram transport, options
+│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram + Discord transports, options
 │   │   ├── Time/                                 SystemClock
 │   │   ├── Trading/                              LiveOrderRouter (delegates to active IBrokerClient)
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
@@ -366,11 +422,15 @@ TradingTerminal/
 dotnet test
 ```
 
-Coverage:
-- `StrategyFactory` registers and resolves a strategy + sets `DataContext`.
-- `StrategyFactory` throws on unknown ids.
-- `MarketDataRepository.SubscribeBarsAsync` propagates the underlying client's "not connected" error (via an `IBrokerClient` substitute through the broker selector).
-- `ConnectionManager` reconnects after the underlying client drops, with backoff, and re-wires when the active broker changes.
+Coverage (31+ tests, growing):
+- **Strategy factory** registers and resolves strategies + sets `DataContext`, throws on unknown ids.
+- **Connection manager** reconnects after the underlying client drops, with backoff, and re-wires when the active broker changes.
+- **Backtest engine** — buy-then-sell across a synthetic tick window produces one trade with the expected price/PnL; parquet tick round-trips preserve byte-for-byte content; stats calculator returns expected Sharpe / Sortino / drawdown on a known curve.
+- **Fee model** — Maker/Taker per-unit and Bps-on-notional charge correctly; taker fees reduce ending cash and surface on `BacktestResult.TotalFees`.
+- **Risk manager** — per-symbol cap rejects accumulating positions, daily loss cap rejects after threshold and resets at UTC midnight, fills are idempotent.
+- **Microstructure helpers** — microprice leans toward the thinner side, falls back to mid when sizes are zero; queue imbalance is bounded and signed.
+- **Indicators** — SMA/EMA/Wilder-RSI/ATR/rolling-stdev math (Bessel correction, RSI saturation in both directions, EMA recursion).
+- **MarketDataRepository.SubscribeBarsAsync** propagates the underlying client's "not connected" error through the broker selector.
 
 ## Troubleshooting
 

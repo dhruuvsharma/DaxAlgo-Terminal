@@ -35,22 +35,33 @@ TradingTerminal.sln
 ├── src/
 │   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
 │   │   └── Notifications/                        Settings tab VM/View + per-user notifications.json writer
+│   ├── TradingTerminal.Backtest.Cli              Headless backtest runner — run / synth / sweep subcommands
 │   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
+│   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/Recovery/DownsideDev/MaxConsecLosses)
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
 │   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
 │   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
 │   │   ├── Events/                               IEventBus, EventBus
-│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository
+│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure helpers, Indicators (SMA/EMA/RSI/ATR/stdev)
 │   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
+│   │   ├── Risk/                                 IRiskManager, RiskManager (per-symbol pos cap + daily PnL cap), RiskOptions
 │   │   ├── Session/                              SessionContext
-│   │   └── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
+│   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
+│   │   ├── Time/                                 IClock
+│   │   └── Trading/                              IOrderRouter, OrderRequest/Result/Event (+ LiquidityFlag), IFeeModel (zero/maker-taker/bps)
 │   ├── TradingTerminal.Infrastructure
+│   │   ├── Backtest/                             Engine — SimulatedClock, L1FillModel, SimulatedOrderBook (tags Maker/Taker),
+│   │   │                                          BacktestOrderRouter (risk-aware), BacktestSession, TradeLedger (fee-aware),
+│   │   │                                          StatisticsCalculator, Persistence/ParquetTick{Reader,Writer},
+│   │   │                                          Strategies/ — 15+ implementations (HFT, FX, index baselines)
 │   │   ├── Brokers/                              BrokerSelector
 │   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), FakeIbClient, ConnectionManager
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
 │   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
 │   │   ├── MarketData/                           MarketDataRepository
-│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram transport, options
+│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram + Discord transports, options
+│   │   ├── Time/                                 SystemClock
+│   │   ├── Trading/                              LiveOrderRouter (delegates to active IBrokerClient)
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
 │   ├── TradingTerminal.UI                        ViewModelBase, dark theme, in-memory log sink
 │   ├── TradingTerminal.Strategies.Rsi            RSI Overbought/Oversold strategy
@@ -209,7 +220,51 @@ Strategies inject `INotificationPublisher` and call `PublishAsync` whenever a si
 
 Settings (bot token, chat ID, enable flag) live in `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`, layered onto host configuration with `reloadOnChange: true`. Transports read `IOptionsMonitor<NotificationsOptions>.CurrentValue` on each send, so edits from the Settings tab take effect without a restart.
 
-Adding a transport (Discord, Slack, email) = one class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/` + one DI line. The dispatcher discovers transports via `IEnumerable<INotificationTransport>`.
+Two transports ship: **Telegram** (Bot API, JSON over HTTPS) and **Discord** (channel webhook, JSON over HTTPS). Each has its own options block (`NotificationsOptions.Telegram` / `NotificationsOptions.Discord`), its own enable flag, and its own `IncludeIdleSignals` knob — they're fully independent.
+
+Adding another transport (Slack, email, SMS) = one class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus options/persistence/UI plumbing modelled on the Telegram or Discord scaffolding. The dispatcher discovers transports via `IEnumerable<INotificationTransport>`.
+
+### Backtest engine
+
+```csharp
+public interface IBacktestStrategy
+{
+    Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct);
+    Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct);
+    Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct);
+    Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct);
+}
+
+public interface IOrderRouter
+{
+    Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default);
+    Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default);
+    IObservable<OrderEvent> OrderEvents { get; }
+}
+```
+
+Strategies are router-only — they never see `IBrokerClient`. `LiveOrderRouter` (Infra) delegates to the active broker; `BacktestOrderRouter` (Infra) routes into a `SimulatedOrderBook` evaluated by `L1FillModel` on every tick, after consulting an optional `IRiskManager`.
+
+Fifteen-plus textbook strategies ship — HFT/microstructure (Avellaneda-Stoikov, microprice, OU, TWAP), FX baselines (Bollinger, MA cross, RSI(2), London open, MACD), and S&P 500 baselines (200-SMA trend filter, vol targeting, gap fade, EOD momentum, pullback continuation). They share two helper modules in `Core/MarketData/`: `Indicators` (streaming SMA, EMA, Wilder RSI, ATR, rolling Bessel-corrected stdev) and `Microstructure` (microprice, queue imbalance, half-spread).
+
+### Risk + fees
+
+```csharp
+public interface IRiskManager
+{
+    (bool Allowed, string? RejectReason) Evaluate(OrderRequest request);
+    void RecordFill(string symbol, OrderEvent fillEvent);
+}
+
+public interface IFeeModel
+{
+    double Fee(OrderSide side, long quantity, double price, LiquidityFlag liquidity);
+}
+
+public enum LiquidityFlag { Taker, Maker }
+```
+
+`BacktestOrderRouter` runs `IRiskManager.Evaluate` before every submission and surfaces rejections as `OrderEvent` with `State=Rejected` on the strategy's existing event stream — strategies need no special path. `OrderEvent.Liquidity` is set by the simulated order book based on `OrderType` (Limit ⇒ Maker; Market/Stop ⇒ Taker); `TradeLedger` charges `IFeeModel.Fee` against cash per fill and surfaces totals on `BacktestResult.TotalFees`.
 
 ## Domain models
 
@@ -334,6 +389,11 @@ Tests live in `tests/TradingTerminal.Tests` and use xUnit + FluentAssertions + N
 - **`StrategyFactory` tests** — registers a strategy, resolves it by id, sets the `DataContext`. Throws on unknown ids. Uses a `[WpfFact]` STA test for the WPF-touching part.
 - **`MarketDataRepository.SubscribeBarsAsync`** — propagates the underlying `IBrokerClient`'s "not connected" error. Uses a `SingleClientSelector` test double so the test exercises the full pipeline (selector → manager → repository → consumer) without a real broker.
 - **`ConnectionManager`** — reconnects after the underlying client drops, observable transitions through `Connecting → Connected → Reconnecting`. Uses a `FlakyClient` that fails its first connection.
+- **Backtest engine** — buy-then-sell across a synthetic tick window produces one trade with the expected price/PnL; parquet tick round-trip preserves byte-for-byte content; `StatisticsCalculator` returns expected ratios on a known curve.
+- **Fee model** — Maker/Taker per-unit and Bps-on-notional charges; ending cash drops by exactly the fee amount; `BacktestResult.TotalFees` matches.
+- **Risk manager** — per-symbol cap rejects accumulating positions; daily loss cap rejects after threshold and resets at UTC midnight; duplicate fills are idempotent.
+- **Microstructure** — microprice leans toward the thinner side, equals the mid when sizes are equal, falls back to mid when sizes are zero; queue imbalance is bounded and signed.
+- **Indicators** — SMA, EMA recursion, Wilder-RSI saturation in both directions, ATR mean-of-|Δ|, rolling stdev with Bessel correction.
 
 The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as a smoke test for the full DI graph.
 
@@ -355,4 +415,5 @@ The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as
   - IB: `CSharpAPI.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or the standard `C:\TWS API\…` path. Build prints the resolved path.
   - NT: `NTDirect.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or `%USERPROFILE%\Documents\NinjaTrader 8\bin64\`. Copied next to the assembly so P/Invoke finds it.
   - cTrader: `cTrader.OpenAPI.Net` from NuGet — always restored, no gate.
-- **Single account per broker, read-mostly v1.** The included strategies are read-only (chart + signals). Order plumbing is in place via broker-specific `Command(...)` / `ProtoOANewOrderReq` paths but not yet exposed to strategies.
+- **Single account per broker, read-mostly v1.** The live strategies (RSI, CumDelta) are read-only (chart + signals). Order plumbing is in place via broker-specific `Command(...)` / `ProtoOANewOrderReq` paths but `IBrokerClient.PlaceOrderAsync` still throws `NotSupportedException` on the three real clients — that's the OMS seam. Once OMS lands, the existing `IRiskManager` will wrap `LiveOrderRouter` so live and backtest share the same accounting.
+- **Backtest is router-first.** The backtest engine and the live engine share `IOrderRouter`; backtest strategies execute against `BacktestOrderRouter` + `SimulatedOrderBook`, live strategies will execute against `LiveOrderRouter` + the active broker. Same `IRiskManager` / `IFeeModel` slots both sides of the seam.
