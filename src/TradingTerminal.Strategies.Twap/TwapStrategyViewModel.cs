@@ -37,4 +37,11 @@ public sealed partial class TwapStrategyViewModel : LiveSignalStrategyViewModelB
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.TwapExecutionStrategy(contract, Side, ParentQuantity, Slices);
+
+    protected override string? ValidateSetup()
+    {
+        if (ParentQuantity <= 0) return "Parent quantity must be positive.";
+        if (Slices < 1) return "Slices must be at least 1.";
+        return null;
+    }
 }

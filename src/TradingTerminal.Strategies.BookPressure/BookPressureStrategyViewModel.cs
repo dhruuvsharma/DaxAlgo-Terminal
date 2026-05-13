@@ -37,4 +37,12 @@ public sealed partial class BookPressureStrategyViewModel : LiveSignalStrategyVi
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.BookPressureStrategy(contract, EntryThreshold, HoldTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (EntryThreshold <= 0 || EntryThreshold >= 1) return "Entry threshold must be in (0, 1).";
+        if (HoldTicks < 1) return "Hold ticks must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

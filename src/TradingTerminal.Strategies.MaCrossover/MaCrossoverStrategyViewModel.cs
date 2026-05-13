@@ -37,4 +37,12 @@ public sealed partial class MaCrossoverStrategyViewModel : LiveSignalStrategyVie
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.MovingAverageCrossoverStrategy(contract, FastPeriod, SlowPeriod, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (FastPeriod < 2) return "Fast period must be at least 2.";
+        if (SlowPeriod <= FastPeriod) return "Slow period must be greater than fast period.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

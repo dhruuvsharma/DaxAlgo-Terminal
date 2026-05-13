@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -11,11 +11,6 @@ using TradingTerminal.UI;
 
 namespace TradingTerminal.Strategies.Bollinger;
 
-/// <summary>
-/// Live signal-mode VM for Bollinger band reversion (forex). Parameter <c>[ObservableProperty]</c>s mirror
-/// the underlying <see cref="BollingerReversionStrategy"/> constructor â€” add / rename / re-bind to your
-/// own XAML to expose more knobs.
-/// </summary>
 public sealed partial class BollingerStrategyViewModel : LiveSignalStrategyViewModelBase
 {
     [ObservableProperty] private int _period = 20;
@@ -37,5 +32,14 @@ public sealed partial class BollingerStrategyViewModel : LiveSignalStrategyViewM
     }
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
-        new TradingTerminal.Infrastructure.Backtest.Strategies.BollingerReversionStrategy(contract, Period, EntryStd, StopBandMultiplier, Quantity);
+        new BollingerReversionStrategy(contract, Period, EntryStd, StopBandMultiplier, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (Period < 2) return "Period must be at least 2.";
+        if (EntryStd <= 0) return "Entry σ must be positive.";
+        if (StopBandMultiplier <= EntryStd) return "Stop band ×σ must exceed entry σ.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

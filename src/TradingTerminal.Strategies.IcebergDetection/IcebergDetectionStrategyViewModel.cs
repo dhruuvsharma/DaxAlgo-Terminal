@@ -38,4 +38,13 @@ public sealed partial class IcebergDetectionStrategyViewModel : LiveSignalStrate
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.IcebergDetectionStrategy(contract, StickyTicks, PriceStabilityEpsilon, HoldTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (StickyTicks < 10) return "Sticky ticks must be at least 10.";
+        if (PriceStabilityEpsilon < 0) return "Stability epsilon must be non-negative.";
+        if (HoldTicks < 1) return "Hold ticks must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

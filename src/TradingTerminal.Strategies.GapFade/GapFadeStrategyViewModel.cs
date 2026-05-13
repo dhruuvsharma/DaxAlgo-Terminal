@@ -39,4 +39,14 @@ public sealed partial class GapFadeStrategyViewModel : LiveSignalStrategyViewMod
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.GapFadeStrategy(contract, OvernightGapMinutes, MinGapPct, StopGapMultiples, MaxHoldTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (OvernightGapMinutes <= 0) return "Gap window must be positive.";
+        if (MinGapPct <= 0) return "Min gap % must be positive.";
+        if (StopGapMultiples <= 0) return "Stop gap multiplier must be positive.";
+        if (MaxHoldTicks < 1) return "Max hold ticks must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

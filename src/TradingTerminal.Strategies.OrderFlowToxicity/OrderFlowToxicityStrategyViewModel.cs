@@ -38,4 +38,13 @@ public sealed partial class OrderFlowToxicityStrategyViewModel : LiveSignalStrat
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.OrderFlowToxicityStrategy(contract, WindowTicks, ToxicityThreshold, HoldTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (WindowTicks < 10) return "Window ticks must be at least 10.";
+        if (ToxicityThreshold <= 0.5 || ToxicityThreshold >= 1) return "Toxicity threshold must be in (0.5, 1).";
+        if (HoldTicks < 1) return "Hold ticks must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

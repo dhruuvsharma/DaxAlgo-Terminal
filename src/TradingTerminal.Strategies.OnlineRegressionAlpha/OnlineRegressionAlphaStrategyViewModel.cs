@@ -39,4 +39,14 @@ public sealed partial class OnlineRegressionAlphaStrategyViewModel : LiveSignalS
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.OnlineRegressionAlphaStrategy(contract, HoldTicks, EntryThreshold, VolHalfLife, Lambda, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (HoldTicks < 1) return "Hold ticks must be positive.";
+        if (EntryThreshold <= 0) return "Entry threshold must be positive.";
+        if (VolHalfLife <= 0) return "Vol half-life must be positive.";
+        if (Lambda <= 0 || Lambda > 1) return "λ must be in (0, 1].";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

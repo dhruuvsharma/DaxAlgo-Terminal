@@ -38,4 +38,13 @@ public sealed partial class AnomalyDetectorStrategyViewModel : LiveSignalStrateg
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.AnomalyDetectorStrategy(contract, Window, ZScoreThreshold, CooldownTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (Window < 10) return "Window must be at least 10.";
+        if (ZScoreThreshold <= 0) return "z-threshold must be positive.";
+        if (CooldownTicks < 0) return "Cooldown ticks must be non-negative.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

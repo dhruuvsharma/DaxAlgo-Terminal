@@ -38,4 +38,13 @@ public sealed partial class VolatilityTargetedStrategyViewModel : LiveSignalStra
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.VolatilityTargetedStrategy(contract, TargetVol, VolHalfLife, MaxQuantity, RebalanceEveryTicks);
+
+    protected override string? ValidateSetup()
+    {
+        if (TargetVol <= 0) return "Target vol must be positive.";
+        if (VolHalfLife <= 0) return "Vol half-life must be positive.";
+        if (MaxQuantity <= 0) return "Max quantity must be positive.";
+        if (RebalanceEveryTicks < 1) return "Rebalance cadence must be positive.";
+        return null;
+    }
 }

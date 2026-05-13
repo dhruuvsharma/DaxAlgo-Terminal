@@ -1,0 +1,79 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls">
+
+    <!-- The ▶ Run / ■ Stop button used in every strategy MetroWindow's LeftWindowCommands.
+         Bound by convention to ToggleAlgoCommand + IsAlgoRunning + IsConfigured on the VM. -->
+    <Style x:Key="Strategy.RunStopButton"
+           TargetType="Button"
+           BasedOn="{StaticResource MahApps.Styles.Button.WindowCommands}">
+        <Setter Property="Padding" Value="14,4" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="ToolTip" Value="Arm or disarm the algo. Display-only when disarmed." />
+        <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
+        <Setter Property="Content" Value="▶ Run" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsAlgoRunning}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
+                <Setter Property="Content" Value="■ Stop" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Setup form card frame -->
+    <Style x:Key="Strategy.SetupCard" TargetType="Border">
+        <Setter Property="MaxWidth" Value="560" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="24" />
+        <Setter Property="Margin" Value="0,24" />
+    </Style>
+
+    <Style x:Key="Strategy.SetupTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <Style x:Key="Strategy.SetupDescription" TargetType="TextBlock">
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+
+    <Style x:Key="Strategy.SetupFieldLabel" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <Style x:Key="Strategy.SetupErrorBanner" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <!-- Dashboard / footer styling for live readings -->
+    <Style x:Key="Strategy.DashLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style x:Key="Strategy.DashValue" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="Strategy.HeaderBar" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <Style x:Key="Strategy.FooterBar" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="Padding" Value="12,4" />
+    </Style>
+
+</ResourceDictionary>

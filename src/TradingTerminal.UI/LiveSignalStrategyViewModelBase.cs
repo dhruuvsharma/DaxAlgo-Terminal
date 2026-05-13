@@ -15,12 +15,18 @@ namespace TradingTerminal.UI;
 /// Base view-model for "live signal mode" hosts. Each per-strategy project subclasses
 /// this and overrides <see cref="BuildStrategy"/> to instantiate its underlying
 /// <see cref="IBacktestStrategy"/> with strategy-specific parameters. The base owns the
-/// tick subscription, the synthetic order router, and the notification publishing —
-/// strategy-specific code is just parameter <c>[ObservableProperty]</c>s plus the build call.
+/// tick subscription, the synthetic order router, the price-bar aggregation used for
+/// chart visualisation, and notification publishing.
+///
+/// The host flow mirrors RSI / Cumulative Delta: user fills the setup form → presses
+/// Continue (<see cref="IsConfigured"/> flips) → tick stream starts and price bars render
+/// → optional Run/Stop arms the algo (<see cref="IsAlgoRunning"/>); notifications are
+/// suppressed when not armed.
 /// </summary>
 public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, IDisposable
 {
     public const int MaxSignalsRetained = 200;
+    public const int MaxBarsRetained = 300;
 
     private readonly IMarketDataRepository _repository;
     private readonly INotificationPublisher _notifications;
@@ -32,6 +38,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     private SignalGeneratorRouter? _router;
     private IBacktestStrategy? _strategy;
     private IDisposable? _eventSubscription;
+    private DateTime _currentBarStart = DateTime.MinValue;
+    private double _barOpen, _barHigh, _barLow, _barClose;
+    private long _barVolume;
+    private static readonly TimeSpan BarInterval = TimeSpan.FromSeconds(15);
 
     protected LiveSignalStrategyViewModelBase(
         string strategyId,
@@ -54,6 +64,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments[0];
         Signals = new ObservableCollection<SignalEntry>();
+        Bars = new ObservableCollection<Bar>();
     }
 
     public string StrategyId { get; }
@@ -61,8 +72,13 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     public IReadOnlyList<SignalInstrument> Instruments { get; }
     public ObservableCollection<SignalEntry> Signals { get; }
 
+    /// <summary>15-second price bars derived from the live tick stream. Used for chart drawing.</summary>
+    public ObservableCollection<Bar> Bars { get; }
+
+    public event EventHandler? BarsChanged;
+
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
-    [ObservableProperty] private string _status = "Pick an instrument and press Start.";
+    [ObservableProperty] private string _status = "Configure the strategy to begin.";
     [ObservableProperty] private double? _lastBid;
     [ObservableProperty] private double? _lastAsk;
     [ObservableProperty] private double? _lastMid;
@@ -70,9 +86,47 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [ObservableProperty] private bool _isStreaming;
     [ObservableProperty] private string? _validationError;
 
+    /// <summary>True once the user clicks Continue on the setup form.</summary>
+    [ObservableProperty] private bool _isConfigured;
+
+    /// <summary>True only while the user has armed the algo via Run. Display-only otherwise.</summary>
+    [ObservableProperty] private bool _isAlgoRunning;
+
     /// <summary>Subclasses build a fresh <see cref="IBacktestStrategy"/> here using their
     /// current parameter property values.</summary>
     protected abstract IBacktestStrategy BuildStrategy(Contract contract);
+
+    /// <summary>Override to validate strategy-specific parameters before
+    /// <see cref="IsConfigured"/> flips. Return an error message or null.</summary>
+    protected virtual string? ValidateSetup() => null;
+
+    /// <summary>Override to refresh indicator series after each new bar.
+    /// Default does nothing.</summary>
+    protected virtual void OnBarsUpdated() { }
+
+    [RelayCommand]
+    private async Task ContinueAsync()
+    {
+        ValidationError = null;
+        if (SelectedInstrument is null) { ValidationError = "Pick an instrument before continuing."; return; }
+        var setupError = ValidateSetup();
+        if (setupError is not null) { ValidationError = setupError; return; }
+
+        IsConfigured = true;
+        await StartAsync();
+    }
+
+    [RelayCommand]
+    private void ToggleAlgo()
+    {
+        IsAlgoRunning = !IsAlgoRunning;
+        var label = SelectedInstrument?.DisplayName ?? "(none)";
+        _logger.LogInformation("{Strategy} algo {State} for {Symbol}",
+            StrategyDisplayName, IsAlgoRunning ? "ARMED" : "STOPPED", label);
+        Status = IsAlgoRunning
+            ? $"Algo armed on {label} — {StrategyDisplayName}"
+            : $"Streaming {label} — algo idle";
+    }
 
     [RelayCommand]
     private async Task StartAsync()
@@ -92,6 +146,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         });
 
         Signals.Clear();
+        Bars.Clear();
+        _currentBarStart = DateTime.MinValue;
         TicksSeen = 0;
         IsStreaming = true;
         Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
@@ -125,6 +181,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _strategy = null;
         _streamCts?.Dispose(); _streamCts = null;
         IsStreaming = false;
+        IsAlgoRunning = false;
         Status = "Stopped";
     }
 
@@ -142,6 +199,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                 LastAsk = tick.Ask;
                 LastMid = (tick.Bid + tick.Ask) * 0.5;
                 TicksSeen++;
+                AggregateBar(tick);
                 _router.UpdateMarketContext(tick);
                 try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
                 catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
@@ -159,10 +217,47 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
     }
 
+    private void AggregateBar(Tick tick)
+    {
+        var mid = (tick.Bid + tick.Ask) * 0.5;
+        var ts = tick.TimestampUtc;
+        var bucket = new DateTime(ts.Ticks - (ts.Ticks % BarInterval.Ticks), DateTimeKind.Utc);
+
+        if (_currentBarStart == DateTime.MinValue)
+        {
+            _currentBarStart = bucket;
+            _barOpen = _barHigh = _barLow = _barClose = mid;
+            _barVolume = 1;
+            return;
+        }
+
+        if (bucket != _currentBarStart)
+        {
+            var bar = new Bar(_currentBarStart, _barOpen, _barHigh, _barLow, _barClose, _barVolume);
+            Bars.Add(bar);
+            while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
+            OnBarsUpdated();
+            BarsChanged?.Invoke(this, EventArgs.Empty);
+
+            _currentBarStart = bucket;
+            _barOpen = _barHigh = _barLow = _barClose = mid;
+            _barVolume = 1;
+        }
+        else
+        {
+            if (mid > _barHigh) _barHigh = mid;
+            if (mid < _barLow) _barLow = mid;
+            _barClose = mid;
+            _barVolume++;
+        }
+    }
+
     private void OnSignalEmitted(SignalEntry entry)
     {
         Signals.Insert(0, entry);
         while (Signals.Count > MaxSignalsRetained) Signals.RemoveAt(Signals.Count - 1);
+
+        if (!IsAlgoRunning) return;
 
         var symbol = SelectedInstrument?.DisplayName ?? "(none)";
         var direction = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";

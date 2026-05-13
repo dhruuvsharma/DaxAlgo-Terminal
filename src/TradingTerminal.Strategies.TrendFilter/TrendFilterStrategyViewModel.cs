@@ -37,4 +37,11 @@ public sealed partial class TrendFilterStrategyViewModel : LiveSignalStrategyVie
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.TrendFilterStrategy(contract, Period, AllowShort, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (Period < 2) return "Period must be at least 2.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

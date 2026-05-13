@@ -39,4 +39,14 @@ public sealed partial class LondonOpenBreakoutStrategyViewModel : LiveSignalStra
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.LondonOpenBreakoutStrategy(contract, LondonOpenHourUtc, LondonCloseHourUtc, AtrStopMultiplier, AtrPeriod, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (LondonOpenHourUtc < 0 || LondonOpenHourUtc > 23) return "London open hour must be in [0, 23].";
+        if (LondonCloseHourUtc <= LondonOpenHourUtc || LondonCloseHourUtc > 23) return "London close hour must follow open and be ≤ 23.";
+        if (AtrStopMultiplier <= 0) return "ATR stop multiplier must be positive.";
+        if (AtrPeriod < 2) return "ATR period must be at least 2.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

@@ -38,4 +38,13 @@ public sealed partial class LiquiditySweepStrategyViewModel : LiveSignalStrategy
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.LiquiditySweepStrategy(contract, Lookback, SweepRatio, HoldTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (Lookback < 10) return "Lookback must be at least 10.";
+        if (SweepRatio <= 0 || SweepRatio >= 1) return "Sweep ratio must be in (0, 1).";
+        if (HoldTicks < 1) return "Hold ticks must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

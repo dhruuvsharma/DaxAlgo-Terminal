@@ -39,4 +39,14 @@ public sealed partial class EodMomentumStrategyViewModel : LiveSignalStrategyVie
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.EndOfDayMomentumStrategy(contract, LastFractionOfDay, MinDayReturn, SessionStartHourUtc, SessionEndHourUtc, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (LastFractionOfDay <= 0 || LastFractionOfDay >= 1) return "Last fraction of day must be in (0, 1).";
+        if (MinDayReturn <= 0) return "Min day return must be positive.";
+        if (SessionStartHourUtc < 0 || SessionStartHourUtc > 23) return "Session start must be in [0, 23].";
+        if (SessionEndHourUtc <= SessionStartHourUtc || SessionEndHourUtc > 23) return "Session end must follow start and be ≤ 23.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

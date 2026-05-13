@@ -40,4 +40,14 @@ public sealed partial class OrnsteinUhlenbeckStrategyViewModel : LiveSignalStrat
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.OrnsteinUhlenbeckStrategy(contract, Lookback, RefitEvery, EntryZ, ExitZ, StopZ, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (Lookback < 20) return "Lookback must be at least 20.";
+        if (RefitEvery < 1) return "Refit cadence must be positive.";
+        if (EntryZ <= ExitZ) return "Entry z must exceed exit z.";
+        if (StopZ <= EntryZ) return "Stop z must exceed entry z.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

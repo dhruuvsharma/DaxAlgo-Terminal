@@ -39,4 +39,14 @@ public sealed partial class ThinBookFilterStrategyViewModel : LiveSignalStrategy
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.ThinBookFilterStrategy(contract, BreakoutLookback, DepthLookback, MinDepthRatio, HoldTicks, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (BreakoutLookback < 10) return "Breakout lookback must be at least 10.";
+        if (DepthLookback < 10) return "Depth lookback must be at least 10.";
+        if (MinDepthRatio <= 0) return "Min depth ratio must be positive.";
+        if (HoldTicks < 1) return "Hold ticks must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

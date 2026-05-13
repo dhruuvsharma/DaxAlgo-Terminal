@@ -40,4 +40,15 @@ public sealed partial class PullbackContinuationStrategyViewModel : LiveSignalSt
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.PullbackContinuationStrategy(contract, TrendPeriod, PullbackWindow, PullbackPct, StopPct, TakeProfitPct, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (TrendPeriod < 2) return "Trend period must be at least 2.";
+        if (PullbackWindow < 1) return "Pullback window must be positive.";
+        if (PullbackPct <= 0) return "Pullback % must be positive.";
+        if (StopPct <= 0) return "Stop % must be positive.";
+        if (TakeProfitPct <= StopPct) return "Take-profit % must exceed stop %.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }

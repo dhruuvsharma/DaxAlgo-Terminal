@@ -39,4 +39,14 @@ public sealed partial class ConnorsRsi2StrategyViewModel : LiveSignalStrategyVie
 
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
         new TradingTerminal.Infrastructure.Backtest.Strategies.RsiTwoPeriodStrategy(contract, RsiPeriod, EntryRsi, ExitRsi, ExitSmaPeriod, Quantity);
+
+    protected override string? ValidateSetup()
+    {
+        if (RsiPeriod < 1) return "RSI period must be positive.";
+        if (EntryRsi >= ExitRsi) return "Entry RSI must be below exit RSI.";
+        if (EntryRsi < 0 || ExitRsi > 100) return "RSI thresholds must be in [0, 100].";
+        if (ExitSmaPeriod < 1) return "Exit SMA period must be positive.";
+        if (Quantity <= 0) return "Quantity must be positive.";
+        return null;
+    }
 }
