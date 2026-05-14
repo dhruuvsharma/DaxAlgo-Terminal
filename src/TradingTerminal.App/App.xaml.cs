@@ -80,6 +80,7 @@ public partial class App : Application
                 services.AddSettingsSurface();
                 services.AddRecordingSurface();
                 services.AddResearchSurface();
+                services.AddAiSurface();
             })
             .Build();
 

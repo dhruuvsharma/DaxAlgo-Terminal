@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.App.Ai;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
@@ -163,11 +164,23 @@ public static class AppDependencyInjection
         return services;
     }
 
-    /// <summary>Factor research notebook tab — opens from Tools → Factor research.</summary>
+    /// <summary>Factor research notebook tab — opens from AI tools → Factor research.</summary>
     public static IServiceCollection AddResearchSurface(this IServiceCollection services)
     {
         services.AddTransient<FactorResearchViewModel>();
         services.AddTransient<FactorResearchView>();
+        return services;
+    }
+
+    /// <summary>AI tools tabs — ML features (triple-barrier labelling) and Backtest analysis
+    /// (walk-forward + Monte Carlo). Both wrap Core/Infrastructure types shared with the
+    /// daxalgo-backtest CLI so numbers match between the two surfaces.</summary>
+    public static IServiceCollection AddAiSurface(this IServiceCollection services)
+    {
+        services.AddTransient<MlFeaturesViewModel>();
+        services.AddTransient<MlFeaturesView>();
+        services.AddTransient<BacktestAnalysisViewModel>();
+        services.AddTransient<BacktestAnalysisView>();
         return services;
     }
 }

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.App.Ai;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
@@ -28,6 +29,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string BacktestTabId = "tools.backtest";
     private const string RecorderTabId = "tools.recorder";
     private const string ResearchTabId = "tools.research";
+    private const string MlFeaturesTabId = "ai.mlfeatures";
+    private const string BacktestAnalysisTabId = "ai.backtestanalysis";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -284,6 +287,48 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Record ticks",
             ContentId = RecorderTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenMlFeatures()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == MlFeaturesTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<MlFeaturesViewModel>();
+        var view = _services.GetRequiredService<MlFeaturesView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "ML features",
+            ContentId = MlFeaturesTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenBacktestAnalysis()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == BacktestAnalysisTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<BacktestAnalysisViewModel>();
+        var view = _services.GetRequiredService<BacktestAnalysisView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Backtest analysis",
+            ContentId = BacktestAnalysisTabId,
             Content = view,
             CanClose = true,
         };

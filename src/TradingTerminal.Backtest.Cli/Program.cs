@@ -350,83 +350,31 @@ static double[] ParseDoubleList(string raw) =>
 
 // Walk-forward needs to instantiate each strategy FRESH per window — strategies are
 // stateful (rolling indicators, position trackers), so reusing an instance across
-// train→test→next-window would leak state. The existing BuildXxxGrid helpers return
-// pre-built instances; here we re-parse the same param grids into Funcs.
+// train→test→next-window would leak state. Grid builders live in
+// Infrastructure.Backtest.WalkForwardGridBuilders so the App's Backtest analysis tab
+// can call them too.
 static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> BuildWalkForwardGrid(
-    string strategyId, Contract contract, Args a) => strategyId switch
+    string strategyId, Contract contract, Args a) => strategyId.ToLowerInvariant() switch
 {
-    "meanreversion" or "mean-reversion" => BuildMeanReversionBuilders(a),
-    "donchianbreakout" or "donchian" or "breakout" => BuildDonchianBuilders(a),
-    "microprice" => BuildMicropriceBuilders(a),
-    "ornsteinuhlenbeck" or "ou" => BuildOuBuilders(a),
+    "meanreversion" or "mean-reversion" => WalkForwardGridBuilders.MeanReversion(
+        ParseIntList(a.Optional("lookback") ?? "50,100,200"),
+        ParseDoubleList(a.Optional("entry") ?? "0.05,0.10,0.20"),
+        ParseDoubleList(a.Optional("stop") ?? "0.20,0.40"),
+        a.Int("qty", 1)),
+    "donchianbreakout" or "donchian" or "breakout" => WalkForwardGridBuilders.Donchian(
+        ParseIntList(a.Optional("lookback") ?? "50,100,200"),
+        ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40"),
+        a.Int("qty", 1)),
+    "microprice" => WalkForwardGridBuilders.Microprice(
+        ParseDoubleList(a.Optional("threshold") ?? "0.0005,0.001,0.002"),
+        ParseIntList(a.Optional("hold") ?? "20,50,100"),
+        a.Int("qty", 1)),
+    "ornsteinuhlenbeck" or "ou" => WalkForwardGridBuilders.OrnsteinUhlenbeck(
+        ParseIntList(a.Optional("lookback") ?? "300,500,1000"),
+        ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5"),
+        a.Int("qty", 1)),
     _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
 };
-
-static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildMeanReversionBuilders(Args a)
-{
-    var lookbacks = ParseIntList(a.Optional("lookback") ?? "50,100,200");
-    var entries = ParseDoubleList(a.Optional("entry") ?? "0.05,0.10,0.20");
-    var stops = ParseDoubleList(a.Optional("stop") ?? "0.20,0.40");
-    var qty = a.Int("qty", 1);
-    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-    foreach (var l in lookbacks)
-        foreach (var e in entries)
-            foreach (var s in stops)
-            {
-                int lc = l; double ec = e, sc = s;
-                list.Add(($"mr-lk{lc}-e{ec.ToString(CultureInfo.InvariantCulture)}-s{sc.ToString(CultureInfo.InvariantCulture)}",
-                    c => new MeanReversionStrategy(c, lc, ec, sc, qty)));
-            }
-    return list;
-}
-
-static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildDonchianBuilders(Args a)
-{
-    var lookbacks = ParseIntList(a.Optional("lookback") ?? "50,100,200");
-    var trails = ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40");
-    var qty = a.Int("qty", 1);
-    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-    foreach (var l in lookbacks)
-        foreach (var s in trails)
-        {
-            int lc = l; double sc = s;
-            list.Add(($"don-lk{lc}-trail{sc.ToString(CultureInfo.InvariantCulture)}",
-                c => new DonchianBreakoutStrategy(c, lc, sc, qty)));
-        }
-    return list;
-}
-
-static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildMicropriceBuilders(Args a)
-{
-    var thresholds = ParseDoubleList(a.Optional("threshold") ?? "0.0005,0.001,0.002");
-    var holds = ParseIntList(a.Optional("hold") ?? "20,50,100");
-    var qty = a.Int("qty", 1);
-    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-    foreach (var t in thresholds)
-        foreach (var h in holds)
-        {
-            double tc = t; int hc = h;
-            list.Add(($"mp-t{tc.ToString(CultureInfo.InvariantCulture)}-h{hc}",
-                c => new MicropriceStrategy(c, tc, hc, qty)));
-        }
-    return list;
-}
-
-static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> BuildOuBuilders(Args a)
-{
-    var lookbacks = ParseIntList(a.Optional("lookback") ?? "300,500,1000");
-    var entries = ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5");
-    var qty = a.Int("qty", 1);
-    var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-    foreach (var l in lookbacks)
-        foreach (var ez in entries)
-        {
-            int lc = l; double ezc = ez;
-            list.Add(($"ou-lk{lc}-z{ezc.ToString(CultureInfo.InvariantCulture)}",
-                c => new OrnsteinUhlenbeckStrategy(c, lookback: lc, entryZ: ezc, quantity: qty)));
-        }
-    return list;
-}
 
 static async Task<int> WalkForwardAsync(string[] argv)
 {

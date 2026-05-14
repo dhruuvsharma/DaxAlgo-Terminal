@@ -55,8 +55,15 @@
                           Command="{Binding OpenBacktestCommand}" />
                 <MenuItem Header="_Record live ticks…"
                           Command="{Binding OpenRecorderCommand}" />
+            </MenuItem>
+
+            <MenuItem Header="_AI tools">
                 <MenuItem Header="_Factor research…"
                           Command="{Binding OpenResearchCommand}" />
+                <MenuItem Header="_ML features…"
+                          Command="{Binding OpenMlFeaturesCommand}" />
+                <MenuItem Header="_Backtest analysis…"
+                          Command="{Binding OpenBacktestAnalysisCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Settings">
