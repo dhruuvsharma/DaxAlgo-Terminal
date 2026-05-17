@@ -9,15 +9,16 @@ A modular trading terminal that:
 - Adds new strategies with one DI-registration line, no shell edits.
 - Adds new brokers with one new `IBrokerClient` implementation + one DI block, no consumer changes.
 
-The shipped brokers exercise three very different transports on purpose, to prove the abstraction holds:
+The shipped brokers exercise four very different transports on purpose, to prove the abstraction holds:
 
 | Broker | Transport | Process model | History | Live ticks | L2 depth | Auth |
 |---|---|---|---|---|---|---|
 | Interactive Brokers | TCP socket → `EClientSocket`/`EWrapper` (170+ callbacks) | TWS desktop app, local | Real (`reqHistoricalData`) | Real (`reqMktData` L1) | `reqMktDepth` exists, not yet wired — throws | TWS handles 2FA itself |
 | NinjaTrader 8 | P/Invoke into `NTDirect.dll` (ANSI C ABI) | NT 8 desktop app, local, in-process bridge | None — synthesized | Real, polled at 200 ms | Not exposed by `NTDirect` — needs a NinjaScript bridge, out of scope | NT instance is the auth boundary |
 | cTrader | TLS + protobuf to Spotware cloud (`cTrader.OpenAPI.Net`) | None — pure-cloud, no local desktop required | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | Real, push (`ProtoOASubscribeDepthQuotesReq` / `ProtoOADepthEvent`, incremental new/deleted quotes → local book reconstruction → `DepthSnapshot`s) | OAuth 2.0 (clientId + secret + access token) |
+| Alpaca | REST (history) + WebSocket (live ticks) via `Alpaca.Markets` | None — pure-cloud | Real (`HistoricalBarsRequest` / `HistoricalCryptoBarsRequest`) | Real, push (`IAlpacaDataStreamingClient.GetQuoteSubscription`) | Not exposed by Alpaca — `SubscribeDepthAsync` throws | Static API key id + secret (no OAuth) |
 
-If the abstraction holds for all three, it holds for whatever comes next (Tradovate, Rithmic, dxTrade, …).
+If the abstraction holds for all four, it holds for whatever comes next (Tradovate, Rithmic, dxTrade, …).
 
 ## Core principles
 
@@ -39,7 +40,7 @@ TradingTerminal.sln
 │   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
 │   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/Recovery/DownsideDev/MaxConsecLosses)
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
-│   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader options
+│   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader/Alpaca options
 │   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
 │   │   ├── Events/                               IEventBus, EventBus
 │   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure helpers, Indicators (SMA/EMA/RSI/ATR/stdev)
@@ -58,6 +59,7 @@ TradingTerminal.sln
 │   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), FakeIbClient, ConnectionManager
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
 │   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
+│   │   ├── Alpaca/                               RealAlpacaClient (REST history + WS ticks for stocks + crypto; no synthetic fallback)
 │   │   ├── MarketData/                           MarketDataRepository
 │   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram + Discord transports, options
 │   │   ├── Time/                                 SystemClock
@@ -87,7 +89,7 @@ Core       → (nothing)
 ### Broker abstraction
 
 ```csharp
-public enum BrokerKind { InteractiveBrokers, NinjaTrader, CTrader }
+public enum BrokerKind { InteractiveBrokers, NinjaTrader, CTrader, Alpaca }
 
 public interface IBrokerClient : IAsyncDisposable
 {
@@ -124,7 +126,7 @@ public sealed record BrokerConnectionMode(
     BrokerKind Broker, bool IsLive, string DisplayName, string Description);
 ```
 
-`ConnectAsync` takes no host/port/clientId — each implementation reads its own configured options (`IOptions<InteractiveBrokersOptions>` / `IOptions<NinjaTraderOptions>` / `IOptions<CTraderOptions>`). This keeps the interface broker-agnostic.
+`ConnectAsync` takes no host/port/clientId — each implementation reads its own configured options (`IOptions<InteractiveBrokersOptions>` / `IOptions<NinjaTraderOptions>` / `IOptions<CTraderOptions>` / `IOptions<AlpacaOptions>`). This keeps the interface broker-agnostic.
 
 ### Repository
 
@@ -336,16 +338,27 @@ Records, sealed by default, all in `Core`. No broker-specific fields leak in.
 - Access tokens expire — `ProtoOAErrorRes` surfaces this clearly; the user re-runs the OAuth refresh and pastes the new token.
 - **L2 depth** is wired via `ProtoOASubscribeDepthQuotesReq` + `ProtoOADepthEvent`. Each event carries `NewQuotes` (add/replace, keyed by quote id) and `DeletedQuotes` (remove by id). Quotes are one-sided (either `Bid` or `Ask` set, not both); we maintain `Dictionary<ulong, DepthLevel>` per side and emit a consistent top-N `DepthSnapshot` after each event. `ProtoOADepthEvent.SymbolId` is `uint64` (not `int64` like `ProtoOASpotEvent`) — the filter casts before comparing.
 
+### Alpaca — `RealAlpacaClient` (always wired)
+
+- Uses the `Alpaca.Markets` SDK against `Environments.Paper` (`paper-api.alpaca.markets`) or `Environments.Live` (`api.alpaca.markets`). The same `SecretKey(ApiKey, ApiSecret)` works for trading, stock data, crypto data, and the streaming endpoints — one credential pair, no OAuth dance.
+- One client instance multiplexes asset classes by `Contract.SecType`: `STK` / `STOCK` / `EQUITY` route through `IAlpacaDataClient` + `IAlpacaDataStreamingClient`; `CRYPTO` / `CRYPTOCURRENCY` route through `IAlpacaCryptoDataClient` + `IAlpacaCryptoStreamingClient`. Options route is reserved for when the SDK's options surface stabilises — it currently throws.
+- Both streaming clients are connected and authenticated **eagerly** inside `ConnectAsync` (not lazily on first subscribe), so the first tick subscription doesn't pay the auth round-trip.
+- Live ticks come in as `IQuote` events on a per-symbol `IAlpacaDataSubscription`; the handler maps them into `Tick(TimestampUtc, Bid, Ask, BidSize, AskSize)` and writes to an unbounded `Channel<Tick>`. Unsubscribe on stream cancellation unhooks the handler and calls `UnsubscribeAsync` on the SDK side.
+- Live bars are aggregated from the tick stream (same approach as cTrader) so the bar cadence (`BarSize`) stays configurable rather than being pinned to the SDK's native minute bars.
+- Stock data feed is configurable: `iex` (free) or `sip` (paid consolidated). Crypto and options have their own consolidated feeds and ignore the setting.
+- **No L2 depth.** Alpaca's WebSocket API only emits NBBO-style L1 quotes; `SubscribeDepthAsync` throws `NotSupportedException`. Strategies that need depth must route through IB (`reqMktDepth`, pending plumbing) or cTrader.
+- **No `Fake*Client`.** Unlike IB / NT / cTrader, Alpaca has no synthetic fallback — credentials are mandatory to use that tile. The other three brokers fall back to a synthetic random-walk when their real DLL or OAuth isn't configured.
+
 ## Login flow
 
 ```
-                   ┌───────────────────────────────────┐
-                   │        LoginWindow shows          │
-                   │ ┌─────────┐ ┌─────────┐ ┌────────┐│
-                   │ │   IB    │ │   NT    │ │cTrader ││
-                   │ └────┬────┘ └────┬────┘ └────┬───┘│
-                   └──────┼───────────┼───────────┼────┘
-                          ▼           ▼           ▼
+                   ┌──────────────────────────────────────────────┐
+                   │              LoginWindow shows               │
+                   │ ┌─────────┐ ┌─────────┐ ┌────────┐ ┌────────┐│
+                   │ │   IB    │ │   NT    │ │cTrader │ │ Alpaca ││
+                   │ └────┬────┘ └────┬────┘ └────┬───┘ └────┬───┘│
+                   └──────┼───────────┼───────────┼──────────┼────┘
+                          ▼           ▼           ▼          ▼
                   one form per broker, conditional on SelectedBroker
                                        │
                                        ▼
@@ -371,7 +384,7 @@ Records, sealed by default, all in `Core`. No broker-specific fields leak in.
                           └────────────────────────┘
 ```
 
-The user's selection persists in `connection.json` (under `%LOCALAPPDATA%\DaxAlgoTerminal\`) so the next launch reopens to the same broker form. IB password and cTrader OAuth secrets are DPAPI-encrypted under `DataProtectionScope.CurrentUser`.
+The user's selection persists in `connection.json` (under `%LOCALAPPDATA%\DaxAlgoTerminal\`) so the next launch reopens to the same broker form. IB password, cTrader OAuth secrets, and the Alpaca API secret are DPAPI-encrypted under `DataProtectionScope.CurrentUser`.
 
 ## Shell layout (AvalonDock)
 
@@ -426,5 +439,15 @@ The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as
   - IB: `CSharpAPI.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or the standard `C:\TWS API\…` path. Build prints the resolved path.
   - NT: `NTDirect.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or `%USERPROFILE%\Documents\NinjaTrader 8\bin64\`. Copied next to the assembly so P/Invoke finds it.
   - cTrader: `cTrader.OpenAPI.Net` from NuGet — always restored, no gate.
+  - Alpaca: `Alpaca.Markets` from NuGet — always restored, no gate.
 - **Single account per broker, read-mostly v1.** The live strategies (RSI, CumDelta) are read-only (chart + signals). Order plumbing is in place via broker-specific `Command(...)` / `ProtoOANewOrderReq` paths but `IBrokerClient.PlaceOrderAsync` still throws `NotSupportedException` on the three real clients — that's the OMS seam. Once OMS lands, the existing `IRiskManager` will wrap `LiveOrderRouter` so live and backtest share the same accounting.
 - **Backtest is router-first.** The backtest engine and the live engine share `IOrderRouter`; backtest strategies execute against `BacktestOrderRouter` + `SimulatedOrderBook`, live strategies will execute against `LiveOrderRouter` + the active broker. Same `IRiskManager` / `IFeeModel` slots both sides of the seam.
+
+## Polyglot tools (forthcoming)
+
+Some workloads outgrow the managed C# engine — a 50M-tick backtest is awkward in .NET, and the Python ML ecosystem (sklearn, pandas, torch) is not realistically replaceable. The plan is to keep the WPF build hermetic by isolating other languages behind a **subprocess + file/JSON seam**, not via P/Invoke or embedded interpreters:
+
+- **`tick-backtester`** — C++20 one-shot subprocess for high-throughput tick replay. C# writes a JSON config + Parquet input, reads back JSON stats + Parquet equity/trades.
+- **`daxalgo-ml`** — Python 3.11 FastAPI service (loopback only, ephemeral port, no auth) spawned lazily on first AI-tab use. Bulk data crosses as Parquet paths; models persist to `~/.daxalgo/models/`.
+
+See [`polyglot.md`](polyglot.md) for the full design, the layout under `tools/`, the migration order, and why each language earns its keep.

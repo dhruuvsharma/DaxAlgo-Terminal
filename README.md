@@ -3,9 +3,9 @@
 [![.NET 9](https://img.shields.io/badge/.NET-9.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![WPF](https://img.shields.io/badge/UI-WPF%20%2B%20MahApps%20%2B%20AvalonDock-blueviolet)](#)
-[![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader-orange)](#brokers)
+[![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader%20%7C%20Alpaca-orange)](#brokers)
 
-A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Picks a broker at login (Interactive Brokers, NinjaTrader, or cTrader) and routes everything downstream — historical bars, live ticks, connection state, reconnect logic — through a single `IBrokerClient` seam. Ships with two live strategies (**RSI Overbought/Oversold** and **Cumulative Delta Scalper** — sniper-mode port of the cTrader cBot, with a 5-confirmation gate, multi-session GMT filter, and per-session/daily caps), a notifier that fans signals out to **Telegram and Discord**, and a **tick-level backtest engine** with 15+ canonical strategies (HFT/microstructure, FX baselines, S&P 500 baselines) plus a per-symbol risk manager and maker/taker fee model.
+A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable shell. Picks a broker at login (Interactive Brokers, NinjaTrader, cTrader, or Alpaca) and routes everything downstream — historical bars, live ticks, connection state, reconnect logic — through a single `IBrokerClient` seam. Ships with two live strategies (**RSI Overbought/Oversold** and **Cumulative Delta Scalper** — sniper-mode port of the cTrader cBot, with a 5-confirmation gate, multi-session GMT filter, and per-session/daily caps), a notifier that fans signals out to **Telegram and Discord**, and a **tick-level backtest engine** with 15+ canonical strategies (HFT/microstructure, FX baselines, S&P 500 baselines) plus a per-symbol risk manager and maker/taker fee model.
 
 The repo is structured as an honest engineering exercise: clean MVVM, plug-in architecture, end-to-end async streaming, broker-neutral abstractions over three very different transports (TCP socket, P/Invoke, TLS+protobuf), and a testable threading model.
 
@@ -13,11 +13,12 @@ The repo is structured as an honest engineering exercise: clean MVVM, plug-in ar
 
 - **Strict MVVM** with `CommunityToolkit.Mvvm` source generators — zero business logic in code-behind.
 - **Plug-in strategy host** — adding a strategy is a new project + one DI line. The shell never references strategy concretes.
-- **Three broker backends behind one interface:**
+- **Four broker backends behind one interface:**
   - **Interactive Brokers** — official TWS API (`EClientSocket`/`EWrapper`), auto-resolved from any standard install path.
   - **NinjaTrader 8** — `NTDirect.dll` via P/Invoke (ANSI C ABI).
   - **cTrader** — Spotware Open API 2.0 over TLS + protobuf (`cTrader.OpenAPI.Net` package).
-- **Broker selector at login.** Three-tile UI; the user's choice flips an `IBrokerSelector` singleton, the connection manager re-wires, and the rest of the app stays unaware of which broker is actually in play.
+  - **Alpaca** — REST (history) + WebSocket (live ticks) via the `Alpaca.Markets` SDK. Stocks + crypto, paper or live, single API key + secret (no OAuth).
+- **Broker selector at login.** Four-tile UI; the user's choice flips an `IBrokerSelector` singleton, the connection manager re-wires, and the rest of the app stays unaware of which broker is actually in play.
 - **Async streaming** via `IAsyncEnumerable<Bar>` and `IAsyncEnumerable<Tick>` with `[EnumeratorCancellation]` — cancellation is the natural unsubscribe path.
 - **Threading is a one-layer concern.** Broker callbacks are marshalled to the UI dispatcher inside the repository; view-models stay single-threaded from their POV.
 - **Auto-reconnect** with exponential backoff (1 s → 30 s cap), surfaced as a red banner with a Reconnect button.
@@ -37,8 +38,9 @@ The repo is structured as an honest engineering exercise: clean MVVM, plug-in ar
 | **Interactive Brokers** | TCP socket → `EClientSocket` | ✅ when `CSharpAPI.dll` is found at build time (auto-discovers the standard `C:\TWS API\…` install) | TWS/IB Gateway must be running and signed in. 2FA is handled by TWS, not by this app. Best stocks/options/futures coverage. L2 depth (`reqMktDepth`) is not yet wired — `SubscribeDepthAsync` throws. |
 | **NinjaTrader 8** | `NTDirect.dll` P/Invoke (ANSI) | ✅ when `NTDirect.dll` is found at build time + `UseRealClient=true` | NT 8 must be running with **Tools → Options → AT Interface → AT Interface enabled**. NTDirect doesn't expose historical bars (we synthesize) or L1 sizes. Real-time prices, volume, and `Command(...)`-style order routing work. **No L2** — NT's depth lives behind NinjaScript SuperDOM, not the AT Interface. |
 | **cTrader** | TLS + protobuf to `demo.ctraderapi.com` / `live.ctraderapi.com` | ✅ always wired (NuGet package always restores) | Requires OAuth setup at [connect.spotware.com/apps](https://connect.spotware.com/apps): clientId + clientSecret + accessToken + ctidTraderAccountId. Real `ProtoOAGetTrendbarsReq` history, push-based `ProtoOASpotEvent` ticks, full symbol catalog. **L2 depth** wired via `ProtoOASubscribeDepthQuotesReq` / `ProtoOADepthEvent` with incremental new/deleted quotes → local book reconstruction → emitted `DepthSnapshot`s. |
+| **Alpaca** | REST (history) + WebSocket (live ticks) to `api.alpaca.markets` / `paper-api.alpaca.markets` | ✅ always wired (NuGet `Alpaca.Markets`, no DLL gate) | Single API key id + secret (paper key prefix `PK…`, live `AK…`). One client multiplexes stocks (`Contract.SecType` = `STK`) and crypto (`CRYPTO`); options route is reserved for when the SDK stabilises. Stock data feed selectable: `iex` (free) / `sip` (paid sub). **No L2** — Alpaca only exposes L1 quotes; `SubscribeDepthAsync` throws. OMS not yet wired. |
 
-When the real client for a given broker isn't wired, the synthetic `Fake*Client` runs instead — a plausible random-walk that lets you exercise the UI and strategies with zero broker setup.
+When the real client for a given broker isn't wired, the synthetic `Fake*Client` runs instead — a plausible random-walk that lets you exercise the UI and strategies with zero broker setup. (Exception: Alpaca has no synthetic fallback — credentials are mandatory to use that tile.)
 
 ## Architecture at a glance
 
@@ -69,6 +71,7 @@ When the real client for a given broker isn't wired, the synthetic `Fake*Client`
             │    ▼           ▼           ▼            │
             │  RealIb     RealNinja    RealCTrader    │
             │  FakeIb     FakeNinja    FakeCTrader    │
+            │              RealAlpaca                 │
             └────────────────┬────────────────────────┘
                              ▼
               ┌────────────────────────────────┐
@@ -90,11 +93,13 @@ UI         → Core
 Core       → (nothing)
 ```
 
-`Core` has zero deps on UI / WPF / IB / NT / cTrader. Adding a new broker = a new `IBrokerClient` implementation in `Infrastructure/<Broker>/` and one DI registration block. Adding a new strategy = a new project + one DI line in `App.xaml.cs`. The shell stays untouched.
+`Core` has zero deps on UI / WPF / IB / NT / cTrader / Alpaca. Adding a new broker = a new `IBrokerClient` implementation in `Infrastructure/<Broker>/` and one DI registration block. Adding a new strategy = a new project + one DI line in `App.xaml.cs`. The shell stays untouched.
 
 See `docs/architecture.md` for the full design rationale and key interface signatures.
 See `docs/user-guide.md` for the end-user manual (login, strategies, notifications,
 backtesting, factor research, recorder, CLI).
+See `docs/polyglot.md` for the cross-language seam (C++ fast backtester + Python ML
+sidecar) that's being phased in alongside the C# core.
 
 ## Prerequisites
 
@@ -106,8 +111,9 @@ backtesting, factor research, recorder, CLI).
 | Interactive Brokers TWS / IB Gateway | Installed + signed in. Paper or live. |
 | NinjaTrader 8 | Installed + signed in, AT Interface enabled. |
 | cTrader-compatible broker account | Plus a registered Spotware app (OAuth credentials). |
+| Alpaca account | API key id + secret minted from the [Alpaca dashboard](https://app.alpaca.markets). Paper accounts are free. |
 
-You don't need any of the brokers to build and run — the synthetic clients work out of the box.
+You don't need any of the brokers to build and run — the synthetic clients work out of the box. (Alpaca is the exception: it has no synthetic fallback, so the Alpaca tile only works once credentials are filled in.)
 
 ## Run it
 
@@ -195,6 +201,32 @@ The corresponding `appsettings.json` keys (overridable but the login screen is t
 }
 ```
 
+### Alpaca
+
+Always wired — the `Alpaca.Markets` NuGet package is referenced unconditionally. Mint an
+API key + secret from the Alpaca dashboard:
+
+- Paper: [app.alpaca.markets](https://app.alpaca.markets) → *Paper trading → API keys → Generate*. Key id starts with `PK…`.
+- Live: [app.alpaca.markets/live](https://app.alpaca.markets/live) → *API keys → Generate*. Key id starts with `AK…`. (Funded account required.)
+
+Paste both into the Alpaca tile on the login screen, pick the stock data feed (`iex` is
+free; `sip` requires a paid market-data subscription), and tick **Use live endpoint** for
+production. The secret is DPAPI-encrypted on disk.
+
+```json
+"Alpaca": {
+  "ApiKey": "",
+  "ApiSecret": "",
+  "IsLive": false,
+  "StockDataFeed": "iex"
+}
+```
+
+`Contract.SecType` drives asset-class routing inside `RealAlpacaClient`: `STK` → stock
+endpoints, `CRYPTO` → crypto endpoints. Other sec-types (options) throw
+`NotSupportedException` until the SDK's options surface stabilises. There is no L2 depth
+— Alpaca only exposes L1 quotes.
+
 ## Configuration reference (`appsettings.json`)
 
 | Key | Default | Notes |
@@ -213,6 +245,12 @@ The corresponding `appsettings.json` keys (overridable but the login screen is t
 | `CTrader:Host` | `demo.ctraderapi.com` | Or `live.ctraderapi.com`. |
 | `CTrader:Port` | `5035` | TLS port for both endpoints. |
 | `CTrader:IsLive` | `false` | Cosmetic — the host string above is what actually routes. |
+| `Alpaca:ApiKey` | (empty) | Key id from the Alpaca dashboard (`PK…` paper / `AK…` live). |
+| `Alpaca:ApiSecret` | (empty) | API secret. Stored DPAPI-encrypted at runtime — the login form is the normal entry path. |
+| `Alpaca:IsLive` | `false` | `true` targets `api.alpaca.markets`; `false` targets `paper-api.alpaca.markets`. |
+| `Alpaca:StockDataFeed` | `iex` | `iex` (free) or `sip` (paid). Ignored for crypto. |
+| `Alpaca:ReconnectInitialDelaySeconds` | `1` | Initial backoff. |
+| `Alpaca:ReconnectMaxDelaySeconds` | `30` | Cap on backoff. |
 | `Logging:MinimumLevel` | `Information` | `Verbose` / `Debug` / `Information` / `Warning` / `Error`. |
 | `Logging:FilePath` | `logs/terminal-.log` | Daily rolling, relative to the app's working directory. |
 | `Notifications:QueueCapacity` | `256` | Bounded channel size; oldest dropped on overflow. |
@@ -225,7 +263,7 @@ The corresponding `appsettings.json` keys (overridable but the login screen is t
 | `Notifications:Discord:Username` | `DaxAlgo Terminal` | Optional username override. Empty = use webhook default. |
 | `Notifications:Discord:IncludeIdleSignals` | `false` | Same semantics as the Telegram knob. |
 
-OAuth secrets and passwords are not in `appsettings.json` — they live in a DPAPI-encrypted `connection.json` under `%LOCALAPPDATA%\DaxAlgoTerminal\`.
+OAuth secrets, passwords, and Alpaca API secrets are not in `appsettings.json` — they live in a DPAPI-encrypted `connection.json` under `%LOCALAPPDATA%\DaxAlgoTerminal\`.
 
 ## Notifications (Telegram + Discord)
 
@@ -379,7 +417,7 @@ rather than editing the ones it produces.
    - `RealXxxClient` — the actual integration. Gate behind a compile-time constant if it depends on a sideloaded DLL (mirror the `HAS_IBAPI` / `HAS_NTAPI` pattern in `Infrastructure.csproj`).
    - `FakeXxxClient` — a synthetic fallback so the build is always green.
 4. Register both `IBrokerClient` and `BrokerConnectionMode` for the new broker in `DependencyInjection.cs`. The `BrokerSelector` auto-discovers them via `IEnumerable<IBrokerClient>`.
-5. Add a third tile + form panel to `LoginWindow.xaml` and a corresponding `SelectXxx` command + form fields to `LoginViewModel`.
+5. Add a tile + form panel to `LoginWindow.xaml` (alongside the existing IB / NT / cTrader / Alpaca tiles) and a corresponding `SelectXxx` command + form fields to `LoginViewModel`.
 
 The `MarketDataRepository`, `ConnectionManager`, all view-models, and every strategy stay untouched — they talk to `IBrokerClient` exclusively.
 
@@ -390,8 +428,9 @@ TradingTerminal/
 ├── src/
 │   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
 │   │   ├── Backtest/                             Backtest tab view + view-model
+│   │   ├── BrokerForms/                          AlpacaLoginForm (XAML + VM)
 │   │   ├── Composition/                          Per-feature DI extensions (manifest for App.OnStartup)
-│   │   ├── Login/ Login/Forms/                   Login window + per-broker form view-models
+│   │   ├── Login/ Login/Forms/                   Login window + per-broker form view-models (IB, NT, cTrader)
 │   │   ├── Notifications/                        Settings tab VM/View + per-user notifications.json writer
 │   │   ├── Recording/                            Live tick recorder tab
 │   │   ├── Research/                             Factor research tab
@@ -424,6 +463,7 @@ TradingTerminal/
 │   │   ├── Ib/                                   RealIbClient (#if HAS_IBAPI), ConnectionManager
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI)
 │   │   ├── CTrader/                              RealCTraderClient (live spot + L2 depth)
+│   │   ├── Alpaca/                               RealAlpacaClient (REST history + WS ticks, stocks + crypto)
 │   │   ├── MarketData/                           MarketDataRepository
 │   │   ├── Notifications/                        Dispatcher (channel + hosted worker + enricher pipeline),
 │   │   │                                          Telegram + Discord transports, Ollama commentary enricher
@@ -495,6 +535,10 @@ Coverage (31+ tests, growing):
 | NinjaTrader connect throws `DllNotFoundException` | NTDirect.dll wasn't copied to the output directory. Confirm the build printed `NTDirect resolved from:`. |
 | cTrader connect immediately fails | One of `ClientId` / `ClientSecret` / `AccessToken` / `CtidTraderAccountId` is missing or wrong. Check the Logs pane for the exact `ProtoOAErrorRes` description. |
 | cTrader was working, now suddenly fails | The access token has likely expired (~30 days). Re-run the OAuth refresh and paste the new token into the login form. |
+| Alpaca login fails immediately (`auth failed`) | API key id or secret is wrong, or the key was minted on a different environment (paper key against the live endpoint, or vice versa). Re-check the paper / live toggle and regenerate the key from the dashboard if needed. |
+| Alpaca: `NotSupportedException` on subscribe | The contract's `SecType` isn't `STK` or `CRYPTO`. Alpaca options aren't wired yet — route options through IB. |
+| Alpaca: `NotSupportedException` from `SubscribeDepthAsync` | Expected — Alpaca only exposes L1 quotes. Route depth-of-market subscriptions through IB or cTrader. |
+| Alpaca: stock `sip` feed returns no data | The `sip` consolidated feed needs a paid subscription on the Alpaca account. Switch the feed dropdown back to `iex` (free). |
 | `dotnet build` complains about missing .NET 8 SDK | This project targets `net9.0-windows`. Make sure the .NET 9 SDK is installed. |
 | Tests fail with a STA error | The `Xunit.StaFact` package didn't restore. The WPF-touching test uses `[WpfFact]` which spins up an STA thread. |
 

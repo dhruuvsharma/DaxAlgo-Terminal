@@ -13,15 +13,16 @@ that's not the case yet.
 dotnet run --project src/TradingTerminal.App
 ```
 
-You'll see the **login window** with three broker tiles: Interactive Brokers, NinjaTrader,
-cTrader. Pick one — the terminal connects to whichever broker you log in with, and
-swaps the entire data path (history, ticks, depth, connection state) accordingly.
+You'll see the **login window** with four broker tiles: Interactive Brokers, NinjaTrader,
+cTrader, Alpaca. Pick one — the terminal connects to whichever broker you log in with,
+and swaps the entire data path (history, ticks, depth, connection state) accordingly.
 
 | Broker | Prereq | How to fill in the form |
 |---|---|---|
 | **Interactive Brokers** | TWS or IB Gateway running and signed in. **API → Settings → Enable ActiveX and Socket Clients** ticked. Trusted IP `127.0.0.1` added. | Host `127.0.0.1`, port 7497 (TWS Paper), 7496 (TWS Live), 4002 (Gateway Paper), or 4001 (Gateway Live). Client ID = any integer not used by another connected client. |
 | **NinjaTrader 8** | NT 8 running. **Tools → Options → AT Interface → AT Interface enabled** ticked. | Account name (default `Sim101`). Default contract month (e.g. `06-26`) only matters if you trade bare futures symbols. |
 | **cTrader** | OAuth app registered at [connect.spotware.com/apps](https://connect.spotware.com/apps), access token obtained. | Client ID + Client Secret (from your registered app), Access Token (from the OAuth flow), CtidTraderAccountId (numeric, from the account-list endpoint). Tick **Use live endpoint** for production. |
+| **Alpaca** | API key id + secret minted from the [Alpaca dashboard](https://app.alpaca.markets) (paper) or [/live](https://app.alpaca.markets/live) (funded). | API key id (starts `PK…` paper / `AK…` live), API secret, stock data feed (`iex` free / `sip` paid). Tick **Use live endpoint** for the funded account; leave unticked for paper. Stocks (`STK`) and crypto (`CRYPTO`) work; options not yet wired; no L2 depth. |
 
 After **Sign in**, the main shell opens. The status bar at the bottom shows connection
 state, your user/account, the active broker, and a tab count.
@@ -321,6 +322,9 @@ or Discord transport for the shape.
 | NinjaTrader: `DllNotFoundException` | `NTDirect.dll` wasn't copied next to the assembly. Verify the build printed `NTDirect resolved from:`. |
 | cTrader connect fails immediately | One of ClientId / ClientSecret / AccessToken / CtidTraderAccountId is missing or wrong. Logs pane has the exact `ProtoOAErrorRes`. |
 | cTrader was working, now fails | Access token has expired (~30 days). Re-run the OAuth refresh, paste the new token. |
+| Alpaca login fails immediately | API key id / secret wrong, or the key was minted for the other environment (paper key against live, or vice versa). Re-check the live toggle; regenerate the key from the dashboard if needed. |
+| Alpaca: nothing happens on a non-stock / non-crypto symbol | The Alpaca client routes by `Contract.SecType` — only `STK` (stocks) and `CRYPTO` work today. Options aren't wired yet; route those through IB. |
+| Alpaca: `sip` feed shows blank ticks | The consolidated SIP feed needs a paid Alpaca market-data subscription. Switch the feed dropdown to `iex` (free) on the login form. |
 | Strategy window shows `AvalonDock.Layout.LayoutDocument` text | Stale build before the DockTab fix. `dotnet build` again. |
 | Notifications not arriving | Open Logs pane — Telegram/Discord transports log failures there. Common: invalid bot token (Telegram), expired or malformed webhook URL (Discord). Hit **Send test** in the Settings tab to bypass strategy logic. |
 | Ollama enricher silently doing nothing | The model isn't pulled, or Ollama isn't running. `ollama list` to confirm; `ollama serve` to start. Enricher always times out silently — it's deliberate so a slow LLM never backlogs the dispatcher. |
