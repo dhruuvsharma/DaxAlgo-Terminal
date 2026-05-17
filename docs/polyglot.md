@@ -6,6 +6,13 @@
 
 Why: the WPF build must stay hermetic (one `dotnet build`, no native toolchains, no Python venv on the path). The C# side gets one interface per tool; the tool stays in its own toolchain (CMake / pip), its own repo if you want. If the bridge breaks, the terminal degrades gracefully ("Fast backtest unavailable — falling back to managed engine") — it never crashes the shell.
 
+## Status
+
+| Tool | Status |
+|---|---|
+| `tick-backtester` (C++) | **Shipped (single strategy).** C# seam: `IFastBacktestRunner` + `ProcessFastBacktestRunner`. C++ exe: `tick_backtester` in [Tick-BackTester](https://github.com/dhruuvsharma/Tick-BackTester). UI: Backtest tab → "Use C++ Fast engine" checkbox. Only `meanReversion` is wired on the C++ side today. |
+| `daxalgo-ml` (Python) | Forthcoming. |
+
 ## The two tools (today)
 
 | Tool | Language | Job | Process model | Talks to C# via |
@@ -103,6 +110,22 @@ You shouldn't, unless the same justification applies: an existing ecosystem you 
 
 ## Migration order
 
-1. **Subprocess plumbing in C# first** — `IFastBacktestRunner` + `IPythonMlClient` interfaces, with managed `Null*` implementations that throw "not configured." This unblocks the UI work.
-2. **Python sidecar second** — bigger leverage (no Python ML in the app today), smaller surface (FastAPI + a couple of endpoints).
-3. **C++ bridge third** — only worth it once a user actually hits a dataset the C# engine struggles with. The C# engine handles 1M ticks comfortably; this seam is for the day someone wants 50M.
+1. ~~**Subprocess plumbing in C# first** — `IFastBacktestRunner` + `IPythonMlClient` interfaces, with managed `Null*` implementations that throw "not configured."~~ ✅ Done (`IFastBacktestRunner`, `Process`/`Null` impls, DI wired).
+2. ~~**C++ bridge** — JSON-in/JSON-out runner reusing the existing event engine.~~ ✅ Done (`tick_backtester` in the [Tick-BackTester](https://github.com/dhruuvsharma/Tick-BackTester) repo, submoduled at `tools/cpp-backtester/`).
+3. **Python sidecar** — forthcoming. `IPythonMlClient` interface + `daxalgo-ml` FastAPI service. Bigger leverage than the C++ bridge (no Python ML in the app today), smaller surface (FastAPI + a couple of endpoints).
+4. **Widen the C++ strategy set** — port strategies from `Infrastructure/Backtest/Strategies/` one at a time. Each port flips the corresponding `BacktestStrategyOption.Fast` flag to `true` so the UI's Fast checkbox lights up.
+
+## Building the C++ side
+
+The submodule lives under `tools/cpp-backtester/`. From the repo root:
+
+```powershell
+git submodule update --init --recursive
+cd tools\cpp-backtester
+# Windows: requires vcpkg with eigen3, fmt, spdlog, arrow[parquet]
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
+      -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
+cmake --build build --target tick_backtester --parallel
+```
+
+The next `dotnet build` of `TradingTerminal.App` picks up the produced `tick_backtester.exe` and copies it next to the App's assemblies. From there `FastBacktestServiceCollectionExtensions.AddFastBacktestRunner` resolves it and the Backtest tab's "Use C++ Fast engine" checkbox is no longer greyed out for `meanReversion`. Without the exe, the runner falls back to `NullFastBacktestRunner` and the UI surfaces the disabled state — nothing else changes.

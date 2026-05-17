@@ -67,6 +67,12 @@
                 <TextBlock Text="Starting cash" />
                 <TextBox Text="{Binding StartingCash}" Margin="0,2,0,12" />
 
+                <CheckBox Content="Use C++ Fast engine"
+                          IsChecked="{Binding UseFastEngine}"
+                          IsEnabled="{Binding IsFastAvailable}"
+                          ToolTip="Routes the run through tools/cpp-backtester/ instead of the managed engine. Greyed out when the strategy is not wired on the C++ side, or when the tick_backtester binary has not been built."
+                          Margin="0,0,0,12" />
+
                 <StackPanel Orientation="Horizontal">
                     <Button Content="Run"
                             Command="{Binding RunCommand}"

@@ -98,8 +98,9 @@ Core       → (nothing)
 See `docs/architecture.md` for the full design rationale and key interface signatures.
 See `docs/user-guide.md` for the end-user manual (login, strategies, notifications,
 backtesting, factor research, recorder, CLI).
-See `docs/polyglot.md` for the cross-language seam (C++ fast backtester + Python ML
-sidecar) that's being phased in alongside the C# core.
+See `docs/polyglot.md` for the cross-language seam: the C++ tick backtester
+(submoduled at `tools/cpp-backtester/`, surfaced as the **Use C++ Fast engine**
+checkbox in the Backtest tab) and the forthcoming Python ML sidecar.
 
 ## Prerequisites
 
