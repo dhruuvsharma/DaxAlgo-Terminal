@@ -12,4 +12,5 @@ namespace TradingTerminal.Core.Backtest;
 public sealed record BacktestStrategyOption(
     string Id,
     string DisplayName,
-    Func<Contract, IBacktestStrategy> Build);
+    Func<Contract, IBacktestStrategy> Build,
+    bool Fast = false);

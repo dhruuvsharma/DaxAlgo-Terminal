@@ -40,7 +40,8 @@ public static class BacktestStrategyCatalog
         new BacktestStrategyOption(
             Id: "meanReversion",
             DisplayName: "Mean reversion (demo)",
-            Build: contract => new MeanReversionStrategy(contract)),
+            Build: contract => new MeanReversionStrategy(contract),
+            Fast: true),
         new BacktestStrategyOption(
             Id: "donchianBreakout",
             DisplayName: "Donchian breakout (demo)",
