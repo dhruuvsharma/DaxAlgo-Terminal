@@ -36,5 +36,7 @@ public partial class LoginWindow : MetroWindow
             NinjaFormHost.Content = new NinjaLoginForm { DataContext = nt };
         if (vm.CTraderForm is { } ct)
             CTraderFormHost.Content = new CTraderLoginForm { DataContext = ct };
+        if (vm.AlpacaForm is { } al)
+            AlpacaFormHost.Content = new AlpacaLoginForm { DataContext = al };
     }
 }

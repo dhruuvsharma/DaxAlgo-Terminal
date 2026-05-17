@@ -5,4 +5,5 @@ public enum BrokerKind
     InteractiveBrokers,
     NinjaTrader,
     CTrader,
+    Alpaca,
 }

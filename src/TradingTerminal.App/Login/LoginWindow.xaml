@@ -76,6 +76,9 @@
                             <DataTrigger Binding="{Binding Broker}" Value="CTrader">
                                 <Setter Property="Tag" Value="#0277BD" />
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding Broker}" Value="Alpaca">
+                                <Setter Property="Tag" Value="#FFB300" />
+                            </DataTrigger>
                             <!-- Highlight the active form's tile. -->
                             <DataTrigger Value="True">
                                 <DataTrigger.Binding>
@@ -195,6 +198,8 @@
                                 Visibility="{Binding IsNinjaBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 <ContentControl x:Name="CTraderFormHost"
                                 Visibility="{Binding IsCTraderBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <ContentControl x:Name="AlpacaFormHost"
+                                Visibility="{Binding IsAlpacaBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </Grid>
         </ScrollViewer>
 

@@ -62,10 +62,12 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public IbLoginFormViewModel? IbForm => AvailableForms.OfType<IbLoginFormViewModel>().FirstOrDefault();
     public NinjaLoginFormViewModel? NinjaForm => AvailableForms.OfType<NinjaLoginFormViewModel>().FirstOrDefault();
     public CTraderLoginFormViewModel? CTraderForm => AvailableForms.OfType<CTraderLoginFormViewModel>().FirstOrDefault();
+    public AlpacaLoginFormViewModel? AlpacaForm => AvailableForms.OfType<AlpacaLoginFormViewModel>().FirstOrDefault();
 
     public bool IsIbBrokerSelected => ActiveForm.Broker == BrokerKind.InteractiveBrokers;
     public bool IsNinjaBrokerSelected => ActiveForm.Broker == BrokerKind.NinjaTrader;
     public bool IsCTraderBrokerSelected => ActiveForm.Broker == BrokerKind.CTrader;
+    public bool IsAlpacaBrokerSelected => ActiveForm.Broker == BrokerKind.Alpaca;
 
     [ObservableProperty]
     private IBrokerLoginForm _activeForm = null!;
@@ -80,6 +82,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsIbBrokerSelected));
         OnPropertyChanged(nameof(IsNinjaBrokerSelected));
         OnPropertyChanged(nameof(IsCTraderBrokerSelected));
+        OnPropertyChanged(nameof(IsAlpacaBrokerSelected));
     }
 
     public string SubtitleText => $"Sign in via {ActiveForm.DisplayName}";

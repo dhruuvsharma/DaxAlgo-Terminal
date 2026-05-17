@@ -66,6 +66,8 @@ public partial class App : Application
                     ctx.Configuration.GetSection(NinjaTraderOptions.SectionName));
                 services.Configure<CTraderOptions>(
                     ctx.Configuration.GetSection(CTraderOptions.SectionName));
+                services.Configure<AlpacaOptions>(
+                    ctx.Configuration.GetSection(AlpacaOptions.SectionName));
 
                 // Cross-cutting infrastructure
                 services.AddSingleton(inMemoryLogSink);

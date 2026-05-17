@@ -9,6 +9,7 @@ using TradingTerminal.Core.Session;
 using TradingTerminal.Infrastructure.Brokers;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
+using TradingTerminal.Infrastructure.Alpaca;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
@@ -79,6 +80,22 @@ public static class DependencyInjection
                 Description: opt.IsLive
                     ? "Connected to live.ctraderapi.com via Spotware Open API."
                     : "Connected to demo.ctraderapi.com via Spotware Open API (paper account).");
+        });
+
+        // Alpaca — always available (REST + WebSocket SDK on NuGet, no DLL gate).
+        services.AddSingleton<IBrokerClient>(sp =>
+            ActivatorUtilities.CreateInstance<RealAlpacaClient>(sp));
+
+        services.AddSingleton<BrokerConnectionMode>(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<AlpacaOptions>>().Value;
+            return new BrokerConnectionMode(
+                BrokerKind.Alpaca,
+                IsLive: opt.IsLive,
+                DisplayName: opt.IsLive ? "Live Alpaca" : "Paper Alpaca",
+                Description: opt.IsLive
+                    ? "Connected to api.alpaca.markets (funded account)."
+                    : "Connected to paper-api.alpaca.markets (paper trading).");
         });
 
         services.AddSingleton<IBrokerSelector, BrokerSelector>();

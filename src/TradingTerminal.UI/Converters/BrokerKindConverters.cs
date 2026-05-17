@@ -13,6 +13,7 @@ public sealed class BrokerInitialsConverter : IValueConverter
             BrokerKind.InteractiveBrokers => "IB",
             BrokerKind.NinjaTrader => "NT",
             BrokerKind.CTrader => "cT",
+            BrokerKind.Alpaca => "AL",
             _ => "?",
         } : "?";
 
@@ -29,6 +30,7 @@ public sealed class BrokerSubtitleConverter : IValueConverter
             BrokerKind.InteractiveBrokers => "TWS / IB Gateway",
             BrokerKind.NinjaTrader => "NinjaTrader 8 (NTDirect)",
             BrokerKind.CTrader => "Spotware Open API",
+            BrokerKind.Alpaca => "Alpaca REST + WebSocket",
             _ => string.Empty,
         } : string.Empty;
 

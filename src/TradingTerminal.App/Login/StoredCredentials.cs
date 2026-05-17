@@ -52,6 +52,21 @@ public sealed class StoredCredentials
         set => CTraderAccessTokenEncryptedBase64 = EncryptDpapi(value);
     }
 
+    // ---- Alpaca-specific fields ----
+    public string AlpacaApiKey { get; set; } = string.Empty;
+    public bool AlpacaIsLive { get; set; }
+    public string AlpacaStockDataFeed { get; set; } = "iex";
+
+    /// <summary>Base64-encoded DPAPI ciphertext for the Alpaca API secret.</summary>
+    public string? AlpacaApiSecretEncryptedBase64 { get; set; }
+
+    [JsonIgnore]
+    public string? AlpacaApiSecret
+    {
+        get => DecryptDpapi(AlpacaApiSecretEncryptedBase64);
+        set => AlpacaApiSecretEncryptedBase64 = EncryptDpapi(value);
+    }
+
     private static string? DecryptDpapi(string? encryptedBase64)
     {
         if (string.IsNullOrEmpty(encryptedBase64)) return null;

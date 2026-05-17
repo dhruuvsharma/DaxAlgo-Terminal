@@ -110,6 +110,9 @@ public static class AppDependencyInjection
         services.AddSingleton<CTraderLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<CTraderLoginFormViewModel>());
 
+        services.AddSingleton<AlpacaLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<AlpacaLoginFormViewModel>());
+
         services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
         return services;
     }
