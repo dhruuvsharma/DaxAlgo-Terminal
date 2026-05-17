@@ -73,10 +73,10 @@
 
   <!--
     Polyglot bridge: copy the C++ tick_backtester.exe to the App output if it
-    has been built. The submodule (tools/cpp-backtester/) has its own CMake
-    build; once the cmake build target tick_backtester runs there, this glob
-    picks up the produced exe. Missing files are silently skipped, so the C#
-    DI layer falls back to NullFastBacktestRunner and surfaces
+    has been built. The in-tree CMake project at tools/cpp-backtester/ has its
+    own build; once the cmake build target tick_backtester runs there, this
+    glob picks up the produced exe. Missing files are silently skipped, so
+    the C# DI layer falls back to NullFastBacktestRunner and surfaces
     'Fast backtest unavailable' in the UI.
   -->
   <ItemGroup>

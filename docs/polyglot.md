@@ -10,7 +10,7 @@ Why: the WPF build must stay hermetic (one `dotnet build`, no native toolchains,
 
 | Tool | Status |
 |---|---|
-| `tick-backtester` (C++) | **Shipped (single strategy).** C# seam: `IFastBacktestRunner` + `ProcessFastBacktestRunner`. C++ exe: `tick_backtester` in [Tick-BackTester](https://github.com/dhruuvsharma/Tick-BackTester). UI: Backtest tab → "Use C++ Fast engine" checkbox. Only `meanReversion` is wired on the C++ side today. |
+| `tick-backtester` (C++) | **Shipped (single strategy).** C# seam: `IFastBacktestRunner` + `ProcessFastBacktestRunner`. C++ source in-tree at `tools/cpp-backtester/`, exe target `tick_backtester`. UI: Backtest tab → "Use C++ Fast engine" checkbox. Only `meanReversion` is wired on the C++ side today. |
 | `daxalgo-ml` (Python) | Forthcoming. |
 
 ## The two tools (today)
@@ -31,16 +31,17 @@ DaxAlgo Terminal/
 │       ├── Backtest/Fast/                ← IFastBacktestRunner + ProcessFastBacktestRunner
 │       └── Ml/                           ← IPythonMlClient + HttpPythonMlClient + lifecycle
 └── tools/                                ← polyglot sidecars, each with its own build
-    ├── cpp-backtester/                   ← git submodule pointing at Tick-BackTester
+    ├── cpp-backtester/                   ← in-tree C++ source (CMake project)
     │   ├── CMakeLists.txt
-    │   └── bin/tick_backtester.exe       ← copied to App output via csproj <None Include>
+    │   ├── app/backtest_json.cpp         ← JSON-bridge entry point
+    │   └── build/Release/tick_backtester.exe  ← copied to App output via csproj <None Include>
     └── python-ml/
         ├── pyproject.toml
         ├── daxalgo_ml/                   ← FastAPI app + sklearn/pandas wrappers
         └── bin/daxalgo-ml.exe            ← PyInstaller-frozen launcher (no venv on user box)
 ```
 
-`tools/` is **excluded from the .sln**. Each sidecar builds via its own CI step; the App project's csproj copies the built artefact into the output folder via `<None Include="...\bin\*" CopyToOutputDirectory="PreserveNewest">`.
+`tools/` is **surfaced in the .sln as a Solution Folder** (top-level `tools` → `cpp-backtester`, with `CMakeLists.txt`, `README.md`, and the two `app/backtest_*.cpp` entry points attached as SolutionItems) so the C++ source is browseable from Visual Studio. The CMake build runs separately — the .sln doesn't try to wrap it. The App project's csproj copies the built artefact into the output folder via `<None Include="...\build\Release\tick_backtester.exe" CopyToOutputDirectory="PreserveNewest">`.
 
 ## C++ backtester seam
 
@@ -111,16 +112,15 @@ You shouldn't, unless the same justification applies: an existing ecosystem you 
 ## Migration order
 
 1. ~~**Subprocess plumbing in C# first** — `IFastBacktestRunner` + `IPythonMlClient` interfaces, with managed `Null*` implementations that throw "not configured."~~ ✅ Done (`IFastBacktestRunner`, `Process`/`Null` impls, DI wired).
-2. ~~**C++ bridge** — JSON-in/JSON-out runner reusing the existing event engine.~~ ✅ Done (`tick_backtester` in the [Tick-BackTester](https://github.com/dhruuvsharma/Tick-BackTester) repo, submoduled at `tools/cpp-backtester/`).
+2. ~~**C++ bridge** — JSON-in/JSON-out runner reusing the existing event engine.~~ ✅ Done (`tools/cpp-backtester/app/backtest_json.cpp`, target `tick_backtester` in the in-tree CMake project).
 3. **Python sidecar** — forthcoming. `IPythonMlClient` interface + `daxalgo-ml` FastAPI service. Bigger leverage than the C++ bridge (no Python ML in the app today), smaller surface (FastAPI + a couple of endpoints).
 4. **Widen the C++ strategy set** — port strategies from `Infrastructure/Backtest/Strategies/` one at a time. Each port flips the corresponding `BacktestStrategyOption.Fast` flag to `true` so the UI's Fast checkbox lights up.
 
 ## Building the C++ side
 
-The submodule lives under `tools/cpp-backtester/`. From the repo root:
+The C++ source is in-tree under `tools/cpp-backtester/` — no submodule, no separate repo to keep in sync. From the repo root:
 
 ```powershell
-git submodule update --init --recursive
 cd tools\cpp-backtester
 # Windows: requires vcpkg with eigen3, fmt, spdlog, arrow[parquet]
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `

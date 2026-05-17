@@ -65,6 +65,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.AnomalyDetector", "src\TradingTerminal.Strategies.AnomalyDetector\TradingTerminal.Strategies.AnomalyDetector.csproj", "{9900C83E-4828-49BD-B23C-8408D925A795}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{CB000001-2B5E-4A9C-8E3B-7D2F6A9B5C90}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "cpp-backtester", "tools\cpp-backtester", "{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\CMakeLists.txt = tools\cpp-backtester\CMakeLists.txt
+		tools\cpp-backtester\README.md = tools\cpp-backtester\README.md
+		tools\cpp-backtester\app\backtest_json.cpp = tools\cpp-backtester\app\backtest_json.cpp
+		tools\cpp-backtester\app\backtest_runner.cpp = tools\cpp-backtester\app\backtest_runner.cpp
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -457,5 +467,6 @@ Global
 		{5633D2C4-0614-4574-AA65-985E5FF8285D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{6F98C76E-8A0C-4525-9879-CADCEA96300C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{9900C83E-4828-49BD-B23C-8408D925A795} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91} = {CB000001-2B5E-4A9C-8E3B-7D2F6A9B5C90}
 	EndGlobalSection
 EndGlobal
