@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Ai;
+using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
@@ -186,6 +187,14 @@ public static class AppDependencyInjection
         services.AddTransient<MlFeaturesView>();
         services.AddTransient<BacktestAnalysisViewModel>();
         services.AddTransient<BacktestAnalysisView>();
+        return services;
+    }
+
+    /// <summary>AI Market Analyst tab — opens from AI tools → Market analyst.</summary>
+    public static IServiceCollection AddAiAnalystSurface(this IServiceCollection services)
+    {
+        services.AddTransient<AiAnalystViewModel>();
+        services.AddTransient<AiAnalystView>();
         return services;
     }
 }

@@ -1,3 +1,5 @@
+using TradingTerminal.Infrastructure.AiAnalyst;
+
 namespace TradingTerminal.Infrastructure.Notifications;
 
 public sealed class NotificationsOptions
@@ -9,6 +11,8 @@ public sealed class NotificationsOptions
     public DiscordOptions Discord { get; set; } = new();
 
     public OllamaOptions Ollama { get; set; } = new();
+
+    public AiAnalystOptions AiAnalyst { get; set; } = new();
 
     /// <summary>
     /// Bounded queue depth. When full, the oldest notification is dropped with a logged

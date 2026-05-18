@@ -64,6 +64,9 @@
                           Command="{Binding OpenMlFeaturesCommand}" />
                 <MenuItem Header="_Backtest analysis…"
                           Command="{Binding OpenBacktestAnalysisCommand}" />
+                <Separator />
+                <MenuItem Header="_Market analyst…"
+                          Command="{Binding OpenAiAnalystCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Settings">

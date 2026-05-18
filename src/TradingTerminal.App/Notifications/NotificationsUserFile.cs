@@ -65,6 +65,18 @@ internal static class NotificationsUserFile
                 ["TimeoutSeconds"] = options.Ollama.TimeoutSeconds,
                 ["SystemPrompt"] = options.Ollama.SystemPrompt,
             },
+            ["AiAnalyst"] = new JsonObject
+            {
+                ["Enabled"] = options.AiAnalyst.Enabled,
+                ["Endpoint"] = options.AiAnalyst.Endpoint,
+                ["Provider"] = options.AiAnalyst.Provider,
+                ["Model"] = options.AiAnalyst.Model,
+                ["VisionModel"] = options.AiAnalyst.VisionModel,
+                ["BarCount"] = options.AiAnalyst.BarCount,
+                ["TimeoutSeconds"] = options.AiAnalyst.TimeoutSeconds,
+                ["IncludeInEnricher"] = options.AiAnalyst.IncludeInEnricher,
+                ["ApiKeyEncryptedBase64"] = options.AiAnalyst.ApiKeyEncryptedBase64,
+            },
         };
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

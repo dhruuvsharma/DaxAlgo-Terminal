@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Notifications;
+using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.UI;
 
@@ -47,6 +48,18 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     [ObservableProperty] private int _ollamaTimeoutSeconds = 4;
     [ObservableProperty] private string _ollamaSystemPrompt = "";
 
+    [ObservableProperty] private bool _aiAnalystEnabled;
+    [ObservableProperty] private string _aiAnalystEndpoint = "http://127.0.0.1:8765";
+    [ObservableProperty] private string _aiAnalystProvider = "openai";
+    [ObservableProperty] private string _aiAnalystApiKey = "";
+    [ObservableProperty] private string _aiAnalystModel = "gpt-4o";
+    [ObservableProperty] private string _aiAnalystVisionModel = "gpt-4o";
+    [ObservableProperty] private int _aiAnalystBarCount = 50;
+    [ObservableProperty] private int _aiAnalystTimeoutSeconds = 60;
+    [ObservableProperty] private bool _aiAnalystIncludeInEnricher;
+
+    public IReadOnlyList<string> AiAnalystProviders { get; } = new[] { "openai", "anthropic", "qwen", "minimax" };
+
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _hasUnsavedChanges;
 
@@ -63,6 +76,15 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     partial void OnOllamaModelChanged(string value) => HasUnsavedChanges = true;
     partial void OnOllamaTimeoutSecondsChanged(int value) => HasUnsavedChanges = true;
     partial void OnOllamaSystemPromptChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystEnabledChanged(bool value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystEndpointChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystProviderChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystApiKeyChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystModelChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystVisionModelChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystBarCountChanged(int value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystTimeoutSecondsChanged(int value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystIncludeInEnricherChanged(bool value) => HasUnsavedChanges = true;
 
     private void LoadFromOptions(NotificationsOptions o)
     {
@@ -79,6 +101,15 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
         OllamaModel = o.Ollama.Model;
         OllamaTimeoutSeconds = o.Ollama.TimeoutSeconds;
         OllamaSystemPrompt = o.Ollama.SystemPrompt;
+        AiAnalystEnabled = o.AiAnalyst.Enabled;
+        AiAnalystEndpoint = o.AiAnalyst.Endpoint;
+        AiAnalystProvider = o.AiAnalyst.Provider;
+        AiAnalystApiKey = o.AiAnalyst.ApiKey ?? "";
+        AiAnalystModel = o.AiAnalyst.Model;
+        AiAnalystVisionModel = o.AiAnalyst.VisionModel;
+        AiAnalystBarCount = o.AiAnalyst.BarCount;
+        AiAnalystTimeoutSeconds = o.AiAnalyst.TimeoutSeconds;
+        AiAnalystIncludeInEnricher = o.AiAnalyst.IncludeInEnricher;
         HasUnsavedChanges = false;
     }
 
@@ -110,6 +141,18 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
                 Model = OllamaModel?.Trim() ?? "",
                 TimeoutSeconds = OllamaTimeoutSeconds,
                 SystemPrompt = OllamaSystemPrompt ?? "",
+            },
+            AiAnalyst = new AiAnalystOptions
+            {
+                Enabled = AiAnalystEnabled,
+                Endpoint = AiAnalystEndpoint?.Trim() ?? "",
+                Provider = AiAnalystProvider?.Trim() ?? "openai",
+                ApiKey = string.IsNullOrWhiteSpace(AiAnalystApiKey) ? null : AiAnalystApiKey,
+                Model = AiAnalystModel?.Trim() ?? "",
+                VisionModel = AiAnalystVisionModel?.Trim() ?? "",
+                BarCount = Math.Max(1, AiAnalystBarCount),
+                TimeoutSeconds = Math.Max(1, AiAnalystTimeoutSeconds),
+                IncludeInEnricher = AiAnalystIncludeInEnricher,
             },
         };
 

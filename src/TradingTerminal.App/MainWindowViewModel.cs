@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Ai;
+using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
@@ -31,6 +32,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string ResearchTabId = "tools.research";
     private const string MlFeaturesTabId = "ai.mlfeatures";
     private const string BacktestAnalysisTabId = "ai.backtestanalysis";
+    private const string AiAnalystTabId = "ai.marketanalyst";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -329,6 +331,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Backtest analysis",
             ContentId = BacktestAnalysisTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenAiAnalyst()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == AiAnalystTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<AiAnalystViewModel>();
+        var view = _services.GetRequiredService<AiAnalystView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "AI market analyst",
+            ContentId = AiAnalystTabId,
             Content = view,
             CanClose = true,
         };

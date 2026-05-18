@@ -118,6 +118,73 @@
                 </StackPanel>
             </Border>
 
+            <Border BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    Padding="16"
+                    Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="AI Market Analyst (cloud LLM)"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4" />
+                    <TextBlock Text="Runs a multi-agent LangGraph analyst (indicator → pattern → trend → decision) through a local Python sidecar. Bring your own API key for OpenAI / Anthropic / Qwen / MiniMax. The key is stored DPAPI-encrypted on disk, never in plain JSON."
+                               Foreground="{DynamicResource Text.Secondary}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8" />
+
+                    <CheckBox Content="Enabled"
+                              IsChecked="{Binding AiAnalystEnabled, Mode=TwoWay}"
+                              Margin="0,0,0,12" />
+
+                    <TextBlock Text="Sidecar endpoint  (default http://127.0.0.1:8765)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding AiAnalystEndpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="Provider" Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding AiAnalystProviders}"
+                              SelectedItem="{Binding AiAnalystProvider, Mode=TwoWay}"
+                              Margin="0,0,0,12" />
+
+                    <TextBlock Text="API key  (stored DPAPI-encrypted under %LOCALAPPDATA%; never in appsettings.json)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding AiAnalystApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="Text/reasoning model  (e.g. gpt-4o, claude-3-5-sonnet, qwen-max)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding AiAnalystModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <TextBlock Text="Vision model  (used by the pattern + trend agents)" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding AiAnalystVisionModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             FontFamily="Consolas"
+                             Margin="0,0,0,12" />
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Bar count per run" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding AiAnalystBarCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     FontFamily="Consolas" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Per-run timeout (seconds)" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding AiAnalystTimeoutSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     FontFamily="Consolas" />
+                        </StackPanel>
+                    </Grid>
+
+                    <CheckBox Content="Append the AI Analyst verdict line to every signal notification"
+                              IsChecked="{Binding AiAnalystIncludeInEnricher, Mode=TwoWay}"
+                              ToolTip="When enabled, Telegram/Discord signals carry an extra line like '🤖 AI Analyst: Long (conf 72%, R:R 2.1) — Bull Flag'." />
+                </StackPanel>
+            </Border>
+
             <StackPanel Orientation="Horizontal"
                         Margin="0,16,0,0">
                 <Button Content="Save"

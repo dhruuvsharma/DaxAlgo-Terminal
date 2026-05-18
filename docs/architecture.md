@@ -229,6 +229,28 @@ Two transports ship: **Telegram** (Bot API, JSON over HTTPS) and **Discord** (ch
 
 Adding another transport (Slack, email, SMS) = one class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus options/persistence/UI plumbing modelled on the Telegram or Discord scaffolding. The dispatcher discovers transports via `IEnumerable<INotificationTransport>`.
 
+#### AI Market Analyst
+
+A second enricher path (alongside the local-LLM Ollama commentary) runs a multi-agent **AI Market Analyst** against every signal. The C# side is broker- and provider-agnostic:
+
+```csharp
+public interface IAiAnalystClient
+{
+    bool IsAvailable { get; }
+    Task<AnalystReport> RunAsync(AnalystRequest request, CancellationToken ct = default);
+}
+
+public sealed record AnalystReport(
+    AiAnalystDecision Decision, string ForecastHorizon, double RiskRewardRatio,
+    double Confidence, string Justification,
+    IndicatorReport Indicator, PatternReport Pattern, TrendReport Trend,
+    string PatternChartPngBase64, string TrendChartPngBase64, long ElapsedMs);
+```
+
+Two implementations: `NullAiAnalystClient` (default — always returns "unavailable") and `HttpAiAnalystClient` (calls the Python sidecar over `http://127.0.0.1:<port>/analyst/run`). A `DispatchingAiAnalystClient` reads `IOptionsMonitor<NotificationsOptions>.CurrentValue` on every call so the Settings toggle hot-swaps Null ↔ Http without a restart. The actual reasoning lives in a Python sidecar (`tools/python-ml/daxalgo-ml.exe`) — a four-agent LangGraph (indicator → pattern → trend → decision) with TA-Lib indicators, mplfinance candle rendering, and vision-LLM pattern matching against a 16-pattern classical catalog. See [`polyglot.md`](polyglot.md) for the subprocess + HTTP/JSON seam contract and the rationale for keeping Python out-of-process.
+
+API keys are stored DPAPI-encrypted under `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json` (same `DataProtectionScope.CurrentUser` pattern as Alpaca/cTrader) — never in `appsettings.json`. The terminal degrades gracefully: with no sidecar running the WPF pane shows "AI Analyst unavailable" and the enricher silently passes notifications through unchanged. Ollama and AI Analyst are independent enrichers; both run in registration order, neither replaces the other.
+
 ### Backtest engine
 
 ```csharp

@@ -146,6 +146,91 @@ without an app restart.
 
 ---
 
+## 4b. AI Market Analyst (AI tools → Market analyst)
+
+A multi-agent LangGraph analyst that runs an indicator → pattern → trend → decision flow
+on a chosen symbol/timeframe and returns a structured verdict (`Long` / `Short` / `NoCall`)
+with annotated candlestick + trend-channel charts. The reasoning lives in a Python sidecar
+(`tools/python-ml/daxalgo-ml.exe`) — the WPF build stays hermetic. Bring your own API key
+for OpenAI, Anthropic, Qwen, or MiniMax.
+
+### Setup
+
+1. **Build the sidecar.** From `tools/python-ml/`:
+   ```powershell
+   python -m venv .venv
+   .venv\Scripts\Activate.ps1
+   pip install -e .[dev]
+   pyinstaller daxalgo_ml.spec
+   ```
+   That produces `dist/daxalgo-ml.exe`. Copy to `tools/python-ml/bin/daxalgo-ml.exe`.
+2. **Run it.** Pick a port and run:
+   ```powershell
+   $env:DAXALGO_ML_PORT = "8765"
+   .\bin\daxalgo-ml.exe
+   ```
+   The service binds to `127.0.0.1` only.
+3. **Wire it up.** In the terminal, **Tools → Settings → Notifications…** scroll to the
+   **AI Market Analyst** block. Tick **Enabled**, set the endpoint to
+   `http://127.0.0.1:8765`, pick your provider, paste the API key, set the text and
+   vision model ids. **Save**.
+
+The API key is stored DPAPI-encrypted under `%LocalAppData%\DaxAlgo Terminal\notifications.json`
+(scope: current user, current machine). It is never written in plain text and never appears
+in `appsettings.json`.
+
+### Running an analysis
+
+**AI tools → Market analyst** opens the dock pane. Type a symbol, pick a timeframe and
+bar count, hit **Analyze**. The terminal pulls bars from the active broker, ships them to
+the sidecar, and renders the verdict:
+
+- **Left column** — indicator commentary (RSI/MACD/ATR/EMA panel + plain-English summary).
+- **Middle column** — pattern verdict (one of 16 classical patterns: inverse H&S, double
+  bottom, wedges, triangles, flags, V-reversal, etc.) plus the rendered candlestick PNG
+  the vision LLM scored against.
+- **Right column** — trend regime (Up/Down/Flat) plus an annotated chart showing the
+  fitted upper/lower linear channel.
+- **Bottom strip** — big LONG / SHORT / NO-CALL badge, R:R, forecast horizon,
+  justification, confidence.
+
+Every Analyze click runs fresh — there is no cache. The terminal is signal-mode by rule:
+the analyst proposes, the human disposes. There is no "place this trade" button on the
+pane.
+
+### Per-notification enrichment
+
+Tick **Append the AI Analyst verdict line to every signal notification** in Settings, and
+each Telegram / Discord signal carries an extra line like:
+
+> 🤖 AI Analyst: Long (conf 72%, R:R 2.10) — Bull Flag
+
+The enricher runs independently of Ollama; both can be on at once. If the sidecar is down
+or the call times out, the original notification goes out unchanged — the AI line is
+strictly additive.
+
+### Graceful degradation
+
+With no sidecar running (or **Enabled** off), the AI Analyst pane renders the empty state
+cleanly: "AI Analyst unavailable" badge, Analyze button disabled. Nothing in the rest of
+the app changes — the existing Ollama enricher and the standard notification pipeline
+keep working.
+
+### TROUBLESHOOTING — "Analyst unavailable / Python sidecar not running"
+
+- Hit `http://127.0.0.1:<port>/healthz` directly in a browser. If it doesn't return
+  `{"status": "ok"}`, the sidecar isn't running or the port in Settings is wrong.
+- Check the sidecar's console for stack traces. Common causes: missing API key,
+  invalid model id, missing TA-Lib install (use the Gohlke wheel on Windows), or a
+  vision-LLM that rejected the image.
+- HTTP 504 from the sidecar means the 60-second top-level timeout tripped — the first
+  vision call is often slow; retry once.
+- Verify the API key is correct in **Settings → Notifications → AI Analyst**. The key
+  field is stored DPAPI-encrypted, so a wrong paste won't ever round-trip; re-paste and
+  Save.
+
+---
+
 ## 5. Backtesting (Tools → Backtest)
 
 The terminal ships a tick-level backtest engine that runs the same strategies against

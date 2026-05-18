@@ -11,7 +11,7 @@ Why: the WPF build must stay hermetic (one `dotnet build`, no native toolchains,
 | Tool | Status |
 |---|---|
 | `tick-backtester` (C++) | **Shipped (single strategy).** C# seam: `IFastBacktestRunner` + `ProcessFastBacktestRunner`. C++ source in-tree at `tools/cpp-backtester/`, exe target `tick_backtester`. UI: Backtest tab → "Use C++ Fast engine" checkbox. Only `meanReversion` is wired on the C++ side today. |
-| `daxalgo-ml` (Python) | Forthcoming. |
+| `daxalgo-ml` (Python) | **Shipped (AI Market Analyst).** C# seam: `IAiAnalystClient` + `HttpAiAnalystClient` + `NullAiAnalystClient`. Python source under `tools/python-ml/` with a FastAPI app, a four-agent LangGraph (indicator → pattern → trend → decision), TA-Lib indicators, mplfinance charts, and a vision-LLM pattern matcher against a 16-pattern classical catalog. UI: AI tools → Market analyst tab plus a per-notification enricher. Providers: OpenAI / Anthropic / Qwen / MiniMax. |
 
 ## The two tools (today)
 

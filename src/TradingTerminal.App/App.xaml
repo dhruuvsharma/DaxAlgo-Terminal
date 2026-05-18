@@ -12,6 +12,7 @@
             <converters:ReferenceEqualsConverter x:Key="ReferenceEqualsConverter" />
             <converters:BrokerInitialsConverter x:Key="BrokerInitialsConverter" />
             <converters:BrokerSubtitleConverter x:Key="BrokerSubtitleConverter" />
+            <converters:Base64ToImageSourceConverter x:Key="Base64ToImageSourceConverter" />
 
             <ResourceDictionary.MergedDictionaries>
                 <!-- MahApps base -->

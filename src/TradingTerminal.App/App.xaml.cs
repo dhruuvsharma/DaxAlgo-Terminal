@@ -12,6 +12,7 @@ using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure;
+using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.UI.Logging;
 
@@ -73,6 +74,7 @@ public partial class App : Application
                 services.AddSingleton(inMemoryLogSink);
                 services.AddTradingTerminalInfrastructure();
                 services.AddNotifications(ctx.Configuration);
+                services.AddAiAnalyst(ctx.Configuration);
 
                 // Feature modules — each is a one-line manifest entry.
                 services.AddStrategyPlugins();
@@ -83,6 +85,7 @@ public partial class App : Application
                 services.AddRecordingSurface();
                 services.AddResearchSurface();
                 services.AddAiSurface();
+                services.AddAiAnalystSurface();
             })
             .Build();
 
