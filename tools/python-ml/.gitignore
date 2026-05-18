@@ -1,0 +1,14 @@
+# Python build / cache artefacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# PyInstaller output
+*.spec.bak
