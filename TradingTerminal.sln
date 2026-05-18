@@ -71,8 +71,70 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "cpp-backtester", "tools\cpp
 	ProjectSection(SolutionItems) = preProject
 		tools\cpp-backtester\CMakeLists.txt = tools\cpp-backtester\CMakeLists.txt
 		tools\cpp-backtester\README.md = tools\cpp-backtester\README.md
+		tools\cpp-backtester\LICENSE = tools\cpp-backtester\LICENSE
+		tools\cpp-backtester\.gitattributes = tools\cpp-backtester\.gitattributes
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "app", "app", "{CB000003-2B5E-4A9C-8E3B-7D2F6A9B5C92}"
+	ProjectSection(SolutionItems) = preProject
 		tools\cpp-backtester\app\backtest_json.cpp = tools\cpp-backtester\app\backtest_json.cpp
 		tools\cpp-backtester\app\backtest_runner.cpp = tools\cpp-backtester\app\backtest_runner.cpp
+		tools\cpp-backtester\app\benchmark.cpp = tools\cpp-backtester\app\benchmark.cpp
+		tools\cpp-backtester\app\data_fetcher.cpp = tools\cpp-backtester\app\data_fetcher.cpp
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "core", "core", "{CB000004-2B5E-4A9C-8E3B-7D2F6A9B5C93}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\core\event_engine.cpp = tools\cpp-backtester\core\event_engine.cpp
+		tools\cpp-backtester\core\event_engine.h = tools\cpp-backtester\core\event_engine.h
+		tools\cpp-backtester\core\market_data.cpp = tools\cpp-backtester\core\market_data.cpp
+		tools\cpp-backtester\core\market_data.h = tools\cpp-backtester\core\market_data.h
+		tools\cpp-backtester\core\order_manager.cpp = tools\cpp-backtester\core\order_manager.cpp
+		tools\cpp-backtester\core\order_manager.h = tools\cpp-backtester\core\order_manager.h
+		tools\cpp-backtester\core\portfolio.cpp = tools\cpp-backtester\core\portfolio.cpp
+		tools\cpp-backtester\core\portfolio.h = tools\cpp-backtester\core\portfolio.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "data", "data", "{CB000005-2B5E-4A9C-8E3B-7D2F6A9B5C94}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\data\csv_loader.cpp = tools\cpp-backtester\data\csv_loader.cpp
+		tools\cpp-backtester\data\csv_loader.h = tools\cpp-backtester\data\csv_loader.h
+		tools\cpp-backtester\data\parquet_loader.cpp = tools\cpp-backtester\data\parquet_loader.cpp
+		tools\cpp-backtester\data\parquet_loader.h = tools\cpp-backtester\data\parquet_loader.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "execution", "execution", "{CB000006-2B5E-4A9C-8E3B-7D2F6A9B5C95}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\execution\execution_simulator.cpp = tools\cpp-backtester\execution\execution_simulator.cpp
+		tools\cpp-backtester\execution\execution_simulator.h = tools\cpp-backtester\execution\execution_simulator.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "include", "include", "{CB000007-2B5E-4A9C-8E3B-7D2F6A9B5C96}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\include\ring_buffer.h = tools\cpp-backtester\include\ring_buffer.h
+		tools\cpp-backtester\include\types.h = tools\cpp-backtester\include\types.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "metrics", "metrics", "{CB000008-2B5E-4A9C-8E3B-7D2F6A9B5C97}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\metrics\performance_metrics.cpp = tools\cpp-backtester\metrics\performance_metrics.cpp
+		tools\cpp-backtester\metrics\performance_metrics.h = tools\cpp-backtester\metrics\performance_metrics.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "strategy", "strategy", "{CB000009-2B5E-4A9C-8E3B-7D2F6A9B5C98}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\strategy\mean_reversion.cpp = tools\cpp-backtester\strategy\mean_reversion.cpp
+		tools\cpp-backtester\strategy\mean_reversion.h = tools\cpp-backtester\strategy\mean_reversion.h
+		tools\cpp-backtester\strategy\strategy.h = tools\cpp-backtester\strategy\strategy.h
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{CB00000A-2B5E-4A9C-8E3B-7D2F6A9B5C99}"
+	ProjectSection(SolutionItems) = preProject
+		tools\cpp-backtester\tests\CMakeLists.txt = tools\cpp-backtester\tests\CMakeLists.txt
+		tools\cpp-backtester\tests\test_event_engine.cpp = tools\cpp-backtester\tests\test_event_engine.cpp
+		tools\cpp-backtester\tests\test_order_manager.cpp = tools\cpp-backtester\tests\test_order_manager.cpp
+		tools\cpp-backtester\tests\test_portfolio.cpp = tools\cpp-backtester\tests\test_portfolio.cpp
+		tools\cpp-backtester\tests\test_tick_buffer.cpp = tools\cpp-backtester\tests\test_tick_buffer.cpp
 	EndProjectSection
 EndProject
 Global
@@ -468,5 +530,13 @@ Global
 		{6F98C76E-8A0C-4525-9879-CADCEA96300C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{9900C83E-4828-49BD-B23C-8408D925A795} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91} = {CB000001-2B5E-4A9C-8E3B-7D2F6A9B5C90}
+		{CB000003-2B5E-4A9C-8E3B-7D2F6A9B5C92} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000004-2B5E-4A9C-8E3B-7D2F6A9B5C93} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000005-2B5E-4A9C-8E3B-7D2F6A9B5C94} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000006-2B5E-4A9C-8E3B-7D2F6A9B5C95} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000007-2B5E-4A9C-8E3B-7D2F6A9B5C96} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000008-2B5E-4A9C-8E3B-7D2F6A9B5C97} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000009-2B5E-4A9C-8E3B-7D2F6A9B5C98} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB00000A-2B5E-4A9C-8E3B-7D2F6A9B5C99} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
 	EndGlobalSection
 EndGlobal
