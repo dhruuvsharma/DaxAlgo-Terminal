@@ -67,7 +67,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{CB000001-2B5E-4A9C-8E3B-7D2F6A9B5C90}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "cpp-backtester", "tools\cpp-backtester", "{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "cpp-backtester", "cpp-backtester", "{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}"
 	ProjectSection(SolutionItems) = preProject
 		tools\cpp-backtester\CMakeLists.txt = tools\cpp-backtester\CMakeLists.txt
 		tools\cpp-backtester\README.md = tools\cpp-backtester\README.md
@@ -136,6 +136,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{CB00000A
 		tools\cpp-backtester\tests\test_portfolio.cpp = tools\cpp-backtester\tests\test_portfolio.cpp
 		tools\cpp-backtester\tests\test_tick_buffer.cpp = tools\cpp-backtester\tests\test_tick_buffer.cpp
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ApexScalper", "src\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj", "{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -495,6 +497,18 @@ Global
 		{9900C83E-4828-49BD-B23C-8408D925A795}.Release|x64.Build.0 = Release|Any CPU
 		{9900C83E-4828-49BD-B23C-8408D925A795}.Release|x86.ActiveCfg = Release|Any CPU
 		{9900C83E-4828-49BD-B23C-8408D925A795}.Release|x86.Build.0 = Release|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Debug|x64.Build.0 = Debug|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Debug|x86.Build.0 = Debug|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Release|x64.ActiveCfg = Release|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Release|x64.Build.0 = Release|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Release|x86.ActiveCfg = Release|Any CPU
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

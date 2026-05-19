@@ -44,6 +44,7 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.ThinBookFilter\TradingTerminal.Strategies.ThinBookFilter.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OnlineRegressionAlpha\TradingTerminal.Strategies.OnlineRegressionAlpha.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.AnomalyDetector\TradingTerminal.Strategies.AnomalyDetector.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj" />
   </ItemGroup>
 
   <ItemGroup>

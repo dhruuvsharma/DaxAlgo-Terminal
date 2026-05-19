@@ -16,6 +16,7 @@ using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.UI;
 using TradingTerminal.Strategies.AnomalyDetector;
+using TradingTerminal.Strategies.ApexScalper;
 using TradingTerminal.Strategies.AvellanedaStoikov;
 using TradingTerminal.Strategies.Bollinger;
 using TradingTerminal.Strategies.BookPressure;
@@ -91,6 +92,7 @@ public static class AppDependencyInjection
         services.AddIcebergDetectionStrategy();
         services.AddOrderFlowToxicityStrategy();
         services.AddThinBookFilterStrategy();
+        services.AddApexScalperStrategy();
 
         // ML / AI
         services.AddOnlineRegressionAlphaStrategy();

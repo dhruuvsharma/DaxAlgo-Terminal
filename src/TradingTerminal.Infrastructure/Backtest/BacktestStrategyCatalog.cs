@@ -128,6 +128,10 @@ public static class BacktestStrategyCatalog
             Id: "thinBook",
             DisplayName: "Thin-book breakout filter (L2)",
             Build: contract => new ThinBookFilterStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "apexScalper",
+            DisplayName: "APEX microstructure scalper (composite, 8 signals)",
+            Build: contract => new ApexScalperStrategy(contract)),
 
         // ── ML / AI driven ────────────────────────────────────────────────────────────
         new BacktestStrategyOption(
