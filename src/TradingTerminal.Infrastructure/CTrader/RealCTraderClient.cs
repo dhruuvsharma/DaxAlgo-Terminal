@@ -58,9 +58,9 @@ public sealed class RealCTraderClient : IBrokerClient
     {
         var opt = _options.Value;
         if (string.IsNullOrWhiteSpace(opt.ClientId) || string.IsNullOrWhiteSpace(opt.ClientSecret) ||
-            string.IsNullOrWhiteSpace(opt.AccessToken) || opt.CtidTraderAccountId == 0)
+            string.IsNullOrWhiteSpace(opt.AccessToken))
         {
-            _logger.LogError("cTrader credentials incomplete — set ClientId, ClientSecret, AccessToken, CtidTraderAccountId.");
+            _logger.LogError("cTrader credentials incomplete — set ClientId, ClientSecret, AccessToken.");
             _state.OnNext(Core.Domain.ConnectionState.Failed);
             return;
         }
@@ -82,6 +82,26 @@ public sealed class RealCTraderClient : IBrokerClient
                     ClientId = opt.ClientId,
                     ClientSecret = opt.ClientSecret,
                 }, ct).ConfigureAwait(false);
+
+            // If the user didn't pin a CtidTraderAccountId, resolve it from the access token.
+            // The internal numeric id isn't user-facing, so auto-discovery spares them hunting
+            // for it; we pick the account matching the configured demo/live environment.
+            if (_accountId == 0)
+            {
+                var accountsRes = await SendAndAwaitAsync<ProtoOAGetAccountListByAccessTokenRes>(
+                    new ProtoOAGetAccountListByAccessTokenReq { AccessToken = opt.AccessToken }, ct)
+                    .ConfigureAwait(false);
+
+                if (accountsRes.CtidTraderAccount.Count == 0)
+                    throw new InvalidOperationException("cTrader returned no accounts for this access token.");
+
+                var chosen = accountsRes.CtidTraderAccount.FirstOrDefault(a => a.IsLive == opt.IsLive)
+                             ?? accountsRes.CtidTraderAccount[0];
+                _accountId = (long)chosen.CtidTraderAccountId;
+                _logger.LogInformation(
+                    "cTrader auto-resolved account {Account} (isLive={IsLive}) from {Count} available",
+                    _accountId, chosen.IsLive, accountsRes.CtidTraderAccount.Count);
+            }
 
             await SendAndAwaitAsync<ProtoOAAccountAuthRes>(
                 new ProtoOAAccountAuthReq
@@ -140,6 +160,30 @@ public sealed class RealCTraderClient : IBrokerClient
         _state.OnNext(Core.Domain.ConnectionState.Disconnected);
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
+    {
+        // The full symbol universe is already loaded at connect (ProtoOASymbolsListReq) into
+        // _symbols, keyed by symbol name. Subscriptions resolve by contract.Symbol against
+        // that same map (see ResolveSymbolAsync), so we emit each name straight through.
+        List<TradableInstrument> result;
+        lock (_gate)
+        {
+            result = _symbols.Keys
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .Select(name => new TradableInstrument(
+                    DisplayName: name,
+                    Category: IsForexPair(name) ? "Forex" : "CFD / Other",
+                    Contract: new Contract(name, "CASH", "cTrader", string.Empty, PrimaryExchange: string.Empty)))
+                .ToList();
+        }
+        return Task.FromResult<IReadOnlyList<TradableInstrument>>(result);
+    }
+
+    // A 6-letter all-alpha name (EURUSD, GBPJPY) is a spot FX pair; everything else
+    // (indices, metals, crypto CFDs like "BTCUSD" carry digits or differ in length) is "other".
+    private static bool IsForexPair(string name) =>
+        name.Length == 6 && name.All(char.IsLetter);
 
     public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
         Contract contract, BarSize barSize, TimeSpan duration, CancellationToken ct = default)
@@ -517,6 +561,7 @@ public sealed class RealCTraderClient : IBrokerClient
             return envelope.PayloadType switch
             {
                 (int)ProtoOAPayloadType.ProtoOaApplicationAuthRes => ProtoOAApplicationAuthRes.Parser.ParseFrom(envelope.Payload),
+                (int)ProtoOAPayloadType.ProtoOaGetAccountsByAccessTokenRes => ProtoOAGetAccountListByAccessTokenRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaAccountAuthRes => ProtoOAAccountAuthRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaSymbolsListRes => ProtoOASymbolsListRes.Parser.ParseFrom(envelope.Payload),
                 (int)ProtoOAPayloadType.ProtoOaSymbolByIdRes => ProtoOASymbolByIdRes.Parser.ParseFrom(envelope.Payload),
