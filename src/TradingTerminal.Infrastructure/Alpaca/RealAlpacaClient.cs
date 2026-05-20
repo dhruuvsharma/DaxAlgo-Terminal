@@ -3,6 +3,7 @@ using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Alpaca.Markets;
+using Alpaca.Markets.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Brokers;
@@ -36,6 +37,7 @@ public sealed class RealAlpacaClient : IBrokerClient
     private readonly IOptions<AlpacaOptions> _options;
     private readonly BehaviorSubject<ConnectionState> _state = new(Core.Domain.ConnectionState.Disconnected);
 
+    private IAlpacaTradingClient? _trading;
     private IAlpacaDataClient? _stockData;
     private IAlpacaDataStreamingClient? _stockStream;
     private IAlpacaCryptoDataClient? _cryptoData;
@@ -76,8 +78,17 @@ public sealed class RealAlpacaClient : IBrokerClient
             var env = opt.IsLive ? Environments.Live : Environments.Paper;
             var creds = new SecretKey(opt.ApiKey, opt.ApiSecret);
 
+            _trading = env.GetAlpacaTradingClient(creds);
             _stockData = env.GetAlpacaDataClient(creds);
-            _stockStream = env.GetAlpacaDataStreamingClient(creds);
+
+            // Pin the live stock stream to the configured feed (IEX on the free/paper plan).
+            // The SDK's default data-stream endpoint targets SIP, which a free subscription
+            // can't subscribe to — the same entitlement wall as the historical SIP fetch.
+            // We rebase only the feed path segment so the host stays whatever the SDK uses.
+            var stockStreamCfg = env.GetAlpacaDataStreamingClientConfiguration(creds);
+            stockStreamCfg.ApiEndpoint = new Uri(stockStreamCfg.ApiEndpoint, $"/v2/{FeedSegment(opt.StockDataFeed)}");
+            _stockStream = stockStreamCfg.GetClient();
+
             _cryptoData = env.GetAlpacaCryptoDataClient(creds);
             _cryptoStream = env.GetAlpacaCryptoStreamingClient(creds);
 
@@ -108,6 +119,49 @@ public sealed class RealAlpacaClient : IBrokerClient
         }
     }
 
+    public async Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
+    {
+        EnsureConnected();
+        var result = new List<TradableInstrument>();
+
+        // US equities — active and tradable only. Alpaca returns the full universe
+        // (~11k symbols) in a single call; the UI filters/searches over it.
+        var equities = await _trading!.ListAssetsAsync(
+            new AssetsRequest
+            {
+                AssetStatus = AssetStatus.Active,
+                AssetClass = global::Alpaca.Markets.AssetClass.UsEquity,
+            }, ct).ConfigureAwait(false);
+        foreach (var a in equities)
+        {
+            if (!a.IsTradable) continue;
+            var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
+            result.Add(new TradableInstrument(
+                $"{a.Symbol}  —  {name}", "US Stocks", Contract.UsStock(a.Symbol)));
+        }
+
+        // Crypto — the symbol Alpaca returns (e.g. "BTC/USD") is exactly what the
+        // streaming/data clients expect, so it flows straight into the Contract.
+        var crypto = await _trading.ListAssetsAsync(
+            new AssetsRequest
+            {
+                AssetStatus = AssetStatus.Active,
+                AssetClass = global::Alpaca.Markets.AssetClass.Crypto,
+            }, ct).ConfigureAwait(false);
+        foreach (var a in crypto)
+        {
+            if (!a.IsTradable) continue;
+            var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
+            result.Add(new TradableInstrument(
+                $"{a.Symbol}  —  {name}", "Crypto",
+                new Contract(a.Symbol, "CRYPTO", "SMART", "USD", PrimaryExchange: string.Empty)));
+        }
+
+        _logger.LogInformation("Alpaca listed {Stocks} equities + {Crypto} crypto instruments",
+            equities.Count(x => x.IsTradable), crypto.Count(x => x.IsTradable));
+        return result;
+    }
+
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
         try
@@ -121,6 +175,7 @@ public sealed class RealAlpacaClient : IBrokerClient
         _cryptoStream?.Dispose(); _cryptoStream = null;
         _stockData?.Dispose(); _stockData = null;
         _cryptoData?.Dispose(); _cryptoData = null;
+        _trading?.Dispose(); _trading = null;
 
         _state.OnNext(Core.Domain.ConnectionState.Disconnected);
     }
@@ -136,7 +191,13 @@ public sealed class RealAlpacaClient : IBrokerClient
 
         if (assetClass == AssetClass.Stock)
         {
-            var req = new HistoricalBarsRequest(contract.Symbol, from, to, timeFrame);
+            // Without an explicit feed Alpaca defaults to SIP, which the free/paper plan
+            // can't query for recent bars ("subscription does not permit querying recent
+            // SIP data"). Pin it to the configured feed (IEX by default).
+            var req = new HistoricalBarsRequest(contract.Symbol, from, to, timeFrame)
+            {
+                Feed = MapFeed(_options.Value.StockDataFeed),
+            };
             var resp = await _stockData!.ListHistoricalBarsAsync(req, ct).ConfigureAwait(false);
             return resp.Items.Select(MapBar).ToList();
         }
@@ -288,7 +349,7 @@ public sealed class RealAlpacaClient : IBrokerClient
 
     private void EnsureConnected()
     {
-        if (_stockData is null || _stockStream is null || _cryptoData is null || _cryptoStream is null)
+        if (_trading is null || _stockData is null || _stockStream is null || _cryptoData is null || _cryptoStream is null)
             throw new InvalidOperationException("Not connected — call ConnectAsync first.");
     }
 
@@ -303,6 +364,22 @@ public sealed class RealAlpacaClient : IBrokerClient
         "CRYPTO" => AssetClass.Crypto,
         "CRYPTOCURRENCY" => AssetClass.Crypto,
         _ => AssetClass.Other,
+    };
+
+    // Free/paper subscriptions are entitled only to IEX; "sip"/"otc" require a paid data plan.
+    private static MarketDataFeed MapFeed(string? feed) => feed?.Trim().ToLowerInvariant() switch
+    {
+        "sip" => MarketDataFeed.Sip,
+        "otc" => MarketDataFeed.Otc,
+        _ => MarketDataFeed.Iex,
+    };
+
+    // The data-stream WebSocket selects the feed by its final path segment (/v2/iex|sip|otc).
+    private static string FeedSegment(string? feed) => MapFeed(feed) switch
+    {
+        MarketDataFeed.Sip => "sip",
+        MarketDataFeed.Otc => "otc",
+        _ => "iex",
     };
 
     private static BarTimeFrame MapBarSize(BarSize s) => s switch
