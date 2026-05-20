@@ -87,6 +87,11 @@ public sealed class RealNinjaClient : IBrokerClient
         return Task.CompletedTask;
     }
 
+    // NTDirect exposes no instrument-list call, so we surface a curated futures catalog
+    // (what a default Sim101 account trades). Users edit CuratedInstrumentCatalog to extend.
+    public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
+        Task.FromResult(CuratedInstrumentCatalog.Futures);
+
     public Task DisconnectAsync(CancellationToken ct = default)
     {
         _connectionCts?.Cancel();

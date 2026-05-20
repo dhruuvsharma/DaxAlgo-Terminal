@@ -1,4 +1,4 @@
-<ui:StrategyWindowBase x:Class="TradingTerminal.Strategies.OrderFlowToxicity.OrderFlowToxicityStrategyWindow"
+﻿<ui:StrategyWindowBase x:Class="TradingTerminal.Strategies.OrderFlowToxicity.OrderFlowToxicityStrategyWindow"
                        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -16,6 +16,10 @@
                 <TextBlock Style="{StaticResource Strategy.SetupTitle}" Text="Configure order-flow toxicity (VPIN-style)" />
                 <TextBlock Style="{StaticResource Strategy.SetupDescription}" Text="Pause trading when one side persistently dominates flow. Tune window + toxicity threshold." />
                 <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
+                <TextBox Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                          mah:TextBoxHelper.Watermark="Search symbols..."
+                          mah:TextBoxHelper.ClearTextButton="True"
+                          Margin="0,0,0,6" />
                 <ComboBox ItemsSource="{Binding Source={StaticResource GroupedInstruments}}" SelectedItem="{Binding SelectedInstrument}" DisplayMemberPath="DisplayName" MaxDropDownHeight="420" Margin="0,0,0,12">
                     <ComboBox.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Background="{DynamicResource Background.Elevated}" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="8,4,8,4"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource Accent.Brush}" /></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ComboBox.GroupStyle>
                 </ComboBox>

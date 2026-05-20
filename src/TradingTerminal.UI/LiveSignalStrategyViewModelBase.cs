@@ -28,6 +28,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     public const int MaxSignalsRetained = 200;
     public const int MaxBarsRetained = 300;
 
+    /// <summary>Cap on how many instruments the picker shows at once. The broker universe can be
+    /// ~11k symbols (Alpaca); the search box narrows it, so we never bind the whole list.</summary>
+    public const int MaxInstrumentsDisplayed = 500;
+
     private readonly IMarketDataRepository _repository;
     private readonly INotificationPublisher _notifications;
     private readonly ILogger _logger;
@@ -60,22 +64,39 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _routerFactory = routerFactory;
         _logger = logger;
 
-        Instruments = SignalInstrumentCatalog.All;
+        AllInstruments = SignalInstrumentCatalog.All;
+        Instruments = new ObservableCollection<SignalInstrument>(
+            AllInstruments.Take(MaxInstrumentsDisplayed));
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments[0];
+                             ?? Instruments.FirstOrDefault();
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
+
+        // Replace the static fallback with the connected broker's tradable universe.
+        // Fire-and-forget: the continuation resumes on the UI context (VM is built there).
+        _ = LoadInstrumentsAsync();
     }
 
     public string StrategyId { get; }
     public string StrategyDisplayName { get; }
-    public IReadOnlyList<SignalInstrument> Instruments { get; }
+
+    /// <summary>Full tradable universe from the connected broker (or the static fallback);
+    /// <see cref="InstrumentSearchText"/> filters this into <see cref="Instruments"/>.</summary>
+    public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+
     public ObservableCollection<SignalEntry> Signals { get; }
 
     /// <summary>15-second price bars derived from the live tick stream. Used for chart drawing.</summary>
     public ObservableCollection<Bar> Bars { get; }
 
     public event EventHandler? BarsChanged;
+
+    /// <summary>Instruments shown in the picker — a capped, search-filtered view of
+    /// <see cref="AllInstruments"/>.</summary>
+    [ObservableProperty] private ObservableCollection<SignalInstrument> _instruments = new();
+
+    /// <summary>Free-text filter applied over <see cref="AllInstruments"/> (see the picker's search box).</summary>
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
 
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
     [ObservableProperty] private string _status = "Configure the strategy to begin.";
@@ -91,6 +112,58 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     /// <summary>True only while the user has armed the algo via Run. Display-only otherwise.</summary>
     [ObservableProperty] private bool _isAlgoRunning;
+
+    /// <summary>
+    /// Loads the connected broker's tradable instruments and swaps them in for the static
+    /// fallback. cTrader yields FX pairs, Alpaca yields stocks + crypto, IB/NinjaTrader yield
+    /// curated catalogs. On failure or an empty list we keep the static catalog already shown.
+    /// </summary>
+    private async Task LoadInstrumentsAsync()
+    {
+        try
+        {
+            var list = await _repository.ListInstrumentsAsync();
+            if (list is null || list.Count == 0) return;
+
+            AllInstruments = list
+                .Select(i => new SignalInstrument(i.DisplayName, i.Category, i.Contract))
+                .ToList();
+
+            // Prefer a familiar default if the broker offers it; otherwise the first symbol.
+            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                                 ?? AllInstruments.FirstOrDefault();
+            ApplyInstrumentFilter();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "{Strategy} instrument list load failed; using static catalog", StrategyId);
+        }
+    }
+
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
+
+    /// <summary>Rebuilds <see cref="Instruments"/> from <see cref="AllInstruments"/> using the
+    /// current search text, capped at <see cref="MaxInstrumentsDisplayed"/>. The selected item
+    /// is preserved (and force-included) so the picker never blanks out mid-filter.</summary>
+    private void ApplyInstrumentFilter()
+    {
+        var term = InstrumentSearchText?.Trim() ?? string.Empty;
+        IEnumerable<SignalInstrument> query = AllInstruments;
+        if (term.Length > 0)
+            query = AllInstruments.Where(i =>
+                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
+
+        var keep = SelectedInstrument;
+        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
+
+        Instruments = new ObservableCollection<SignalInstrument>(shown);
+        SelectedInstrument = keep is not null && Instruments.Contains(keep)
+            ? keep
+            : Instruments.FirstOrDefault();
+    }
 
     /// <summary>Subclasses build a fresh <see cref="IBacktestStrategy"/> here using their
     /// current parameter property values.</summary>

@@ -1,4 +1,4 @@
-<ui:StrategyWindowBase x:Class="TradingTerminal.Strategies.TrendFilter.TrendFilterStrategyWindow"
+﻿<ui:StrategyWindowBase x:Class="TradingTerminal.Strategies.TrendFilter.TrendFilterStrategyWindow"
                        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -39,6 +39,10 @@
                                Text="Long when price is above the SMA; optionally short when below. Defaults to the canonical 200-period long-only filter on index ETFs." />
 
                     <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
+                    <TextBox Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                              mah:TextBoxHelper.Watermark="Search symbols..."
+                              mah:TextBoxHelper.ClearTextButton="True"
+                              Margin="0,0,0,6" />
                     <ComboBox ItemsSource="{Binding Source={StaticResource GroupedInstruments}}"
                               SelectedItem="{Binding SelectedInstrument}"
                               DisplayMemberPath="DisplayName"

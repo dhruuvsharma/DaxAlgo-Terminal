@@ -96,6 +96,9 @@ public sealed class ConnectionManagerTests
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<TradableInstrument>>(Array.Empty<TradableInstrument>());
+
         public Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
             Contract contract, BarSize barSize, TimeSpan duration, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<Bar>>(Array.Empty<Bar>());

@@ -15,6 +15,13 @@ public interface IMarketDataRepository
 
     Task DisconnectAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// The instruments the active broker/account can trade, for populating instrument
+    /// pickers. Delegates to the connected client; returns an empty list when no broker is
+    /// active. Callers fall back to a static catalog if the list is empty.
+    /// </summary>
+    Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default);
+
     Task<IReadOnlyList<Bar>> GetHistoricalBarsAsync(
         Contract contract,
         BarSize barSize,

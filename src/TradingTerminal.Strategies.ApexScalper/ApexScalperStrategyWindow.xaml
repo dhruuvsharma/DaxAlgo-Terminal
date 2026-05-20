@@ -1,4 +1,4 @@
-<ui:StrategyWindowBase x:Class="TradingTerminal.Strategies.ApexScalper.ApexScalperStrategyWindow"
+﻿<ui:StrategyWindowBase x:Class="TradingTerminal.Strategies.ApexScalper.ApexScalperStrategyWindow"
                        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -59,6 +59,10 @@
                                Text="Weighted composite of 8 order-flow signals (Delta, VPIN, OBI×2, Footprint, Absorption, HVP, Tape Speed) with regime-adaptive weights. Trades fire only when |composite| ≥ threshold AND ≥ N signals agree AND no Delta/VPIN conflict." />
 
                     <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
+                    <TextBox Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                              mah:TextBoxHelper.Watermark="Search symbols..."
+                              mah:TextBoxHelper.ClearTextButton="True"
+                              Margin="0,0,0,6" />
                     <ComboBox ItemsSource="{Binding Source={StaticResource GroupedInstruments}}"
                               SelectedItem="{Binding SelectedInstrument}"
                               DisplayMemberPath="DisplayName" MaxDropDownHeight="420" Margin="0,0,0,12">

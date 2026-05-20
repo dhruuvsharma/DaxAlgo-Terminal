@@ -115,6 +115,11 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
         1 => "Live", 2 => "Frozen", 3 => "Delayed", 4 => "Delayed-Frozen", _ => "Unknown"
     };
 
+    // IB's tradable universe is millions of contracts behind reqMatchingSymbols / scanner
+    // (no flat "list everything" call), so we surface a curated catalog instead.
+    public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
+        Task.FromResult(CuratedInstrumentCatalog.ForInteractiveBrokers);
+
     public Task DisconnectAsync(CancellationToken ct = default)
     {
         try { _client?.eDisconnect(); }

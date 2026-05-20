@@ -42,6 +42,9 @@ public sealed class MarketDataRepository : IMarketDataRepository, IAsyncDisposab
 
     public Task DisconnectAsync(CancellationToken ct = default) => _connection.StopAsync(ct);
 
+    public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
+        _selector.Active.ListInstrumentsAsync(ct);
+
     public async Task<IReadOnlyList<Bar>> GetHistoricalBarsAsync(
         Contract contract, BarSize barSize, TimeSpan duration, CancellationToken ct = default)
     {

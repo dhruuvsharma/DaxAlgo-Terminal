@@ -22,6 +22,15 @@ public interface IBrokerClient : IAsyncDisposable
 
     Task ConnectAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// The instruments this broker/account can trade, for populating instrument pickers.
+    /// Brokers with a discovery API (Alpaca <c>ListAssets</c>, cTrader symbols list) return
+    /// their live universe; brokers without one (IB, NinjaTrader) return a curated catalog
+    /// (<see cref="CuratedInstrumentCatalog"/>). Safe to call once connected; callers fall
+    /// back to a static catalog if the returned list is empty.
+    /// </summary>
+    Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default);
+
     Task DisconnectAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
