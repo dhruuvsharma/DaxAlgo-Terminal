@@ -70,6 +70,15 @@
     <None Include="..\..\appsettings.json" Link="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!--
+      Gitignored per-user secret overrides (API keys etc.). Layered after
+      appsettings.json by App.xaml.cs so its values win. Optional: the file
+      is absent on clean checkouts, so the include is guarded by Exists().
+    -->
+    <None Include="..\..\appsettings.local.json" Link="appsettings.local.json"
+          Condition="Exists('..\..\appsettings.local.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <!--
