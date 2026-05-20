@@ -238,6 +238,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
 
         _ = RunStreamAsync(SelectedInstrument.Contract, _streamCts.Token);
+        _ = RunDepthStreamAsync(SelectedInstrument.Contract, _streamCts.Token);
     }
 
     [RelayCommand]
@@ -287,6 +288,34 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         finally
         {
             IsStreaming = false;
+        }
+    }
+
+    /// <summary>
+    /// Best-effort L2 depth pump running alongside the tick stream. Forwards each book
+    /// snapshot to the strategy's <see cref="IBacktestStrategy.OnDepthAsync"/> so book-aware
+    /// signals (OBI) can use real depth. Brokers without depth (Alpaca, IB-not-yet-wired)
+    /// throw <see cref="NotSupportedException"/> — we degrade silently to the L1 path.
+    /// </summary>
+    private async Task RunDepthStreamAsync(Contract contract, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var snapshot in _repository.SubscribeDepthAsync(contract, 10, ct))
+            {
+                if (_strategy is null || _router is null) break;
+                try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
+                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (NotSupportedException)
+        {
+            _logger.LogDebug("{Strategy}: active broker has no depth feed — OBI uses L1 fallback", StrategyId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} depth stream ended", StrategyId);
         }
     }
 

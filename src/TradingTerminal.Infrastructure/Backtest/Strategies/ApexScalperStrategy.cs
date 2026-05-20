@@ -151,6 +151,11 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private readonly Dictionary<string, DateTime> _signalGeneratedAt = new();
     private RegimeKind _regime = RegimeKind.Undefined;
 
+    /// <summary>Latest L2 book, when the active broker supplies depth (cTrader). Null on
+    /// L1-only feeds; OBI then falls back to the tick's BidSize/AskSize. Updated on the same
+    /// single-threaded dispatcher as ticks (the host marshals both), so no locking needed.</summary>
+    private DepthSnapshot? _latestDepth;
+
     // ── Risk state ──────────────────────────────────────────────────────────────────
     private double _balance;
     private double _peakEquity;
@@ -332,6 +337,13 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
 
     public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
 
+    /// <summary>Caches the latest order-book snapshot for the OBI signals. See <see cref="_latestDepth"/>.</summary>
+    public Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
+    {
+        _latestDepth = depth;
+        return Task.CompletedTask;
+    }
+
     public async Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
     {
         // 1. Feed the tick into the data layer (classify, build candle / footprint, accumulate VPIN).
@@ -353,9 +365,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         if (rolled) UpdateRegime();
         MaintainPosition(tick, router, ct);
 
-        // 3. Compute signals. We need a warm window before scoring is meaningful.
-        if (_cb.CompletedCount < WindowSize) return;
-
+        // 3. Compute signals every tick. Each window-based signal guards its own warm-up
+        // internally (returns Invalid until it has enough candles), so the dashboard and the
+        // instantaneous signals (OBI from depth, tape speed) come alive immediately rather
+        // than after a ~20-minute blank. Trading is gated separately in step 5.
         var now = tick.TimestampUtc;
         var results = new SignalResult[8];
         results[0] = CalcDelta(now);
@@ -378,6 +391,9 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
             _history.AddLast(snap);
             while (_history.Count > MaxHistory) _history.RemoveFirst();
         }
+
+        // 4c. Trading requires a warm window (enough candles for the regime + window signals).
+        if (_cb.CompletedCount < WindowSize) return;
 
         // 5. Confirmation gate. All filters in one place — if anything blocks, return.
         if (!ShouldTrade(composite, tick, classified.Mid, now, out var direction)) return;
@@ -658,27 +674,52 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         return SignalResult.From("VPIN", score, conf, now);
     }
 
-    // ── Signal: OBI (L1 fallback — see class comment) ─────────────────────────────
+    // ── Signal: OBI ────────────────────────────────────────────────────────────────
+    // Shallow = best-level imbalance; deep = volume-weighted across up to ObiLevelsDeep
+    // levels with geometric decay. Uses the live L2 book (_latestDepth) when the broker
+    // supplies one (cTrader); otherwise falls back to the tick's L1 BidSize/AskSize, which
+    // are zero on quote-only feeds and so yield an Invalid (neutral) result.
     private SignalResult CalcObiShallow(Tick tick, DateTime now)
     {
-        var total = tick.BidSize + tick.AskSize;
-        if (total <= 0) return SignalResult.Invalid("OBI_SHALLOW", now);
-        var obi = (double)(tick.BidSize - tick.AskSize) / total;
-        var score = Math.Clamp(obi * 3.0, -3.0, 3.0);
-        var conf = Math.Abs(obi);
-        return SignalResult.From("OBI_SHALLOW", score, conf, now);
+        var depth = _latestDepth;
+        if (depth is not null && depth.Bids.Count > 0 && depth.Asks.Count > 0)
+            return ObiFromImbalance("OBI_SHALLOW", depth.BestBidSize, depth.BestAskSize, now);
+
+        return ObiFromL1("OBI_SHALLOW", tick, now);
     }
 
     private SignalResult CalcObiDeep(Tick tick, DateTime now)
     {
-        // Without DepthSnapshot we degenerate to the same L1 imbalance; the slight twist
-        // is that the deep-OBI weight is smaller, so it still differentiates from shallow.
+        var depth = _latestDepth;
+        if (depth is not null && depth.Bids.Count > 0 && depth.Asks.Count > 0)
+        {
+            double bidW = 0, askW = 0, w = 1.0;
+            for (var i = 0; i < ObiLevelsDeep; i++)
+            {
+                if (i < depth.Bids.Count) bidW += w * depth.Bids[i].Size;
+                if (i < depth.Asks.Count) askW += w * depth.Asks[i].Size;
+                w *= ObiWeightDecay; // deeper levels contribute geometrically less
+            }
+            return ObiFromImbalance("OBI_DEEP", bidW, askW, now);
+        }
+
+        return ObiFromL1("OBI_DEEP", tick, now);
+    }
+
+    private static SignalResult ObiFromImbalance(string name, double bid, double ask, DateTime now)
+    {
+        var total = bid + ask;
+        if (total <= 0) return SignalResult.Invalid(name, now);
+        var obi = (bid - ask) / total;
+        return SignalResult.From(name, Math.Clamp(obi * 3.0, -3.0, 3.0), Math.Abs(obi), now);
+    }
+
+    private static SignalResult ObiFromL1(string name, Tick tick, DateTime now)
+    {
         var total = tick.BidSize + tick.AskSize;
-        if (total <= 0) return SignalResult.Invalid("OBI_DEEP", now);
+        if (total <= 0) return SignalResult.Invalid(name, now);
         var obi = (double)(tick.BidSize - tick.AskSize) / total;
-        var score = Math.Clamp(obi * 3.0, -3.0, 3.0);
-        var conf = Math.Abs(obi);
-        return SignalResult.From("OBI_DEEP", score, conf, now);
+        return SignalResult.From(name, Math.Clamp(obi * 3.0, -3.0, 3.0), Math.Abs(obi), now);
     }
 
     // ── Signal: footprint stacked imbalance ────────────────────────────────────────
