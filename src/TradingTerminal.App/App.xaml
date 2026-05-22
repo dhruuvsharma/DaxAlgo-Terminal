@@ -13,6 +13,7 @@
             <converters:BrokerInitialsConverter x:Key="BrokerInitialsConverter" />
             <converters:BrokerSubtitleConverter x:Key="BrokerSubtitleConverter" />
             <converters:Base64ToImageSourceConverter x:Key="Base64ToImageSourceConverter" />
+            <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
 
             <ResourceDictionary.MergedDictionaries>
                 <!-- MahApps base -->

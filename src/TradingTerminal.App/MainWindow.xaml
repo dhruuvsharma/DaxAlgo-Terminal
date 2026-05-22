@@ -55,6 +55,8 @@
                           Command="{Binding OpenBacktestCommand}" />
                 <MenuItem Header="_Record live ticks…"
                           Command="{Binding OpenRecorderCommand}" />
+                <MenuItem Header="_Market regime…"
+                          Command="{Binding OpenRegimeCommand}" />
             </MenuItem>
 
             <MenuItem Header="_AI tools">

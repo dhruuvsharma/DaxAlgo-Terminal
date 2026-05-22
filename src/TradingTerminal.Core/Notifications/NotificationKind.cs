@@ -17,6 +17,9 @@ public enum NotificationKind
     /// <summary>An order or fill, once strategies start placing real orders.</summary>
     Trade,
 
+    /// <summary>The market-regime composite crossed into a new risk band (e.g. Greed → Fear).</summary>
+    RegimeChange,
+
     /// <summary>Sent from the Settings tab to verify the channel works.</summary>
     Test,
 }

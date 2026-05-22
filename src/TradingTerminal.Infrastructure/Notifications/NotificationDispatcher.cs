@@ -19,6 +19,7 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
     private readonly Channel<StrategyNotification> _channel;
     private readonly IEnumerable<INotificationTransport> _transports;
     private readonly IEnumerable<INotificationEnricher> _enrichers;
+    private readonly ISignalGate _gate;
     private readonly ILogger<NotificationDispatcher> _logger;
     private CancellationTokenSource? _cts;
     private Task? _loop;
@@ -27,6 +28,7 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
         IOptions<NotificationsOptions> options,
         IEnumerable<INotificationTransport> transports,
         IEnumerable<INotificationEnricher> enrichers,
+        ISignalGate gate,
         ILogger<NotificationDispatcher> logger)
     {
         var capacity = Math.Max(8, options.Value.QueueCapacity);
@@ -38,6 +40,7 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
         });
         _transports = transports;
         _enrichers = enrichers;
+        _gate = gate;
         _logger = logger;
     }
 
@@ -73,6 +76,13 @@ internal sealed class NotificationDispatcher : INotificationPublisher, IHostedSe
         {
             await foreach (var n in _channel.Reader.ReadAllAsync(ct))
             {
+                if (_gate.ShouldSuppress(n, out var reason))
+                {
+                    _logger.LogInformation("Notification gated ({Reason}): {Kind} {Strategy}",
+                        reason, n.Kind, n.StrategyId);
+                    continue;
+                }
+
                 var enabled = _transports.Where(t => t.IsEnabled).ToArray();
                 if (enabled.Length == 0) continue;
 

@@ -1,0 +1,30 @@
+# Local data services for DaxAlgo Terminal. Everything here is free / open-source.
+#
+#   docker compose up -d        # start (after Docker Desktop is running)
+#   docker compose down         # stop, keep data
+#   docker compose down -v      # stop and wipe the data volume
+#
+# TimescaleDB = PostgreSQL + a free (Apache-2) time-series extension. The terminal's
+# canonical market-data store talks to it via Npgsql; if this container isn't running the
+# app automatically falls back to the embedded SQLite store, so this is optional.
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16   # pin to e.g. :2.17.2-pg16 for reproducibility
+    container_name: daxalgo-timescaledb
+    environment:
+      POSTGRES_DB: daxalgo
+      POSTGRES_USER: daxalgo
+      POSTGRES_PASSWORD: daxalgo
+    ports:
+      - "5432:5432"
+    volumes:
+      - daxalgo-tsdb:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U daxalgo -d daxalgo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  daxalgo-tsdb:

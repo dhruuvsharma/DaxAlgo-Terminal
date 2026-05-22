@@ -21,6 +21,10 @@ public static class NotificationsServiceCollectionExtensions
     {
         services.Configure<NotificationsOptions>(configuration.GetSection(NotificationsOptions.SectionName));
 
+        // Default signal gate (no-op). The market-regime module registers a real gate that
+        // supersedes this; TryAdd keeps this as the fallback when that module isn't wired.
+        services.TryAddSingleton<ISignalGate, AllowAllSignalGate>();
+
         services.AddSingleton<NotificationDispatcher>();
         services.AddSingleton<INotificationPublisher>(sp => sp.GetRequiredService<NotificationDispatcher>());
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<NotificationDispatcher>());

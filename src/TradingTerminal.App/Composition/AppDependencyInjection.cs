@@ -6,6 +6,7 @@ using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
+using TradingTerminal.App.Regime;
 using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
@@ -197,6 +198,16 @@ public static class AppDependencyInjection
     {
         services.AddTransient<AiAnalystViewModel>();
         services.AddTransient<AiAnalystView>();
+        return services;
+    }
+
+    /// <summary>Market Regime tab — opens from Tools → Market regime. The provider and refresh
+    /// loop live in Infrastructure (registered via AddMarketRegime); only the panel is here.
+    /// Transient so each open gets a fresh subscription that disposes with the tab.</summary>
+    public static IServiceCollection AddRegimeSurface(this IServiceCollection services)
+    {
+        services.AddTransient<MarketRegimeViewModel>();
+        services.AddTransient<MarketRegimeView>();
         return services;
     }
 }

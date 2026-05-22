@@ -11,6 +11,7 @@ using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
+using TradingTerminal.App.Regime;
 using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
@@ -33,6 +34,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string MlFeaturesTabId = "ai.mlfeatures";
     private const string BacktestAnalysisTabId = "ai.backtestanalysis";
     private const string AiAnalystTabId = "ai.marketanalyst";
+    private const string RegimeTabId = "tools.regime";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -356,6 +358,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             CanClose = true,
         };
         OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenRegime()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == RegimeTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<MarketRegimeViewModel>();
+        var view = _services.GetRequiredService<MarketRegimeView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Market regime",
+            ContentId = RegimeTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        // The VM holds a live subscription to the regime stream — dispose it when the tab closes.
+        _tabDisposables[tab] = vm;
         ActiveTab = tab;
     }
 
