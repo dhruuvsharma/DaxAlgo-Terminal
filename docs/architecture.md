@@ -40,11 +40,15 @@ TradingTerminal.sln
 │   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
 │   │   ├── Backtest/                             IBacktestStrategy, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/Recovery/DownsideDev/MaxConsecLosses)
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
-│   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader/Alpaca options
-│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState
+│   │   ├── Configuration/                        InteractiveBrokers/NinjaTrader/CTrader/Alpaca options, MarketDataStoreOptions, MarketRegimeOptions
+│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState, InstrumentId/Instrument/InstrumentAlias, AssetClass,
+│   │   │                                          canonical Quote/TradePrint/OhlcvBar records (event+ingest time, source, seq, approx flag)
 │   │   ├── Events/                               IEventBus, EventBus
-│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure helpers, Indicators (SMA/EMA/RSI/ATR/stdev)
-│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport
+│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository,
+│   │   │                                          IMarketDataHub / IMarketDataStore / IMarketDataIngest / IInstrumentRegistry (canonical pipeline),
+│   │   │                                          Microstructure helpers, Indicators (SMA/EMA/RSI/ATR/stdev)
+│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport, ISignalGate, NotificationKind
+│   │   ├── Regime/                               IMarketRegimeProvider, MarketRegimeCalculator (pure), Snapshot/State/Category/Inputs records
 │   │   ├── Risk/                                 IRiskManager, RiskManager (per-symbol pos cap + daily PnL cap), RiskOptions
 │   │   ├── Session/                              SessionContext
 │   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
@@ -60,8 +64,13 @@ TradingTerminal.sln
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI), FakeNinjaClient
 │   │   ├── CTrader/                              RealCTraderClient, FakeCTraderClient
 │   │   ├── Alpaca/                               RealAlpacaClient (REST history + WS ticks for stocks + crypto; no synthetic fallback)
-│   │   ├── MarketData/                           MarketDataRepository
-│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram + Discord transports, options
+│   │   ├── MarketData/                           MarketDataRepository,
+│   │   │                                          MarketDataHub (Rx fanout), MarketDataIngestService (ref-counted, normalizes per-broker timestamps),
+│   │   │                                          Store/ — MarketDataStoreBase + Sqlite{MarketDataStore,InstrumentPersistence,Schema}
+│   │   │                                          and Npgsql{MarketDataStore,InstrumentPersistence} + TimescaleSchema (Postgres/TimescaleDB)
+│   │   ├── Notifications/                        Dispatcher (channel + hosted worker), Telegram + Discord transports, AllowAllSignalGate (default)
+│   │   ├── Regime/                               MarketRegimeService, RegimeRefreshLoop (IHostedService), RegimeSignalGate (ISignalGate impl),
+│   │   │                                          Yahoo/FRED/CNN/AAII clients
 │   │   ├── Time/                                 SystemClock
 │   │   ├── Trading/                              LiveOrderRouter (delegates to active IBrokerClient)
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
@@ -151,6 +160,88 @@ public interface IMarketDataRepository
 
 `MarketDataRepository` resolves `IBrokerSelector.Active` for every call and marshals every yielded bar/tick onto the UI dispatcher before handing it back. View-models stay single-threaded.
 
+### Canonical market-data pipeline
+
+`IMarketDataRepository` is the broker-facing seam — one selector lookup per call, raw `Bar`/`Tick` records, no persistence. Sitting in front of it is a **broker-neutral pipeline** that resolves canonical identity, normalizes provenance, fans out live, and writes through to a local store. Strategies and view-models can keep talking to the repository, or move to the pipeline for warm-up history + a uniform stream regardless of which broker is connected.
+
+```
+broker socket          ┌── canonical record ──► IMarketDataHub (Rx, in-memory fanout) ──► strategies / panels
+   │                   │                                                                       (subscribe by InstrumentId)
+   ▼                   │
+IBrokerClient ──► IMarketDataIngest ── normalize ──► canonical Quote / TradePrint / OhlcvBar
+                       │                                                                       
+                       └── batched async writes ──► IMarketDataStore ──► SQLite | Postgres/Timescale
+                                                                         (warm-up, replay, research)
+```
+
+Four Core seams under `Core/MarketData/` + `Core/Domain/`:
+
+```csharp
+public readonly record struct InstrumentId(int Value);            // surrogate, broker-neutral pk
+
+public sealed record Instrument(InstrumentId Id, string CanonicalSymbol,
+    AssetClass AssetClass, string Exchange, string Currency,
+    double TickSize, double Multiplier);
+
+public sealed record InstrumentAlias(InstrumentId InstrumentId,
+    BrokerKind Broker, string BrokerSymbol, string? BrokerNativeId);
+
+public interface IInstrumentRegistry
+{
+    Instrument? Get(InstrumentId id);
+    InstrumentId? Resolve(BrokerKind broker, string brokerSymbol);
+    InstrumentId ResolveOrCreate(Contract contract, BrokerKind broker);  // auto-registers on first sight
+    string? ToBrokerSymbol(InstrumentId id, BrokerKind broker);
+    void RegisterAlias(InstrumentAlias alias);
+    IReadOnlyList<Instrument> All();
+}
+
+public interface IMarketDataHub
+{
+    IObservable<Quote>          Quotes(InstrumentId id);
+    IObservable<TradePrint>     Trades(InstrumentId id);
+    IObservable<OhlcvBar>       Bars(InstrumentId id, BarSize size);
+    IObservable<DepthSnapshot>  Depth(InstrumentId id);
+    void PublishQuote(Quote q);         // ingest only
+    void PublishTrade(TradePrint t);    // ingest only
+    void PublishBar(OhlcvBar b);        // ingest only
+    void PublishDepth(InstrumentId id, DepthSnapshot s);
+}
+
+public interface IMarketDataStore
+{
+    void EnqueueQuote(Quote q);         // non-blocking; channel → batch writer
+    void EnqueueTrade(TradePrint t);
+    void EnqueueBar(OhlcvBar b);        // upserts in-progress bars by (id, size, openTime)
+    Task FlushAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
+        InstrumentId id, BarSize size, int count, CancellationToken ct = default);
+    IAsyncEnumerable<Quote>      ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, ...);
+    IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, ...);
+}
+
+public interface IMarketDataIngest
+{
+    InstrumentId Resolve(Contract contract);
+    IDisposable  Subscribe(Contract contract);            // quotes + depth, ref-counted
+    IDisposable  SubscribeBars(Contract contract, BarSize size);
+}
+```
+
+**Canonical records.** Unlike the legacy quote-only `Tick`, every record carries both `EventTimeUtc` and `IngestTimeUtc`, the originating `BrokerKind Source`, a per-instrument monotonic `Sequence`, and an `EventTimeApproximate` flag. Brokers that only report arrival time (IB, NT, cTrader stamp ticks with `DateTime.UtcNow` in their callbacks) get their event time copied from ingest time and the flag set — so consumers always know whether the timestamp is authoritative. `TradePrint` fills the gap quote-only feeds left (Alpaca publishes trades; the other three currently don't, so `TradePrint` ingest is unsourced until a broker trade-stream is wired).
+
+**Two storage backends, one base.** `MarketDataStoreBase` owns the channel + batch + flush loop; concrete backends only spell out their schema and `INSERT` statements:
+
+- **`SqliteMarketDataStore`** — embedded, WAL mode, `Microsoft.Data.Sqlite`. Timestamps stored as epoch-microseconds. Default DB path `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db`. Zero-config.
+- **`NpgsqlMarketDataStore`** — PostgreSQL with the free Apache-2 TimescaleDB extension over `Npgsql`. `timestamptz` columns; quotes/trades/bars are hypertables. Connection string defaults match the `docker-compose.yml` service.
+
+`IInstrumentRegistry` likewise has both `SqliteInstrumentPersistence` and `NpgsqlInstrumentPersistence` behind one in-memory cached `InstrumentRegistry`. Backend is picked once in DI from `MarketDataStoreOptions.Provider` (`Sqlite` | `Postgres`); when `Postgres` is configured but the network probe in the factory fails (Docker not running), the app **transparently falls back to SQLite** so it always starts — logged at warning level.
+
+**Ingest is ref-counted per instrument.** N strategies subscribing to the same canonical id share one broker stream; the underlying `IBrokerClient` subscription stops when the last handle is disposed. Depth snapshots are live-only (not persisted — bandwidth would dwarf everything else).
+
+The pipeline is registered as one line in `App.xaml.cs` via `services.AddMarketDataPipeline(configuration)`. The legacy `IMarketDataRepository` path is still wired and unchanged — the pipeline is additive.
+
 ### Connection management
 
 ```csharp
@@ -225,6 +316,8 @@ Strategies inject `INotificationPublisher` and call `PublishAsync` whenever a si
 
 Settings (bot token, chat ID, enable flag) live in `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`, layered onto host configuration with `reloadOnChange: true`. Transports read `IOptionsMonitor<NotificationsOptions>.CurrentValue` on each send, so edits from the Settings tab take effect without a restart.
 
+An `ISignalGate` seam sits between the publisher and the transport fanout — it can veto a notification just before send-out, with a short human-readable reason for the log. The default implementation (`AllowAllSignalGate`) is a no-op; the market-regime feature swaps in `RegimeSignalGate` to suppress `Signal`-kind notifications while the composite is below the risk-off threshold (see below). Decoupling the gate keeps the dispatcher unaware of any specific feature.
+
 Two transports ship: **Telegram** (Bot API, JSON over HTTPS) and **Discord** (channel webhook, JSON over HTTPS). Each has its own options block (`NotificationsOptions.Telegram` / `NotificationsOptions.Discord`), its own enable flag, and its own `IncludeIdleSignals` knob — they're fully independent.
 
 Adding another transport (Slack, email, SMS) = one class implementing `INotificationTransport` in `Infrastructure/Notifications/<Channel>/`, plus options/persistence/UI plumbing modelled on the Telegram or Discord scaffolding. The dispatcher discovers transports via `IEnumerable<INotificationTransport>`.
@@ -250,6 +343,35 @@ public sealed record AnalystReport(
 Two implementations: `NullAiAnalystClient` (default — always returns "unavailable") and `HttpAiAnalystClient` (calls the Python sidecar over `http://127.0.0.1:<port>/analyst/run`). A `DispatchingAiAnalystClient` reads `IOptionsMonitor<NotificationsOptions>.CurrentValue` on every call so the Settings toggle hot-swaps Null ↔ Http without a restart. The actual reasoning lives in a Python sidecar (`tools/python-ml/daxalgo-ml.exe`) — a four-agent LangGraph (indicator → pattern → trend → decision) with TA-Lib indicators, mplfinance candle rendering, and vision-LLM pattern matching against a 16-pattern classical catalog. See [`polyglot.md`](polyglot.md) for the subprocess + HTTP/JSON seam contract and the rationale for keeping Python out-of-process.
 
 API keys are stored DPAPI-encrypted under `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json` (same `DataProtectionScope.CurrentUser` pattern as Alpaca/cTrader) — never in `appsettings.json`. The terminal degrades gracefully: with no sidecar running the WPF pane shows "AI Analyst unavailable" and the enricher silently passes notifications through unchanged. Ollama and AI Analyst are independent enrichers; both run in registration order, neither replaces the other.
+
+### Market regime composite
+
+A broker-independent "is the market risk-on or risk-off right now" score, ported from the upstream `worldmonitor` project's Fear/Greed model and rewritten behind `Core` types. The composite is a weighted blend of ten sub-signals (volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset) mapped to a 0–100 score with five bands (Extreme Fear / Fear / Neutral / Greed / Extreme Greed).
+
+```csharp
+public interface IMarketRegimeProvider
+{
+    MarketRegimeSnapshot Current { get; }                          // never null; Empty before first refresh
+    IObservable<MarketRegimeSnapshot> Updates { get; }             // hot, replays the latest to new subscribers
+    Task<MarketRegimeSnapshot> RefreshAsync(CancellationToken ct = default);
+}
+
+public sealed record MarketRegimeSnapshot(
+    double CompositeScore, RegimeState State, double? PreviousScore,
+    IReadOnlyList<RegimeCategoryScore> Categories,
+    RegimeHeaderMetrics Header, DateTime GeneratedAtUtc, bool Unavailable);
+```
+
+The actual math lives in `Core/Regime/MarketRegimeCalculator` — a pure function that takes a `RegimeInputs` bag and emits a snapshot. Inputs come from four free public endpoints in `Infrastructure/Regime/`:
+
+- **`YahooChartClient`** — Yahoo Finance v8 chart endpoint, always on, no key. Drives volatility (VIX), trend (price vs 200dma), breadth, momentum, cross-asset.
+- **`FredClient`** — St. Louis Fed FRED REST API. Needs a free key (`MarketRegime:FredApiKey`); enables the credit / liquidity / macro categories plus the 10y / HY-spread / Fed-funds header metrics. Missing key degrades those categories to a neutral 50 rather than failing the composite.
+- **`CnnFearGreedClient`** — CNN Money's Fear & Greed dataviz endpoint, no key. Scraped, can break; toggleable via `UseCnnFearGreed`.
+- **`AaiiSentimentClient`** — AAII weekly bull/bear sentiment survey. Scraped HTML; lowest reliability, always non-blocking.
+
+`MarketRegimeService` orchestrates the pulls (graceful per-source degradation), `RegimeRefreshLoop : IHostedService` recomputes on a configurable cadence (`MarketRegime:RefreshMinutes`, 5-minute floor to stay polite to Yahoo), and `RegimeSignalGate` (implementing `ISignalGate`, see Notifications above) suppresses outbound `Signal` notifications when `GateSignalsWhenRiskOff` is on and the composite is at or below `RiskOffThreshold`. The signal still appears in the strategy's own dashboard — only the outbound alert is dropped. Regime band changes optionally fire their own `NotificationKind.RegimeChange` alert.
+
+The dockable **Tools → Market regime** panel binds to `Updates`, paints the gauge + category breakdown + header metrics, and shows "unavailable" until the first refresh lands.
 
 ### Backtest engine
 
@@ -328,6 +450,8 @@ Records, sealed by default, all in `Core`. No broker-specific fields leak in.
 | `NTDirect` polling loop (NT) | Background `Task` | Same channel + dispatch path |
 | `OpenClient` `IObservable<IMessage>` (cTrader) | Library worker | Same channel + dispatch path |
 | Reconnect loop | Background `Task` | State pushed via `BehaviorSubject` |
+| `IMarketDataStore` writes | Background `Channel<>` consumer per backend | Ingest hot path never blocks on disk; batched flush on size or interval |
+| `RegimeRefreshLoop` polls | `IHostedService` worker | Snapshots pushed via `IObservable<MarketRegimeSnapshot>` |
 | View-model updates | UI thread | All `[ObservableProperty]` writes happen here |
 | Tests | Caller's thread | Synthetic `IBrokerClient` substitutes run synchronously; `ImmediateDispatcher` skips the marshal |
 
@@ -440,6 +564,8 @@ Tests live in `tests/TradingTerminal.Tests` and use xUnit + FluentAssertions + N
 - **Risk manager** — per-symbol cap rejects accumulating positions; daily loss cap rejects after threshold and resets at UTC midnight; duplicate fills are idempotent.
 - **Microstructure** — microprice leans toward the thinner side, equals the mid when sizes are equal, falls back to mid when sizes are zero; queue imbalance is bounded and signed.
 - **Indicators** — SMA, EMA recursion, Wilder-RSI saturation in both directions, ATR mean-of-|Δ|, rolling stdev with Bessel correction.
+- **Canonical pipeline** — `InstrumentRegistry` resolves the same canonical id for repeated `Contract` lookups (idempotent), `MarketDataHub` fans one publish out to multiple `InstrumentId` subscribers, `MarketDataIngestService` normalizes per-broker timestamps (sets `EventTimeApproximate` for brokers that only report arrival time). Store backends covered by a round-trip test per backend: `SqliteMarketDataStoreTests` always runs; `NpgsqlMarketDataStoreTests` self-skips when Docker / Postgres isn't reachable.
+- **Market regime** — `MarketRegimeCalculator` produces the expected composite + band on a hand-built `RegimeInputs` (extreme-fear / extreme-greed corner cases, neutral fallback when sources are missing).
 
 The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as a smoke test for the full DI graph.
 

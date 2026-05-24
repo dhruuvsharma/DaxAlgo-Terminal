@@ -12,7 +12,8 @@ This file is the always-loaded core. Detail lives in **skills** (lazy-loaded by 
 - **Charts**: ScottPlot 5.
 - **DI**: `Microsoft.Extensions.DependencyInjection`.
 - **Logging**: Serilog with custom in-memory sink for the Logs pane.
-- **Tests**: xUnit + FluentAssertions + NSubstitute. WPF-touching tests use `[WpfFact]` (`Xunit.StaFact`).
+- **Local data store**: canonical market-data pipeline (`IMarketDataHub`/`Store`/`Ingest`/`InstrumentRegistry`) with two interchangeable backends — embedded **SQLite** (`Microsoft.Data.Sqlite`, default, zero-config) and **PostgreSQL + TimescaleDB** (`Npgsql`, via root `docker-compose.yml`). Postgres auto-falls-back to SQLite at startup if unreachable.
+- **Tests**: xUnit + FluentAssertions + NSubstitute. WPF-touching tests use `[WpfFact]` (`Xunit.StaFact`). Postgres integration tests self-skip when Docker isn't running.
 
 ## Solution graph (do not break this)
 
@@ -38,6 +39,8 @@ Core       → (nothing)
 6. **Connection state is observable.** `IObservable<ConnectionState>` flows ConnectionManager → repository → view-models. Don't poll.
 7. **Reconnect with exponential backoff** (already wired, 1s → 30s cap). New broker calls assume the connection can drop mid-call.
 8. **`IBrokerClient.ConnectAsync` takes no params.** Each impl reads its own `IOptions<XxxOptions>`. The login form pushes user creds into options before flipping the selector.
+9. **Canonical identity is `InstrumentId`, not broker symbology.** New strategies/persistence/store code keys on `InstrumentId`; the registry resolves broker `Contract`s to ids and back. `Quote`/`TradePrint`/`OhlcvBar` always carry `EventTimeUtc + IngestTimeUtc + Source + Sequence + EventTimeApproximate` — never strip provenance.
+10. **Store writes are non-blocking.** `IMarketDataStore.Enqueue*` returns immediately; a background batched writer flushes on `WriteBatchSize` or `FlushIntervalMs`. Don't await disk on the ingest hot path.
 
 ## Skills (lazy-loaded — invoke via the Skill tool when relevant)
 

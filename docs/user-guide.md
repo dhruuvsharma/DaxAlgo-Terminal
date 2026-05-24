@@ -146,7 +146,71 @@ without an app restart.
 
 ---
 
-## 4b. AI Market Analyst (AI tools → Market analyst)
+## 4a. Local market-data store
+
+Behind the scenes, every tick / quote / bar / trade the terminal sees from any broker is
+written to a local store, so strategies can warm up on history and you can replay/research
+later. Two backends ship — flip via `MarketDataStore:Provider` in `appsettings.json`:
+
+| Provider | What it is | Where data lives |
+|---|---|---|
+| `Sqlite` (default) | Embedded file, zero-config | `%LocalAppData%\DaxAlgoTerminal\marketdata.db` (override via `MarketDataStore:DatabasePath`) |
+| `Postgres` | PostgreSQL + the free TimescaleDB extension (hypertables) | The container in the repo-root `docker-compose.yml` |
+
+To run the Postgres backend:
+
+```powershell
+docker compose up -d       # start TimescaleDB (Docker Desktop must be running)
+docker compose down        # stop, keep data
+docker compose down -v     # stop + wipe the data volume
+```
+
+If you set `Provider: Postgres` but the database isn't reachable at startup (Docker not
+running, wrong port, wrong credentials), the app **falls back to SQLite automatically** —
+you'll see a `Postgres unreachable — falling back to embedded SQLite store.` line in the
+Logs pane. Nothing else changes; the in-memory live hub keeps working either way. To
+disable persistence entirely without losing the live fanout, set
+`MarketDataStore:PersistLiveData: false`.
+
+Depth-of-market (L2) snapshots are live-only — they aren't persisted (bandwidth would
+dwarf everything else). Quotes, trades, and bars are.
+
+---
+
+## 4b. Market regime (Tools → Market regime)
+
+Opens a dockable panel showing the current **risk-on / risk-off composite** as a 0–100
+gauge with five bands (Extreme Fear → Extreme Greed). The score blends ten weighted
+sub-signals — volatility (VIX), positioning, trend, breadth, momentum, credit, liquidity,
+macro, sentiment, cross-asset — pulled from four free public endpoints (Yahoo Finance,
+FRED, CNN Fear & Greed, AAII sentiment).
+
+### Setup
+
+1. **Optional but recommended:** grab a free FRED API key at
+   <https://fred.stlouisfed.org/docs/api/api_key.html> and paste it into
+   `MarketRegime:FredApiKey` in `appsettings.json`. Without it the credit / liquidity /
+   macro categories degrade to a neutral 50 (the Yahoo-driven categories still compute).
+2. Tune `MarketRegime:RefreshMinutes` if you want a tighter cadence than the 30-minute
+   default. The refresh loop floors at 5 minutes to stay polite to Yahoo.
+3. (Optional) Toggle `UseCnnFearGreed` / `UseAaiiSentiment` if either scraped source
+   starts misbehaving.
+
+### Behaviour knobs
+
+- `NotifyOnRegimeChange` — fire a `RegimeChange` notification when the band crosses
+  (e.g. Greed → Fear). Goes out through the same Telegram / Discord pipeline as signals.
+- `GateSignalsWhenRiskOff` + `RiskOffThreshold` — when on, outbound **Signal**
+  notifications are suppressed while the composite is at or below the threshold (default
+  40). The signal still appears in the strategy's own window — only the outbound alert is
+  dropped, with a one-line reason logged.
+
+The panel shows "unavailable" until the first refresh lands. If every source fails the
+composite degrades to neutral with the same flag, rather than crashing.
+
+---
+
+## 4c. AI Market Analyst (AI tools → Market analyst)
 
 A multi-agent LangGraph analyst that runs an indicator → pattern → trend → decision flow
 on a chosen symbol/timeframe and returns a structured verdict (`Long` / `Short` / `NoCall`)
@@ -413,6 +477,9 @@ or Discord transport for the shape.
 | Strategy window shows `AvalonDock.Layout.LayoutDocument` text | Stale build before the DockTab fix. `dotnet build` again. |
 | Notifications not arriving | Open Logs pane — Telegram/Discord transports log failures there. Common: invalid bot token (Telegram), expired or malformed webhook URL (Discord). Hit **Send test** in the Settings tab to bypass strategy logic. |
 | Ollama enricher silently doing nothing | The model isn't pulled, or Ollama isn't running. `ollama list` to confirm; `ollama serve` to start. Enricher always times out silently — it's deliberate so a slow LLM never backlogs the dispatcher. |
+| Log: `Postgres unreachable — falling back to embedded SQLite store.` | `MarketDataStore:Provider=Postgres` but Docker isn't running (or the connection string is wrong). `docker compose up -d` in the repo root, or set `Provider: Sqlite` if you don't need Postgres. The app keeps running on SQLite either way. |
+| Market regime panel stays on "unavailable" | First refresh hasn't landed yet (give it `RefreshMinutes`), or every source failed. Check Logs for per-source warnings. Without a `FredApiKey`, credit/liquidity/macro fall back to neutral but the Yahoo-driven categories still compute. |
+| Signal notifications stopped, dashboard still shows them | `MarketRegime:GateSignalsWhenRiskOff` is on and the composite dropped below `RiskOffThreshold`. Either lower the threshold, untick the gate, or wait for risk-on to return — the suppression reason is logged for each dropped notification. |
 | Strategy doesn't fire signals on synth data | Many strategies are regime-specific (session-aware, gap-aware, sticky-touch, etc.). Synth random-walk doesn't reproduce those regimes. Use real recorded data via the Recorder tab. |
 | Backtest CLI: `Unknown strategy 'foo'` | Run with `--strategy` set to one of the canonical ids; running the help (`daxalgo-backtest`) lists them all. |
 | Build error after pulling: `_wpftmp.csproj` can't see a type | WPF MarkupCompilePass1 limitation. Clean `obj/` and rebuild, OR move the offending type to a referenced assembly. |

@@ -23,6 +23,8 @@ The repo is structured as an honest engineering exercise: clean MVVM, plug-in ar
 - **Threading is a one-layer concern.** Broker callbacks are marshalled to the UI dispatcher inside the repository; view-models stay single-threaded from their POV.
 - **Auto-reconnect** with exponential backoff (1 s → 30 s cap), surfaced as a red banner with a Reconnect button.
 - **Reactive connection state** — `IObservable<ConnectionState>` flows from the connection manager through the repository to view-models. No polling.
+- **Canonical market-data pipeline** — broker-neutral identity (`InstrumentId`), normalized records (`Quote`/`TradePrint`/`OhlcvBar`, each tagged with event-time, ingest-time, source, sequence, and an "approximate" flag for brokers that only report arrival time), a Rx in-memory hub for the live hot path, ref-counted ingest sharing one broker stream per instrument, and a local store with two backends — embedded **SQLite** (zero-config, default) and **PostgreSQL + TimescaleDB** over `docker-compose` (hypertables). When Postgres is configured but unreachable at startup the app transparently falls back to SQLite.
+- **Market regime composite** — broker-independent risk-on/risk-off score (0–100, five bands) blended from ten weighted sub-signals across Yahoo Finance / FRED / CNN Fear & Greed / AAII sentiment. Dockable Tools → Market regime panel + an optional notification gate that suppresses outbound `Signal` alerts when the composite is in risk-off territory.
 - **Credential safety** — IB password and cTrader OAuth secrets are stored DPAPI-encrypted under `DataProtectionScope.CurrentUser`.
 - **AvalonDock** layout (left: strategies pane, center: strategy tabs, bottom: pinned logs, status bar with live broker mode badge).
 - **ScottPlot 5** candlestick chart (auto-scrolling, last ~200 bars, configurable timeframe).
@@ -230,6 +232,44 @@ endpoints, `CRYPTO` → crypto endpoints. Other sec-types (options) throw
 `NotSupportedException` until the SDK's options surface stabilises. There is no L2 depth
 — Alpaca only exposes L1 quotes.
 
+## Local data store (canonical market-data pipeline)
+
+The terminal keeps a broker-neutral copy of every normalized record (`Quote` / `TradePrint` / `OhlcvBar`) it sees, so strategies can warm up on history regardless of which broker is connected and so the same instrument has one identity across brokers. Two backends ship behind one `IMarketDataStore` seam — pick via `MarketDataStore:Provider`:
+
+| Backend | When to use | Where it lives |
+|---|---|---|
+| **SQLite** (default) | Solo dev box, no extra services, "just works". | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` (override via `MarketDataStore:DatabasePath`). WAL mode, epoch-microsecond timestamps. |
+| **PostgreSQL + TimescaleDB** | When you want hypertables, retention policies, or to point multiple machines at one store. | The `docker-compose.yml` at the repo root spins up `timescale/timescaledb:latest-pg16` on port 5432 with `db/user/pass = daxalgo`. Free + Apache-2. |
+
+```powershell
+# Optional — start the TimescaleDB service (Docker Desktop must be running)
+docker compose up -d
+
+# Stop, keep data
+docker compose down
+
+# Stop and wipe the data volume
+docker compose down -v
+```
+
+Flip to Postgres by setting `MarketDataStore:Provider` to `Postgres` in `appsettings.json` (the default connection string already matches the compose service). If the network probe at startup can't reach the database the pipeline **falls back to embedded SQLite** so the app always starts — logged at warning level.
+
+Writes are non-blocking — `EnqueueQuote/Trade/Bar` push onto a channel that a background batch writer drains (`WriteBatchSize` records, or `FlushIntervalMs` ms, whichever fires first). Depth snapshots are live-only and never persisted. Reads (`GetRecentBarsAsync` for warm-up, `ReadQuotesAsync` / `ReadTradesAsync` for replay/research) are async and stream.
+
+## Market regime composite
+
+A broker-independent **risk-on / risk-off score** (0–100, five bands: Extreme Fear → Extreme Greed) blended from ten weighted sub-signals (volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset). Inputs come from free public endpoints:
+
+- **Yahoo Finance** — chart endpoint, always on, no key. Powers VIX / trend / breadth / momentum / cross-asset.
+- **FRED** — needs a free key from [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html); enables credit / liquidity / macro categories and 10y / HY / Fed-funds header metrics. Missing key degrades those categories to a neutral 50.
+- **CNN Fear & Greed** — scraped dataviz endpoint, no key. Toggleable.
+- **AAII sentiment** — scraped weekly bull/bear survey. Lowest reliability, always non-blocking.
+
+Opens from **Tools → Market regime**. The composite refreshes on `MarketRegime:RefreshMinutes` (5-minute floor) and is published as `IObservable<MarketRegimeSnapshot>`. Optional knobs:
+
+- `NotifyOnRegimeChange` — emit a `NotificationKind.RegimeChange` alert when the band crosses.
+- `GateSignalsWhenRiskOff` + `RiskOffThreshold` — install `RegimeSignalGate` (implementing `ISignalGate`) so outbound `Signal` notifications are suppressed when the composite is at or below the threshold. The signal still appears in the strategy's own dashboard — only the outbound alert is dropped.
+
 ## Configuration reference (`appsettings.json`)
 
 | Key | Default | Notes |
@@ -254,6 +294,21 @@ endpoints, `CRYPTO` → crypto endpoints. Other sec-types (options) throw
 | `Alpaca:StockDataFeed` | `iex` | `iex` (free) or `sip` (paid). Ignored for crypto. |
 | `Alpaca:ReconnectInitialDelaySeconds` | `1` | Initial backoff. |
 | `Alpaca:ReconnectMaxDelaySeconds` | `30` | Cap on backoff. |
+| `MarketDataStore:Enabled` | `true` | Master switch for the persistence + ingest pipeline. The in-memory hub still works when this is false; only the disk writes stop. |
+| `MarketDataStore:Provider` | `Postgres` | `Sqlite` (embedded) or `Postgres` (PostgreSQL/TimescaleDB). Postgres falls back to SQLite at startup if the DB is unreachable. |
+| `MarketDataStore:PostgresConnectionString` | `Host=localhost;Port=5432;Database=daxalgo;Username=daxalgo;Password=daxalgo;Timeout=5;Command Timeout=10` | Matches the `docker-compose.yml` service. Only used when `Provider=Postgres`. |
+| `MarketDataStore:DatabasePath` | (empty) | SQLite file path. Empty = `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db`. |
+| `MarketDataStore:PersistLiveData` | `true` | When false the hub still fans out in-memory but nothing is written to disk. |
+| `MarketDataStore:WriteBatchSize` | `500` | Records buffered before the background writer flushes. |
+| `MarketDataStore:FlushIntervalMs` | `1000` | Max wait before a flush even if the batch isn't full. |
+| `MarketRegime:Enabled` | `true` | Master switch for the composite + refresh loop. |
+| `MarketRegime:RefreshMinutes` | `30` | Poll cadence (5-minute floor in the loop). |
+| `MarketRegime:FredApiKey` | (empty) | Free key from fred.stlouisfed.org. Without it, credit/liquidity/macro categories degrade to neutral 50. |
+| `MarketRegime:UseCnnFearGreed` | `true` | Pull CNN's Fear & Greed dataviz endpoint. Scraped — toggle off if it gets noisy. |
+| `MarketRegime:UseAaiiSentiment` | `true` | Pull the AAII weekly bull/bear survey. Scraped HTML, always non-blocking. |
+| `MarketRegime:NotifyOnRegimeChange` | `true` | Fire a `NotificationKind.RegimeChange` alert when the band crosses. |
+| `MarketRegime:GateSignalsWhenRiskOff` | `false` | When true, outbound `Signal` notifications are suppressed while the composite is at/below `RiskOffThreshold`. |
+| `MarketRegime:RiskOffThreshold` | `40` | Composite score at or below which the market counts as risk-off for the gate. |
 | `Logging:MinimumLevel` | `Information` | `Verbose` / `Debug` / `Information` / `Warning` / `Error`. |
 | `Logging:FilePath` | `logs/terminal-.log` | Daily rolling, relative to the app's working directory. |
 | `Notifications:QueueCapacity` | `256` | Bounded channel size; oldest dropped on overflow. |
@@ -444,10 +499,14 @@ TradingTerminal/
 │   │   ├── Backtest/                             IBacktestStrategy, IBacktestSession, BacktestConfig/Result/Stats (+Calmar/Omega/Ulcer/…),
 │   │   │                                          Trade, EquityPoint, FillRecord, TransactionCostAnalysis, MonteCarlo, BacktestStrategyOption
 │   │   ├── Brokers/                              BrokerKind, IBrokerSelector, BrokerConnectionMode
-│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository, Microstructure (L1+L2), Indicators (SMA/EMA/RSI/ATR/stdev)
+│   │   ├── MarketData/                           IBrokerClient, IMarketDataRepository,
+│   │   │                                          IMarketDataHub / IMarketDataStore / IMarketDataIngest / IInstrumentRegistry (canonical pipeline),
+│   │   │                                          Microstructure (L1+L2), Indicators (SMA/EMA/RSI/ATR/stdev)
 │   │   ├── Ml/                                   TripleBarrierLabeler, OnlineLinearRegression, FactorComputation
-│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState, DepthLevel, DepthSnapshot
-│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport, INotificationEnricher
+│   │   ├── Domain/                               Bar, Tick, Contract, BarSize, ConnectionState, DepthLevel, DepthSnapshot,
+│   │   │                                          InstrumentId/Instrument/InstrumentAlias, AssetClass, canonical Quote/TradePrint/OhlcvBar
+│   │   ├── Notifications/                        StrategyNotification, INotificationPublisher, INotificationTransport, INotificationEnricher, ISignalGate, NotificationKind
+│   │   ├── Regime/                               IMarketRegimeProvider, MarketRegimeCalculator (pure), Snapshot/State/Category/Inputs records
 │   │   ├── Risk/                                 IRiskManager, RiskManager, RiskOptions
 │   │   ├── Strategies/                           ITradingStrategy, IStrategyFactory, StrategyHost
 │   │   ├── Time/                                 IClock
@@ -467,9 +526,14 @@ TradingTerminal/
 │   │   ├── NinjaTrader/                          RealNinjaClient (#if HAS_NTAPI)
 │   │   ├── CTrader/                              RealCTraderClient (live spot + L2 depth)
 │   │   ├── Alpaca/                               RealAlpacaClient (REST history + WS ticks, stocks + crypto)
-│   │   ├── MarketData/                           MarketDataRepository
+│   │   ├── MarketData/                           MarketDataRepository,
+│   │   │                                          MarketDataHub (Rx fanout), MarketDataIngestService (ref-counted, normalizes per-broker timestamps),
+│   │   │                                          Store/ — MarketDataStoreBase + Sqlite{MarketDataStore,InstrumentPersistence,Schema} +
+│   │   │                                          Npgsql{MarketDataStore,InstrumentPersistence} + TimescaleSchema (Postgres/TimescaleDB)
 │   │   ├── Notifications/                        Dispatcher (channel + hosted worker + enricher pipeline),
-│   │   │                                          Telegram + Discord transports, Ollama commentary enricher
+│   │   │                                          Telegram + Discord transports, Ollama commentary enricher, AllowAllSignalGate (default)
+│   │   ├── Regime/                               MarketRegimeService, RegimeRefreshLoop (IHostedService), RegimeSignalGate (ISignalGate impl),
+│   │   │                                          Yahoo/FRED/CNN/AAII clients
 │   │   ├── Time/                                 SystemClock
 │   │   ├── Trading/                              LiveOrderRouter (delegates to active IBrokerClient)
 │   │   └── Threading/                            IUiDispatcher, WpfDispatcher
@@ -506,7 +570,7 @@ TradingTerminal/
 │   ├── architecture.md                           Design rationale, key interfaces, dep graph
 │   └── user-guide.md                             End-user manual (login, strategies, notifications, backtest, etc.)
 └── tests/
-    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute (59 tests across engine, ML, microstructure)
+    └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute (97 tests across engine, ML, microstructure, data pipeline, regime)
 ```
 
 ## Tests
@@ -524,6 +588,8 @@ Coverage (31+ tests, growing):
 - **Microstructure helpers** — L1: microprice leans toward the thinner side, falls back to mid when sizes are zero; queue imbalance is bounded and signed. L2: `CumulativeImbalance` saturates with heavy bid/ask books, `WeightedMidPrice` pulls toward the heavier side, `EstimatedSlippage` walks levels (correct avg-fill and insufficient-liquidity flag), `LargestLevelGap` picks the biggest step.
 - **Indicators** — SMA/EMA/Wilder-RSI/ATR/rolling-stdev math (Bessel correction, RSI saturation in both directions, EMA recursion).
 - **MarketDataRepository.SubscribeBarsAsync** propagates the underlying client's "not connected" error through the broker selector.
+- **Canonical pipeline** — `InstrumentRegistry` round-trips canonical ids across restarts and is idempotent on repeated `ResolveOrCreate`; `MarketDataHub` fans one publish out to multiple `InstrumentId` subscribers; `MarketDataIngestService` sets `EventTimeApproximate` for brokers that only report arrival time. Store backends covered by a round-trip test per backend: `SqliteMarketDataStoreTests` always runs; `NpgsqlMarketDataStoreTests` self-skips when Docker / Postgres isn't reachable.
+- **Market regime** — `MarketRegimeCalculator` produces the expected composite + band on hand-built `RegimeInputs` (extreme-fear / extreme-greed corners, neutral fallback when sources are missing).
 
 ## Troubleshooting
 
@@ -542,6 +608,9 @@ Coverage (31+ tests, growing):
 | Alpaca: `NotSupportedException` on subscribe | The contract's `SecType` isn't `STK` or `CRYPTO`. Alpaca options aren't wired yet — route options through IB. |
 | Alpaca: `NotSupportedException` from `SubscribeDepthAsync` | Expected — Alpaca only exposes L1 quotes. Route depth-of-market subscriptions through IB or cTrader. |
 | Alpaca: stock `sip` feed returns no data | The `sip` consolidated feed needs a paid subscription on the Alpaca account. Switch the feed dropdown back to `iex` (free). |
+| Log: `Postgres unreachable — falling back to embedded SQLite store.` | `MarketDataStore:Provider=Postgres` but Docker isn't running (or the connection string is wrong). Start the service with `docker compose up -d`, or set `Provider` to `Sqlite` if you don't need Postgres. The app keeps running on SQLite either way. |
+| Postgres logs `password authentication failed` | The default `docker-compose.yml` credentials are `daxalgo / daxalgo`. If you changed them, update `MarketDataStore:PostgresConnectionString` to match — or `docker compose down -v` to wipe the volume and re-init with the new env vars. |
+| Market regime panel says "unavailable" | First refresh hasn't landed yet (give it the configured `RefreshMinutes`), or every source failed. Without a `FredApiKey`, credit/liquidity/macro fall back to neutral but the composite still computes from Yahoo. Check the Logs pane for per-source warnings. |
 | `dotnet build` complains about missing .NET 8 SDK | This project targets `net9.0-windows`. Make sure the .NET 9 SDK is installed. |
 | Tests fail with a STA error | The `Xunit.StaFact` package didn't restore. The WPF-touching test uses `[WpfFact]` which spins up an STA thread. |
 
