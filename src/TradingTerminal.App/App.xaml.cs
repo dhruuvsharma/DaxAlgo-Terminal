@@ -14,6 +14,7 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.MarketData;
+using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.UI.Logging;
@@ -43,9 +44,10 @@ public partial class App : Application
                 cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
                 cfg.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
-                // Per-user override file edited by the Settings tab. Layered last so the
+                // Per-user override files edited by the Settings tabs. Layered last so the
                 // UI's writes win over what's shipped in appsettings.json.
                 cfg.AddJsonFile(NotificationsUserFile.Path, optional: true, reloadOnChange: true);
+                cfg.AddJsonFile(TradingTerminal.App.Archive.ArchiveUserFile.Path, optional: true, reloadOnChange: true);
             })
             .UseSerilog((ctx, services, lc) =>
             {
@@ -76,6 +78,7 @@ public partial class App : Application
                 services.AddSingleton(inMemoryLogSink);
                 services.AddTradingTerminalInfrastructure();
                 services.AddMarketDataPipeline(ctx.Configuration);
+                services.AddMarketDataArchive(ctx.Configuration);
                 services.AddNotifications(ctx.Configuration);
                 // Market regime — registered after AddNotifications so its risk-off signal gate
                 // supersedes the notifications module's no-op default.
@@ -93,6 +96,7 @@ public partial class App : Application
                 services.AddAiSurface();
                 services.AddAiAnalystSurface();
                 services.AddRegimeSurface();
+                services.AddArchiveSurface();
             })
             .Build();
 

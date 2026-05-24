@@ -1,0 +1,70 @@
+<UserControl x:Class="TradingTerminal.App.Archive.ArchiveActivityView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}"
+             d:DesignHeight="500" d:DesignWidth="900">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Archive activity"
+                   FontSize="20" FontWeight="SemiBold"
+                   Margin="0,0,0,4" />
+        <TextBlock Grid.Row="1"
+                   Text="Every period the scheduler (or you, manually) has shipped to Telegram. Click a row, then Restore to re-import its rows back into the local store."
+                   Foreground="{DynamicResource Text.Secondary}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,12" />
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Rows}"
+                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  RowHeaderWidth="0"
+                  Background="{DynamicResource Background.Primary}"
+                  Foreground="{DynamicResource Text.Primary}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="#" Binding="{Binding Id}" Width="50" />
+                <DataGridTextColumn Header="Period" Binding="{Binding PeriodLabel}" Width="100" />
+                <DataGridTextColumn Header="Range" Binding="{Binding Range}" Width="180" />
+                <DataGridTextColumn Header="Parts" Binding="{Binding Parts}" Width="60" />
+                <DataGridTextColumn Header="Size" Binding="{Binding TotalBytesPretty}" Width="80" />
+                <DataGridTextColumn Header="Quotes" Binding="{Binding RowsQuotes}" Width="80" />
+                <DataGridTextColumn Header="Bars" Binding="{Binding RowsBars}" Width="80" />
+                <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="140" />
+                <DataGridTextColumn Header="Uploaded" Binding="{Binding Uploaded}" Width="140" />
+                <DataGridTextColumn Header="Local deleted" Binding="{Binding LocalDeleted}" Width="100" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    Margin="0,12,0,0">
+            <Button Content="Refresh"
+                    Command="{Binding RefreshAsyncCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                    Padding="14,4" Margin="0,0,8,0" />
+            <Button Content="Restore selected"
+                    Command="{Binding RestoreSelectedCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                    Padding="14,4" Margin="0,0,16,0" />
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -23,7 +23,7 @@ public sealed partial class TrendFilterStrategyViewModel : LiveSignalStrategyVie
     [ObservableProperty] private long _quantity = 1;
 
     public TrendFilterStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -31,7 +31,7 @@ public sealed partial class TrendFilterStrategyViewModel : LiveSignalStrategyVie
         : base(
             strategyId: "trend.filter",
             strategyDisplayName: "200-SMA trend filter (index)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

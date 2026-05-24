@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -24,7 +24,7 @@ public sealed partial class VolatilityTargetedStrategyViewModel : LiveSignalStra
     [ObservableProperty] private int _rebalanceEveryTicks = 100;
 
     public VolatilityTargetedStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -32,7 +32,7 @@ public sealed partial class VolatilityTargetedStrategyViewModel : LiveSignalStra
         : base(
             strategyId: "vol.targeted",
             strategyDisplayName: "Volatility targeting (index)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

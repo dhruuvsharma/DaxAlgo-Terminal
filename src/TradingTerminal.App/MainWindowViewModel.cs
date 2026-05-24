@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Ai;
 using TradingTerminal.App.AiAnalyst;
+using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
@@ -35,6 +36,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string BacktestAnalysisTabId = "ai.backtestanalysis";
     private const string AiAnalystTabId = "ai.marketanalyst";
     private const string RegimeTabId = "tools.regime";
+    private const string ArchiveSettingsTabId = "settings.archive";
+    private const string ArchiveActivityTabId = "settings.archive.activity";
 
     private readonly IStrategyFactory _factory;
     private readonly IMarketDataRepository _repository;
@@ -398,6 +401,48 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Notifications",
             ContentId = NotificationsSettingsTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenArchiveSettings()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ArchiveSettingsTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<ArchiveSettingsViewModel>();
+        var view = _services.GetRequiredService<ArchiveSettingsView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Archive settings",
+            ContentId = ArchiveSettingsTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenArchiveActivity()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ArchiveActivityTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<ArchiveActivityViewModel>();
+        var view = _services.GetRequiredService<ArchiveActivityView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Archive activity",
+            ContentId = ArchiveActivityTabId,
             Content = view,
             CanClose = true,
         };

@@ -109,6 +109,14 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     public abstract IAsyncEnumerable<TradePrint> ReadTradesAsync(
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 
+    public abstract IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
+        InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
+        CancellationToken ct = default);
+
+    public abstract Task<long> DeleteQuotesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    public abstract Task<long> DeleteTradesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+    public abstract Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
     public void Dispose()
     {
         _channel.Writer.TryComplete();

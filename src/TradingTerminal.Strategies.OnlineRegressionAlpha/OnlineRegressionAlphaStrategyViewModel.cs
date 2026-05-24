@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -25,7 +25,7 @@ public sealed partial class OnlineRegressionAlphaStrategyViewModel : LiveSignalS
     [ObservableProperty] private long _quantity = 1;
 
     public OnlineRegressionAlphaStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -33,7 +33,7 @@ public sealed partial class OnlineRegressionAlphaStrategyViewModel : LiveSignalS
         : base(
             strategyId: "online.regression.alpha",
             strategyDisplayName: "Online-regression alpha (RLS)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

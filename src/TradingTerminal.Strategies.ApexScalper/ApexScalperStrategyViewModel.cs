@@ -46,7 +46,7 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
     public Engine.ApexScalperStrategy? EngineStrategy => _engine;
 
     public ApexScalperStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -54,7 +54,7 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
         : base(
             strategyId: "apex.scalper",
             strategyDisplayName: "APEX microstructure scalper",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

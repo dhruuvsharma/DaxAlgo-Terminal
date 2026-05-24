@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -26,7 +26,7 @@ public sealed partial class OrnsteinUhlenbeckStrategyViewModel : LiveSignalStrat
     [ObservableProperty] private long _quantity = 1;
 
     public OrnsteinUhlenbeckStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -34,7 +34,7 @@ public sealed partial class OrnsteinUhlenbeckStrategyViewModel : LiveSignalStrat
         : base(
             strategyId: "ornstein.uhlenbeck",
             strategyDisplayName: "Ornstein-Uhlenbeck mean reversion",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

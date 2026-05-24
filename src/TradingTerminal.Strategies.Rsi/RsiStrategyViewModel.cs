@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -17,20 +18,21 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
     /// <summary>Cap on instruments shown in the picker; the search box narrows the full universe.</summary>
     public const int MaxInstrumentsDisplayed = 500;
 
-    private readonly IMarketDataRepository _repository;
+    private readonly LiveStrategyHostServices _services;
     private readonly INotificationPublisher _notifications;
     private readonly ILogger<RsiStrategyViewModel> _logger;
     private CancellationTokenSource? _streamCts;
+    private IDisposable? _ingestHandle;
 
     private enum RsiZone { Neutral, Overbought, Oversold }
     private RsiZone _lastZone = RsiZone.Neutral;
 
     public RsiStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         ILogger<RsiStrategyViewModel> logger)
     {
-        _repository = repository;
+        _services = services;
         _notifications = notifications;
         _logger = logger;
 
@@ -101,7 +103,7 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            var list = await _repository.ListInstrumentsAsync();
+            var list = await _services.Repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
 
             AllInstruments = list
@@ -193,7 +195,7 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var historical = await _repository.GetHistoricalBarsAsync(contract, size,
+            var historical = await _services.Repository.GetHistoricalBarsAsync(contract, size,
                 TimeSpan.FromDays(1), ct);
             foreach (var b in historical.TakeLast(MaxBarsRetained))
                 Bars.Add(b);
@@ -219,24 +221,42 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
 
     private async Task RunStreamAsync(Contract contract, BarSize size, CancellationToken ct)
     {
+        // Canonical pipeline: resolve id, observe hub.Bars(id), and start (or join) the ref-counted
+        // ingest pump that feeds it. A bounded channel decouples the hub publish thread from the
+        // consumer; each bar is marshalled to the UI thread before mutating observable state.
+        var instrumentId = _services.Ingest.Resolve(contract);
+        var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Bars(instrumentId, size).Subscribe(b =>
+            channel.Writer.TryWrite(b.ToBar()));
+        _ingestHandle = _services.Ingest.SubscribeBars(contract, size);
+
         try
         {
-            await foreach (var bar in _repository.SubscribeBarsAsync(contract, size, ct))
+            await foreach (var bar in channel.Reader.ReadAllAsync(ct))
             {
-                AppendBar(bar);
-                EvaluateSignal();
-                BarsChanged?.Invoke(this, EventArgs.Empty);
+                await UiThread.RunAsync(() =>
+                {
+                    AppendBar(bar);
+                    EvaluateSignal();
+                    BarsChanged?.Invoke(this, EventArgs.Empty);
+                });
             }
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "RSI stream ended");
-            Status = $"Stream stopped: {ex.Message}";
+            await UiThread.RunAsync(() => Status = $"Stream stopped: {ex.Message}");
         }
         finally
         {
-            IsStreaming = false;
+            channel.Writer.TryComplete();
+            await UiThread.RunAsync(() => IsStreaming = false);
         }
     }
 
@@ -290,6 +310,8 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _streamCts = null;
+        _ingestHandle?.Dispose();
+        _ingestHandle = null;
         IsStreaming = false;
         IsAlgoRunning = false;
         Status = "Stopped";
@@ -301,5 +323,7 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _streamCts = null;
+        _ingestHandle?.Dispose();
+        _ingestHandle = null;
     }
 }

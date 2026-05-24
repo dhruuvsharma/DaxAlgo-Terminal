@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Ai;
 using TradingTerminal.App.AiAnalyst;
+using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
@@ -62,6 +63,17 @@ public static class AppDependencyInjection
         // Shared signal-strategy infrastructure used by every per-strategy project's VM.
         // Lives here once so the 21 Add<Name>Strategy() extensions stay one-liners.
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
+
+        // Bundle of canonical-pipeline deps every live strategy VM needs. Resolved once and
+        // injected into each per-strategy VM ctor so adding a new strategy doesn't need to
+        // touch DI here. The pipeline pieces themselves (IMarketDataHub/Ingest/Store) are
+        // registered by AddMarketDataPipeline; the repository facade is registered by
+        // AddInfrastructure. This just ties them into a single resolvable bundle.
+        services.AddSingleton(sp => new LiveStrategyHostServices(
+            sp.GetRequiredService<Core.MarketData.IMarketDataRepository>(),
+            sp.GetRequiredService<Core.MarketData.IMarketDataHub>(),
+            sp.GetRequiredService<Core.MarketData.IMarketDataIngest>(),
+            sp.GetRequiredService<Core.MarketData.IMarketDataStore>()));
 
         // Dedicated live strategies — each in its own project, opens as a MetroWindow.
         services.AddRsiStrategy();
@@ -208,6 +220,21 @@ public static class AppDependencyInjection
     {
         services.AddTransient<MarketRegimeViewModel>();
         services.AddTransient<MarketRegimeView>();
+        return services;
+    }
+
+    /// <summary>Market-data archive UI: settings + activity tabs, plus the WPF bridge that
+    /// fulfils Telegram's verification-code / 2FA prompts via a modal dialog. Replaces the
+    /// NullTelegramAuthPrompt registered by AddMarketDataArchive so the login flow can interact
+    /// with the user.</summary>
+    public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
+    {
+        services.AddSingleton<TradingTerminal.Infrastructure.MarketData.Archive.Telegram.ITelegramAuthPrompt,
+            WpfTelegramAuthPrompt>();
+        services.AddTransient<ArchiveSettingsViewModel>();
+        services.AddTransient<ArchiveSettingsView>();
+        services.AddTransient<ArchiveActivityViewModel>();
+        services.AddTransient<ArchiveActivityView>();
         return services;
     }
 }

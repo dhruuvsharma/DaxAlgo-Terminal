@@ -240,7 +240,7 @@ public sealed partial class $($s.Name)StrategyViewModel : LiveSignalStrategyView
 $fieldDecls
 
     public $($s.Name)StrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -248,7 +248,7 @@ $fieldDecls
         : base(
             strategyId: `"$($s.Id)`",
             strategyDisplayName: `"$($s.Display)`",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

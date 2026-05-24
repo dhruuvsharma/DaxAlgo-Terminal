@@ -19,7 +19,7 @@ public sealed partial class BollingerStrategyViewModel : LiveSignalStrategyViewM
     [ObservableProperty] private long _quantity = 1;
 
     public BollingerStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -27,7 +27,7 @@ public sealed partial class BollingerStrategyViewModel : LiveSignalStrategyViewM
         : base(
             strategyId: "bollinger.reversion",
             strategyDisplayName: "Bollinger band reversion (forex)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

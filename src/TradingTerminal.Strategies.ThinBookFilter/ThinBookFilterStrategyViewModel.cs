@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -25,7 +25,7 @@ public sealed partial class ThinBookFilterStrategyViewModel : LiveSignalStrategy
     [ObservableProperty] private long _quantity = 1;
 
     public ThinBookFilterStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -33,7 +33,7 @@ public sealed partial class ThinBookFilterStrategyViewModel : LiveSignalStrategy
         : base(
             strategyId: "thin.book.filter",
             strategyDisplayName: "Thin-book breakout filter (L2)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

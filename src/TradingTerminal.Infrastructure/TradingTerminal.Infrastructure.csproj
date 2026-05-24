@@ -116,6 +116,10 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <!-- PostgreSQL/TimescaleDB driver for the containerized canonical store (open-source, PostgreSQL License). -->
     <PackageReference Include="Npgsql" Version="9.0.2" />
+    <!-- Telegram MTProto user-account client. Used by the archive offloader to ship multi-GB
+         parquet bundles to Saved Messages / a user-owned channel (Bot API caps at 50 MB; MTProto
+         allows 2 GB). Session file lives in %LocalAppData% by default. -->
+    <PackageReference Include="WTelegramClient" Version="4.4.4" />
   </ItemGroup>
 
 </Project>

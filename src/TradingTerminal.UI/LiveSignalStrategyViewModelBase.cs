@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -15,8 +16,17 @@ namespace TradingTerminal.UI;
 /// Base view-model for "live signal mode" hosts. Each per-strategy project subclasses
 /// this and overrides <see cref="BuildStrategy"/> to instantiate its underlying
 /// <see cref="IBacktestStrategy"/> with strategy-specific parameters. The base owns the
-/// tick subscription, the synthetic order router, the price-bar aggregation used for
+/// quote + depth subscriptions, the synthetic order router, the price-bar aggregation used for
 /// chart visualisation, and notification publishing.
+///
+/// Streaming routes through the canonical market-data pipeline: a single
+/// <see cref="IMarketDataIngest.Subscribe"/> handle starts (or joins) the ref-counted broker
+/// L1 pump for the selected instrument, and this VM observes <see cref="IMarketDataHub.Quotes"/>
+/// / <see cref="IMarketDataHub.Depth"/> keyed by canonical <see cref="InstrumentId"/>. Quote
+/// records are projected to the legacy <see cref="Tick"/> shape at the boundary so the
+/// engine-side <see cref="IBacktestStrategy"/> contract stays unchanged. On start, the chart is
+/// warmed from the local <see cref="IMarketDataStore"/> so users see context immediately even
+/// before the first live tick lands.
 ///
 /// The host flow mirrors RSI / Cumulative Delta: user fills the setup form → presses
 /// Continue (<see cref="IsConfigured"/> flips) → tick stream starts and price bars render
@@ -32,7 +42,15 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// ~11k symbols (Alpaca); the search box narrows it, so we never bind the whole list.</summary>
     public const int MaxInstrumentsDisplayed = 500;
 
-    private readonly IMarketDataRepository _repository;
+    /// <summary>Bar size pulled from the store to pre-populate the chart at start. Mismatches the
+    /// 15-second live aggregation by design — the store doesn't carry sub-minute bars, and a
+    /// minute of recent context is more useful than no context at all.</summary>
+    private const BarSize WarmupBarSize = BarSize.OneMinute;
+
+    /// <summary>How many warm-up bars to pull from the store on Start.</summary>
+    private const int WarmupBarCount = 120;
+
+    private readonly LiveStrategyHostServices _services;
     private readonly INotificationPublisher _notifications;
     private readonly ILogger _logger;
     private readonly IClock _clock;
@@ -42,6 +60,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     private SignalGeneratorRouter? _router;
     private IBacktestStrategy? _strategy;
     private IDisposable? _eventSubscription;
+    private IDisposable? _ingestHandle;
     private DateTime _currentBarStart = DateTime.MinValue;
     private double _barOpen, _barHigh, _barLow, _barClose;
     private long _barVolume;
@@ -50,7 +69,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     protected LiveSignalStrategyViewModelBase(
         string strategyId,
         string strategyDisplayName,
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -58,7 +77,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         StrategyId = strategyId;
         StrategyDisplayName = strategyDisplayName;
-        _repository = repository;
+        _services = services;
         _notifications = notifications;
         _clock = clock;
         _routerFactory = routerFactory;
@@ -122,7 +141,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         try
         {
-            var list = await _repository.ListInstrumentsAsync();
+            var list = await _services.Repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
 
             AllInstruments = list
@@ -208,8 +227,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         if (SelectedInstrument is null) { ValidationError = "Pick an instrument before starting."; return; }
         if (IsStreaming) return;
 
+        var contract = SelectedInstrument.Contract;
+        var instrumentId = _services.Ingest.Resolve(contract);
+
         _streamCts = new CancellationTokenSource();
-        _strategy = BuildStrategy(SelectedInstrument.Contract);
+        _strategy = BuildStrategy(contract);
         _router = _routerFactory.Create();
         _router.SignalEmitted += OnSignalEmitted;
         _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
@@ -237,8 +259,14 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             return;
         }
 
-        _ = RunStreamAsync(SelectedInstrument.Contract, _streamCts.Token);
-        _ = RunDepthStreamAsync(SelectedInstrument.Contract, _streamCts.Token);
+        await WarmUpBarsAsync(instrumentId, _streamCts.Token);
+
+        // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
+        // share the same handle on the ingest side, so a single Subscribe powers both observables.
+        _ingestHandle = _services.Ingest.Subscribe(contract);
+
+        _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
+        _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
     }
 
     [RelayCommand]
@@ -250,6 +278,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         try { if (_strategy is not null && _router is not null) await _strategy.OnEndAsync(_clock, _router, CancellationToken.None); }
         catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId); }
 
+        _ingestHandle?.Dispose(); _ingestHandle = null;
         _eventSubscription?.Dispose(); _eventSubscription = null;
         if (_router is not null) { _router.SignalEmitted -= OnSignalEmitted; _router = null; }
         _strategy = null;
@@ -262,60 +291,110 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [RelayCommand]
     private void ClearSignals() => Signals.Clear();
 
-    private async Task RunStreamAsync(Contract contract, CancellationToken ct)
+    /// <summary>Seeds <see cref="Bars"/> with the most recent 1-minute bars from the local store
+    /// so the chart isn't empty when the user clicks Start. Granularity intentionally differs from
+    /// the 15-second live aggregation that follows — the store has no sub-minute bars and recent
+    /// 1-minute context is more useful than no context at all. Silent on failure.</summary>
+    private async Task WarmUpBarsAsync(InstrumentId instrumentId, CancellationToken ct)
     {
         try
         {
-            await foreach (var tick in _repository.SubscribeTicksAsync(contract, ct))
+            var recent = await _services.Store.GetRecentBarsAsync(instrumentId, WarmupBarSize, WarmupBarCount, ct);
+            if (recent.Count == 0) return;
+            foreach (var b in recent) Bars.Add(b.ToBar());
+            while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
+            OnBarsUpdated();
+            BarsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} warm-up read from store failed", StrategyId);
+        }
+    }
+
+    /// <summary>Pumps canonical quotes off the hub, projects them to the legacy <see cref="Tick"/>
+    /// the strategy interface still speaks, and feeds each one to the strategy on the UI thread.
+    /// A bounded channel decouples the hub's publish thread from the consumer so a slow strategy
+    /// can't block ingest.</summary>
+    private async Task RunQuoteStreamAsync(InstrumentId instrumentId, CancellationToken ct)
+    {
+        var channel = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Quotes(instrumentId).Subscribe(q =>
+            channel.Writer.TryWrite(new Tick(q.EventTimeUtc, q.Bid, q.Ask, q.BidSize, q.AskSize)));
+
+        try
+        {
+            await foreach (var tick in channel.Reader.ReadAllAsync(ct))
             {
                 if (_strategy is null || _router is null) break;
-                LastBid = tick.Bid;
-                LastAsk = tick.Ask;
-                LastMid = (tick.Bid + tick.Ask) * 0.5;
-                TicksSeen++;
-                AggregateBar(tick);
-                _router.UpdateMarketContext(tick);
-                try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
-                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                await UiThread.RunAsync(async () =>
+                {
+                    LastBid = tick.Bid;
+                    LastAsk = tick.Ask;
+                    LastMid = (tick.Bid + tick.Ask) * 0.5;
+                    TicksSeen++;
+                    AggregateBar(tick);
+                    _router.UpdateMarketContext(tick);
+                    try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                });
             }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "{Strategy} tick stream ended", StrategyId);
-            Status = $"Stream ended: {ex.Message}";
+            await UiThread.RunAsync(() => Status = $"Stream ended: {ex.Message}");
         }
         finally
         {
-            IsStreaming = false;
+            channel.Writer.TryComplete();
+            await UiThread.RunAsync(() => IsStreaming = false);
         }
     }
 
     /// <summary>
-    /// Best-effort L2 depth pump running alongside the tick stream. Forwards each book
+    /// Best-effort L2 depth pump running alongside the quote stream. Forwards each book
     /// snapshot to the strategy's <see cref="IBacktestStrategy.OnDepthAsync"/> so book-aware
     /// signals (OBI) can use real depth. Brokers without depth (Alpaca, IB-not-yet-wired)
-    /// throw <see cref="NotSupportedException"/> — we degrade silently to the L1 path.
+    /// produce no events on the hub — we degrade silently to the L1 path.
     /// </summary>
-    private async Task RunDepthStreamAsync(Contract contract, CancellationToken ct)
+    private async Task RunDepthStreamAsync(InstrumentId instrumentId, CancellationToken ct)
     {
+        var channel = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Depth(instrumentId).Subscribe(s =>
+            channel.Writer.TryWrite(s));
+
         try
         {
-            await foreach (var snapshot in _repository.SubscribeDepthAsync(contract, 10, ct))
+            await foreach (var snapshot in channel.Reader.ReadAllAsync(ct))
             {
                 if (_strategy is null || _router is null) break;
-                try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
-                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                await UiThread.RunAsync(async () =>
+                {
+                    try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                });
             }
         }
         catch (OperationCanceledException) { }
-        catch (NotSupportedException)
-        {
-            _logger.LogDebug("{Strategy}: active broker has no depth feed — OBI uses L1 fallback", StrategyId);
-        }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "{Strategy} depth stream ended", StrategyId);
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
         }
     }
 
@@ -380,6 +459,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         _streamCts?.Cancel();
         _streamCts?.Dispose();
+        _ingestHandle?.Dispose();
         _eventSubscription?.Dispose();
     }
 }

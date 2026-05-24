@@ -74,6 +74,10 @@
             <MenuItem Header="_Settings">
                 <MenuItem Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />
+                <MenuItem Header="Market data _archive…"
+                          Command="{Binding OpenArchiveSettingsCommand}" />
+                <MenuItem Header="Archive _activity…"
+                          Command="{Binding OpenArchiveActivityCommand}" />
             </MenuItem>
         </Menu>
 

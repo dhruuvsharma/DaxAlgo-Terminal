@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -27,7 +27,7 @@ public sealed partial class AvellanedaStoikovStrategyViewModel : LiveSignalStrat
     [ObservableProperty] private int _requoteEveryTicks = 100;
 
     public AvellanedaStoikovStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -35,7 +35,7 @@ public sealed partial class AvellanedaStoikovStrategyViewModel : LiveSignalStrat
         : base(
             strategyId: "avellaneda.stoikov",
             strategyDisplayName: "Avellaneda-Stoikov market maker",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

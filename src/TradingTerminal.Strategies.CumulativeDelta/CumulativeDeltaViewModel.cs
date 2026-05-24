@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -35,11 +36,14 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     /// <summary>Cap on instruments shown in the picker; the search box narrows the full universe.</summary>
     public const int MaxInstrumentsDisplayed = 500;
 
-    private readonly IMarketDataRepository _repository;
+    private readonly LiveStrategyHostServices _services;
     private readonly INotificationPublisher _notifications;
     private readonly ILogger<CumulativeDeltaViewModel> _logger;
 
     private CancellationTokenSource? _cts;
+    private IDisposable? _ticksHandle;
+    private IDisposable? _chartBarsHandle;
+    private IDisposable? _htfBarsHandle;
     private double _prevBid;
     private bool _prevBidInitialised;
 
@@ -67,11 +71,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private DateTime _lastSignalTimeUtc = DateTime.MinValue;
 
     public CumulativeDeltaViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         ILogger<CumulativeDeltaViewModel> logger)
     {
-        _repository = repository;
+        _services = services;
         _notifications = notifications;
         _logger = logger;
 
@@ -102,7 +106,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     {
         try
         {
-            var list = await _repository.ListInstrumentsAsync();
+            var list = await _services.Repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
 
             AllInstruments = list
@@ -287,7 +291,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         try
         {
-            var history = await _repository.GetHistoricalBarsAsync(contract, chartTf, TimeSpan.FromDays(1));
+            var history = await _services.Repository.GetHistoricalBarsAsync(contract, chartTf, TimeSpan.FromDays(1));
             foreach (var b in history.TakeLast(MaxBarsRetained))
                 Bars.Add(b);
             RecalculateAtr();
@@ -314,6 +318,9 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
+        _ticksHandle?.Dispose(); _ticksHandle = null;
+        _chartBarsHandle?.Dispose(); _chartBarsHandle = null;
+        _htfBarsHandle?.Dispose(); _htfBarsHandle = null;
         IsStreaming = false;
         IsAlgoRunning = false;
         Status = "Stopped";
@@ -325,22 +332,42 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
+        _ticksHandle?.Dispose(); _ticksHandle = null;
+        _chartBarsHandle?.Dispose(); _chartBarsHandle = null;
+        _htfBarsHandle?.Dispose(); _htfBarsHandle = null;
     }
 
     // ---------- Tick stream (bid-tick rule) ----------
 
     private async Task RunTicksAsync(Contract contract, CancellationToken ct)
     {
+        // Canonical pipeline: subscribe to hub.Quotes, project back to Tick (preserves the
+        // bid-tick-rule logic in ProcessTick), and start (or join) the L1 broker pump.
+        var instrumentId = _services.Ingest.Resolve(contract);
+        var channel = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Quotes(instrumentId).Subscribe(q =>
+            channel.Writer.TryWrite(new Tick(q.EventTimeUtc, q.Bid, q.Ask, q.BidSize, q.AskSize)));
+        _ticksHandle = _services.Ingest.Subscribe(contract);
+
         try
         {
-            await foreach (var tick in _repository.SubscribeTicksAsync(contract, ct))
-                ProcessTick(tick);
+            await foreach (var tick in channel.Reader.ReadAllAsync(ct))
+                await UiThread.RunAsync(() => ProcessTick(tick));
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Tick stream ended");
-            Status = $"Tick stream stopped: {ex.Message}";
+            await UiThread.RunAsync(() => Status = $"Tick stream stopped: {ex.Message}");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
         }
     }
 
@@ -367,22 +394,40 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     private async Task RunChartBarsAsync(Contract contract, BarSize chartTf, CancellationToken ct)
     {
+        var instrumentId = _services.Ingest.Resolve(contract);
+        var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Bars(instrumentId, chartTf).Subscribe(b =>
+            channel.Writer.TryWrite(b.ToBar()));
+        _chartBarsHandle = _services.Ingest.SubscribeBars(contract, chartTf);
+
         try
         {
-            await foreach (var bar in _repository.SubscribeBarsAsync(contract, chartTf, ct))
+            await foreach (var bar in channel.Reader.ReadAllAsync(ct))
             {
-                AppendBar(bar);
-                OnBarClosed();
-                BarsChanged?.Invoke(this, EventArgs.Empty);
+                await UiThread.RunAsync(() =>
+                {
+                    AppendBar(bar);
+                    OnBarClosed();
+                    BarsChanged?.Invoke(this, EventArgs.Empty);
+                });
             }
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Chart bar stream ended");
-            Status = $"Bar stream stopped: {ex.Message}";
+            await UiThread.RunAsync(() => Status = $"Bar stream stopped: {ex.Message}");
         }
-        finally { IsStreaming = false; }
+        finally
+        {
+            channel.Writer.TryComplete();
+            await UiThread.RunAsync(() => IsStreaming = false);
+        }
     }
 
     private void AppendBar(Bar bar)
@@ -613,25 +658,50 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     private async Task RunHtfBarsAsync(Contract contract, CancellationToken ct)
     {
+        var instrumentId = _services.Ingest.Resolve(contract);
         try
         {
-            var hist = await _repository.GetHistoricalBarsAsync(contract, BarSize.FifteenMinutes,
+            var hist = await _services.Repository.GetHistoricalBarsAsync(contract, BarSize.FifteenMinutes,
                 TimeSpan.FromDays(2), ct);
             _htfBars.Clear();
             _htfBars.AddRange(hist);
             RecalculateHtfIndicators();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "HTF history fetch failed");
+        }
 
-            await foreach (var bar in _repository.SubscribeBarsAsync(contract, BarSize.FifteenMinutes, ct))
+        var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Bars(instrumentId, BarSize.FifteenMinutes).Subscribe(b =>
+            channel.Writer.TryWrite(b.ToBar()));
+        _htfBarsHandle = _services.Ingest.SubscribeBars(contract, BarSize.FifteenMinutes);
+
+        try
+        {
+            await foreach (var bar in channel.Reader.ReadAllAsync(ct))
             {
-                _htfBars.Add(bar);
-                if (_htfBars.Count > 400) _htfBars.RemoveAt(0);
-                RecalculateHtfIndicators();
+                await UiThread.RunAsync(() =>
+                {
+                    _htfBars.Add(bar);
+                    if (_htfBars.Count > 400) _htfBars.RemoveAt(0);
+                    RecalculateHtfIndicators();
+                });
             }
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "HTF bar stream ended");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
         }
     }
 

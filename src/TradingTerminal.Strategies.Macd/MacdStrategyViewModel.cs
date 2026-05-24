@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -24,7 +24,7 @@ public sealed partial class MacdStrategyViewModel : LiveSignalStrategyViewModelB
     [ObservableProperty] private long _quantity = 1;
 
     public MacdStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -32,7 +32,7 @@ public sealed partial class MacdStrategyViewModel : LiveSignalStrategyViewModelB
         : base(
             strategyId: "macd.crossover",
             strategyDisplayName: "MACD signal crossover (forex)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

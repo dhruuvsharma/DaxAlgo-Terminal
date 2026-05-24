@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
@@ -24,7 +24,7 @@ public sealed partial class IcebergDetectionStrategyViewModel : LiveSignalStrate
     [ObservableProperty] private long _quantity = 1;
 
     public IcebergDetectionStrategyViewModel(
-        IMarketDataRepository repository,
+        LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
@@ -32,7 +32,7 @@ public sealed partial class IcebergDetectionStrategyViewModel : LiveSignalStrate
         : base(
             strategyId: "iceberg.detection",
             strategyDisplayName: "Iceberg / hidden-liquidity detector (L2)",
-            repository, notifications, clock, routerFactory, logger)
+            services, notifications, clock, routerFactory, logger)
     {
     }
 

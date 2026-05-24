@@ -164,6 +164,52 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
         }
     }
 
+    public override async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
+        InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await using var cn = new NpgsqlConnection(_connectionString);
+        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT open_time,open,high,low,close,volume,source,is_final
+            FROM bars WHERE instrument_id=@i AND bar_size=@s AND open_time>=@from AND open_time<@to
+            ORDER BY open_time
+            """, cn);
+        cmd.Parameters.AddWithValue("i", instrumentId.Value);
+        cmd.Parameters.AddWithValue("s", (int)size);
+        cmd.Parameters.AddWithValue("from", TimescaleSchema.Utc(fromUtc));
+        cmd.Parameters.AddWithValue("to", TimescaleSchema.Utc(toUtc));
+
+        await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await rdr.ReadAsync(ct).ConfigureAwait(false))
+        {
+            yield return new OhlcvBar(
+                instrumentId, size,
+                rdr.GetFieldValue<DateTime>(0),
+                rdr.GetDouble(1), rdr.GetDouble(2), rdr.GetDouble(3), rdr.GetDouble(4),
+                rdr.GetInt64(5), (Core.Brokers.BrokerKind)rdr.GetInt32(6), rdr.GetBoolean(7));
+        }
+    }
+
+    public override Task<long> DeleteQuotesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        DeleteInRangeAsync("quotes", "event_time", fromUtc, toUtc, ct);
+
+    public override Task<long> DeleteTradesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        DeleteInRangeAsync("trades", "event_time", fromUtc, toUtc, ct);
+
+    public override Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        DeleteInRangeAsync("bars", "open_time", fromUtc, toUtc, ct);
+
+    private async Task<long> DeleteInRangeAsync(string table, string timeCol, DateTime fromUtc, DateTime toUtc, CancellationToken ct)
+    {
+        await using var cn = new NpgsqlConnection(_connectionString);
+        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cmd = new NpgsqlCommand($"DELETE FROM {table} WHERE {timeCol} >= @from AND {timeCol} < @to", cn);
+        cmd.Parameters.AddWithValue("from", TimescaleSchema.Utc(fromUtc));
+        cmd.Parameters.AddWithValue("to", TimescaleSchema.Utc(toUtc));
+        return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
     public override async IAsyncEnumerable<TradePrint> ReadTradesAsync(
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc,
         [EnumeratorCancellation] CancellationToken ct = default)
