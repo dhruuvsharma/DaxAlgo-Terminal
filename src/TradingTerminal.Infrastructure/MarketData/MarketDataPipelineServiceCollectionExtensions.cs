@@ -2,7 +2,6 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -71,15 +70,16 @@ public static class MarketDataPipelineServiceCollectionExtensions
         // Instrument-universe pre-loader. Hosted service so it kicks in once the host starts and
         // reacts to every Connected transition; bound to the ConnectionManager's reactive state
         // stream (which itself re-wires on broker switch, so a switch re-fires discovery for the
-        // new broker). TryAddEnumerable ensures we don't double-register if AddMarketDataPipeline
-        // is called twice.
+        // new broker). Registered as a singleton (for direct resolution if needed) and as an
+        // IHostedService (for the host to start). Plain AddSingleton<IHostedService> here rather
+        // than TryAddEnumerable because factory-based descriptors don't carry an implementation
+        // type, which the latter requires for its dedup check.
         services.AddSingleton<InstrumentDiscoveryService>(sp => new InstrumentDiscoveryService(
             sp.GetRequiredService<IBrokerSelector>(),
             sp.GetRequiredService<Ib.ConnectionManager>().ConnectionState,
             sp.GetRequiredService<IInstrumentRegistry>(),
             sp.GetRequiredService<ILogger<InstrumentDiscoveryService>>()));
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService>(
-            sp => sp.GetRequiredService<InstrumentDiscoveryService>()));
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<InstrumentDiscoveryService>());
 
         return services;
     }
