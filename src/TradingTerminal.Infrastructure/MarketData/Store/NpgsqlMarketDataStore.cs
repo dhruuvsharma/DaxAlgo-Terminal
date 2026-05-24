@@ -16,7 +16,10 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
 {
     private readonly string _connectionString;
 
-    public NpgsqlMarketDataStore(string connectionString, bool persist, int batchSize, ILogger logger)
+    public NpgsqlMarketDataStore(
+        string connectionString, bool persist, int batchSize,
+        int quoteRetentionDays, int tradeRetentionDays, int barRetentionDays,
+        ILogger logger)
         : base(persist, batchSize, logger)
     {
         _connectionString = connectionString;
@@ -24,6 +27,7 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
         {
             cn.Open();
             TimescaleSchema.EnsureCreated(cn, logger);
+            TimescaleSchema.ApplyRetention(cn, quoteRetentionDays, tradeRetentionDays, barRetentionDays, logger);
         }
         StartWriter();
     }

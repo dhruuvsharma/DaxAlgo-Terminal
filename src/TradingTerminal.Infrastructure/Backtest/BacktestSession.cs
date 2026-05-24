@@ -1,6 +1,7 @@
 using System.Reactive.Linq;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Risk;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
@@ -11,7 +12,8 @@ namespace TradingTerminal.Infrastructure.Backtest;
 /// Drives a single backtest end-to-end:
 ///   1. Set up the simulated clock, fill model, order book, and router.
 ///   2. Forward order events to the strategy and track fills for the trade ledger.
-///   3. Iterate the parquet tick stream: advance the clock, run the order book, sample
+///   3. Iterate the tick stream (parquet file OR canonical local store, picked by
+///      <see cref="BacktestConfig.Source"/>): advance the clock, run the order book, sample
 ///      equity at most once per minute, and dispatch <c>OnTickAsync</c>.
 ///   4. After the last tick, flush the final equity point and close out the strategy.
 ///
@@ -21,6 +23,20 @@ namespace TradingTerminal.Infrastructure.Backtest;
 /// </summary>
 public sealed class BacktestSession : IBacktestSession
 {
+    private readonly IMarketDataStore? _store;
+
+    /// <summary>Parameterless ctor for parquet-only callers (CLI, existing tests).
+    /// LocalStore sources will throw at run time if invoked through this ctor.</summary>
+    public BacktestSession() : this(store: null) { }
+
+    /// <summary>Preferred ctor for DI: supplies the canonical store so the engine can
+    /// replay from it when <see cref="BacktestConfig.Source"/> is
+    /// <see cref="BacktestDataSource.LocalStore"/>.</summary>
+    public BacktestSession(IMarketDataStore? store)
+    {
+        _store = store;
+    }
+
     public Task<BacktestResult> RunAsync(
         BacktestConfig config,
         IBacktestStrategy strategy,
@@ -70,8 +86,7 @@ public sealed class BacktestSession : IBacktestSession
         await strategy.OnStartAsync(clock, router, ct).ConfigureAwait(false);
 
         Tick? lastTick = null;
-        await foreach (var tick in ParquetTickReader.ReadAsync(
-                           config.TickDataPath, config.FromUtc, config.ToUtc, ct))
+        await foreach (var tick in BacktestTickSource.Resolve(config, _store, ct))
         {
             clock.SetTo(tick.TimestampUtc);
             lastTickForFillContext = tick;

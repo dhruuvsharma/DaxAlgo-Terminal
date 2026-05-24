@@ -91,6 +91,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TradingTerminal.Tests" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>daxalgo-backtest</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

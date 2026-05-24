@@ -40,24 +40,62 @@ static async Task<int> RunBacktestAsync(string[] argv)
 
     var strategyId = a.Required("strategy");
     var symbol = a.Required("symbol");
-    var dataPath = a.Required("data");
+    var source = (a.Optional("source") ?? "parquet").ToLowerInvariant();
     var output = a.Optional("output") ?? "./bt-results";
 
-    var config = new BacktestConfig(
-        Contract: Contract.UsStock(symbol),
-        TickDataPath: dataPath,
-        FromUtc: a.Date("from"),
-        ToUtc: a.Date("to"),
-        TickSize: a.Double("tick-size", 0.01),
-        SlippageTicks: a.Int("slippage-ticks", 0),
-        ContractMultiplier: a.Double("multiplier", 1.0),
-        StartingCash: a.Double("starting-cash", 100_000),
-        FeeModel: ResolveFeeModel(a));
+    BacktestConfig config;
+    BacktestSession session;
+
+    if (source is "store" or "localstore")
+    {
+        var from = a.Date("from") ?? throw new ArgumentException("--from is required for --source store");
+        var to = a.Date("to") ?? throw new ArgumentException("--to is required for --source store");
+        var sqlitePath = a.Optional("sqlite-path");
+        var postgresConn = a.Optional("postgres-conn");
+
+        var instrumentId = StoreFactory.ResolveSymbol(sqlitePath, postgresConn, symbol);
+        if (instrumentId is null)
+        {
+            Console.Error.WriteLine($"Symbol '{symbol}' not found in the canonical store. " +
+                "Run the WPF app and subscribe the symbol on the active broker first.");
+            return 2;
+        }
+
+        var store = StoreFactory.Open(sqlitePath, postgresConn);
+        config = new BacktestConfig(
+            Contract: Contract.UsStock(symbol),
+            TickDataPath: string.Empty,
+            FromUtc: from,
+            ToUtc: to,
+            TickSize: a.Double("tick-size", 0.01),
+            SlippageTicks: a.Int("slippage-ticks", 0),
+            ContractMultiplier: a.Double("multiplier", 1.0),
+            StartingCash: a.Double("starting-cash", 100_000),
+            FeeModel: ResolveFeeModel(a),
+            Source: BacktestDataSource.LocalStore,
+            InstrumentId: instrumentId.Value);
+        session = new BacktestSession(store);
+        Console.WriteLine($"Running {strategyId} on {symbol} from local store " +
+            $"[{from:o} → {to:o}], instrument {instrumentId.Value}");
+    }
+    else
+    {
+        var dataPath = a.Required("data");
+        config = new BacktestConfig(
+            Contract: Contract.UsStock(symbol),
+            TickDataPath: dataPath,
+            FromUtc: a.Date("from"),
+            ToUtc: a.Date("to"),
+            TickSize: a.Double("tick-size", 0.01),
+            SlippageTicks: a.Int("slippage-ticks", 0),
+            ContractMultiplier: a.Double("multiplier", 1.0),
+            StartingCash: a.Double("starting-cash", 100_000),
+            FeeModel: ResolveFeeModel(a));
+        session = new BacktestSession();
+        Console.WriteLine($"Running {strategyId} on {symbol} from {dataPath}");
+    }
 
     var strategy = ResolveStrategy(strategyId, config.Contract);
-
-    Console.WriteLine($"Running {strategyId} on {symbol} from {dataPath}");
-    var session = new BacktestSession();
     var result = await session.RunAsync(config, strategy);
 
     await ResultWriter.WriteAsync(output, result, CancellationToken.None);
@@ -687,9 +725,12 @@ static void PrintHelp()
     Console.WriteLine("daxalgo-backtest run \\");
     Console.WriteLine("    --strategy <id>          Strategy id (buyAndHold | meanReversion)");
     Console.WriteLine("    --symbol <ticker>        Instrument symbol");
-    Console.WriteLine("    --data <path.parquet>    Tick data file");
-    Console.WriteLine("    [--from <UTC date>]");
-    Console.WriteLine("    [--to <UTC date>]");
+    Console.WriteLine("    [--source parquet|store] Tick source (default parquet)");
+    Console.WriteLine("    --data <path.parquet>    Tick file (required when --source parquet)");
+    Console.WriteLine("    [--from <UTC date>]      Required when --source store");
+    Console.WriteLine("    [--to <UTC date>]        Required when --source store");
+    Console.WriteLine("    [--sqlite-path <path>]   Override SQLite store path (default: %LOCALAPPDATA%\\DaxAlgoTerminal\\marketdata.db)");
+    Console.WriteLine("    [--postgres-conn <str>]  Use Postgres/TimescaleDB store instead of SQLite");
     Console.WriteLine("    [--tick-size <n>]        Default 0.01");
     Console.WriteLine("    [--slippage-ticks <n>]   Default 0");
     Console.WriteLine("    [--multiplier <n>]       Default 1");

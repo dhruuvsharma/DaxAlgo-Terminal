@@ -2,8 +2,11 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Store;
@@ -48,7 +51,9 @@ public static class MarketDataPipelineServiceCollectionExtensions
             if (usePostgres)
             {
                 lf.CreateLogger("MarketData").LogInformation("Market-data store: PostgreSQL/TimescaleDB.");
-                return new NpgsqlMarketDataStore(pgConn, opts.PersistLiveData, opts.WriteBatchSize,
+                return new NpgsqlMarketDataStore(
+                    pgConn, opts.PersistLiveData, opts.WriteBatchSize,
+                    opts.QuoteRetentionDays, opts.TradeRetentionDays, opts.BarRetentionDays,
                     lf.CreateLogger<NpgsqlMarketDataStore>());
             }
 
@@ -62,6 +67,19 @@ public static class MarketDataPipelineServiceCollectionExtensions
         });
 
         services.AddSingleton<IMarketDataIngest, MarketDataIngestService>();
+
+        // Instrument-universe pre-loader. Hosted service so it kicks in once the host starts and
+        // reacts to every Connected transition; bound to the ConnectionManager's reactive state
+        // stream (which itself re-wires on broker switch, so a switch re-fires discovery for the
+        // new broker). TryAddEnumerable ensures we don't double-register if AddMarketDataPipeline
+        // is called twice.
+        services.AddSingleton<InstrumentDiscoveryService>(sp => new InstrumentDiscoveryService(
+            sp.GetRequiredService<IBrokerSelector>(),
+            sp.GetRequiredService<Ib.ConnectionManager>().ConnectionState,
+            sp.GetRequiredService<IInstrumentRegistry>(),
+            sp.GetRequiredService<ILogger<InstrumentDiscoveryService>>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService>(
+            sp => sp.GetRequiredService<InstrumentDiscoveryService>()));
 
         return services;
     }

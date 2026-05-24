@@ -19,6 +19,45 @@ internal static class TimescaleSchema
         _ => DateTime.SpecifyKind(d, DateTimeKind.Utc),
     };
 
+    /// <summary>Applies (or refreshes) retention policies on each hypertable per the options.
+    /// Idempotent — safe to call after <see cref="EnsureCreated"/> on every startup.</summary>
+    public static void ApplyRetention(
+        NpgsqlConnection cn,
+        int quoteDays, int tradeDays, int barDays,
+        ILogger logger)
+    {
+        // Each call short-circuits when the hypertable doesn't exist (plain Postgres) or the
+        // extension isn't present. add_retention_policy with if_not_exists is idempotent;
+        // remove_retention_policy clears a previously-configured window when the user sets the
+        // option back to 0 (= forever).
+        Try(cn, "quotes",  quoteDays, logger);
+        Try(cn, "trades",  tradeDays, logger);
+        Try(cn, "bars",    barDays,   logger);
+    }
+
+    private static void Try(NpgsqlConnection cn, string table, int days, ILogger logger)
+    {
+        try
+        {
+            using var cmd = cn.CreateCommand();
+            if (days > 0)
+            {
+                cmd.CommandText = $"SELECT add_retention_policy('{table}', INTERVAL '{days} days', if_not_exists => TRUE);";
+                cmd.ExecuteNonQuery();
+                logger.LogInformation("TimescaleDB retention: {Table} kept {Days} days", table, days);
+            }
+            else
+            {
+                cmd.CommandText = $"SELECT remove_retention_policy('{table}', if_exists => TRUE);";
+                cmd.ExecuteNonQuery();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Retention policy skipped for {Table} (timescale extension missing or table not a hypertable)", table);
+        }
+    }
+
     public static void EnsureCreated(NpgsqlConnection cn, ILogger logger)
     {
         using (var cmd = cn.CreateCommand())

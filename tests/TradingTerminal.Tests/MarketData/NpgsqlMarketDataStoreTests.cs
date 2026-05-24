@@ -30,7 +30,7 @@ public sealed class NpgsqlMarketDataStoreTests
     {
         if (!Reachable()) return; // Docker not running — skip.
 
-        using var store = new NpgsqlMarketDataStore(ConnectionString, true, 16, NullLogger<NpgsqlMarketDataStore>.Instance);
+        using var store = new NpgsqlMarketDataStore(ConnectionString, true, 16, 0, 0, 0, NullLogger<NpgsqlMarketDataStore>.Instance);
         var id = new InstrumentId(Random.Shared.Next(1_000_000, 2_000_000));
         var t0 = new DateTime(2026, 1, 2, 14, 30, 0, DateTimeKind.Utc);
 
@@ -51,7 +51,7 @@ public sealed class NpgsqlMarketDataStoreTests
     {
         if (!Reachable()) return; // Docker not running — skip.
 
-        using var store = new NpgsqlMarketDataStore(ConnectionString, true, 16, NullLogger<NpgsqlMarketDataStore>.Instance);
+        using var store = new NpgsqlMarketDataStore(ConnectionString, true, 16, 0, 0, 0, NullLogger<NpgsqlMarketDataStore>.Instance);
         var id = new InstrumentId(Random.Shared.Next(2_000_000, 3_000_000));
         var open = new DateTime(2026, 1, 2, 16, 0, 0, DateTimeKind.Utc);
 

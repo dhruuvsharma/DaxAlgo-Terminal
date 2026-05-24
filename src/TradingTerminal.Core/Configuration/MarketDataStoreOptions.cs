@@ -44,4 +44,18 @@ public sealed class MarketDataStoreOptions
 
     /// <summary>Max time a record waits in the buffer before a flush, even if the batch isn't full.</summary>
     public int FlushIntervalMs { get; set; } = 1000;
+
+    /// <summary>
+    /// TimescaleDB retention windows per hypertable, in days. 0 or negative = keep forever (no
+    /// retention policy created). Quotes dominate volume so the default trims them aggressively;
+    /// bars are tiny so we keep them indefinitely. SQLite ignores all three (no native retention).
+    /// </summary>
+    public int QuoteRetentionDays { get; set; } = 30;
+
+    /// <summary>Trade-print retention in days. 0 or negative = keep forever.</summary>
+    public int TradeRetentionDays { get; set; } = 30;
+
+    /// <summary>OHLCV-bar retention in days. 0 or negative (default) = keep forever — bars are small
+    /// and the historical-cache value compounds over time.</summary>
+    public int BarRetentionDays { get; set; } = 0;
 }
