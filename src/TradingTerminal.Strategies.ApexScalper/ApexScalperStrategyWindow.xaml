@@ -132,12 +132,14 @@
             </Border>
         </ScrollViewer>
 
-        <!-- ── Running layout: chart grid + dashboard ────────────────────────── -->
+        <!-- ── Running layout: chart grid + dashboard + data log + footer ────── -->
         <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />                <!-- Header bar     -->
+                <RowDefinition Height="*"    MinHeight="200" /><!-- Charts + dash  -->
+                <RowDefinition Height="Auto" />                <!-- HSplit         -->
+                <RowDefinition Height="160"  MinHeight="60" /> <!-- Data log panel -->
+                <RowDefinition Height="Auto" />                <!-- Footer bar     -->
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0" Style="{StaticResource Strategy.HeaderBar}">
@@ -160,96 +162,332 @@
                     <ColumnDefinition Width="1*" MinWidth="260" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Chart pane grid: 6 rows × 2 cols. Price spans top, composite below, then 4 rows of signal pairs. -->
+                <!-- Chart pane: 3 columns now — left holds the price / composite / signals stack
+                     (each pane separated by a GridSplitter, same as before), a vertical splitter
+                     in the middle, and the live order-book ladder on the right. All splitters are
+                     4 px and share the theme's border brush. -->
                 <Grid Grid.Column="0" Margin="4,4,4,4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="2*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="3*" MinWidth="320" />  <!-- Charts stack    -->
+                        <ColumnDefinition Width="Auto" />               <!-- VSplit          -->
+                        <ColumnDefinition Width="*"  MinWidth="200" />  <!-- Order book      -->
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Row="0" Grid.ColumnSpan="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,0,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Price (mid)" />
-                            <scottplot:WpfPlot x:Name="PricePlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                    <!-- Left column: signals grid stacked above the composite sentiment gauge. -->
+                    <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"  MinHeight="200" />   <!-- Signals grid       -->
+                        <RowDefinition Height="Auto" />                 <!-- HSplit             -->
+                        <RowDefinition Height="60" MinHeight="40" />    <!-- Sentiment gauge    -->
+                    </Grid.RowDefinitions>
 
-                    <Border Grid.Row="1" Grid.ColumnSpan="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,0,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Composite score" />
-                            <scottplot:WpfPlot x:Name="CompositePlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                    <!-- Signals sub-grid: 4 rows × 2 cols of indicators with splitters in every gap. -->
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"   MinHeight="60" />  <!-- Delta / VPIN           -->
+                            <RowDefinition Height="Auto" />                <!-- HSplit                 -->
+                            <RowDefinition Height="*"   MinHeight="60" />  <!-- OBI shallow / deep     -->
+                            <RowDefinition Height="Auto" />                <!-- HSplit                 -->
+                            <RowDefinition Height="*"   MinHeight="60" />  <!-- Footprint / Absorption -->
+                            <RowDefinition Height="Auto" />                <!-- HSplit                 -->
+                            <RowDefinition Height="*"   MinHeight="60" />  <!-- HVP / Tape speed       -->
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"  MinWidth="80" />
+                            <ColumnDefinition Width="Auto" />              <!-- VSplit (all 4 rows)     -->
+                            <ColumnDefinition Width="*"  MinWidth="80" />
+                        </Grid.ColumnDefinitions>
 
-                    <Border Grid.Row="2" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,2,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Delta" />
-                            <scottplot:WpfPlot x:Name="DeltaPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
-                    <Border Grid.Row="2" Grid.Column="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="2,0,0,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="VPIN" />
-                            <scottplot:WpfPlot x:Name="VpinPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                        <!-- Vertical splitter spans all signal rows so the column boundary stays
+                             consistent across pairs. Declared first so the row-splitters render
+                             on top at the crossing points and remain draggable.                  -->
+                        <GridSplitter Grid.Column="1" Grid.RowSpan="7" Width="4"
+                                      HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                      Background="{DynamicResource Border.Brush}"
+                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
 
-                    <Border Grid.Row="3" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,2,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="OBI (shallow)" />
-                            <scottplot:WpfPlot x:Name="ObiShallowPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
-                    <Border Grid.Row="3" Grid.Column="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="2,0,0,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="OBI (deep)" />
-                            <scottplot:WpfPlot x:Name="ObiDeepPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                        <Border Grid.Row="0" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Delta" />
+                                <scottplot:WpfPlot x:Name="DeltaPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="VPIN" />
+                                <scottplot:WpfPlot x:Name="VpinPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
 
-                    <Border Grid.Row="4" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,2,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Footprint" />
-                            <scottplot:WpfPlot x:Name="FootprintPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
-                    <Border Grid.Row="4" Grid.Column="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="2,0,0,2">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Absorption" />
-                            <scottplot:WpfPlot x:Name="AbsorptionPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                        <GridSplitter Grid.Row="1" Grid.ColumnSpan="3" Height="4"
+                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="{DynamicResource Border.Brush}"
+                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
 
-                    <Border Grid.Row="5" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,2,0">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="HVP slope" />
-                            <scottplot:WpfPlot x:Name="HvpPlot" Grid.Row="1" />
+                        <Border Grid.Row="2" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="OBI (shallow)" />
+                                <scottplot:WpfPlot x:Name="ObiShallowPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="2" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="OBI (deep)" />
+                                <scottplot:WpfPlot x:Name="ObiDeepPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+
+                        <GridSplitter Grid.Row="3" Grid.ColumnSpan="3" Height="4"
+                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="{DynamicResource Border.Brush}"
+                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                        <Border Grid.Row="4" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Footprint" />
+                                <scottplot:WpfPlot x:Name="FootprintPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="4" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Absorption" />
+                                <scottplot:WpfPlot x:Name="AbsorptionPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+
+                        <GridSplitter Grid.Row="5" Grid.ColumnSpan="3" Height="4"
+                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="{DynamicResource Border.Brush}"
+                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                        <Border Grid.Row="6" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="HVP slope" />
+                                <scottplot:WpfPlot x:Name="HvpPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="6" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Tape speed" />
+                                <scottplot:WpfPlot x:Name="TapeSpeedPlot" Grid.Row="1" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <GridSplitter Grid.Row="1" Height="4"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  Background="{DynamicResource Border.Brush}"
+                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                    <!-- Composite sentiment gauge: a horizontal slider with red on the left
+                         (short bias), grey at centre (neutral), green on the right (long bias).
+                         The triangle marker tracks the latest composite score; tick marks denote
+                         the user's CompositeThreshold so it's visible where the trade gate sits. -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            Background="{DynamicResource Background.Surface}">
+                        <Grid Margin="6,4,6,4">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="SHORT"
+                                           Foreground="{DynamicResource Bearish.Brush}"
+                                           FontWeight="Bold" FontSize="10" />
+                                <TextBlock Grid.Column="1" x:Name="GaugeLabel"
+                                           Text="composite —"
+                                           Foreground="{DynamicResource Text.Header}"
+                                           FontWeight="Bold" FontSize="11"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="LONG"
+                                           Foreground="{DynamicResource Bullish.Brush}"
+                                           FontWeight="Bold" FontSize="10" />
+                            </Grid>
+
+                            <Grid Grid.Row="1" x:Name="GaugeTrackHost" VerticalAlignment="Center" Height="20" ClipToBounds="True">
+                                <Border CornerRadius="3" Height="16" VerticalAlignment="Center">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                            <GradientStop Color="#FF1744" Offset="0" />
+                                            <GradientStop Color="#5A2A2A" Offset="0.40" />
+                                            <GradientStop Color="#3A3A3A" Offset="0.5" />
+                                            <GradientStop Color="#2A5A4A" Offset="0.60" />
+                                            <GradientStop Color="#00C853" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+
+                                <!-- Threshold tick marks (painted in code-behind so they track CompositeThreshold). -->
+                                <Canvas x:Name="GaugeTicks" Background="Transparent" />
+
+                                <!-- Needle: a triangle pinned at the bottom; X position set in code-behind. -->
+                                <Canvas x:Name="GaugeNeedleHost" Background="Transparent">
+                                    <Polygon x:Name="GaugeNeedle"
+                                             Points="-6,0 6,0 0,12"
+                                             Fill="White"
+                                             Stroke="Black" StrokeThickness="1"
+                                             Canvas.Top="2" />
+                                </Canvas>
+                            </Grid>
                         </Grid>
                     </Border>
-                    <Border Grid.Row="5" Grid.Column="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="2,0,0,0">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Tape speed" />
-                            <scottplot:WpfPlot x:Name="TapeSpeedPlot" Grid.Row="1" />
-                        </Grid>
-                    </Border>
+                    </Grid>   <!-- end chart stack (Col 0) -->
+
+                    <GridSplitter Grid.Column="1" Width="4"
+                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                  Background="{DynamicResource Border.Brush}"
+                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
+
+                    <!-- Right column: order book (top) + live candle (bottom), separated by a
+                         horizontal splitter so the user can rebalance them. -->
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"  MinHeight="120" />  <!-- Order book      -->
+                            <RowDefinition Height="Auto" />                <!-- HSplit          -->
+                            <RowDefinition Height="*"  MinHeight="120" />  <!-- Live candle     -->
+                        </Grid.RowDefinitions>
+
+                        <!-- Live order book — 10 ask levels (tightest at the bottom), spread row,
+                             10 bid levels (tightest at the top). Volume bars are proportional;
+                             the largest level on each side is highlighted. Rendered from
+                             code-behind so we update Rectangle widths in place rather than
+                             rebuilding the visual tree on every tick. -->
+                        <Border Grid.Row="0"
+                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                Background="{DynamicResource Background.Surface}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0"
+                                        Background="{DynamicResource Background.Elevated}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                                        Padding="6,3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="ORDER BOOK"
+                                                   Foreground="{DynamicResource Text.Header}"
+                                                   FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" x:Name="OrderBookStatus"
+                                                   Margin="8,0,0,0" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                   FontSize="10" VerticalAlignment="Center"
+                                                   Text="awaiting depth" />
+                                    </Grid>
+                                </Border>
+
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel x:Name="OrderBookLadder" Orientation="Vertical" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+
+                        <GridSplitter Grid.Row="1" Height="4"
+                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="{DynamicResource Border.Brush}"
+                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                        <!-- Live candle: the in-progress internal candle the engine is currently
+                             building. Body + wick on the left, OHLC / volume / delta stats on the
+                             right. Resets visually when the engine rolls into a new candle. -->
+                        <Border Grid.Row="2"
+                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                Background="{DynamicResource Background.Surface}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0"
+                                        Background="{DynamicResource Background.Elevated}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                                        Padding="6,3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="LIVE CANDLE"
+                                                   Foreground="{DynamicResource Text.Header}"
+                                                   FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" x:Name="LiveCandleStatus"
+                                                   Margin="8,0,0,0" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                   FontSize="10" VerticalAlignment="Center"
+                                                   Text="awaiting tick" />
+                                    </Grid>
+                                </Border>
+
+                                <Grid Grid.Row="1" Margin="6,6,6,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="60" />     <!-- candle drawing -->
+                                        <ColumnDefinition Width="*" />      <!-- stats          -->
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- The candle itself: wick line + body rectangle, positioned
+                                         in code-behind so the body height tracks |Close-Open| and
+                                         vertical position tracks Low..High. -->
+                                    <Canvas Grid.Column="0" x:Name="LiveCandleCanvas" Background="{DynamicResource Background.Surface}" />
+
+                                    <!-- Stats column: O/H/L/C, volume, delta, buy/sell, efficiency. -->
+                                    <Grid Grid.Column="1" Margin="6,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="O" />
+                                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="LiveOpen"  Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="H" />
+                                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="LiveHigh"  Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="L" />
+                                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LiveLow"   Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="C" />
+                                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="LiveClose" Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashKey}" Text="Vol" />
+                                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="LiveVolume" Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashKey}" Text="Δ" />
+                                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="LiveDelta"  Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashKey}" Text="B / S" />
+                                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="LiveBuySell" Style="{StaticResource DashValue}" Text="—" />
+                                        <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource DashKey}" Text="Δ eff" />
+                                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="LiveDeltaEff" Style="{StaticResource DashValue}" Text="—" />
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- Dashboard panel: mirrors the MT5 on-chart dashboard sections. -->
@@ -342,7 +580,92 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Style="{StaticResource Strategy.FooterBar}">
+            <GridSplitter Grid.Row="2" Height="4"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                          Background="{DynamicResource Border.Brush}"
+                          ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+            <!-- Data log: newest-first, capped at 500 entries (oldest auto-drop). -->
+            <Border Grid.Row="3"
+                    Background="{DynamicResource Background.Surface}"
+                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                    Margin="4,0,4,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                            Padding="8,3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="DATA LOG"
+                                       Foreground="{DynamicResource Text.Header}"
+                                       FontWeight="Bold" FontSize="11"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1"
+                                       Margin="12,0,0,0"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center">
+                                <Run Text="N=" />
+                                <Run Text="{Binding DataLog.Count, Mode=OneWay}" />
+                                <Run Text=" (newest first, auto-trims at 500)" />
+                            </TextBlock>
+                            <Button Grid.Column="2"
+                                    Content="Clear"
+                                    Command="{Binding ClearDataLogCommand}"
+                                    Padding="10,1"
+                                    MinHeight="20" />
+                        </Grid>
+                    </Border>
+
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding DataLog}"
+                             BorderThickness="0"
+                             Background="{DynamicResource Background.Surface}"
+                             FontFamily="{DynamicResource Font.Mono}"
+                             FontSize="11"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="72" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Category}"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource Accent.Brush}" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Message}"
+                                               Foreground="{DynamicResource Text.Primary}"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="4" Style="{StaticResource Strategy.FooterBar}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Bid:" Style="{StaticResource Strategy.DashLabel}" />
                     <TextBlock Text="{Binding LastBid, StringFormat=F4, FallbackValue=—}" Margin="6,0,0,0" Style="{StaticResource Strategy.DashValue}" />

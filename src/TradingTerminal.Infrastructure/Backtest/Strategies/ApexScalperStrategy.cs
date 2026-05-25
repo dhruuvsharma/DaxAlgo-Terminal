@@ -10,6 +10,21 @@ namespace TradingTerminal.Infrastructure.Backtest.Strategies;
 /// promoted to public so view-models can bind to it without leaking the rest of the class.</summary>
 public sealed record ApexSignalScore(double Score, double Confidence, int Direction, bool IsValid);
 
+/// <summary>Snapshot of the strategy's in-progress internal candle for the live UI. Updated on
+/// every tick; the user-visible widget rebinds at the redraw timer's cadence rather than per
+/// tick, so a microsecond delta from snapshot read to render is acceptable.</summary>
+public sealed record ApexLiveCandle(
+    DateTime OpenTimeUtc,
+    double Open,
+    double High,
+    double Low,
+    double Close,
+    long Volume,
+    long BuyVolume,
+    long SellVolume,
+    long Delta,
+    double DeltaEfficiency);
+
 /// <summary>Flat snapshot of the strategy state at a point in time. Built after each tick
 /// for the live dashboard; pushed into a history ring on each completed internal candle so
 /// per-indicator charts can draw a recent time series.</summary>
@@ -179,6 +194,23 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     /// window has warmed up (≥ <see cref="WindowSize"/> completed candles).</summary>
     public ApexSnapshot? Latest { get; private set; }
 
+    /// <summary>Snapshot of the engine's in-progress internal candle (the same one the signal
+    /// pipeline is currently filling). Returns null until the first tick has been consumed.
+    /// Refreshes on every <see cref="OnTickAsync"/> call; UI code is expected to poll on its
+    /// own cadence.</summary>
+    public ApexLiveCandle? LiveCandle
+    {
+        get
+        {
+            var c = _cb.CurrentLive;
+            if (c is null) return null;
+            return new ApexLiveCandle(
+                c.OpenTime, c.Open, c.High, c.Low, c.Close,
+                c.Volume, c.BuyVolume, c.SellVolume,
+                c.TickDelta, c.DeltaEfficiency);
+        }
+    }
+
     /// <summary>Snapshots taken at each completed internal candle, oldest first. Capped at
     /// <see cref="MaxHistory"/>; callers should trim to a tail length they care about.</summary>
     public IReadOnlyList<ApexSnapshot> History
@@ -336,6 +368,45 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     }
 
     public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+
+    /// <summary>
+    /// Pre-seeds the snapshot history with the typical-price line of recent OHLCV bars so the
+    /// price chart has context the instant the user clicks Continue. Each bar contributes one
+    /// snapshot with score zero and all signals marked invalid — the live tick path fills in
+    /// real indicator values on subsequent candle rolls. Safe to call before live streaming
+    /// starts; no trade or risk state is touched.
+    /// </summary>
+    public void SeedFromBars(IReadOnlyList<Bar> bars)
+    {
+        if (bars.Count == 0) return;
+        var invalid = new ApexSignalScore(0, 0, 0, false);
+        foreach (var b in bars)
+        {
+            var mid = (b.High + b.Low + b.Close) / 3.0;
+            var snap = new ApexSnapshot(
+                TimestampUtc: b.TimestampUtc,
+                Mid: mid,
+                Delta: invalid, Vpin: invalid,
+                ObiShallow: invalid, ObiDeep: invalid,
+                Footprint: invalid, Absorption: invalid,
+                Hvp: invalid, TapeSpeed: invalid,
+                Composite: 0.0,
+                CompositeDirection: 0,
+                SignalsAgree: 0,
+                SignalsConflict: 0,
+                ConflictFlag: false,
+                TradeAllowed: false,
+                Regime: "Warming",
+                KillSwitch: false,
+                DailyPnl: 0.0,
+                Balance: _balance,
+                PeakEquity: _peakEquity,
+                Position: 0);
+            _history.AddLast(snap);
+            while (_history.Count > MaxHistory) _history.RemoveFirst();
+        }
+        Latest = _history.Last?.Value;
+    }
 
     /// <summary>Caches the latest order-book snapshot for the OBI signals. See <see cref="_latestDepth"/>.</summary>
     public Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
@@ -1275,6 +1346,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         }
 
         public int CompletedCount => _completed.Count;
+
+        /// <summary>The in-progress candle whose Open/High/Low/Close/Volume/BuyVolume/SellVolume
+        /// are updated on every tick. Null until the first tick lands.</summary>
+        public EnrichedCandle? CurrentLive => _current;
 
         /// <summary>Completed candles, newest-first.</summary>
         public IReadOnlyList<EnrichedCandle> Window

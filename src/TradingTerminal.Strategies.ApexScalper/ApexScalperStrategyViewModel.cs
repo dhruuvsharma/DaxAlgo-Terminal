@@ -80,6 +80,25 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
     protected override void OnBarsUpdated()
     {
         LatestSnapshot = _engine?.Latest;
+        if (LatestSnapshot is { } s)
+        {
+            var dir = s.CompositeDirection switch { > 0 => "LONG", < 0 => "SHORT", _ => "FLAT" };
+            Log("APEX", $"composite={s.Composite:F2} dir={dir} agree={s.SignalsAgree}/8 regime={s.Regime} trade={(s.TradeAllowed ? "ok" : "blocked")}");
+        }
+    }
+
+    /// <summary>Pull enough warm-up bars to fill the user's analysis window AND the visible
+    /// chart tail — whichever is larger — so the per-indicator charts have context the moment
+    /// Continue is pressed.</summary>
+    protected override int WarmupBarCount => Math.Max(WindowSize, MaxChartCandles);
+
+    /// <summary>Seed the engine's snapshot history with mid prices from the warm-up bars so the
+    /// price chart isn't blank waiting for the first live candle to roll. Real indicator values
+    /// fill in as live ticks land.</summary>
+    protected override Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars)
+    {
+        _engine?.SeedFromBars(bars);
+        return Task.CompletedTask;
     }
 
     protected override string? ValidateSetup()
