@@ -38,6 +38,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     public const int MaxSignalsRetained = 200;
     public const int MaxBarsRetained = 300;
 
+    /// <summary>Cap on rows in the per-strategy data log. New entries push old ones off the end
+    /// so memory stays bounded for a live session that may run for days.</summary>
+    public const int MaxDataLogEntries = 500;
+
     /// <summary>Cap on how many instruments the picker shows at once. The broker universe can be
     /// ~11k symbols (Alpaca); the search box narrows it, so we never bind the whole list.</summary>
     public const int MaxInstrumentsDisplayed = 500;
@@ -47,8 +51,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// minute of recent context is more useful than no context at all.</summary>
     private const BarSize WarmupBarSize = BarSize.OneMinute;
 
-    /// <summary>How many warm-up bars to pull from the store on Start.</summary>
-    private const int WarmupBarCount = 120;
+    /// <summary>How many warm-up bars to pull from the store on Start. Subclasses override to
+    /// scale the warm-up to their analysis window (e.g. the APEX scalper pulls
+    /// <c>max(WindowSize, MaxChartCandles)</c> so the per-indicator charts have immediate context).</summary>
+    protected virtual int WarmupBarCount => 120;
 
     private readonly LiveStrategyHostServices _services;
     private readonly INotificationPublisher _notifications;
@@ -90,6 +96,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                              ?? Instruments.FirstOrDefault();
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
+        DataLog = new ObservableCollection<StrategyDataLogEntry>();
 
         // Replace the static fallback with the connected broker's tradable universe.
         // Fire-and-forget: the continuation resumes on the UI context (VM is built there).
@@ -108,7 +115,25 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// <summary>15-second price bars derived from the live tick stream. Used for chart drawing.</summary>
     public ObservableCollection<Bar> Bars { get; }
 
+    /// <summary>Bounded, self-trimming, newest-first log of what the strategy is doing. Auto-logged
+    /// from the base class on each bar roll, signal, and lifecycle transition; subclasses push
+    /// their own indicator readings via <see cref="Log"/>. Capped at
+    /// <see cref="MaxDataLogEntries"/>.</summary>
+    public ObservableCollection<StrategyDataLogEntry> DataLog { get; }
+
     public event EventHandler? BarsChanged;
+
+    /// <summary>Fires after every live quote tick has been pushed through the strategy. Charts
+    /// that need per-tick refresh (rather than per-bar) subscribe here and coalesce their
+    /// redraws — see the Apex window's DispatcherTimer-throttled redraw loop. Fired on the UI
+    /// thread.</summary>
+    public event EventHandler? TickProcessed;
+
+    /// <summary>Most recent depth-of-market snapshot for the active instrument, or null when
+    /// the broker doesn't expose L2 (NinjaTrader, Alpaca, IB-not-yet-wired). Set from the
+    /// depth pump on the UI thread; raised via <see cref="ObservablePropertyAttribute"/> so the
+    /// order-book pane re-renders automatically when it changes.</summary>
+    [ObservableProperty] private DepthSnapshot? _latestDepth;
 
     /// <summary>Instruments shown in the picker — a capped, search-filtered view of
     /// <see cref="AllInstruments"/>.</summary>
@@ -196,6 +221,24 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// Default does nothing.</summary>
     protected virtual void OnBarsUpdated() { }
 
+    /// <summary>Called after <see cref="WarmUpBarsAsync"/> seeds <see cref="Bars"/> from the
+    /// local store and before the live tick stream starts. Subclasses can pre-populate engine
+    /// state from the same bars — e.g. the APEX scalper seeds its snapshot history so the
+    /// price chart isn't blank until the first live candle rolls. Default does nothing.</summary>
+    protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
+
+    /// <summary>Push one row onto the bounded data log. Must be called on the UI thread (every
+    /// auto-log site in the base class already is). Oldest entries are trimmed as soon as the cap
+    /// is exceeded so the collection self-bounds.</summary>
+    protected void Log(string category, string message)
+    {
+        DataLog.Insert(0, new StrategyDataLogEntry(DateTime.UtcNow, category, message));
+        while (DataLog.Count > MaxDataLogEntries) DataLog.RemoveAt(DataLog.Count - 1);
+    }
+
+    [RelayCommand]
+    private void ClearDataLog() => DataLog.Clear();
+
     [RelayCommand]
     private async Task ContinueAsync()
     {
@@ -218,6 +261,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Status = IsAlgoRunning
             ? $"Algo armed on {label} — {StrategyDisplayName}"
             : $"Streaming {label} — algo idle";
+        Log("ALGO", IsAlgoRunning ? $"ARMED on {label}" : $"DISARMED on {label}");
     }
 
     [RelayCommand]
@@ -242,10 +286,12 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
         Signals.Clear();
         Bars.Clear();
+        DataLog.Clear();
         _currentBarStart = DateTime.MinValue;
         TicksSeen = 0;
         IsStreaming = true;
         Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
+        Log("STREAM", $"Started {SelectedInstrument.DisplayName} ({contract.SecType} {contract.Exchange})");
 
         try
         {
@@ -285,7 +331,9 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _streamCts?.Dispose(); _streamCts = null;
         IsStreaming = false;
         IsAlgoRunning = false;
+        LatestDepth = null;
         Status = "Stopped";
+        Log("STREAM", "Stopped");
     }
 
     [RelayCommand]
@@ -303,6 +351,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             if (recent.Count == 0) return;
             foreach (var b in recent) Bars.Add(b.ToBar());
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
+            await OnWarmupBarsLoadedAsync(Bars.ToList());
             OnBarsUpdated();
             BarsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -342,6 +391,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     _router.UpdateMarketContext(tick);
                     try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
                     catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                    TickProcessed?.Invoke(this, EventArgs.Empty);
                 });
             }
         }
@@ -382,6 +432,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                 if (_strategy is null || _router is null) break;
                 await UiThread.RunAsync(async () =>
                 {
+                    LatestDepth = snapshot;
                     try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
                     catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
                 });
@@ -417,6 +468,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             var bar = new Bar(_currentBarStart, _barOpen, _barHigh, _barLow, _barClose, _barVolume);
             Bars.Add(bar);
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
+            Log("BAR", $"{bar.TimestampUtc:HH:mm:ss} O={bar.Open:F4} H={bar.High:F4} L={bar.Low:F4} C={bar.Close:F4} V={bar.Volume}");
             OnBarsUpdated();
             BarsChanged?.Invoke(this, EventArgs.Empty);
 
@@ -437,6 +489,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         Signals.Insert(0, entry);
         while (Signals.Count > MaxSignalsRetained) Signals.RemoveAt(Signals.Count - 1);
+
+        Log("SIGNAL", $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4}){(IsAlgoRunning ? "" : " [idle]")}");
 
         if (!IsAlgoRunning) return;
 
