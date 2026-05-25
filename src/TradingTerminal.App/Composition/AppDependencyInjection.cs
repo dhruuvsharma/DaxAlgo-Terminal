@@ -220,6 +220,10 @@ public static class AppDependencyInjection
     {
         services.AddTransient<MarketRegimeViewModel>();
         services.AddTransient<MarketRegimeView>();
+        services.AddSingleton<TradingTerminal.Core.Regime.Instrument.IInstrumentRegimeProvider,
+                              TradingTerminal.Infrastructure.Regime.Instrument.InstrumentRegimeService>();
+        services.AddTransient<TradingTerminal.App.Regime.Instrument.InstrumentRegimeViewModel>();
+        services.AddTransient<TradingTerminal.App.Regime.Instrument.InstrumentRegimeView>();
         return services;
     }
 

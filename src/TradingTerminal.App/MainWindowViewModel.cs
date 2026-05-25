@@ -13,6 +13,7 @@ using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Regime;
+using TradingTerminal.App.Regime.Instrument;
 using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
@@ -36,6 +37,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string BacktestAnalysisTabId = "ai.backtestanalysis";
     private const string AiAnalystTabId = "ai.marketanalyst";
     private const string RegimeTabId = "tools.regime";
+    private const string InstrumentRegimeTabId = "tools.regime.instrument";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -384,6 +386,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         OpenTabs.Add(tab);
         // The VM holds a live subscription to the regime stream — dispose it when the tab closes.
         _tabDisposables[tab] = vm;
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenInstrumentRegime()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == InstrumentRegimeTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<InstrumentRegimeViewModel>();
+        var view = _services.GetRequiredService<InstrumentRegimeView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Instrument regime",
+            ContentId = InstrumentRegimeTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
         ActiveTab = tab;
     }
 

@@ -145,6 +145,8 @@
                           Command="{Binding OpenRecorderCommand}" />
                 <MenuItem Header="_Market regime…"
                           Command="{Binding OpenRegimeCommand}" />
+                <MenuItem Header="_Instrument regime…"
+                          Command="{Binding OpenInstrumentRegimeCommand}" />
             </MenuItem>
 
             <MenuItem Header="_AI tools">
