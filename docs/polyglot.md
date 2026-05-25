@@ -1,5 +1,7 @@
 # DaxAlgo Terminal — Polyglot Architecture
 
+> Last updated: 2026-05-25
+
 ## The rule
 
 **Other languages live in their own process, behind a subprocess + file/JSON seam. Never P/Invoke, never Python.NET, never embedded interpreters.**
@@ -111,8 +113,8 @@ You shouldn't, unless the same justification applies: an existing ecosystem you 
 
 ## Migration order
 
-1. ~~**Subprocess plumbing in C# first** — `IFastBacktestRunner` + `IPythonMlClient` interfaces, with managed `Null*` implementations that throw "not configured."~~ ✅ Done (`IFastBacktestRunner`, `Process`/`Null` impls, DI wired).
-2. ~~**C++ bridge** — JSON-in/JSON-out runner reusing the existing event engine.~~ ✅ Done (`tools/cpp-backtester/app/backtest_json.cpp`, target `tick_backtester` in the in-tree CMake project).
+1. ~~**Subprocess plumbing in C# first** — `IFastBacktestRunner` + `IPythonMlClient` interfaces, with managed `Null*` implementations that throw "not configured."~~ **Done** (`IFastBacktestRunner`, `Process`/`Null` impls, DI wired).
+2. ~~**C++ bridge** — JSON-in/JSON-out runner reusing the existing event engine.~~ **Done** (`tools/cpp-backtester/app/backtest_json.cpp`, target `tick_backtester` in the in-tree CMake project).
 3. **Python sidecar** — forthcoming. `IPythonMlClient` interface + `daxalgo-ml` FastAPI service. Bigger leverage than the C++ bridge (no Python ML in the app today), smaller surface (FastAPI + a couple of endpoints).
 4. **Widen the C++ strategy set** — port strategies from `Infrastructure/Backtest/Strategies/` one at a time. Each port flips the corresponding `BacktestStrategyOption.Fast` flag to `true` so the UI's Fast checkbox lights up.
 

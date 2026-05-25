@@ -1,5 +1,7 @@
 # TickBacktester — High-Performance C++20 Tick-Level Backtesting Engine
 
+> Last updated: 2026-05-25
+
 A production-grade, event-driven backtesting engine for quantitative trading research.
 
 ## Features

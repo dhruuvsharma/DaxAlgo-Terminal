@@ -1,5 +1,7 @@
 # daxalgo-ml
 
+> Last updated: 2026-05-25
+
 Local FastAPI sidecar for the DaxAlgo Terminal **AI Market Analyst**. The WPF terminal
 ships a hermetic .NET build and does **not** embed Python — instead, this service runs
 in its own process on `127.0.0.1` and the terminal talks to it over loopback HTTP/JSON.
