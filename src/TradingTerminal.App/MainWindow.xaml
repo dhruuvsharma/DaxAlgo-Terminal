@@ -10,23 +10,111 @@
                  xmlns:local="clr-namespace:TradingTerminal.App"
                  xmlns:ui="clr-namespace:TradingTerminal.UI;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
-                 Title="Trading Terminal"
-                 Height="800" Width="1280"
+                 Title="DaxAlgo Terminal"
+                 Height="860" Width="1440"
                  WindowStartupLocation="CenterScreen"
                  Icon="pack://application:,,,/Icon/DaxAlgoLogo.ico"
                  Background="{DynamicResource Background.Primary}"
-                 Foreground="{DynamicResource Text.Primary}">
+                 Foreground="{DynamicResource Text.Primary}"
+                 FontFamily="{DynamicResource Font.Mono}"
+                 FontSize="12">
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />  <!-- Bloomberg header strip -->
             <RowDefinition Height="Auto" />  <!-- Top menu -->
             <RowDefinition Height="Auto" />  <!-- Disconnect banner -->
             <RowDefinition Height="*" />    <!-- Dock -->
             <RowDefinition Height="Auto" />  <!-- Status bar -->
         </Grid.RowDefinitions>
 
-        <!-- VS-style top menu -->
-        <Menu Grid.Row="0"
+        <!-- Bloomberg-style header strip: amber wordmark · session · broker · mode · clock -->
+        <Border Grid.Row="0"
+                Background="#000000"
+                BorderBrush="{DynamicResource Accent.Brush}"
+                BorderThickness="0,0,0,1"
+                Padding="10,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Wordmark -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="DAXALGO"
+                               Foreground="{DynamicResource Accent.Brush}"
+                               FontWeight="Bold"
+                               FontSize="13" />
+                    <TextBlock Text=" TERMINAL"
+                               Foreground="{DynamicResource Text.Primary}"
+                               FontWeight="Bold"
+                               FontSize="13"
+                               Margin="0,0,16,0" />
+                    <Border Style="{StaticResource BB.FnKey}" VerticalAlignment="Center">
+                        <TextBlock Text="F1 HELP" Foreground="#000000" FontSize="10" FontWeight="Bold" />
+                    </Border>
+                    <Border Style="{StaticResource BB.FnKey}" VerticalAlignment="Center">
+                        <TextBlock Text="F2 STRAT" Foreground="#000000" FontSize="10" FontWeight="Bold" />
+                    </Border>
+                    <Border Style="{StaticResource BB.FnKey}" VerticalAlignment="Center">
+                        <TextBlock Text="F3 BT" Foreground="#000000" FontSize="10" FontWeight="Bold" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Center: broker + mode badge -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="BROKER"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               FontSize="10"
+                               Margin="0,0,4,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ActiveBrokerLabel}"
+                               Foreground="{DynamicResource Text.Header}"
+                               FontWeight="Bold"
+                               FontSize="11"
+                               Margin="0,0,12,0"
+                               VerticalAlignment="Center" />
+                    <Border Padding="6,1" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLiveMode}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding ModeDisplayName}"
+                                   Foreground="#000000"
+                                   FontWeight="Bold"
+                                   FontSize="10" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Right: user · clock -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SessionUserDisplay}"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               FontSize="11"
+                               Margin="0,0,16,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding CurrentTime}"
+                               Foreground="{DynamicResource Accent.Brush}"
+                               FontWeight="Bold"
+                               FontSize="13"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Top menu -->
+        <Menu Grid.Row="1"
               Background="{DynamicResource Background.Elevated}"
               Foreground="{DynamicResource Text.Primary}"
               BorderBrush="{DynamicResource Border.Brush}"
@@ -82,7 +170,7 @@
         </Menu>
 
         <!-- Disconnect banner -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="{DynamicResource Danger.Brush}"
                 Padding="12,6"
                 Visibility="{Binding IsDisconnected, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -96,7 +184,7 @@
         </Border>
 
         <!-- AvalonDock layout -->
-        <dock:DockingManager Grid.Row="2"
+        <dock:DockingManager Grid.Row="3"
                              x:Name="Dock"
                              AllowMixedOrientation="True"
                              DocumentsSource="{Binding OpenTabs}"
@@ -135,96 +223,146 @@
             </dock:DockingManager.LayoutItemTemplate>
 
             <dock:LayoutRoot>
-                <dock:LayoutPanel Orientation="Vertical">
+                <!-- Horizontal at the root so Strategies spans the full window height. -->
+                <dock:LayoutPanel Orientation="Horizontal">
 
-                    <dock:LayoutPanel Orientation="Horizontal">
+                    <!-- Left: Strategies (full height, wider) -->
+                    <dock:LayoutAnchorablePaneGroup DockWidth="360">
+                        <dock:LayoutAnchorablePane>
+                            <dock:LayoutAnchorable x:Name="StrategiesPane"
+                                                   Title="STRATEGIES"
+                                                   ContentId="strategies"
+                                                   CanClose="True"
+                                                   CanHide="True"
+                                                   IsVisibleChanged="StrategiesPane_IsVisibleChanged">
+                                <Grid Background="{DynamicResource Background.Surface}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
 
-                        <!-- Left: Strategies -->
-                        <dock:LayoutAnchorablePaneGroup DockWidth="240">
-                            <dock:LayoutAnchorablePane>
-                                <dock:LayoutAnchorable x:Name="StrategiesPane"
-                                                       Title="Strategies"
-                                                       ContentId="strategies"
-                                                       CanClose="True"
-                                                       CanHide="True"
-                                                       IsVisibleChanged="StrategiesPane_IsVisibleChanged">
-                                    <Grid>
-                                        <ListBox x:Name="StrategiesList"
-                                                 ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.Strategies}"
-                                                 SelectedItem="{Binding ElementName=RootWindow, Path=DataContext.SelectedStrategy, Mode=TwoWay}"
-                                                 MouseDoubleClick="StrategiesList_MouseDoubleClick">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Margin="2">
-                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                                        <TextBlock Text="{Binding Description}"
-                                                                   Foreground="{DynamicResource Text.Secondary}"
-                                                                   TextWrapping="Wrap" />
+                                    <!-- Bloomberg-style section header inside the pane -->
+                                    <Border Grid.Row="0"
+                                            Background="{DynamicResource Background.Elevated}"
+                                            BorderBrush="{DynamicResource Border.Brush}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="8,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="STRATEGY CATALOG"
+                                                       Foreground="{DynamicResource Text.Header}"
+                                                       FontWeight="Bold"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Foreground="{DynamicResource Text.Secondary}"
+                                                       FontSize="10"
+                                                       VerticalAlignment="Center">
+                                                <Run Text="N=" />
+                                                <Run Text="{Binding Strategies.Count, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+
+                                    <ListBox x:Name="StrategiesList"
+                                             Grid.Row="1"
+                                             BorderThickness="0"
+                                             Background="{DynamicResource Background.Surface}"
+                                             ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.Strategies}"
+                                             SelectedItem="{Binding ElementName=RootWindow, Path=DataContext.SelectedStrategy, Mode=TwoWay}"
+                                             HorizontalContentAlignment="Stretch"
+                                             MouseDoubleClick="StrategiesList_MouseDoubleClick">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="2,4">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="▸ "
+                                                                   Foreground="{DynamicResource Accent.Brush}"
+                                                                   FontWeight="Bold" />
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Foreground="{DynamicResource Text.Header}"
+                                                                   FontWeight="Bold" />
                                                     </StackPanel>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                            <ListBox.ContextMenu>
-                                                <ContextMenu>
-                                                    <MenuItem Header="Open"
-                                                              Click="OpenStrategy_Click" />
-                                                    <MenuItem Header="Open in new tab"
-                                                              Click="OpenStrategy_Click" />
-                                                </ContextMenu>
-                                            </ListBox.ContextMenu>
-                                        </ListBox>
-                                    </Grid>
-                                </dock:LayoutAnchorable>
-                            </dock:LayoutAnchorablePane>
-                        </dock:LayoutAnchorablePaneGroup>
+                                                    <TextBlock Text="{Binding Id}"
+                                                               Foreground="{DynamicResource Text.Highlight}"
+                                                               FontSize="10"
+                                                               Margin="12,0,0,2" />
+                                                    <TextBlock Text="{Binding Description}"
+                                                               Foreground="{DynamicResource Text.Secondary}"
+                                                               TextWrapping="Wrap"
+                                                               FontSize="11"
+                                                               Margin="12,0,0,0" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                        <ListBox.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open"
+                                                          Click="OpenStrategy_Click" />
+                                                <MenuItem Header="Open in new tab"
+                                                          Click="OpenStrategy_Click" />
+                                            </ContextMenu>
+                                        </ListBox.ContextMenu>
+                                    </ListBox>
+                                </Grid>
+                            </dock:LayoutAnchorable>
+                        </dock:LayoutAnchorablePane>
+                    </dock:LayoutAnchorablePaneGroup>
 
-                        <!-- Center: documents (strategy tabs) -->
+                    <!-- Right column: documents on top, logs pinned at the bottom -->
+                    <dock:LayoutPanel Orientation="Vertical">
+
                         <dock:LayoutDocumentPaneGroup>
                             <dock:LayoutDocumentPane />
                         </dock:LayoutDocumentPaneGroup>
 
-                    </dock:LayoutPanel>
+                        <dock:LayoutAnchorablePaneGroup DockHeight="200">
+                            <dock:LayoutAnchorablePane>
+                                <dock:LayoutAnchorable x:Name="LogsPane"
+                                                       Title="LOGS"
+                                                       ContentId="logs"
+                                                       CanClose="True"
+                                                       CanHide="True"
+                                                       IsVisibleChanged="LogsPane_IsVisibleChanged">
+                                    <ListBox ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.LogSink.Entries}"
+                                             FontFamily="{DynamicResource Font.Mono}"
+                                             FontSize="11"
+                                             BorderThickness="0"
+                                             Background="{DynamicResource Background.Surface}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
+                                                               Foreground="{DynamicResource Text.Secondary}"
+                                                               Margin="0,0,8,0" />
+                                                    <TextBlock Text="{Binding Level}"
+                                                               Width="50"
+                                                               Foreground="{DynamicResource Accent.Brush}" />
+                                                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </dock:LayoutAnchorable>
+                            </dock:LayoutAnchorablePane>
+                        </dock:LayoutAnchorablePaneGroup>
 
-                    <!-- Bottom: Logs (pinned) -->
-                    <dock:LayoutAnchorablePaneGroup DockHeight="200">
-                        <dock:LayoutAnchorablePane>
-                            <dock:LayoutAnchorable x:Name="LogsPane"
-                                                   Title="Logs"
-                                                   ContentId="logs"
-                                                   CanClose="True"
-                                                   CanHide="True"
-                                                   IsVisibleChanged="LogsPane_IsVisibleChanged">
-                                <ListBox ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.LogSink.Entries}"
-                                         FontFamily="Consolas"
-                                         FontSize="11"
-                                         Background="{DynamicResource Background.Surface}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
-                                                           Foreground="{DynamicResource Text.Secondary}"
-                                                           Margin="0,0,8,0" />
-                                                <TextBlock Text="{Binding Level}"
-                                                           Width="50"
-                                                           Foreground="{DynamicResource Accent.Brush}" />
-                                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </dock:LayoutAnchorable>
-                        </dock:LayoutAnchorablePane>
-                    </dock:LayoutAnchorablePaneGroup>
+                    </dock:LayoutPanel>
 
                 </dock:LayoutPanel>
             </dock:LayoutRoot>
         </dock:DockingManager>
 
         <!-- Status bar -->
-        <StatusBar Grid.Row="3">
+        <StatusBar Grid.Row="4">
             <!-- Connection state dot + label -->
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="10" Height="10" Margin="0,0,6,0">
+                    <Ellipse Width="8" Height="8" Margin="0,0,6,0">
                         <Ellipse.Style>
                             <Style TargetType="Ellipse">
                                 <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
@@ -242,53 +380,41 @@
                             </Style>
                         </Ellipse.Style>
                     </Ellipse>
-                    <TextBlock Text="{Binding ConnectionState}" />
+                    <TextBlock Text="{Binding ConnectionState}"
+                               Foreground="{DynamicResource Accent.Brush}"
+                               FontWeight="Bold" />
                 </StackPanel>
             </StatusBarItem>
             <Separator />
 
-            <!-- Signed-in user · account -->
-            <StatusBarItem>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="👤 " FontSize="11" />
-                    <TextBlock Text="{Binding SessionUserDisplay}" />
-                </StackPanel>
-            </StatusBarItem>
-            <Separator />
-
-            <!-- Mode badge -->
-            <StatusBarItem>
-                <Border Padding="6,2" CornerRadius="2">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsLiveMode}" Value="True">
-                                    <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <TextBlock Text="{Binding ModeDisplayName}"
-                               Foreground="#1E1E1E"
-                               FontWeight="SemiBold"
-                               FontSize="10" />
-                </Border>
-            </StatusBarItem>
-            <Separator />
-
-            <!-- Clock -->
-            <StatusBarItem>
-                <TextBlock Text="{Binding CurrentTime}" />
-            </StatusBarItem>
-            <Separator />
-
-            <!-- Tab count -->
             <StatusBarItem>
                 <TextBlock>
-                    <Run Text="Tabs:" />
-                    <Run Text="{Binding OpenTabs.Count, Mode=OneWay}" />
+                    <Run Text="BROKER " Foreground="{DynamicResource Text.Secondary}" />
+                    <Run Text="{Binding ActiveBrokerLabel, Mode=OneWay}" Foreground="{DynamicResource Text.Primary}" />
                 </TextBlock>
+            </StatusBarItem>
+            <Separator />
+
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="USER " Foreground="{DynamicResource Text.Secondary}" />
+                    <Run Text="{Binding SessionUserDisplay, Mode=OneWay}" Foreground="{DynamicResource Text.Primary}" />
+                </TextBlock>
+            </StatusBarItem>
+            <Separator />
+
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="TABS " Foreground="{DynamicResource Text.Secondary}" />
+                    <Run Text="{Binding OpenTabs.Count, Mode=OneWay}" Foreground="{DynamicResource Text.Highlight}" />
+                </TextBlock>
+            </StatusBarItem>
+            <Separator />
+
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock Text="{Binding CurrentTime}"
+                           Foreground="{DynamicResource Accent.Brush}"
+                           FontWeight="Bold" />
             </StatusBarItem>
         </StatusBar>
     </Grid>

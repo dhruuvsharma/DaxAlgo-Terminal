@@ -9,59 +9,80 @@
     <Style TargetType="{x:Type Window}">
         <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style TargetType="{x:Type UserControl}">
         <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style TargetType="{x:Type TextBlock}">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
     </Style>
 
     <Style TargetType="{x:Type TextBox}">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-        <Setter Property="CaretBrush" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Accent.Brush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
         <Setter Property="Padding" Value="6,3" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="MinHeight" Value="24" />
     </Style>
 
     <Style TargetType="{x:Type ComboBox}">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="MinHeight" Value="24" />
     </Style>
 
     <Style TargetType="{x:Type Button}">
         <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
-        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Accent.Dim.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="10,3" />
+        <Setter Property="MinHeight" Value="24" />
         <Setter Property="Cursor" Value="Hand" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Accent.Dim.Brush}" />
+                <Setter Property="Foreground" Value="#000000" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="{x:Type ListBox}">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
     </Style>
 
     <Style TargetType="{x:Type ListBoxItem}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="BorderThickness" Value="2,0,0,0" />
+        <Setter Property="BorderBrush" Value="Transparent" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Dim.Brush}" />
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
-                <Setter Property="Foreground" Value="White" />
+                <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -73,11 +94,42 @@
     <Style TargetType="{x:Type StatusBar}">
         <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontSize" Value="11" />
     </Style>
 
     <Style TargetType="{x:Type ScrollBar}">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style TargetType="{x:Type Menu}">
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+    </Style>
+
+    <!-- Bloomberg-style section header label (amber, uppercase, dense) -->
+    <Style x:Key="BB.SectionHeader" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Padding" Value="8,5" />
+    </Style>
+
+    <!-- Bloomberg-style "function key" tile: amber background, black text, monospace label -->
+    <Style x:Key="BB.FnKey" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+        <Setter Property="Padding" Value="4,1" />
+        <Setter Property="Margin" Value="0,0,4,0" />
     </Style>
 
 </ResourceDictionary>
