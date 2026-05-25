@@ -25,6 +25,7 @@ public sealed partial class AiAnalystViewModel : ViewModelBase
     private readonly IMarketDataRepository _repository;
     private readonly IOptionsMonitor<NotificationsOptions> _options;
     private readonly ILogger<AiAnalystViewModel> _logger;
+    private readonly IDisposable? _optionsSubscription;
     private CancellationTokenSource? _runCts;
 
     public AiAnalystViewModel(
@@ -51,6 +52,24 @@ public sealed partial class AiAnalystViewModel : ViewModelBase
             analyst.IsAvailable
                 ? "Click Analyze to fetch a fresh verdict."
                 : "AI Analyst unavailable — enable in Settings → Notifications → AI Analyst.");
+
+        // The Settings tab writes notifications.json with reloadOnChange:true, so when the user
+        // ticks Enabled, IOptionsMonitor fires. Marshal back to the UI thread and re-notify
+        // IsAvailable so the Analyze button binding re-evaluates without a tab reopen.
+        _optionsSubscription = _options.OnChange(_ =>
+        {
+            if (Application.Current?.Dispatcher is { } d && !d.CheckAccess())
+                d.BeginInvoke(new Action(NotifyAvailabilityChanged));
+            else
+                NotifyAvailabilityChanged();
+        });
+    }
+
+    private void NotifyAvailabilityChanged()
+    {
+        OnPropertyChanged(nameof(IsAvailable));
+        if (LatestReport is { Decision: AiAnalystDecision.NoCall } && _analyst.IsAvailable)
+            LatestReport = AnalystReport.Unavailable("Click Analyze to fetch a fresh verdict.");
     }
 
     public ObservableCollection<AnalystReport> History { get; }
