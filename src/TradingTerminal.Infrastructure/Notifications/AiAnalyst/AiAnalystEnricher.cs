@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.AiAnalyst;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
@@ -21,17 +22,20 @@ internal sealed class AiAnalystEnricher : INotificationEnricher
 {
     private readonly IAiAnalystClient _analyst;
     private readonly IMarketDataRepository _repository;
+    private readonly IBrokerSelector _selector;
     private readonly IOptionsMonitor<NotificationsOptions> _options;
     private readonly ILogger<AiAnalystEnricher> _logger;
 
     public AiAnalystEnricher(
         IAiAnalystClient analyst,
         IMarketDataRepository repository,
+        IBrokerSelector selector,
         IOptionsMonitor<NotificationsOptions> options,
         ILogger<AiAnalystEnricher> logger)
     {
         _analyst = analyst;
         _repository = repository;
+        _selector = selector;
         _options = options;
         _logger = logger;
     }
@@ -93,9 +97,13 @@ internal sealed class AiAnalystEnricher : INotificationEnricher
 
     private async Task<IReadOnlyList<AnalystBar>> FetchBarsAsync(string symbol, int barCount, CancellationToken ct)
     {
+        var connected = _selector.Connected;
+        if (connected.Count == 0) return Array.Empty<AnalystBar>();
+        var broker = connected[0];
+
         var contract = Contract.UsStock(symbol);
         var duration = TimeSpan.FromHours(Math.Max(barCount, 1) * 1.2);
-        var bars = await _repository.GetHistoricalBarsAsync(contract, BarSize.OneHour, duration, ct).ConfigureAwait(false);
+        var bars = await _repository.GetHistoricalBarsAsync(contract, broker, BarSize.OneHour, duration, ct).ConfigureAwait(false);
         if (bars.Count == 0) return Array.Empty<AnalystBar>();
         var window = bars.Count <= barCount ? bars : bars.Skip(bars.Count - barCount).ToArray();
         return window.Select(b => new AnalystBar(b.TimestampUtc, b.Open, b.High, b.Low, b.Close, b.Volume)).ToArray();

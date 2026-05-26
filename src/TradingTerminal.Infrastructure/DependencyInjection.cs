@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Brokers.CTrader;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
@@ -70,6 +71,10 @@ public static class DependencyInjection
         services.AddSingleton<IBrokerClient>(sp =>
             ActivatorUtilities.CreateInstance<RealCTraderClient>(sp));
 
+        // One-shot helper for the login form's "Discover accounts" button. Resolves the
+        // ctidTraderAccountId from an access token so the user doesn't have to hunt it down.
+        services.AddSingleton<ICTraderAccountDiscovery, CTraderAccountDiscoveryService>();
+
         services.AddSingleton<BrokerConnectionMode>(sp =>
         {
             var opt = sp.GetRequiredService<IOptions<CTraderOptions>>().Value;
@@ -99,7 +104,6 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<IBrokerSelector, BrokerSelector>();
-        services.AddSingleton<ConnectionManager>();
         services.AddSingleton<IMarketDataRepository, MarketDataRepository>();
 
         // Trading seam.

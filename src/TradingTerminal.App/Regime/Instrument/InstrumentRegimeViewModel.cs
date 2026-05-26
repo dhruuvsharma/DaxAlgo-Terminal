@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Regime.Instrument;
@@ -19,6 +20,7 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
 {
     private readonly IInstrumentRegimeProvider _provider;
     private readonly IMarketDataRepository _repository;
+    private readonly IBrokerSelector _selector;
     private readonly ILogger<InstrumentRegimeViewModel> _logger;
     private CancellationTokenSource? _runCts;
 
@@ -35,10 +37,12 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
     public InstrumentRegimeViewModel(
         IInstrumentRegimeProvider provider,
         IMarketDataRepository repository,
+        IBrokerSelector selector,
         ILogger<InstrumentRegimeViewModel> logger)
     {
         _provider = provider;
         _repository = repository;
+        _selector = selector;
         _logger = logger;
 
         Timeframes = new ObservableCollection<TimeframeOption>(AllTimeframes);
@@ -94,7 +98,11 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
         {
             var list = await _repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
-            AllInstruments = list.Select(i => new SignalInstrument(i.DisplayName, i.Category, i.Contract)).ToList();
+            AllInstruments = list.Select(i => new SignalInstrument(
+                $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
+                i.Category,
+                i.Contract,
+                i.Broker)).ToList();
             SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
                                  ?? AllInstruments.FirstOrDefault();
@@ -105,6 +113,15 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
             _logger.LogWarning(ex, "Instrument regime: broker universe load failed, using static catalog");
         }
     }
+
+    private static string BrokerLabel(BrokerKind broker) => broker switch
+    {
+        BrokerKind.InteractiveBrokers => "IB",
+        BrokerKind.NinjaTrader => "NinjaTrader",
+        BrokerKind.CTrader => "cTrader",
+        BrokerKind.Alpaca => "Alpaca",
+        _ => broker.ToString(),
+    };
 
     private void ApplyInstrumentFilter()
     {
@@ -138,8 +155,10 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
 
         try
         {
+            var broker = ResolveBroker(SelectedInstrument);
             var snapshot = await _provider.AnalyseAsync(
                 SelectedInstrument.Contract,
+                broker,
                 SelectedInstrument.DisplayName,
                 SelectedTimeframe.BarSize,
                 BarCount,
@@ -165,6 +184,16 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
     private void Cancel()
     {
         _runCts?.Cancel();
+    }
+
+    private BrokerKind ResolveBroker(SignalInstrument instrument)
+    {
+        if (instrument.Broker is { } explicitBroker && _selector.IsConnected(explicitBroker))
+            return explicitBroker;
+        var connected = _selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        return connected[0];
     }
 
     private void ApplySnapshot(InstrumentRegimeSnapshot s)

@@ -68,15 +68,15 @@ public static class MarketDataPipelineServiceCollectionExtensions
         services.AddSingleton<IMarketDataIngest, MarketDataIngestService>();
 
         // Instrument-universe pre-loader. Hosted service so it kicks in once the host starts and
-        // reacts to every Connected transition; bound to the ConnectionManager's reactive state
-        // stream (which itself re-wires on broker switch, so a switch re-fires discovery for the
-        // new broker). Registered as a singleton (for direct resolution if needed) and as an
-        // IHostedService (for the host to start). Plain AddSingleton<IHostedService> here rather
-        // than TryAddEnumerable because factory-based descriptors don't carry an implementation
-        // type, which the latter requires for its dedup check.
+        // reacts to every Connected transition on every registered broker — the service subscribes
+        // to each per-broker state stream via IBrokerSelector.StateOf, so multi-broker setups run
+        // one discovery pass per broker independently. Registered as a singleton (for direct
+        // resolution if needed) and as an IHostedService (for the host to start). Plain
+        // AddSingleton<IHostedService> here rather than TryAddEnumerable because factory-based
+        // descriptors don't carry an implementation type, which the latter requires for its dedup
+        // check.
         services.AddSingleton<InstrumentDiscoveryService>(sp => new InstrumentDiscoveryService(
             sp.GetRequiredService<IBrokerSelector>(),
-            sp.GetRequiredService<Ib.ConnectionManager>().ConnectionState,
             sp.GetRequiredService<IInstrumentRegistry>(),
             sp.GetRequiredService<ILogger<InstrumentDiscoveryService>>()));
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<InstrumentDiscoveryService>());

@@ -42,7 +42,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
     private readonly IStrategyFactory _factory;
-    private readonly IMarketDataRepository _repository;
     private readonly IEventBus _eventBus;
     private readonly SessionContext _session;
     private readonly IBrokerSelector _brokerSelector;
@@ -52,7 +51,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(
         IStrategyFactory factory,
-        IMarketDataRepository repository,
         IEventBus eventBus,
         InMemoryLogSink logSink,
         SessionContext session,
@@ -61,7 +59,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         ILogger<MainWindowViewModel> logger)
     {
         _factory = factory;
-        _repository = repository;
         _eventBus = eventBus;
         _session = session;
         _brokerSelector = brokerSelector;
@@ -78,22 +75,45 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _clockTimer.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm:ss");
         _clockTimer.Start();
 
-        // Mirror connection state into our own observable property.
-        repository.ConnectionState.Subscribe(s => ConnectionState = s);
+        // Aggregate connection state across every available broker — when any broker is
+        // Connected we report Connected; otherwise mirror the most "alive" state.
+        RefreshAggregateState();
+        _brokerSelector.StateChanged += (_, _) =>
+        {
+            if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess())
+                d.BeginInvoke(new Action(RefreshAggregateState));
+            else
+                RefreshAggregateState();
+        };
 
         _session.Changed += (_, _) =>
         {
             OnPropertyChanged(nameof(SessionUserDisplay));
             OnPropertyChanged(nameof(IsAuthenticated));
         };
+    }
 
-        _brokerSelector.ActiveChanged += (_, _) =>
-        {
-            OnPropertyChanged(nameof(ModeDisplayName));
-            OnPropertyChanged(nameof(IsLiveMode));
-            OnPropertyChanged(nameof(ActiveBrokerLabel));
-            OnPropertyChanged(nameof(DisconnectBannerText));
-        };
+    private void RefreshAggregateState()
+    {
+        var available = _brokerSelector.AvailableKinds;
+        var states = available.Select(k => _brokerSelector.CurrentStateOf(k)).ToList();
+
+        // Aggregate: any Connected → Connected; else any Connecting/Reconnecting → that state; else Failed/Disconnected.
+        if (states.Any(s => s == Core.Domain.ConnectionState.Connected))
+            ConnectionState = Core.Domain.ConnectionState.Connected;
+        else if (states.Any(s => s == Core.Domain.ConnectionState.Reconnecting))
+            ConnectionState = Core.Domain.ConnectionState.Reconnecting;
+        else if (states.Any(s => s == Core.Domain.ConnectionState.Connecting))
+            ConnectionState = Core.Domain.ConnectionState.Connecting;
+        else if (states.Any(s => s == Core.Domain.ConnectionState.Failed))
+            ConnectionState = Core.Domain.ConnectionState.Failed;
+        else
+            ConnectionState = Core.Domain.ConnectionState.Disconnected;
+
+        OnPropertyChanged(nameof(ActiveBrokerLabel));
+        OnPropertyChanged(nameof(DisconnectBannerText));
+        OnPropertyChanged(nameof(ModeDisplayName));
+        OnPropertyChanged(nameof(IsLiveMode));
     }
 
     private readonly Dictionary<string, Window> _openWindows;
@@ -103,18 +123,49 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<DockTab> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
 
-    public string ModeDisplayName => _brokerSelector.ActiveMode.DisplayName;
-    public bool IsLiveMode => _brokerSelector.ActiveMode.IsLive;
+    /// <summary>Composite mode label — "Live · IB + cTrader" when multiple brokers are up. Falls
+    /// back to the first connected broker's mode for single-broker sessions.</summary>
+    public string ModeDisplayName
+    {
+        get
+        {
+            var connected = _brokerSelector.Connected;
+            return connected.Count switch
+            {
+                0 => "Disconnected",
+                1 => _brokerSelector.ModeOf(connected[0]).DisplayName,
+                _ => $"Multi-broker · {string.Join(" + ", connected.Select(Label))}",
+            };
+        }
+    }
 
-    public string ActiveBrokerLabel => _brokerSelector.ActiveKind switch
+    /// <summary>True if ANY connected broker is in live mode.</summary>
+    public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
+
+    public string ActiveBrokerLabel
+    {
+        get
+        {
+            var connected = _brokerSelector.Connected;
+            return connected.Count switch
+            {
+                0 => "(no brokers connected)",
+                1 => Label(connected[0]),
+                _ => string.Join(" + ", connected.Select(Label)),
+            };
+        }
+    }
+
+    public string DisconnectBannerText => "Disconnected — connect a broker to resume";
+
+    private static string Label(BrokerKind kind) => kind switch
     {
         BrokerKind.InteractiveBrokers => "Interactive Brokers",
         BrokerKind.NinjaTrader => "NinjaTrader",
         BrokerKind.CTrader => "cTrader",
-        _ => _brokerSelector.ActiveKind.ToString(),
+        BrokerKind.Alpaca => "Alpaca",
+        _ => kind.ToString(),
     };
-
-    public string DisconnectBannerText => $"Disconnected from {ActiveBrokerLabel}";
 
     public bool IsAuthenticated => _session.IsAuthenticated;
 
@@ -224,8 +275,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public async Task ReconnectAsync()
     {
-        _logger.LogInformation("Reconnect requested by user");
-        await _repository.ConnectAsync();
+        _logger.LogInformation("Reconnect requested by user — restarting every available broker");
+        foreach (var kind in _brokerSelector.AvailableKinds)
+        {
+            try { await _brokerSelector.ConnectAsync(kind); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Reconnect failed for {Broker}", kind); }
+        }
     }
 
     [RelayCommand]
@@ -473,9 +528,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         ActiveTab = tab;
     }
 
-    public async Task StartAsync()
+    public Task StartAsync()
     {
-        try { await _repository.ConnectAsync(); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Initial connect failed"); }
+        // Connect lifecycle is owned by the login screen and the BrokerSelector now —
+        // each broker the user signed into already has its own reconnect loop running.
+        // Nothing to do here on shell load.
+        return Task.CompletedTask;
     }
 }

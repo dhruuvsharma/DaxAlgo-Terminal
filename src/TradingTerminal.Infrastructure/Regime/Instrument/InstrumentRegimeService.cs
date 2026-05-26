@@ -8,8 +8,8 @@ namespace TradingTerminal.Infrastructure.Regime.Instrument;
 
 /// <summary>
 /// Default <see cref="IInstrumentRegimeProvider"/> implementation. Pulls recent OHLCV bars
-/// from <see cref="IMarketDataRepository"/> (whichever broker is active) and, if that broker
-/// exposes L2, grabs one short-lived <see cref="DepthSnapshot"/> via the active
+/// from <see cref="IMarketDataRepository"/> on the named broker and, if that broker exposes
+/// L2, grabs one short-lived <see cref="DepthSnapshot"/> via the named broker's
 /// <see cref="IBrokerClient"/>. The pure-math <see cref="InstrumentRegimeCalculator"/> does
 /// the rest.
 /// </summary>
@@ -33,6 +33,7 @@ public sealed class InstrumentRegimeService : IInstrumentRegimeProvider
 
     public async Task<InstrumentRegimeSnapshot> AnalyseAsync(
         Contract contract,
+        BrokerKind broker,
         string displaySymbol,
         BarSize timeframe,
         int barCount,
@@ -43,28 +44,28 @@ public sealed class InstrumentRegimeService : IInstrumentRegimeProvider
         try
         {
             var duration = EstimateDuration(timeframe, barCount);
-            bars = await _repository.GetHistoricalBarsAsync(contract, timeframe, duration, ct);
+            bars = await _repository.GetHistoricalBarsAsync(contract, broker, timeframe, duration, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Instrument regime: bar fetch failed for {Symbol}", displaySymbol);
+            _logger.LogWarning(ex, "Instrument regime: bar fetch failed for {Symbol} on {Broker}", displaySymbol, broker);
             return InstrumentRegimeSnapshot.Empty with { Symbol = displaySymbol, Timeframe = timeframe, GeneratedAtUtc = DateTime.UtcNow };
         }
 
         // 2. Depth — optional. Brokers without L2 throw NotSupportedException; we degrade silently.
-        var depth = await TryGetDepthAsync(contract, ct);
+        var depth = await TryGetDepthAsync(contract, broker, ct);
 
         var inputs = new InstrumentRegimeInputs(displaySymbol, timeframe, bars, depth);
         return InstrumentRegimeCalculator.Compute(inputs, DateTime.UtcNow);
     }
 
-    private async Task<DepthSnapshot?> TryGetDepthAsync(Contract contract, CancellationToken outerCt)
+    private async Task<DepthSnapshot?> TryGetDepthAsync(Contract contract, BrokerKind broker, CancellationToken outerCt)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(outerCt);
             cts.CancelAfter(DepthSnapshotTimeout);
-            await foreach (var snap in _selector.Active.SubscribeDepthAsync(contract, levels: 10, cts.Token))
+            await foreach (var snap in _selector.Get(broker).SubscribeDepthAsync(contract, levels: 10, cts.Token))
             {
                 return snap; // first snapshot is sufficient
             }
@@ -79,7 +80,7 @@ public sealed class InstrumentRegimeService : IInstrumentRegimeProvider
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Instrument regime: depth fetch skipped for {Symbol}", contract.Symbol);
+            _logger.LogDebug(ex, "Instrument regime: depth fetch skipped for {Symbol} on {Broker}", contract.Symbol, broker);
         }
         return null;
     }

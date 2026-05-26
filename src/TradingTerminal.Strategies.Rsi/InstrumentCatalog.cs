@@ -1,12 +1,16 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Strategies.Rsi;
 
-/// <summary>A user-facing instrument label paired with the IB contract it resolves to.</summary>
+/// <summary>A user-facing instrument label paired with the broker contract it resolves to and
+/// the source broker that supplied it. <see cref="Broker"/> is null for static-catalog rows;
+/// the strategy host falls back to the first connected broker at Start time.</summary>
 public sealed record TradeableInstrument(
     string DisplayName,
     string Category,
-    Contract Contract);
+    Contract Contract,
+    BrokerKind? Broker = null);
 
 /// <summary>
 /// Curated catalog of instruments the RSI strategy can stream. Covers ETFs, single-name

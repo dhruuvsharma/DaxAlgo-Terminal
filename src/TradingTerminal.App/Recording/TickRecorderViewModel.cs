@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
@@ -24,6 +25,7 @@ namespace TradingTerminal.App.Recording;
 public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
 {
     private readonly IMarketDataRepository _repository;
+    private readonly IBrokerSelector _selector;
     private readonly ILogger<TickRecorderViewModel> _logger;
     private CancellationTokenSource? _streamCts;
     private ParquetTickWriter? _writer;
@@ -31,9 +33,11 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
 
     public TickRecorderViewModel(
         IMarketDataRepository repository,
+        IBrokerSelector selector,
         ILogger<TickRecorderViewModel> logger)
     {
         _repository = repository;
+        _selector = selector;
         _logger = logger;
         Instruments = SignalInstrumentCatalog.All;
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "EUR")
@@ -98,7 +102,16 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
         IsRecording = true;
         Status = $"Recording {SelectedInstrument.DisplayName} → {Path.GetFileName(OutputPath)}";
 
-        _ = RunStreamAsync(SelectedInstrument.Contract, _streamCts.Token);
+        var connected = _selector.Connected;
+        if (connected.Count == 0)
+        {
+            ValidationError = "No broker is connected. Connect at least one broker in the login screen.";
+            IsRecording = false;
+            return;
+        }
+        var broker = SelectedInstrument.Broker is { } b && _selector.IsConnected(b) ? b : connected[0];
+
+        _ = RunStreamAsync(SelectedInstrument.Contract, broker, _streamCts.Token);
         _ = TickElapsedAsync(_streamCts.Token);
     }
 
@@ -113,11 +126,11 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
         _streamCts?.Dispose(); _streamCts = null;
     }
 
-    private async Task RunStreamAsync(Contract contract, CancellationToken ct)
+    private async Task RunStreamAsync(Contract contract, BrokerKind broker, CancellationToken ct)
     {
         try
         {
-            await foreach (var tick in _repository.SubscribeTicksAsync(contract, ct))
+            await foreach (var tick in _repository.SubscribeTicksAsync(contract, broker, ct))
             {
                 if (_writer is null) break;
                 await _writer.WriteAsync(tick);

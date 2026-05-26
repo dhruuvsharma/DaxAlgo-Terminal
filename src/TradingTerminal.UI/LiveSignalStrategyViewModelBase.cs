@@ -170,10 +170,14 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             if (list is null || list.Count == 0) return;
 
             AllInstruments = list
-                .Select(i => new SignalInstrument(i.DisplayName, i.Category, i.Contract))
+                .Select(i => new SignalInstrument(
+                    $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
+                    i.Category,
+                    i.Contract,
+                    i.Broker))
                 .ToList();
 
-            // Prefer a familiar default if the broker offers it; otherwise the first symbol.
+            // Prefer a familiar default if any broker offers it; otherwise the first symbol.
             SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
                                  ?? AllInstruments.FirstOrDefault();
@@ -183,6 +187,31 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         {
             _logger.LogWarning(ex, "{Strategy} instrument list load failed; using static catalog", StrategyId);
         }
+    }
+
+    /// <summary>Short broker label appended to instrument rows so users can disambiguate the
+    /// same ticker exposed by multiple connected brokers (e.g. "ES — IB" vs "ES — cTrader").</summary>
+    private static string BrokerLabel(Core.Brokers.BrokerKind broker) => broker switch
+    {
+        Core.Brokers.BrokerKind.InteractiveBrokers => "IB",
+        Core.Brokers.BrokerKind.NinjaTrader => "NinjaTrader",
+        Core.Brokers.BrokerKind.CTrader => "cTrader",
+        Core.Brokers.BrokerKind.Alpaca => "Alpaca",
+        _ => broker.ToString(),
+    };
+
+    /// <summary>Resolves the broker to talk to for the selected instrument. Live picker rows carry
+    /// their source broker; static-catalog rows (no broker connected yet) fall back to whichever
+    /// broker is currently connected first. Throws if no broker is connected — the caller surfaces
+    /// the message in <see cref="ValidationError"/> so the user can go connect one.</summary>
+    private Core.Brokers.BrokerKind ResolveBroker(SignalInstrument instrument)
+    {
+        if (instrument.Broker is { } explicitBroker && _services.Selector.IsConnected(explicitBroker))
+            return explicitBroker;
+        var connected = _services.Selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        return connected[0];
     }
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
@@ -271,8 +300,12 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         if (SelectedInstrument is null) { ValidationError = "Pick an instrument before starting."; return; }
         if (IsStreaming) return;
 
+        Core.Brokers.BrokerKind broker;
+        try { broker = ResolveBroker(SelectedInstrument); }
+        catch (InvalidOperationException ex) { ValidationError = ex.Message; return; }
+
         var contract = SelectedInstrument.Contract;
-        var instrumentId = _services.Ingest.Resolve(contract);
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
 
         _streamCts = new CancellationTokenSource();
         _strategy = BuildStrategy(contract);
@@ -309,7 +342,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
         // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
         // share the same handle on the ingest side, so a single Subscribe powers both observables.
-        _ingestHandle = _services.Ingest.Subscribe(contract);
+        _ingestHandle = _services.Ingest.Subscribe(contract, broker);
 
         _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
         _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);

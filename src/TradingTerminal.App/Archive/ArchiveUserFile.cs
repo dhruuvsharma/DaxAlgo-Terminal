@@ -50,11 +50,17 @@ internal static class ArchiveUserFile
             ["ManifestDatabasePath"] = archive.ManifestDatabasePath,
         };
 
+        // ApiHash and PhoneNumber are written as DPAPI-encrypted ciphertext; the plaintext
+        // properties are left as null in the JSON so legacy readers don't see them. A post-
+        // configure step (TelegramArchiveOptionsPostConfigure) decrypts them back into the
+        // runtime options at startup.
         root[TelegramArchiveOptions.SectionName] = new JsonObject
         {
             ["ApiId"] = telegram.ApiId,
-            ["ApiHash"] = telegram.ApiHash,
-            ["PhoneNumber"] = telegram.PhoneNumber,
+            ["ApiHash"] = (string?)null,
+            ["PhoneNumber"] = (string?)null,
+            ["ApiHashEncryptedBase64"] = TelegramArchiveCredentialProtection.Encrypt(telegram.ApiHash),
+            ["PhoneNumberEncryptedBase64"] = TelegramArchiveCredentialProtection.Encrypt(telegram.PhoneNumber),
             ["SessionFilePath"] = telegram.SessionFilePath,
         };
 

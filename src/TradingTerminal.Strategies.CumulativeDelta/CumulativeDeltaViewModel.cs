@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
@@ -110,7 +111,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             if (list is null || list.Count == 0) return;
 
             AllInstruments = list
-                .Select(i => new TradeableInstrument(i.DisplayName, i.Category, i.Contract))
+                .Select(i => new TradeableInstrument(
+                    $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
+                    i.Category,
+                    i.Contract,
+                    i.Broker))
                 .ToList();
 
             // Prefer EUR.USD (the EA's home pair) if the broker offers FX; else the first symbol.
@@ -123,6 +128,25 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         {
             _logger.LogWarning(ex, "Cumulative delta instrument list load failed; using static catalog");
         }
+    }
+
+    private static string BrokerLabel(BrokerKind broker) => broker switch
+    {
+        BrokerKind.InteractiveBrokers => "IB",
+        BrokerKind.NinjaTrader => "NinjaTrader",
+        BrokerKind.CTrader => "cTrader",
+        BrokerKind.Alpaca => "Alpaca",
+        _ => broker.ToString(),
+    };
+
+    private BrokerKind ResolveBroker(TradeableInstrument instrument)
+    {
+        if (instrument.Broker is { } explicitBroker && _services.Selector.IsConnected(explicitBroker))
+            return explicitBroker;
+        var connected = _services.Selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        return connected[0];
     }
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
@@ -278,6 +302,10 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     {
         if (IsStreaming || SelectedInstrument is null) return;
 
+        BrokerKind broker;
+        try { broker = ResolveBroker(SelectedInstrument); }
+        catch (InvalidOperationException ex) { Status = ex.Message; return; }
+
         var contract = SelectedInstrument.Contract;
         var chartTf = SelectedTimeframe;
 
@@ -291,7 +319,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         try
         {
-            var history = await _services.Repository.GetHistoricalBarsAsync(contract, chartTf, TimeSpan.FromDays(1));
+            var history = await _services.Repository.GetHistoricalBarsAsync(contract, broker, chartTf, TimeSpan.FromDays(1));
             foreach (var b in history.TakeLast(MaxBarsRetained))
                 Bars.Add(b);
             RecalculateAtr();
@@ -308,9 +336,9 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         IsStreaming = true;
         Status = $"Streaming {SelectedInstrument.DisplayName} — sniper idle";
 
-        _ = RunTicksAsync(contract, _cts.Token);
-        _ = RunChartBarsAsync(contract, chartTf, _cts.Token);
-        _ = RunHtfBarsAsync(contract, _cts.Token);
+        _ = RunTicksAsync(contract, broker, _cts.Token);
+        _ = RunChartBarsAsync(contract, broker, chartTf, _cts.Token);
+        _ = RunHtfBarsAsync(contract, broker, _cts.Token);
     }
 
     public async Task StopStreamAsync()
@@ -339,11 +367,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     // ---------- Tick stream (bid-tick rule) ----------
 
-    private async Task RunTicksAsync(Contract contract, CancellationToken ct)
+    private async Task RunTicksAsync(Contract contract, BrokerKind broker, CancellationToken ct)
     {
         // Canonical pipeline: subscribe to hub.Quotes, project back to Tick (preserves the
         // bid-tick-rule logic in ProcessTick), and start (or join) the L1 broker pump.
-        var instrumentId = _services.Ingest.Resolve(contract);
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
         var channel = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
         {
             SingleReader = true,
@@ -352,7 +380,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         using var subscription = _services.Hub.Quotes(instrumentId).Subscribe(q =>
             channel.Writer.TryWrite(new Tick(q.EventTimeUtc, q.Bid, q.Ask, q.BidSize, q.AskSize)));
-        _ticksHandle = _services.Ingest.Subscribe(contract);
+        _ticksHandle = _services.Ingest.Subscribe(contract, broker);
 
         try
         {
@@ -392,9 +420,9 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     // ---------- Chart-TF bar stream: finalise bars, drive signals ----------
 
-    private async Task RunChartBarsAsync(Contract contract, BarSize chartTf, CancellationToken ct)
+    private async Task RunChartBarsAsync(Contract contract, BrokerKind broker, BarSize chartTf, CancellationToken ct)
     {
-        var instrumentId = _services.Ingest.Resolve(contract);
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
         var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
         {
             SingleReader = true,
@@ -403,7 +431,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         using var subscription = _services.Hub.Bars(instrumentId, chartTf).Subscribe(b =>
             channel.Writer.TryWrite(b.ToBar()));
-        _chartBarsHandle = _services.Ingest.SubscribeBars(contract, chartTf);
+        _chartBarsHandle = _services.Ingest.SubscribeBars(contract, broker, chartTf);
 
         try
         {
@@ -656,12 +684,12 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     // ---------- HTF (15m) bar stream: EMA(50) + ADX(14) ----------
 
-    private async Task RunHtfBarsAsync(Contract contract, CancellationToken ct)
+    private async Task RunHtfBarsAsync(Contract contract, BrokerKind broker, CancellationToken ct)
     {
-        var instrumentId = _services.Ingest.Resolve(contract);
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
         try
         {
-            var hist = await _services.Repository.GetHistoricalBarsAsync(contract, BarSize.FifteenMinutes,
+            var hist = await _services.Repository.GetHistoricalBarsAsync(contract, broker, BarSize.FifteenMinutes,
                 TimeSpan.FromDays(2), ct);
             _htfBars.Clear();
             _htfBars.AddRange(hist);
@@ -680,7 +708,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         using var subscription = _services.Hub.Bars(instrumentId, BarSize.FifteenMinutes).Subscribe(b =>
             channel.Writer.TryWrite(b.ToBar()));
-        _htfBarsHandle = _services.Ingest.SubscribeBars(contract, BarSize.FifteenMinutes);
+        _htfBarsHandle = _services.Ingest.SubscribeBars(contract, broker, BarSize.FifteenMinutes);
 
         try
         {

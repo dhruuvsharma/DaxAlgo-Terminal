@@ -73,7 +73,8 @@ public static class AppDependencyInjection
             sp.GetRequiredService<Core.MarketData.IMarketDataRepository>(),
             sp.GetRequiredService<Core.MarketData.IMarketDataHub>(),
             sp.GetRequiredService<Core.MarketData.IMarketDataIngest>(),
-            sp.GetRequiredService<Core.MarketData.IMarketDataStore>()));
+            sp.GetRequiredService<Core.MarketData.IMarketDataStore>(),
+            sp.GetRequiredService<Core.Brokers.IBrokerSelector>()));
 
         // Dedicated live strategies — each in its own project, opens as a MetroWindow.
         services.AddRsiStrategy();
@@ -239,6 +240,13 @@ public static class AppDependencyInjection
         services.AddTransient<ArchiveSettingsView>();
         services.AddTransient<ArchiveActivityViewModel>();
         services.AddTransient<ArchiveActivityView>();
+
+        // Decrypts the DPAPI-encrypted *EncryptedBase64 fields back into ApiHash / PhoneNumber on
+        // every IOptionsMonitor read. Legacy plaintext fields written by older builds remain
+        // intact and get migrated to encrypted form on next save via ArchiveUserFile.
+        services.AddSingleton<
+            Microsoft.Extensions.Options.IPostConfigureOptions<TradingTerminal.Core.Configuration.TelegramArchiveOptions>,
+            TelegramArchiveOptionsPostConfigure>();
         return services;
     }
 }

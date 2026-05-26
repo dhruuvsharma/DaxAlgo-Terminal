@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.AiAnalyst;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
@@ -23,6 +24,7 @@ public sealed partial class AiAnalystViewModel : ViewModelBase
 {
     private readonly IAiAnalystClient _analyst;
     private readonly IMarketDataRepository _repository;
+    private readonly IBrokerSelector _selector;
     private readonly IOptionsMonitor<NotificationsOptions> _options;
     private readonly ILogger<AiAnalystViewModel> _logger;
     private readonly IDisposable? _optionsSubscription;
@@ -31,11 +33,13 @@ public sealed partial class AiAnalystViewModel : ViewModelBase
     public AiAnalystViewModel(
         IAiAnalystClient analyst,
         IMarketDataRepository repository,
+        IBrokerSelector selector,
         IOptionsMonitor<NotificationsOptions> options,
         ILogger<AiAnalystViewModel> logger)
     {
         _analyst = analyst;
         _repository = repository;
+        _selector = selector;
         _options = options;
         _logger = logger;
 
@@ -156,7 +160,11 @@ public sealed partial class AiAnalystViewModel : ViewModelBase
         var (size, perBar) = MapTimeframe(timeframe);
         var duration = TimeSpan.FromSeconds(perBar.TotalSeconds * Math.Max(barCount, 1) * 1.2);
 
-        var bars = await _repository.GetHistoricalBarsAsync(contract, size, duration, ct);
+        var connected = _selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        var broker = connected[0];
+        var bars = await _repository.GetHistoricalBarsAsync(contract, broker, size, duration, ct);
         return bars.Count <= barCount
             ? bars.Select(ToAnalystBar).ToArray()
             : bars.Skip(bars.Count - barCount).Select(ToAnalystBar).ToArray();

@@ -28,6 +28,9 @@ public sealed class TelegramArchiveTransport : IArchiveTransport, IAsyncDisposab
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Client? _client;
     private User? _selfUser;
+    /// <summary>Set by the explicit-credentials <see cref="EnsureConnectedAsync(TelegramArchiveOptions, CancellationToken)"/>
+    /// overload to bypass the IOptionsMonitor reload debounce. Null = fall back to options.</summary>
+    private TelegramArchiveOptions? _activeOpts;
 
     public TelegramArchiveTransport(
         IOptionsMonitor<TelegramArchiveOptions> opts,
@@ -43,21 +46,33 @@ public sealed class TelegramArchiveTransport : IArchiveTransport, IAsyncDisposab
 
     public bool IsReady => _client is not null && _selfUser is not null;
 
-    /// <summary>Open (or resume) the WTelegramClient session. Safe to call repeatedly — the
-    /// session file makes re-runs cheap. First call may take seconds while WTelegramClient
-    /// connects to the DC and runs the auth flow.</summary>
-    public async Task EnsureConnectedAsync(CancellationToken ct = default)
+    /// <summary>Open (or resume) the WTelegramClient session using whatever
+    /// <see cref="IOptionsMonitor{TOptions}"/> currently has. Safe to call repeatedly — the
+    /// session file makes re-runs cheap. Use the explicit-credentials overload from the login
+    /// screen to avoid the configuration-reload race after Save().</summary>
+    public Task EnsureConnectedAsync(CancellationToken ct = default) =>
+        EnsureConnectedAsync(_opts.CurrentValue, ct);
+
+    /// <summary>Open (or resume) the session using the supplied credentials. The VM uses this
+    /// overload right after Save() because <see cref="IOptionsMonitor{TOptions}.CurrentValue"/>
+    /// lags the on-disk JSON by however long the file-watcher debounce takes — long enough that
+    /// the first connect attempt sees stale (often empty) values and trips WTelegramClient's
+    /// "value cannot be an empty string" guard.</summary>
+    public async Task EnsureConnectedAsync(TelegramArchiveOptions opts, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (_client is not null && _selfUser is not null) return;
 
-            var opts = _opts.CurrentValue;
             if (opts.ApiId <= 0 || string.IsNullOrWhiteSpace(opts.ApiHash))
                 throw new InvalidOperationException(
                     "Telegram api_id / api_hash are not configured. Set them in Archive Settings.");
 
+            // Pin the credentials for the duration of LoginUserIfNeeded so ConfigCallback's reads
+            // match what the caller validated, not whatever IOptionsMonitor happens to hold right
+            // now. Cleared in finally regardless.
+            _activeOpts = opts;
             _client = new Client(ConfigCallback);
             _selfUser = await _client.LoginUserIfNeeded().ConfigureAwait(false);
             _logger.LogInformation("Telegram archive transport ready as @{Username} (id {Id})",
@@ -65,34 +80,62 @@ public sealed class TelegramArchiveTransport : IArchiveTransport, IAsyncDisposab
         }
         finally
         {
+            _activeOpts = null;
             _gate.Release();
         }
     }
 
     private string? ConfigCallback(string key)
     {
-        var opts = _opts.CurrentValue;
+        // Snapshot of the credentials to use. _activeOpts wins (set explicitly by the login flow)
+        // over IOptionsMonitor.CurrentValue (which lags Save() due to the file-watcher debounce).
+        var opts = _activeOpts ?? _opts.CurrentValue;
         switch (key)
         {
-            case "api_id": return opts.ApiId.ToString();
-            case "api_hash": return opts.ApiHash;
+            case "api_id":
+                return opts.ApiId > 0
+                    ? opts.ApiId.ToString()
+                    : throw new InvalidOperationException("Telegram api_id is not configured.");
+            case "api_hash":
+                return !string.IsNullOrWhiteSpace(opts.ApiHash)
+                    ? opts.ApiHash
+                    : throw new InvalidOperationException("Telegram api_hash is not configured.");
             case "phone_number":
-                return !string.IsNullOrWhiteSpace(opts.PhoneNumber)
-                    ? opts.PhoneNumber
-                    : _prompt.PromptAsync("phone_number", CancellationToken.None).GetAwaiter().GetResult();
+                if (!string.IsNullOrWhiteSpace(opts.PhoneNumber)) return opts.PhoneNumber;
+                return RequirePrompt("phone_number",
+                    "Phone number is required to sign in. Add it in Archive Settings or type it when prompted.");
             case "verification_code":
-                return _prompt.PromptAsync("verification_code", CancellationToken.None).GetAwaiter().GetResult();
+                return RequirePrompt("verification_code",
+                    "Verification code is required. Telegram sent it to your phone or the Telegram app on another device.");
             case "password":
-                return _prompt.PromptAsync("password", CancellationToken.None).GetAwaiter().GetResult();
+                return RequirePrompt("password",
+                    "Two-factor password is required (your Telegram account has 2FA enabled).");
             case "first_name":
-                return _prompt.PromptAsync("first_name", CancellationToken.None).GetAwaiter().GetResult() ?? "DaxAlgo";
+                // Only requested if this phone number is signing up to Telegram for the first time.
+                var fn = _prompt.PromptAsync("first_name", CancellationToken.None).GetAwaiter().GetResult();
+                return string.IsNullOrWhiteSpace(fn) ? "DaxAlgo" : fn;
             case "last_name":
-                return _prompt.PromptAsync("last_name", CancellationToken.None).GetAwaiter().GetResult() ?? "Archive";
+                var ln = _prompt.PromptAsync("last_name", CancellationToken.None).GetAwaiter().GetResult();
+                return string.IsNullOrWhiteSpace(ln) ? "Archive" : ln;
             case "session_pathname":
-                return opts.SessionFilePath ?? DefaultSessionPath();
+                // Configuration binders happily turn an absent JSON value into "" rather than null;
+                // treat empty-or-whitespace the same as missing so DefaultSessionPath() fires.
+                return string.IsNullOrWhiteSpace(opts.SessionFilePath)
+                    ? DefaultSessionPath()
+                    : opts.SessionFilePath;
             default:
                 return null;
         }
+    }
+
+    /// <summary>Show the auth prompt and treat cancel / empty input as an explicit abort instead
+    /// of letting WTelegramClient surface its less-friendly "value cannot be an empty string"
+    /// exception. The login flow catches <see cref="OperationCanceledException"/> separately.</summary>
+    private string RequirePrompt(string key, string friendlyMessage)
+    {
+        var value = _prompt.PromptAsync(key, CancellationToken.None).GetAwaiter().GetResult();
+        if (!string.IsNullOrWhiteSpace(value)) return value;
+        throw new OperationCanceledException(friendlyMessage);
     }
 
     public async Task<ArchiveBlobRef> UploadAsync(

@@ -32,9 +32,60 @@
                      Margin="0,0,0,12" />
 
         <TextBlock Text="ctidTraderAccountId" Margin="0,0,0,4" />
-        <TextBox Text="{Binding AccountId, UpdateSourceTrigger=PropertyChanged}"
-                 mah:TextBoxHelper.Watermark="Numeric trading-account id (from GetAccountListByAccessToken)"
-                 Margin="0,0,0,12" />
+        <DockPanel Margin="0,0,0,4" LastChildFill="True">
+            <Button DockPanel.Dock="Right"
+                    Content="Discover"
+                    Command="{Binding DiscoverAccountsCommand}"
+                    MinWidth="90"
+                    Margin="6,0,0,0"
+                    ToolTip="Look up the trading accounts attached to your access token (uses the Live/Demo selection below)." />
+            <ProgressBar DockPanel.Dock="Right"
+                         IsIndeterminate="{Binding IsDiscovering}"
+                         Visibility="{Binding IsDiscovering, Converter={StaticResource BooleanToVisibilityConverter}}"
+                         Width="60" Height="4" VerticalAlignment="Center" Margin="6,0,0,0" />
+            <TextBox Text="{Binding AccountId, UpdateSourceTrigger=PropertyChanged}"
+                     mah:TextBoxHelper.Watermark="Numeric trading-account id (or click Discover)" />
+        </DockPanel>
+
+        <!-- Discovery status / error message (shown after a Discover click) -->
+        <TextBlock Text="{Binding DiscoveryMessage}"
+                   Visibility="{Binding DiscoveryMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,6" />
+
+        <!-- Multi-account picker — only shown when Discover returned more than one candidate. -->
+        <ComboBox ItemsSource="{Binding DiscoveredAccounts}"
+                  SelectedItem="{Binding SelectedDiscoveredAccount}"
+                  Visibility="{Binding HasDiscoveredAccounts, Converter={StaticResource BooleanToVisibilityConverter}}"
+                  Margin="0,0,0,12">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="#" />
+                        <TextBlock Text="{Binding AccountId}" FontWeight="SemiBold" />
+                        <TextBlock Text=" · " Foreground="{DynamicResource Text.Secondary}" />
+                        <TextBlock Foreground="{DynamicResource Text.Secondary}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Demo" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                            <Setter Property="Text" Value="Live" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!-- Top up the bottom margin to match the other fields when the picker is collapsed. -->
+        <Grid Height="6"
+              Visibility="{Binding HasDiscoveredAccounts, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
 
         <CheckBox Content="Use live endpoint (live.ctraderapi.com) — uncheck for demo"
                   IsChecked="{Binding IsLive}"

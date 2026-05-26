@@ -1,10 +1,10 @@
-using System.Reactive.Subjects;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.Core.AiAnalyst;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure.AiAnalyst;
@@ -96,10 +96,12 @@ public sealed class AiAnalystViewModelTests
         analyst.IsAvailable.Returns(available);
 
         repo = Substitute.For<IMarketDataRepository>();
-        repo.GetHistoricalBarsAsync(Arg.Any<Contract>(), Arg.Any<BarSize>(),
+        repo.GetHistoricalBarsAsync(Arg.Any<Contract>(), Arg.Any<BrokerKind>(), Arg.Any<BarSize>(),
                 Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
             .Returns(new[] { new Bar(DateTime.UtcNow.AddHours(-1), 1, 2, 0.5, 1.5, 100) });
-        repo.ConnectionState.Returns(new BehaviorSubject<ConnectionState>(ConnectionState.Connected));
+
+        var selector = Substitute.For<IBrokerSelector>();
+        selector.Connected.Returns(new[] { BrokerKind.InteractiveBrokers });
 
         var options = Substitute.For<IOptionsMonitor<NotificationsOptions>>();
         options.CurrentValue.Returns(new NotificationsOptions
@@ -115,6 +117,6 @@ public sealed class AiAnalystViewModelTests
             },
         });
 
-        return new AiAnalystViewModel(analyst, repo, options, NullLogger<AiAnalystViewModel>.Instance);
+        return new AiAnalystViewModel(analyst, repo, selector, options, NullLogger<AiAnalystViewModel>.Instance);
     }
 }

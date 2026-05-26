@@ -85,15 +85,52 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task LoginToTelegramAsync()
     {
+        // Pre-flight: catch missing fields here with a clear message instead of letting WTelegram
+        // throw "value cannot be an empty string (Parameter: ...)" deep inside the auth flow.
+        if (ApiId <= 0)
+        {
+            TelegramStatus = "Enter your Telegram api_id (a number from my.telegram.org/apps).";
+            StatusMessage = TelegramStatus;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ApiHash))
+        {
+            TelegramStatus = "Enter your Telegram api_hash (from my.telegram.org/apps).";
+            StatusMessage = TelegramStatus;
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(PhoneNumber))
+        {
+            TelegramStatus = "Enter your phone number in international format (e.g. +91XXXXXXXXXX).";
+            StatusMessage = TelegramStatus;
+            return;
+        }
+
         StatusMessage = "Connecting to Telegram…";
-        Save(); // Persist creds first so the transport reads the latest values.
+        Save(); // Persist creds first so the next app launch reads them from disk.
         IsBusy = true;
         try
         {
-            await Task.Run(() => _transport.EnsureConnectedAsync(CancellationToken.None));
+            // Pass the VM's in-memory values straight to the transport instead of relying on the
+            // IOptionsMonitor.CurrentValue snapshot — its file-watcher debounce can still be holding
+            // the stale empty values for a moment after Save() returned.
+            var snap = new TradingTerminal.Core.Configuration.TelegramArchiveOptions
+            {
+                ApiId = ApiId,
+                ApiHash = ApiHash.Trim(),
+                PhoneNumber = PhoneNumber.Trim(),
+                SessionFilePath = _telegramOpts.CurrentValue.SessionFilePath,
+            };
+            await Task.Run(() => _transport.EnsureConnectedAsync(snap, CancellationToken.None));
             IsLoggedIn = _transport.IsReady;
             TelegramStatus = IsLoggedIn ? "Connected." : "Login did not complete.";
             StatusMessage = TelegramStatus;
+        }
+        catch (OperationCanceledException ex)
+        {
+            TelegramStatus = $"Login canceled: {ex.Message}";
+            StatusMessage = TelegramStatus;
+            _logger.LogInformation("Telegram login canceled: {Reason}", ex.Message);
         }
         catch (Exception ex)
         {

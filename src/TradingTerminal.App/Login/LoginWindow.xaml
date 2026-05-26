@@ -8,286 +8,384 @@
                  xmlns:brokers="clr-namespace:TradingTerminal.Core.Brokers;assembly=TradingTerminal.Core"
                  mc:Ignorable="d"
                  Title="Trading Terminal — Sign in"
-                 Height="780" Width="600"
-                 ResizeMode="NoResize"
+                 Height="820" Width="620"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
-                 ShowMinButton="False"
+                 ShowMinButton="True"
                  Icon="pack://application:,,,/Icon/DaxAlgoLogo.ico"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-        <!-- VM → View mapping for the per-broker forms is defined in App.xaml so the implicit
-             DataTemplate lookup uses application-level resources. The ContentControl below
-             resolves the matching UserControl via that lookup. -->
-
-        <!-- Broker-tile button — selected state via DataTrigger on per-tile binding. -->
-        <Style x:Key="BrokerTileButton" TargetType="Button">
+        <!-- Status-pill colours follow the connection state. The dot reuses the same brush so the
+             pill and the dot stay in lockstep. Default = neutral (Disconnected/Failed); green =
+             Connected; amber = Connecting/Reconnecting. -->
+        <Style x:Key="StatusPill" TargetType="Border">
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="8,2" />
             <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
-            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="14,12" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
-
-        <!-- DataTemplate for a broker tile inside the ItemsControl below. The tile's command
-             dispatches to LoginViewModel.SelectFormCommand with the per-item IBrokerLoginForm. -->
-        <DataTemplate x:Key="BrokerTileTemplate" DataType="{x:Type brokers:IBrokerLoginForm}">
-            <Button Command="{Binding DataContext.SelectFormCommand,
-                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                    CommandParameter="{Binding}"
-                    IsEnabled="{Binding DataContext.IsConnecting,
-                                        RelativeSource={RelativeSource AncestorType=ItemsControl},
-                                        Converter={StaticResource InverseBooleanConverter}}"
-                    Margin="0,0,8,0">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource BrokerTileButton}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Broker}" Value="InteractiveBrokers">
-                                <Setter Property="Tag" Value="#D32F2F" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Broker}" Value="NinjaTrader">
-                                <Setter Property="Tag" Value="#1B5E20" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Broker}" Value="CTrader">
-                                <Setter Property="Tag" Value="#0277BD" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Broker}" Value="Alpaca">
-                                <Setter Property="Tag" Value="#FFB300" />
-                            </DataTrigger>
-                            <!-- Highlight the active form's tile. -->
-                            <DataTrigger Value="True">
-                                <DataTrigger.Binding>
-                                    <MultiBinding Converter="{StaticResource ReferenceEqualsConverter}">
-                                        <Binding Path="." />
-                                        <Binding Path="DataContext.ActiveForm"
-                                                 RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
-                                    </MultiBinding>
-                                </DataTrigger.Binding>
-                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
-                                <Setter Property="BorderThickness" Value="2" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-                <StackPanel Orientation="Horizontal">
-                    <Border Width="32" Height="32" CornerRadius="4"
-                            Background="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}"
-                            VerticalAlignment="Center" Margin="0,0,10,0">
-                        <TextBlock Text="{Binding Broker, Converter={StaticResource BrokerInitialsConverter}}"
-                                   Foreground="White"
-                                   FontWeight="Bold" FontSize="14"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="13" />
-                        <TextBlock Text="{Binding Broker, Converter={StaticResource BrokerSubtitleConverter}}"
-                                   Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
-                    </StackPanel>
-                </StackPanel>
-            </Button>
-        </DataTemplate>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="32,16,32,24">
+    <Grid Margin="28,16,28,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />  <!-- Brand -->
-            <RowDefinition Height="Auto" />  <!-- Broker selector (ItemsControl over forms) -->
-            <RowDefinition Height="Auto" />  <!-- Mode badge -->
-            <RowDefinition Height="*" />     <!-- Active form (ContentPresenter) -->
-            <RowDefinition Height="Auto" />  <!-- Status -->
-            <RowDefinition Height="Auto" />  <!-- Buttons -->
+            <RowDefinition Height="Auto" />  <!-- Summary banner -->
+            <RowDefinition Height="*" />     <!-- Broker form expanders (scrollable) -->
+            <RowDefinition Height="Auto" />  <!-- Launch bar -->
             <RowDefinition Height="Auto" />  <!-- Footer -->
         </Grid.RowDefinitions>
 
         <!-- Logo + brand -->
         <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,8">
             <Image Source="pack://application:,,,/Icon/DaxAlgoLogo.png"
-                   Width="64" Height="64"
+                   Width="56" Height="56"
                    RenderOptions.BitmapScalingMode="HighQuality" />
             <TextBlock Text="DaxAlgo Terminal"
                        HorizontalAlignment="Center"
                        FontSize="18"
                        FontWeight="SemiBold"
                        Margin="0,6,0,0" />
-            <TextBlock Text="{Binding SubtitleText}"
+            <TextBlock Text="Connect one or more brokers — each provides its own data feeds."
                        HorizontalAlignment="Center"
                        Foreground="{DynamicResource Text.Secondary}"
+                       FontSize="11"
                        Margin="0,2,0,0" />
         </StackPanel>
 
-        <!-- Broker tiles — one per IBrokerLoginForm registered in DI -->
-        <ItemsControl Grid.Row="1"
-                      ItemsSource="{Binding AvailableForms}"
-                      ItemTemplate="{StaticResource BrokerTileTemplate}"
-                      Margin="0,8,0,8">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Rows="1" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-        </ItemsControl>
-
-        <!-- Mode badge -->
-        <Border Grid.Row="2"
-                BorderBrush="{DynamicResource Border.Brush}"
-                BorderThickness="1"
+        <!-- Aggregate summary banner -->
+        <Border Grid.Row="1"
+                Margin="0,8,0,8"
+                Padding="12,8"
                 CornerRadius="3"
-                Padding="10,6"
-                Margin="0,4,0,12"
-                HorizontalAlignment="Stretch">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsLiveMode}" Value="True">
-                            <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <StackPanel>
-                <TextBlock Text="{Binding ModeDisplayName}"
-                           FontWeight="Bold"
-                           Foreground="#1E1E1E" />
-                <TextBlock Text="{Binding ModeDescription}"
-                           TextWrapping="Wrap"
-                           FontSize="11"
-                           Foreground="#1E1E1E" />
-            </StackPanel>
-        </Border>
-
-        <!-- Active broker form — three ContentControls, populated from code-behind with the
-             real UserControl instances. We can't reference them via clr-namespace in XAML
-             because WPF's MarkupCompilePass1 doesn't see same-project XAML-generated
-             UserControl partial classes during the LoginWindow.xaml compile. The names
-             below let the code-behind look them up and assign Content. -->
-        <ScrollViewer Grid.Row="3"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="0,0,4,0"
-                      IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}">
-            <Grid>
-                <ContentControl x:Name="IbFormHost"
-                                Visibility="{Binding IsIbBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <ContentControl x:Name="NinjaFormHost"
-                                Visibility="{Binding IsNinjaBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <ContentControl x:Name="CTraderFormHost"
-                                Visibility="{Binding IsCTraderBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <ContentControl x:Name="AlpacaFormHost"
-                                Visibility="{Binding IsAlpacaBrokerSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </Grid>
-        </ScrollViewer>
-
-        <!-- Status / error / live state -->
-        <StackPanel Grid.Row="4" Margin="0,12,0,4">
-
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                BorderThickness="1"
+                BorderBrush="{DynamicResource Border.Brush}"
+                Background="{DynamicResource Background.Surface}">
+            <StackPanel Orientation="Horizontal">
                 <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
                     <Ellipse.Style>
                         <Style TargetType="Ellipse">
                             <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding CurrentState}" Value="Connected">
+                                <DataTrigger Binding="{Binding CanLaunch}" Value="True">
                                     <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding CurrentState}" Value="Failed">
-                                    <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Ellipse.Style>
                 </Ellipse>
-                <TextBlock Text="{Binding CurrentState}"
-                           Foreground="{DynamicResource Text.Secondary}"
-                           VerticalAlignment="Center" />
-                <TextBlock Text=" · " Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="{DynamicResource Text.Secondary}"
-                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ConnectedSummary}"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource Text.Primary}" />
             </StackPanel>
+        </Border>
 
-            <Border Background="{DynamicResource Bullish.Brush}"
-                    Padding="10,6"
-                    Margin="0,8,0,0"
-                    Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="OK" FontSize="14" FontWeight="Bold"
-                               Foreground="#1E1E1E" Margin="0,0,8,0" />
-                    <TextBlock Text="Signed in successfully"
-                               FontWeight="SemiBold"
-                               Foreground="#1E1E1E" />
-                </StackPanel>
-            </Border>
+        <!-- Per-broker expanders. Each form's UserControl is injected from code-behind into the
+             named ContentControl below; we can't <forms:IbLoginForm/> directly in XAML because
+             WPF's MarkupCompilePass1 doesn't see same-project XAML-generated UserControl partial
+             classes during the LoginWindow.xaml compile. -->
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="0,0,4,0">
+            <StackPanel>
+                <!-- IB -->
+                <Expander Margin="0,0,0,8"
+                          IsExpanded="False"
+                          Visibility="{Binding HasIb, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
+                                    Background="#D32F2F" Margin="0,0,10,0">
+                                <TextBlock Text="IB" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding IbForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="TWS API · localhost socket" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{DynamicResource MahApps.Colors.Gray8}" />
+                                </Border.Background>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IbForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IbForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding IbForm.StatusText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="IbFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect"
+                                    Command="{Binding IbForm.ConnectCommand}"
+                                    MinWidth="100"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect"
+                                    Command="{Binding IbForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left"
+                                         IsIndeterminate="{Binding IbForm.IsConnecting}"
+                                         Visibility="{Binding IbForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}"
+                                Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding IbForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding IbForm.ErrorMessage}" Foreground="White"
+                                       TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
 
-            <Border Background="{DynamicResource Danger.Brush}"
-                    Padding="10,6"
-                    Margin="0,8,0,0"
-                    Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                <TextBlock Text="{Binding ErrorMessage}"
-                           TextWrapping="Wrap"
-                           Foreground="White" />
-            </Border>
-        </StackPanel>
+                <!-- NinjaTrader -->
+                <Expander Margin="0,0,0,8"
+                          IsExpanded="False"
+                          Visibility="{Binding HasNinja, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
+                                    Background="#1B5E20" Margin="0,0,10,0">
+                                <TextBlock Text="NT" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding NinjaForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="NTDirect · futures, AT Interface" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding NinjaForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding NinjaForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding NinjaForm.StatusText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="NinjaFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect"
+                                    Command="{Binding NinjaForm.ConnectCommand}"
+                                    MinWidth="100"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect"
+                                    Command="{Binding NinjaForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left"
+                                         IsIndeterminate="{Binding NinjaForm.IsConnecting}"
+                                         Visibility="{Binding NinjaForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}"
+                                Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding NinjaForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding NinjaForm.ErrorMessage}" Foreground="White"
+                                       TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
 
-        <!-- Buttons -->
-        <Grid Grid.Row="5" Margin="0,12,0,0">
+                <!-- cTrader -->
+                <Expander Margin="0,0,0,8"
+                          IsExpanded="False"
+                          Visibility="{Binding HasCTrader, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
+                                    Background="#0277BD" Margin="0,0,10,0">
+                                <TextBlock Text="CT" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CTraderForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="Spotware OAuth · FX + CFD, L2 depth" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CTraderForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding CTraderForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding CTraderForm.StatusText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="CTraderFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect"
+                                    Command="{Binding CTraderForm.ConnectCommand}"
+                                    MinWidth="100"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect"
+                                    Command="{Binding CTraderForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left"
+                                         IsIndeterminate="{Binding CTraderForm.IsConnecting}"
+                                         Visibility="{Binding CTraderForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}"
+                                Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding CTraderForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding CTraderForm.ErrorMessage}" Foreground="White"
+                                       TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Alpaca -->
+                <Expander Margin="0,0,0,8"
+                          IsExpanded="False"
+                          Visibility="{Binding HasAlpaca, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
+                                    Background="#FFB300" Margin="0,0,10,0">
+                                <TextBlock Text="AL" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding AlpacaForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="REST + WebSocket · stocks + crypto" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding AlpacaForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding AlpacaForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding AlpacaForm.StatusText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="AlpacaFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect"
+                                    Command="{Binding AlpacaForm.ConnectCommand}"
+                                    MinWidth="100"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect"
+                                    Command="{Binding AlpacaForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left"
+                                         IsIndeterminate="{Binding AlpacaForm.IsConnecting}"
+                                         Visibility="{Binding AlpacaForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}"
+                                Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding AlpacaForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding AlpacaForm.ErrorMessage}" Foreground="White"
+                                       TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Launch bar -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <ProgressBar Grid.Column="0"
-                         IsIndeterminate="{Binding IsConnecting}"
-                         Visibility="{Binding IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                         Height="4"
-                         VerticalAlignment="Center"
-                         Margin="0,0,16,0" />
+            <TextBlock Grid.Column="0"
+                       Text="Connect at least one broker, then launch the terminal."
+                       Foreground="{DynamicResource Text.Secondary}"
+                       FontSize="11"
+                       VerticalAlignment="Center"
+                       Margin="0,0,12,0" />
 
-            <Button Grid.Column="1"
-                    Content="Cancel"
+            <Button Grid.Column="1" Content="Cancel"
                     Command="{Binding CancelCommand}"
                     IsCancel="True"
-                    IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
-                    Margin="0,0,8,0"
-                    MinWidth="80" />
-            <Button Grid.Column="2"
-                    Content="Sign in"
-                    Command="{Binding ConnectCommand}"
-                    IsEnabled="{Binding IsConnecting, Converter={StaticResource InverseBooleanConverter}}"
+                    MinWidth="80" Margin="0,0,8,0" />
+
+            <Button Grid.Column="2" Content="Launch terminal"
+                    Command="{Binding LaunchCommand}"
+                    IsEnabled="{Binding CanLaunch}"
                     IsDefault="True"
                     Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
-                    MinWidth="100" />
+                    MinWidth="140" />
         </Grid>
 
         <!-- Footer -->
-        <TextBlock Grid.Row="6"
+        <TextBlock Grid.Row="4"
                    Text="DaxAlgo Terminal · MIT licensed"
                    Foreground="{DynamicResource Text.Secondary}"
                    FontSize="10"

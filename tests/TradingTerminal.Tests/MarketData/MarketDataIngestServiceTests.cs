@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,14 +31,14 @@ public sealed class MarketDataIngestServiceTests
         client.SubscribeTicksAsync(Arg.Any<Contract>(), Arg.Any<CancellationToken>()).Returns(TwoTicks());
         client.SubscribeDepthAsync(Arg.Any<Contract>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(NoDepth());
 
-        var selector = new FakeSelector(client);
+        var selector = new FakeSelector(client, broker);
         var ingest = new MarketDataIngestService(selector, registry, hub, store, NullLogger<MarketDataIngestService>.Instance);
 
         var got = new List<Quote>();
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var sub = hub.Quotes(id).Subscribe(q => { got.Add(q); if (got.Count == 2) done.TrySetResult(); });
 
-        using var handle = ingest.Subscribe(Contract.UsStock("AAPL"));
+        using var handle = ingest.Subscribe(Contract.UsStock("AAPL"), broker);
         await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         got.Should().HaveCount(2);
@@ -62,11 +63,12 @@ public sealed class MarketDataIngestServiceTests
         client.SubscribeTicksAsync(Arg.Any<Contract>(), Arg.Any<CancellationToken>()).Returns(_ => TwoTicks());
         client.SubscribeDepthAsync(Arg.Any<Contract>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(_ => NoDepth());
 
-        var ingest = new MarketDataIngestService(new FakeSelector(client), registry, hub, store, NullLogger<MarketDataIngestService>.Instance);
+        var selector = new FakeSelector(client, BrokerKind.Alpaca);
+        var ingest = new MarketDataIngestService(selector, registry, hub, store, NullLogger<MarketDataIngestService>.Instance);
 
         var c = Contract.UsStock("AAPL");
-        using (var h1 = ingest.Subscribe(c))
-        using (var h2 = ingest.Subscribe(c))
+        using (var h1 = ingest.Subscribe(c, BrokerKind.Alpaca))
+        using (var h2 = ingest.Subscribe(c, BrokerKind.Alpaca))
         {
             await Task.Delay(50);
             // Both handles share one broker tick subscription.
@@ -89,18 +91,26 @@ public sealed class MarketDataIngestServiceTests
 
     private sealed class FakeSelector : IBrokerSelector
     {
-        public FakeSelector(IBrokerClient client)
+        private readonly IBrokerClient _client;
+        private readonly BrokerKind _kind;
+        private readonly BehaviorSubject<ConnectionState> _state = new(ConnectionState.Connected);
+
+        public FakeSelector(IBrokerClient client, BrokerKind kind)
         {
-            Active = client;
-            ActiveMode = new BrokerConnectionMode(client.Kind, false, "Test", "Test");
+            _client = client;
+            _kind = kind;
         }
 
-        public BrokerKind ActiveKind => Active.Kind;
-        public IBrokerClient Active { get; }
-        public BrokerConnectionMode ActiveMode { get; }
-        public IReadOnlyList<BrokerKind> AvailableKinds => new[] { Active.Kind };
-        public bool IsAvailable(BrokerKind kind) => kind == Active.Kind;
-        public event EventHandler? ActiveChanged { add { } remove { } }
-        public void SetActive(BrokerKind kind) { }
+        public IReadOnlyList<BrokerKind> AvailableKinds => new[] { _kind };
+        public bool IsAvailable(BrokerKind kind) => kind == _kind;
+        public IReadOnlyList<BrokerKind> Connected => new[] { _kind };
+        public bool IsConnected(BrokerKind kind) => kind == _kind;
+        public IBrokerClient Get(BrokerKind kind) => _client;
+        public BrokerConnectionMode ModeOf(BrokerKind kind) => new(kind, false, "Test", "Test");
+        public IObservable<ConnectionState> StateOf(BrokerKind kind) => _state;
+        public ConnectionState CurrentStateOf(BrokerKind kind) => _state.Value;
+        public event EventHandler<BrokerStateChangedEventArgs>? StateChanged { add { } remove { } }
+        public Task ConnectAsync(BrokerKind kind, CancellationToken ct = default) => Task.CompletedTask;
+        public Task DisconnectAsync(BrokerKind kind, CancellationToken ct = default) => Task.CompletedTask;
     }
 }

@@ -137,7 +137,7 @@ public sealed class RealAlpacaClient : IBrokerClient
             if (!a.IsTradable) continue;
             var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
             result.Add(new TradableInstrument(
-                $"{a.Symbol}  —  {name}", "US Stocks", Contract.UsStock(a.Symbol)));
+                $"{a.Symbol}  —  {name}", "US Stocks", Contract.UsStock(a.Symbol), BrokerKind.Alpaca));
         }
 
         // Crypto — the symbol Alpaca returns (e.g. "BTC/USD") is exactly what the
@@ -154,7 +154,8 @@ public sealed class RealAlpacaClient : IBrokerClient
             var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
             result.Add(new TradableInstrument(
                 $"{a.Symbol}  —  {name}", "Crypto",
-                new Contract(a.Symbol, "CRYPTO", "SMART", "USD", PrimaryExchange: string.Empty)));
+                new Contract(a.Symbol, "CRYPTO", "SMART", "USD", PrimaryExchange: string.Empty),
+                BrokerKind.Alpaca));
         }
 
         _logger.LogInformation("Alpaca listed {Stocks} equities + {Crypto} crypto instruments",

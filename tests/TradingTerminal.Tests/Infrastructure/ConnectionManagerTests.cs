@@ -18,10 +18,9 @@ public sealed class ConnectionManagerTests
     public async Task Reconnects_with_backoff_on_drop()
     {
         var client = new FlakyClient();
-        var selector = new TestBrokerSelector(client);
 
         await using var manager = new ConnectionManager(
-            selector, NullLogger<ConnectionManager>.Instance);
+            client, NullLogger<ConnectionManager>.Instance);
         manager.ConfigureBackoff(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
 
         var states = new List<ConnectionState>();
@@ -44,23 +43,6 @@ public sealed class ConnectionManagerTests
         states.Should().Contain(ConnectionState.Reconnecting);
 
         await manager.StopAsync();
-    }
-
-    private sealed class TestBrokerSelector : IBrokerSelector
-    {
-        public TestBrokerSelector(IBrokerClient client)
-        {
-            Active = client;
-            ActiveMode = new BrokerConnectionMode(client.Kind, false, "Test", "Test");
-        }
-
-        public BrokerKind ActiveKind => Active.Kind;
-        public IBrokerClient Active { get; }
-        public BrokerConnectionMode ActiveMode { get; }
-        public IReadOnlyList<BrokerKind> AvailableKinds => new[] { Active.Kind };
-        public bool IsAvailable(BrokerKind kind) => kind == Active.Kind;
-        public event EventHandler? ActiveChanged { add { } remove { } }
-        public void SetActive(BrokerKind kind) { /* single-broker test selector */ }
     }
 
     /// <summary>Connects, immediately disconnects on first attempt, then connects normally on retry.</summary>

@@ -17,21 +17,21 @@ public sealed class InstrumentDiscoveryServiceTests
     {
         var contracts = new[]
         {
-            new TradableInstrument("Apple", "US Equity", Contract.UsStock("AAPL")),
-            new TradableInstrument("Microsoft", "US Equity", Contract.UsStock("MSFT")),
-            new TradableInstrument("Nvidia", "US Equity", Contract.UsStock("NVDA")),
+            new TradableInstrument("Apple", "US Equity", Contract.UsStock("AAPL"), BrokerKind.Alpaca),
+            new TradableInstrument("Microsoft", "US Equity", Contract.UsStock("MSFT"), BrokerKind.Alpaca),
+            new TradableInstrument("Nvidia", "US Equity", Contract.UsStock("NVDA"), BrokerKind.Alpaca),
         };
 
         var client = Substitute.For<IBrokerClient>();
         client.Kind.Returns(BrokerKind.Alpaca);
         client.ListInstrumentsAsync(Arg.Any<CancellationToken>()).Returns(contracts);
 
-        var selector = new FakeSelector(client);
-        var registry = Substitute.For<IInstrumentRegistry>();
         var state = new BehaviorSubject<ConnectionState>(ConnectionState.Disconnected);
+        var selector = new FakeSelector(client, BrokerKind.Alpaca, state);
+        var registry = Substitute.For<IInstrumentRegistry>();
 
         using var svc = new InstrumentDiscoveryService(
-            selector, state, registry, NullLogger<InstrumentDiscoveryService>.Instance);
+            selector, registry, NullLogger<InstrumentDiscoveryService>.Instance);
         await svc.StartAsync(CancellationToken.None);
 
         // Trigger discovery by transitioning to Connected.
@@ -54,14 +54,14 @@ public sealed class InstrumentDiscoveryServiceTests
         var client = Substitute.For<IBrokerClient>();
         client.Kind.Returns(BrokerKind.InteractiveBrokers);
         client.ListInstrumentsAsync(Arg.Any<CancellationToken>())
-              .Returns(new[] { new TradableInstrument("X", "g", Contract.UsStock("X")) });
+              .Returns(new[] { new TradableInstrument("X", "g", Contract.UsStock("X"), BrokerKind.InteractiveBrokers) });
 
-        var selector = new FakeSelector(client);
-        var registry = Substitute.For<IInstrumentRegistry>();
         var state = new BehaviorSubject<ConnectionState>(ConnectionState.Disconnected);
+        var selector = new FakeSelector(client, BrokerKind.InteractiveBrokers, state);
+        var registry = Substitute.For<IInstrumentRegistry>();
 
         using var svc = new InstrumentDiscoveryService(
-            selector, state, registry, NullLogger<InstrumentDiscoveryService>.Instance);
+            selector, registry, NullLogger<InstrumentDiscoveryService>.Instance);
         await svc.StartAsync(CancellationToken.None);
 
         state.OnNext(ConnectionState.Connecting);
@@ -81,12 +81,12 @@ public sealed class InstrumentDiscoveryServiceTests
         client.ListInstrumentsAsync(Arg.Any<CancellationToken>())
               .Returns(Array.Empty<TradableInstrument>());
 
-        var selector = new FakeSelector(client);
-        var registry = Substitute.For<IInstrumentRegistry>();
         var state = new BehaviorSubject<ConnectionState>(ConnectionState.Disconnected);
+        var selector = new FakeSelector(client, BrokerKind.NinjaTrader, state);
+        var registry = Substitute.For<IInstrumentRegistry>();
 
         using var svc = new InstrumentDiscoveryService(
-            selector, state, registry, NullLogger<InstrumentDiscoveryService>.Instance);
+            selector, registry, NullLogger<InstrumentDiscoveryService>.Instance);
         await svc.StartAsync(CancellationToken.None);
 
         state.OnNext(ConnectionState.Connected);
@@ -109,18 +109,28 @@ public sealed class InstrumentDiscoveryServiceTests
 
     private sealed class FakeSelector : IBrokerSelector
     {
-        public FakeSelector(IBrokerClient client)
+        private readonly IBrokerClient _client;
+        private readonly BrokerKind _kind;
+        private readonly BehaviorSubject<ConnectionState> _state;
+
+        public FakeSelector(IBrokerClient client, BrokerKind kind, BehaviorSubject<ConnectionState> state)
         {
-            Active = client;
-            ActiveMode = new BrokerConnectionMode(client.Kind, false, "Test", "Test");
+            _client = client;
+            _kind = kind;
+            _state = state;
         }
 
-        public BrokerKind ActiveKind => Active.Kind;
-        public IBrokerClient Active { get; }
-        public BrokerConnectionMode ActiveMode { get; }
-        public IReadOnlyList<BrokerKind> AvailableKinds => new[] { Active.Kind };
-        public bool IsAvailable(BrokerKind kind) => kind == Active.Kind;
-        public event EventHandler? ActiveChanged { add { } remove { } }
-        public void SetActive(BrokerKind kind) { }
+        public IReadOnlyList<BrokerKind> AvailableKinds => new[] { _kind };
+        public bool IsAvailable(BrokerKind kind) => kind == _kind;
+        public IReadOnlyList<BrokerKind> Connected =>
+            _state.Value == ConnectionState.Connected ? new[] { _kind } : Array.Empty<BrokerKind>();
+        public bool IsConnected(BrokerKind kind) => kind == _kind && _state.Value == ConnectionState.Connected;
+        public IBrokerClient Get(BrokerKind kind) => _client;
+        public BrokerConnectionMode ModeOf(BrokerKind kind) => new(kind, false, "Test", "Test");
+        public IObservable<ConnectionState> StateOf(BrokerKind kind) => _state;
+        public ConnectionState CurrentStateOf(BrokerKind kind) => _state.Value;
+        public event EventHandler<BrokerStateChangedEventArgs>? StateChanged { add { } remove { } }
+        public Task ConnectAsync(BrokerKind kind, CancellationToken ct = default) => Task.CompletedTask;
+        public Task DisconnectAsync(BrokerKind kind, CancellationToken ct = default) => Task.CompletedTask;
     }
 }

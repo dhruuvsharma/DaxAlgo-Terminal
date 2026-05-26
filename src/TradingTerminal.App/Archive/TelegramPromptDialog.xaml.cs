@@ -16,6 +16,14 @@ public partial class TelegramPromptDialog : MetroWindow
 
     private void OnOkClicked(object sender, RoutedEventArgs e)
     {
+        // Guard: empty input would propagate down to WTelegram's ConfigCallback and surface as
+        // "value cannot be an empty string (Parameter: …)". Bounce focus back to the field instead.
+        var ctx = (TelegramPromptDialogContext)DataContext;
+        if (string.IsNullOrWhiteSpace(ctx.InputValue))
+        {
+            InputBox.Focus();
+            return;
+        }
         DialogResult = true;
         Close();
     }

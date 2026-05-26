@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
@@ -107,7 +108,11 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
             if (list is null || list.Count == 0) return;
 
             AllInstruments = list
-                .Select(i => new TradeableInstrument(i.DisplayName, i.Category, i.Contract))
+                .Select(i => new TradeableInstrument(
+                    $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
+                    i.Category,
+                    i.Contract,
+                    i.Broker))
                 .ToList();
 
             SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
@@ -119,6 +124,25 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
         {
             _logger.LogWarning(ex, "RSI instrument list load failed; using static catalog");
         }
+    }
+
+    private static string BrokerLabel(BrokerKind broker) => broker switch
+    {
+        BrokerKind.InteractiveBrokers => "IB",
+        BrokerKind.NinjaTrader => "NinjaTrader",
+        BrokerKind.CTrader => "cTrader",
+        BrokerKind.Alpaca => "Alpaca",
+        _ => broker.ToString(),
+    };
+
+    private BrokerKind ResolveBroker(TradeableInstrument instrument)
+    {
+        if (instrument.Broker is { } explicitBroker && _services.Selector.IsConnected(explicitBroker))
+            return explicitBroker;
+        var connected = _services.Selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        return connected[0];
     }
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
@@ -185,6 +209,10 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
         if (IsStreaming) return;
         if (SelectedInstrument is null) return;
 
+        BrokerKind broker;
+        try { broker = ResolveBroker(SelectedInstrument); }
+        catch (InvalidOperationException ex) { ValidationError = ex.Message; Status = ex.Message; return; }
+
         var contract = SelectedInstrument.Contract;
         var size = BarSize.OneMinute;
 
@@ -195,7 +223,7 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var historical = await _services.Repository.GetHistoricalBarsAsync(contract, size,
+            var historical = await _services.Repository.GetHistoricalBarsAsync(contract, broker, size,
                 TimeSpan.FromDays(1), ct);
             foreach (var b in historical.TakeLast(MaxBarsRetained))
                 Bars.Add(b);
@@ -216,15 +244,15 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
         IsStreaming = true;
         Status = $"Streaming {SelectedInstrument.DisplayName} — algo idle";
 
-        _ = RunStreamAsync(contract, size, streamCt);
+        _ = RunStreamAsync(contract, broker, size, streamCt);
     }
 
-    private async Task RunStreamAsync(Contract contract, BarSize size, CancellationToken ct)
+    private async Task RunStreamAsync(Contract contract, BrokerKind broker, BarSize size, CancellationToken ct)
     {
         // Canonical pipeline: resolve id, observe hub.Bars(id), and start (or join) the ref-counted
         // ingest pump that feeds it. A bounded channel decouples the hub publish thread from the
         // consumer; each bar is marshalled to the UI thread before mutating observable state.
-        var instrumentId = _services.Ingest.Resolve(contract);
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
         var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
         {
             SingleReader = true,
@@ -233,7 +261,7 @@ public sealed partial class RsiStrategyViewModel : ViewModelBase, IDisposable
 
         using var subscription = _services.Hub.Bars(instrumentId, size).Subscribe(b =>
             channel.Writer.TryWrite(b.ToBar()));
-        _ingestHandle = _services.Ingest.SubscribeBars(contract, size);
+        _ingestHandle = _services.Ingest.SubscribeBars(contract, broker, size);
 
         try
         {

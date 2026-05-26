@@ -174,7 +174,8 @@ public sealed class RealCTraderClient : IBrokerClient
                 .Select(name => new TradableInstrument(
                     DisplayName: name,
                     Category: IsForexPair(name) ? "Forex" : "CFD / Other",
-                    Contract: new Contract(name, "CASH", "cTrader", string.Empty, PrimaryExchange: string.Empty)))
+                    Contract: new Contract(name, "CASH", "cTrader", string.Empty, PrimaryExchange: string.Empty),
+                    Broker: BrokerKind.CTrader))
                 .ToList();
         }
         return Task.FromResult<IReadOnlyList<TradableInstrument>>(result);

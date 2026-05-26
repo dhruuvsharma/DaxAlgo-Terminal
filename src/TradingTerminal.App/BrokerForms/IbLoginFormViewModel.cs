@@ -1,19 +1,25 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TradingTerminal.App.Login;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
-using TradingTerminal.UI;
 
 namespace TradingTerminal.App.Login.Forms;
 
 // Note: NOT partial / no [ObservableProperty]. WPF's MarkupCompilePass1 runs in a temporary
 // _wpftmp.csproj that doesn't always cooperate with source generators on partial classes used
 // in <DataTemplate DataType="{x:Type ...}">. Using manual SetProperty avoids the issue.
-public sealed class IbLoginFormViewModel : ViewModelBase, IBrokerLoginForm
+public sealed class IbLoginFormViewModel : BrokerLoginFormBase
 {
     private readonly InteractiveBrokersOptions _options;
     private readonly CredentialStore _credentialStore;
 
-    public IbLoginFormViewModel(IOptions<InteractiveBrokersOptions> options, CredentialStore credentialStore)
+    public IbLoginFormViewModel(
+        IOptions<InteractiveBrokersOptions> options,
+        CredentialStore credentialStore,
+        IBrokerSelector selector,
+        ILogger<IbLoginFormViewModel> logger)
+        : base(selector, logger)
     {
         _options = options.Value;
         _credentialStore = credentialStore;
@@ -28,8 +34,8 @@ public sealed class IbLoginFormViewModel : ViewModelBase, IBrokerLoginForm
         _selectedMarketDataType = MarketDataTypes[0];
     }
 
-    public BrokerKind Broker => BrokerKind.InteractiveBrokers;
-    public string DisplayName => "Interactive Brokers";
+    public override BrokerKind Broker => BrokerKind.InteractiveBrokers;
+    public override string DisplayName => "Interactive Brokers";
 
     public IReadOnlyList<string> AccountTypes { get; }
     public IReadOnlyList<MarketDataTypeOption> MarketDataTypes { get; }
@@ -41,10 +47,10 @@ public sealed class IbLoginFormViewModel : ViewModelBase, IBrokerLoginForm
     public string Password { get => _password; set => SetProperty(ref _password, value); }
 
     private string _host = "127.0.0.1";
-    public string Host { get => _host; set => SetProperty(ref _host, value); }
+    public string Host { get => _host; set { if (SetProperty(ref _host, value)) RaiseCanSubmit(); } }
 
     private int _port = 7497;
-    public int Port { get => _port; set => SetProperty(ref _port, value); }
+    public int Port { get => _port; set { if (SetProperty(ref _port, value)) RaiseCanSubmit(); } }
 
     private int _clientId = 1;
     public int ClientId { get => _clientId; set => SetProperty(ref _clientId, value); }
@@ -62,9 +68,15 @@ public sealed class IbLoginFormViewModel : ViewModelBase, IBrokerLoginForm
     private bool _rememberPassword;
     public bool RememberPassword { get => _rememberPassword; set => SetProperty(ref _rememberPassword, value); }
 
-    public bool CanSubmit => !string.IsNullOrWhiteSpace(Host) && Port > 0;
+    public override bool CanSubmit => !string.IsNullOrWhiteSpace(Host) && Port > 0;
 
-    public void ApplyToOptions()
+    private void RaiseCanSubmit()
+    {
+        OnPropertyChanged(nameof(CanSubmit));
+        ConnectCommand.NotifyCanExecuteChanged();
+    }
+
+    public override void ApplyToOptions()
     {
         _options.Host = Host;
         _options.Port = Port;
@@ -73,18 +85,18 @@ public sealed class IbLoginFormViewModel : ViewModelBase, IBrokerLoginForm
         _options.MarketDataType = SelectedMarketDataType?.Value ?? 1;
     }
 
-    public string GetSessionAccountLabel() => AccountType;
+    public override string GetSessionAccountLabel() => AccountType;
 
-    public string GetTimeoutErrorMessage() =>
+    public override string GetTimeoutErrorMessage() =>
         $"Connection timed out after 15s. Verify TWS / IB Gateway is running on {Host}:{Port} and that API access is enabled. " +
         "If you have 2FA enabled, complete the 2FA prompt in TWS before signing in here.";
 
-    public string GetFailureMessage() =>
+    public override string GetFailureMessage() =>
         "TWS reported a connection failure. Common causes: API access not enabled in TWS Global Config, " +
         "wrong port (TWS Paper=7497, TWS Live=7496, Gateway Paper=4002, Gateway Live=4001), " +
         "or client id already in use by another connection.";
 
-    public void Load()
+    public override void Load()
     {
         var stored = _credentialStore.Load();
         Username = stored.Username ?? string.Empty;
@@ -98,7 +110,7 @@ public sealed class IbLoginFormViewModel : ViewModelBase, IBrokerLoginForm
         Password = stored.Password ?? string.Empty;
     }
 
-    public void Save()
+    public override void Save()
     {
         var stored = _credentialStore.Load();
         stored.SelectedBroker = BrokerKind.InteractiveBrokers;

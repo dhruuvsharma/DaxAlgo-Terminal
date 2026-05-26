@@ -1,9 +1,9 @@
-using System.Reactive.Subjects;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using TradingTerminal.Core.AiAnalyst;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
@@ -115,14 +115,16 @@ public sealed class AiAnalystEnricherTests
         analyst.IsAvailable.Returns(available);
 
         repo = Substitute.For<IMarketDataRepository>();
-        repo.GetHistoricalBarsAsync(Arg.Any<Contract>(), Arg.Any<BarSize>(),
+        repo.GetHistoricalBarsAsync(Arg.Any<Contract>(), Arg.Any<BrokerKind>(), Arg.Any<BarSize>(),
                 Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
             .Returns(new[]
             {
                 new Bar(DateTime.UtcNow.AddHours(-2), 1, 2, 0.5, 1.5, 100),
                 new Bar(DateTime.UtcNow.AddHours(-1), 1.5, 2.5, 1, 2, 120),
             });
-        repo.ConnectionState.Returns(new BehaviorSubject<ConnectionState>(ConnectionState.Connected));
+
+        var selector = Substitute.For<IBrokerSelector>();
+        selector.Connected.Returns(new[] { BrokerKind.InteractiveBrokers });
 
         var options = Substitute.For<IOptionsMonitor<NotificationsOptions>>();
         options.CurrentValue.Returns(new NotificationsOptions
@@ -139,6 +141,6 @@ public sealed class AiAnalystEnricherTests
             },
         });
 
-        return new AiAnalystEnricher(analyst, repo, options, NullLogger<AiAnalystEnricher>.Instance);
+        return new AiAnalystEnricher(analyst, repo, selector, options, NullLogger<AiAnalystEnricher>.Instance);
     }
 }

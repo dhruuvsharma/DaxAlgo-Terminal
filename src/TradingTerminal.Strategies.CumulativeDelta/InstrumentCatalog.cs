@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Strategies.CumulativeDelta;
@@ -5,7 +6,8 @@ namespace TradingTerminal.Strategies.CumulativeDelta;
 public sealed record TradeableInstrument(
     string DisplayName,
     string Category,
-    Contract Contract);
+    Contract Contract,
+    BrokerKind? Broker = null);
 
 /// <summary>
 /// Curated catalog mirroring the RSI strategy's set. Defaults to EUR.USD because the

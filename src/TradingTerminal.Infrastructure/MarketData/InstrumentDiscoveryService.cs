@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,81 +9,73 @@ using TradingTerminal.Core.MarketData;
 namespace TradingTerminal.Infrastructure.MarketData;
 
 /// <summary>
-/// Hosted background service that loads the active broker's full tradable universe once
+/// Hosted background service that loads each connected broker's full tradable universe once
 /// per connection and registers every contract into the canonical
 /// <see cref="IInstrumentRegistry"/>. After this runs, every symbol the broker offers has a
 /// stable <see cref="InstrumentId"/> + persisted alias before any strategy opens — so the
 /// first per-strategy <c>ResolveOrCreate</c> is always a cache hit and historical-bar
 /// lookups can key on <c>InstrumentId</c> without a synchronous broker round-trip.
 ///
-/// Reacts to one trigger: an injected <see cref="IObservable{T}"/> of
-/// <see cref="ConnectionState"/> transitions to <see cref="ConnectionState.Connected"/>.
-/// (DI binds this to the ConnectionManager's state stream, which itself re-wires when the
-/// user switches brokers — so a broker switch ⇒ Disconnected ⇒ Connected re-fires discovery
-/// against the new broker automatically.)
-///
-/// Discovery is idempotent (the registry short-circuits on known aliases) and runs in the
-/// background, so login never waits on it. A new Connected transition cancels any
-/// in-flight discovery so a broker switch mid-load doesn't double-register.
+/// Multi-broker: subscribes each available broker's per-broker state stream
+/// (<see cref="IBrokerSelector.StateOf"/>) and runs an independent discovery pass on every
+/// transition into <see cref="ConnectionState.Connected"/> for that broker. Discovery is
+/// idempotent (the registry short-circuits on known aliases); a new Connected transition for
+/// a broker cancels its previous in-flight pass so a quick reconnect doesn't double-register.
 /// </summary>
 internal sealed class InstrumentDiscoveryService : IHostedService, IDisposable
 {
     private readonly IBrokerSelector _selector;
-    private readonly IObservable<ConnectionState> _connectionState;
     private readonly IInstrumentRegistry _registry;
     private readonly ILogger<InstrumentDiscoveryService> _logger;
 
-    private IDisposable? _stateSubscription;
-    private CancellationTokenSource? _runCts;
-    private readonly object _gate = new();
+    private readonly List<IDisposable> _stateSubscriptions = new();
+    private readonly ConcurrentDictionary<BrokerKind, CancellationTokenSource> _runs = new();
 
     public InstrumentDiscoveryService(
         IBrokerSelector selector,
-        IObservable<ConnectionState> connectionState,
         IInstrumentRegistry registry,
         ILogger<InstrumentDiscoveryService> logger)
     {
         _selector = selector;
-        _connectionState = connectionState;
         _registry = registry;
         _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _stateSubscription = _connectionState
-            .DistinctUntilChanged()
-            .Where(state => state == ConnectionState.Connected)
-            .Subscribe(_ => OnConnected());
+        foreach (var kind in _selector.AvailableKinds)
+        {
+            var broker = kind;
+            var sub = _selector.StateOf(broker)
+                .DistinctUntilChanged()
+                .Where(state => state == ConnectionState.Connected)
+                .Subscribe(_ => OnConnected(broker));
+            _stateSubscriptions.Add(sub);
+        }
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _stateSubscription?.Dispose();
-        CancelInFlight();
+        foreach (var sub in _stateSubscriptions) sub.Dispose();
+        _stateSubscriptions.Clear();
+        foreach (var cts in _runs.Values)
+        {
+            try { cts.Cancel(); cts.Dispose(); } catch { /* swallow */ }
+        }
+        _runs.Clear();
         return Task.CompletedTask;
     }
 
-    private void OnConnected()
+    private void OnConnected(BrokerKind broker)
     {
-        CancelInFlight();
         var cts = new CancellationTokenSource();
-        lock (_gate) _runCts = cts;
-        _ = LoadUniverseAsync(_selector.ActiveKind, cts.Token);
-    }
-
-    private void CancelInFlight()
-    {
-        CancellationTokenSource? toCancel;
-        lock (_gate)
+        if (_runs.TryRemove(broker, out var prev))
         {
-            toCancel = _runCts;
-            _runCts = null;
+            try { prev.Cancel(); prev.Dispose(); } catch { /* swallow */ }
         }
-        if (toCancel is null) return;
-        try { toCancel.Cancel(); } catch { /* already disposed */ }
-        toCancel.Dispose();
+        _runs[broker] = cts;
+        _ = LoadUniverseAsync(broker, cts.Token);
     }
 
     private async Task LoadUniverseAsync(BrokerKind broker, CancellationToken ct)
@@ -90,7 +83,7 @@ internal sealed class InstrumentDiscoveryService : IHostedService, IDisposable
         try
         {
             _logger.LogInformation("Instrument discovery starting for {Broker}", broker);
-            var list = await _selector.Active.ListInstrumentsAsync(ct).ConfigureAwait(false);
+            var list = await _selector.Get(broker).ListInstrumentsAsync(ct).ConfigureAwait(false);
             if (list is null || list.Count == 0)
             {
                 _logger.LogInformation("Instrument discovery for {Broker}: broker returned no instruments", broker);
@@ -124,7 +117,12 @@ internal sealed class InstrumentDiscoveryService : IHostedService, IDisposable
 
     public void Dispose()
     {
-        _stateSubscription?.Dispose();
-        CancelInFlight();
+        foreach (var sub in _stateSubscriptions) sub.Dispose();
+        _stateSubscriptions.Clear();
+        foreach (var cts in _runs.Values)
+        {
+            try { cts.Cancel(); cts.Dispose(); } catch { /* swallow */ }
+        }
+        _runs.Clear();
     }
 }

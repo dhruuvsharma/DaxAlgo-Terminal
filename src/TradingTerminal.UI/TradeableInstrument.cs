@@ -1,9 +1,17 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.UI;
 
-/// <summary>User-facing instrument label paired with the broker contract it resolves to.</summary>
-public sealed record SignalInstrument(string DisplayName, string Category, Contract Contract);
+/// <summary>
+/// User-facing instrument label paired with the broker contract it resolves to AND the
+/// source <see cref="Broker"/> that supplied it. The Broker field drives subscription
+/// routing in multi-broker setups — the strategy host passes (Contract, Broker) to the
+/// repository so the right backend is queried for ticks, bars, and depth. When the row
+/// comes from the static fallback catalog (no broker connected yet), <see cref="Broker"/>
+/// is null and the host resolves it lazily at Start to whichever broker is connected.
+/// </summary>
+public sealed record SignalInstrument(string DisplayName, string Category, Contract Contract, BrokerKind? Broker = null);
 
 /// <summary>
 /// Curated catalog of instruments the live signal generator can stream. Trimmed to one
