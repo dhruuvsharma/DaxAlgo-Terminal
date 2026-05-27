@@ -43,9 +43,15 @@ public static class DependencyInjection
         services.TryAddSingleton<IEventBus, EventBus>();
         services.TryAddSingleton<SessionContext>();
 
+        // API-call meter — singleton, used by every broker via MeteredBrokerClient decorator
+        // below, polled by the header chip widget in the WPF shell.
+        services.AddSingleton<IBrokerApiMeter, BrokerApiMeter>();
+
 #if HAS_IBAPI
         services.AddSingleton<IBrokerClient>(sp =>
-            ActivatorUtilities.CreateInstance<RealIbClient>(sp));
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealIbClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
 
         services.AddSingleton<BrokerConnectionMode>(_ =>
             new BrokerConnectionMode(
@@ -57,7 +63,9 @@ public static class DependencyInjection
 
 #if HAS_NTAPI
         services.AddSingleton<IBrokerClient>(sp =>
-            ActivatorUtilities.CreateInstance<RealNinjaClient>(sp));
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealNinjaClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
 
         services.AddSingleton<BrokerConnectionMode>(_ =>
             new BrokerConnectionMode(
@@ -69,7 +77,9 @@ public static class DependencyInjection
 
         // cTrader — always available.
         services.AddSingleton<IBrokerClient>(sp =>
-            ActivatorUtilities.CreateInstance<RealCTraderClient>(sp));
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealCTraderClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
 
         // One-shot helper for the login form's "Discover accounts" button. Resolves the
         // ctidTraderAccountId from an access token so the user doesn't have to hunt it down.
@@ -89,7 +99,9 @@ public static class DependencyInjection
 
         // Alpaca — always available (REST + WebSocket SDK on NuGet, no DLL gate).
         services.AddSingleton<IBrokerClient>(sp =>
-            ActivatorUtilities.CreateInstance<RealAlpacaClient>(sp));
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealAlpacaClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
 
         services.AddSingleton<BrokerConnectionMode>(sp =>
         {

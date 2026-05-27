@@ -144,6 +144,11 @@ public static class AppDependencyInjection
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
 
+        // Broker-API meter VM — singleton because it owns a DispatcherTimer and a stable
+        // ObservableCollection of chips bound by the header strip. Resolves IBrokerApiMeter
+        // from Infrastructure (registered alongside the broker clients).
+        services.AddSingleton<TradingTerminal.App.BrokerMetering.BrokerApiMeterViewModel>();
+
         // MainWindowViewModel is Singleton because there's one main shell at a time and
         // it holds the docked tab collection / active strategy list. It resolves
         // BacktestViewModel / NotificationsSettingsViewModel transiently on each open,

@@ -97,8 +97,63 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Right: user · clock -->
+                <!-- Right: API meter chips · user · clock -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- API call meter — one chip per broker, lights amber→red as usage approaches
+                         the soft per-minute cap. Tooltip carries the full breakdown. -->
+                    <ItemsControl ItemsSource="{Binding ApiMeter.Chips}"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,16,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="6,1"
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        BorderThickness="1"
+                                        ToolTip="{Binding TooltipText}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <!-- Default = Untracked (neutral) -->
+                                            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="Healthy">
+                                                    <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Bullish.Brush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="Warming">
+                                                    <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Warning.Brush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="Hot">
+                                                    <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Danger.Brush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Label}"
+                                                   Foreground="#000000"
+                                                   FontWeight="Bold"
+                                                   FontSize="10"
+                                                   Margin="0,0,4,0"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding UsageDisplay}"
+                                                   Foreground="#000000"
+                                                   FontSize="10"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
                     <TextBlock Text="{Binding SessionUserDisplay}"
                                Foreground="{DynamicResource Text.Secondary}"
                                FontSize="11"

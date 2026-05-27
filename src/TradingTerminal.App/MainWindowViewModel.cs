@@ -10,6 +10,7 @@ using TradingTerminal.App.Ai;
 using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
+using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Regime;
@@ -55,6 +56,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         InMemoryLogSink logSink,
         SessionContext session,
         IBrokerSelector brokerSelector,
+        BrokerApiMeterViewModel apiMeter,
         IServiceProvider services,
         ILogger<MainWindowViewModel> logger)
     {
@@ -62,6 +64,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _eventBus = eventBus;
         _session = session;
         _brokerSelector = brokerSelector;
+        ApiMeter = apiMeter;
         _services = services;
         _logger = logger;
 
@@ -122,6 +125,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<ITradingStrategy> Strategies { get; }
     public ObservableCollection<DockTab> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
+
+    /// <summary>Live API-call meter shown as broker chips in the Bloomberg header strip.</summary>
+    public BrokerApiMeterViewModel ApiMeter { get; }
 
     /// <summary>Composite mode label — "Live · IB + cTrader" when multiple brokers are up. Falls
     /// back to the first connected broker's mode for single-broker sessions.</summary>
