@@ -9,9 +9,14 @@ namespace TradingTerminal.Infrastructure.MarketData;
 /// <summary>
 /// Default <see cref="IMarketDataIngest"/>. Subscribes a named broker's raw streams, normalizes
 /// each event into a canonical record (assigning a per-instrument sequence and resolving the
-/// timestamp semantics for that broker), then publishes to the hub and persists to the store.
-/// Subscriptions are ref-counted per (instrument, broker, stream) so multiple consumers share
-/// one broker feed.
+/// timestamp semantics for that broker), then publishes to the hub. Subscriptions are
+/// ref-counted per (instrument, broker, stream) so multiple consumers share one broker feed.
+///
+/// <para>Persistence is <b>tick-primary</b>: quotes are written to the store, live bars and depth
+/// are not. Bars at any cadence are derivable from ticks; live-bar persistence was redundant
+/// storage. The bars table is still populated by the historical-fetch caching path in
+/// <see cref="MarketDataRepository"/> — that route covers time ranges before we connected, which
+/// tick aggregation can't reach.</para>
 ///
 /// Deliberately talks to <see cref="IBrokerClient"/> directly (not the UI-marshalling repository):
 /// ingest runs entirely on background threads, and consumers get UI-thread delivery by choosing how
@@ -146,11 +151,13 @@ internal sealed class MarketDataIngestService : IMarketDataIngest
     {
         try
         {
+            // Live bars fan out to the hub only — not persisted. Strategies that need bars on a
+            // historical range that ticks don't cover go through MarketDataRepository.GetHistoricalBarsAsync,
+            // which caches the broker's response via _store.EnqueueBar. See the class summary.
             await foreach (var bar in _selector.Get(broker).SubscribeBarsAsync(contract, size, ct).ConfigureAwait(false))
             {
                 var canonical = OhlcvBar.FromBar(bar, id, size, broker, isFinal: true);
                 _hub.PublishBar(canonical);
-                _store.EnqueueBar(canonical);
             }
         }
         catch (OperationCanceledException) { }
