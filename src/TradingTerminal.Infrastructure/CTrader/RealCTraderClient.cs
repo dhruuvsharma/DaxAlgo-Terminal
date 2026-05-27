@@ -32,6 +32,13 @@ public sealed class RealCTraderClient : IBrokerClient
     private readonly Dictionary<string, SymbolInfo> _symbols = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
 
+    /// <summary>Per-symbol top-of-book size cache, updated by depth events and read by the spot
+    /// stream when constructing ticks. Spotware's <c>ProtoOASpotEvent</c> only carries prices
+    /// (bid/ask), not sizes — without this cache every tick would emit with BidSize=AskSize=0,
+    /// which broke volume-based downstream signals (VPIN, Absorption, Footprint) on cTrader.
+    /// Concurrent because depth and spot subscriptions push from different OpenClient threads.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, (long BidSize, long AskSize)> _topOfBook = new();
+
     private OpenClient? _client;
     private IDisposable? _messageSub;
     private long _accountId;
@@ -295,7 +302,14 @@ public sealed class RealCTraderClient : IBrokerClient
                 var bid = spot.HasBid ? spot.Bid / scale : 0;
                 var ask = spot.HasAsk ? spot.Ask / scale : 0;
                 if (bid <= 0 || ask <= 0) return;
-                ch.Writer.TryWrite(new Tick(DateTime.UtcNow, bid, ask, 0, 0));
+                // Pull last-known top-of-book sizes from the depth cache (updated by the depth
+                // subscription, if one is active for this symbol). When no depth stream is
+                // running for this symbol the sizes stay 0 — same as the legacy behaviour, so
+                // pure tick-only consumers keep working. Volume-based signals (VPIN,
+                // Absorption) require a concurrent depth subscription, which the Apex strategy
+                // already takes via IMarketDataIngest.Subscribe.
+                var sizes = _topOfBook.TryGetValue(symbol.SymbolId, out var tob) ? tob : (BidSize: 0L, AskSize: 0L);
+                ch.Writer.TryWrite(new Tick(DateTime.UtcNow, bid, ask, sizes.BidSize, sizes.AskSize));
             });
 
         await SendAndAwaitAsync<ProtoOASubscribeSpotsRes>(
@@ -386,6 +400,15 @@ public sealed class RealCTraderClient : IBrokerClient
                         .OrderBy(l => l.Price)
                         .Take(levels)
                         .ToList();
+
+                    // Mirror top-of-book sizes into the shared cache so the spot stream can
+                    // emit ticks with non-zero BidSize/AskSize (Spotware spot events carry
+                    // prices only). Downstream volume-based signals (VPIN, Absorption,
+                    // FootprintCandle) depend on this.
+                    var topBid = bidsList.Count > 0 ? bidsList[0].Size : 0L;
+                    var topAsk = asksList.Count > 0 ? asksList[0].Size : 0L;
+                    _topOfBook[symbol.SymbolId] = (topBid, topAsk);
+
                     ch.Writer.TryWrite(new DepthSnapshot(DateTime.UtcNow, bidsList, asksList));
                 }
             });
