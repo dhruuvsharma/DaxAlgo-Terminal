@@ -7,6 +7,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddImbalanceHeatFrontStrategy(this IServiceCollection services)
     {
+        services.AddSingleton<ITradingStrategy, ImbalanceHeatFrontStrategy>();
         services.AddTransient<ImbalanceHeatFrontViewModel>();
         services.AddTransient<ImbalanceHeatFrontWindow>();
 

@@ -7,8 +7,8 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
-using TradingTerminal.Infrastructure.Backtest.Strategies;
 using TradingTerminal.UI;
+using EngineStrategy = TradingTerminal.Infrastructure.Backtest.Strategies.ImbalanceHeatFrontStrategy;
 
 namespace TradingTerminal.Strategies.ImbalanceHeatFront;
 
@@ -100,10 +100,10 @@ public sealed partial class ImbalanceHeatFrontViewModel : LiveSignalStrategyView
         Surface = null;
 
         var mode = MomentumMode
-            ? ImbalanceHeatFrontStrategy.RidgeMode.Momentum
-            : ImbalanceHeatFrontStrategy.RidgeMode.MeanReversion;
+            ? EngineStrategy.RidgeMode.Momentum
+            : EngineStrategy.RidgeMode.MeanReversion;
 
-        return new ImbalanceHeatFrontStrategy(
+        return new EngineStrategy(
             contract,
             numLevels: NumLevels,
             numSlices: NumSlices,

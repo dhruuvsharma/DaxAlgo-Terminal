@@ -26,16 +26,13 @@ Most strategies need both. Some (HFT/MM) may only ship as engine-side.
 ## Live UI strategy recipe
 
 1. **New project** `src/TradingTerminal.Strategies.<Name>/` — mirror an existing one (`TradingTerminal.Strategies.Rsi` is a clean RSI-shaped template).
-2. **Add to solution** with `dotnet sln add`. Reference `Core`, `Infrastructure`, `UI`.
-3. **View-model** inherits `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`). Its ctor takes a `LiveStrategyHostServices` bundle (Repository + Hub + Ingest + Store + BrokerSelector) — do NOT add new ad-hoc deps; route them through DI elsewhere.
-4. **MetroWindow shell** — open as its own window (the established convention across all 25+ shipped strategies).
-5. **DI registration**:
-   ```csharp
-   services.Add<Name>Strategy();  // extension method
-   ```
-   Add one line in `AppDependencyInjection.AddStrategyPlugins`. Don't edit anything else in the shell.
-6. **Hub subscription** — the base class subscribes to `IMarketDataHub.Quotes(InstrumentId)`. For trade-tape strategies, also subscribe to `IMarketDataIngest.SubscribeTrades(...)` and gate Continue on `BrokerSupportsTradeTape(broker)` — today only IB returns true. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) for the standard shape.
-7. **Warm-up** — `LiveSignalStrategyViewModelBase` reads 1-minute bars from `IMarketDataStore.GetRecentBarsAsync` on Start (granularity intentionally differs from the 15s live aggregation — store has no sub-minute bars and 1m context is better than none).
+2. **Add to solution** with `dotnet sln add` **and verify the .sln actually changed**. If the command prints a "Solution folder X already contains a project" warning, it silently aborted — fall back to editing `.sln` by hand (Project block + 12-line ProjectConfigurationPlatforms set + NestedProjects mapping; copy the GUID pattern from any existing strategy and generate a new project GUID via PowerShell `[System.Guid]::NewGuid()`). Reference `Core`, `Infrastructure`, `UI`.
+3. **Metadata class** `<Name>Strategy.cs` in the live project implementing `ITradingStrategy` (`Id`, `DisplayName`, `Description`). **This is what populates the Strategies pane** via `IStrategyFactory.All` — without it the strategy is invisible to the shell even though the engine-side and `StrategyFactoryRegistration` exist. The engine-side `<Name>Strategy.cs` in `Infrastructure/Backtest/Strategies/` is a SEPARATE class with the same name in a different namespace — alias the engine class in the live VM (`using EngineStrategy = TradingTerminal.Infrastructure.Backtest.Strategies.<Name>Strategy;`) to avoid ambiguity when calling it from `BuildStrategy`. Some older strategies (e.g. Bollinger) use a different engine name (`BollingerReversionStrategy`) to dodge this — either approach is fine.
+4. **View-model** inherits `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`). Its ctor takes a `LiveStrategyHostServices` bundle (Repository + Hub + Ingest + Store + BrokerSelector) — do NOT add new ad-hoc deps; route them through DI elsewhere.
+5. **MetroWindow shell** — open as its own window (the established convention across all 25+ shipped strategies).
+6. **DI registration** — your `Add<Name>Strategy()` extension must register THREE things: `AddSingleton<ITradingStrategy, <Name>Strategy>()` (metadata, drives the Strategies pane), `AddTransient<<Name>ViewModel>()`, `AddTransient<<Name>Window>()`, plus a `StrategyFactoryRegistration` singleton mapping the StrategyId to the view+vm factory pair. Then call `services.Add<Name>Strategy()` once in `AppDependencyInjection.AddStrategyPlugins` and add the project reference to `TradingTerminal.App.csproj`. Don't edit anything else in the shell.
+7. **Hub subscription** — the base class subscribes to `IMarketDataHub.Quotes(InstrumentId)`. For trade-tape strategies, also subscribe to `IMarketDataIngest.SubscribeTrades(...)` and gate Continue on `BrokerSupportsTradeTape(broker)` — today only IB returns true. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) for the standard shape.
+8. **Warm-up** — `LiveSignalStrategyViewModelBase` reads 1-minute bars from `IMarketDataStore.GetRecentBarsAsync` on Start (granularity intentionally differs from the 15s live aggregation — store has no sub-minute bars and 1m context is better than none).
 
 ## Strategy library reference (textbook reference implementations)
 
