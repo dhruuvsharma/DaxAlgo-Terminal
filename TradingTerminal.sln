@@ -143,6 +143,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowSurfaceSpike", "src\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj", "{57D32918-480B-4473-A038-04EC82B4BA42}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ImbalanceHeatFront", "src\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj", "{06EC5DBB-553C-4082-B4C7-4CD9BA185660}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -537,6 +539,18 @@ Global
 		{57D32918-480B-4473-A038-04EC82B4BA42}.Release|x64.Build.0 = Release|Any CPU
 		{57D32918-480B-4473-A038-04EC82B4BA42}.Release|x86.ActiveCfg = Release|Any CPU
 		{57D32918-480B-4473-A038-04EC82B4BA42}.Release|x86.Build.0 = Release|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Debug|x64.Build.0 = Debug|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Debug|x86.Build.0 = Debug|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Release|x64.ActiveCfg = Release|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Release|x64.Build.0 = Release|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Release|x86.ActiveCfg = Release|Any CPU
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -582,5 +596,6 @@ Global
 		{CB00000A-2B5E-4A9C-8E3B-7D2F6A9B5C99} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
 		{7F0DC766-2D5E-4A61-AB18-6E92527F5589} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{57D32918-480B-4473-A038-04EC82B4BA42} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{06EC5DBB-553C-4082-B4C7-4CD9BA185660} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
