@@ -78,6 +78,9 @@ public sealed class RealAlpacaClient : IBrokerClient
             var env = opt.IsLive ? Environments.Live : Environments.Paper;
             var creds = new SecretKey(opt.ApiKey, opt.ApiSecret);
 
+            // Trading client + stock data client are the primary product — these MUST succeed
+            // for Alpaca to be considered connected (instrument list, history, equity quotes
+            // all flow through them). Crypto is optional below.
             _trading = env.GetAlpacaTradingClient(creds);
             _stockData = env.GetAlpacaDataClient(creds);
 
@@ -89,21 +92,43 @@ public sealed class RealAlpacaClient : IBrokerClient
             stockStreamCfg.ApiEndpoint = new Uri(stockStreamCfg.ApiEndpoint, $"/v2/{FeedSegment(opt.StockDataFeed)}");
             _stockStream = stockStreamCfg.GetClient();
 
-            _cryptoData = env.GetAlpacaCryptoDataClient(creds);
-            _cryptoStream = env.GetAlpacaCryptoStreamingClient(creds);
-
-            // Both streaming clients need an explicit connect + auth before SubscribeAsync.
-            // We do it eagerly here so the first subscription doesn't pay the auth round-trip.
             var stockAuth = await _stockStream.ConnectAndAuthenticateAsync(ct).ConfigureAwait(false);
             if (stockAuth != AuthStatus.Authorized)
-                throw new InvalidOperationException($"Alpaca stock stream auth failed: {stockAuth}");
+                throw new InvalidOperationException(
+                    $"Alpaca stock stream auth failed: {stockAuth}. Check ApiKey/ApiSecret and that the keys are for the right environment ({(opt.IsLive ? "live" : "paper")}).");
 
-            var cryptoAuth = await _cryptoStream.ConnectAndAuthenticateAsync(ct).ConfigureAwait(false);
-            if (cryptoAuth != AuthStatus.Authorized)
-                throw new InvalidOperationException($"Alpaca crypto stream auth failed: {cryptoAuth}");
+            // Crypto is OPTIONAL. Paper accounts that haven't enabled crypto trading in the
+            // Alpaca dashboard fail crypto stream auth — that used to crash the whole connect,
+            // which meant no instruments showed up at all. Now we log it and continue with
+            // equities-only. The user enables crypto by going to Alpaca dashboard → Account →
+            // Crypto → Enable.
+            try
+            {
+                _cryptoData = env.GetAlpacaCryptoDataClient(creds);
+                _cryptoStream = env.GetAlpacaCryptoStreamingClient(creds);
+                var cryptoAuth = await _cryptoStream.ConnectAndAuthenticateAsync(ct).ConfigureAwait(false);
+                if (cryptoAuth != AuthStatus.Authorized)
+                {
+                    _logger.LogWarning(
+                        "Alpaca crypto stream auth returned {Status} — continuing in equities-only mode. To enable crypto: Alpaca dashboard → Account → Crypto → Enable.",
+                        cryptoAuth);
+                    _cryptoStream?.Dispose(); _cryptoStream = null;
+                    _cryptoData?.Dispose(); _cryptoData = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Alpaca crypto stream connect failed — continuing in equities-only mode. To enable crypto: Alpaca dashboard → Account → Crypto → Enable.");
+                try { _cryptoStream?.Dispose(); } catch { /* swallow */ }
+                _cryptoStream = null;
+                try { _cryptoData?.Dispose(); } catch { /* swallow */ }
+                _cryptoData = null;
+            }
 
-            _logger.LogInformation("Alpaca connected ({Mode}, stock-feed={Feed})",
-                opt.IsLive ? "live" : "paper", opt.StockDataFeed);
+            _logger.LogInformation("Alpaca connected ({Mode}, stock-feed={Feed}, crypto={Crypto})",
+                opt.IsLive ? "live" : "paper", opt.StockDataFeed,
+                _cryptoStream is not null ? "enabled" : "disabled");
 
             _state.OnNext(Core.Domain.ConnectionState.Connected);
         }
@@ -123,43 +148,77 @@ public sealed class RealAlpacaClient : IBrokerClient
     {
         EnsureConnected();
         var result = new List<TradableInstrument>();
+        var equityCount = 0;
+        var cryptoCount = 0;
 
         // US equities — active and tradable only. Alpaca returns the full universe
-        // (~11k symbols) in a single call; the UI filters/searches over it.
-        var equities = await _trading!.ListAssetsAsync(
-            new AssetsRequest
-            {
-                AssetStatus = AssetStatus.Active,
-                AssetClass = global::Alpaca.Markets.AssetClass.UsEquity,
-            }, ct).ConfigureAwait(false);
-        foreach (var a in equities)
+        // (~11k symbols) in a single call; the UI filters/searches over it. Wrapped in its
+        // own try/catch so a crypto failure can't kill the equity list (or vice versa).
+        try
         {
-            if (!a.IsTradable) continue;
-            var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
-            result.Add(new TradableInstrument(
-                $"{a.Symbol}  —  {name}", "US Stocks", Contract.UsStock(a.Symbol), BrokerKind.Alpaca));
+            var equities = await _trading!.ListAssetsAsync(
+                new AssetsRequest
+                {
+                    AssetStatus = AssetStatus.Active,
+                    AssetClass = global::Alpaca.Markets.AssetClass.UsEquity,
+                }, ct).ConfigureAwait(false);
+            foreach (var a in equities)
+            {
+                if (!a.IsTradable) continue;
+                var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
+                result.Add(new TradableInstrument(
+                    $"{a.Symbol}  —  {name}", "US Stocks", Contract.UsStock(a.Symbol), BrokerKind.Alpaca));
+                equityCount++;
+            }
+            _logger.LogInformation("Alpaca equities loaded: {Count} tradable symbols", equityCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Alpaca: failed to load equity universe. Check the trading API key has read-asset permissions ({Mode} mode).",
+                _options.Value.IsLive ? "live" : "paper");
         }
 
         // Crypto — the symbol Alpaca returns (e.g. "BTC/USD") is exactly what the
         // streaming/data clients expect, so it flows straight into the Contract.
-        var crypto = await _trading.ListAssetsAsync(
-            new AssetsRequest
-            {
-                AssetStatus = AssetStatus.Active,
-                AssetClass = global::Alpaca.Markets.AssetClass.Crypto,
-            }, ct).ConfigureAwait(false);
-        foreach (var a in crypto)
+        // Skip the call entirely if crypto stream auth was declined at connect (the typical
+        // paper-account-without-crypto case) — listing assets would 403 anyway.
+        if (_cryptoData is not null)
         {
-            if (!a.IsTradable) continue;
-            var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
-            result.Add(new TradableInstrument(
-                $"{a.Symbol}  —  {name}", "Crypto",
-                new Contract(a.Symbol, "CRYPTO", "SMART", "USD", PrimaryExchange: string.Empty),
-                BrokerKind.Alpaca));
+            try
+            {
+                var crypto = await _trading!.ListAssetsAsync(
+                    new AssetsRequest
+                    {
+                        AssetStatus = AssetStatus.Active,
+                        AssetClass = global::Alpaca.Markets.AssetClass.Crypto,
+                    }, ct).ConfigureAwait(false);
+                foreach (var a in crypto)
+                {
+                    if (!a.IsTradable) continue;
+                    var name = string.IsNullOrWhiteSpace(a.Name) ? a.Symbol : a.Name;
+                    result.Add(new TradableInstrument(
+                        $"{a.Symbol}  —  {name}", "Crypto",
+                        new Contract(a.Symbol, "CRYPTO", "SMART", "USD", PrimaryExchange: string.Empty),
+                        BrokerKind.Alpaca));
+                    cryptoCount++;
+                }
+                _logger.LogInformation("Alpaca crypto loaded: {Count} tradable symbols", cryptoCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Alpaca: failed to load crypto universe — continuing with equities only.");
+            }
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Alpaca: crypto disabled on this account — listing equities only. Enable crypto: dashboard → Account → Crypto.");
         }
 
-        _logger.LogInformation("Alpaca listed {Stocks} equities + {Crypto} crypto instruments",
-            equities.Count(x => x.IsTradable), crypto.Count(x => x.IsTradable));
+        _logger.LogInformation(
+            "Alpaca instrument list: {Total} total ({Equities} equities + {Crypto} crypto)",
+            result.Count, equityCount, cryptoCount);
         return result;
     }
 
@@ -204,6 +263,7 @@ public sealed class RealAlpacaClient : IBrokerClient
         }
         if (assetClass == AssetClass.Crypto)
         {
+            EnsureCryptoAvailable();
             var req = new HistoricalCryptoBarsRequest(new[] { contract.Symbol }, from, to, timeFrame);
             var resp = await _cryptoData!.ListHistoricalBarsAsync(req, ct).ConfigureAwait(false);
             return resp.Items.Select(MapBar).ToList();
@@ -308,6 +368,7 @@ public sealed class RealAlpacaClient : IBrokerClient
         }
         else if (assetClass == AssetClass.Crypto)
         {
+            EnsureCryptoAvailable();
             var sub = _cryptoStream!.GetQuoteSubscription(contract.Symbol);
             void OnQuote(IQuote q)
             {
@@ -356,10 +417,21 @@ public sealed class RealAlpacaClient : IBrokerClient
         throw new NotSupportedException(
             "Alpaca trade-tape ingest is not wired in this build.");
 
+    /// <summary>Stock + trading must be wired (the primary product). Crypto is optional —
+    /// paths that need crypto check <see cref="_cryptoData"/> / <see cref="_cryptoStream"/>
+    /// explicitly and surface a clear error if the user hasn't enabled crypto on their
+    /// Alpaca account.</summary>
     private void EnsureConnected()
     {
-        if (_trading is null || _stockData is null || _stockStream is null || _cryptoData is null || _cryptoStream is null)
+        if (_trading is null || _stockData is null || _stockStream is null)
             throw new InvalidOperationException("Not connected — call ConnectAsync first.");
+    }
+
+    private void EnsureCryptoAvailable()
+    {
+        if (_cryptoData is null || _cryptoStream is null)
+            throw new NotSupportedException(
+                "Alpaca crypto trading is not enabled on this account. Enable it in the Alpaca dashboard → Account → Crypto.");
     }
 
     private static Bar MapBar(IBar b) =>
