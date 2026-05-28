@@ -45,9 +45,23 @@ internal sealed class MarketDataIngestService : IMarketDataIngest
     private readonly IMarketDataStore _store;
     private readonly ILogger<MarketDataIngestService> _logger;
 
-    // Keyed by (InstrumentId, BrokerKind, stream discriminator). Quotes+depth share key (id, broker, "L1"); bars use (id, broker, "B{size}").
+    // Keyed by (InstrumentId, BrokerKind, stream discriminator). Quotes+depth share key (id, broker, "L1"); bars use (id, broker, "B{size}"); trades use (id, broker, "T").
     private readonly ConcurrentDictionary<(int, BrokerKind, string), Entry> _entries = new();
     private readonly object _gate = new();
+
+    // Per-instrument context used by the Lee-Ready aggressor classifier when a broker's trade
+    // tape doesn't report initiating side natively. Bid/ask are refreshed from the quote pump;
+    // prior trade price + classification are kept from the trade pump for the tick-rule fallback.
+    // Concurrent reads/writes of doubles are torn-tolerant in the worst case: a misclassified
+    // print, never garbage.
+    private sealed class TradeContext
+    {
+        public double Bid;
+        public double Ask;
+        public double PriorTradePrice;
+        public AggressorSide PriorClassification = AggressorSide.Unknown;
+    }
+    private readonly ConcurrentDictionary<int, TradeContext> _tradeContexts = new();
 
     public MarketDataIngestService(
         IBrokerSelector selector,
@@ -84,6 +98,15 @@ internal sealed class MarketDataIngestService : IMarketDataIngest
         var key = (id.Value, broker, $"B{(int)size}");
         var entry = Acquire(key, entry =>
             _ = PumpBarsAsync(contract, id, size, broker, entry.Cts.Token));
+        return new Handle(this, key, entry);
+    }
+
+    public IDisposable SubscribeTrades(Contract contract, BrokerKind broker)
+    {
+        var id = _registry.ResolveOrCreate(contract, broker);
+        var key = (id.Value, broker, "T");
+        var entry = Acquire(key, entry =>
+            _ = PumpTradesAsync(contract, id, broker, entry, entry.Cts.Token));
         return new Handle(this, key, entry);
     }
 
@@ -129,10 +152,45 @@ internal sealed class MarketDataIngestService : IMarketDataIngest
                     broker, seq, approx);
                 _hub.PublishQuote(quote);
                 _store.EnqueueQuote(quote);
+
+                // Keep the Lee-Ready aggressor classifier's view of best bid/ask fresh for any
+                // concurrent trade pump on this instrument. Concurrent trade pumps without a
+                // matching quote subscription fall back to the tick rule.
+                var ctx = _tradeContexts.GetOrAdd(id.Value, _ => new TradeContext());
+                ctx.Bid = tick.Bid;
+                ctx.Ask = tick.Ask;
             }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { _logger.LogWarning(ex, "Quote ingest ended for {Symbol} on {Broker}", contract.Symbol, broker); }
+    }
+
+    private async Task PumpTradesAsync(Contract contract, InstrumentId id, BrokerKind broker, Entry entry, CancellationToken ct)
+    {
+        var approx = StampsArrivalTime(broker);
+        try
+        {
+            await foreach (var trade in _selector.Get(broker).SubscribeTradesAsync(contract, ct).ConfigureAwait(false))
+            {
+                var ctx = _tradeContexts.GetOrAdd(id.Value, _ => new TradeContext());
+                var aggressor = trade.Aggressor != AggressorSide.Unknown
+                    ? trade.Aggressor
+                    : Microstructure.ClassifyAggressor(trade.Price, ctx.Bid, ctx.Ask, ctx.PriorTradePrice, ctx.PriorClassification);
+                ctx.PriorTradePrice = trade.Price;
+                if (aggressor != AggressorSide.Unknown) ctx.PriorClassification = aggressor;
+
+                var seq = Interlocked.Increment(ref entry.Sequence);
+                var canonical = new TradePrint(
+                    id, trade.TimestampUtc, DateTime.UtcNow,
+                    trade.Price, trade.Size, aggressor,
+                    broker, seq, approx);
+                _hub.PublishTrade(canonical);
+                _store.EnqueueTrade(canonical);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (NotSupportedException) { _logger.LogDebug("Trade ingest skipped for {Symbol} on {Broker}: broker has no trade tape", contract.Symbol, broker); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Trade ingest ended for {Symbol} on {Broker}", contract.Symbol, broker); }
     }
 
     private async Task PumpDepthAsync(Contract contract, InstrumentId id, BrokerKind broker, CancellationToken ct)

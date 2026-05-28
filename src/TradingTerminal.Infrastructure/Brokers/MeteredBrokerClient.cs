@@ -76,6 +76,12 @@ public sealed class MeteredBrokerClient : IBrokerClient
         return _inner.SubscribeDepthAsync(contract, levels, ct);
     }
 
+    public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(Contract contract, CancellationToken ct = default)
+    {
+        _meter.RecordCall(_inner.Kind, nameof(SubscribeTradesAsync));
+        return _inner.SubscribeTradesAsync(contract, ct);
+    }
+
     public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
     {
         _meter.RecordCall(_inner.Kind, nameof(PlaceOrderAsync));

@@ -27,12 +27,15 @@ using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.EodMomentum;
 using TradingTerminal.Strategies.GapFade;
 using TradingTerminal.Strategies.IcebergDetection;
+using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.LiquiditySweep;
 using TradingTerminal.Strategies.LondonOpenBreakout;
 using TradingTerminal.Strategies.MaCrossover;
 using TradingTerminal.Strategies.Macd;
 using TradingTerminal.Strategies.Microprice;
 using TradingTerminal.Strategies.OnlineRegressionAlpha;
+using TradingTerminal.Strategies.OrderFlowCube;
+using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.PullbackContinuation;
@@ -105,6 +108,9 @@ public static class AppDependencyInjection
         services.AddLiquiditySweepStrategy();
         services.AddIcebergDetectionStrategy();
         services.AddOrderFlowToxicityStrategy();
+        services.AddOrderFlowCubeStrategy();
+        services.AddOrderFlowSurfaceSpikeStrategy();
+        services.AddImbalanceHeatFrontStrategy();
         services.AddThinBookFilterStrategy();
         services.AddApexScalperStrategy();
 

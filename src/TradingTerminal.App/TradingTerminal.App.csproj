@@ -40,6 +40,9 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.BookPressure\TradingTerminal.Strategies.BookPressure.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.LiquiditySweep\TradingTerminal.Strategies.LiquiditySweep.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.IcebergDetection\TradingTerminal.Strategies.IcebergDetection.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ThinBookFilter\TradingTerminal.Strategies.ThinBookFilter.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OnlineRegressionAlpha\TradingTerminal.Strategies.OnlineRegressionAlpha.csproj" />

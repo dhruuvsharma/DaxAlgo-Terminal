@@ -11,3 +11,16 @@ public sealed record Tick(
     double Ask,
     long BidSize,
     long AskSize);
+
+/// <summary>
+/// A single trade print (last) from a broker's tick-by-tick AllLast feed. Broker-shaped;
+/// the ingest layer wraps these into canonical <see cref="TradePrint"/>s carrying instrument id,
+/// sequence, and ingest time. <see cref="Aggressor"/> is filled when the broker reports the
+/// initiating side directly; brokers that don't (IB, NT) emit <see cref="AggressorSide.Unknown"/>
+/// and the ingest layer infers via the Lee-Ready quote rule against the current best bid/ask.
+/// </summary>
+public sealed record TradeTick(
+    DateTime TimestampUtc,
+    double Price,
+    long Size,
+    AggressorSide Aggressor);

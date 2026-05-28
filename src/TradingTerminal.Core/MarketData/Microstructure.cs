@@ -148,4 +148,39 @@ public static class Microstructure
         }
         return max;
     }
+
+    /// <summary>
+    /// Lee-Ready (1991) trade-aggressor classifier. Most brokers (IB, NT) don't report
+    /// initiating side on the trade tape, so the standard inference is:
+    /// <list type="number">
+    /// <item><b>Quote rule</b> — if the trade prints at or above the prevailing best ask,
+    /// it lifted the offer (buy-initiated). At or below the best bid, it hit the bid
+    /// (sell-initiated).</item>
+    /// <item><b>Tick rule</b> — when the trade prints inside the spread the quote rule
+    /// is ambiguous; compare to the previous trade price: higher than prior ⇒ buy,
+    /// lower ⇒ sell, equal ⇒ carry the prior classification forward (zero-tick rule).</item>
+    /// </list>
+    /// Pass <paramref name="priorTradePrice"/> = 0 (the default) and <paramref name="priorClassification"/>
+    /// = <see cref="AggressorSide.Unknown"/> for the first trade in a session — ambiguous prints
+    /// then return <see cref="AggressorSide.Unknown"/> rather than guessing.
+    /// </summary>
+    public static AggressorSide ClassifyAggressor(
+        double tradePrice, double bid, double ask,
+        double priorTradePrice = 0,
+        AggressorSide priorClassification = AggressorSide.Unknown)
+    {
+        // Quote rule (also handles the degenerate case where bid >= ask — locked/crossed book —
+        // by deferring to the tick rule rather than producing nonsense from the comparison).
+        if (ask > bid)
+        {
+            if (tradePrice >= ask) return AggressorSide.Buy;
+            if (tradePrice <= bid) return AggressorSide.Sell;
+        }
+
+        // Tick rule.
+        if (priorTradePrice <= 0) return AggressorSide.Unknown;
+        if (tradePrice > priorTradePrice) return AggressorSide.Buy;
+        if (tradePrice < priorTradePrice) return AggressorSide.Sell;
+        return priorClassification; // zero-tick: carry forward
+    }
 }

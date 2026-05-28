@@ -86,22 +86,31 @@ public sealed class BacktestSession : IBacktestSession
         await strategy.OnStartAsync(clock, router, ct).ConfigureAwait(false);
 
         Tick? lastTick = null;
-        await foreach (var tick in BacktestTickSource.Resolve(config, _store, ct))
+        await foreach (var evt in BacktestTickSource.Resolve(config, _store, ct))
         {
-            clock.SetTo(tick.TimestampUtc);
-            lastTickForFillContext = tick;
-            orderBook.OnTick(tick);
-
+            clock.SetTo(evt.TimestampUtc);
             await orderEventTask.ConfigureAwait(false);
-            await strategy.OnTickAsync(tick, clock, router, ct).ConfigureAwait(false);
 
-            var mid = (tick.Bid + tick.Ask) * 0.5;
-            if (lastSample is null || (tick.TimestampUtc - lastSample.Value).TotalSeconds >= 60)
+            if (evt.Quote is { } tick)
             {
-                equity.Add(new EquityPoint(tick.TimestampUtc, ledger.Equity(mid)));
-                lastSample = tick.TimestampUtc;
+                lastTickForFillContext = tick;
+                orderBook.OnTick(tick);
+                await strategy.OnTickAsync(tick, clock, router, ct).ConfigureAwait(false);
+
+                var mid = (tick.Bid + tick.Ask) * 0.5;
+                if (lastSample is null || (tick.TimestampUtc - lastSample.Value).TotalSeconds >= 60)
+                {
+                    equity.Add(new EquityPoint(tick.TimestampUtc, ledger.Equity(mid)));
+                    lastSample = tick.TimestampUtc;
+                }
+                lastTick = tick;
             }
-            lastTick = tick;
+            else if (evt.Trade is { } trade)
+            {
+                // Trades don't drive the L1 fill model or update fill-context bid/ask — they
+                // only inform strategies that consume the tape. Equity is sampled from quotes.
+                await strategy.OnTradeAsync(trade, clock, router, ct).ConfigureAwait(false);
+            }
         }
 
         await orderEventTask.ConfigureAwait(false);

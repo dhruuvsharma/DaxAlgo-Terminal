@@ -131,13 +131,16 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "liquiditysweep" or "sweep" => new LiquiditySweepStrategy(contract),
     "iceberg" => new IcebergDetectionStrategy(contract),
     "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
+    "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
+    "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
+    "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
     "thinbook" => new ThinBookFilterStrategy(contract),
     "apexscalper" or "apex" => new ApexScalperStrategy(contract),
     // ML / AI driven
     "onlineregressionalpha" or "rls" or "onlineregression" => new OnlineRegressionAlphaStrategy(contract),
     "anomalydetector" or "anomaly" or "zscore" => new AnomalyDetectorStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback, bookPressure, liquiditySweep, iceberg, vpin, thinBook, apexScalper, onlineRegressionAlpha, anomalyDetector.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback, bookPressure, liquiditySweep, iceberg, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, thinBook, apexScalper, onlineRegressionAlpha, anomalyDetector.")
 };
 
 static void PrintSummary(BacktestResult result)

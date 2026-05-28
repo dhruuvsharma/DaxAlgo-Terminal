@@ -125,6 +125,18 @@ public static class BacktestStrategyCatalog
             DisplayName: "Order-flow toxicity / VPIN-style (L2)",
             Build: contract => new OrderFlowToxicityStrategy(contract)),
         new BacktestStrategyOption(
+            Id: "orderFlowCube",
+            DisplayName: "Order-flow regime cube (CVD × aggressor × size)",
+            Build: contract => new OrderFlowCubeStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "orderFlowSurfaceSpike",
+            DisplayName: "Order-flow surface spike detector (Z-score over slice×bin matrix)",
+            Build: contract => new OrderFlowSurfaceSpikeStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "imbalanceHeatFront",
+            DisplayName: "Imbalance Heat Front (L2 bid-ask pressure surface)",
+            Build: contract => new ImbalanceHeatFrontStrategy(contract)),
+        new BacktestStrategyOption(
             Id: "thinBook",
             DisplayName: "Thin-book breakout filter (L2)",
             Build: contract => new ThinBookFilterStrategy(contract)),

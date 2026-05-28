@@ -42,6 +42,7 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
     private readonly Dictionary<int, HistoricalRequest> _historical = new();
     private readonly Dictionary<int, Channel<Bar>> _streams = new();
     private readonly Dictionary<int, TickStream> _tickStreams = new();
+    private readonly Dictionary<int, Channel<TradeTick>> _tradeStreams = new();
     private readonly object _gate = new();
 
     public RealIbClient(ILogger<RealIbClient> logger, IOptions<InteractiveBrokersOptions> options)
@@ -229,6 +230,32 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
         throw new NotSupportedException(
             "Interactive Brokers depth (reqMktDepth) is not wired in this build. Use cTrader for L2 or subscribe to L1 via SubscribeTicksAsync.");
 
+    public async IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+        Contract contract, [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (_client?.IsConnected() != true) throw new InvalidOperationException("Not connected.");
+
+        var reqId = Interlocked.Increment(ref _nextRequestId);
+        var ch = Channel.CreateUnbounded<TradeTick>();
+        lock (_gate) _tradeStreams[reqId] = ch;
+
+        var ibContract = ToIbContract(contract);
+        // "AllLast" = every print including pre/post-market and odd lots (vs "Last" which is RTH-only).
+        // numberOfTicks: 0 = no historical backfill (live stream only). ignoreSize: false = receive sizes.
+        // Needs an active market-data subscription for the underlying; error 354 surfaces here if absent.
+        _client.reqTickByTickData(reqId, ibContract, tickType: "AllLast", numberOfTicks: 0, ignoreSize: false);
+
+        await using var _ = ct.Register(() =>
+        {
+            try { _client.cancelTickByTickData(reqId); } catch { /* swallow — socket may already be gone */ }
+            ch.Writer.TryComplete();
+            lock (_gate) _tradeStreams.Remove(reqId);
+        });
+
+        await foreach (var trade in ch.Reader.ReadAllAsync(ct))
+            yield return trade;
+    }
+
     private static IBApi.Contract ToIbContract(Core.Domain.Contract c) => new()
     {
         Symbol = c.Symbol,
@@ -368,6 +395,24 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
             new Tick(DateTime.UtcNow, stream.Bid, stream.Ask, stream.BidSize, stream.AskSize));
     }
 
+    // ---------- Trade tape via reqTickByTickData("AllLast"). Aggressor is left Unknown — ----------
+    // the ingest layer's Lee-Ready classifier owns side inference (it has the live bid/ask state).
+    public override void tickByTickAllLast(
+        int reqId, int tickType, long time, double price, decimal size,
+        IBApi.TickAttribLast tickAttribLast, string exchange, string specialConditions)
+    {
+        Channel<TradeTick>? ch;
+        lock (_gate) _tradeStreams.TryGetValue(reqId, out ch);
+        if (ch is null) return;
+        if (price <= 0) return; // IB sometimes emits a 0-price keep-alive; skip it.
+
+        // `time` is Unix epoch seconds (IB API convention for tick-by-tick callbacks).
+        // pastLimit / unreported flags on TickAttribLast are intentionally not filtered here —
+        // ingest decides what to keep so the store has the full tape for replay.
+        var ts = DateTimeOffset.FromUnixTimeSeconds(time).UtcDateTime;
+        ch.Writer.TryWrite(new TradeTick(ts, price, (long)size, AggressorSide.Unknown));
+    }
+
     public override void tickSize(int reqId, int field, decimal size)
     {
         TickStream? stream;
@@ -401,16 +446,19 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
             HistoricalRequest? req;
             Channel<Bar>? stream;
             TickStream? tickStream;
+            Channel<TradeTick>? tradeStream;
             lock (_gate)
             {
                 _historical.TryGetValue(id, out req);
                 _streams.TryGetValue(id, out stream);
                 _tickStreams.TryGetValue(id, out tickStream);
+                _tradeStreams.TryGetValue(id, out tradeStream);
             }
             var ex = new InvalidOperationException($"IB {errorCode}: {errorMsg}");
             req?.Tcs.TrySetException(ex);
             stream?.Writer.TryComplete(ex);
             tickStream?.Channel.Writer.TryComplete(ex);
+            tradeStream?.Writer.TryComplete(ex);
         }
     }
 

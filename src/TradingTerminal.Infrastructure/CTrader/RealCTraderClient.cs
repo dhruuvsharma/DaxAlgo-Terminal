@@ -441,6 +441,15 @@ public sealed class RealCTraderClient : IBrokerClient
         }
     }
 
+    public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+        Contract contract, CancellationToken ct = default) =>
+        // cTrader's Open API does not stream individual trade prints — ProtoOASpotEvent carries
+        // bid/ask updates and ProtoOADepthEvent carries order-book changes, but there is no
+        // first-class "tape" channel. Tape reconstruction from spot ticks is lossy and not
+        // attempted here. Ingest swallows the NotSupportedException.
+        throw new NotSupportedException(
+            "cTrader Open API does not expose a trade-tape channel.");
+
     private async Task<SymbolInfo> ResolveSymbolAsync(string symbolName, CancellationToken ct)
     {
         SymbolInfo? cached;

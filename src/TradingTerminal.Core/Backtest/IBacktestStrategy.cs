@@ -31,6 +31,17 @@ public interface IBacktestStrategy
     Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
         => Task.CompletedTask;
 
+    /// <summary>
+    /// Called for each trade print (last tape), when the active broker exposes a trade feed
+    /// and the host has subscribed. Default is a no-op so quote-only strategies are unaffected.
+    /// Order-flow strategies (CVD, VPIN, footprint regimes) override this to consume the
+    /// signed trade tape. Live for brokers that wire <c>SubscribeTradesAsync</c>; the
+    /// backtester replays from <see cref="MarketData.IMarketDataStore.ReadTradesAsync"/>
+    /// once the replay loop is extended for it.
+    /// </summary>
+    Task OnTradeAsync(TradePrint trade, IClock clock, IOrderRouter router, CancellationToken ct)
+        => Task.CompletedTask;
+
     /// <summary>Called for each order event produced by the simulated order book.</summary>
     Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct);
 

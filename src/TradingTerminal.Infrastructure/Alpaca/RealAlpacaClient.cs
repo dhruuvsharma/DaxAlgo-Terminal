@@ -348,6 +348,14 @@ public sealed class RealAlpacaClient : IBrokerClient
         throw new NotSupportedException(
             "Alpaca does not expose L2 depth. Route depth subscriptions through IB or cTrader.");
 
+    public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+        Contract contract, CancellationToken ct = default) =>
+        // Alpaca's market-data websocket exposes a native trade channel ("t" message) carrying
+        // exchange time, price, size, and a taker_side flag — the easiest broker to wire trades
+        // for. Not implemented yet; ingest swallows the NotSupportedException.
+        throw new NotSupportedException(
+            "Alpaca trade-tape ingest is not wired in this build.");
+
     private void EnsureConnected()
     {
         if (_trading is null || _stockData is null || _stockStream is null || _cryptoData is null || _cryptoStream is null)

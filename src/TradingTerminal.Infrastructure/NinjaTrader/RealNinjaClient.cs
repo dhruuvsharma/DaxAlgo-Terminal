@@ -251,6 +251,14 @@ public sealed class RealNinjaClient : IBrokerClient
         throw new NotSupportedException(
             "NinjaTrader's NTDirect API does not expose L2 depth. Use cTrader for L2 from this terminal.");
 
+    public IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+        Contract contract, CancellationToken ct = default) =>
+        // NTDirect's MarketData feed delivers "Last" prices but doesn't differentiate aggressor
+        // side natively; a real implementation would subscribe via SubscribeMarketData with the
+        // Last update kind and let the ingest layer infer aggressor via Lee-Ready. Not wired yet.
+        throw new NotSupportedException(
+            "NinjaTrader trade-tape ingest is not wired in this build.");
+
     private void EnsureSubscribed(string instrument)
     {
         lock (_gate)

@@ -22,4 +22,11 @@ public interface IMarketDataIngest
 
     /// <summary>Start (or join) a streaming-bar feed at the given size for this contract on <paramref name="broker"/>.</summary>
     IDisposable SubscribeBars(Contract contract, BrokerKind broker, BarSize size);
+
+    /// <summary>Start (or join) the trade-tape feed for this contract on <paramref name="broker"/>.
+    /// Brokers without a trade tape return a no-op handle; ingest swallows the
+    /// <see cref="NotSupportedException"/>. Aggressor side is inferred via Lee-Ready when the
+    /// broker doesn't report it natively — pair with <see cref="Subscribe"/> on the same
+    /// instrument for the quote rule to work; otherwise inference falls back to the tick rule.</summary>
+    IDisposable SubscribeTrades(Contract contract, BrokerKind broker);
 }

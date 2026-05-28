@@ -71,6 +71,21 @@ public interface IBrokerClient : IAsyncDisposable
         CancellationToken ct = default);
 
     /// <summary>
+    /// Streaming trade prints (last-trade tape) as broker-shaped <see cref="TradeTick"/>s.
+    /// The ingest layer wraps these into canonical <see cref="TradePrint"/>s. Brokers expose
+    /// trades through different APIs (IB <c>reqTickByTickData("AllLast")</c>, Alpaca trade
+    /// websocket channel, cTrader spot tick events); implementations without a trade feed
+    /// throw <see cref="NotSupportedException"/> and ingest swallows it.
+    ///
+    /// When the broker reports the initiating side natively, set <see cref="TradeTick.Aggressor"/>;
+    /// otherwise emit <see cref="AggressorSide.Unknown"/> and the ingest layer infers via the
+    /// Lee-Ready quote rule against the current best bid/ask.
+    /// </summary>
+    IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
+        Contract contract,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Order lifecycle events (acks, fills, cancels, rejects) for every order submitted
     /// through <see cref="PlaceOrderAsync"/>. Hot observable — multicast to all subscribers.
     /// Real broker clients that don't yet support OMS return <c>Observable.Empty</c>.
