@@ -1,11 +1,13 @@
 ---
 name: add-broker
-description: Recipe for wiring a fourth broker backend into DaxAlgo Terminal behind the IBrokerClient seam. Use when the user asks to add a broker (e.g. "add Tradovate", "wire up Alpaca", "implement IBrokerClient for X"). Covers project layout, DI registration, login tile, options binding, fake vs real split, and the layering rules that must not be broken.
+description: Recipe for wiring a fifth broker backend into DaxAlgo Terminal behind the IBrokerClient seam, alongside the existing four (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca). Use when the user asks to add a broker (e.g. "add Tradovate", "wire up Rithmic", "implement IBrokerClient for X"). Covers project layout, DI registration, login tile, options binding, fake vs real split, and the layering rules that must not be broken.
 ---
 
 # Add a Broker
 
 A broker is a plug-in. The shell, repository, view-models, and strategies must stay completely untouched. If you find yourself editing `MarketDataRepository`, `ConnectionManager`, or any view-model — stop.
+
+The app already has four broker backends: IB / NT / cTrader / Alpaca. Each opens a concurrent session — login no longer picks one broker. Mirror the existing patterns.
 
 ## Recipe
 
@@ -24,8 +26,10 @@ A broker is a plug-in. The shell, repository, view-models, and strategies must s
    }
    ```
    Register alongside the existing IB/NT/cTrader blocks.
-5. **Login tile** — add a fourth tile to the broker-picker view. Bind to a new `<Broker>LoginViewModel` that pushes user-supplied creds into `TradovateOptions` before flipping `IBrokerSelector`.
+5. **Login form** — add a new `<Broker>LoginFormViewModel : IBrokerLoginForm` in `App/Login/Forms/`. Register it twice in `AppDependencyInjection.AddBrokerLoginForms` (as concrete + as `IBrokerLoginForm` factory delegate, mirroring the four existing forms). It pushes user-supplied creds into `<Broker>Options` before flipping `IBrokerSelector`.
 6. **appsettings.json** — add a `"Tradovate": { "UseRealClient": false, ... }` section.
+7. **Trade tape** — `SubscribeTradesAsync` returns `IAsyncEnumerable<TradeTick>`. If the SDK exposes per-print trade flow with an aggressor flag, wire it (mirror IB's `reqTickByTickData("AllLast")` pattern). Otherwise throw `NotSupportedException` and add the broker to the no-trade-tape capability matrix in [[project-strategy-ideas]].
+8. **Instrument discovery** — if the broker has a symbol search / contract universe endpoint, register an `IInstrumentDiscoveryService` impl so the universe tab + dropdown can resolve canonical `InstrumentId`s.
 
 ## Hard rules
 
@@ -45,8 +49,9 @@ A broker is a plug-in. The shell, repository, view-models, and strategies must s
 
 ## Reference impls (read these first)
 
-- `src/TradingTerminal.Infrastructure/Ib/` — `RealIbClient.cs` (socket, EWrapper), `FakeIbClient.cs`, options binding.
-- `src/TradingTerminal.Infrastructure/Ninja/` — P/Invoke pattern, polling loops, `HAS_NTAPI` gating.
-- `src/TradingTerminal.Infrastructure/CTrader/` — async TLS+protobuf, OAuth, `clientMsgId` correlation.
+- `src/TradingTerminal.Infrastructure/Ib/` — `RealIbClient.cs` (socket, EWrapper threading, `HAS_IBAPI` gating).
+- `src/TradingTerminal.Infrastructure/NinjaTrader/` — P/Invoke pattern, polling loops, `HAS_NTAPI` gating, history synth.
+- `src/TradingTerminal.Infrastructure/CTrader/` — async TLS+protobuf, OAuth, `clientMsgId` correlation, depth events.
+- `src/TradingTerminal.Infrastructure/Alpaca/` — REST + WebSocket via NuGet, eager stream auth, IEX feed pinning, multi-asset routing by `Contract.SecType`.
 
 See also: [broker-gotchas](../broker-gotchas/SKILL.md) for the quirks of each existing backend.

@@ -7,13 +7,13 @@ description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBac
 
 ## Layout
 
-- `Core/Backtest/` — `IBacktestStrategy` (engine seam), `BacktestConfig`, `BacktestResult`.
+- `Core/Backtest/` — `IBacktestStrategy` (engine seam: `OnStartAsync` / `OnTickAsync(Tick)` / `OnTradeAsync(TradePrint)` / `OnOrderEventAsync` / `OnEndAsync`), `BacktestConfig`, `BacktestResult`.
 - `Core/Trading/` — `IOrderRouter`, `IFeeModel`, `IRiskManager`, `OrderEvent`, `Liquidity` enum.
-- `Infrastructure/Backtest/` — `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, `TradeLedger`, `StatisticsCalculator`.
-- `Infrastructure/Backtest/Persistence/` — `ParquetTickReader` / `ParquetTickWriter` (row-group buffered; epoch-microsecond timestamps).
+- `Infrastructure/Backtest/` — `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, `TradeLedger`, `StatisticsCalculator`, `Fast/` (parallel sweeps).
+- `Infrastructure/Backtest/Persistence/` — `BacktestTickSource` (k-way merge over the store), `ParquetTickReader` / `ParquetTickWriter` (row-group buffered; epoch-microsecond timestamps; **read-path being migrated off — prefer `IMarketDataStore` for new code**).
 - `Infrastructure/Backtest/Strategies/` — engine-side strategy impls.
 - `App/Backtest/` — Tools → Backtest tab.
-- `src/TradingTerminal.Backtest.Cli/` — headless `daxalgo-backtest.exe` (`run` / `synth` / `sweep` subcommands).
+- `src/TradingTerminal.Backtest.Cli/` — headless `daxalgo-backtest.exe` (`run` / `synth` / `sweep` subcommands; data source = parquet OR store via `--symbol --from --to`).
 
 ## Order routing
 
@@ -39,7 +39,8 @@ description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBac
 
 ## Tick data
 
-- Parquet, epoch-microsecond timestamps, row-group buffered.
+- Parquet, epoch-microsecond timestamps, row-group buffered. **New code reads through `IMarketDataStore`** ([market-data-pipeline](../market-data-pipeline/SKILL.md)); parquet stays only for the recorder + a few AI/ML/Research tabs that haven't been migrated.
+- `BacktestTickSource` does a k-way merge of quote and trade streams via `BacktestEvent` so `OnTickAsync` and `OnTradeAsync` fire in event-time order.
 - Synth subcommand generates a mean-reverting random walk with variable L1 sizes and occasional spread-bursts — so microstructure / market-maker strategies actually exercise their logic.
 
 ## Stats

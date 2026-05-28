@@ -15,34 +15,38 @@ Most strategies need both. Some (HFT/MM) may only ship as engine-side.
 ## Engine-side (IBacktestStrategy) recipe
 
 1. **New file** `src/TradingTerminal.Infrastructure/Backtest/Strategies/<Name>Strategy.cs`.
-2. **Implement `IBacktestStrategy`** — `OnStart` / `OnTick` / `OnOrderEvent` / `OnEnd`. Place orders through `IOrderRouter`, never through `IBrokerClient`.
-3. **Reuse helpers** — `Core/MarketData/Indicators.cs` (SMA/EMA/RSI/ATR/stdev), `Core/MarketData/Microstructure.cs` (microprice, QI, half-spread). Don't roll your own.
+2. **Implement `IBacktestStrategy`** — `OnStartAsync` / `OnTickAsync(Tick)` / `OnTradeAsync(TradePrint)` (default no-op; override for trade-tape strategies) / `OnOrderEventAsync` / `OnEndAsync`. Place orders through `IOrderRouter`, never through `IBrokerClient`.
+3. **Reuse helpers** — `Core/MarketData/Indicators.cs` (SMA/EMA/RSI/ATR/stdev), `Core/MarketData/Microstructure.cs` (microprice, QI, half-spread, `ClassifyAggressor` for Lee-Ready). Don't roll your own.
 4. **Register in catalog**:
    - UI dropdown: `BacktestStrategyCatalog.cs`.
    - CLI: `ResolveStrategy` in `src/TradingTerminal.Backtest.Cli/Program.cs`.
 5. **Optional**: parameter sweep grid in CLI — add a `BuildXxxGrid` method for parallel exploration via the `sweep` subcommand.
+6. **Trade-tape strategies** — backtest replay interleaves quotes + trades via `BacktestEvent` + a k-way merge in `BacktestTickSource`. The strategy sees them in event-time order; don't add a separate clock.
 
 ## Live UI strategy recipe
 
 1. **New project** `src/TradingTerminal.Strategies.<Name>/` — mirror an existing one (`TradingTerminal.Strategies.Rsi` is a clean RSI-shaped template).
 2. **Add to solution** with `dotnet sln add`. Reference `Core`, `Infrastructure`, `UI`.
-3. **View-model** inherits `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`). Wraps the engine-side `IBacktestStrategy` for live execution.
-4. **MetroWindow shell** — open as its own window (see existing 21-strategy convention; commit `fc521de`).
+3. **View-model** inherits `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`). Its ctor takes a `LiveStrategyHostServices` bundle (Repository + Hub + Ingest + Store + BrokerSelector) — do NOT add new ad-hoc deps; route them through DI elsewhere.
+4. **MetroWindow shell** — open as its own window (the established convention across all 25+ shipped strategies).
 5. **DI registration**:
    ```csharp
    services.Add<Name>Strategy();  // extension method
    ```
-   Add one line to `App.xaml.cs`. Don't edit anything else in the shell.
+   Add one line in `AppDependencyInjection.AddStrategyPlugins`. Don't edit anything else in the shell.
+6. **Hub subscription** — the base class subscribes to `IMarketDataHub.Quotes(InstrumentId)`. For trade-tape strategies, also subscribe to `IMarketDataIngest.SubscribeTrades(...)` and gate Continue on `BrokerSupportsTradeTape(broker)` — today only IB returns true. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) for the standard shape.
+7. **Warm-up** — `LiveSignalStrategyViewModelBase` reads 1-minute bars from `IMarketDataStore.GetRecentBarsAsync` on Start (granularity intentionally differs from the 15s live aggregation — store has no sub-minute bars and 1m context is better than none).
 
 ## Strategy library reference (textbook reference implementations)
 
-Five families, all already shipped — read one before writing a new one:
+Six families, all already shipped — read one before writing a new one:
 
 - **HFT/microstructure**: Avellaneda-Stoikov MM, Microprice, Ornstein-Uhlenbeck, TWAP execution.
 - **FX baselines**: Bollinger, MA crossover, Connors RSI(2), London-open breakout, MACD.
 - **Index baselines**: 200-SMA trend filter, vol targeting, gap fade, end-of-day momentum, pullback continuation.
-- **L2 / depth-of-market**: book pressure, liquidity sweep, iceberg detection, VPIN-style toxicity, thin-book filter.
-- **Demo**: Buy&Hold, MeanReversion, Donchian.
+- **L2 / depth-of-market**: book pressure, liquidity sweep, iceberg detection, VPIN-style toxicity, thin-book filter, Apex Scalper (composite MT5 port).
+- **ML / AI**: online regression alpha, anomaly detector.
+- **Regime cubes** (3-axis, Helix Toolkit 3D): Order Flow Cube, Order Flow Surface Spike. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) before adding more from `ideas.md`.
 
 These are textbook implementations, not curve-fit. Stay regime-dependent.
 

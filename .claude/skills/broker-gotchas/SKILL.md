@@ -1,6 +1,6 @@
 ---
 name: broker-gotchas
-description: Per-broker quirks for DaxAlgo Terminal's three IBrokerClient backends — Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), and cTrader (Spotware Open API 2.0 protobuf). Use BEFORE editing anything under src/TradingTerminal.Infrastructure/Ib/, /Ninja/, or /CTrader/, or when diagnosing connection/threading/error-code issues against a specific broker. Skip for broker-neutral code (Core, UI, repository layer).
+description: Per-broker quirks for DaxAlgo Terminal's four IBrokerClient backends — Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0 protobuf), and Alpaca (REST + WebSocket via Alpaca.Markets NuGet). Use BEFORE editing anything under src/TradingTerminal.Infrastructure/Ib/, /Ninja/, /CTrader/, or /Alpaca/, or when diagnosing connection/threading/error-code issues against a specific broker. Skip for broker-neutral code (Core, UI, repository layer).
 ---
 
 # Broker Gotchas
@@ -38,7 +38,24 @@ When in doubt, escalate to the `ib-api-expert` subagent.
 - **Trendbars use relative encoding** (Low + DeltaOpen/DeltaHigh/DeltaClose). Reconstruct OHLC then divide by `10^Digits`.
 - **Per-call correlation via `clientMsgId`** + a `Dictionary<string, TaskCompletionSource<IMessage>>`. Spot events bypass the request/response router; subscribers filter the OpenClient's stream by `SymbolId` directly.
 - **Depth events** (`ProtoOADepthEvent`) follow the same pattern — filter on SymbolId, but cast `(long)e.SymbolId` because depth events declare it as `uint64` (unlike spots' `int64`).
-- **Depth (L2)** wired via `ProtoOASubscribeDepthQuotesReq` + `ProtoOADepthEvent`. Events carry `NewQuotes` (add/replace by `Id`) and `DeletedQuotes` (remove by `Id`). Each `ProtoOADepthQuote` has either `Bid` or `Ask` set (not both) — route to the right side's `Dictionary<ulong, DepthLevel>`. After each event, emit a consistent top-N `DepthSnapshot`. Compile-tested in this build; **the live runtime is unverified** — has not been run against a live cTrader account yet.
+- **Depth (L2)** wired via `ProtoOASubscribeDepthQuotesReq` + `ProtoOADepthEvent`. Events carry `NewQuotes` (add/replace by `Id`) and `DeletedQuotes` (remove by `Id`). Each `ProtoOADepthQuote` has either `Bid` or `Ask` set (not both) — route to the right side's `Dictionary<ulong, DepthLevel>`. After each event, emit a consistent top-N `DepthSnapshot`.
+- **Spot tick enrichment**: top-of-book size comes from the depth cache, not the spot event itself (commit `ad68d9e`). If a strategy needs L1 sizes from cTrader, subscribe to depth alongside spots.
+- **No trade tape.** `SubscribeTradesAsync` throws `NotSupportedException` — the protocol has no per-print trade channel. Not fixable. Trade-tape strategies must check broker capability at Continue and route through IB instead.
+
+## Alpaca
+
+- **Always wired** — `Alpaca.Markets` NuGet restores unconditionally. No `HAS_ALPACAAPI` gate.
+- **Auth = API key + secret.** No OAuth. `IsLive` toggle picks `Environments.Live` vs `Environments.Paper`.
+- **Three asset classes** multiplexed by `Contract.SecType`:
+  - `"STK"` → stock data client + stock streaming client.
+  - `"CRYPTO"` → crypto data client + crypto streaming client.
+  - `"OPT"` → not yet supported (Alpaca's options SDK is still stabilising).
+- **Live stock stream pinned to IEX** — the SDK default targets SIP, which the free/paper plan can't subscribe to (HTTP 403 — entitlement wall). We rebase the data-stream endpoint to `/v2/iex` so the same code works on free accounts. Don't revert this.
+- **Eager auth on both streams.** `ConnectAndAuthenticateAsync` is called for stock + crypto streams during `ConnectAsync` so first-subscribe doesn't pay the auth round-trip. If auth fails (`AuthStatus != Authorized`), throw — don't silently leave a half-connected client.
+- **No L2 depth.** `SubscribeDepthAsync` throws `NotSupportedException`. Strategies that need depth must route through IB or cTrader.
+- **No OMS yet.** `PlaceOrderAsync` / `CancelOrderAsync` throw `NotSupportedException` like the other brokers. The trading client is constructed but not wired for orders.
+- **Trade tape is wireable.** Alpaca's WebSocket has a native trade channel with `taker_side`. It's the highest-leverage next broker to add trade-tape support to (cf. IB which is the only one wired today).
+- **Instrument discovery** pins data feed to IEX in `Infrastructure/Alpaca/` (commit `805462b`).
 
 ## Cross-broker rules
 
