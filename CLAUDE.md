@@ -6,7 +6,7 @@ This file is the always-loaded core. Detail lives in **skills** (lazy-loaded by 
 
 ## Stack snapshot
 
-- **Target framework**: `net9.0-windows`. No .NET 8 SDK on the box. Don't rename to `net8.0-windows`.
+- **Target framework**: `net9.0-windows7.0` (set in `Directory.Build.props`). The `7.0` is the minimum supported Windows version and matches the default the build auto-resolves to — explicit form silences the .NET 11 preview SDK's strict platform-version check. Don't rename to `net8.0-windows` and don't strip the `7.0` suffix.
 - **MVVM**: `CommunityToolkit.Mvvm` — `[ObservableProperty]`, `[RelayCommand]`, source generators.
 - **Shell**: MahApps Metro chrome + AvalonDock VS2013 Dark theme.
 - **Charts**: ScottPlot 5.
