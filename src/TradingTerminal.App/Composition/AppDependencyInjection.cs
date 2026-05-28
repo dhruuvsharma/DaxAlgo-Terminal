@@ -28,6 +28,7 @@ using TradingTerminal.Strategies.EodMomentum;
 using TradingTerminal.Strategies.GapFade;
 using TradingTerminal.Strategies.IcebergDetection;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
+using TradingTerminal.Strategies.IndexKScoreSurface;
 using TradingTerminal.Strategies.LiquiditySweep;
 using TradingTerminal.Strategies.LondonOpenBreakout;
 using TradingTerminal.Strategies.MaCrossover;
@@ -113,6 +114,7 @@ public static class AppDependencyInjection
         services.AddImbalanceHeatFrontStrategy();
         services.AddThinBookFilterStrategy();
         services.AddApexScalperStrategy();
+        services.AddIndexKScoreSurfaceStrategy();
 
         // ML / AI
         services.AddOnlineRegressionAlphaStrategy();

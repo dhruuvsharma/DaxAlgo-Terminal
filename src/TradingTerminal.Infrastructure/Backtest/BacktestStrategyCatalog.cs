@@ -144,6 +144,10 @@ public static class BacktestStrategyCatalog
             Id: "apexScalper",
             DisplayName: "APEX microstructure scalper (composite, 8 signals)",
             Build: contract => new ApexScalperStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "indexKScoreSurface",
+            DisplayName: "Index K-Score Surface (single-instrument backtest variant)",
+            Build: contract => new IndexKScoreSurfaceStrategy(contract)),
 
         // ── ML / AI driven ────────────────────────────────────────────────────────────
         new BacktestStrategyOption(
