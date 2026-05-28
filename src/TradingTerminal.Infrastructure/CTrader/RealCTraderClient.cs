@@ -173,6 +173,10 @@ public sealed class RealCTraderClient : IBrokerClient
         // The full symbol universe is already loaded at connect (ProtoOASymbolsListReq) into
         // _symbols, keyed by symbol name. Subscriptions resolve by contract.Symbol against
         // that same map (see ResolveSymbolAsync), so we emit each name straight through.
+        // Symbols missing from this list (e.g. XAUUSD on an FX-only demo account) mean the
+        // connected cTID account doesn't have permissions for them — there's no way to surface
+        // an instrument cTrader didn't return, so the fix is to choose a broker/account that
+        // offers them (IC Markets / Pepperstone / FXPro all include metals + indices + crypto).
         List<TradableInstrument> result;
         lock (_gate)
         {
@@ -180,16 +184,82 @@ public sealed class RealCTraderClient : IBrokerClient
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .Select(name => new TradableInstrument(
                     DisplayName: name,
-                    Category: IsForexPair(name) ? "Forex" : "CFD / Other",
+                    Category: ClassifyCTraderSymbol(name),
                     Contract: new Contract(name, "CASH", "cTrader", string.Empty, PrimaryExchange: string.Empty),
                     Broker: BrokerKind.CTrader))
                 .ToList();
         }
+        _logger.LogInformation(
+            "cTrader instrument list: {Total} symbols ({Fx} FX, {Metals} metals, {Indices} indices, {Energy} energy, {Crypto} crypto, {Stocks} stocks/CFDs)",
+            result.Count,
+            result.Count(i => i.Category == "FX"),
+            result.Count(i => i.Category == "Metals"),
+            result.Count(i => i.Category == "Indices"),
+            result.Count(i => i.Category == "Energy / Commodities"),
+            result.Count(i => i.Category == "Crypto"),
+            result.Count(i => i.Category == "Stocks / Other CFD"));
         return Task.FromResult<IReadOnlyList<TradableInstrument>>(result);
     }
 
-    // A 6-letter all-alpha name (EURUSD, GBPJPY) is a spot FX pair; everything else
-    // (indices, metals, crypto CFDs like "BTCUSD" carry digits or differ in length) is "other".
+    /// <summary>
+    /// Bucket a cTrader symbol into one of the picker categories. cTrader symbol names follow
+    /// broker-side conventions; the rules here cover IC Markets / Pepperstone / Spotware demo
+    /// naming. Anything unclassified falls through to "Stocks / Other CFD" so it still shows.
+    /// </summary>
+    private static string ClassifyCTraderSymbol(string name)
+    {
+        var u = name.ToUpperInvariant();
+
+        // Metals — XAUUSD, XAGUSD, XPTUSD, XPDUSD, GOLD, SILVER variants.
+        if (u.StartsWith("XAU", StringComparison.Ordinal) || u.StartsWith("XAG", StringComparison.Ordinal)
+            || u.StartsWith("XPT", StringComparison.Ordinal) || u.StartsWith("XPD", StringComparison.Ordinal)
+            || u.Contains("GOLD", StringComparison.Ordinal) || u.Contains("SILVER", StringComparison.Ordinal)
+            || u.Contains("PLATINUM", StringComparison.Ordinal) || u.Contains("PALLADIUM", StringComparison.Ordinal))
+            return "Metals";
+
+        // Crypto — BTCUSD/ETHUSD or *USDT pairs, plus common standalone tickers.
+        if (u.EndsWith("USDT", StringComparison.Ordinal)
+            || ((u.StartsWith("BTC", StringComparison.Ordinal) || u.StartsWith("ETH", StringComparison.Ordinal)
+                 || u.StartsWith("XRP", StringComparison.Ordinal) || u.StartsWith("LTC", StringComparison.Ordinal)
+                 || u.StartsWith("BCH", StringComparison.Ordinal) || u.StartsWith("ADA", StringComparison.Ordinal)
+                 || u.StartsWith("SOL", StringComparison.Ordinal) || u.StartsWith("DOGE", StringComparison.Ordinal)
+                 || u.StartsWith("DOT", StringComparison.Ordinal) || u.StartsWith("LINK", StringComparison.Ordinal))
+                && (u.EndsWith("USD", StringComparison.Ordinal) || u.EndsWith("EUR", StringComparison.Ordinal))))
+            return "Crypto";
+
+        // Energy / commodities — WTI / brent crude, natural gas, coffee, cocoa, sugar, etc.
+        if (u.Contains("OIL", StringComparison.Ordinal) || u.Contains("WTI", StringComparison.Ordinal)
+            || u.Contains("BRENT", StringComparison.Ordinal) || u.Contains("USOIL", StringComparison.Ordinal)
+            || u.Contains("UKOIL", StringComparison.Ordinal) || u.Contains("NGAS", StringComparison.Ordinal)
+            || u.Contains("XNG", StringComparison.Ordinal) || u.Contains("XBR", StringComparison.Ordinal)
+            || u.Contains("XTI", StringComparison.Ordinal) || u.Contains("COFFEE", StringComparison.Ordinal)
+            || u.Contains("COCOA", StringComparison.Ordinal) || u.Contains("SUGAR", StringComparison.Ordinal)
+            || u.Contains("COTTON", StringComparison.Ordinal) || u.Contains("WHEAT", StringComparison.Ordinal)
+            || u.Contains("CORN", StringComparison.Ordinal) || u.Contains("SOYBEAN", StringComparison.Ordinal))
+            return "Energy / Commodities";
+
+        // Indices — names like US30, US500, NAS100, GER40, UK100, JPN225, etc.
+        if (u.StartsWith("US30", StringComparison.Ordinal) || u.StartsWith("US100", StringComparison.Ordinal)
+            || u.StartsWith("US500", StringComparison.Ordinal) || u.StartsWith("US2000", StringComparison.Ordinal)
+            || u.StartsWith("NAS100", StringComparison.Ordinal) || u.StartsWith("SPX500", StringComparison.Ordinal)
+            || u.StartsWith("GER", StringComparison.Ordinal) || u.StartsWith("DE30", StringComparison.Ordinal)
+            || u.StartsWith("DE40", StringComparison.Ordinal) || u.StartsWith("UK100", StringComparison.Ordinal)
+            || u.StartsWith("FRA40", StringComparison.Ordinal) || u.StartsWith("JPN225", StringComparison.Ordinal)
+            || u.StartsWith("AUS200", StringComparison.Ordinal) || u.StartsWith("CHN50", StringComparison.Ordinal)
+            || u.StartsWith("HK50", StringComparison.Ordinal) || u.StartsWith("ESP35", StringComparison.Ordinal)
+            || u.Contains(".CASH", StringComparison.Ordinal) || u.Contains("INDEX", StringComparison.Ordinal))
+            return "Indices";
+
+        // FX — 6-letter all-alpha pairs (EURUSD, GBPJPY) or 6-letter with "." separator.
+        if (IsForexPair(name)) return "FX";
+        if (u.Length == 7 && u[3] == '.' && char.IsLetter(u[0]) && char.IsLetter(u[1])
+            && char.IsLetter(u[2]) && char.IsLetter(u[4]) && char.IsLetter(u[5]) && char.IsLetter(u[6]))
+            return "FX";
+
+        return "Stocks / Other CFD";
+    }
+
+    // A 6-letter all-alpha name (EURUSD, GBPJPY) is a spot FX pair.
     private static bool IsForexPair(string name) =>
         name.Length == 6 && name.All(char.IsLetter);
 
@@ -358,6 +428,7 @@ public sealed class RealCTraderClient : IBrokerClient
         var bidBook = new Dictionary<ulong, DepthLevel>();
         var askBook = new Dictionary<ulong, DepthLevel>();
         var bookLock = new object();
+        var firstEventLogged = false;
 
         var ch = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
         {
@@ -371,6 +442,13 @@ public sealed class RealCTraderClient : IBrokerClient
             .Where(e => (long)e.SymbolId == symbol.SymbolId)
             .Subscribe(evt =>
             {
+                if (!firstEventLogged)
+                {
+                    firstEventLogged = true;
+                    _logger.LogInformation(
+                        "cTrader depth: first event for {Sym} (newQuotes={New}, deleted={Del})",
+                        contract.Symbol, evt.NewQuotes.Count, evt.DeletedQuotes.Count);
+                }
                 lock (bookLock)
                 {
                     foreach (var deletedId in evt.DeletedQuotes)
@@ -419,6 +497,9 @@ public sealed class RealCTraderClient : IBrokerClient
                 CtidTraderAccountId = _accountId,
                 SymbolId = { symbol.SymbolId },
             }, ct).ConfigureAwait(false);
+        _logger.LogInformation(
+            "cTrader depth subscribed: {Sym} (symbolId={Id}). If no depth events arrive, the broker is not serving L2 for this symbol on this account.",
+            contract.Symbol, symbol.SymbolId);
 
         try
         {

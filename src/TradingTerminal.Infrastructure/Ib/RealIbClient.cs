@@ -117,9 +117,13 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
     };
 
     // IB's tradable universe is millions of contracts behind reqMatchingSymbols / scanner
-    // (no flat "list everything" call), so we surface a curated catalog instead.
+    // (no flat "list everything" call), so we surface a comprehensive curated catalog instead
+    // — Dow 30, NASDAQ-100, S&P heavyweights, sector/commodity/bond/leveraged/volatility/intl
+    // ETFs, every CME/NYBOT/NYMEX/COMEX futures family, plus 40+ FX pairs. ~400 instruments
+    // total. Symbols not in the catalog still resolve on demand via the regular contract path
+    // — the list drives the picker dropdown, not subscription validity.
     public Task<IReadOnlyList<TradableInstrument>> ListInstrumentsAsync(CancellationToken ct = default) =>
-        Task.FromResult(CuratedInstrumentCatalog.ForInteractiveBrokers);
+        Task.FromResult(IbCuratedCatalog.All);
 
     public Task DisconnectAsync(CancellationToken ct = default)
     {
