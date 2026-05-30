@@ -11,6 +11,7 @@ using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.BrokerMetering;
+using TradingTerminal.App.Correlation;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Regime;
@@ -39,6 +40,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string AiAnalystTabId = "ai.marketanalyst";
     private const string RegimeTabId = "tools.regime";
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
+    private const string CorrelationWindowId = "tools.correlation";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -448,6 +450,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         // The VM holds a live subscription to the regime stream — dispose it when the tab closes.
         _tabDisposables[tab] = vm;
         ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenCorrelation()
+    {
+        if (_openWindows.TryGetValue(CorrelationWindowId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<CorrelationMatrixViewModel>();
+        var window = _services.GetRequiredService<CorrelationMatrixWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(CorrelationWindowId);
+            vm.Dispose();
+        };
+        _openWindows[CorrelationWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened correlation matrix window");
     }
 
     [RelayCommand]

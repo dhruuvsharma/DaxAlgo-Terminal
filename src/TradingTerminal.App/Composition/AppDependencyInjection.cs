@@ -199,6 +199,14 @@ public static class AppDependencyInjection
         return services;
     }
 
+    /// <summary>Correlation matrix window — opens from Tools → Correlation matrix.</summary>
+    public static IServiceCollection AddCorrelationSurface(this IServiceCollection services)
+    {
+        services.AddTransient<TradingTerminal.App.Correlation.CorrelationMatrixViewModel>();
+        services.AddTransient<TradingTerminal.App.Correlation.CorrelationMatrixWindow>();
+        return services;
+    }
+
     /// <summary>Factor research notebook tab — opens from AI tools → Factor research.</summary>
     public static IServiceCollection AddResearchSurface(this IServiceCollection services)
     {
