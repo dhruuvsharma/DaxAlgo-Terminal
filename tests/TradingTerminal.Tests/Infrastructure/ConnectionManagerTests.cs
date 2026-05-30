@@ -101,14 +101,6 @@ public sealed class ConnectionManagerTests
             Contract contract, CancellationToken ct = default)
             => EmptyAsync<TradeTick>(ct);
 
-        public IObservable<OrderEvent> OrderEvents { get; } = Observable.Empty<OrderEvent>();
-
-        public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>
-            throw new NotSupportedException();
-
-        public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default) =>
-            throw new NotSupportedException();
-
         private static async IAsyncEnumerable<T> EmptyAsync<T>(
             [EnumeratorCancellation] CancellationToken ct)
         {

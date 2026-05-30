@@ -10,7 +10,6 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
-using TradingTerminal.Core.Trading;
 // Note: do NOT `using IBApi;` here — it collides with TradingTerminal.Core.Domain on Bar/Contract.
 // Reference IB types via the IBApi.Xxx prefix throughout this file.
 
@@ -54,14 +53,6 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
     public BrokerKind Kind => BrokerKind.InteractiveBrokers;
 
     public IObservable<ConnectionState> ConnectionState => _state.AsObservable();
-
-    public IObservable<OrderEvent> OrderEvents { get; } = Observable.Empty<OrderEvent>();
-
-    public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>
-        throw new NotSupportedException("OMS not yet wired for Interactive Brokers.");
-
-    public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default) =>
-        throw new NotSupportedException("OMS not yet wired for Interactive Brokers.");
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
