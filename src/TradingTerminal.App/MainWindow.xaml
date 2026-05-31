@@ -382,30 +382,67 @@
                         <dock:LayoutAnchorablePaneGroup DockHeight="200">
                             <dock:LayoutAnchorablePane>
                                 <dock:LayoutAnchorable x:Name="LogsPane"
-                                                       Title="LOGS"
+                                                       Title="ACTIVITY LOG"
                                                        ContentId="logs"
                                                        CanClose="True"
                                                        CanHide="True"
                                                        IsVisibleChanged="LogsPane_IsVisibleChanged">
-                                    <ListBox ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.LogSink.Entries}"
-                                             FontFamily="{DynamicResource Font.Mono}"
-                                             FontSize="11"
-                                             BorderThickness="0"
-                                             Background="{DynamicResource Background.Surface}">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
-                                                               Foreground="{DynamicResource Text.Secondary}"
-                                                               Margin="0,0,8,0" />
-                                                    <TextBlock Text="{Binding Level}"
-                                                               Width="50"
-                                                               Foreground="{DynamicResource Accent.Brush}" />
-                                                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                    <Grid Background="{DynamicResource Background.Surface}">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Filter strip: matches source / level / message, live. -->
+                                        <Border Grid.Row="0"
+                                                Background="{DynamicResource Background.Elevated}"
+                                                BorderBrush="{DynamicResource Border.Brush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="6,3">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="Filter"
+                                                           VerticalAlignment="Center"
+                                                           Margin="2,0,8,0"
+                                                           Foreground="{DynamicResource Text.Secondary}"
+                                                           FontSize="11" />
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding ElementName=RootWindow, Path=DataContext.LogFilter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                         FontFamily="{DynamicResource Font.Mono}"
+                                                         FontSize="11"
+                                                         ToolTip="Filter by source, level, or message" />
+                                            </Grid>
+                                        </Border>
+
+                                        <ListBox Grid.Row="1"
+                                                 ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.ActivityLog}"
+                                                 FontFamily="{DynamicResource Font.Mono}"
+                                                 FontSize="11"
+                                                 BorderThickness="0"
+                                                 Background="{DynamicResource Background.Surface}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
+                                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                                   Margin="0,0,8,0" />
+                                                        <TextBlock Text="{Binding Source}"
+                                                                   Width="150"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource Text.Header}" />
+                                                        <TextBlock Text="{Binding Level}"
+                                                                   Width="50"
+                                                                   Foreground="{DynamicResource Accent.Brush}" />
+                                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
                                 </dock:LayoutAnchorable>
                             </dock:LayoutAnchorablePane>
                         </dock:LayoutAnchorablePaneGroup>

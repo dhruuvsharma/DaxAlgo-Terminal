@@ -36,7 +36,6 @@ namespace TradingTerminal.Strategies.IndexKScoreSurface;
 /// </summary>
 public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDisposable
 {
-    public const int MaxLogEntries = 500;
     public const int KHistoryLength = 30;
     private const string StrategyId = "index.kscore.surface";
     private const string StrategyName = "Index K-Score Surface";
@@ -52,11 +51,6 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     private IndexKScoreAggregator? _aggregator;
     private bool _lastLong;
     private bool _lastShort;
-
-    public sealed record LogEntry(DateTime At, string Level, string Message)
-    {
-        public string Display => $"{At:HH:mm:ss}  {Level,-7}  {Message}";
-    }
 
     public IndexKScoreSurfaceViewModel(
         LiveStrategyHostServices services,
@@ -76,13 +70,11 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         };
         SelectedBarSize = BarSize.FiveMinutes;
 
-        LogEntries = new ObservableCollection<LogEntry>();
         Components = new ObservableCollection<ComponentSnapshot>();
     }
 
     public ObservableCollection<IndexFamily> Families { get; }
     public ObservableCollection<BarSize> BarSizes { get; }
-    public ObservableCollection<LogEntry> LogEntries { get; }
     public ObservableCollection<ComponentSnapshot> Components { get; }
 
     [ObservableProperty] private IndexFamily _selectedFamily;
@@ -526,11 +518,8 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     /// <summary>Placeholder per spec — exit logic deferred to the next iteration.</summary>
     private void OnExitSignal() { }
 
-    private void AddLog(string level, string message)
-    {
-        LogEntries.Insert(0, new LogEntry(DateTime.Now, level, message));
-        while (LogEntries.Count > MaxLogEntries) LogEntries.RemoveAt(LogEntries.Count - 1);
-    }
+    private void AddLog(string level, string message) =>
+        _services.ActivityLog.Append(StrategyName, level, message);
 
     public async Task StopStreamAsync()
     {

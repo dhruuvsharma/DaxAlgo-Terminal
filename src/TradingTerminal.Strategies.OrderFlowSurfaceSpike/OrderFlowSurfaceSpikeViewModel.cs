@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,7 +14,6 @@ namespace TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 
 public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDisposable
 {
-    public const int MaxLogEntries = 200;
     public const int MaxInstrumentsDisplayed = 500;
     private const int TradeSummaryEveryN = 50;
 
@@ -25,10 +23,8 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         _ => false,
     };
 
-    public sealed record LogEntry(DateTime At, string Level, string Message)
-    {
-        public string Display => $"{At:HH:mm:ss.fff}  {Level,-6}  {Message}";
-    }
+    /// <summary>Source tag for this strategy's rows in the universal Activity Log.</summary>
+    private const string LogSource = "Order Flow Surface Spike";
 
     private readonly LiveStrategyHostServices _services;
     private readonly INotificationPublisher _notifications;
@@ -37,9 +33,7 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
     private CancellationTokenSource? _streamCts;
     private IDisposable? _quoteHandle;
     private IDisposable? _tradeHandle;
-    private DateTime _streamStartUtc;
     private string? _symbolFilterToken;
-    private bool _logSinkAttached;
 
     private OrderFlowSurfaceCalculator? _calc;
     private QuoteDerivedTradeSynthesizer? _synthesizer;
@@ -67,12 +61,10 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
 
-        LogEntries = new ObservableCollection<LogEntry>();
         _ = LoadInstrumentsAsync();
     }
 
     public IReadOnlyList<TradeableInstrument> AllInstruments { get; private set; }
-    public ObservableCollection<LogEntry> LogEntries { get; }
 
     [ObservableProperty] private ObservableCollection<TradeableInstrument> _instruments = new();
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
@@ -110,11 +102,8 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
 
     public event EventHandler? SurfaceChanged;
 
-    private void AddLog(string level, string message)
-    {
-        LogEntries.Add(new LogEntry(DateTime.Now, level, message));
-        while (LogEntries.Count > MaxLogEntries) LogEntries.RemoveAt(0);
-    }
+    private void AddLog(string level, string message) =>
+        _appLogSink.Append(LogSource, level, message);
 
     private async Task LoadInstrumentsAsync()
     {
@@ -232,16 +221,7 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         Status = $"Subscribing {SelectedInstrument.DisplayName} ({BrokerLabel(broker)}) — {tapeLabel}…";
         AddLog("INFO", $"Subscribing {SelectedInstrument.DisplayName} on {BrokerLabel(broker)} [{tapeLabel}]  (slice={TicksPerSlice}t × {NumSlices} slices, bin={PriceBinSize}, window={WindowBins}, Z*={SpikeThreshold:F2}, confirm={ConfirmationTicks}t)");
 
-        // Mirror Serilog pipeline events for THIS symbol into the strategy log panel so the user
-        // sees broker-side failures (IB error 354/10090, ingest pump exceptions, market-data type
-        // change, etc.) without leaving the strategy window.
-        _streamStartUtc = DateTime.UtcNow;
         _symbolFilterToken = contract.Symbol;
-        if (!_logSinkAttached)
-        {
-            ((INotifyCollectionChanged)_appLogSink.Entries).CollectionChanged += OnAppLogChanged;
-            _logSinkAttached = true;
-        }
 
         _streamCts = new CancellationTokenSource();
         var streamCt = CancellationTokenSource.CreateLinkedTokenSource(ct, _streamCts.Token).Token;
@@ -250,39 +230,6 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         _ = RunStreamAsync(contract, broker, streamCt);
         _ = WatchNoTradesAsync(streamCt);
         await Task.CompletedTask;
-    }
-
-    private void OnAppLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action != NotifyCollectionChangedAction.Add || e.NewItems is null) return;
-        foreach (TradingTerminal.UI.Logging.LogEntry item in e.NewItems)
-        {
-            if (item.TimestampUtc < _streamStartUtc) continue;
-            var msg = item.Message ?? string.Empty;
-            var level = item.Level ?? "Info";
-
-            var isErrorish = level.Contains("Warning", StringComparison.OrdinalIgnoreCase)
-                          || level.Contains("Error", StringComparison.OrdinalIgnoreCase)
-                          || level.Contains("Fatal", StringComparison.OrdinalIgnoreCase);
-            var matchesSymbol = !string.IsNullOrEmpty(_symbolFilterToken)
-                             && msg.Contains(_symbolFilterToken, StringComparison.OrdinalIgnoreCase);
-            var matchesKeyword =
-                msg.Contains("IB market-data", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("Trade ingest", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("tick by tick", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("tickByTick", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("IB error", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("reqTickByTickData", StringComparison.OrdinalIgnoreCase);
-
-            if (!isErrorish && !matchesSymbol && !matchesKeyword) continue;
-            AddLog($"SYS:{level}", msg);
-
-            // Specific call-out: delayed market-data — the #1 cause of "no trades arriving."
-            if (msg.Contains("Delayed", StringComparison.OrdinalIgnoreCase) && msg.Contains("market-data", StringComparison.OrdinalIgnoreCase))
-            {
-                AddLog("WARN", "IB is in DELAYED data mode — reqTickByTickData requires LIVE market data. The trade tape will be empty until your account is on a live data subscription and InteractiveBrokers:MarketDataType is set to 1.");
-            }
-        }
     }
 
     /// <summary>Watchdog: if no trade has arrived 20 seconds after the stream started, emit a
@@ -493,7 +440,6 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         _streamCts = null;
         _quoteHandle?.Dispose(); _quoteHandle = null;
         _tradeHandle?.Dispose(); _tradeHandle = null;
-        DetachAppLogSink();
         IsStreaming = false;
         IsAlgoRunning = false;
         Status = "Stopped";
@@ -507,13 +453,5 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         _streamCts = null;
         _quoteHandle?.Dispose(); _quoteHandle = null;
         _tradeHandle?.Dispose(); _tradeHandle = null;
-        DetachAppLogSink();
-    }
-
-    private void DetachAppLogSink()
-    {
-        if (!_logSinkAttached) return;
-        ((INotifyCollectionChanged)_appLogSink.Entries).CollectionChanged -= OnAppLogChanged;
-        _logSinkAttached = false;
     }
 }

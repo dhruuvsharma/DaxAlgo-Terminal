@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -75,6 +77,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _openWindows = new Dictionary<string, Window>(StringComparer.Ordinal);
         _tabDisposables = new Dictionary<DockTab, IDisposable>();
         LogSink = logSink;
+        ActivityLog = CollectionViewSource.GetDefaultView(logSink.Entries);
+        ActivityLog.Filter = FilterActivityEntry;
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -127,6 +131,26 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<ITradingStrategy> Strategies { get; }
     public ObservableCollection<DockTab> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
+
+    /// <summary>Filtered view over the universal activity log shown in the ACTIVITY LOG dock —
+    /// aggregates system (Serilog) and per-strategy/tab entries. Filtered live by
+    /// <see cref="LogFilter"/> across source / level / message.</summary>
+    public ICollectionView ActivityLog { get; }
+
+    /// <summary>Free-text filter over the activity log (matches source, level, or message).</summary>
+    [ObservableProperty] private string _logFilter = string.Empty;
+
+    partial void OnLogFilterChanged(string value) => ActivityLog.Refresh();
+
+    private bool FilterActivityEntry(object obj)
+    {
+        if (obj is not LogEntry e) return false;
+        var f = LogFilter?.Trim();
+        if (string.IsNullOrEmpty(f)) return true;
+        return e.Source.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || e.Level.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || e.Message.Contains(f, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Live API-call meter shown as broker chips in the Bloomberg header strip.</summary>
     public BrokerApiMeterViewModel ApiMeter { get; }

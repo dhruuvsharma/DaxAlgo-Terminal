@@ -217,8 +217,6 @@
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="380" />
                 </Grid.ColumnDefinitions>
 
                 <helix:HelixViewport3D x:Name="View3D"
@@ -231,58 +229,6 @@
                                        CameraRotationMode="Trackball"
                                        IsHeadLightEnabled="True" />
 
-                <GridSplitter Grid.Column="1"
-                              Width="4"
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Stretch"
-                              Background="{DynamicResource Border.Brush}" />
-
-                <Grid Grid.Column="2" Background="{DynamicResource Background.Surface}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Border Grid.Row="0"
-                            Background="{DynamicResource Background.Elevated}"
-                            BorderBrush="{DynamicResource Border.Brush}"
-                            BorderThickness="0,0,0,1"
-                            Padding="10,6">
-                        <TextBlock Text="LIVE LOG"
-                                   FontWeight="SemiBold"
-                                   FontSize="11"
-                                   Foreground="{DynamicResource Accent.Brush}" />
-                    </Border>
-                    <ScrollViewer Grid.Row="1"
-                                  x:Name="LogScroller"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding DataLog}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="8,1">
-                                        <TextBlock Text="{Binding TimestampUtc, StringFormat=HH:mm:ss.fff}"
-                                                   FontFamily="Consolas, Cascadia Mono, monospace"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource Text.Secondary}" />
-                                        <TextBlock Text="  "
-                                                   FontFamily="Consolas, Cascadia Mono, monospace"
-                                                   FontSize="11" />
-                                        <TextBlock Text="{Binding Category}"
-                                                   FontFamily="Consolas, Cascadia Mono, monospace"
-                                                   FontSize="11"
-                                                   Width="64"
-                                                   Foreground="{DynamicResource Accent.Brush}" />
-                                        <TextBlock Text="{Binding Message}"
-                                                   FontFamily="Consolas, Cascadia Mono, monospace"
-                                                   FontSize="11"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource Text.Primary}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Grid>
             </Grid>
 
             <Border Grid.Row="2"

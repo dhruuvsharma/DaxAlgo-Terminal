@@ -110,21 +110,10 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
     "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
     "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
-    "microprice" => new MicropriceStrategy(contract),
     "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
     "avellanedastoikov" or "as" or "marketmaker" => new AvellanedaStoikovStrategy(contract),
-    "twap" => new TwapExecutionStrategy(contract, OrderSide.Buy),
-    // Forex baselines
-    "bollinger" or "bb" => new BollingerReversionStrategy(contract),
-    "macrossover" or "goldencross" or "ma" => new MovingAverageCrossoverStrategy(contract),
-    "rsi2" or "connorsrsi" => new RsiTwoPeriodStrategy(contract),
-    "londonopen" or "lob" => new LondonOpenBreakoutStrategy(contract),
-    "macd" => new MacdCrossoverStrategy(contract),
     // Index baselines
-    "trendfilter" or "sma200" => new TrendFilterStrategy(contract),
     "voltarget" or "voltargeting" => new VolatilityTargetedStrategy(contract),
-    "gapfade" => new GapFadeStrategy(contract),
-    "eodmomentum" or "endofday" => new EndOfDayMomentumStrategy(contract),
     "pullback" or "pullbackcontinuation" => new PullbackContinuationStrategy(contract),
     // L2 / depth-of-market themed
     "bookpressure" or "cumimbalance" => new BookPressureStrategy(contract),
@@ -139,9 +128,8 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
     // ML / AI driven
     "onlineregressionalpha" or "rls" or "onlineregression" => new OnlineRegressionAlphaStrategy(contract),
-    "anomalydetector" or "anomaly" or "zscore" => new AnomalyDetectorStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, avellanedaStoikov, twap, bollinger, maCrossover, rsi2, londonOpen, macd, trendFilter, volTarget, gapFade, eodMomentum, pullback, bookPressure, liquiditySweep, iceberg, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, thinBook, apexScalper, indexKScoreSurface, onlineRegressionAlpha, anomalyDetector.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, avellanedaStoikov, volTarget, pullback, bookPressure, liquiditySweep, iceberg, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, thinBook, apexScalper, indexKScoreSurface, onlineRegressionAlpha.")
 };
 
 static void PrintSummary(BacktestResult result)
@@ -250,10 +238,9 @@ static async Task<int> SweepAsync(string[] argv)
     {
         "meanreversion" or "mean-reversion" => BuildMeanReversionGrid(contract, a),
         "donchianbreakout" or "donchian" or "breakout" => BuildDonchianGrid(contract, a),
-        "microprice" => BuildMicropriceGrid(contract, a),
         "ornsteinuhlenbeck" or "ou" => BuildOuGrid(contract, a),
         "avellanedastoikov" or "as" or "marketmaker" => BuildAvellanedaGrid(contract, a),
-        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion, donchianBreakout, microprice, ornsteinUhlenbeck, or avellanedaStoikov."),
+        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion, donchianBreakout, ornsteinUhlenbeck, or avellanedaStoikov."),
     };
 
     Console.WriteLine($"Sweep: {grid.Count} configurations on {symbol} (parallel={maxParallel})");
@@ -339,20 +326,6 @@ static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildDonchianGrid(
     return grid;
 }
 
-static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildMicropriceGrid(Contract contract, Args a)
-{
-    var thresholds = ParseDoubleList(a.Optional("threshold") ?? "0.0005,0.001,0.002");
-    var holds = ParseIntList(a.Optional("hold") ?? "20,50,100");
-    var qty = a.Int("qty", 1);
-
-    var grid = new List<(string, IBacktestStrategy)>();
-    foreach (var t in thresholds)
-        foreach (var h in holds)
-            grid.Add(($"mp-t{t.ToString(CultureInfo.InvariantCulture)}-h{h}",
-                new MicropriceStrategy(contract, t, h, qty)));
-    return grid;
-}
-
 static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildOuGrid(Contract contract, Args a)
 {
     var lookbacks = ParseIntList(a.Optional("lookback") ?? "300,500,1000");
@@ -407,10 +380,6 @@ static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> 
     "donchianbreakout" or "donchian" or "breakout" => WalkForwardGridBuilders.Donchian(
         ParseIntList(a.Optional("lookback") ?? "50,100,200"),
         ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40"),
-        a.Int("qty", 1)),
-    "microprice" => WalkForwardGridBuilders.Microprice(
-        ParseDoubleList(a.Optional("threshold") ?? "0.0005,0.001,0.002"),
-        ParseIntList(a.Optional("hold") ?? "20,50,100"),
         a.Int("qty", 1)),
     "ornsteinuhlenbeck" or "ou" => WalkForwardGridBuilders.OrnsteinUhlenbeck(
         ParseIntList(a.Optional("lookback") ?? "300,500,1000"),

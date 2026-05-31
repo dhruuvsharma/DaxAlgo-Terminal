@@ -137,8 +137,6 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />                <!-- Header bar     -->
                 <RowDefinition Height="*"    MinHeight="200" /><!-- Charts + dash  -->
-                <RowDefinition Height="Auto" />                <!-- HSplit         -->
-                <RowDefinition Height="160"  MinHeight="60" /> <!-- Data log panel -->
                 <RowDefinition Height="Auto" />                <!-- Footer bar     -->
             </Grid.RowDefinitions>
 
@@ -580,92 +578,8 @@
                 </Border>
             </Grid>
 
-            <GridSplitter Grid.Row="2" Height="4"
-                          HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                          Background="{DynamicResource Border.Brush}"
-                          ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
 
-            <!-- Data log: newest-first, capped at 500 entries (oldest auto-drop). -->
-            <Border Grid.Row="3"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                    Margin="4,0,4,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <Border Grid.Row="0"
-                            Background="{DynamicResource Background.Elevated}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                            Padding="8,3">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="DATA LOG"
-                                       Foreground="{DynamicResource Text.Header}"
-                                       FontWeight="Bold" FontSize="11"
-                                       VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1"
-                                       Margin="12,0,0,0"
-                                       Foreground="{DynamicResource Text.Secondary}"
-                                       FontSize="10"
-                                       VerticalAlignment="Center">
-                                <Run Text="N=" />
-                                <Run Text="{Binding DataLog.Count, Mode=OneWay}" />
-                                <Run Text=" (newest first, auto-trims at 500)" />
-                            </TextBlock>
-                            <Button Grid.Column="2"
-                                    Content="Clear"
-                                    Command="{Binding ClearDataLogCommand}"
-                                    Padding="10,1"
-                                    MinHeight="20" />
-                        </Grid>
-                    </Border>
-
-                    <ListBox Grid.Row="1"
-                             ItemsSource="{Binding DataLog}"
-                             BorderThickness="0"
-                             Background="{DynamicResource Background.Surface}"
-                             FontFamily="{DynamicResource Font.Mono}"
-                             FontSize="11"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="72" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
-                                               Foreground="{DynamicResource Text.Secondary}" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding Category}"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource Accent.Brush}" />
-                                    <TextBlock Grid.Column="2"
-                                               Text="{Binding Message}"
-                                               Foreground="{DynamicResource Text.Primary}"
-                                               TextWrapping="NoWrap"
-                                               TextTrimming="CharacterEllipsis" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="4" Style="{StaticResource Strategy.FooterBar}">
+            <Border Grid.Row="2" Style="{StaticResource Strategy.FooterBar}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Bid:" Style="{StaticResource Strategy.DashLabel}" />
                     <TextBlock Text="{Binding LastBid, StringFormat=F4, FallbackValue=—}" Margin="6,0,0,0" Style="{StaticResource Strategy.DashValue}" />

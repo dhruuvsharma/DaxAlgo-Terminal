@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,8 +16,10 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
 {
     public const int MaxTrailPoints = 60;
     public const int MaxInstrumentsDisplayed = 500;
-    public const int MaxLogEntries = 200;
     private const int TradeRateSummaryEveryN = 25;
+
+    /// <summary>Source tag for this strategy's rows in the universal Activity Log.</summary>
+    private const string LogSource = "Order-Flow Cube";
 
     /// <summary>
     /// Static capability table — which brokers actually wire SubscribeTradesAsync today. The
@@ -33,11 +34,6 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _ => false,
     };
 
-    public sealed record LogEntry(DateTime At, string Level, string Message)
-    {
-        public string Display => $"{At:HH:mm:ss.fff}  {Level,-5}  {Message}";
-    }
-
     private readonly LiveStrategyHostServices _services;
     private readonly INotificationPublisher _notifications;
     private readonly InMemoryLogSink _appLogSink;
@@ -48,9 +44,7 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
     private OrderFlowCubeCalculator? _calc;
     private QuoteDerivedTradeSynthesizer? _synthesizer;
     private bool _useSynthetic;
-    private DateTime _streamStartUtc;
     private string? _symbolFilterToken;
-    private bool _logSinkAttached;
 
     private enum CubeRegime { Neutral, Accumulation, Distribution }
     private CubeRegime _lastRegime = CubeRegime.Neutral;
@@ -73,19 +67,14 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
                              ?? Instruments.FirstOrDefault();
 
         TrailPoints = new ObservableCollection<CubePoint>();
-        LogEntries = new ObservableCollection<LogEntry>();
         _ = LoadInstrumentsAsync();
     }
 
-    public ObservableCollection<LogEntry> LogEntries { get; }
-
     private bool _firstTradeSeen;
 
-    private void AddLog(string level, string message)
-    {
-        LogEntries.Add(new LogEntry(DateTime.Now, level, message));
-        while (LogEntries.Count > MaxLogEntries) LogEntries.RemoveAt(0);
-    }
+    /// <summary>Append to the universal Activity Log, tagged with this strategy as the source.</summary>
+    private void AddLog(string level, string message) =>
+        _appLogSink.Append(LogSource, level, message);
 
     public IReadOnlyList<TradeableInstrument> AllInstruments { get; private set; }
 
@@ -229,16 +218,7 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         Status = $"Subscribing {SelectedInstrument.DisplayName} ({BrokerLabel(broker)}) — {tapeLabel}…";
         AddLog("INFO", $"Subscribing {SelectedInstrument.DisplayName} on {BrokerLabel(broker)} [{tapeLabel}] (recent={RecentWindow}, trend={TrendWindow}, baseline={BaselineWindow})");
 
-        // Mirror Serilog pipeline events for THIS symbol into the strategy log panel so the user
-        // sees broker-side failures (IB error 354/10090, ingest pump exceptions, delayed-data
-        // warnings, etc.) without leaving the strategy window.
-        _streamStartUtc = DateTime.UtcNow;
         _symbolFilterToken = contract.Symbol;
-        if (!_logSinkAttached)
-        {
-            ((INotifyCollectionChanged)_appLogSink.Entries).CollectionChanged += OnAppLogChanged;
-            _logSinkAttached = true;
-        }
 
         _streamCts = new CancellationTokenSource();
         var streamCt = CancellationTokenSource.CreateLinkedTokenSource(ct, _streamCts.Token).Token;
@@ -246,34 +226,6 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _ = RunStreamAsync(contract, broker, streamCt);
         _ = WatchNoTradesAsync(streamCt);
         await Task.CompletedTask;
-    }
-
-    private void OnAppLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action != NotifyCollectionChangedAction.Add || e.NewItems is null) return;
-        foreach (TradingTerminal.UI.Logging.LogEntry item in e.NewItems)
-        {
-            if (item.TimestampUtc < _streamStartUtc) continue;
-            var msg = item.Message ?? string.Empty;
-            var level = item.Level ?? "Info";
-            var isErrorish = level.Contains("Warning", StringComparison.OrdinalIgnoreCase)
-                          || level.Contains("Error", StringComparison.OrdinalIgnoreCase)
-                          || level.Contains("Fatal", StringComparison.OrdinalIgnoreCase);
-            var matchesSymbol = !string.IsNullOrEmpty(_symbolFilterToken)
-                             && msg.Contains(_symbolFilterToken, StringComparison.OrdinalIgnoreCase);
-            var matchesKeyword =
-                msg.Contains("IB market-data", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("Trade ingest", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("tick by tick", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("tickByTick", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("IB error", StringComparison.OrdinalIgnoreCase)
-             || msg.Contains("reqTickByTickData", StringComparison.OrdinalIgnoreCase);
-            if (!isErrorish && !matchesSymbol && !matchesKeyword) continue;
-            AddLog($"SYS:{level}", msg);
-
-            if (msg.Contains("Delayed", StringComparison.OrdinalIgnoreCase) && msg.Contains("market-data", StringComparison.OrdinalIgnoreCase))
-                AddLog("WARN", "IB is in DELAYED data mode — reqTickByTickData needs LIVE data. Trade tape will be empty until InteractiveBrokers:MarketDataType is 1 and the account has live data.");
-        }
     }
 
     private async Task WatchNoTradesAsync(CancellationToken ct)
@@ -451,7 +403,6 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _streamCts = null;
         _quoteHandle?.Dispose(); _quoteHandle = null;
         _tradeHandle?.Dispose(); _tradeHandle = null;
-        DetachAppLogSink();
         IsStreaming = false;
         IsAlgoRunning = false;
         Status = "Stopped";
@@ -465,13 +416,5 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _streamCts = null;
         _quoteHandle?.Dispose(); _quoteHandle = null;
         _tradeHandle?.Dispose(); _tradeHandle = null;
-        DetachAppLogSink();
-    }
-
-    private void DetachAppLogSink()
-    {
-        if (!_logSinkAttached) return;
-        ((INotifyCollectionChanged)_appLogSink.Entries).CollectionChanged -= OnAppLogChanged;
-        _logSinkAttached = false;
     }
 }

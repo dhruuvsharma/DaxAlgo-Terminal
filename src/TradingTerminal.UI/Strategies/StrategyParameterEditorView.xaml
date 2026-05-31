@@ -1,0 +1,81 @@
+<UserControl x:Class="TradingTerminal.UI.Strategies.StrategyParameterEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             d:DesignHeight="450" d:DesignWidth="320"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <UserControl.Resources>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- Per-parameter help line; collapses when the parameter has no description. -->
+        <Style x:Key="HelpTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="Gray" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Numeric (Integer + Number): label, value box, optional slider for ranged params -->
+        <DataTemplate x:Key="NumberParameterTemplate">
+            <StackPanel Margin="0,4">
+                <DockPanel>
+                    <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding Description}"
+                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBox DockPanel.Dock="Right" MinWidth="64" Width="64"
+                             HorizontalContentAlignment="Right"
+                             Text="{Binding NumberValue, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.###}}" />
+                </DockPanel>
+                <Slider Visibility="{Binding HasRange, Converter={StaticResource BoolToVisibility}}"
+                        Minimum="{Binding Min}" Maximum="{Binding Max}"
+                        SmallChange="{Binding Step}" LargeChange="{Binding Step}"
+                        IsSnapToTickEnabled="{Binding IsInteger}" TickFrequency="{Binding Step}"
+                        Value="{Binding NumberValue}" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding Description}" Style="{StaticResource HelpTextStyle}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Boolean: checkbox -->
+        <DataTemplate x:Key="BooleanParameterTemplate">
+            <StackPanel Margin="0,4">
+                <CheckBox Content="{Binding DisplayName}" ToolTip="{Binding Description}"
+                          IsChecked="{Binding BoolValue}" />
+                <TextBlock Text="{Binding Description}" Style="{StaticResource HelpTextStyle}" Margin="20,0,0,0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Choice: combo box -->
+        <DataTemplate x:Key="ChoiceParameterTemplate">
+            <StackPanel Margin="0,4">
+                <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding Description}" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice}" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding Description}" Style="{StaticResource HelpTextStyle}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Text: text box -->
+        <DataTemplate x:Key="TextParameterTemplate">
+            <StackPanel Margin="0,4">
+                <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding Description}" FontWeight="SemiBold" />
+                <TextBox Text="{Binding TextValue, UpdateSourceTrigger=LostFocus}" Margin="0,2,0,0" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+            <TextBlock Text="Parameters" FontWeight="Bold" VerticalAlignment="Center" />
+            <Button DockPanel.Dock="Right" Content="Reset" Padding="8,2"
+                    Command="{Binding ResetToDefaultsCommand}" HorizontalAlignment="Right" />
+        </DockPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="ItemsHost" ItemsSource="{Binding Items}" />
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

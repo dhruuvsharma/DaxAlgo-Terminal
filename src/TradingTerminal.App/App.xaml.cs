@@ -10,9 +10,10 @@ using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
+using TradingTerminal.Ai;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Login;
 using TradingTerminal.Infrastructure;
-using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.Notifications;
@@ -83,19 +84,16 @@ public partial class App : Application
                 // Market regime — registered after AddNotifications so its risk-off signal gate
                 // supersedes the notifications module's no-op default.
                 services.AddMarketRegime(ctx.Configuration);
-                services.AddAiAnalyst(ctx.Configuration);
 
                 // Feature modules — each is a one-line manifest entry.
                 services.AddStrategyPlugins();
-                services.AddBrokerLoginForms();
+                services.AddLogin();
                 services.AddShell();
                 services.AddBacktestSurface();
                 services.AddSettingsSurface();
                 services.AddRecordingSurface();
                 services.AddCorrelationSurface();
-                services.AddResearchSurface();
-                services.AddAiSurface();
-                services.AddAiAnalystSurface();
+                services.AddAi(ctx.Configuration);
                 services.AddRegimeSurface();
                 services.AddArchiveSurface();
             })

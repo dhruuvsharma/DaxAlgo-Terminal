@@ -38,10 +38,6 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     public const int MaxSignalsRetained = 200;
     public const int MaxBarsRetained = 300;
 
-    /// <summary>Cap on rows in the per-strategy data log. New entries push old ones off the end
-    /// so memory stays bounded for a live session that may run for days.</summary>
-    public const int MaxDataLogEntries = 500;
-
     /// <summary>Cap on how many instruments the picker shows at once. The broker universe can be
     /// ~11k symbols (Alpaca); the search box narrows it, so we never bind the whole list.</summary>
     public const int MaxInstrumentsDisplayed = 500;
@@ -96,7 +92,6 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                              ?? Instruments.FirstOrDefault();
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
-        DataLog = new ObservableCollection<StrategyDataLogEntry>();
 
         // Replace the static fallback with the connected broker's tradable universe.
         // Fire-and-forget: the continuation resumes on the UI context (VM is built there).
@@ -114,12 +109,6 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     /// <summary>15-second price bars derived from the live tick stream. Used for chart drawing.</summary>
     public ObservableCollection<Bar> Bars { get; }
-
-    /// <summary>Bounded, self-trimming, newest-first log of what the strategy is doing. Auto-logged
-    /// from the base class on each bar roll, signal, and lifecycle transition; subclasses push
-    /// their own indicator readings via <see cref="Log"/>. Capped at
-    /// <see cref="MaxDataLogEntries"/>.</summary>
-    public ObservableCollection<StrategyDataLogEntry> DataLog { get; }
 
     public event EventHandler? BarsChanged;
 
@@ -256,17 +245,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// price chart isn't blank until the first live candle rolls. Default does nothing.</summary>
     protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
 
-    /// <summary>Push one row onto the bounded data log. Must be called on the UI thread (every
-    /// auto-log site in the base class already is). Oldest entries are trimmed as soon as the cap
-    /// is exceeded so the collection self-bounds.</summary>
-    protected void Log(string category, string message)
-    {
-        DataLog.Insert(0, new StrategyDataLogEntry(DateTime.UtcNow, category, message));
-        while (DataLog.Count > MaxDataLogEntries) DataLog.RemoveAt(DataLog.Count - 1);
-    }
-
-    [RelayCommand]
-    private void ClearDataLog() => DataLog.Clear();
+    /// <summary>Push one row onto the universal activity log, tagged with this strategy's display
+    /// name as the source. Self-bounds and marshals to the UI thread inside the shared sink.</summary>
+    protected void Log(string category, string message) =>
+        _services.ActivityLog.Append(StrategyDisplayName, category, message);
 
     [RelayCommand]
     private async Task ContinueAsync()
@@ -319,7 +301,6 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
         Signals.Clear();
         Bars.Clear();
-        DataLog.Clear();
         _currentBarStart = DateTime.MinValue;
         TicksSeen = 0;
         IsStreaming = true;

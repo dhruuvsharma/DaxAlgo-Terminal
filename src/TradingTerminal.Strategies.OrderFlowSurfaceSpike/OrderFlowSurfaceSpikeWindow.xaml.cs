@@ -1,4 +1,3 @@
-using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -30,23 +29,13 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_vm is not null)
-        {
             _vm.SurfaceChanged -= OnSurfaceChanged;
-            ((INotifyCollectionChanged)_vm.LogEntries).CollectionChanged -= OnLogEntriesChanged;
-        }
         _vm = e.NewValue as OrderFlowSurfaceSpikeViewModel;
         if (_vm is not null)
         {
             _vm.SurfaceChanged += OnSurfaceChanged;
-            ((INotifyCollectionChanged)_vm.LogEntries).CollectionChanged += OnLogEntriesChanged;
             Redraw();
         }
-    }
-
-    private void OnLogEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action == NotifyCollectionChangedAction.Add)
-            LogScroller.ScrollToEnd();
     }
 
     private void OnSurfaceChanged(object? sender, EventArgs e) => Redraw();

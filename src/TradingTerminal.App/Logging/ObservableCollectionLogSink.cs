@@ -15,6 +15,7 @@ public sealed class ObservableCollectionLogSink : ILogEventSink
     {
         var entry = new LogEntry(
             logEvent.Timestamp.UtcDateTime,
+            "System",
             logEvent.Level.ToString(),
             logEvent.RenderMessage());
         _ui.Append(entry);
