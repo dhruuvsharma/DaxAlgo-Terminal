@@ -1,6 +1,6 @@
 ---
 name: archive-offloader
-description: Telegram-backed archive offloader for the canonical market-data store — parquet bundling, 2 GB split-binary parts, sha256 verification, manifest store, retention pruning. Use when touching src/TradingTerminal.Infrastructure/MarketData/Archive/, adding store tables to the bundle, changing the archive schedule, swapping the Telegram transport for another backend, or debugging archive/restore round-trips.
+description: Telegram-backed archive offloader for the canonical market-data store — parquet bundling, 2 GB split-binary parts, sha256 verification, manifest store, retention pruning. Use when touching src/TradingTerminal.MarketData/Archive/, adding store tables to the bundle, changing the archive schedule, swapping the Telegram transport for another backend, or debugging archive/restore round-trips.
 ---
 
 # Archive Offloader
@@ -11,7 +11,7 @@ Stops the local SQLite/Postgres store from growing unboundedly. Hot copy keeps t
 
 Core seams: `Core/MarketData/Archive/` — `IArchiveTransport`, `IMarketDataArchiver`.
 
-Infrastructure: `Infrastructure/MarketData/Archive/` —
+Market-data project (`TradingTerminal.MarketData`): `Archive/` —
 
 - **`ArchiveBundleBuilder`** — exports one parquet file per `(instrument, table)` for a date range. Writes `manifest.json` (instruments, ranges, row counts, sha256s). Zips the bundle, then binary-splits the zip at ~1.9 GB per part (Telegram MTProto caps at 2 GB; we leave headroom).
 - **`MarketDataArchiver`** — orchestrator. `Build bundle → upload via IArchiveTransport → re-download + sha256 verify each part → record manifest row → delete local rows`. Round-trip verify is non-negotiable — verify, *then* prune.
@@ -46,10 +46,10 @@ When [market-data-pipeline](../market-data-pipeline/SKILL.md) gains a new table:
 
 ## Reference reads
 
-- `src/TradingTerminal.Infrastructure/MarketData/Archive/ArchiveBundleBuilder.cs`
-- `src/TradingTerminal.Infrastructure/MarketData/Archive/MarketDataArchiver.cs`
-- `src/TradingTerminal.Infrastructure/MarketData/Archive/Telegram/TelegramArchiveTransport.cs`
-- `src/TradingTerminal.Infrastructure/MarketData/Archive/ArchiveScheduleService.cs`
+- `src/TradingTerminal.MarketData/Archive/ArchiveBundleBuilder.cs`
+- `src/TradingTerminal.MarketData/Archive/MarketDataArchiver.cs`
+- `src/TradingTerminal.MarketData/Archive/Telegram/TelegramArchiveTransport.cs`
+- `src/TradingTerminal.MarketData/Archive/ArchiveScheduleService.cs`
 - `src/TradingTerminal.App/Archive/` — settings + activity views.
 
 See also: [market-data-pipeline](../market-data-pipeline/SKILL.md), [[project-market-data-archive]] (memory).

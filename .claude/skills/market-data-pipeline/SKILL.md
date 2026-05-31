@@ -1,6 +1,6 @@
 ---
 name: market-data-pipeline
-description: Canonical broker-neutral market-data pipeline — InstrumentId / InstrumentRegistry, IMarketDataHub (Rx fanout), IMarketDataIngest (ref-counted subscriptions, normalization, persistence), IMarketDataStore (SQLite default, Postgres/TimescaleDB optional, batched non-blocking writes). Use when adding store tables, changing ingest normalization, wiring trade-tape into a new broker, debugging "no data" / "duplicate ticks" / "wrong timestamps", or touching anything under src/TradingTerminal.Infrastructure/MarketData/.
+description: Canonical broker-neutral market-data pipeline — InstrumentId / InstrumentRegistry, IMarketDataHub (Rx fanout), IMarketDataIngest (ref-counted subscriptions, normalization, persistence), IMarketDataStore (SQLite default, Postgres/TimescaleDB optional, batched non-blocking writes). Use when adding store tables, changing ingest normalization, wiring trade-tape into a new broker, debugging "no data" / "duplicate ticks" / "wrong timestamps", or touching anything under src/TradingTerminal.MarketData/.
 ---
 
 # Market-Data Pipeline
@@ -9,14 +9,14 @@ The pipeline replaced the original "broker-shaped types leaking everywhere" mode
 
 ## The four seams
 
-All in `Core/MarketData/`, all implemented in `Infrastructure/MarketData/`:
+All in `Core/MarketData/`, all implemented in `MarketData/`:
 
 1. **`IInstrumentRegistry`** — canonical identity. Maps broker symbol ↔ `InstrumentId` (auto-creates on first sight). Cached, SQLite-backed. Resolves `Contract` from any broker into the same `InstrumentId`.
 2. **`IMarketDataStore`** — durable persistence. Two interchangeable backends (`SqliteMarketDataStore` / `NpgsqlMarketDataStore`) over a shared `MarketDataStoreBase` that owns channel + batched writer + flush. **Writes are non-blocking** — `Enqueue*` returns immediately; background batch flushes on `WriteBatchSize` or `FlushIntervalMs`.
 3. **`IMarketDataHub`** — Rx per-instrument fanout. Live hot path. Keyed by `InstrumentId`. Three streams: `Quotes(id)`, `Trades(id)`, `Depth(id)`, plus `Bars(id, timeframe)` aggregated downstream.
 4. **`IMarketDataIngest`** — bridges broker → hub + store. Ref-counted per-instrument broker subscriptions; normalizes raw broker payloads to canonical records; publishes to hub + persists to store (depth is live-only — not persisted).
 
-Wired via `AddMarketDataPipeline` (in `Infrastructure/MarketData/MarketDataPipelineServiceCollectionExtensions.cs`), called from `App.xaml.cs`.
+Wired via `AddMarketDataPipeline` (in `MarketData/MarketDataPipelineServiceCollectionExtensions.cs`), called from `App.xaml.cs`.
 
 ## Canonical records (Core/Domain)
 
@@ -81,11 +81,11 @@ Historical bars (e.g. warm-up reads) DO go through the store, but they come from
 
 ## Reference reads
 
-- `src/TradingTerminal.Infrastructure/MarketData/MarketDataPipelineServiceCollectionExtensions.cs` — DI wiring.
-- `src/TradingTerminal.Infrastructure/MarketData/MarketDataHub.cs` — Rx fanout.
-- `src/TradingTerminal.Infrastructure/MarketData/MarketDataIngestService.cs` — ref-counted subscriptions + normalization + persistence.
-- `src/TradingTerminal.Infrastructure/MarketData/Store/SqliteMarketDataStore.cs` + `NpgsqlMarketDataStore.cs`.
-- `src/TradingTerminal.Infrastructure/MarketData/InstrumentDiscoveryService.cs`.
+- `src/TradingTerminal.MarketData/MarketDataPipelineServiceCollectionExtensions.cs` — DI wiring.
+- `src/TradingTerminal.MarketData/MarketDataHub.cs` — Rx fanout.
+- `src/TradingTerminal.MarketData/MarketDataIngestService.cs` — ref-counted subscriptions + normalization + persistence.
+- `src/TradingTerminal.MarketData/Store/SqliteMarketDataStore.cs` + `NpgsqlMarketDataStore.cs`.
+- `src/TradingTerminal.MarketData/InstrumentDiscoveryService.cs`.
 - `docs/market-data.md` — user-facing prose.
 
 See also: [archive-offloader](../archive-offloader/SKILL.md), [add-broker](../add-broker/SKILL.md), [regime-cube-strategy](../regime-cube-strategy/SKILL.md).

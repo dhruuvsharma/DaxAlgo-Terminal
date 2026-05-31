@@ -26,7 +26,7 @@ The app already has four broker backends: IB / NT / cTrader / Alpaca. Each opens
    }
    ```
    Register alongside the existing IB/NT/cTrader blocks.
-5. **Login form** — add a new `<Broker>LoginFormViewModel : IBrokerLoginForm` in `App/Login/Forms/`. Register it twice in `AppDependencyInjection.AddBrokerLoginForms` (as concrete + as `IBrokerLoginForm` factory delegate, mirroring the four existing forms). It pushes user-supplied creds into `<Broker>Options` before flipping `IBrokerSelector`.
+5. **Login form** — add a new `<Broker>LoginFormViewModel : IBrokerLoginForm` in `src/TradingTerminal.Login/Forms/`. Register it twice in `LoginServiceCollectionExtensions.AddLogin` (in `TradingTerminal.Login`) (as concrete + as `IBrokerLoginForm` factory delegate, mirroring the four existing forms). It pushes user-supplied creds into `<Broker>Options` before flipping `IBrokerSelector`.
 6. **appsettings.json** — add a `"Tradovate": { "UseRealClient": false, ... }` section.
 7. **Trade tape** — `SubscribeTradesAsync` returns `IAsyncEnumerable<TradeTick>`. If the SDK exposes per-print trade flow with an aggressor flag, wire it (mirror IB's `reqTickByTickData("AllLast")` pattern). Otherwise throw `NotSupportedException` and add the broker to the no-trade-tape capability matrix in [[project-strategy-ideas]].
 8. **Instrument discovery** — if the broker has a symbol search / contract universe endpoint, register an `IInstrumentDiscoveryService` impl so the universe tab + dropdown can resolve canonical `InstrumentId`s.

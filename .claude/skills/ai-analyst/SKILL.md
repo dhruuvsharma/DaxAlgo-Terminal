@@ -9,7 +9,7 @@ A multi-agent LLM analyst lives in a Python sidecar so the C# build stays hermet
 
 ## Architecture
 
-C# side (`src/TradingTerminal.Core/AiAnalyst/` + `src/TradingTerminal.Infrastructure/AiAnalyst/`):
+C# side (`src/TradingTerminal.Core/AiAnalyst/` + `src/TradingTerminal.Ai/Analyst/`):
 
 - **`IAiAnalystClient`** — `bool IsAvailable` + `Task<AnalystReport> RunAsync(AnalystRequest, ct)`.
 - **`NullAiAnalystClient`** — always returns "unavailable". Default when sidecar isn't enabled.
@@ -62,9 +62,9 @@ Configured under **Tools → Settings → Notifications → AI Market Analyst**:
 ## Reference reads
 
 - `src/TradingTerminal.Core/AiAnalyst/IAiAnalystClient.cs` — seam.
-- `src/TradingTerminal.Infrastructure/AiAnalyst/AiAnalystServiceCollectionExtensions.cs` — DI.
-- `src/TradingTerminal.Infrastructure/AiAnalyst/HttpAiAnalystClient.cs` — HTTP path.
-- `src/TradingTerminal.Infrastructure/Notifications/AiAnalyst/AiAnalystEnricher.cs` — enricher.
+- `src/TradingTerminal.Ai/Analyst/AiAnalystServiceCollectionExtensions.cs` — DI.
+- `src/TradingTerminal.Ai/Analyst/HttpAiAnalystClient.cs` — HTTP path.
+- `src/TradingTerminal.Ai/Analyst/AiAnalystEnricher.cs` — enricher.
 - `tools/python-ml/daxalgo_ml/` — sidecar source.
 - `docs/ai-analyst.md` + `docs/polyglot.md` — user-facing + architecture prose.
 

@@ -25,25 +25,26 @@ Most strategies need both. Some (HFT/MM) may only ship as engine-side.
 
 ## Live UI strategy recipe
 
-1. **New project** `src/TradingTerminal.Strategies.<Name>/` — mirror an existing one (`TradingTerminal.Strategies.Rsi` is a clean RSI-shaped template).
+1. **New project** `src/TradingTerminal.Strategies.<Name>/` — mirror an existing one (`TradingTerminal.Strategies.OrnsteinUhlenbeck` is a clean single-signal template; `CumulativeDelta` for a trade-tape one).
 2. **Add to solution** with `dotnet sln add` **and verify the .sln actually changed**. If the command prints a "Solution folder X already contains a project" warning, it silently aborted — fall back to editing `.sln` by hand (Project block + 12-line ProjectConfigurationPlatforms set + NestedProjects mapping; copy the GUID pattern from any existing strategy and generate a new project GUID via PowerShell `[System.Guid]::NewGuid()`). Reference `Core`, `Infrastructure`, `UI`.
-3. **Metadata class** `<Name>Strategy.cs` in the live project implementing `ITradingStrategy` (`Id`, `DisplayName`, `Description`). **This is what populates the Strategies pane** via `IStrategyFactory.All` — without it the strategy is invisible to the shell even though the engine-side and `StrategyFactoryRegistration` exist. The engine-side `<Name>Strategy.cs` in `Infrastructure/Backtest/Strategies/` is a SEPARATE class with the same name in a different namespace — alias the engine class in the live VM (`using EngineStrategy = TradingTerminal.Infrastructure.Backtest.Strategies.<Name>Strategy;`) to avoid ambiguity when calling it from `BuildStrategy`. Some older strategies (e.g. Bollinger) use a different engine name (`BollingerReversionStrategy`) to dodge this — either approach is fine.
+3. **Metadata class** `<Name>Strategy.cs` in the live project implementing `ITradingStrategy` (`Id`, `DisplayName`, `Description`). **This is what populates the Strategies pane** via `IStrategyFactory.All` — without it the strategy is invisible to the shell even though the engine-side and `StrategyFactoryRegistration` exist. The engine-side `<Name>Strategy.cs` in `Infrastructure/Backtest/Strategies/` is a SEPARATE class with the same name in a different namespace — alias the engine class in the live VM (`using EngineStrategy = TradingTerminal.Infrastructure.Backtest.Strategies.<Name>Strategy;`) to avoid ambiguity when calling it from `BuildStrategy`. Some strategies give the engine class a distinct name (e.g. a `*ReversionStrategy` suffix) to dodge this — either approach is fine.
 4. **View-model** inherits `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`). Its ctor takes a `LiveStrategyHostServices` bundle (Repository + Hub + Ingest + Store + BrokerSelector) — do NOT add new ad-hoc deps; route them through DI elsewhere.
-5. **MetroWindow shell** — open as its own window (the established convention across all 25+ shipped strategies).
+5. **MetroWindow shell** — open as its own window (the established convention across all 16 shipped strategies).
 6. **DI registration** — your `Add<Name>Strategy()` extension must register THREE things: `AddSingleton<ITradingStrategy, <Name>Strategy>()` (metadata, drives the Strategies pane), `AddTransient<<Name>ViewModel>()`, `AddTransient<<Name>Window>()`, plus a `StrategyFactoryRegistration` singleton mapping the StrategyId to the view+vm factory pair. Then call `services.Add<Name>Strategy()` once in `AppDependencyInjection.AddStrategyPlugins` and add the project reference to `TradingTerminal.App.csproj`. Don't edit anything else in the shell.
 7. **Hub subscription** — the base class subscribes to `IMarketDataHub.Quotes(InstrumentId)`. For trade-tape strategies, also subscribe to `IMarketDataIngest.SubscribeTrades(...)` and gate Continue on `BrokerSupportsTradeTape(broker)` — today only IB returns true. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) for the standard shape.
 8. **Warm-up** — `LiveSignalStrategyViewModelBase` reads 1-minute bars from `IMarketDataStore.GetRecentBarsAsync` on Start (granularity intentionally differs from the 15s live aggregation — store has no sub-minute bars and 1m context is better than none).
 
 ## Strategy library reference (textbook reference implementations)
 
-Six families, all already shipped — read one before writing a new one:
+Families currently shipped — read one before writing a new one:
 
-- **HFT/microstructure**: Avellaneda-Stoikov MM, Microprice, Ornstein-Uhlenbeck, TWAP execution.
-- **FX baselines**: Bollinger, MA crossover, Connors RSI(2), London-open breakout, MACD.
-- **Index baselines**: 200-SMA trend filter, vol targeting, gap fade, end-of-day momentum, pullback continuation.
-- **L2 / depth-of-market**: book pressure, liquidity sweep, iceberg detection, VPIN-style toxicity, thin-book filter, Apex Scalper (composite MT5 port).
-- **ML / AI**: online regression alpha, anomaly detector.
-- **Regime cubes** (3-axis, Helix Toolkit 3D): Order Flow Cube, Order Flow Surface Spike. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) before adding more from `ideas.md`.
+- **HFT/microstructure**: Avellaneda-Stoikov MM, Ornstein-Uhlenbeck.
+- **Index baselines**: vol targeting, pullback continuation.
+- **L2 / depth-of-market**: book pressure, liquidity sweep, iceberg detection, VPIN-style toxicity, thin-book filter, cumulative delta, Apex Scalper (composite MT5 port).
+- **ML / AI**: online regression alpha.
+- **Regime cubes / surfaces** (Helix Toolkit 3D): Order Flow Cube, Order Flow Surface Spike, Imbalance Heat Front, Index K-Score Surface. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) before adding more from `ideas.md`.
+
+(The forex/index/microprice/TWAP/anomaly baselines were removed in the data-only-signals refactor — don't reference them.)
 
 These are textbook implementations, not curve-fit. Stay regime-dependent.
 
