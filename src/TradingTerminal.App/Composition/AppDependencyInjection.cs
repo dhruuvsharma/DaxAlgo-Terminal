@@ -158,6 +158,15 @@ public static class AppDependencyInjection
         return services;
     }
 
+    /// <summary>TradingView-style Charts window (WebView2 + Lightweight Charts) — opens from
+    /// Tools → Charts. Transient so each open gets a fresh VM that disposes with the window.</summary>
+    public static IServiceCollection AddChartsSurface(this IServiceCollection services)
+    {
+        services.AddTransient<TradingTerminal.App.Charts.ChartsViewModel>();
+        services.AddTransient<TradingTerminal.App.Charts.ChartsWindow>();
+        return services;
+    }
+
     /// <summary>Market Regime tab — opens from Tools → Market regime. The provider and refresh
     /// loop live in Infrastructure (registered via AddMarketRegime); only the panel is here.
     /// Transient so each open gets a fresh subscription that disposes with the tab.</summary>

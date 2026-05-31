@@ -13,6 +13,7 @@ using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.BrokerMetering;
+using TradingTerminal.App.Charts;
 using TradingTerminal.App.Correlation;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
@@ -43,6 +44,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string RegimeTabId = "tools.regime";
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
     private const string CorrelationWindowId = "tools.correlation";
+    private const string ChartsWindowId = "tools.charts";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -497,6 +499,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _openWindows[CorrelationWindowId] = window;
         window.Show();
         _logger.LogInformation("Opened correlation matrix window");
+    }
+
+    [RelayCommand]
+    public void OpenCharts()
+    {
+        if (_openWindows.TryGetValue(ChartsWindowId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<ChartsViewModel>();
+        var window = _services.GetRequiredService<ChartsWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(ChartsWindowId);
+            vm.Dispose();
+        };
+        _openWindows[ChartsWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened charts window");
     }
 
     [RelayCommand]

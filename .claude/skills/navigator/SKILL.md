@@ -34,7 +34,8 @@ Layer graph (acyclic): `Core ← MarketData ← Infrastructure ← {Login, Ai, S
 
 ## DI entry points (called from `App.xaml.cs`)
 
-`AddInfrastructure` · `AddMarketDataPipeline` · `AddMarketDataArchive` · `AddMarketRegime` · `AddNotifications` · `AddStrategyPlugins` · `AddLogin` · `AddShell` · `AddBacktestSurface` · `AddSettingsSurface` · `AddRecordingSurface` · `AddCorrelationSurface` · `AddAi` · `AddRegimeSurface` · `AddArchiveSurface`.
+`AddInfrastructure` · `AddMarketDataPipeline` · `AddMarketDataArchive` · `AddMarketRegime` · `AddNotifications` · `AddStrategyPlugins` · `AddLogin` · `AddShell` · `AddBacktestSurface` · `AddSettingsSurface` · `AddRecordingSurface` · `AddCorrelationSurface` · `AddChartsSurface` (TradingView-style WebView2 chart, `App/Charts/`) ·
+`AddAi` · `AddRegimeSurface` · `AddArchiveSurface`.
 
 ## Build / test
 

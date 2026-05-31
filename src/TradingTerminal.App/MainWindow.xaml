@@ -204,6 +204,8 @@
                           Command="{Binding OpenInstrumentRegimeCommand}" />
                 <MenuItem Header="_Correlation matrix…"
                           Command="{Binding OpenCorrelationCommand}" />
+                <MenuItem Header="C_harts…"
+                          Command="{Binding OpenChartsCommand}" />
             </MenuItem>
 
             <MenuItem Header="_AI tools">

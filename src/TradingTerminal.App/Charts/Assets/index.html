@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DaxAlgo Charts</title>
+<script src="lightweight-charts.standalone.production.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #0a0a0a;
+    font-family: Consolas, "Cascadia Mono", monospace; color: #d1d4dc; overflow: hidden; }
+  #chart { position: absolute; inset: 0; }
+  #legend { position: absolute; top: 8px; left: 12px; z-index: 5; font-size: 12px;
+    line-height: 1.5; pointer-events: none; text-shadow: 0 1px 2px #000; }
+  #legend .sym { color: #e0a000; font-weight: bold; }
+  #legend .up { color: #26a69a; } #legend .dn { color: #ef5350; }
+  #legend .k { color: #8a8a8a; } #legend .v { color: #d1d4dc; }
+  #msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    color: #8a8a8a; font-size: 14px; text-align: center; padding: 24px; }
+</style>
+</head>
+<body>
+  <div id="chart"></div>
+  <div id="legend"></div>
+  <div id="msg"></div>
+<script>
+const LWC = window.LightweightCharts;
+const el = document.getElementById('chart');
+const legend = document.getElementById('legend');
+
+const chart = LWC.createChart(el, {
+  autoSize: true,
+  layout: { background: { type: 'solid', color: '#0a0a0a' }, textColor: '#d1d4dc', panes: { separatorColor: '#222' } },
+  grid: { vertLines: { color: '#161616' }, horzLines: { color: '#161616' } },
+  rightPriceScale: { borderColor: '#2a2a2a' },
+  timeScale: { borderColor: '#2a2a2a', timeVisible: true, secondsVisible: false },
+  crosshair: { mode: LWC.CrosshairMode.Normal,
+    vertLine: { color: '#555', width: 1, style: 3, labelBackgroundColor: '#e0a000' },
+    horzLine: { color: '#555', width: 1, style: 3, labelBackgroundColor: '#e0a000' } },
+});
+
+let candleSeries = null, volumeSeries = null;
+let extra = [];           // indicator series to clear on reload
+let lastBar = null, sym = '', tf = '';
+
+function clearExtra() { extra.forEach(s => { try { chart.removeSeries(s); } catch (e) {} }); extra = []; }
+
+function fullClear() {
+  clearExtra();
+  if (candleSeries) { try { chart.removeSeries(candleSeries); } catch (e) {} candleSeries = null; }
+  if (volumeSeries) { try { chart.removeSeries(volumeSeries); } catch (e) {} volumeSeries = null; }
+}
+
+window.dax = {
+  setData(p) {
+    document.getElementById('msg').style.display = 'none';
+    sym = p.symbol; tf = p.timeframe;
+    fullClear();
+
+    candleSeries = chart.addSeries(LWC.CandlestickSeries, {
+      upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+      wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+    }, 0);
+    candleSeries.setData(p.candles || []);
+    lastBar = p.candles && p.candles.length ? p.candles[p.candles.length - 1] : null;
+
+    volumeSeries = chart.addSeries(LWC.HistogramSeries, {
+      priceFormat: { type: 'volume' }, priceScaleId: '',
+    }, 0);
+    volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    volumeSeries.setData(p.volume || []);
+
+    if (p.sma) { const s = chart.addSeries(LWC.LineSeries, { color: '#42a5f5', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.sma); extra.push(s); }
+    if (p.ema) { const s = chart.addSeries(LWC.LineSeries, { color: '#e0a000', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.ema); extra.push(s); }
+
+    if (p.rsi) {
+      const r = chart.addSeries(LWC.LineSeries, { color: '#ab47bc', lineWidth: 1 }, 1);
+      r.setData(p.rsi); extra.push(r);
+      try { r.createPriceLine({ price: 70, color: '#ef535080', lineWidth: 1, lineStyle: 2 });
+            r.createPriceLine({ price: 30, color: '#26a69a80', lineWidth: 1, lineStyle: 2 }); } catch (e) {}
+    }
+    if (p.macd) {
+      const pane = p.rsi ? 2 : 1;
+      const hist = chart.addSeries(LWC.HistogramSeries, {}, pane);
+      hist.setData(p.macd.map(m => ({ time: m.time, value: m.hist, color: m.hist >= 0 ? '#26a69a80' : '#ef535080' })));
+      const ml = chart.addSeries(LWC.LineSeries, { color: '#42a5f5', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, pane);
+      ml.setData(p.macd.map(m => ({ time: m.time, value: m.macd })));
+      const sl = chart.addSeries(LWC.LineSeries, { color: '#e0a000', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, pane);
+      sl.setData(p.macd.map(m => ({ time: m.time, value: m.signal })));
+      extra.push(hist, ml, sl);
+    }
+
+    chart.timeScale().fitContent();
+    renderLegend(lastBar);
+  },
+
+  updateCandle(c) {
+    if (!candleSeries) return;
+    candleSeries.update(c);
+    lastBar = c;
+    renderLegend(c);
+  },
+
+  message(text) {
+    const m = document.getElementById('msg');
+    m.textContent = text; m.style.display = text ? 'flex' : 'none';
+  },
+};
+
+function fmt(v) { return (v === undefined || v === null) ? '—' : Number(v).toFixed(2); }
+
+function renderLegend(bar) {
+  if (!bar) { legend.innerHTML = `<span class="sym">${sym || ''}</span> <span class="k">${tf}</span>`; return; }
+  const cls = bar.close >= bar.open ? 'up' : 'dn';
+  legend.innerHTML =
+    `<span class="sym">${sym}</span> <span class="k">${tf}</span><br>` +
+    `<span class="k">O</span> <span class="${cls}">${fmt(bar.open)}</span> ` +
+    `<span class="k">H</span> <span class="${cls}">${fmt(bar.high)}</span> ` +
+    `<span class="k">L</span> <span class="${cls}">${fmt(bar.low)}</span> ` +
+    `<span class="k">C</span> <span class="${cls}">${fmt(bar.close)}</span>`;
+}
+
+chart.subscribeCrosshairMove(param => {
+  if (!candleSeries) return;
+  const d = param.seriesData && param.seriesData.get(candleSeries);
+  renderLegend(d || lastBar);
+});
+
+// Signal readiness to the host (C# waits for this before pushing data).
+if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage('ready');
+</script>
+</body>
+</html>
