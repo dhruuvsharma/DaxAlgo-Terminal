@@ -60,8 +60,8 @@ public sealed record ApexSnapshot(
 /// daily-loss and cooldown checks on top. Stops are anchored behind the nearest
 /// high-volume pocket; targets sit at the opposite HVP with fixed-RR fallback.
 ///
-/// Data plumbing follows the codebase convention (see <see cref="OrderFlowToxicityStrategy"/>
-/// and <see cref="BookPressureStrategy"/>): backtest ticks are L1 quote-only, so
+/// Data plumbing follows the codebase convention (see <see cref="OrderFlowToxicityStrategy"/>):
+/// backtest ticks are L1 quote-only, so
 /// trade-side classification uses the tick rule (mid up ⇒ buy-initiated) and "volume"
 /// is proxied by <c>BidSize + AskSize</c>. When the parquet reader learns to carry a
 /// <see cref="DepthSnapshot"/> the OBI signals can be swapped to true multi-level

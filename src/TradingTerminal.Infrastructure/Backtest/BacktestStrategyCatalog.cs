@@ -50,33 +50,13 @@ public static class BacktestStrategyCatalog
             Id: "ornsteinUhlenbeck",
             DisplayName: "Ornstein-Uhlenbeck mean reversion",
             Build: contract => new OrnsteinUhlenbeckStrategy(contract)),
-        new BacktestStrategyOption(
-            Id: "avellanedaStoikov",
-            DisplayName: "Avellaneda-Stoikov market maker",
-            Build: contract => new AvellanedaStoikovStrategy(contract)),
         // ── S&P 500 / index baselines ─────────────────────────────────────────────────
         new BacktestStrategyOption(
             Id: "volTarget",
             DisplayName: "Volatility targeting (index)",
             Build: contract => new VolatilityTargetedStrategy(contract)),
-        new BacktestStrategyOption(
-            Id: "pullback",
-            DisplayName: "Trend pullback continuation (index)",
-            Build: contract => new PullbackContinuationStrategy(contract)),
 
         // ── L2 / depth-of-market themed (cTrader DOM territory) ───────────────────────
-        new BacktestStrategyOption(
-            Id: "bookPressure",
-            DisplayName: "Order-book pressure / cumulative imbalance (L2)",
-            Build: contract => new BookPressureStrategy(contract)),
-        new BacktestStrategyOption(
-            Id: "liquiditySweep",
-            DisplayName: "Liquidity-sweep / aggressive-flow detector (L2)",
-            Build: contract => new LiquiditySweepStrategy(contract)),
-        new BacktestStrategyOption(
-            Id: "iceberg",
-            DisplayName: "Iceberg / hidden-liquidity detector (L2)",
-            Build: contract => new IcebergDetectionStrategy(contract)),
         new BacktestStrategyOption(
             Id: "vpin",
             DisplayName: "Order-flow toxicity / VPIN-style (L2)",
@@ -94,10 +74,6 @@ public static class BacktestStrategyCatalog
             DisplayName: "Imbalance Heat Front (L2 bid-ask pressure surface)",
             Build: contract => new ImbalanceHeatFrontStrategy(contract)),
         new BacktestStrategyOption(
-            Id: "thinBook",
-            DisplayName: "Thin-book breakout filter (L2)",
-            Build: contract => new ThinBookFilterStrategy(contract)),
-        new BacktestStrategyOption(
             Id: "apexScalper",
             DisplayName: "APEX microstructure scalper (composite, 8 signals)",
             Build: contract => new ApexScalperStrategy(contract)),
@@ -105,11 +81,5 @@ public static class BacktestStrategyCatalog
             Id: "indexKScoreSurface",
             DisplayName: "Index K-Score Surface (single-instrument backtest variant)",
             Build: contract => new IndexKScoreSurfaceStrategy(contract)),
-
-        // ── ML / AI driven ────────────────────────────────────────────────────────────
-        new BacktestStrategyOption(
-            Id: "onlineRegressionAlpha",
-            DisplayName: "Online-regression alpha (RLS)",
-            Build: contract => new OnlineRegressionAlphaStrategy(contract)),
     };
 }

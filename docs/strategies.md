@@ -2,7 +2,7 @@
 
 > Last updated: 2026-05-31
 
-The terminal ships 16 live strategies behind one `IBacktestStrategy` plug-in seam (plus buy-and-hold / mean-reversion / Donchian engine demos). Each strategy has two halves:
+The terminal ships 9 live strategies behind one `IBacktestStrategy` plug-in seam (plus buy-and-hold / mean-reversion / Donchian engine demos). Each strategy has two halves:
 
 - **Engine side** (`IBacktestStrategy`) — pure tick-driven logic; runs in both the backtest CLI and the Tools → Backtest tab. Lives in `Infrastructure/Backtest/Strategies/`.
 - **Live UI side** — a `MetroWindow` + view-model that wraps the engine impl, picks an instrument, lets you set parameters, and surfaces signals as notifications. Lives in `src/TradingTerminal.Strategies.<Name>/`.
@@ -25,21 +25,14 @@ The split means the same logic powers backtest sweeps and live signal mode witho
 | Demo | `buyAndHold` | Market-buy on the first tick, sell on the last. Engine smoke-test. |
 | Demo | `meanReversion` | Rolling-mean reversion with fixed thresholds. |
 | Demo | `donchianBreakout` | N-tick Donchian channel break, trailing-mid stop. |
-| HFT | `avellanedaStoikov` | Avellaneda-Stoikov optimal market maker — inventory-shifted reservation, online variance EMA, configurable requote cadence. |
 | HFT | `ornsteinUhlenbeck` | Online AR(1)-fit OU process, z-score entry/exit bands. |
 | Index | `volTarget` | Position sized to `target_vol / realized_vol_ewma` (AQR risk-parity overlay). |
-| Index | `pullback` | Trend filter + N-tick pullback + resumption entry, with a percentage stop and target. |
-| L2 / DOM | `bookPressure` | Cumulative order-book imbalance signal (Cartea-Jaimungal-Penalva). |
-| L2 / DOM | `liquiditySweep` | Aggressive-flow / sweep detector — rolling-mean depth + same-side price drop. |
-| L2 / DOM | `iceberg` | Hidden-liquidity sticky-touch heuristic; trades toward the iceberg-supported side. |
 | L2 / DOM | `vpin` | VPIN-style order-flow toxicity (Easley, López de Prado, O'Hara 2012). |
-| L2 / DOM | `thinBook` | Breakout entry gated by a depth threshold — passes on thin-book setups. |
 | Regime cube (3D) | `orderFlowCube` | Order-flow regime cube — CVD × aggressor × size, Helix 3D scatter + trail. |
 | Regime cube (3D) | `orderFlowSurfaceSpike` | Z-score spike detector over a slice × price-bin matrix surface. |
 | Regime cube (3D) | `imbalanceHeatFront` | L2 bid/ask pressure surface with mirror-book detection. |
 | Regime cube (3D) | `indexKScoreSurface` | Per-component K-score surface for index baskets. |
 | Composite | `apexScalper` | APEX microstructure scalper — 8-signal composite with risk caps. |
-| ML | `onlineRegressionAlpha` | Online recursive-least-squares fit; trades the residual sign. |
 
 The same engine ids are selectable in the Backtest tab and the `daxalgo-backtest` CLI. **Cumulative delta** ships as a live-only window (`TradingTerminal.Strategies.CumulativeDelta`, no backtest id).
 

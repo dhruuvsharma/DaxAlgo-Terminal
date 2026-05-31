@@ -13,20 +13,13 @@ using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.UI;
 using TradingTerminal.Strategies.ApexScalper;
-using TradingTerminal.Strategies.AvellanedaStoikov;
-using TradingTerminal.Strategies.BookPressure;
 using TradingTerminal.Strategies.CumulativeDelta;
-using TradingTerminal.Strategies.IcebergDetection;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.IndexKScoreSurface;
-using TradingTerminal.Strategies.LiquiditySweep;
-using TradingTerminal.Strategies.OnlineRegressionAlpha;
 using TradingTerminal.Strategies.OrderFlowCube;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
-using TradingTerminal.Strategies.PullbackContinuation;
-using TradingTerminal.Strategies.ThinBookFilter;
 using TradingTerminal.Strategies.VolatilityTargeted;
 
 namespace TradingTerminal.App.Composition;
@@ -73,26 +66,17 @@ public static class AppDependencyInjection
 
         // HFT / microstructure
         services.AddOrnsteinUhlenbeckStrategy();
-        services.AddAvellanedaStoikovStrategy();
 
         // Index baselines
         services.AddVolatilityTargetedStrategy();
-        services.AddPullbackContinuationStrategy();
 
         // L2 / depth-of-market
-        services.AddBookPressureStrategy();
-        services.AddLiquiditySweepStrategy();
-        services.AddIcebergDetectionStrategy();
         services.AddOrderFlowToxicityStrategy();
         services.AddOrderFlowCubeStrategy();
         services.AddOrderFlowSurfaceSpikeStrategy();
         services.AddImbalanceHeatFrontStrategy();
-        services.AddThinBookFilterStrategy();
         services.AddApexScalperStrategy();
         services.AddIndexKScoreSurfaceStrategy();
-
-        // ML / AI
-        services.AddOnlineRegressionAlphaStrategy();
 
         return services;
     }

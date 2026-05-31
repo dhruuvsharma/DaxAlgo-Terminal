@@ -26,19 +26,12 @@
     <ProjectReference Include="..\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.AvellanedaStoikov\TradingTerminal.Strategies.AvellanedaStoikov.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.PullbackContinuation\TradingTerminal.Strategies.PullbackContinuation.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.BookPressure\TradingTerminal.Strategies.BookPressure.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.LiquiditySweep\TradingTerminal.Strategies.LiquiditySweep.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.IcebergDetection\TradingTerminal.Strategies.IcebergDetection.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.ThinBookFilter\TradingTerminal.Strategies.ThinBookFilter.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.OnlineRegressionAlpha\TradingTerminal.Strategies.OnlineRegressionAlpha.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj" />
   </ItemGroup>
 

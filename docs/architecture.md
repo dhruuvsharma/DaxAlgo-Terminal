@@ -56,7 +56,7 @@ TradingTerminal.sln
 │   ├── TradingTerminal.UI                        ViewModelBase, dark theme, universal activity-log sink, LiveSignalStrategyViewModelBase
 │   ├── TradingTerminal.Login                     Sign-in window, credential store, per-broker login forms
 │   ├── TradingTerminal.Ai                        AI analyst seam + dock, ML features, backtest analysis, factor research
-│   └── TradingTerminal.Strategies.*              16 per-strategy live projects
+│   └── TradingTerminal.Strategies.*              9 per-strategy live projects
 └── tests/
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```

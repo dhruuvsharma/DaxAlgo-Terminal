@@ -17,7 +17,7 @@ Layer graph (acyclic): `Core ← MarketData ← Infrastructure ← {Login, Ai, S
 | `TradingTerminal.UI` | `ViewModelBase`, `Themes/`, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices` (DI bundle), `Logging/InMemoryLogSink` (**the universal Activity Log**), `Strategies/` (parameter-editor controls), converters. |
 | `TradingTerminal.Login` | `LoginWindow`, `LoginViewModel`, `CredentialStore`, `Forms/` (Ib/Ninja/CTrader/Alpaca login forms), `BrokerLoginFormFactory`, `AddLogin()`. Namespaces stay `TradingTerminal.App.Login[.Forms]`. |
 | `TradingTerminal.Ai` | `Analyst/` (`Http`/`Null`AiAnalystClient, `AiAnalystServiceCollectionExtensions`, `AiAnalystEnricher`), `AnalystUi/` (AI Market Analyst dock), `Tools/` (ML features, backtest analysis), `Research/` (factor research), `AddAi()`. |
-| `TradingTerminal.Strategies.<Name>` | Per-strategy live window + VM + `ITradingStrategy` descriptor + `Add<Name>Strategy()`. 16 of them. |
+| `TradingTerminal.Strategies.<Name>` | Per-strategy live window + VM + `ITradingStrategy` descriptor + `Add<Name>Strategy()`. 9 of them. |
 | `TradingTerminal.App` | `App.xaml.cs` (composition root + `OnStartup`), `Composition/AppDependencyInjection.cs` (the `AddXxx` manifest), `Shell/` (MainWindow, factories, DockTab), `MainWindow.xaml(.cs)`, `MainWindowViewModel`, broker-meter, archive UI bridge. |
 | `TradingTerminal.Backtest.Cli` | `daxalgo-backtest` headless CLI (`Program.cs`: run/synth/sweep/walkforward/mc/tca/features). |
 
@@ -39,4 +39,4 @@ Layer graph (acyclic): `Core ← MarketData ← Infrastructure ← {Login, Ai, S
 
 ## Build / test
 
-`dotnet build` · `dotnet test` · `dotnet run --project src/TradingTerminal.App`. A Stop hook auto-surfaces build errors. Removed strategies (Bollinger, Rsi, Macd, Microprice, Twap, AnomalyDetector, ConnorsRsi2, EodMomentum, GapFade, LondonOpenBreakout, MaCrossover, TrendFilter) — don't reference them.
+`dotnet build` · `dotnet test` · `dotnet run --project src/TradingTerminal.App`. A Stop hook auto-surfaces build errors. The 9 live strategies: ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowSurfaceSpike, OrderFlowToxicity (vpin), OrnsteinUhlenbeck, VolatilityTargeted (+ buyAndHold/meanReversion/donchian engine demos). Removed strategies — don't reference them: Bollinger, Rsi, Macd, Microprice, Twap, AnomalyDetector, ConnorsRsi2, EodMomentum, GapFade, LondonOpenBreakout, MaCrossover, TrendFilter, AvellanedaStoikov, BookPressure, IcebergDetection, LiquiditySweep, OnlineRegressionAlpha, PullbackContinuation, ThinBookFilter.

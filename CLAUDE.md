@@ -42,11 +42,11 @@ Core           → (nothing)
 | ViewModelBase, themes, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI` |
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
 | AI analyst seam + dock, ML features, backtest analysis, factor research, enricher, `AddAi()` | `TradingTerminal.Ai` |
-| Per-strategy live windows (16) | `TradingTerminal.Strategies.<Name>` |
+| Per-strategy live windows (9) | `TradingTerminal.Strategies.<Name>` |
 | Shell, MainWindow, DI composition (`AppDependencyInjection`), `App.xaml.cs` | `TradingTerminal.App` |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
-Live strategies: ApexScalper, AvellanedaStoikov, BookPressure, CumulativeDelta, IcebergDetection, ImbalanceHeatFront, IndexKScoreSurface, LiquiditySweep, OnlineRegressionAlpha, OrderFlowCube, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, PullbackContinuation, ThinBookFilter, VolatilityTargeted.
+Live strategies (9): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
 
 ## Architectural rules (always relevant)
 

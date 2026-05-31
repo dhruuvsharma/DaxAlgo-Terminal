@@ -111,25 +111,17 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
     "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
     "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
-    "avellanedastoikov" or "as" or "marketmaker" => new AvellanedaStoikovStrategy(contract),
     // Index baselines
     "voltarget" or "voltargeting" => new VolatilityTargetedStrategy(contract),
-    "pullback" or "pullbackcontinuation" => new PullbackContinuationStrategy(contract),
     // L2 / depth-of-market themed
-    "bookpressure" or "cumimbalance" => new BookPressureStrategy(contract),
-    "liquiditysweep" or "sweep" => new LiquiditySweepStrategy(contract),
-    "iceberg" => new IcebergDetectionStrategy(contract),
     "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
     "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
     "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
     "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
-    "thinbook" => new ThinBookFilterStrategy(contract),
     "apexscalper" or "apex" => new ApexScalperStrategy(contract),
     "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
-    // ML / AI driven
-    "onlineregressionalpha" or "rls" or "onlineregression" => new OnlineRegressionAlphaStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, avellanedaStoikov, volTarget, pullback, bookPressure, liquiditySweep, iceberg, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, thinBook, apexScalper, indexKScoreSurface, onlineRegressionAlpha.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, apexScalper, indexKScoreSurface.")
 };
 
 static void PrintSummary(BacktestResult result)
@@ -239,8 +231,7 @@ static async Task<int> SweepAsync(string[] argv)
         "meanreversion" or "mean-reversion" => BuildMeanReversionGrid(contract, a),
         "donchianbreakout" or "donchian" or "breakout" => BuildDonchianGrid(contract, a),
         "ornsteinuhlenbeck" or "ou" => BuildOuGrid(contract, a),
-        "avellanedastoikov" or "as" or "marketmaker" => BuildAvellanedaGrid(contract, a),
-        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion, donchianBreakout, ornsteinUhlenbeck, or avellanedaStoikov."),
+        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion, donchianBreakout, or ornsteinUhlenbeck."),
     };
 
     Console.WriteLine($"Sweep: {grid.Count} configurations on {symbol} (parallel={maxParallel})");
@@ -337,20 +328,6 @@ static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildOuGrid(Contra
         foreach (var ez in entries)
             grid.Add(($"ou-lk{l}-z{ez.ToString(CultureInfo.InvariantCulture)}",
                 new OrnsteinUhlenbeckStrategy(contract, lookback: l, entryZ: ez, quantity: qty)));
-    return grid;
-}
-
-static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildAvellanedaGrid(Contract contract, Args a)
-{
-    var gammas = ParseDoubleList(a.Optional("gamma") ?? "0.05,0.10,0.20");
-    var ks = ParseDoubleList(a.Optional("k") ?? "1.0,1.5,3.0");
-    var qty = a.Int("qty", 1);
-
-    var grid = new List<(string, IBacktestStrategy)>();
-    foreach (var g in gammas)
-        foreach (var k in ks)
-            grid.Add(($"as-g{g.ToString(CultureInfo.InvariantCulture)}-k{k.ToString(CultureInfo.InvariantCulture)}",
-                new AvellanedaStoikovStrategy(contract, gamma: g, k: k, quoteSize: qty)));
     return grid;
 }
 
