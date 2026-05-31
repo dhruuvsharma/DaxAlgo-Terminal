@@ -45,10 +45,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{CB000001
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "cpp-backtester", "cpp-backtester", "{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}"
 	ProjectSection(SolutionItems) = preProject
-		tools\cpp-backtester\CMakeLists.txt = tools\cpp-backtester\CMakeLists.txt
-		tools\cpp-backtester\README.md = tools\cpp-backtester\README.md
-		tools\cpp-backtester\LICENSE = tools\cpp-backtester\LICENSE
 		tools\cpp-backtester\.gitattributes = tools\cpp-backtester\.gitattributes
+		tools\cpp-backtester\CMakeLists.txt = tools\cpp-backtester\CMakeLists.txt
+		tools\cpp-backtester\LICENSE = tools\cpp-backtester\LICENSE
+		tools\cpp-backtester\README.md = tools\cpp-backtester\README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "app", "app", "{CB000003-2B5E-4A9C-8E3B-7D2F6A9B5C92}"
@@ -470,6 +470,7 @@ Global
 		{CB000008-2B5E-4A9C-8E3B-7D2F6A9B5C97} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
 		{CB000009-2B5E-4A9C-8E3B-7D2F6A9B5C98} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
 		{CB00000A-2B5E-4A9C-8E3B-7D2F6A9B5C99} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{F5B1475F-94D8-4AD2-9C21-EB5DBCFDA414} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{7F0DC766-2D5E-4A61-AB18-6E92527F5589} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{57D32918-480B-4473-A038-04EC82B4BA42} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{06EC5DBB-553C-4082-B4C7-4CD9BA185660} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
