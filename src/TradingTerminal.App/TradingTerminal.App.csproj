@@ -19,23 +19,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.Rsi\TradingTerminal.Strategies.Rsi.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.Microprice\TradingTerminal.Strategies.Microprice.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.AvellanedaStoikov\TradingTerminal.Strategies.AvellanedaStoikov.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.Twap\TradingTerminal.Strategies.Twap.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.Bollinger\TradingTerminal.Strategies.Bollinger.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.MaCrossover\TradingTerminal.Strategies.MaCrossover.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.ConnorsRsi2\TradingTerminal.Strategies.ConnorsRsi2.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.LondonOpenBreakout\TradingTerminal.Strategies.LondonOpenBreakout.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.Macd\TradingTerminal.Strategies.Macd.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.TrendFilter\TradingTerminal.Strategies.TrendFilter.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.GapFade\TradingTerminal.Strategies.GapFade.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.EodMomentum\TradingTerminal.Strategies.EodMomentum.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.PullbackContinuation\TradingTerminal.Strategies.PullbackContinuation.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.BookPressure\TradingTerminal.Strategies.BookPressure.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.LiquiditySweep\TradingTerminal.Strategies.LiquiditySweep.csproj" />
@@ -47,7 +39,6 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ThinBookFilter\TradingTerminal.Strategies.ThinBookFilter.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OnlineRegressionAlpha\TradingTerminal.Strategies.OnlineRegressionAlpha.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.AnomalyDetector\TradingTerminal.Strategies.AnomalyDetector.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj" />
   </ItemGroup>
 

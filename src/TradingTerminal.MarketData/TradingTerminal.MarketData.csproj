@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Canonical market-data pipeline: hub, ingest, repository, instrument registry, SQLite/Postgres store, and the Telegram-backed archive offloader. Sits between Core and Infrastructure.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.Tests" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>daxalgo-backtest</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
+    <!-- Columnar tick/bar bundles for the archive offloader. -->
+    <PackageReference Include="Parquet.Net" Version="5.0.2" />
+    <!-- Embedded SQLite hot store (ADO.NET only, no EF). -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <!-- PostgreSQL/TimescaleDB driver for the containerized canonical store. -->
+    <PackageReference Include="Npgsql" Version="9.0.2" />
+    <!-- Telegram MTProto client used by the archive offloader to ship multi-GB parquet bundles. -->
+    <PackageReference Include="WTelegramClient" Version="4.4.4" />
+  </ItemGroup>
+
+</Project>

@@ -1,7 +1,6 @@
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
-using TradingTerminal.Core.Trading;
 
 namespace TradingTerminal.Infrastructure.Brokers;
 
@@ -29,7 +28,6 @@ public sealed class MeteredBrokerClient : IBrokerClient
 
     public BrokerKind Kind => _inner.Kind;
     public IObservable<ConnectionState> ConnectionState => _inner.ConnectionState;
-    public IObservable<OrderEvent> OrderEvents => _inner.OrderEvents;
 
     public Task ConnectAsync(CancellationToken ct = default)
     {
@@ -80,18 +78,6 @@ public sealed class MeteredBrokerClient : IBrokerClient
     {
         _meter.RecordCall(_inner.Kind, nameof(SubscribeTradesAsync));
         return _inner.SubscribeTradesAsync(contract, ct);
-    }
-
-    public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
-    {
-        _meter.RecordCall(_inner.Kind, nameof(PlaceOrderAsync));
-        return _inner.PlaceOrderAsync(request, ct);
-    }
-
-    public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
-    {
-        _meter.RecordCall(_inner.Kind, nameof(CancelOrderAsync));
-        return _inner.CancelOrderAsync(clientOrderId, ct);
     }
 
     public ValueTask DisposeAsync() => _inner.DisposeAsync();

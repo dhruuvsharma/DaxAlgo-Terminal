@@ -1,4 +1,3 @@
-using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -31,23 +30,13 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_vm is not null)
-        {
             _vm.SurfaceChanged -= OnSurfaceChanged;
-            ((INotifyCollectionChanged)_vm.LogEntries).CollectionChanged -= OnLogChanged;
-        }
         _vm = e.NewValue as IndexKScoreSurfaceViewModel;
         if (_vm is not null)
         {
             _vm.SurfaceChanged += OnSurfaceChanged;
-            ((INotifyCollectionChanged)_vm.LogEntries).CollectionChanged += OnLogChanged;
             Redraw();
         }
-    }
-
-    // LogEntries are newest-first (VM Insert(0, ...)), so scroll to top on add.
-    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action == NotifyCollectionChangedAction.Add) LogScroller.ScrollToTop();
     }
 
     private void OnSurfaceChanged(object? sender, EventArgs e) => Redraw();

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +13,7 @@ using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
 using TradingTerminal.App.BrokerMetering;
+using TradingTerminal.App.Correlation;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Regime;
@@ -39,6 +42,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string AiAnalystTabId = "ai.marketanalyst";
     private const string RegimeTabId = "tools.regime";
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
+    private const string CorrelationWindowId = "tools.correlation";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -73,6 +77,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _openWindows = new Dictionary<string, Window>(StringComparer.Ordinal);
         _tabDisposables = new Dictionary<DockTab, IDisposable>();
         LogSink = logSink;
+        ActivityLog = CollectionViewSource.GetDefaultView(logSink.Entries);
+        ActivityLog.Filter = FilterActivityEntry;
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm:ss");
@@ -125,6 +131,26 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<ITradingStrategy> Strategies { get; }
     public ObservableCollection<DockTab> OpenTabs { get; }
     public InMemoryLogSink LogSink { get; }
+
+    /// <summary>Filtered view over the universal activity log shown in the ACTIVITY LOG dock —
+    /// aggregates system (Serilog) and per-strategy/tab entries. Filtered live by
+    /// <see cref="LogFilter"/> across source / level / message.</summary>
+    public ICollectionView ActivityLog { get; }
+
+    /// <summary>Free-text filter over the activity log (matches source, level, or message).</summary>
+    [ObservableProperty] private string _logFilter = string.Empty;
+
+    partial void OnLogFilterChanged(string value) => ActivityLog.Refresh();
+
+    private bool FilterActivityEntry(object obj)
+    {
+        if (obj is not LogEntry e) return false;
+        var f = LogFilter?.Trim();
+        if (string.IsNullOrEmpty(f)) return true;
+        return e.Source.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || e.Level.Contains(f, StringComparison.OrdinalIgnoreCase)
+            || e.Message.Contains(f, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Live API-call meter shown as broker chips in the Bloomberg header strip.</summary>
     public BrokerApiMeterViewModel ApiMeter { get; }
@@ -448,6 +474,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         // The VM holds a live subscription to the regime stream — dispose it when the tab closes.
         _tabDisposables[tab] = vm;
         ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenCorrelation()
+    {
+        if (_openWindows.TryGetValue(CorrelationWindowId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<CorrelationMatrixViewModel>();
+        var window = _services.GetRequiredService<CorrelationMatrixWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(CorrelationWindowId);
+            vm.Dispose();
+        };
+        _openWindows[CorrelationWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened correlation matrix window");
     }
 
     [RelayCommand]

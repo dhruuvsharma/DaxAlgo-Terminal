@@ -36,6 +36,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
     <Reference Include="CSharpAPI">
       <HintPath>$(_ResolvedTwsApiDll)</HintPath>
       <Private>true</Private>
@@ -87,6 +88,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,3 @@
-using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -27,25 +26,13 @@ public partial class ImbalanceHeatFrontWindow : MetroWindow
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_vm is not null)
-        {
             _vm.SurfaceChanged -= OnSurfaceChanged;
-            ((INotifyCollectionChanged)_vm.DataLog).CollectionChanged -= OnLogChanged;
-        }
         _vm = e.NewValue as ImbalanceHeatFrontViewModel;
         if (_vm is not null)
         {
             _vm.SurfaceChanged += OnSurfaceChanged;
-            ((INotifyCollectionChanged)_vm.DataLog).CollectionChanged += OnLogChanged;
             Redraw();
         }
-    }
-
-    // DataLog is newest-first (base class Insert(0, ...)), so a new entry shows up at the TOP —
-    // scroll to the start, not the end.
-    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action == NotifyCollectionChangedAction.Add)
-            LogScroller.ScrollToTop();
     }
 
     private void OnSurfaceChanged(object? sender, EventArgs e) => Redraw();

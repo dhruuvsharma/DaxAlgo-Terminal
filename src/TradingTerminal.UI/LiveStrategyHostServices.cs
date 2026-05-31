@@ -1,5 +1,6 @@
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.UI.Logging;
 
 namespace TradingTerminal.UI;
 
@@ -21,6 +22,9 @@ namespace TradingTerminal.UI;
 /// <item><see cref="Selector"/> — multi-broker registry. VMs use it to fall back to the first
 /// connected broker when a picker row has no source broker (the static catalog fallback path),
 /// and to gate Start on at least one broker being connected.</item>
+/// <item><see cref="ActivityLog"/> — the app-wide activity log. VMs append their activity here
+/// (tagged with their display name) instead of owning a per-window log panel; the universal
+/// Activity Log dock renders all sources together.</item>
 /// </list>
 /// </summary>
 public sealed record LiveStrategyHostServices(
@@ -28,4 +32,5 @@ public sealed record LiveStrategyHostServices(
     IMarketDataHub Hub,
     IMarketDataIngest Ingest,
     IMarketDataStore Store,
-    IBrokerSelector Selector);
+    IBrokerSelector Selector,
+    InMemoryLogSink ActivityLog);

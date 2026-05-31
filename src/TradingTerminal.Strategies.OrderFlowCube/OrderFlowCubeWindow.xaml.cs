@@ -1,4 +1,3 @@
-using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -24,7 +23,6 @@ public partial class OrderFlowCubeWindow : MetroWindow
         {
             _vm.TrailChanged -= OnTrailChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
-            ((INotifyCollectionChanged)_vm.LogEntries).CollectionChanged -= OnLogEntriesChanged;
         }
 
         _vm = e.NewValue as OrderFlowCubeViewModel;
@@ -33,17 +31,8 @@ public partial class OrderFlowCubeWindow : MetroWindow
         {
             _vm.TrailChanged += OnTrailChanged;
             _vm.PropertyChanged += OnVmPropertyChanged;
-            ((INotifyCollectionChanged)_vm.LogEntries).CollectionChanged += OnLogEntriesChanged;
             RedrawChart();
         }
-    }
-
-    private void OnLogEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        // Stick to bottom on every append so the user always sees the latest event without
-        // having to scroll. Cheap — ScrollToEnd is a single-line VirtualizingStackPanel hint.
-        if (e.Action == NotifyCollectionChangedAction.Add)
-            LogScroller.ScrollToEnd();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

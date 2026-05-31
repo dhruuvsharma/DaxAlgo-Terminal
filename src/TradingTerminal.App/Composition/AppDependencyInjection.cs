@@ -1,14 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.App.Ai;
-using TradingTerminal.App.AiAnalyst;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Backtest;
-using TradingTerminal.App.Login;
-using TradingTerminal.App.Login.Forms;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Regime;
-using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
 using TradingTerminal.Core.Backtest;
@@ -17,33 +12,21 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.UI;
-using TradingTerminal.Strategies.AnomalyDetector;
 using TradingTerminal.Strategies.ApexScalper;
 using TradingTerminal.Strategies.AvellanedaStoikov;
-using TradingTerminal.Strategies.Bollinger;
 using TradingTerminal.Strategies.BookPressure;
-using TradingTerminal.Strategies.ConnorsRsi2;
 using TradingTerminal.Strategies.CumulativeDelta;
-using TradingTerminal.Strategies.EodMomentum;
-using TradingTerminal.Strategies.GapFade;
 using TradingTerminal.Strategies.IcebergDetection;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.IndexKScoreSurface;
 using TradingTerminal.Strategies.LiquiditySweep;
-using TradingTerminal.Strategies.LondonOpenBreakout;
-using TradingTerminal.Strategies.MaCrossover;
-using TradingTerminal.Strategies.Macd;
-using TradingTerminal.Strategies.Microprice;
 using TradingTerminal.Strategies.OnlineRegressionAlpha;
 using TradingTerminal.Strategies.OrderFlowCube;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.PullbackContinuation;
-using TradingTerminal.Strategies.Rsi;
 using TradingTerminal.Strategies.ThinBookFilter;
-using TradingTerminal.Strategies.TrendFilter;
-using TradingTerminal.Strategies.Twap;
 using TradingTerminal.Strategies.VolatilityTargeted;
 
 namespace TradingTerminal.App.Composition;
@@ -62,6 +45,10 @@ public static class AppDependencyInjection
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
+        // Runtime strategy authoring: Roslyn compiler + the authoring pane VM. Lets users
+        // write a strategy and register it into the catalog with no recompile of the host.
+        services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
+        services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         services.AddFastBacktestRunner();
 
         // Shared signal-strategy infrastructure used by every per-strategy project's VM.
@@ -78,30 +65,18 @@ public static class AppDependencyInjection
             sp.GetRequiredService<Core.MarketData.IMarketDataHub>(),
             sp.GetRequiredService<Core.MarketData.IMarketDataIngest>(),
             sp.GetRequiredService<Core.MarketData.IMarketDataStore>(),
-            sp.GetRequiredService<Core.Brokers.IBrokerSelector>()));
+            sp.GetRequiredService<Core.Brokers.IBrokerSelector>(),
+            sp.GetRequiredService<TradingTerminal.UI.Logging.InMemoryLogSink>()));
 
         // Dedicated live strategies — each in its own project, opens as a MetroWindow.
-        services.AddRsiStrategy();
         services.AddCumulativeDeltaStrategy();
 
         // HFT / microstructure
-        services.AddMicropriceStrategy();
         services.AddOrnsteinUhlenbeckStrategy();
         services.AddAvellanedaStoikovStrategy();
-        services.AddTwapStrategy();
-
-        // Forex baselines
-        services.AddBollingerStrategy();
-        services.AddMaCrossoverStrategy();
-        services.AddConnorsRsi2Strategy();
-        services.AddLondonOpenBreakoutStrategy();
-        services.AddMacdStrategy();
 
         // Index baselines
-        services.AddTrendFilterStrategy();
         services.AddVolatilityTargetedStrategy();
-        services.AddGapFadeStrategy();
-        services.AddEodMomentumStrategy();
         services.AddPullbackContinuationStrategy();
 
         // L2 / depth-of-market
@@ -118,40 +93,16 @@ public static class AppDependencyInjection
 
         // ML / AI
         services.AddOnlineRegressionAlphaStrategy();
-        services.AddAnomalyDetectorStrategy();
 
         return services;
     }
 
-    /// <summary>Per-broker login forms. Each form is registered as both its concrete type
-    /// (for the factory's GetRequiredService lookup) and as <see cref="IBrokerLoginForm"/>
-    /// (so the factory can enumerate them).</summary>
-    public static IServiceCollection AddBrokerLoginForms(this IServiceCollection services)
-    {
-        services.AddSingleton<IbLoginFormViewModel>();
-        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<IbLoginFormViewModel>());
-
-        services.AddSingleton<NinjaLoginFormViewModel>();
-        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<NinjaLoginFormViewModel>());
-
-        services.AddSingleton<CTraderLoginFormViewModel>();
-        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<CTraderLoginFormViewModel>());
-
-        services.AddSingleton<AlpacaLoginFormViewModel>();
-        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<AlpacaLoginFormViewModel>());
-
-        services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
-        return services;
-    }
-
-    /// <summary>The login + main-shell windows and their view-models, plus the factory
-    /// seam over them so <c>App.xaml.cs</c> never references the concrete window types.</summary>
+    /// <summary>The main-shell window and its view-model, plus the factory seam over the login +
+    /// main windows so <c>App.xaml.cs</c> never references the concrete window types. The login
+    /// window / forms / credential store are registered by <c>AddLogin()</c> in the
+    /// TradingTerminal.Login project.</summary>
     public static IServiceCollection AddShell(this IServiceCollection services)
     {
-        services.AddSingleton<CredentialStore>();
-        services.AddTransient<LoginViewModel>();
-        services.AddTransient<LoginWindow>();
-
         // Broker-API meter VM — singleton because it owns a DispatcherTimer and a stable
         // ObservableCollection of chips bound by the header strip. Resolves IBrokerApiMeter
         // from Infrastructure (registered alongside the broker clients).
@@ -199,31 +150,11 @@ public static class AppDependencyInjection
         return services;
     }
 
-    /// <summary>Factor research notebook tab — opens from AI tools → Factor research.</summary>
-    public static IServiceCollection AddResearchSurface(this IServiceCollection services)
+    /// <summary>Correlation matrix window — opens from Tools → Correlation matrix.</summary>
+    public static IServiceCollection AddCorrelationSurface(this IServiceCollection services)
     {
-        services.AddTransient<FactorResearchViewModel>();
-        services.AddTransient<FactorResearchView>();
-        return services;
-    }
-
-    /// <summary>AI tools tabs — ML features (triple-barrier labelling) and Backtest analysis
-    /// (walk-forward + Monte Carlo). Both wrap Core/Infrastructure types shared with the
-    /// daxalgo-backtest CLI so numbers match between the two surfaces.</summary>
-    public static IServiceCollection AddAiSurface(this IServiceCollection services)
-    {
-        services.AddTransient<MlFeaturesViewModel>();
-        services.AddTransient<MlFeaturesView>();
-        services.AddTransient<BacktestAnalysisViewModel>();
-        services.AddTransient<BacktestAnalysisView>();
-        return services;
-    }
-
-    /// <summary>AI Market Analyst tab — opens from AI tools → Market analyst.</summary>
-    public static IServiceCollection AddAiAnalystSurface(this IServiceCollection services)
-    {
-        services.AddTransient<AiAnalystViewModel>();
-        services.AddTransient<AiAnalystView>();
+        services.AddTransient<TradingTerminal.App.Correlation.CorrelationMatrixViewModel>();
+        services.AddTransient<TradingTerminal.App.Correlation.CorrelationMatrixWindow>();
         return services;
     }
 

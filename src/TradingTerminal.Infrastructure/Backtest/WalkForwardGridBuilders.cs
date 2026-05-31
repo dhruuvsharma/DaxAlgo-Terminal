@@ -27,7 +27,6 @@ public static class WalkForwardGridBuilders
     {
         "meanreversion" or "mean-reversion" => MeanReversion(lookbacks, entries, stops, quantity),
         "donchianbreakout" or "donchian" or "breakout" => Donchian(lookbacks, trails, quantity),
-        "microprice" => Microprice(thresholds, holds, quantity),
         "ornsteinuhlenbeck" or "ou" => OrnsteinUhlenbeck(lookbacks, entryZ, quantity),
         _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
     };
@@ -57,20 +56,6 @@ public static class WalkForwardGridBuilders
                 int lc = l; double sc = s;
                 list.Add(($"don-lk{lc}-trail{sc.ToString(CultureInfo.InvariantCulture)}",
                     c => new DonchianBreakoutStrategy(c, lc, sc, qty)));
-            }
-        return list;
-    }
-
-    public static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> Microprice(
-        double[] thresholds, int[] holds, int qty)
-    {
-        var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-        foreach (var t in thresholds)
-            foreach (var h in holds)
-            {
-                double tc = t; int hc = h;
-                list.Add(($"mp-t{tc.ToString(CultureInfo.InvariantCulture)}-h{hc}",
-                    c => new MicropriceStrategy(c, tc, hc, qty)));
             }
         return list;
     }
