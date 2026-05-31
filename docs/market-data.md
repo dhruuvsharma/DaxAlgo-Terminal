@@ -13,6 +13,12 @@ Two backends ship behind one `IMarketDataStore` seam:
 
 For the architectural rationale (canonical identity, ref-counted ingest, async writes, fanout via Rx), see [architecture.md](architecture.md). For all `MarketDataStore:*` keys, see [configuration.md](configuration.md).
 
+## Screenshots
+
+| Archive settings | Archive activity |
+|---|---|
+| ![Archive settings](../images/archivesettingswindow_1.png) ![Archive settings](../images/archivesettingswindow_2.png) | ![Archive activity](../images/archiveactivitywindow.png) |
+
 ## Switching backends
 
 Flip `MarketDataStore:Provider` to `Postgres` in `appsettings.json` (the default connection string already matches the compose service):

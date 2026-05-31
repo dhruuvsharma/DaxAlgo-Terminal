@@ -8,6 +8,11 @@ Two transports ship out of the box: **Telegram** (Bot API, JSON over HTTPS) and 
 
 For the optional AI-generated commentary line that prepends to every notification, see [ai-analyst.md](ai-analyst.md). For the design rationale (channel + dispatcher + enricher pipeline + signal gate), see [architecture.md](architecture.md).
 
+## Screenshots
+
+![Notification settings](../images/notificationwindow_1.png)
+![Notification settings](../images/notificationwindow_2.png)
+
 ## Telegram setup
 
 1. Open Telegram, talk to [@BotFather](https://t.me/BotFather), `/newbot`, follow the prompts, copy the token (looks like `123456:AA…`).

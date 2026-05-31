@@ -6,6 +6,12 @@ A broker-independent **risk-on / risk-off score** (0–100, five bands: Extreme 
 
 For all `MarketRegime:*` keys, see [configuration.md](configuration.md). For how the gate interacts with the notification pipeline, see [notifications.md](notifications.md).
 
+## Screenshots
+
+| Composite regime | Per-instrument regime |
+|---|---|
+| ![Market regime](../images/marketregimewindow.png) | ![Instrument regime](../images/instrumentregime.png) |
+
 ## Where to open it
 
 **Tools → Market regime** opens a dockable panel showing the composite as a 0–100 gauge with the five bands, plus the per-category breakdown and a header strip of macro metrics (10Y yield, HY spread, Fed funds).

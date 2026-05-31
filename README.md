@@ -1,6 +1,6 @@
 # DaxAlgo Terminal
 
-> Last updated: 2026-05-25
+> Last updated: 2026-05-31
 
 [![.NET 9](https://img.shields.io/badge/.NET-9.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -9,9 +9,11 @@
 
 A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable Bloomberg-style shell. Picks a broker at login (Interactive Brokers, NinjaTrader, cTrader, or Alpaca) and routes everything downstream — historical bars, live ticks, depth, connection state, reconnect logic — through a single `IBrokerClient` seam.
 
+![DaxAlgo Terminal main window](images/mainwindow.png)
+
 ## What ships
 
-- **20+ canonical strategies** behind one `IBacktestStrategy` plug-in seam — HFT/microstructure (Avellaneda-Stoikov, microprice, OU, TWAP), Forex baselines (Bollinger, MA cross, Connors RSI(2), London open, MACD), S&P 500 baselines (200-SMA trend, vol targeting, gap fade, EOD momentum, pullback), L2/DOM (book pressure, liquidity sweep, iceberg, VPIN, thin-book), and ML (online regression, anomaly detector).
+- **16 live strategies** behind one `IBacktestStrategy` plug-in seam — HFT/microstructure (Avellaneda-Stoikov, Ornstein-Uhlenbeck), index baselines (volatility targeting, trend-pullback continuation), L2/DOM order-flow (book pressure, liquidity sweep, iceberg detection, VPIN toxicity, thin-book filter, cumulative delta), 3D regime-cube family (Order-Flow Cube, Order-Flow Surface Spike, Imbalance Heat Front, Index K-Score Surface, APEX microstructure scalper), and ML (online-regression alpha). Plus buy-and-hold / mean-reversion / Donchian demos in the backtester.
 - **Four broker backends** behind one `IBrokerClient`: IB (TWS API), NT 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket).
 - **Canonical market-data pipeline** — broker-neutral `InstrumentId`, Rx fanout hub, ref-counted ingest, and a two-backend store (embedded SQLite by default, or PostgreSQL + TimescaleDB via `docker compose`). Postgres auto-falls-back to SQLite when unreachable.
 - **Tick-level backtest engine** — `IFeeModel` (zero / maker-taker / bps), `IRiskManager` (per-symbol cap + daily PnL cap), L1 fill model, ParquetTick reader/writer, full stats suite (Sharpe, Sortino, Calmar, Omega, Ulcer, recovery, max consec losses). Headless CLI with `run` / `sweep` / `walkforward` / `mc` / `tca` / `features` subcommands.
@@ -34,6 +36,21 @@ You don't need any broker installed to build and run — the synthetic `Fake*Cli
 
 For setup details (DLL resolution, port numbers, OAuth flow, API keys), see [docs/getting-started.md](docs/getting-started.md) and [docs/brokers.md](docs/brokers.md).
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Login](images/loginscreenwindow.png) | ![APEX scalper](images/apexmicrostructurescalperwindow.png) |
+| Multi-broker login | APEX microstructure scalper |
+| ![Order-Flow Cube](images/imbalanceheatfrontwindow.png) | ![Index K-Score Surface](images/indexkscoresurfacewindow.png) |
+| Imbalance Heat Front (3D) | Index K-Score Surface (3D) |
+| ![Backtest](images/backtestwindow.png) | ![AI Market Analyst](images/almarketanalystwindow.png) |
+| Tick-level backtest | AI Market Analyst |
+| ![Market regime](images/marketregimewindow.png) | ![Correlation matrix](images/correlationmatrixwindow.png) |
+| Market-regime composite | Correlation matrix |
+
+More screenshots are embedded throughout the focused docs (strategies, brokers, AI analyst, tools).
+
 ## Documentation
 
 All documentation lives in [docs/](docs/README.md). Quick links:
@@ -52,14 +69,17 @@ All documentation lives in [docs/](docs/README.md). Quick links:
 ## Project graph
 
 ```
-App        → Infrastructure, UI, Strategies.*, Core
-Strategies → Infrastructure, UI, Core
-Infra      → Core
-UI         → Core
-Core       → (nothing)
+App            → MarketData, Infrastructure, UI, Login, Ai, Strategies.*, Core
+Login          → Core, UI, Infrastructure
+Ai             → Core, UI, Infrastructure, MarketData
+Strategies     → Infrastructure, UI, Core
+Infrastructure → MarketData, Core
+MarketData     → Core
+UI             → Core
+Core           → (nothing)
 ```
 
-`Core` has zero deps on UI, WPF, IB, NT, cTrader, or Alpaca. Adding a new broker = a new `IBrokerClient` implementation in `Infrastructure/<Broker>/` and one DI registration block. Adding a new strategy = a new project + one DI line in `App.xaml.cs`. The shell stays untouched.
+`Core` has zero deps on UI, WPF, IB, NT, cTrader, or Alpaca. The market-data pipeline (`MarketData`) sits below `Infrastructure`; the login flow (`Login`) and AI/ML tooling (`Ai`) are their own projects so the App shell stays thin. Adding a new broker = a new `IBrokerClient` implementation in `Infrastructure/<Broker>/` and one DI registration block. Adding a new strategy = a new project + one DI line in `App.xaml.cs`. The shell stays untouched.
 
 ## License
 

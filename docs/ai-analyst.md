@@ -6,6 +6,14 @@ A multi-agent LangGraph analyst that runs an indicator → pattern → trend →
 
 For the polyglot architecture rationale, see [polyglot.md](polyglot.md).
 
+## Screenshots
+
+| AI Market Analyst | ML features |
+|---|---|
+| ![AI Market Analyst](../images/almarketanalystwindow.png) | ![ML features](../images/mlfeatureswindow.png) |
+| Backtest analysis | Factor research |
+| ![Backtest analysis](../images/backtestanalysiswindow.png) | ![Factor research](../images/factorresearchwindow.png) |
+
 ## What it does
 
 `POST /analyst/run` takes a window of OHLCV bars + a provider/model selection and runs a four-agent flow:

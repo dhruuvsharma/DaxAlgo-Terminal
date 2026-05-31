@@ -4,6 +4,12 @@
 
 A daily-use walkthrough for **using** the terminal. For installation and the first launch, see [getting-started.md](getting-started.md). For per-broker setup, see [brokers.md](brokers.md). For each feature in depth, follow the cross-links.
 
+## Screenshots
+
+| Backtest | Tick recorder | Correlation matrix |
+|---|---|---|
+| ![Backtest](../images/backtestwindow.png) | ![Tick recorder](../images/recordtickswindow.png) | ![Correlation matrix](../images/correlationmatrixwindow.png) |
+
 ## Launching
 
 ```powershell

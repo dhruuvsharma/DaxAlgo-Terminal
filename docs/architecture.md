@@ -1,6 +1,6 @@
 # Architecture
 
-> Last updated: 2026-05-25
+> Last updated: 2026-05-31
 
 The design rationale, key interface signatures, and constraints that the rest of the codebase honors. For installation and runtime setup, see [getting-started.md](getting-started.md). For per-broker quirks, see [brokers.md](brokers.md). For feature-level deep dives, see [market-data.md](market-data.md), [market-regime.md](market-regime.md), [backtesting.md](backtesting.md), [notifications.md](notifications.md), [ai-analyst.md](ai-analyst.md).
 
@@ -29,14 +29,17 @@ The shipped brokers (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca) exerci
 ## Project graph
 
 ```
-App        → Infrastructure, UI, Strategies.*, Core
-Strategies → Infrastructure, UI, Core   (live VM wraps an engine-side IBacktestStrategy)
-Infra      → Core
-UI         → Core
-Core       → (nothing)
+App            → MarketData, Infrastructure, UI, Login, Ai, Strategies.*, Core
+Login          → Core, UI, Infrastructure
+Ai             → Core, UI, Infrastructure, MarketData
+Strategies     → Infrastructure, UI, Core   (live VM wraps an engine-side IBacktestStrategy)
+Infrastructure → MarketData, Core
+MarketData     → Core
+UI             → Core
+Core           → (nothing)
 ```
 
-`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, cTrader, or Alpaca. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
+`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and AI/ML tooling (`Ai`) are separate projects so the App shell stays thin. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
 
 The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin live-UI wrappers — they hold the `MetroWindow`, view-model, and `ITradingStrategy` descriptor, but the actual signal logic (which they instantiate inside `BuildStrategy(contract)`) lives in `Infrastructure/Backtest/Strategies/`. That split keeps the same `IBacktestStrategy` reusable from both the backtest engine and the live signal mode.
 
@@ -45,12 +48,15 @@ The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin li
 ```
 TradingTerminal.sln
 ├── src/
-│   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, LoginWindow
+│   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, shell-handoff factories
 │   ├── TradingTerminal.Backtest.Cli              Headless backtest runner — run / synth / sweep / walkforward / mc / tca / features
 │   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
-│   ├── TradingTerminal.Infrastructure            Broker clients, repository, market-data pipeline, backtest engine
-│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, in-memory log sink
-│   └── TradingTerminal.Strategies.*              20+ per-strategy projects
+│   ├── TradingTerminal.MarketData                Canonical pipeline: hub, ingest, repository, store, archive, registry (below Infrastructure)
+│   ├── TradingTerminal.Infrastructure            Broker clients, backtest engine + strategies, notifications, regime
+│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, universal activity-log sink, LiveSignalStrategyViewModelBase
+│   ├── TradingTerminal.Login                     Sign-in window, credential store, per-broker login forms
+│   ├── TradingTerminal.Ai                        AI analyst seam + dock, ML features, backtest analysis, factor research
+│   └── TradingTerminal.Strategies.*              16 per-strategy live projects
 └── tests/
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```

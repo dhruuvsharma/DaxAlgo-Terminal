@@ -6,6 +6,14 @@ The terminal speaks to four broker backends behind one `IBrokerClient` seam: **I
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
+## Screenshots
+
+![Login screen](../images/loginscreenwindow.png)
+
+| Interactive Brokers | cTrader | Alpaca |
+|---|---|---|
+| ![IB login](../images/inteactivebrokerloginwindow.png) | ![cTrader login](../images/ctraderloginwindow.png) | ![Alpaca login](../images/alpacaloginwindow.png) |
+
 ## Capability matrix
 
 | Broker | Transport | Real client status | Historical | Live ticks | L2 depth | Order routing |

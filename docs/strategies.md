@@ -1,13 +1,22 @@
 # Strategies
 
-> Last updated: 2026-05-25
+> Last updated: 2026-05-31
 
-The terminal ships 20+ canonical strategies behind one `IBacktestStrategy` plug-in seam. Each strategy has two halves:
+The terminal ships 16 live strategies behind one `IBacktestStrategy` plug-in seam (plus buy-and-hold / mean-reversion / Donchian engine demos). Each strategy has two halves:
 
 - **Engine side** (`IBacktestStrategy`) — pure tick-driven logic; runs in both the backtest CLI and the Tools → Backtest tab. Lives in `Infrastructure/Backtest/Strategies/`.
 - **Live UI side** — a `MetroWindow` + view-model that wraps the engine impl, picks an instrument, lets you set parameters, and surfaces signals as notifications. Lives in `src/TradingTerminal.Strategies.<Name>/`.
 
 The split means the same logic powers backtest sweeps and live signal mode without duplication.
+
+## Screenshots
+
+| Strategy | Window | Settings |
+|---|---|---|
+| APEX microstructure scalper | ![APEX scalper](../images/apexmicrostructurescalperwindow.png) | ![APEX settings](../images/apexmicrostructurescalpersettings.png) |
+| Cumulative delta scalper | ![Cumulative delta](../images/cumulativedeltascalperwindow.png) | ![Settings 1](../images/cumulativedeltascalpersettings_1.png) ![Settings 2](../images/cumulativedeltascalpersettings_2.png) |
+| Imbalance Heat Front (3D) | ![Imbalance Heat Front](../images/imbalanceheatfrontwindow.png) | ![Settings](../images/imbalanceheatfrontsettings.png) |
+| Index K-Score Surface (3D) | ![Index K-Score Surface](../images/indexkscoresurfacewindow.png) | ![Settings](../images/indexkscoresurfacesettings.png) |
 
 ## Strategy catalog
 
@@ -17,31 +26,22 @@ The split means the same logic powers backtest sweeps and live signal mode witho
 | Demo | `meanReversion` | Rolling-mean reversion with fixed thresholds. |
 | Demo | `donchianBreakout` | N-tick Donchian channel break, trailing-mid stop. |
 | HFT | `avellanedaStoikov` | Avellaneda-Stoikov optimal market maker — inventory-shifted reservation, online variance EMA, configurable requote cadence. |
-| HFT | `microprice` | Size-weighted microprice deviation scalper. |
 | HFT | `ornsteinUhlenbeck` | Online AR(1)-fit OU process, z-score entry/exit bands. |
-| HFT | `twap` | TWAP parent-order slicer with tail flush. |
-| Forex | `bollinger` | Bollinger band reversion (Bollinger 2001). |
-| Forex | `maCrossover` | Fast/slow SMA cross — golden / death cross (Murphy 1999). |
-| Forex | `rsi2` | Connors RSI(2) reversion (Connors 2008). |
-| Forex | `londonOpen` | Asian-range / London-open breakout with ATR trail (Volman 2011). |
-| Forex | `macd` | 12/26/9 MACD signal-line crossover (Appel 2005). |
-| Index | `trendFilter` | Long when price > 200-period SMA, else flat (Faber 2007). |
 | Index | `volTarget` | Position sized to `target_vol / realized_vol_ewma` (AQR risk-parity overlay). |
-| Index | `gapFade` | Detect overnight gap, fade toward previous close. |
-| Index | `eodMomentum` | Take direction of day's open-to-now return in the last N% of the UTC session (Gao-Han-Li-Zhou 2018). |
-| Index | `pullback` | Trend filter + N-tick pullback + resumption entry — "buy the dip" with a percentage stop and target. |
-| L2 / DOM | `bookPressure` | Cumulative order-book imbalance signal (Cartea-Jaimungal-Penalva). Trades touch sizes today; generalises to `Microstructure.CumulativeImbalance` over a `DepthSnapshot` when L2 ticks land. |
+| Index | `pullback` | Trend filter + N-tick pullback + resumption entry, with a percentage stop and target. |
+| L2 / DOM | `bookPressure` | Cumulative order-book imbalance signal (Cartea-Jaimungal-Penalva). |
 | L2 / DOM | `liquiditySweep` | Aggressive-flow / sweep detector — rolling-mean depth + same-side price drop. |
 | L2 / DOM | `iceberg` | Hidden-liquidity sticky-touch heuristic; trades toward the iceberg-supported side. |
-| L2 / DOM | `vpin` | VPIN-style order-flow toxicity (Easley, López de Prado, O'Hara 2012). Mean-reverts against high toxicity. |
+| L2 / DOM | `vpin` | VPIN-style order-flow toxicity (Easley, López de Prado, O'Hara 2012). |
 | L2 / DOM | `thinBook` | Breakout entry gated by a depth threshold — passes on thin-book setups. |
+| Regime cube (3D) | `orderFlowCube` | Order-flow regime cube — CVD × aggressor × size, Helix 3D scatter + trail. |
+| Regime cube (3D) | `orderFlowSurfaceSpike` | Z-score spike detector over a slice × price-bin matrix surface. |
+| Regime cube (3D) | `imbalanceHeatFront` | L2 bid/ask pressure surface with mirror-book detection. |
+| Regime cube (3D) | `indexKScoreSurface` | Per-component K-score surface for index baskets. |
+| Composite | `apexScalper` | APEX microstructure scalper — 8-signal composite with risk caps. |
+| ML | `onlineRegressionAlpha` | Online recursive-least-squares fit; trades the residual sign. |
 
-Plus two ML-oriented strategies:
-
-| Family | Project | What it does |
-|---|---|---|
-| ML | `TradingTerminal.Strategies.OnlineRegressionAlpha` | Online recursive-least-squares fit; trades the residual sign. |
-| ML | `TradingTerminal.Strategies.AnomalyDetector` | Rolling z-score anomaly detector. |
+The same engine ids are selectable in the Backtest tab and the `daxalgo-backtest` CLI. **Cumulative delta** ships as a live-only window (`TradingTerminal.Strategies.CumulativeDelta`, no backtest id).
 
 These are **textbook reference implementations, not curve-fit production systems**. Their PnL is regime-dependent, especially on the demo synthetic dataset. Pair them with real broker tick data through the same parquet pipeline to evaluate seriously.
 
@@ -49,7 +49,7 @@ These are **textbook reference implementations, not curve-fit production systems
 
 Each strategy is its own project (`src/TradingTerminal.Strategies.<Name>/`) following the same six-file shape as the others. The fastest path is to copy an existing project, rename, and edit.
 
-1. **Copy** the closest existing project under `src/`. Rename the directory, the `.csproj`, and the per-strategy class prefix (e.g. `BollingerStrategy*` → `MyStrategy*`).
+1. **Copy** the closest existing project under `src/`. Rename the directory, the `.csproj`, and the per-strategy class prefix (e.g. `VolatilityTargetedStrategy*` → `MyStrategy*`).
 2. **Files in the new project:**
    - `MyStrategy.cs` — `ITradingStrategy` descriptor with `Id` / `DisplayName` / `Description`.
    - `MyStrategyViewModel.cs` — extends `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`). Declare your parameters as `[ObservableProperty]`s, override `BuildStrategy(Contract contract)` to return your engine-side `IBacktestStrategy` impl.
