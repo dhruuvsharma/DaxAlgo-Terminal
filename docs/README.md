@@ -20,6 +20,7 @@ Focused documentation for the DaxAlgo Terminal. The repo-root [README](../README
 | [Strategies](strategies.md) | The 20+ shipped strategies, their parameters, what each is good for. Plus the recipe for adding a new strategy. |
 | [Backtesting](backtesting.md) | Tick-level engine, fees, risk caps, CLI (`run` / `sweep` / `walkforward` / `mc` / `tca` / `features`). |
 | [Market data pipeline](market-data.md) | Canonical pipeline (hub, ingest, store), SQLite vs Postgres/TimescaleDB backends, the Telegram archive offloader. |
+| [Storage map](storage.md) | **Start here if the databases are confusing.** Every storage surface in one table — canonical store, archive manifest, tick recorder, Parquet lake, Telegram archive, DuckDB reader — what each holds, where, and how to read it. |
 | [Market regime](market-regime.md) | The 0–100 risk-on / risk-off composite — sources, weights, optional signal gate. |
 | [Notifications](notifications.md) | Telegram and Discord transports, Ollama commentary enricher, adding a new transport. |
 | [AI Market Analyst](ai-analyst.md) | Python sidecar setup, four-agent flow, provider/model selection, per-signal enrichment. |

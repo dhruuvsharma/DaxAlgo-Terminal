@@ -162,6 +162,10 @@ public static class AppDependencyInjection
                               TradingTerminal.Infrastructure.Regime.Instrument.InstrumentRegimeService>();
         services.AddTransient<TradingTerminal.App.Regime.Instrument.InstrumentRegimeViewModel>();
         services.AddTransient<TradingTerminal.App.Regime.Instrument.InstrumentRegimeView>();
+        // Markov regime detection tool — pure-C# Gaussian HMM (Core), offline analysis over
+        // historical bars. Transient so each open gets a fresh VM.
+        services.AddTransient<TradingTerminal.App.Regime.Markov.MarkovRegimeViewModel>();
+        services.AddTransient<TradingTerminal.App.Regime.Markov.MarkovRegimeView>();
         return services;
     }
 

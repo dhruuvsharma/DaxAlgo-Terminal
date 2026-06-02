@@ -420,6 +420,7 @@ public sealed class RealCTraderClient : IBrokerClient
         var askBook = new Dictionary<ulong, DepthLevel>();
         var bookLock = new object();
         var firstEventLogged = false;
+        var lastCrossedWarnUtc = DateTime.MinValue;
 
         var ch = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
         {
@@ -477,6 +478,24 @@ public sealed class RealCTraderClient : IBrokerClient
                     var topBid = bidsList.Count > 0 ? bidsList[0].Size : 0L;
                     var topAsk = asksList.Count > 0 ? asksList[0].Size : 0L;
                     _topOfBook[symbol.SymbolId] = (topBid, topAsk);
+
+                    // Book-integrity guard. cTrader depth has no sequence numbers (in-order TCP),
+                    // so there is no gap to resync; the failure mode we *can* see is a crossed or
+                    // locked book (best bid >= best ask) from an out-of-order or stale delta. Emit
+                    // the snapshot regardless — it self-corrects on the next delta — but surface a
+                    // throttled warning to the Activity Log so a persistent crossing is visible.
+                    if (bidsList.Count > 0 && asksList.Count > 0 && bidsList[0].Price >= asksList[0].Price)
+                    {
+                        var nowUtc = DateTime.UtcNow;
+                        if (nowUtc - lastCrossedWarnUtc > TimeSpan.FromSeconds(5))
+                        {
+                            lastCrossedWarnUtc = nowUtc;
+                            _logger.LogWarning(
+                                "cTrader depth book crossed/locked for {Sym}: best bid {Bid} >= best ask {Ask}. " +
+                                "Snapshot emitted anyway; usually self-corrects on the next delta.",
+                                contract.Symbol, bidsList[0].Price, asksList[0].Price);
+                        }
+                    }
 
                     ch.Writer.TryWrite(new DepthSnapshot(DateTime.UtcNow, bidsList, asksList));
                 }

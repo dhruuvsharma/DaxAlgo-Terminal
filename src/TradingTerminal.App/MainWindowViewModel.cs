@@ -19,6 +19,7 @@ using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
 using TradingTerminal.App.Regime;
 using TradingTerminal.App.Regime.Instrument;
+using TradingTerminal.App.Regime.Markov;
 using TradingTerminal.App.Research;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
@@ -43,6 +44,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string AiAnalystTabId = "ai.marketanalyst";
     private const string RegimeTabId = "tools.regime";
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
+    private const string MarkovRegimeTabId = "tools.regime.markov";
     private const string CorrelationWindowId = "tools.correlation";
     private const string ChartsWindowId = "tools.charts";
     private const string ArchiveSettingsTabId = "settings.archive";
@@ -538,6 +540,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Instrument regime",
             ContentId = InstrumentRegimeTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenMarkovRegime()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == MarkovRegimeTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<MarkovRegimeViewModel>();
+        var view = _services.GetRequiredService<MarkovRegimeView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Markov regime",
+            ContentId = MarkovRegimeTabId,
             Content = view,
             CanClose = true,
         };

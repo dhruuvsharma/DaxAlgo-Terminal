@@ -1,6 +1,6 @@
 # Market data pipeline
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-01
 
 The terminal keeps a broker-neutral copy of every normalized record (`Quote` / `TradePrint` / `OhlcvBar`) it sees, so strategies can warm up on history regardless of which broker is connected, and so the same instrument has one identity across brokers.
 
@@ -12,6 +12,8 @@ Two backends ship behind one `IMarketDataStore` seam:
 | **PostgreSQL + TimescaleDB** | When you want hypertables, retention policies, or to point multiple machines at one store. | The `docker-compose.yml` at the repo root spins up `timescale/timescaledb:latest-pg16` on port 5432 with `db/user/pass = daxalgo`. Free + Apache-2. |
 
 For the architectural rationale (canonical identity, ref-counted ingest, async writes, fanout via Rx), see [architecture.md](architecture.md). For all `MarketDataStore:*` keys, see [configuration.md](configuration.md).
+
+> **Confused about which store holds what?** This page covers the *canonical* store and its pipeline. For a single map of **every** storage surface — the store, the tick recorder, the Parquet lake, the Telegram archive, and the DuckDB reader — see [storage.md](storage.md).
 
 ## Screenshots
 
@@ -103,6 +105,34 @@ N strategies subscribing to the same canonical id share one broker stream; the u
 Separate from the canonical store, the **Tools → Record live ticks** tab writes live ticks straight to a `.parquet` file (compatible with the backtest CLI's `--data` argument). This existed before the canonical pipeline landed; the two are independent surfaces today.
 
 The follow-up to consolidate them lives at [project_recorder_parquet_followup](../CLAUDE.md) — once AI/ML/Research tabs migrate off `ParquetTickReader` and onto the store, the recorder's parquet path can be dropped.
+
+## Querying Parquet with DuckDB
+
+`IParquetQueryService` (backed by an embedded DuckDB engine) runs SQL directly over Parquet files — the recorder's tapes or the Parquet lake below — with predicate pushdown, so it never deserializes rows it doesn't need. It's a **reader, not a store**: it opens an in-memory database and reads the on-disk Parquet, so it can't accidentally mutate your tapes.
+
+```csharp
+// Time-filtered tick stream from a single file or a glob:
+await foreach (var tick in parquetQuery.ReadTicksAsync(globPath, fromUtc, toUtc, ct)) { … }
+
+// Resample ticks to OHLCV bars entirely in DuckDB (mid-price; TickCount, not trade volume):
+var bars = await parquetQuery.AggregateBarsAsync(globPath, TimeSpan.FromMinutes(1));
+
+// Ad-hoc research SQL (the caller references read_parquet('…') directly):
+var result = await parquetQuery.QueryAsync("SELECT count(*) FROM read_parquet('…/*.parquet')");
+```
+
+## Parquet lake (local, queryable history)
+
+The Telegram archive below ships data *off* the machine and prunes the local store, leaving nothing on disk to analyze. The **Parquet lake** is the complement: a scheduled, opt-in job that exports each *closed* period of the store to a local, partitioned Parquet tree that the DuckDB reader can scan directly.
+
+```
+%LOCALAPPDATA%\DaxAlgo Terminal\parquet-lake\
+  quotes\instrument=<id>\<period>.parquet
+  trades\instrument=<id>\<period>.parquet
+  bars\instrument=<id>\size=<n>\<period>.parquet
+```
+
+Append-only and idempotent (an existing period file is never rewritten), it reuses the same Parquet row schema as the Telegram archive, so files are interchangeable. Off by default — enable via `MarketDataParquetLake:Enabled`. It runs independently of the Telegram offloader; enable both for local query *and* a pruned store. Full layout and config in [storage.md](storage.md).
 
 ## Market-data archive (Telegram offloader)
 

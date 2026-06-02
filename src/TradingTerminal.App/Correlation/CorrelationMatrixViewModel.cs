@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -11,13 +13,23 @@ using TradingTerminal.UI;
 namespace TradingTerminal.App.Correlation;
 
 /// <summary>
-/// Drives the Correlation Matrix window: a searchable multi-select instrument checklist, a
-/// timeframe + lookback picker, and an on-demand Compute that pulls historical bars per instrument
-/// (<see cref="IMarketDataRepository.GetHistoricalBarsAsync"/>), aligns them by timestamp, and
-/// renders the NxN Pearson-on-log-returns matrix via <see cref="CorrelationCalculator"/>.
+/// Drives the Correlation Matrix window: a searchable, category-grouped multi-select instrument
+/// checklist (each row tagged with its source broker so two brokers can be correlated side by
+/// side), a timeframe + lookback picker, and an on-demand Compute that pulls historical bars per
+/// instrument (<see cref="IMarketDataRepository.GetHistoricalBarsAsync"/> — cache-first, then a
+/// broker fetch on miss), aligns them by timestamp, and renders the NxN Pearson-on-log-returns
+/// matrix via <see cref="CorrelationCalculator"/>.
 /// </summary>
 public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposable
 {
+    private const string AllCategories = "All categories";
+
+    // Brokers (IB especially) reject simultaneous historical-data bursts with pacing-violation
+    // errors, so a single Compute that fired one reqHistoricalData per instrument at once would
+    // see a random subset fail. We cap how many are in flight and retry the ones that hit a
+    // rate limit, so the user never has to reclick to "fill in" the misses.
+    private const int MaxConcurrentFetches = 3;
+
     private readonly IMarketDataRepository _repository;
     private readonly IBrokerSelector _selector;
     private readonly ILogger<CorrelationMatrixViewModel> _logger;
@@ -25,7 +37,7 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
     private CancellationTokenSource? _runCts;
 
     // Master list — holds the live IsSelected state. The filtered `Instruments` collection is
-    // rebuilt from these same instances so ticks survive a search.
+    // rebuilt from these same instances so ticks survive a search/category change.
     private IReadOnlyList<SelectableInstrument> _allInstruments = Array.Empty<SelectableInstrument>();
 
     private static readonly IReadOnlyList<TimeframeOption> AllTimeframes = new TimeframeOption[]
@@ -60,8 +72,17 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
         SelectedLookback = Lookbacks.First(l => l.Duration == TimeSpan.FromDays(90));
 
         Instruments = new ObservableCollection<SelectableInstrument>();
+        Categories = new ObservableCollection<string> { AllCategories };
         Labels = new ObservableCollection<string>();
         MatrixRows = new ObservableCollection<CorrelationRow>();
+
+        // Group the picker by canonical category, ordered category-then-symbol so the headers
+        // (Crypto, FX, Commodities, Indices, ETFs, Stocks, …) come out in a predictable order.
+        InstrumentsView = CollectionViewSource.GetDefaultView(Instruments);
+        InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.CategoryOrder), ListSortDirection.Ascending));
+        InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.CanonicalCategory), ListSortDirection.Ascending));
+        InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.Symbol), ListSortDirection.Ascending));
+        InstrumentsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SelectableInstrument.CanonicalCategory)));
 
         _ = LoadInstrumentsAsync();
     }
@@ -69,11 +90,14 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
     public ObservableCollection<TimeframeOption> Timeframes { get; }
     public ObservableCollection<LookbackOption> Lookbacks { get; }
     public ObservableCollection<SelectableInstrument> Instruments { get; }
+    public ICollectionView InstrumentsView { get; }
+    public ObservableCollection<string> Categories { get; }
     public ObservableCollection<string> Labels { get; }
     public ObservableCollection<CorrelationRow> MatrixRows { get; }
 
     [ObservableProperty] private TimeframeOption? _selectedTimeframe;
     [ObservableProperty] private LookbackOption? _selectedLookback;
+    [ObservableProperty] private string _selectedCategory = AllCategories;
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = "Loading instruments…";
@@ -82,6 +106,7 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
     public int SelectedCount => _allInstruments.Count(i => i.IsSelected);
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
+    partial void OnSelectedCategoryChanged(string value) => ApplyFilter();
 
     private async Task LoadInstrumentsAsync()
     {
@@ -102,8 +127,21 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
                 w.SelectionChanged += (_, _) => OnPropertyChanged(nameof(SelectedCount));
 
             _allInstruments = wrapped;
+
+            // Category filter options: "All" + every canonical bucket that's actually present,
+            // ordered the same way the groups render.
+            var present = wrapped
+                .Select(w => w.CanonicalCategory)
+                .Distinct()
+                .OrderBy(InstrumentCategory.OrderOf)
+                .ToList();
+            Categories.Clear();
+            Categories.Add(AllCategories);
+            foreach (var c in present) Categories.Add(c);
+            SelectedCategory = AllCategories;
+
             ApplyFilter();
-            StatusMessage = $"{wrapped.Count} instruments — tick at least two, then Compute.";
+            StatusMessage = $"{wrapped.Count} instruments across {present.Count} categories — tick at least two, then Compute.";
         }
         catch (Exception ex)
         {
@@ -115,9 +153,15 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
     private void ApplyFilter()
     {
         var term = InstrumentSearchText?.Trim() ?? string.Empty;
+        var category = SelectedCategory ?? AllCategories;
+
         IEnumerable<SelectableInstrument> query = _allInstruments;
+        if (category != AllCategories)
+            query = query.Where(i => i.CanonicalCategory == category);
         if (term.Length > 0)
-            query = _allInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(i =>
+                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                i.BrokerAbbrev.Contains(term, StringComparison.OrdinalIgnoreCase));
 
         Instruments.Clear();
         foreach (var inst in query)
@@ -166,19 +210,44 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
             var barSize = SelectedTimeframe.BarSize;
             var duration = SelectedLookback.Duration;
 
-            var fetched = await Task.WhenAll(selected.Select(inst => FetchBarsAsync(inst, barSize, duration, ct)));
+            var results = await FetchAllAsync(selected, barSize, duration, ct);
 
-            var usable = fetched.Where(f => f.Bars.Count >= 2).ToList();
-            var skipped = fetched.Where(f => f.Bars.Count < 2).Select(f => f.Instrument.Symbol).ToList();
+            // One automatic retry for transient (rate-limit) misses, run sequentially so the
+            // retry itself can't re-trigger the burst that caused them.
+            var transient = results.Where(f => f.Transient).Select(f => f.Instrument).ToList();
+            if (transient.Count > 0 && !ct.IsCancellationRequested)
+            {
+                StatusMessage = $"Rate-limited on {transient.Count} — retrying…";
+                for (int i = 0; i < results.Count; i++)
+                {
+                    if (!results[i].Transient) continue;
+                    ct.ThrowIfCancellationRequested();
+                    await Task.Delay(250, ct);
+                    var retry = await FetchBarsAsync(results[i].Instrument, barSize, duration, ct);
+                    if (retry.SkipReason is null || !retry.Transient)
+                        results[i] = retry;
+                }
+            }
+
+            var usable = results.Where(f => f.SkipReason is null).ToList();
+            var skipped = results.Where(f => f.SkipReason is not null)
+                .Select(f => $"{f.Instrument.Symbol} ({f.SkipReason})")
+                .ToList();
 
             if (usable.Count < 2)
             {
-                StatusMessage = "Not enough historical data to correlate (need ≥2 instruments with bars).";
+                StatusMessage = "Not enough historical data to correlate (need ≥2 instruments with bars)."
+                    + (skipped.Count > 0 ? $" Skipped: {string.Join(", ", skipped)}." : string.Empty);
                 Labels.Clear();
                 MatrixRows.Clear();
                 SampleCount = 0;
                 return;
             }
+
+            // Disambiguate labels by broker only when the selection spans more than one broker,
+            // so a single-broker matrix stays clean ("ES") while a cross-broker one is explicit
+            // ("ES·IB" vs "ES·CT").
+            bool multiBroker = usable.Select(u => u.Instrument.Broker).Distinct().Count() > 1;
 
             var result = await Task.Run(() =>
             {
@@ -187,7 +256,9 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
                 var returns = aligned.Select(a => CorrelationCalculator.LogReturns(a)).ToList();
                 var matrix = CorrelationCalculator.PearsonMatrix(returns);
                 int samples = timestamps.Count > 0 ? timestamps.Count - 1 : 0;
-                var labels = usable.Select(u => u.Instrument.Symbol).ToList();
+                var labels = usable.Select(u => multiBroker
+                    ? $"{u.Instrument.Symbol}·{u.Instrument.BrokerAbbrev}"
+                    : u.Instrument.Symbol).ToList();
                 return new CorrelationMatrix(labels, matrix, samples);
             }, ct);
 
@@ -198,7 +269,7 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
                 ? $"Computed over {result.SampleCount} bars (low sample — treat with caution)."
                 : $"Computed over {result.SampleCount} aligned bars.";
             if (skipped.Count > 0)
-                StatusMessage += $" Skipped (no data): {string.Join(", ", skipped)}.";
+                StatusMessage += $" Skipped: {string.Join(", ", skipped)}.";
         }
         catch (OperationCanceledException)
         {
@@ -215,14 +286,47 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
         }
     }
 
-    private async Task<(SelectableInstrument Instrument, IReadOnlyList<Bar> Bars)> FetchBarsAsync(
+    /// <summary>
+    /// Fetches every selected instrument with a bounded number in flight at once. Firing one
+    /// historical request per instrument simultaneously trips broker pacing limits (IB error 162),
+    /// so a single Compute would otherwise see a random subset fail. The semaphore caps the burst;
+    /// the per-instrument result order is preserved so callers can do an indexed retry pass.
+    /// </summary>
+    private async Task<List<FetchResult>> FetchAllAsync(
+        IReadOnlyList<SelectableInstrument> instruments, BarSize barSize, TimeSpan duration, CancellationToken ct)
+    {
+        using var gate = new SemaphoreSlim(MaxConcurrentFetches);
+        async Task<FetchResult> Gated(SelectableInstrument inst)
+        {
+            await gate.WaitAsync(ct);
+            try { return await FetchBarsAsync(inst, barSize, duration, ct); }
+            finally { gate.Release(); }
+        }
+
+        var results = await Task.WhenAll(instruments.Select(Gated));
+        return results.ToList();
+    }
+
+    /// <summary>
+    /// Fetches bars for one instrument from <em>its own</em> broker (contracts are broker-specific,
+    /// so we never fan a broker-B contract at broker A). The repository is cache-first and fetches
+    /// from the broker on a miss, so "data not present locally" resolves itself as long as the
+    /// instrument's broker is connected. Returns a non-null <see cref="FetchResult.SkipReason"/>
+    /// when the row can't contribute (and flags <see cref="FetchResult.Transient"/> for failures
+    /// worth retrying, e.g. a rate limit), so Compute can report exactly why and retry the misses.
+    /// </summary>
+    private async Task<FetchResult> FetchBarsAsync(
         SelectableInstrument inst, BarSize barSize, TimeSpan duration, CancellationToken ct)
     {
+        if (!_selector.IsConnected(inst.Broker))
+            return new FetchResult(inst, Array.Empty<Bar>(), $"{inst.BrokerAbbrev} not connected");
+
         try
         {
-            var broker = ResolveBroker(inst);
-            var bars = await _repository.GetHistoricalBarsAsync(inst.Contract, broker, barSize, duration, ct);
-            return (inst, bars ?? Array.Empty<Bar>());
+            var bars = await _repository.GetHistoricalBarsAsync(inst.Contract, inst.Broker, barSize, duration, ct);
+            if (bars is null || bars.Count < 2)
+                return new FetchResult(inst, bars ?? Array.Empty<Bar>(), "no data from broker");
+            return new FetchResult(inst, bars, SkipReason: null);
         }
         catch (OperationCanceledException)
         {
@@ -230,8 +334,10 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Correlation matrix: bars unavailable for {Symbol}", inst.Symbol);
-            return (inst, Array.Empty<Bar>());
+            // A broker fetch can fail transiently (IB pacing, a momentary disconnect). Mark it
+            // retryable so Compute can take a second pass instead of the user reclicking.
+            _logger.LogWarning(ex, "Correlation matrix: bars unavailable for {Symbol} on {Broker}", inst.Symbol, inst.Broker);
+            return new FetchResult(inst, Array.Empty<Bar>(), "fetch failed", Transient: true);
         }
     }
 
@@ -260,18 +366,6 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
         SampleCount = result.SampleCount;
     }
 
-    /// <summary>Prefer the instrument's own broker when connected; otherwise fall back to the first
-    /// connected broker. Throws when nothing is connected so the user gets a clear message.</summary>
-    private BrokerKind ResolveBroker(SelectableInstrument instrument)
-    {
-        if (_selector.IsConnected(instrument.Broker))
-            return instrument.Broker;
-        var connected = _selector.Connected;
-        if (connected.Count == 0)
-            throw new InvalidOperationException("No broker is connected. Connect at least one broker first.");
-        return connected[0];
-    }
-
     public void Dispose()
     {
         _runCts?.Cancel();
@@ -279,21 +373,37 @@ public sealed partial class CorrelationMatrixViewModel : ViewModelBase, IDisposa
     }
 }
 
-/// <summary>Checklist row wrapping a broker instrument with a bindable selection flag.</summary>
+/// <summary>Per-instrument fetch outcome. <see cref="SkipReason"/> is null when the bars are
+/// usable; otherwise it's a short human-readable reason surfaced in the status line.
+/// <see cref="Transient"/> marks failures worth one automatic retry (e.g. a broker rate limit).</summary>
+internal sealed record FetchResult(
+    SelectableInstrument Instrument, IReadOnlyList<Bar> Bars, string? SkipReason, bool Transient = false);
+
+/// <summary>Checklist row wrapping a broker instrument with a bindable selection flag. Carries the
+/// normalized <see cref="CanonicalCategory"/> (for grouping/filtering) and the source broker (so
+/// the picker can show "AAPL [IB]" vs "AAPL [AL]" and a cross-broker matrix can disambiguate).</summary>
 public sealed partial class SelectableInstrument : ObservableObject
 {
     public SelectableInstrument(string displayName, string category, Contract contract, BrokerKind broker)
     {
         DisplayName = displayName;
-        Category = category;
+        RawCategory = category;
         Contract = contract;
         Broker = broker;
+
+        CanonicalCategory = InstrumentCategory.Classify(category, contract);
+        CategoryOrder = InstrumentCategory.OrderOf(CanonicalCategory);
+        BrokerAbbrev = InstrumentCategory.BrokerAbbrev(broker);
     }
 
     public string DisplayName { get; }
-    public string Category { get; }
+    public string RawCategory { get; }
     public Contract Contract { get; }
     public BrokerKind Broker { get; }
+
+    public string CanonicalCategory { get; }
+    public int CategoryOrder { get; }
+    public string BrokerAbbrev { get; }
 
     public string Symbol => Contract.Symbol;
 
@@ -302,6 +412,76 @@ public sealed partial class SelectableInstrument : ObservableObject
     public event EventHandler? SelectionChanged;
 
     partial void OnIsSelectedChanged(bool value) => SelectionChanged?.Invoke(this, EventArgs.Empty);
+}
+
+/// <summary>
+/// Folds each broker's free-text category (IB "Index ETFs"/"Spot Forex", Alpaca "Crypto",
+/// cTrader "FX"/"Metals"/"Energy / Commodities"/"Indices", …) into one canonical set of buckets so
+/// the picker groups consistently regardless of which broker supplied the row. Continuous-futures
+/// rows are routed to Indices or Commodities by their root symbol.
+/// </summary>
+internal static class InstrumentCategory
+{
+    public const string Crypto = "Crypto";
+    public const string Fx = "FX";
+    public const string Commodities = "Commodities";
+    public const string Indices = "Indices";
+    public const string Etfs = "ETFs";
+    public const string Stocks = "Stocks";
+    public const string Futures = "Futures";
+    public const string Other = "Other";
+
+    private static readonly string[] Order = { Crypto, Fx, Commodities, Indices, Etfs, Stocks, Futures, Other };
+
+    private static readonly HashSet<string> IndexFutures = new(StringComparer.OrdinalIgnoreCase)
+        { "ES", "NQ", "YM", "RTY", "MES", "MNQ", "MYM", "M2K", "NKD", "VX", "DAX", "FDAX", "FESX" };
+
+    private static readonly HashSet<string> CommodityFutures = new(StringComparer.OrdinalIgnoreCase)
+        { "CL", "GC", "SI", "NG", "HG", "PL", "PA", "RB", "HO", "BZ", "MCL", "MGC", "SIL",
+          "ZC", "ZS", "ZW", "ZL", "ZM", "HE", "LE", "GF", "KC", "SB", "CC", "CT", "OJ" };
+
+    public static int OrderOf(string category)
+    {
+        int idx = Array.IndexOf(Order, category);
+        return idx < 0 ? Order.Length : idx;
+    }
+
+    public static string Classify(string? rawCategory, Contract? contract)
+    {
+        var raw = (rawCategory ?? string.Empty).ToLowerInvariant();
+        var sec = (contract?.SecType ?? string.Empty).ToUpperInvariant();
+        var sym = contract?.Symbol ?? string.Empty;
+
+        if (raw.Contains("crypto")) return Crypto;
+        if (sec == "CASH" || raw.Contains("forex") || raw == "fx" || raw.StartsWith("fx ")) return Fx;
+        if (raw.Contains("etf")) return Etfs;
+        if (raw.Contains("metal") || raw.Contains("energy") || raw.Contains("commodit")) return Commodities;
+        if (raw.Contains("indic")) return Indices;
+
+        if (sec is "CONTFUT" or "FUT" || raw.Contains("future"))
+        {
+            var root = RootSymbol(sym);
+            if (IndexFutures.Contains(root)) return Indices;
+            if (CommodityFutures.Contains(root)) return Commodities;
+            return Futures;
+        }
+
+        if (sec == "STK" || raw.Contains("stock") || raw.Contains("equit")) return Stocks;
+        return Other;
+    }
+
+    /// <summary>Short broker tag shown on each picker row and in cross-broker matrix labels.</summary>
+    public static string BrokerAbbrev(BrokerKind broker) => broker switch
+    {
+        BrokerKind.InteractiveBrokers => "IB",
+        BrokerKind.NinjaTrader => "NT",
+        BrokerKind.CTrader => "CT",
+        BrokerKind.Alpaca => "AL",
+        _ => broker.ToString().ToUpperInvariant(),
+    };
+
+    private static string RootSymbol(string symbol) =>
+        new string(symbol.TakeWhile(char.IsLetter).ToArray());
 }
 
 /// <summary>One row of the rendered matrix: a row header plus its cells (one per column).</summary>

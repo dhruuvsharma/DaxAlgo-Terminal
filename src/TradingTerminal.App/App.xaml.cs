@@ -16,6 +16,7 @@ using TradingTerminal.Login;
 using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
+using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.UI.Logging;
@@ -80,6 +81,7 @@ public partial class App : Application
                 services.AddTradingTerminalInfrastructure();
                 services.AddMarketDataPipeline(ctx.Configuration);
                 services.AddMarketDataArchive(ctx.Configuration);
+                services.AddParquetLake(ctx.Configuration);
                 services.AddNotifications(ctx.Configuration);
                 // Market regime — registered after AddNotifications so its risk-off signal gate
                 // supersedes the notifications module's no-op default.

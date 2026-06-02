@@ -98,8 +98,9 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
         {
             var list = await _repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
+            // Broker is shown as a coloured pill by the dropdown template — keep DisplayName clean.
             AllInstruments = list.Select(i => new SignalInstrument(
-                $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
+                i.DisplayName,
                 i.Category,
                 i.Contract,
                 i.Broker)).ToList();
@@ -113,15 +114,6 @@ public sealed partial class InstrumentRegimeViewModel : ViewModelBase
             _logger.LogWarning(ex, "Instrument regime: broker universe load failed, using static catalog");
         }
     }
-
-    private static string BrokerLabel(BrokerKind broker) => broker switch
-    {
-        BrokerKind.InteractiveBrokers => "IB",
-        BrokerKind.NinjaTrader => "NinjaTrader",
-        BrokerKind.CTrader => "cTrader",
-        BrokerKind.Alpaca => "Alpaca",
-        _ => broker.ToString(),
-    };
 
     private void ApplyInstrumentFilter()
     {

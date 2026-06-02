@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
              mc:Ignorable="d"
              d:DesignHeight="500" d:DesignWidth="900"
              Background="{DynamicResource Background.Primary}"
@@ -34,10 +35,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Instrument" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <ComboBox Grid.Column="1"
+            <uic:InstrumentPicker Grid.Column="1"
+                      ShowSearch="False"
                       ItemsSource="{Binding Instruments}"
-                      SelectedItem="{Binding SelectedInstrument}"
-                      DisplayMemberPath="DisplayName"
+                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
                       IsEnabled="{Binding IsRecording, Converter={StaticResource InverseBooleanConverter}}" />
             <TextBlock Grid.Column="3" Text="Output" VerticalAlignment="Center" Margin="0,0,8,0" />
             <TextBox Grid.Column="4"

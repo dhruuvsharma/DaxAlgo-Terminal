@@ -80,8 +80,8 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _notifications = notifications;
         _logger = logger;
 
-        AllInstruments = InstrumentCatalog.All;
-        Instruments = new ObservableCollection<TradeableInstrument>(
+        AllInstruments = SignalInstrumentCatalog.All;
+        Instruments = new ObservableCollection<SignalInstrument>(
             AllInstruments.Take(MaxInstrumentsDisplayed));
         SelectedInstrument = Instruments.FirstOrDefault(i => i.DisplayName.StartsWith("EUR.USD"))
                              ?? Instruments.FirstOrDefault();
@@ -110,12 +110,9 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             var list = await _services.Repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
 
+            // Broker is shown as a coloured pill by the dropdown — keep DisplayName clean.
             AllInstruments = list
-                .Select(i => new TradeableInstrument(
-                    $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
-                    i.Category,
-                    i.Contract,
-                    i.Broker))
+                .Select(i => new SignalInstrument(i.DisplayName, i.Category, i.Contract, i.Broker))
                 .ToList();
 
             // Prefer EUR.USD (the EA's home pair) if the broker offers FX; else the first symbol.
@@ -130,16 +127,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         }
     }
 
-    private static string BrokerLabel(BrokerKind broker) => broker switch
-    {
-        BrokerKind.InteractiveBrokers => "IB",
-        BrokerKind.NinjaTrader => "NinjaTrader",
-        BrokerKind.CTrader => "cTrader",
-        BrokerKind.Alpaca => "Alpaca",
-        _ => broker.ToString(),
-    };
-
-    private BrokerKind ResolveBroker(TradeableInstrument instrument)
+    private BrokerKind ResolveBroker(SignalInstrument instrument)
     {
         if (instrument.Broker is { } explicitBroker && _services.Selector.IsConnected(explicitBroker))
             return explicitBroker;
@@ -154,7 +142,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private void ApplyInstrumentFilter()
     {
         var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<TradeableInstrument> query = AllInstruments;
+        IEnumerable<SignalInstrument> query = AllInstruments;
         if (term.Length > 0)
             query = AllInstruments.Where(i =>
                 i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
@@ -163,7 +151,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         var keep = SelectedInstrument;
         if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
 
-        Instruments = new ObservableCollection<TradeableInstrument>(shown);
+        Instruments = new ObservableCollection<SignalInstrument>(shown);
         SelectedInstrument = keep is not null && Instruments.Contains(keep)
             ? keep
             : Instruments.FirstOrDefault();
@@ -173,17 +161,17 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     /// <summary>Full tradable universe from the connected broker (or the static fallback);
     /// <see cref="InstrumentSearchText"/> filters this into <see cref="Instruments"/>.</summary>
-    public IReadOnlyList<TradeableInstrument> AllInstruments { get; private set; }
+    public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
 
     /// <summary>Instruments shown in the picker — a capped, search-filtered view of <see cref="AllInstruments"/>.</summary>
-    [ObservableProperty] private ObservableCollection<TradeableInstrument> _instruments = new();
+    [ObservableProperty] private ObservableCollection<SignalInstrument> _instruments = new();
 
     /// <summary>Free-text filter applied over <see cref="AllInstruments"/>.</summary>
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
 
     public IReadOnlyList<BarSize> TimeframeOptions { get; }
 
-    [ObservableProperty] private TradeableInstrument? _selectedInstrument;
+    [ObservableProperty] private SignalInstrument? _selectedInstrument;
     [ObservableProperty] private BarSize _selectedTimeframe;
 
     [ObservableProperty] private int _windowSize = 10;

@@ -6,6 +6,7 @@
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:scottplot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
                  xmlns:local="clr-namespace:TradingTerminal.Strategies.CumulativeDelta"
+                 xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Cumulative Delta Scalper"
                  Height="780" Width="1180"
@@ -14,12 +15,6 @@
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-        <CollectionViewSource x:Key="GroupedInstruments" Source="{Binding Instruments}">
-            <CollectionViewSource.GroupDescriptions>
-                <PropertyGroupDescription PropertyName="Category" />
-            </CollectionViewSource.GroupDescriptions>
-        </CollectionViewSource>
-
         <!-- Style for label cell of a dashboard row: dim, left-aligned. -->
         <Style x:Key="DashLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
@@ -78,33 +73,10 @@
                                Margin="0,0,0,16" />
 
                     <TextBlock Text="Instrument" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
-                              mah:TextBoxHelper.Watermark="Search symbols..."
-                              mah:TextBoxHelper.ClearTextButton="True"
-                              Margin="0,0,0,6" />
-                    <ComboBox ItemsSource="{Binding Source={StaticResource GroupedInstruments}}"
-                              SelectedItem="{Binding SelectedInstrument}"
-                              DisplayMemberPath="DisplayName"
-                              MaxDropDownHeight="420"
-                              Margin="0,0,0,12">
-                        <ComboBox.GroupStyle>
-                            <GroupStyle>
-                                <GroupStyle.HeaderTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource Background.Elevated}"
-                                                BorderBrush="{DynamicResource Border.Brush}"
-                                                BorderThickness="0,0,0,1"
-                                                Padding="8,4,8,4">
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontWeight="SemiBold"
-                                                       FontSize="11"
-                                                       Foreground="{DynamicResource Accent.Brush}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </GroupStyle.HeaderTemplate>
-                            </GroupStyle>
-                        </ComboBox.GroupStyle>
-                    </ComboBox>
+                    <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                          ItemsSource="{Binding Instruments}"
+                                          SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                          Margin="0,0,0,12" />
 
                     <TextBlock Text="Chart timeframe (drives ATR + bar deltas)" Margin="0,0,0,4" />
                     <ComboBox ItemsSource="{Binding TimeframeOptions}"

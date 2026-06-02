@@ -60,8 +60,8 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _appLogSink = appLogSink;
         _logger = logger;
 
-        AllInstruments = InstrumentCatalog.All;
-        Instruments = new ObservableCollection<TradeableInstrument>(
+        AllInstruments = SignalInstrumentCatalog.All;
+        Instruments = new ObservableCollection<SignalInstrument>(
             AllInstruments.Take(MaxInstrumentsDisplayed));
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
@@ -76,11 +76,11 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
     private void AddLog(string level, string message) =>
         _appLogSink.Append(LogSource, level, message);
 
-    public IReadOnlyList<TradeableInstrument> AllInstruments { get; private set; }
+    public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
 
-    [ObservableProperty] private ObservableCollection<TradeableInstrument> _instruments = new();
+    [ObservableProperty] private ObservableCollection<SignalInstrument> _instruments = new();
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
-    [ObservableProperty] private TradeableInstrument? _selectedInstrument;
+    [ObservableProperty] private SignalInstrument? _selectedInstrument;
 
     // Calculator parameters (editable on the setup form).
     [ObservableProperty] private int _recentWindow = 50;
@@ -116,10 +116,9 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         {
             var list = await _services.Repository.ListInstrumentsAsync();
             if (list is null || list.Count == 0) return;
+            // Broker is shown as a coloured pill by the dropdown — keep DisplayName clean.
             AllInstruments = list
-                .Select(i => new TradeableInstrument(
-                    $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
-                    i.Category, i.Contract, i.Broker))
+                .Select(i => new SignalInstrument(i.DisplayName, i.Category, i.Contract, i.Broker))
                 .ToList();
             SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "ES")
@@ -141,7 +140,7 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _ => broker.ToString(),
     };
 
-    private BrokerKind ResolveBroker(TradeableInstrument instrument)
+    private BrokerKind ResolveBroker(SignalInstrument instrument)
     {
         if (instrument.Broker is { } explicitBroker && _services.Selector.IsConnected(explicitBroker))
             return explicitBroker;
@@ -156,14 +155,14 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
     private void ApplyInstrumentFilter()
     {
         var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<TradeableInstrument> query = AllInstruments;
+        IEnumerable<SignalInstrument> query = AllInstruments;
         if (term.Length > 0)
             query = AllInstruments.Where(i =>
                 i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
         var shown = query.Take(MaxInstrumentsDisplayed).ToList();
         var keep = SelectedInstrument;
         if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-        Instruments = new ObservableCollection<TradeableInstrument>(shown);
+        Instruments = new ObservableCollection<SignalInstrument>(shown);
         SelectedInstrument = keep is not null && Instruments.Contains(keep) ? keep : Instruments.FirstOrDefault();
     }
 

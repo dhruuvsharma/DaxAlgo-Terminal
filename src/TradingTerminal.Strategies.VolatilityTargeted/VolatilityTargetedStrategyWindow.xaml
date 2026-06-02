@@ -6,9 +6,9 @@
                        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                        xmlns:scottplot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
                        xmlns:ui="clr-namespace:TradingTerminal.UI;assembly=TradingTerminal.UI"
+                       xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                        mc:Ignorable="d" Title="{Binding StrategyDisplayName}" Height="680" Width="1100" WindowStartupLocation="CenterOwner"
                        Background="{DynamicResource Background.Primary}" Foreground="{DynamicResource Text.Primary}">
-    <mah:MetroWindow.Resources><CollectionViewSource x:Key="GroupedInstruments" Source="{Binding Instruments}"><CollectionViewSource.GroupDescriptions><PropertyGroupDescription PropertyName="Category" /></CollectionViewSource.GroupDescriptions></CollectionViewSource></mah:MetroWindow.Resources>
     <mah:MetroWindow.LeftWindowCommands><mah:WindowCommands><Button Command="{Binding ToggleAlgoCommand}" Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}" Style="{StaticResource Strategy.RunStopButton}" /></mah:WindowCommands></mah:MetroWindow.LeftWindowCommands>
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
@@ -16,13 +16,10 @@
                 <TextBlock Style="{StaticResource Strategy.SetupTitle}" Text="Configure volatility targeting (index)" />
                 <TextBlock Style="{StaticResource Strategy.SetupDescription}" Text="Size long position so realised-vol × |qty| ≈ targetVol. Cap at maxQuantity; rebalance every N ticks." />
                 <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
-                <TextBox Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
-                          mah:TextBoxHelper.Watermark="Search symbols..."
-                          mah:TextBoxHelper.ClearTextButton="True"
-                          Margin="0,0,0,6" />
-                <ComboBox ItemsSource="{Binding Source={StaticResource GroupedInstruments}}" SelectedItem="{Binding SelectedInstrument}" DisplayMemberPath="DisplayName" MaxDropDownHeight="420" Margin="0,0,0,12">
-                    <ComboBox.GroupStyle><GroupStyle><GroupStyle.HeaderTemplate><DataTemplate><Border Background="{DynamicResource Background.Elevated}" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="8,4,8,4"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11" Foreground="{DynamicResource Accent.Brush}" /></Border></DataTemplate></GroupStyle.HeaderTemplate></GroupStyle></ComboBox.GroupStyle>
-                </ComboBox>
+                <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                      ItemsSource="{Binding Instruments}"
+                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                      Margin="0,0,0,12" />
                 <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Strategy.SetupFieldLabel}" Text="Target vol" Margin="0,0,4,4" /><TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Strategy.SetupFieldLabel}" Text="Vol half-life" Margin="4,0,0,4" />
                     <TextBox   Grid.Row="1" Grid.Column="0" Text="{Binding TargetVol, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}" Margin="0,0,4,0" /><TextBox   Grid.Row="1" Grid.Column="1" Text="{Binding VolHalfLife, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0" />

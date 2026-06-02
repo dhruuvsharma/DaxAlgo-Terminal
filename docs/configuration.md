@@ -1,6 +1,6 @@
 # Configuration reference
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-01
 
 Full reference for every key under `appsettings.json` plus the persistence locations for runtime state. For per-broker setup, see [brokers.md](brokers.md). For feature deep-dives that explain *why* a setting exists, follow the cross-links.
 
@@ -75,8 +75,23 @@ OAuth credentials are entered on the login form, never in `appsettings.json`.
 | `MarketDataStore:PersistLiveData` | `true` | When false the hub still fans out in-memory but nothing is written to disk. |
 | `MarketDataStore:WriteBatchSize` | `500` | Records buffered before the background writer flushes. |
 | `MarketDataStore:FlushIntervalMs` | `1000` | Max wait before a flush even if the batch isn't full. |
+| `MarketDataStore:QuoteRetentionDays` | `30` | **Postgres/Timescale only.** Installs a TimescaleDB retention job on `quotes`. `0` = keep forever. No effect on SQLite. |
+| `MarketDataStore:TradeRetentionDays` | `30` | Same, for `trades`. |
+| `MarketDataStore:BarRetentionDays` | `0` | Same, for `bars`. `0` = keep forever (bars are tiny). |
 
-See [market-data.md](market-data.md) for the pipeline architecture and operational notes.
+See [market-data.md](market-data.md) for the pipeline architecture and operational notes, and [storage.md](storage.md) for the map of every storage surface.
+
+## Parquet lake
+
+Opt-in local Parquet mirror of the store's closed periods, laid out for direct DuckDB querying. Off by default; independent of the Telegram archive. See [storage.md](storage.md).
+
+| Key | Default | Notes |
+|---|---|---|
+| `MarketDataParquetLake:Enabled` | `false` | Master switch. When false the export service idles (one cheap timer tick / 15 min). |
+| `MarketDataParquetLake:RootDirectory` | (empty) | Lake root. Empty = `%LOCALAPPDATA%\DaxAlgo Terminal\parquet-lake`. |
+| `MarketDataParquetLake:Period` | `Monthly` | `Monthly` or `Weekly` — how often a period closes and gets exported. |
+| `MarketDataParquetLake:Tables` | `Quotes, Bars, Trades` | Which tables to export (comma-separated flags). |
+| `MarketDataParquetLake:DailyCheckHourUtc` | `4` | UTC hour to check for a closed period. Offset from the archive's hour so they don't hit the store at once. |
 
 ## Market regime composite
 
@@ -123,6 +138,8 @@ See [notifications.md](notifications.md) for the dispatcher architecture and the
 | `%LOCALAPPDATA%\DaxAlgoTerminal\connection.json` | DPAPI-encrypted broker creds: IB password, cTrader OAuth secret + access token, Alpaca API secret. |
 | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` | Default SQLite market-data store. Override via `MarketDataStore:DatabasePath`. |
 | `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json` | Telegram + Discord settings (plain text); AI Analyst provider API keys (DPAPI-encrypted at the field level). |
+| `%LOCALAPPDATA%\DaxAlgoTerminal\archive-manifest.db` | Archive offloader's manifest (what's been shipped to Telegram, with sha256s). Override via `MarketDataArchive:ManifestDatabasePath`. |
 | `%LOCALAPPDATA%\DaxAlgo Terminal\recordings\` | Default output folder for the Tools → Record live ticks parquet files. |
+| `%LOCALAPPDATA%\DaxAlgo Terminal\parquet-lake\` | Parquet lake export tree (opt-in). Override via `MarketDataParquetLake:RootDirectory`. |
 | `./bt-results/` (working dir) | Default output folder for the backtest CLI's `run` subcommand (`summary.json`, `trades.csv`, `equity.csv`, `fills.csv`). |
 | `./logs/terminal-YYYY-MM-DD.log` (working dir) | Daily rolling Serilog file output. |

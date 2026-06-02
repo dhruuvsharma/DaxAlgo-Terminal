@@ -1,0 +1,26 @@
+<Project>
+
+  <!--
+    DuckDB.NET.Bindings.Full (pulled in transitively via DuckDB.NET.Data.Full in
+    TradingTerminal.Infrastructure) bundles native binaries for five runtimes — win-x64,
+    win-arm64, linux-x64, linux-arm64, osx — totalling ~313 MB. For a RID-agnostic build the
+    SDK copies ALL of them into every consuming project's output (App, CLI, the 9 strategy
+    libraries, tests). That is ~300 MB × N projects of dead weight on a Windows-only
+    (net9.0-windows) desktop app, and it filled the disk.
+
+    Strip every DuckDB native except win-x64 before the copy-to-output step. We match on the
+    rid folder under /runtimes/ and require 'duckdb' in the path so the managed DuckDB.NET.Data
+    assembly (under /lib/) and other packages' natives are left untouched.
+  -->
+  <Target Name="TrimDuckDbNonWindowsNatives"
+          AfterTargets="ResolvePackageAssets;ResolveAssemblyReferences"
+          BeforeTargets="GetCopyToOutputDirectoryItems;CopyFilesToOutputDirectory;_CopyFilesMarkedCopyLocal">
+    <ItemGroup>
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)"
+        Condition="$([System.String]::new('%(Identity)').ToLowerInvariant().Contains('duckdb')) and ($([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/osx/')) or $([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/linux-x64/')) or $([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/linux-arm64/')) or $([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/win-arm64/')))" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="$([System.String]::new('%(Identity)').ToLowerInvariant().Contains('duckdb')) and ($([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/osx/')) or $([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/linux-x64/')) or $([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/linux-arm64/')) or $([System.String]::new('%(Identity)').Replace('\','/').ToLowerInvariant().Contains('/win-arm64/')))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

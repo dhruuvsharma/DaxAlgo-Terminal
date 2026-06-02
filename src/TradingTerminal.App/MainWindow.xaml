@@ -202,6 +202,8 @@
                           Command="{Binding OpenRegimeCommand}" />
                 <MenuItem Header="_Instrument regime…"
                           Command="{Binding OpenInstrumentRegimeCommand}" />
+                <MenuItem Header="Mar_kov regime…"
+                          Command="{Binding OpenMarkovRegimeCommand}" />
                 <MenuItem Header="_Correlation matrix…"
                           Command="{Binding OpenCorrelationCommand}" />
                 <MenuItem Header="C_harts…"

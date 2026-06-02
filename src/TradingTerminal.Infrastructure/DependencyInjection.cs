@@ -1,12 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Brokers.CTrader;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
+using TradingTerminal.Infrastructure.Backtest.Persistence;
 using TradingTerminal.Infrastructure.Brokers;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Infrastructure.Alpaca;
@@ -118,6 +120,9 @@ public static class DependencyInjection
 
         // Clock seam — shared by the backtest engine and live signal-timing.
         services.TryAddSingleton<IClock, SystemClock>();
+
+        // Read-only analytical query layer over the Parquet tick archive (DuckDB, embedded).
+        services.TryAddSingleton<IParquetQueryService, DuckDbParquetQueryService>();
 
         return services;
     }

@@ -114,6 +114,9 @@
     <PackageReference Include="Alpaca.Markets" Version="7.2.0" />
     <!-- Columnar tick/bar storage for the backtest engine. -->
     <PackageReference Include="Parquet.Net" Version="5.0.2" />
+    <!-- Embedded DuckDB engine (bundled native binaries) for read-only analytical queries over
+         the Parquet tick archive — predicate pushdown + SQL resampling for the research/backtest path. -->
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" />
     <!-- Embedded SQLite hot store for the canonical market-data pipeline (ADO.NET only, no EF). -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <!-- PostgreSQL/TimescaleDB driver for the containerized canonical store (open-source, PostgreSQL License). -->
