@@ -15,6 +15,10 @@ public enum ArchiveTables
     Quotes = 1 << 0,
     Bars = 1 << 1,
     Trades = 1 << 2,
+
+    /// <summary>L2 order-book snapshots. Only present when the store backend persists depth
+    /// (QuestDB); on SQLite/Postgres there's nothing to export so this flag is a no-op there.</summary>
+    Depth = 1 << 3,
 }
 
 /// <summary>Where in Telegram an archive goes — Saved Messages by default, or a named chat.</summary>
@@ -51,7 +55,8 @@ public sealed record ArchiveManifestEntry(
     long RowsTrades,
     long TotalBytes,
     DateTime UploadedUtc,
-    bool DeletedLocal);
+    bool DeletedLocal,
+    long RowsDepth = 0);
 
 /// <summary>Outcome of a single ArchiveRange call.</summary>
 public sealed record ArchiveResult(

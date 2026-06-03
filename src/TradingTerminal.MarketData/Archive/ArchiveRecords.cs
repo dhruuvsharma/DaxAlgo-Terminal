@@ -45,6 +45,21 @@ internal sealed class TradeParquetRow
     public bool EventTimeApproximate { get; set; }
 }
 
+/// <summary>Parquet wire format for one archived L2 depth level. Depth is stored flattened — one
+/// row per (snapshot, side, level) — matching the QuestDB <c>depth</c> table; the restorer regroups
+/// rows sharing an event time back into a <see cref="TradingTerminal.Core.Domain.DepthSnapshot"/>.</summary>
+internal sealed class DepthParquetRow
+{
+    public long InstrumentId { get; set; }
+    public long EventTimeMicros { get; set; }
+    public long IngestTimeMicros { get; set; }
+    public string Side { get; set; } = string.Empty;       // "B" (bid) | "A" (ask)
+    public int Level { get; set; }                          // 0 = best
+    public double Price { get; set; }
+    public long Size { get; set; }
+    public int Source { get; set; }
+}
+
 /// <summary>JSON manifest dropped inside each archive zip. Lists every parquet file and the
 /// range it covers so the restorer doesn't need to enumerate the zip blindly.</summary>
 internal sealed class BundleManifest
@@ -55,13 +70,14 @@ internal sealed class BundleManifest
     public long RowsQuotes { get; set; }
     public long RowsBars { get; set; }
     public long RowsTrades { get; set; }
+    public long RowsDepth { get; set; }
     public List<BundleFile> Files { get; set; } = new();
 }
 
 internal sealed class BundleFile
 {
     public string Path { get; set; } = string.Empty;
-    public string Kind { get; set; } = string.Empty;     // "quotes" | "bars" | "trades"
+    public string Kind { get; set; } = string.Empty;     // "quotes" | "bars" | "trades" | "depth"
     public long InstrumentId { get; set; }
     public int BarSize { get; set; }                       // only meaningful for bars
     public long Rows { get; set; }

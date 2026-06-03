@@ -56,10 +56,13 @@ internal sealed class ArchiveBundleBuilder
             await ExportBarsAsync(instruments, fromUtc, toUtc, parquetDir, bundleManifest, ct);
         if (tables.HasFlag(ArchiveTables.Trades))
             await ExportTradesAsync(instruments, fromUtc, toUtc, parquetDir, bundleManifest, ct);
+        if (tables.HasFlag(ArchiveTables.Depth))
+            await ExportDepthAsync(instruments, fromUtc, toUtc, parquetDir, bundleManifest, ct);
 
         progress?.Report(
             $"Exported {bundleManifest.RowsQuotes:n0} quotes, {bundleManifest.RowsBars:n0} bars, " +
-            $"{bundleManifest.RowsTrades:n0} trades across {bundleManifest.Files.Count} parquet files.");
+            $"{bundleManifest.RowsTrades:n0} trades, {bundleManifest.RowsDepth:n0} depth rows " +
+            $"across {bundleManifest.Files.Count} parquet files.");
 
         // Write manifest.json alongside the parquets so it ends up in the zip too.
         var manifestPath = Path.Combine(parquetDir, "manifest.json");
@@ -96,7 +99,7 @@ internal sealed class ArchiveBundleBuilder
             progress?.Report($"Split into {parts.Count} parts (cap = {Fmt(maxPartBytes)}).");
 
         return new BundleResult(parts, bundleManifest.RowsQuotes, bundleManifest.RowsBars,
-            bundleManifest.RowsTrades, zipSize, workDir);
+            bundleManifest.RowsTrades, bundleManifest.RowsDepth, zipSize, workDir);
     }
 
     private async Task ExportQuotesAsync(
@@ -198,6 +201,51 @@ internal sealed class ArchiveBundleBuilder
         }
     }
 
+    private async Task ExportDepthAsync(
+        IReadOnlyList<Instrument> instruments, DateTime fromUtc, DateTime toUtc,
+        string outDir, BundleManifest manifest, CancellationToken ct)
+    {
+        var dir = Path.Combine(outDir, "depth");
+        Directory.CreateDirectory(dir);
+        foreach (var ins in instruments)
+        {
+            ct.ThrowIfCancellationRequested();
+            var rows = new List<DepthParquetRow>();
+            await foreach (var s in _store.ReadDepthAsync(ins.Id, fromUtc, toUtc, ct))
+            {
+                // Flatten the snapshot to one row per level (the on-disk shape). The canonical
+                // DepthSnapshot carries no source/ingest-time in-band — those are write-side columns
+                // ReadDepthAsync doesn't surface — so the archive preserves book structure + event
+                // time, and restore stamps Source=Unknown / ingest=event time. Faithful for L2 research.
+                var eventMicros = ToMicros(s.TimestampUtc);
+                AppendLevels(rows, ins.Id.Value, eventMicros, "B", s.Bids);
+                AppendLevels(rows, ins.Id.Value, eventMicros, "A", s.Asks);
+            }
+            if (rows.Count == 0) continue;
+            var rel = $"depth/instrument_{ins.Id.Value}.parquet";
+            var abs = Path.Combine(outDir, rel);
+            await WriteParquetAsync(rows, abs, ct);
+            manifest.Files.Add(new BundleFile { Path = rel, Kind = "depth", InstrumentId = ins.Id.Value, Rows = rows.Count });
+            manifest.RowsDepth += rows.Count;
+        }
+    }
+
+    private static void AppendLevels(
+        List<DepthParquetRow> rows, long instrumentId, long eventMicros,
+        string side, IReadOnlyList<DepthLevel> levels)
+    {
+        for (var i = 0; i < levels.Count; i++)
+            rows.Add(new DepthParquetRow
+            {
+                InstrumentId = instrumentId,
+                EventTimeMicros = eventMicros,
+                IngestTimeMicros = eventMicros, // ingest time not surfaced by ReadDepthAsync
+                Side = side, Level = i,
+                Price = levels[i].Price, Size = levels[i].Size,
+                Source = 0, // BrokerKind not surfaced by ReadDepthAsync; restore stamps Unknown
+            });
+    }
+
     private static async Task WriteParquetAsync<T>(IReadOnlyCollection<T> rows, string path, CancellationToken ct)
         where T : new()
     {
@@ -265,6 +313,6 @@ internal sealed record BundlePart(string LocalPath, string Name, long SizeBytes,
 
 internal sealed record BundleResult(
     IReadOnlyList<BundlePart> Parts,
-    long RowsQuotes, long RowsBars, long RowsTrades,
+    long RowsQuotes, long RowsBars, long RowsTrades, long RowsDepth,
     long TotalUncompressedBytes,
     string WorkDir);

@@ -82,7 +82,9 @@
                     <StackPanel Orientation="Horizontal">
                         <CheckBox Content="Quotes" IsChecked="{Binding IncludeQuotes, Mode=TwoWay}" Margin="0,0,12,0" />
                         <CheckBox Content="Bars" IsChecked="{Binding IncludeBars, Mode=TwoWay}" Margin="0,0,12,0" />
-                        <CheckBox Content="Trades" IsChecked="{Binding IncludeTrades, Mode=TwoWay}" />
+                        <CheckBox Content="Trades" IsChecked="{Binding IncludeTrades, Mode=TwoWay}" Margin="0,0,12,0" />
+                        <CheckBox Content="Depth (L2)" IsChecked="{Binding IncludeDepth, Mode=TwoWay}"
+                                  ToolTip="Only persisted/archived on the QuestDB backend." />
                     </StackPanel>
 
                     <TextBlock Text="Max part bytes  (Telegram caps at ~2 GB; keep some headroom)"

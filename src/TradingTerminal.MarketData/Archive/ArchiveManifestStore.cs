@@ -45,12 +45,27 @@ internal sealed class ArchiveManifestStore : IDisposable
                 rows_trades     INTEGER NOT NULL,
                 total_bytes     INTEGER NOT NULL,
                 uploaded_micros INTEGER NOT NULL,
-                deleted_local   INTEGER NOT NULL DEFAULT 0
+                deleted_local   INTEGER NOT NULL DEFAULT 0,
+                rows_depth      INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_manifest_range
                 ON archive_manifest(from_utc_micros, to_utc_micros);
             """;
         cmd.ExecuteNonQuery();
+
+        // Migration for databases created before depth archiving: add rows_depth if missing.
+        AddColumnIfMissing(cn, "archive_manifest", "rows_depth", "INTEGER NOT NULL DEFAULT 0");
+    }
+
+    private static void AddColumnIfMissing(SqliteConnection cn, string table, string column, string decl)
+    {
+        using var check = cn.CreateCommand();
+        check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name=$c";
+        check.Parameters.AddWithValue("$c", column);
+        if (Convert.ToInt64(check.ExecuteScalar()) > 0) return;
+        using var alter = cn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {decl}";
+        alter.ExecuteNonQuery();
     }
 
     public long Insert(ArchiveManifestEntry entry)
@@ -61,9 +76,9 @@ internal sealed class ArchiveManifestStore : IDisposable
                 period_label, from_utc_micros, to_utc_micros, transport,
                 target_kind, target_chat_ref, parts_json, total_sha256,
                 rows_quotes, rows_bars, rows_trades, total_bytes,
-                uploaded_micros, deleted_local)
+                uploaded_micros, deleted_local, rows_depth)
             VALUES($pl, $from, $to, $tx, $tk, $tc, $pj, $sha,
-                   $rq, $rb, $rt, $tb, $up, $del);
+                   $rq, $rb, $rt, $tb, $up, $del, $rd);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$pl", entry.PeriodLabel);
@@ -80,6 +95,7 @@ internal sealed class ArchiveManifestStore : IDisposable
         cmd.Parameters.AddWithValue("$tb", entry.TotalBytes);
         cmd.Parameters.AddWithValue("$up", ToMicros(entry.UploadedUtc));
         cmd.Parameters.AddWithValue("$del", entry.DeletedLocal ? 1 : 0);
+        cmd.Parameters.AddWithValue("$rd", entry.RowsDepth);
         return (long)cmd.ExecuteScalar()!;
     }
 
@@ -144,7 +160,8 @@ internal sealed class ArchiveManifestStore : IDisposable
             RowsTrades: rdr.GetInt64(rdr.GetOrdinal("rows_trades")),
             TotalBytes: rdr.GetInt64(rdr.GetOrdinal("total_bytes")),
             UploadedUtc: FromMicros(rdr.GetInt64(rdr.GetOrdinal("uploaded_micros"))),
-            DeletedLocal: rdr.GetInt32(rdr.GetOrdinal("deleted_local")) != 0);
+            DeletedLocal: rdr.GetInt32(rdr.GetOrdinal("deleted_local")) != 0,
+            RowsDepth: rdr.GetInt64(rdr.GetOrdinal("rows_depth")));
     }
 
     private static long ToMicros(DateTime utc) =>

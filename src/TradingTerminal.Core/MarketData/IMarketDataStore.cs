@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Core.MarketData;
@@ -20,6 +21,11 @@ public interface IMarketDataStore
     /// exists). Returns immediately.</summary>
     void EnqueueBar(OhlcvBar bar);
 
+    /// <summary>Queue an L2 depth snapshot for batched persistence. Returns immediately. Unlike the
+    /// other streams, depth is only persisted by backends purpose-built for its volume (QuestDB);
+    /// the SQLite and Postgres stores ignore depth, so this is a no-op there by design.</summary>
+    void EnqueueDepth(InstrumentId instrumentId, DepthSnapshot snapshot, BrokerKind source);
+
     /// <summary>Flush any queued records to disk now. Mainly for tests and graceful shutdown.</summary>
     Task FlushAsync(CancellationToken ct = default);
 
@@ -34,6 +40,11 @@ public interface IMarketDataStore
 
     /// <summary>Stream stored trades in [from, to) ascending by event time (replay/research).</summary>
     IAsyncEnumerable<TradePrint> ReadTradesAsync(
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>Stream reconstructed L2 depth snapshots in [from, to) ascending by event time. Backends
+    /// that don't persist depth return an empty sequence.</summary>
+    IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 
     /// <summary>Stream stored bars at <paramref name="size"/> in [from, to) ascending by open
@@ -51,4 +62,9 @@ public interface IMarketDataStore
 
     /// <summary>Delete every bar in [from, to) across all instruments / bar sizes.</summary>
     Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>Delete every depth row in [from, to) across all instruments. Returns the number of
+    /// rows removed, or -1 when the backend reports an unknown count (e.g. QuestDB partition drop).
+    /// Backends that don't persist depth return 0.</summary>
+    Task<long> DeleteDepthInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 }

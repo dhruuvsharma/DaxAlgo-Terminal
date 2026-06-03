@@ -42,7 +42,8 @@ When [market-data-pipeline](../market-data-pipeline/SKILL.md) gains a new table:
 - **Manifest store backend is independent.** Keep it SQLite even if the main store is Postgres — the manifest must outlive backend swaps.
 - **No retention < archive period.** If retention < archive period, data hits the prune cutoff before the next archive run can ship it. Validate in `ArchiveScheduleService`.
 - **Idempotent runs.** Running the schedule twice on the same range must be a no-op (check manifest for existing row).
-- **Depth is not archived.** Depth is live-only by design (matches the pipeline rule). Don't add a `depth` export — it would multiply storage by 10-100×.
+- **Depth archiving is QuestDB-only and opt-in.** Depth is only *persisted* on the QuestDB backend (see [market-data-pipeline](../market-data-pipeline/SKILL.md)), so `ArchiveTables.Depth` only produces files there; on SQLite/Postgres `ReadDepthAsync` is empty and the export is a no-op. Off by default (`IncludeDepth=false`) — depth multiplies storage 10–100×. Fidelity caveat: `DepthSnapshot` carries no source/ingest-time in-band, so archived depth round-trips book structure + event time only (restore stamps `Source` from the stored value, default 0).
+- **QuestDB prune = partition drop, range-bounded.** QuestDB has no row-level DELETE. The store's `Delete*InRangeAsync` map to `ALTER TABLE … DROP PARTITION WHERE ts >= from AND ts < to`, which only drops partitions *fully inside* the range — boundary partitions are left intact, so it never deletes older un-archived data. Row counts return -1 (unknown); the prune message prints "partition(s)".
 
 ## Reference reads
 

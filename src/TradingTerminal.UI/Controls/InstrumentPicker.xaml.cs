@@ -14,12 +14,30 @@ namespace TradingTerminal.UI.Controls;
 /// </summary>
 public partial class InstrumentPicker : UserControl
 {
+    /// <summary>Resource key under which the shared <see cref="InstrumentTagsConverter"/> is
+    /// registered in <see cref="Application"/> resources (see <see cref="EnsureConverterRegistered"/>).</summary>
+    public const string TagsConverterKey = "InstrumentTagsConverter";
+
     public InstrumentPicker()
     {
+        EnsureConverterRegistered();
         InitializeComponent();
-        // Registered here rather than in XAML: same-assembly XAML can't reference the converter
-        // type at markup-compile time. The row template's StaticResource resolves this at render.
-        Resources["InstrumentTagsConverter"] = new InstrumentTagsConverter();
+    }
+
+    /// <summary>
+    /// The row template references <see cref="InstrumentTagsConverter"/> via
+    /// <c>{StaticResource InstrumentTagsConverter}</c> on a <c>Binding.Converter</c>. That can't be a
+    /// <c>DynamicResource</c> (Converter isn't a DP) and can't be declared in this same-assembly XAML
+    /// (MC3074), so we register a single shared instance in <see cref="Application"/> resources —
+    /// the app-level fallback every StaticResource lookup ends at. Done in the ctor so it's present
+    /// before the strategy window measures and realizes the template. Idempotent.
+    /// </summary>
+    private static void EnsureConverterRegistered()
+    {
+        var app = Application.Current;
+        if (app is null) return; // design-time / headless host — no app-level dictionary to seed
+        if (!app.Resources.Contains(TagsConverterKey))
+            app.Resources[TagsConverterKey] = new InstrumentTagsConverter();
     }
 
     public static readonly DependencyProperty ItemsSourceProperty = DependencyProperty.Register(

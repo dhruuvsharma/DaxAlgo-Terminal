@@ -9,6 +9,12 @@ public enum MarketDataProvider
     /// <summary>PostgreSQL/TimescaleDB over the network (e.g. the docker-compose service). Falls back
     /// to SQLite automatically when the database can't be reached at startup.</summary>
     Postgres = 1,
+
+    /// <summary>Split backend: high-volume L1/L2 (quotes, trades, depth) go to QuestDB over ILP/PG-wire;
+    /// bars stay in the embedded SQLite store. Unlike <see cref="Postgres"/> there is <b>no silent
+    /// fallback</b> — when QuestDB is configured but unreachable, tick/depth persistence is disabled
+    /// (logged loudly) rather than diverted to SQLite. Bars are unaffected.</summary>
+    QuestDb = 2,
 }
 
 /// <summary>
@@ -58,4 +64,24 @@ public sealed class MarketDataStoreOptions
     /// <summary>OHLCV-bar retention in days. 0 or negative (default) = keep forever — bars are small
     /// and the historical-cache value compounds over time.</summary>
     public int BarRetentionDays { get; set; } = 0;
+
+    // ── QuestDB (Provider == QuestDb) ────────────────────────────────────────────────────────
+    // QuestDB is a standalone time-series server (see the docker-compose `questdb` service), not
+    // embeddable. Writes use the InfluxDB Line Protocol over HTTP (port 9000); reads use the
+    // PostgreSQL wire protocol (port 8812) via Npgsql. Bars continue to use the SQLite store; only
+    // the high-volume L1/L2 streams land in QuestDB.
+
+    /// <summary>QuestDB ILP client configuration string (HTTP transport). <c>auto_flush=off</c> keeps
+    /// flushing deterministic — the batched background writer calls <c>Send()</c> once per batch.</summary>
+    public string QuestDbIlpConfig { get; set; } = "http::addr=localhost:9000;auto_flush=off;";
+
+    /// <summary>QuestDB PG-wire connection string used for schema creation and replay/research reads.
+    /// Defaults to QuestDB's out-of-the-box credentials (admin/quest, db <c>qdb</c>, port 8812).</summary>
+    public string QuestDbPgConnectionString { get; set; } =
+        "Host=localhost;Port=8812;Database=qdb;Username=admin;Password=quest;Timeout=5;Command Timeout=15;ServerCompatibilityMode=NoTypeLoading";
+
+    /// <summary>Depth (L2) snapshot retention in days, applied as a QuestDB partition TTL (best-effort;
+    /// requires a QuestDB build that supports <c>SET TTL</c>). 0 or negative = keep forever. Depth is
+    /// the highest-volume stream, so the default trims it hardest.</summary>
+    public int DepthRetentionDays { get; set; } = 14;
 }

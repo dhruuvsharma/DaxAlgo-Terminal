@@ -4,9 +4,10 @@
              xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
              x:Name="Root">
     <UserControl.Resources>
-        <!-- InstrumentTagsConverter is registered in code-behind (same-assembly XAML can't
-             reference the converter type during markup compile); the StaticResource below
-             resolves it lazily when a row is realized. -->
+        <!-- InstrumentTagsConverter can't be declared here: same-assembly XAML can't reference the
+             converter type at markup-compile time (MC3074). It's instead registered once in
+             Application.Current.Resources by the control's ctor, which the row template's
+             StaticResource resolves via the standard app-level fallback. -->
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
         <!-- Dropdown row: clean symbol on the left, coloured pills on the right

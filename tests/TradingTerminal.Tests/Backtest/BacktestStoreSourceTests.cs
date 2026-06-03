@@ -115,6 +115,7 @@ public sealed class BacktestStoreSourceTests
         public void EnqueueQuote(Quote q) { }
         public void EnqueueTrade(TradePrint t) { }
         public void EnqueueBar(OhlcvBar b) { }
+        public void EnqueueDepth(InstrumentId id, DepthSnapshot snapshot, TradingTerminal.Core.Brokers.BrokerKind source) { }
         public Task FlushAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, CancellationToken ct = default) =>
             Task.FromResult((IReadOnlyList<OhlcvBar>)Array.Empty<OhlcvBar>());
@@ -135,9 +136,15 @@ public sealed class BacktestStoreSourceTests
             await Task.CompletedTask;
             yield break;
         }
+        public async IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
         public Task<long> DeleteQuotesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);
         public Task<long> DeleteTradesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);
         public Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);
+        public Task<long> DeleteDepthInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);
     }
 
     private sealed class CountingStrategy : IBacktestStrategy

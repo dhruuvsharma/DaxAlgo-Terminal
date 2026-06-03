@@ -26,5 +26,30 @@ services:
       timeout: 5s
       retries: 5
 
+  # QuestDB = Apache-2 time-series database. Holds the high-volume L1/L2 streams (quotes, trades,
+  # depth) when MarketDataStore:Provider is "QuestDb"; bars stay in embedded SQLite. Writes use ILP
+  # over HTTP (9000); the app reads/creates schema over the PG-wire protocol (8812). Unlike the
+  # Timescale path there is no silent SQLite fallback for ticks — if this container is down, L1/L2
+  # persistence is simply disabled (logged loudly) until it comes back.
+  questdb:
+    image: questdb/questdb:latest          # pin to e.g. :8.2.1 for reproducibility
+    container_name: daxalgo-questdb
+    environment:
+      QDB_PG_USER: admin
+      QDB_PG_PASSWORD: quest
+    ports:
+      - "9000:9000"    # HTTP: ILP-over-HTTP ingest + REST + web console
+      - "8812:8812"    # PostgreSQL wire protocol (SQL reads + DDL)
+      - "9009:9009"    # ILP over TCP (unused by the app, exposed for tooling)
+    volumes:
+      - daxalgo-questdb:/var/lib/questdb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   daxalgo-tsdb:
+  daxalgo-questdb:

@@ -135,7 +135,8 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                 RowsTrades: bundle.RowsTrades,
                 TotalBytes: totalBytes,
                 UploadedUtc: DateTime.UtcNow,
-                DeletedLocal: false);
+                DeletedLocal: false,
+                RowsDepth: bundle.RowsDepth);
             var id = _manifest.Insert(entry);
             entry = entry with { Id = id };
 
@@ -149,9 +150,11 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                     ? await _store.DeleteBarsInRangeAsync(fromUtc, toUtc, ct) : 0;
                 var t = opts.Tables.HasFlag(ArchiveTables.Trades)
                     ? await _store.DeleteTradesInRangeAsync(fromUtc, toUtc, ct) : 0;
+                var d = opts.Tables.HasFlag(ArchiveTables.Depth)
+                    ? await _store.DeleteDepthInRangeAsync(fromUtc, toUtc, ct) : 0;
                 _manifest.MarkLocalDeleted(id);
                 entry = entry with { DeletedLocal = true };
-                progress?.Report($"Pruned: {q:n0} quotes, {b:n0} bars, {t:n0} trades.");
+                progress?.Report($"Pruned: {Pruned(q)} quotes, {b:n0} bars, {Pruned(t)} trades, {Pruned(d)} depth.");
                 deleted = true;
             }
             else if (opts.DeleteLocalAfterArchive && !verified)
@@ -239,6 +242,7 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                     case "quotes": await ImportQuotesAsync(tmp, ct); break;
                     case "bars": await ImportBarsAsync(tmp, ct); break;
                     case "trades": await ImportTradesAsync(tmp, ct); break;
+                    case "depth": await ImportDepthAsync(tmp, ct); break;
                 }
                 File.Delete(tmp);
                 progress?.Report($"Restored {file.Kind}: {file.Rows:n0} rows from {file.Path}.");
@@ -293,6 +297,48 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                 (BrokerKind)r.Source, r.Sequence, r.EventTimeApproximate));
         }
     }
+
+    private async Task ImportDepthAsync(string parquetPath, CancellationToken ct)
+    {
+        await using var fs = File.OpenRead(parquetPath);
+        var rows = await ParquetSerializer.DeserializeAsync<DepthParquetRow>(fs, null, ct);
+
+        // Rows arrive grouped per snapshot (bids then asks, ascending level) in event-time order —
+        // the same shape ExportDepthAsync wrote. Regroup consecutive rows sharing (instrument,
+        // event time) back into one snapshot and re-enqueue.
+        long curId = long.MinValue, curEvent = long.MinValue;
+        int curSource = 0;
+        var bids = new List<DepthLevel>();
+        var asks = new List<DepthLevel>();
+
+        void Flush()
+        {
+            if (curId == long.MinValue) return;
+            _store.EnqueueDepth(
+                new InstrumentId((int)curId),
+                new DepthSnapshot(FromMicros(curEvent), bids.ToArray(), asks.ToArray()),
+                (BrokerKind)curSource);
+            bids = new List<DepthLevel>();
+            asks = new List<DepthLevel>();
+        }
+
+        foreach (var r in rows)
+        {
+            if (r.InstrumentId != curId || r.EventTimeMicros != curEvent)
+            {
+                Flush();
+                curId = r.InstrumentId;
+                curEvent = r.EventTimeMicros;
+                curSource = r.Source;
+            }
+            var level = new DepthLevel(r.Price, r.Size);
+            if (r.Side == "B") bids.Add(level); else asks.Add(level);
+        }
+        Flush();
+    }
+
+    /// <summary>Format a prune row count: QuestDB's partition drop reports an unknown count (-1).</summary>
+    private static string Pruned(long n) => n < 0 ? "partition(s) of" : n.ToString("n0");
 
     private static string ComposeTotalSha(IReadOnlyList<BundlePart> parts)
     {

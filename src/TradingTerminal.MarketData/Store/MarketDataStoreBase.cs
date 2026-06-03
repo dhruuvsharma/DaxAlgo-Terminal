@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
@@ -15,9 +17,13 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// </summary>
 internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
 {
-    protected enum WriteKind { Quote, Trade, Bar }
+    protected enum WriteKind { Quote, Trade, Bar, Depth }
 
-    protected readonly record struct WriteOp(WriteKind Kind, Quote? Quote, TradePrint? Trade, OhlcvBar? Bar);
+    /// <summary>One persisted L2 snapshot plus the provenance the <see cref="DepthSnapshot"/> record
+    /// itself doesn't carry (instrument, source broker, ingest time).</summary>
+    protected sealed record DepthRecord(InstrumentId InstrumentId, DepthSnapshot Snapshot, BrokerKind Source, DateTime IngestTimeUtc);
+
+    protected readonly record struct WriteOp(WriteKind Kind, Quote? Quote, TradePrint? Trade, OhlcvBar? Bar, DepthRecord? Depth = null);
 
     private readonly bool _persist;
     private readonly int _batchSize;
@@ -54,6 +60,14 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     public void EnqueueBar(OhlcvBar bar)
     {
         if (_persist) _channel.Writer.TryWrite(new WriteOp(WriteKind.Bar, null, null, bar));
+    }
+
+    public void EnqueueDepth(InstrumentId instrumentId, DepthSnapshot snapshot, BrokerKind source)
+    {
+        if (_persist)
+            _channel.Writer.TryWrite(new WriteOp(
+                WriteKind.Depth, null, null, null,
+                new DepthRecord(instrumentId, snapshot, source, DateTime.UtcNow)));
     }
 
     public async Task FlushAsync(CancellationToken ct = default)
@@ -109,6 +123,15 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     public abstract IAsyncEnumerable<TradePrint> ReadTradesAsync(
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 
+    /// <summary>Default: no depth persistence (SQLite/Postgres). QuestDB overrides this.</summary>
+    public virtual async IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await Task.CompletedTask.ConfigureAwait(false);
+        yield break;
+    }
+
     public abstract IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
         CancellationToken ct = default);
@@ -116,6 +139,10 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     public abstract Task<long> DeleteQuotesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     public abstract Task<long> DeleteTradesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     public abstract Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+
+    /// <summary>Default: no depth persistence (SQLite/Postgres). QuestDB overrides this.</summary>
+    public virtual Task<long> DeleteDepthInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
+        Task.FromResult(0L);
 
     public void Dispose()
     {

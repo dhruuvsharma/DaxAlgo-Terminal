@@ -4,12 +4,15 @@
 
 The terminal keeps a broker-neutral copy of every normalized record (`Quote` / `TradePrint` / `OhlcvBar`) it sees, so strategies can warm up on history regardless of which broker is connected, and so the same instrument has one identity across brokers.
 
-Two backends ship behind one `IMarketDataStore` seam:
+Three backends ship behind one `IMarketDataStore` seam:
 
 | Backend | When to use | Where it lives |
 |---|---|---|
 | **SQLite** (default) | Solo dev box, no extra services, "just works". | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` (override via `MarketDataStore:DatabasePath`). WAL mode, epoch-microsecond timestamps. |
 | **PostgreSQL + TimescaleDB** | When you want hypertables, retention policies, or to point multiple machines at one store. | The `docker-compose.yml` at the repo root spins up `timescale/timescaledb:latest-pg16` on port 5432 with `db/user/pass = daxalgo`. Free + Apache-2. |
+| **QuestDB** (split) | When you want a purpose-built time-series engine for the firehose — and to **persist L2 depth**, which the other two backends drop. | The compose `questdb` service (`questdb/questdb:latest`, ports 9000 ILP/HTTP + 8812 PG-wire). High-volume L1/L2 (quotes, trades, depth) go to QuestDB; **bars stay in SQLite** via a composite store. Free + Apache-2. |
+
+> **Depth (L2) is only persisted on the QuestDB backend.** On SQLite/Postgres, `EnqueueDepth` is a deliberate no-op (depth is too high-volume) and depth stays live-only on the hub. Pick `Provider: "QuestDb"` if you need historical depth.
 
 For the architectural rationale (canonical identity, ref-counted ingest, async writes, fanout via Rx), see [architecture.md](architecture.md). For all `MarketDataStore:*` keys, see [configuration.md](configuration.md).
 
@@ -38,6 +41,22 @@ Postgres unreachable — falling back to embedded SQLite store.
 ```
 
 Nothing else changes. The in-memory live hub keeps fanning out either way.
+
+### QuestDB (split L1/L2)
+
+Set `MarketDataStore:Provider` to `QuestDb` and start the container:
+
+```powershell
+docker compose up -d      # starts both TimescaleDB and QuestDB
+```
+
+Quotes, trades, and depth then stream to QuestDB over ILP (port 9000); bars continue to SQLite. Schema and replay reads use the PG-wire port (8812). Unlike the Postgres path there is **no silent fallback**: if QuestDB is down at startup, L1/L2/depth persistence is disabled (logged at error level) and bars keep persisting to SQLite — the app still launches.
+
+```
+QuestDB unreachable (...) — L1/L2/trade persistence is DISABLED until QuestDB is up. ...
+```
+
+Tunables: `QuestDbIlpConfig`, `QuestDbPgConnectionString`, `DepthRetentionDays` (applied as a QuestDB partition TTL, best-effort). Browse the data at <http://localhost:9000>.
 
 To disable persistence entirely without losing the live fanout, set `MarketDataStore:PersistLiveData: false`.
 

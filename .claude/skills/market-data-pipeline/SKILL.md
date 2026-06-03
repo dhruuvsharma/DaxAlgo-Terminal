@@ -33,11 +33,13 @@ Wired via `AddMarketDataPipeline` (in `MarketData/MarketDataPipelineServiceColle
 - **PostgreSQL + TimescaleDB**: Docker via root `docker-compose.yml` (`timescale/timescaledb:latest-pg16`, db/user/pass=daxalgo, port 5432). `timestamptz` columns, hypertables, retention policy. Free/OSS.
 - **Auto-fallback**: If `MarketDataStoreOptions.Provider == Postgres` and the DB is unreachable at startup, the DI factory probes and silently falls back to SQLite. Solo dev shouldn't need Docker just to launch.
 
+- **QuestDB** (split): `Provider: "QuestDb"` routes the high-volume L1/L2 streams (quotes, trades, **depth**) to a QuestDB server while **bars stay in SQLite** — a `CompositeMarketDataStore(tickStore: QuestDbMarketDataStore, barStore: SqliteMarketDataStore)`. Writes use ILP-over-HTTP (`net-questdb-client`, port 9000); reads/DDL use PG-wire via Npgsql (port 8812). Docker service `questdb` in `docker-compose.yml`. **No silent fallback** (unlike Postgres): if QuestDB is unreachable at startup the tick/depth half goes inert (persistence off, logged loudly) and bars keep flowing to SQLite, so the app still launches.
+
 Choose via `appsettings.json`:
 ```json
 {
   "MarketDataStore": {
-    "Provider": "Sqlite",    // or "Postgres"
+    "Provider": "Sqlite",    // "Postgres" | "QuestDb"
     "WriteBatchSize": 200,
     "FlushIntervalMs": 250
   }
@@ -74,7 +76,7 @@ Historical bars (e.g. warm-up reads) DO go through the store, but they come from
 ## Hard rules
 
 - **Don't subscribe to broker streams from a view-model.** Always go through `IMarketDataIngest.Subscribe(...)`. The handle returned is ref-counted; dispose on Stop.
-- **Don't persist depth.** Depth is live-only by design. If a tab needs a historical depth snapshot, it's wrong — depth is too high-volume.
+- **Depth persistence is QuestDB-only.** The SQLite and Postgres stores deliberately drop depth (`EnqueueDepth` is a no-op there) — it's too high-volume for them, so depth stays live-only on those backends. The QuestDB backend (`Provider: "QuestDb"`) *does* persist depth (one row per book level, reconstructed into snapshots on read). `MarketDataIngestService.PumpDepthAsync` always calls `_store.EnqueueDepth(...)`; whether it lands is the backend's call. Don't add a depth table to the SQLite/Postgres stores.
 - **Don't await disk on the ingest hot path.** `Enqueue*` is fire-and-forget; the batched writer handles flushing.
 - **Never strip provenance fields** when projecting canonical records to legacy types. The boundary projection (e.g. `Quote → Tick`) for `OnTickAsync` is the only sanctioned lossy point.
 - **`net9.0-windows` target** — Microsoft.Data.Sqlite + Npgsql both work; don't add another ORM.

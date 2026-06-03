@@ -56,6 +56,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _includeQuotes = true;
     [ObservableProperty] private bool _includeBars = true;
     [ObservableProperty] private bool _includeTrades = false;
+    [ObservableProperty] private bool _includeDepth = false;
     [ObservableProperty] private int _dailyCheckHourUtc = 3;
     [ObservableProperty] private long _maxPartBytes = 1_900_000_000;
     [ObservableProperty] private bool _verifyAfterUpload = true;
@@ -212,6 +213,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         if (IncludeQuotes) t |= ArchiveTables.Quotes;
         if (IncludeBars) t |= ArchiveTables.Bars;
         if (IncludeTrades) t |= ArchiveTables.Trades;
+        if (IncludeDepth) t |= ArchiveTables.Depth;
         return t;
     }
 
@@ -223,6 +225,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         IncludeQuotes = a.Tables.HasFlag(ArchiveTables.Quotes);
         IncludeBars = a.Tables.HasFlag(ArchiveTables.Bars);
         IncludeTrades = a.Tables.HasFlag(ArchiveTables.Trades);
+        IncludeDepth = a.Tables.HasFlag(ArchiveTables.Depth);
         DailyCheckHourUtc = a.DailyCheckHourUtc;
         MaxPartBytes = a.MaxPartBytes;
         VerifyAfterUpload = a.VerifyAfterUpload;

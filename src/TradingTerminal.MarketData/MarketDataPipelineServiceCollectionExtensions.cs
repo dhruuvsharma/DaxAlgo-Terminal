@@ -47,6 +47,10 @@ public static class MarketDataPipelineServiceCollectionExtensions
         services.AddSingleton<IMarketDataStore>(sp =>
         {
             var lf = sp.GetRequiredService<ILoggerFactory>();
+
+            if (opts.Provider == MarketDataProvider.QuestDb)
+                return BuildQuestDbStore(sqliteConn, opts, lf);
+
             if (usePostgres)
             {
                 lf.CreateLogger("MarketData").LogInformation("Market-data store: PostgreSQL/TimescaleDB.");
@@ -84,8 +88,37 @@ public static class MarketDataPipelineServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Builds the split QuestDB store: quotes/trades/depth → QuestDB, bars → SQLite, wrapped in a
+    /// <see cref="CompositeMarketDataStore"/>. Unlike the Postgres path there is <b>no silent
+    /// fallback</b> — if QuestDB is unreachable we log loudly and the QuestDB half goes inert
+    /// (tick/depth persistence off) while bars keep flowing to SQLite, so the app still launches.
+    /// </summary>
+    private static IMarketDataStore BuildQuestDbStore(string sqliteConn, MarketDataStoreOptions opts, ILoggerFactory lf)
+    {
+        var barStore = new SqliteMarketDataStore(
+            sqliteConn, opts.PersistLiveData, opts.WriteBatchSize, lf.CreateLogger<SqliteMarketDataStore>());
+
+        var reachable = CanReachQuestDb(opts.QuestDbPgConnectionString);
+        if (!reachable)
+            lf.CreateLogger("MarketData").LogError(
+                "QuestDB unreachable ({Conn}) — L1/L2/trade persistence is DISABLED until QuestDB is up. " +
+                "No fallback to SQLite for ticks (by configuration). Bars still persist to SQLite.",
+                opts.QuestDbPgConnectionString);
+
+        var tickStore = new QuestDbMarketDataStore(
+            opts.QuestDbIlpConfig, opts.QuestDbPgConnectionString,
+            opts.PersistLiveData, reachable, opts.WriteBatchSize, opts.DepthRetentionDays,
+            lf.CreateLogger<QuestDbMarketDataStore>());
+
+        return new CompositeMarketDataStore(tickStore, barStore, lf.CreateLogger<CompositeMarketDataStore>());
+    }
+
     /// <summary>Best-effort startup probe — opens and closes a connection to decide availability.</summary>
-    private static bool CanReachPostgres(string connectionString)
+    private static bool CanReachPostgres(string connectionString) => CanReachQuestDb(connectionString);
+
+    /// <summary>Probe a PostgreSQL-wire endpoint (Postgres/TimescaleDB or QuestDB) for reachability.</summary>
+    private static bool CanReachQuestDb(string connectionString)
     {
         try
         {

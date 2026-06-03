@@ -9,7 +9,7 @@ This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigg
 - **TFM**: `net9.0-windows7.0` (in `Directory.Build.props`). Don't rename to `net8.0-windows` or strip the `7.0`.
 - **MVVM**: `CommunityToolkit.Mvvm` (`[ObservableProperty]`, `[RelayCommand]`). **Shell**: MahApps Metro + AvalonDock VS2013 Dark. **Charts**: ScottPlot 5. **3D**: HelixToolkit.Wpf (regime-cube windows; NU1701 is expected).
 - **DI**: `Microsoft.Extensions.DependencyInjection`. **Logging**: Serilog → in-memory sink (the universal Activity Log pane).
-- **Store**: canonical pipeline (`IMarketDataHub`/`Store`/`Ingest`/`InstrumentRegistry`) — SQLite default (zero-config) or Postgres+TimescaleDB (auto-falls-back to SQLite). **Archive**: Telegram offloader.
+- **Store**: canonical pipeline (`IMarketDataHub`/`Store`/`Ingest`/`InstrumentRegistry`) — SQLite default (zero-config), Postgres+TimescaleDB (auto-falls-back to SQLite), or QuestDB (split: L1/L2 quotes/trades/depth → QuestDB, bars → SQLite; no silent fallback). **Archive**: Telegram offloader.
 - **AI analyst**: Python sidecar (`tools/python-ml/`) behind `IAiAnalystClient` HTTP/JSON. **C++ backtester**: `tools/cpp-backtester/` (read-only reference).
 - **Tests**: xUnit + FluentAssertions + NSubstitute; `[WpfFact]` for WPF-touching tests. Postgres tests self-skip without Docker.
 

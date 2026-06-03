@@ -69,7 +69,7 @@ OAuth credentials are entered on the login form, never in `appsettings.json`.
 | Key | Default | Notes |
 |---|---|---|
 | `MarketDataStore:Enabled` | `true` | Master switch for the persistence + ingest pipeline. The in-memory hub still works when this is false; only the disk writes stop. |
-| `MarketDataStore:Provider` | `Postgres` | `Sqlite` (embedded) or `Postgres` (PostgreSQL + TimescaleDB). Postgres falls back to SQLite at startup if the DB is unreachable. |
+| `MarketDataStore:Provider` | `Postgres` | `Sqlite` (embedded), `Postgres` (PostgreSQL + TimescaleDB), or `QuestDb` (L1/L2 → QuestDB, bars → SQLite). Postgres falls back to SQLite at startup if unreachable; QuestDb does **not** (tick/depth persistence is disabled instead). |
 | `MarketDataStore:PostgresConnectionString` | `Host=localhost;Port=5432;Database=daxalgo;Username=daxalgo;Password=daxalgo;Timeout=5;Command Timeout=10` | Matches the `docker-compose.yml` service. Only used when `Provider=Postgres`. |
 | `MarketDataStore:DatabasePath` | (empty) | SQLite file path. Empty = `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db`. |
 | `MarketDataStore:PersistLiveData` | `true` | When false the hub still fans out in-memory but nothing is written to disk. |
@@ -78,6 +78,9 @@ OAuth credentials are entered on the login form, never in `appsettings.json`.
 | `MarketDataStore:QuoteRetentionDays` | `30` | **Postgres/Timescale only.** Installs a TimescaleDB retention job on `quotes`. `0` = keep forever. No effect on SQLite. |
 | `MarketDataStore:TradeRetentionDays` | `30` | Same, for `trades`. |
 | `MarketDataStore:BarRetentionDays` | `0` | Same, for `bars`. `0` = keep forever (bars are tiny). |
+| `MarketDataStore:QuestDbIlpConfig` | `http::addr=localhost:9000;auto_flush=off;` | **QuestDb only.** ILP client config (HTTP transport) for quote/trade/depth ingest. `auto_flush=off` so the batched writer flushes one `Send()` per batch. |
+| `MarketDataStore:QuestDbPgConnectionString` | `Host=localhost;Port=8812;Database=qdb;Username=admin;Password=quest;...;ServerCompatibilityMode=NoTypeLoading` | **QuestDb only.** PG-wire endpoint for schema creation and replay reads. |
+| `MarketDataStore:DepthRetentionDays` | `14` | **QuestDb only.** Partition TTL on the `depth` table (best-effort; needs a QuestDB build supporting `SET TTL`). `0` = keep forever. |
 
 See [market-data.md](market-data.md) for the pipeline architecture and operational notes, and [storage.md](storage.md) for the map of every storage surface.
 
