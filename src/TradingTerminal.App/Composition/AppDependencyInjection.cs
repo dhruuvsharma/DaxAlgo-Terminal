@@ -151,6 +151,16 @@ public static class AppDependencyInjection
         return services;
     }
 
+    /// <summary>Standalone Order Book window — opens from Tools → Order book. Streams the full L2
+    /// depth ladder for a chosen instrument off the canonical hub. Transient so each open gets a
+    /// fresh VM (and depth subscription) that disposes with the window.</summary>
+    public static IServiceCollection AddOrderBookSurface(this IServiceCollection services)
+    {
+        services.AddTransient<TradingTerminal.App.OrderBook.OrderBookViewModel>();
+        services.AddTransient<TradingTerminal.App.OrderBook.OrderBookWindow>();
+        return services;
+    }
+
     /// <summary>Market Regime tab — opens from Tools → Market regime. The provider and refresh
     /// loop live in Infrastructure (registered via AddMarketRegime); only the panel is here.
     /// Transient so each open gets a fresh subscription that disposes with the tab.</summary>

@@ -96,6 +96,7 @@ public partial class App : Application
                 services.AddRecordingSurface();
                 services.AddCorrelationSurface();
                 services.AddChartsSurface();
+                services.AddOrderBookSurface();
                 services.AddAi(ctx.Configuration);
                 services.AddRegimeSurface();
                 services.AddArchiveSurface();

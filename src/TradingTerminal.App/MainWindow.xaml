@@ -208,6 +208,8 @@
                           Command="{Binding OpenCorrelationCommand}" />
                 <MenuItem Header="C_harts…"
                           Command="{Binding OpenChartsCommand}" />
+                <MenuItem Header="_Order book…"
+                          Command="{Binding OpenOrderBookCommand}" />
             </MenuItem>
 
             <MenuItem Header="_AI tools">
