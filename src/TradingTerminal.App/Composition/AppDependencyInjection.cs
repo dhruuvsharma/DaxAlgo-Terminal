@@ -161,6 +161,16 @@ public static class AppDependencyInjection
         return services;
     }
 
+    /// <summary>Volume Footprint window — opens from Tools → Volume footprint. Streams the trade tape
+    /// (synthetic fallback for non-IB brokers) and renders a bid/ask cluster chart. Transient so each
+    /// open gets a fresh VM (and trade subscription) that disposes with the window.</summary>
+    public static IServiceCollection AddFootprintSurface(this IServiceCollection services)
+    {
+        services.AddTransient<TradingTerminal.App.Footprint.VolumeFootprintViewModel>();
+        services.AddTransient<TradingTerminal.App.Footprint.VolumeFootprintWindow>();
+        return services;
+    }
+
     /// <summary>Market Regime tab — opens from Tools → Market regime. The provider and refresh
     /// loop live in Infrastructure (registered via AddMarketRegime); only the panel is here.
     /// Transient so each open gets a fresh subscription that disposes with the tab.</summary>

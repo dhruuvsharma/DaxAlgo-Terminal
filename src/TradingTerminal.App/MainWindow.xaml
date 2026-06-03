@@ -210,6 +210,8 @@
                           Command="{Binding OpenChartsCommand}" />
                 <MenuItem Header="_Order book…"
                           Command="{Binding OpenOrderBookCommand}" />
+                <MenuItem Header="_Volume footprint…"
+                          Command="{Binding OpenFootprintCommand}" />
             </MenuItem>
 
             <MenuItem Header="_AI tools">

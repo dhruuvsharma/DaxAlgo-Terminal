@@ -15,6 +15,7 @@ using TradingTerminal.App.Backtest;
 using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Charts;
 using TradingTerminal.App.OrderBook;
+using TradingTerminal.App.Footprint;
 using TradingTerminal.App.Correlation;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Recording;
@@ -49,6 +50,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string CorrelationWindowId = "tools.correlation";
     private const string ChartsWindowId = "tools.charts";
     private const string OrderBookWindowId = "tools.orderbook";
+    private const string FootprintWindowId = "tools.footprint";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -549,6 +551,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _openWindows[OrderBookWindowId] = window;
         window.Show();
         _logger.LogInformation("Opened order book window");
+    }
+
+    [RelayCommand]
+    public void OpenFootprint()
+    {
+        if (_openWindows.TryGetValue(FootprintWindowId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<VolumeFootprintViewModel>();
+        var window = _services.GetRequiredService<VolumeFootprintWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(FootprintWindowId);
+            vm.Dispose();
+        };
+        _openWindows[FootprintWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened volume footprint window");
     }
 
     [RelayCommand]
