@@ -35,7 +35,11 @@
         <Setter Property="MinHeight" Value="24" />
     </Style>
 
-    <Style TargetType="{x:Type ComboBox}">
+    <!-- Base on the MahApps dark ComboBox style so we inherit its ControlTemplate (and themed
+         item containers). A bare implicit style here would otherwise OVERRIDE the MahApps style
+         (Dark.xaml is merged after Controls.xaml) and fall back to the default WPF template, whose
+         toggle chrome renders white regardless of the Background setter. -->
+    <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource MahApps.Styles.ComboBox}">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
