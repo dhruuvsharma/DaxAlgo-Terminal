@@ -29,9 +29,12 @@ The shipped brokers (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca) exerci
 ## Project graph
 
 ```
-App            → MarketData, Infrastructure, UI, Login, Ai, Strategies.*, Core
+App            → MarketData, Infrastructure, UI, Login, Ai, Strategies.*, <tool projects>, Core
 Login          → Core, UI, Infrastructure
-Ai             → Core, UI, Infrastructure, MarketData
+Ai             → Core, UI, Infrastructure, MarketData   (analyst seam only)
+Ai.<Tool>      → Ai, UI, Infrastructure, MarketData, Core   (4 AI tool windows)
+<Tool>         → UI, Infrastructure, MarketData, Core   (Charts/OrderBook/VolumeFootprint/
+                                                          Correlation/*Regime/Backtest/Recording)
 Strategies     → Infrastructure, UI, Core   (live VM wraps an engine-side IBacktestStrategy)
 Infrastructure → MarketData, Core
 MarketData     → Core
@@ -39,7 +42,9 @@ UI             → Core
 Core           → (nothing)
 ```
 
-`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and AI/ML tooling (`Ai`) are separate projects so the App shell stays thin. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
+The App shell only *references* the tool/AI-tool projects and opens them via `IServiceProvider`; it contains none of their views. Each tool project exposes one `Add…Surface` DI extension that `App.xaml.cs` calls during composition.
+
+`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and the AI analyst seam (`Ai`) are separate projects so the App shell stays thin. Each tool window and AI tool window is now its own flat `TradingTerminal.<Name>` project (Charts, OrderBook, VolumeFootprint, Correlation, the three regime tools, Backtest, Recording, plus `Ai.MarketAnalyst` / `Ai.FactorResearch` / `Ai.MlFeatures` / `Ai.BacktestAnalysis`); each ships its own `Add…Surface` DI extension that `App.xaml.cs` calls, and `App` only references them — it hosts none of their views. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
 
 The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin live-UI wrappers — they hold the `MetroWindow`, view-model, and `ITradingStrategy` descriptor, but the actual signal logic (which they instantiate inside `BuildStrategy(contract)`) lives in `Infrastructure/Backtest/Strategies/`. That split keeps the same `IBacktestStrategy` reusable from both the backtest engine and the live signal mode.
 
@@ -48,18 +53,33 @@ The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin li
 ```
 TradingTerminal.sln
 ├── src/
-│   ├── TradingTerminal.App                       WPF entry, DI bootstrap, MainWindow, shell-handoff factories
+│   ├── TradingTerminal.App                       Thin WPF shell: entry, DI bootstrap, MainWindow/menu, shell-handoff factories, notifications + archive UI
 │   ├── TradingTerminal.Backtest.Cli              Headless backtest runner — run / synth / sweep / walkforward / mc / tca / features
 │   ├── TradingTerminal.Core                      Domain models + interfaces — zero deps on UI/brokers
 │   ├── TradingTerminal.MarketData                Canonical pipeline: hub, ingest, repository, store, archive, registry (below Infrastructure)
 │   ├── TradingTerminal.Infrastructure            Broker clients, backtest engine + strategies, notifications, regime
-│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, universal activity-log sink, LiveSignalStrategyViewModelBase
+│   ├── TradingTerminal.UI                        ViewModelBase, dark theme, universal activity-log sink, LiveSignalStrategyViewModelBase, shared param controls
 │   ├── TradingTerminal.Login                     Sign-in window, credential store, per-broker login forms
-│   ├── TradingTerminal.Ai                        AI analyst seam + dock, ML features, backtest analysis, factor research
+│   ├── TradingTerminal.Ai                        AI analyst seam only (IAiAnalystClient Null/Http, enricher, AddAiAnalyst)
+│   ├── TradingTerminal.Ai.MarketAnalyst          AI dock pane (market analyst)            ┐
+│   ├── TradingTerminal.Ai.FactorResearch         Factor research window                   │ each ships its own
+│   ├── TradingTerminal.Ai.MlFeatures             ML features window                       │ Add…Surface DI ext;
+│   ├── TradingTerminal.Ai.BacktestAnalysis       Backtest analysis window                 ┘ App only references
+│   ├── TradingTerminal.Charts                    TradingView-style chart window (WebView2) ┐
+│   ├── TradingTerminal.OrderBook                 L2 depth ladder window                    │
+│   ├── TradingTerminal.VolumeFootprint           Volume footprint cluster chart            │
+│   ├── TradingTerminal.Correlation               Correlation matrix window                 │ per-tool projects,
+│   ├── TradingTerminal.MarketRegime              Market regime composite window            │ one Add…Surface
+│   ├── TradingTerminal.InstrumentRegime          Per-instrument regime window              │ extension each
+│   ├── TradingTerminal.MarkovRegime              Markov regime window                      │
+│   ├── TradingTerminal.Backtest                  Tools → Backtest tab                      │
+│   ├── TradingTerminal.Recording                 Tick recorder window                      ┘
 │   └── TradingTerminal.Strategies.*              9 per-strategy live projects
 └── tests/
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```
+
+The `.sln` groups these under **Charts** (Charts/OrderBook/VolumeFootprint), **Tools** (Correlation/regimes/Backtest/Recording), **AI** (Ai + the four `Ai.*` windows), and **Strategies** solution folders.
 
 ## Key interfaces
 

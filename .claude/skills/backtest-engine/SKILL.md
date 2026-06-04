@@ -12,7 +12,7 @@ description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBac
 - `Infrastructure/Backtest/` — `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, `TradeLedger`, `StatisticsCalculator`, `Fast/` (parallel sweeps).
 - `Infrastructure/Backtest/Persistence/` — `BacktestTickSource` (k-way merge over the store), `ParquetTickReader` / `ParquetTickWriter` (row-group buffered; epoch-microsecond timestamps; **read-path being migrated off — prefer `IMarketDataStore` for new code**).
 - `Infrastructure/Backtest/Strategies/` — engine-side strategy impls.
-- `App/Backtest/` — Tools → Backtest tab.
+- `src/TradingTerminal.Backtest/` — Tools → Backtest tab (own project; `AddBacktestSurface` DI extension, called from `App.xaml.cs`).
 - `src/TradingTerminal.Backtest.Cli/` — headless `daxalgo-backtest.exe` (`run` / `synth` / `sweep` subcommands; data source = parquet OR store via `--symbol --from --to`).
 
 ## Order routing
