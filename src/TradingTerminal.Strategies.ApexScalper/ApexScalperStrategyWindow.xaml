@@ -110,8 +110,67 @@
             </Border>
         </ScrollViewer>
 
-        <!-- ── Running layout: chart grid + dashboard + data log + footer ────── -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <!-- ── Running layout: param strip + chart grid + dashboard + data log + footer ────── -->
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <!-- Live tuning strip. The composite weights / risk gates are baked into the engine at
+                 build time, so those are locked while streaming (Stop to edit, Start to rebuild).
+                 "Max candles" is render-only (how many internal candles each pane draws) — live. -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Button Content="▶ Start" Command="{Binding StartCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSpinner Label="Max candles" Minimum="10" Maximum="500" Step="10" StringFormat="0"
+                                          Value="{Binding MaxChartCandles, Mode=TwoWay}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
+                            <TextBlock Text="PARAMS (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                            <uic:ParamSpinner Label="Window (bars)" Minimum="5" Maximum="500" Step="1" StringFormat="0"
+                                              Value="{Binding WindowSize, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Composite thr" Minimum="0.1" Maximum="3" Step="0.05" StringFormat="0.00"
+                                              Value="{Binding CompositeThreshold, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Min agree" Minimum="1" Maximum="8" Step="1" StringFormat="0"
+                                              Value="{Binding MinSignalsAgree, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Risk %" Minimum="0.1" Maximum="100" Step="0.1" StringFormat="0.0"
+                                              Value="{Binding RiskPercent, Mode=TwoWay}" />
+                            <Border Style="{StaticResource Strategy.ParamDivider}" />
+                            <ToggleButton x:Name="MoreToggle" Content="More ▾" VerticalAlignment="Center" Padding="10,3" />
+                            <Popup IsOpen="{Binding IsChecked, ElementName=MoreToggle}"
+                                   PlacementTarget="{Binding ElementName=MoreToggle}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True">
+                                <Border Style="{StaticResource Strategy.ParamPopout}">
+                                    <StackPanel>
+                                        <TextBlock Text="More params (applied on Start)" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                        <WrapPanel>
+                                            <uic:ParamSpinner Label="Daily loss %" Minimum="0.1" Maximum="100" Step="0.1" StringFormat="0.0"
+                                                              Value="{Binding MaxDailyLossPercent, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="Max spread" Minimum="0" Maximum="1" Step="0.0001" StringFormat="0.####" SpinnerWidth="92"
+                                                              Value="{Binding MaxSpreadPriceUnits, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="Fixed qty" Minimum="1" Maximum="1000" Step="1" StringFormat="0"
+                                                              Value="{Binding FixedQuantity, Mode=TwoWay}" />
+                                        </WrapPanel>
+                                        <CheckBox Content="Use dynamic sizing (risk %)" IsChecked="{Binding UseDynamicSizing}" Margin="0,8,0,4" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox Content="Asian" IsChecked="{Binding TradeAsian}" Margin="0,0,12,0" />
+                                            <CheckBox Content="London" IsChecked="{Binding TradeLondon}" Margin="0,0,12,0" />
+                                            <CheckBox Content="New York" IsChecked="{Binding TradeNewYork}" Margin="0,0,12,0" />
+                                            <CheckBox Content="London/NY" IsChecked="{Binding TradeLondonNy}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />                <!-- Header bar     -->
                 <RowDefinition Height="*"    MinHeight="200" /><!-- Charts + dash  -->
@@ -574,6 +633,7 @@
                                Text="● ALGO ARMED" />
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </ui:StrategyWindowBase>

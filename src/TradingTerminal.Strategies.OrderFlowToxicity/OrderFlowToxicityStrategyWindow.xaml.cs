@@ -22,6 +22,7 @@ public partial class OrderFlowToxicityStrategyWindow : StrategyWindowBase
         var s = plot.Add.Scatter(xs, vol);
         s.Color = StrategyChartHelpers.AccentColor; s.LineWidth = 1.5f; s.MarkerStyle.IsVisible = false;
         plot.Axes.AutoScale();
+        ApplyAxisControls(plot, vm, bars);
         IndicatorPlot.Refresh();
     }
 }

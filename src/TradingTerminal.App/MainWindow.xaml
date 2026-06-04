@@ -206,6 +206,9 @@
                           Command="{Binding OpenMarkovRegimeCommand}" />
                 <MenuItem Header="_Correlation matrix…"
                           Command="{Binding OpenCorrelationCommand}" />
+            </MenuItem>
+
+            <MenuItem Header="_Charts">
                 <MenuItem Header="C_harts…"
                           Command="{Binding OpenChartsCommand}" />
                 <MenuItem Header="_Order book…"

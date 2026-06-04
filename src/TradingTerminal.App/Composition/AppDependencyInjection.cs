@@ -1,13 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Archive;
-using TradingTerminal.App.Backtest;
 using TradingTerminal.App.Notifications;
-using TradingTerminal.App.Recording;
-using TradingTerminal.App.Regime;
 using TradingTerminal.App.Shell;
 using TradingTerminal.App.Strategies;
-using TradingTerminal.Core.Backtest;
-using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
@@ -105,87 +100,11 @@ public static class AppDependencyInjection
         return services;
     }
 
-    /// <summary>Backtest tab — view + view-model resolved lazily when the user opens it
-    /// from Tools → Backtest. <see cref="IBacktestSession"/> is the engine seam so the VM
-    /// stays testable; transient lifetime so each open of the tab gets a fresh session
-    /// object (the session itself is stateless across runs, but the lifetime aligns with
-    /// the VM's).</summary>
-    public static IServiceCollection AddBacktestSurface(this IServiceCollection services)
-    {
-        services.AddTransient<IBacktestSession, BacktestSession>();
-        services.AddTransient<BacktestViewModel>();
-        services.AddTransient<BacktestView>();
-        return services;
-    }
-
     /// <summary>Settings dialogs (today: notifications). Add new settings tabs here.</summary>
     public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
     {
         services.AddTransient<NotificationsSettingsViewModel>();
         services.AddTransient<NotificationsSettingsView>();
-        return services;
-    }
-
-    /// <summary>Live tick recorder tab — opens from Tools → Record live ticks.</summary>
-    public static IServiceCollection AddRecordingSurface(this IServiceCollection services)
-    {
-        services.AddTransient<TickRecorderViewModel>();
-        services.AddTransient<TickRecorderView>();
-        return services;
-    }
-
-    /// <summary>Correlation matrix window — opens from Tools → Correlation matrix.</summary>
-    public static IServiceCollection AddCorrelationSurface(this IServiceCollection services)
-    {
-        services.AddTransient<TradingTerminal.App.Correlation.CorrelationMatrixViewModel>();
-        services.AddTransient<TradingTerminal.App.Correlation.CorrelationMatrixWindow>();
-        return services;
-    }
-
-    /// <summary>TradingView-style Charts window (WebView2 + Lightweight Charts) — opens from
-    /// Tools → Charts. Transient so each open gets a fresh VM that disposes with the window.</summary>
-    public static IServiceCollection AddChartsSurface(this IServiceCollection services)
-    {
-        services.AddTransient<TradingTerminal.App.Charts.ChartsViewModel>();
-        services.AddTransient<TradingTerminal.App.Charts.ChartsWindow>();
-        return services;
-    }
-
-    /// <summary>Standalone Order Book window — opens from Tools → Order book. Streams the full L2
-    /// depth ladder for a chosen instrument off the canonical hub. Transient so each open gets a
-    /// fresh VM (and depth subscription) that disposes with the window.</summary>
-    public static IServiceCollection AddOrderBookSurface(this IServiceCollection services)
-    {
-        services.AddTransient<TradingTerminal.App.OrderBook.OrderBookViewModel>();
-        services.AddTransient<TradingTerminal.App.OrderBook.OrderBookWindow>();
-        return services;
-    }
-
-    /// <summary>Volume Footprint window — opens from Tools → Volume footprint. Streams the trade tape
-    /// (synthetic fallback for non-IB brokers) and renders a bid/ask cluster chart. Transient so each
-    /// open gets a fresh VM (and trade subscription) that disposes with the window.</summary>
-    public static IServiceCollection AddFootprintSurface(this IServiceCollection services)
-    {
-        services.AddTransient<TradingTerminal.App.Footprint.VolumeFootprintViewModel>();
-        services.AddTransient<TradingTerminal.App.Footprint.VolumeFootprintWindow>();
-        return services;
-    }
-
-    /// <summary>Market Regime tab — opens from Tools → Market regime. The provider and refresh
-    /// loop live in Infrastructure (registered via AddMarketRegime); only the panel is here.
-    /// Transient so each open gets a fresh subscription that disposes with the tab.</summary>
-    public static IServiceCollection AddRegimeSurface(this IServiceCollection services)
-    {
-        services.AddTransient<MarketRegimeViewModel>();
-        services.AddTransient<MarketRegimeView>();
-        services.AddSingleton<TradingTerminal.Core.Regime.Instrument.IInstrumentRegimeProvider,
-                              TradingTerminal.Infrastructure.Regime.Instrument.InstrumentRegimeService>();
-        services.AddTransient<TradingTerminal.App.Regime.Instrument.InstrumentRegimeViewModel>();
-        services.AddTransient<TradingTerminal.App.Regime.Instrument.InstrumentRegimeView>();
-        // Markov regime detection tool — pure-C# Gaussian HMM (Core), offline analysis over
-        // historical bars. Transient so each open gets a fresh VM.
-        services.AddTransient<TradingTerminal.App.Regime.Markov.MarkovRegimeViewModel>();
-        services.AddTransient<TradingTerminal.App.Regime.Markov.MarkovRegimeView>();
         return services;
     }
 

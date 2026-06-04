@@ -33,6 +33,22 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj" />
+    <!-- Charts-menu tools -->
+    <ProjectReference Include="..\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
+    <ProjectReference Include="..\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
+    <ProjectReference Include="..\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
+    <!-- Tools-menu surfaces -->
+    <ProjectReference Include="..\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
+    <ProjectReference Include="..\TradingTerminal.MarketRegime\TradingTerminal.MarketRegime.csproj" />
+    <ProjectReference Include="..\TradingTerminal.InstrumentRegime\TradingTerminal.InstrumentRegime.csproj" />
+    <ProjectReference Include="..\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
+    <!-- AI tools (shared seam ref is above; these are the UI panels) -->
+    <ProjectReference Include="..\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,15 +68,6 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3650.58" />
-  </ItemGroup>
-
-  <!-- TradingView Lightweight Charts assets for the Charts tool. Copied preserving the
-       Charts/Assets path so the WebView2 virtual-host mapping resolves them at runtime. -->
-  <ItemGroup>
-    <Content Include="Charts\Assets\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
   <ItemGroup>

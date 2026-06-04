@@ -64,7 +64,59 @@
             </Border>
         </ScrollViewer>
 
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Button Content="▶ Start" Command="{Binding StartCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSpinner Label="Bars shown" Minimum="30" Maximum="600" Step="10" StringFormat="0"
+                                          Value="{Binding ChartBarsShown, Mode=TwoWay}" />
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="Y axis" FontSize="10" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,2" />
+                            <CheckBox Content="Auto" IsChecked="{Binding YAutoScale, Mode=TwoWay}" />
+                        </StackPanel>
+                        <uic:ParamSpinner Label="Y min" Minimum="-50" Maximum="50" Step="0.5" StringFormat="0.##"
+                                          Value="{Binding YAxisMin, Mode=TwoWay}"
+                                          IsEnabled="{Binding YAutoScale, Converter={StaticResource InverseBooleanConverter}}" />
+                        <uic:ParamSpinner Label="Y max" Minimum="-50" Maximum="50" Step="0.5" StringFormat="0.##"
+                                          Value="{Binding YAxisMax, Mode=TwoWay}"
+                                          IsEnabled="{Binding YAutoScale, Converter={StaticResource InverseBooleanConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
+                            <TextBlock Text="PARAMS (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                            <uic:ParamSpinner Label="Lookback" Minimum="20" Maximum="5000" Step="10" StringFormat="0"
+                                              Value="{Binding Lookback, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Entry z" Minimum="0" Maximum="10" Step="0.1" StringFormat="0.00"
+                                              Value="{Binding EntryZ, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Exit z" Minimum="0" Maximum="10" Step="0.05" StringFormat="0.00"
+                                              Value="{Binding ExitZ, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Stop z" Minimum="0" Maximum="20" Step="0.1" StringFormat="0.00"
+                                              Value="{Binding StopZ, Mode=TwoWay}" />
+                            <Border Style="{StaticResource Strategy.ParamDivider}" />
+                            <ToggleButton x:Name="MoreToggle" Content="More ▾" VerticalAlignment="Center" Padding="10,3" />
+                            <Popup IsOpen="{Binding IsChecked, ElementName=MoreToggle}"
+                                   PlacementTarget="{Binding ElementName=MoreToggle}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True">
+                                <Border Style="{StaticResource Strategy.ParamPopout}">
+                                    <WrapPanel>
+                                        <uic:ParamSpinner Label="Refit every" Minimum="1" Maximum="5000" Step="10" StringFormat="0"
+                                                          Value="{Binding RefitEvery, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Quantity" Minimum="1" Maximum="1000" Step="1" StringFormat="0"
+                                                          Value="{Binding Quantity, Mode=TwoWay}" />
+                                    </WrapPanel>
+                                </Border>
+                            </Popup>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+            <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
 
             <Border Grid.Row="0" Style="{StaticResource Strategy.HeaderBar}">
@@ -87,6 +139,7 @@
                     <TextBlock Margin="20,0,0,0" Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold" Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Text="● ALGO ARMED" />
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </ui:StrategyWindowBase>

@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using TradingTerminal.App.AiAnalyst;
+using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Core.AiAnalyst;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;

@@ -127,7 +127,52 @@
         </Grid>
 
         <!-- Surface view -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <!-- Live tuning strip. Spike Z / confirm / qty / SL / TP are evaluated fresh on each
+                 trade, so they're live while streaming. The slice/bin matrix is baked into the
+                 calculator (Stop to edit, Start to rebuild). Z-height is render-only. -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Button Content="▶ Start" Command="{Binding StartCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="TUNING" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSpinner Label="Spike Z" Minimum="0.5" Maximum="10" Step="0.1" StringFormat="0.00"
+                                          Value="{Binding SpikeThreshold, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="Confirm ticks" Minimum="1" Maximum="50" Step="1" StringFormat="0"
+                                          Value="{Binding ConfirmationTicks, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="Quantity" Minimum="1" Maximum="1000" Step="1" StringFormat="0"
+                                          Value="{Binding Quantity, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="SL (pips)" Minimum="0.1" Maximum="500" Step="1" StringFormat="0.#"
+                                          Value="{Binding StopLossPips, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="TP (pips)" Minimum="0.1" Maximum="500" Step="1" StringFormat="0.#"
+                                          Value="{Binding TakeProfitPips, Mode=TwoWay}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSlider Label="Z height ×" Minimum="0.4" Maximum="4" Step="0.1" SliderWidth="120"
+                                         Value="{Binding SurfaceHeightScale, Mode=TwoWay}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
+                            <TextBlock Text="MATRIX (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                            <uic:ParamSpinner Label="Ticks/slice" Minimum="1" Maximum="5000" Step="10" StringFormat="0"
+                                              Value="{Binding TicksPerSlice, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Num slices" Minimum="2" Maximum="200" Step="1" StringFormat="0"
+                                              Value="{Binding NumSlices, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Bin size" Minimum="0.0001" Maximum="100" Step="0.01" StringFormat="0.####" SpinnerWidth="92"
+                                              Value="{Binding PriceBinSize, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Window bins" Minimum="5" Maximum="201" Step="2" StringFormat="0"
+                                              Value="{Binding WindowBins, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -195,6 +240,7 @@
                                Text="● ALGO ARMED" />
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </mah:MetroWindow>

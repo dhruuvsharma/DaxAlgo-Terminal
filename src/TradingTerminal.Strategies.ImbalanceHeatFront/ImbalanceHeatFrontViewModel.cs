@@ -41,6 +41,13 @@ public sealed partial class ImbalanceHeatFrontViewModel : LiveSignalStrategyView
     [ObservableProperty] private double _nearTouchImbalance;
     [ObservableProperty] private string _ridgeLabel = "—";
 
+    /// <summary>Vertical exaggeration of the imbalance (Z) axis on the 3D surface. Render-only —
+    /// it never touches strategy state, so it's live-editable while streaming. The Window reads it
+    /// when building the mesh; changing it re-raises <see cref="SurfaceChanged"/> to redraw.</summary>
+    [ObservableProperty] private double _surfaceHeightScale = 1.6;
+
+    partial void OnSurfaceHeightScaleChanged(double value) => SurfaceChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Latest [NumSlices, NumLevels] surface. Row 0 oldest, last row current.
     /// The Window subscribes to <see cref="SurfaceChanged"/> to redraw.</summary>
     public double[,]? Surface { get; private set; }

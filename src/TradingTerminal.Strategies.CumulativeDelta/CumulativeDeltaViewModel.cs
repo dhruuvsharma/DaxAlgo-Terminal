@@ -244,6 +244,19 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private bool _isStreaming;
     [ObservableProperty] private bool _isAlgoRunning;
 
+    // ---------- Chart axis controls (live, render-only) ----------
+    // These only affect how the price plot is drawn — they never touch strategy state — so they
+    // are always live. The Window's RedrawPrice reads them; changes re-raise BarsChanged to redraw.
+    [ObservableProperty] private int _chartBarsShown = 120;
+    [ObservableProperty] private bool _priceAutoScale = true;
+    [ObservableProperty] private double _priceAxisMin;
+    [ObservableProperty] private double _priceAxisMax;
+
+    partial void OnChartBarsShownChanged(int value) => BarsChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnPriceAutoScaleChanged(bool value) => BarsChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnPriceAxisMinChanged(double value) { if (!PriceAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnPriceAxisMaxChanged(double value) { if (!PriceAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+
     public event EventHandler? BarsChanged;
     public event EventHandler? DeltasChanged;
 

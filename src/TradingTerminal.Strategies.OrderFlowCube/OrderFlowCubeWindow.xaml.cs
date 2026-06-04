@@ -39,7 +39,8 @@ public partial class OrderFlowCubeWindow : MetroWindow
     {
         if (e.PropertyName is nameof(OrderFlowCubeViewModel.CvdThreshold)
                            or nameof(OrderFlowCubeViewModel.AggressorBuyThreshold)
-                           or nameof(OrderFlowCubeViewModel.SizeRatioThreshold))
+                           or nameof(OrderFlowCubeViewModel.SizeRatioThreshold)
+                           or nameof(OrderFlowCubeViewModel.SizeAxisCeiling))
             RedrawChart();
     }
 
@@ -48,13 +49,12 @@ public partial class OrderFlowCubeWindow : MetroWindow
     // World-coordinate cube: each axis normalized to [0, 1].
     // X: CVD imbalance, mapped from [-1, +1] to [0, 1].
     // Y: Aggressor ratio, already in [0, 1].
-    // Z: Size ratio, mapped from [0, 3] (clamped) to [0, 1] — typical baseline is ~1, institutional surges 1.5-3x.
-    private const double SizeAxisCeiling = 3.0;
-
-    private static Point3D ToWorld(double cvd, double aggressor, double sizeRatio) => new(
+    // Z: Size ratio, mapped from [0, ceiling] (clamped) to [0, 1] — typical baseline is ~1,
+    // institutional surges 1.5-3x. The ceiling is driven live from the VM's Size× axis slider.
+    private static Point3D ToWorld(double cvd, double aggressor, double sizeRatio, double sizeCeiling) => new(
         (cvd + 1.0) * 0.5,
         aggressor,
-        Math.Clamp(sizeRatio / SizeAxisCeiling, 0, 1));
+        Math.Clamp(sizeRatio / sizeCeiling, 0, 1));
 
     private void RedrawChart()
     {
@@ -67,7 +67,8 @@ public partial class OrderFlowCubeWindow : MetroWindow
         // Axes + tick labels. X=CVD (red), Y=Aggressor (green), Z=Size× (blue).
         AddAxis(new Point3D(0, 0, 0), new Point3D(1, 0, 0), Colors.IndianRed,    "CVD",      "−1", "+1");
         AddAxis(new Point3D(0, 0, 0), new Point3D(0, 1, 0), Colors.LimeGreen,    "Aggressor", "0",  "1");
-        AddAxis(new Point3D(0, 0, 0), new Point3D(0, 0, 1), Colors.DeepSkyBlue,  "Size×",    "0",  $"{SizeAxisCeiling:F0}+");
+        var sizeCeiling = _vm.SizeAxisCeiling;
+        AddAxis(new Point3D(0, 0, 0), new Point3D(0, 0, 1), Colors.DeepSkyBlue,  "Size×",    "0",  $"{sizeCeiling:F0}+");
 
         // Wire-frame box outlining the unit cube so depth perception works at any rotation.
         AddCubeWireframe(Color.FromArgb(0x55, 0x55, 0x55, 0x55));
@@ -78,7 +79,7 @@ public partial class OrderFlowCubeWindow : MetroWindow
         var cvdLoX = (-_vm.CvdThreshold + 1.0) * 0.5;
         var aggHiY = _vm.AggressorBuyThreshold;
         var aggLoY = 1.0 - _vm.AggressorBuyThreshold;
-        var sizeHiZ = Math.Clamp(_vm.SizeRatioThreshold / SizeAxisCeiling, 0, 1);
+        var sizeHiZ = Math.Clamp(_vm.SizeRatioThreshold / sizeCeiling, 0, 1);
         AddThresholdMarker(cvdHiX, Axis.X, Colors.LightGreen);
         AddThresholdMarker(cvdLoX, Axis.X, Colors.LightCoral);
         AddThresholdMarker(aggHiY, Axis.Y, Colors.LightGreen);
@@ -94,7 +95,7 @@ public partial class OrderFlowCubeWindow : MetroWindow
         {
             var p = trail[i];
             var age = lastIdx == 0 ? 1.0 : (double)i / lastIdx; // 0 = oldest, 1 = newest
-            var pos = ToWorld(p.Cvd, p.Aggressor, p.SizeRatio);
+            var pos = ToWorld(p.Cvd, p.Aggressor, p.SizeRatio, sizeCeiling);
 
             var brightness = (byte)(80 + 175 * age);
             var color = Color.FromRgb(brightness, (byte)(brightness * 0.7), 0); // amber
@@ -110,7 +111,7 @@ public partial class OrderFlowCubeWindow : MetroWindow
 
         // Latest point: bigger, white. The eye locks onto "where we are right now."
         var last = trail[lastIdx];
-        var latestPos = ToWorld(last.Cvd, last.Aggressor, last.SizeRatio);
+        var latestPos = ToWorld(last.Cvd, last.Aggressor, last.SizeRatio, sizeCeiling);
         View3D.Children.Add(new SphereVisual3D
         {
             Center = latestPos,
@@ -121,7 +122,7 @@ public partial class OrderFlowCubeWindow : MetroWindow
         // Trail line: connect successive trail points so the trajectory through phase space reads as a path.
         var linePts = new Point3DCollection(trail.Count);
         for (var i = 0; i < trail.Count; i++)
-            linePts.Add(ToWorld(trail[i].Cvd, trail[i].Aggressor, trail[i].SizeRatio));
+            linePts.Add(ToWorld(trail[i].Cvd, trail[i].Aggressor, trail[i].SizeRatio, sizeCeiling));
         View3D.Children.Add(new LinesVisual3D
         {
             Points = linePts,

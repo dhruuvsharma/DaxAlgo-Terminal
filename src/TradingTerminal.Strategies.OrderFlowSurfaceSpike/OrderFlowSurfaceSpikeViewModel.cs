@@ -87,6 +87,10 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
     [ObservableProperty] private bool _isAlgoRunning;
     [ObservableProperty] private string? _validationError;
 
+    /// <summary>Vertical exaggeration of the Z-score (Z) axis on the 3D surface — render-only, so
+    /// it's live while streaming. The Window reads it when building the mesh and re-renders on change.</summary>
+    [ObservableProperty] private double _surfaceHeightScale = 1.6;
+
     // Live readouts.
     [ObservableProperty] private double _currentMean;
     [ObservableProperty] private double _currentStd;
@@ -431,6 +435,15 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
             TimestampUtc: DateTime.UtcNow))
             .FireAndForgetSafe(_logger, "Surface-spike signal publish");
     }
+
+    /// <summary>Strip "▶ Start" — (re)builds the calculator with the current slice/bin params and
+    /// starts the stream. Lets the user Stop, edit the locked params, then Start to re-apply.</summary>
+    [RelayCommand]
+    private Task Start() => StartStreamAsync(CancellationToken.None);
+
+    /// <summary>Strip "■ Stop" — stops the stream so the locked slice/bin params can be edited.</summary>
+    [RelayCommand]
+    private Task Stop() => StopStreamAsync();
 
     public async Task StopStreamAsync()
     {

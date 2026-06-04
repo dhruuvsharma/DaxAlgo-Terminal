@@ -77,6 +77,9 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         if (sender is not LiveSignalStrategyViewModelBase vm) return;
         if (e.PropertyName == nameof(LiveSignalStrategyViewModelBase.LatestDepth))
             RenderOrderBook(vm.LatestDepth);
+        // "Max candles" is render-only — repaint on the next timer tick when it changes.
+        else if (e.PropertyName == nameof(ApexScalperStrategyViewModel.MaxChartCandles))
+            _chartDirty = true;
     }
 
     protected override void OnRedrawCharts(LiveSignalStrategyViewModelBase baseVm)

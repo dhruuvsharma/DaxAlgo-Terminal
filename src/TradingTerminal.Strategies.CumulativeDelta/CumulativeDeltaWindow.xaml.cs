@@ -77,12 +77,17 @@ public partial class CumulativeDeltaWindow : MetroWindow
             return;
         }
 
-        var xs = new double[_vm.Bars.Count];
-        var ys = new double[_vm.Bars.Count];
-        for (var i = 0; i < _vm.Bars.Count; i++)
+        // "Bars shown" axis control = how many trailing bars to draw (X zoom).
+        var total = _vm.Bars.Count;
+        var shown = Math.Min(total, Math.Max(10, _vm.ChartBarsShown));
+        var startIdx = total - shown;
+
+        var xs = new double[shown];
+        var ys = new double[shown];
+        for (var i = 0; i < shown; i++)
         {
-            xs[i] = _vm.Bars[i].TimestampUtc.ToOADate();
-            ys[i] = _vm.Bars[i].Close;
+            xs[i] = _vm.Bars[startIdx + i].TimestampUtc.ToOADate();
+            ys[i] = _vm.Bars[startIdx + i].Close;
         }
 
         var line = plot.Add.Scatter(xs, ys);
@@ -98,6 +103,9 @@ public partial class CumulativeDeltaWindow : MetroWindow
         }
 
         plot.Axes.AutoScale();
+        // Manual Y scale overrides the auto Y range (X stays auto) when enabled and valid.
+        if (!_vm.PriceAutoScale && _vm.PriceAxisMax > _vm.PriceAxisMin)
+            plot.Axes.SetLimitsY(_vm.PriceAxisMin, _vm.PriceAxisMax);
         PricePlot.Refresh();
     }
 

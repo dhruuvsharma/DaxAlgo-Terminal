@@ -96,6 +96,11 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _isAlgoRunning;
     [ObservableProperty] private string? _validationError;
 
+    /// <summary>Ceiling of the Size× (Z) axis on the cube — render-only, so it's live-editable
+    /// while streaming. The Window reads it when mapping points into the unit cube and re-renders
+    /// when it changes.</summary>
+    [ObservableProperty] private double _sizeAxisCeiling = 3.0;
+
     // Live signals.
     [ObservableProperty] private double _currentCvd;
     [ObservableProperty] private double _currentAggressor = 0.5;
@@ -394,6 +399,15 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
             TimestampUtc: DateTime.UtcNow))
             .FireAndForgetSafe(_logger, "Order-flow cube signal publish");
     }
+
+    /// <summary>Strip "▶ Start" — (re)builds the calculator with the current windows and starts
+    /// the stream. Lets the user Stop, edit the locked window params, then Start to re-apply.</summary>
+    [RelayCommand]
+    private Task Start() => StartStreamAsync(CancellationToken.None);
+
+    /// <summary>Strip "■ Stop" — stops the stream so the locked window params can be edited.</summary>
+    [RelayCommand]
+    private Task Stop() => StopStreamAsync();
 
     public async Task StopStreamAsync()
     {

@@ -1,0 +1,19 @@
+<UserControl x:Class="TradingTerminal.UI.Controls.ParamSpinner"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             x:Name="Root">
+    <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Label, ElementName=Root}"
+                   FontSize="10"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   Margin="0,0,0,2" />
+        <mah:NumericUpDown Width="{Binding SpinnerWidth, ElementName=Root}"
+                           HorizontalContentAlignment="Right"
+                           Minimum="{Binding Minimum, ElementName=Root}"
+                           Maximum="{Binding Maximum, ElementName=Root}"
+                           Interval="{Binding Step, ElementName=Root}"
+                           StringFormat="{Binding StringFormat, ElementName=Root}"
+                           Value="{Binding Value, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+    </StackPanel>
+</UserControl>

@@ -10,16 +10,30 @@ using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
-using TradingTerminal.Ai;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Login;
 using TradingTerminal.Infrastructure;
+using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.UI.Logging;
+// Per-tool projects (Charts menu + Tools menu + AI tools), each shipping its own Add*Surface extension.
+using TradingTerminal.Charts;
+using TradingTerminal.OrderBook;
+using TradingTerminal.VolumeFootprint;
+using TradingTerminal.Correlation;
+using TradingTerminal.Backtest;
+using TradingTerminal.Recording;
+using TradingTerminal.MarketRegime;
+using TradingTerminal.InstrumentRegime;
+using TradingTerminal.MarkovRegime;
+using TradingTerminal.Ai.MarketAnalyst;
+using TradingTerminal.Ai.FactorResearch;
+using TradingTerminal.Ai.MlFeatures;
+using TradingTerminal.Ai.BacktestAnalysis;
 
 namespace TradingTerminal.App;
 
@@ -95,11 +109,20 @@ public partial class App : Application
                 services.AddSettingsSurface();
                 services.AddRecordingSurface();
                 services.AddCorrelationSurface();
+                // Charts menu tools.
                 services.AddChartsSurface();
                 services.AddOrderBookSurface();
                 services.AddFootprintSurface();
-                services.AddAi(ctx.Configuration);
-                services.AddRegimeSurface();
+                // AI tools — the analyst client seam (Null/Http) plus the four AI UI panels.
+                services.AddAiAnalyst(ctx.Configuration);
+                services.AddMarketAnalyst();
+                services.AddFactorResearch();
+                services.AddMlFeatures();
+                services.AddBacktestAnalysis();
+                // Regime tools — three independent panels.
+                services.AddMarketRegimeSurface();
+                services.AddInstrumentRegimeSurface();
+                services.AddMarkovRegimeSurface();
                 services.AddArchiveSurface();
             })
             .Build();

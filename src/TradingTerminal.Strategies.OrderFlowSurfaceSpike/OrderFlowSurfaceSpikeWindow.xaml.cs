@@ -15,9 +15,9 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
     private const double ZClamp = 3.5;
 
     /// <summary>Vertical exaggeration. Without it, |Z|=3 lifts ~0.43 of the bin-axis span — fine
-    /// in absolute terms but the surface looks flat next to the bin/slice dimensions. Multiply
-    /// to make spikes pop visually.</summary>
-    private const double HeightScale = 1.6;
+    /// in absolute terms but the surface looks flat next to the bin/slice dimensions. Driven live
+    /// from the VM's <see cref="OrderFlowSurfaceSpikeViewModel.SurfaceHeightScale"/> axis slider.</summary>
+    private double HeightScale => _vm?.SurfaceHeightScale ?? 1.6;
 
     public OrderFlowSurfaceSpikeWindow()
     {
@@ -29,16 +29,27 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_vm is not null)
+        {
             _vm.SurfaceChanged -= OnSurfaceChanged;
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+        }
         _vm = e.NewValue as OrderFlowSurfaceSpikeViewModel;
         if (_vm is not null)
         {
             _vm.SurfaceChanged += OnSurfaceChanged;
+            _vm.PropertyChanged += OnVmPropertyChanged;
             Redraw();
         }
     }
 
     private void OnSurfaceChanged(object? sender, EventArgs e) => Redraw();
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // The Z-height axis slider is render-only — repaint when it changes.
+        if (e.PropertyName == nameof(OrderFlowSurfaceSpikeViewModel.SurfaceHeightScale))
+            Redraw();
+    }
 
     private void Redraw()
     {
@@ -61,7 +72,7 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
         var cols = surface.GetLength(1);  // bins
         if (rows < 2 || cols < 2) return;
 
-        var mesh = BuildSurfaceMesh(surface, rows, cols);
+        var mesh = BuildSurfaceMesh(surface, rows, cols, HeightScale);
         var material = BuildHeatmapMaterial();
         var model = new GeometryModel3D { Geometry = mesh, Material = material, BackMaterial = material };
         View3D.Children.Add(new ModelVisual3D { Content = model });
@@ -91,7 +102,7 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
         }
     }
 
-    private static MeshGeometry3D BuildSurfaceMesh(double[,] surface, int rows, int cols)
+    private static MeshGeometry3D BuildSurfaceMesh(double[,] surface, int rows, int cols, double heightScale)
     {
         var mesh = new MeshGeometry3D();
         var positions = new Point3DCollection(rows * cols);
@@ -105,7 +116,7 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
                 positions.Add(new Point3D(
                     c / (double)(cols - 1),
                     r / (double)(rows - 1),
-                    z / (2 * ZClamp) * HeightScale));
+                    z / (2 * ZClamp) * heightScale));
                 textureCoords.Add(new Point((z + ZClamp) / (2 * ZClamp), 0.5));
             }
         }
@@ -205,6 +216,7 @@ public partial class OrderFlowSurfaceSpikeWindow : MetroWindow
     {
         if (_vm is null) return;
         _vm.SurfaceChanged -= OnSurfaceChanged;
+        _vm.PropertyChanged -= OnVmPropertyChanged;
         await _vm.StopStreamAsync();
         _vm.Dispose();
     }

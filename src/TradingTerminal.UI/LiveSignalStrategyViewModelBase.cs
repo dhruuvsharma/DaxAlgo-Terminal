@@ -146,6 +146,26 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// <summary>True only while the user has armed the algo via Run. Display-only otherwise.</summary>
     [ObservableProperty] private bool _isAlgoRunning;
 
+    // ---------- Chart axis controls (live, render-only) ----------
+    // Shared by every base-backed strategy's price chart. These only affect how the chart is
+    // drawn — never strategy state — so they're live-editable while streaming. Windows read them
+    // in their redraw; a change re-raises BarsChanged so the chart refreshes immediately.
+
+    /// <summary>How many trailing bars the price chart draws (X-axis zoom / window).</summary>
+    [ObservableProperty] private int _chartBarsShown = 150;
+
+    /// <summary>When true the price chart Y range auto-fits; otherwise it's pinned to
+    /// [<see cref="YAxisMin"/>, <see cref="YAxisMax"/>].</summary>
+    [ObservableProperty] private bool _yAutoScale = true;
+
+    [ObservableProperty] private double _yAxisMin;
+    [ObservableProperty] private double _yAxisMax;
+
+    partial void OnChartBarsShownChanged(int value) => BarsChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnYAutoScaleChanged(bool value) => BarsChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnYAxisMinChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+
     /// <summary>
     /// Loads the connected broker's tradable instruments and swaps them in for the static
     /// fallback. cTrader yields FX pairs, Alpaca yields stocks + crypto, IB/NinjaTrader yield

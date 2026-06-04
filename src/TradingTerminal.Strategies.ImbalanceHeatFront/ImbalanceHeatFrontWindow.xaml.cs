@@ -12,9 +12,10 @@ public partial class ImbalanceHeatFrontWindow : MetroWindow
 
     /// <summary>Vertical exaggeration. Imbalance is naturally bounded to [-1, +1] so the raw
     /// height range is small relative to the X/Y unit-square footprint — without scaling, ridges
-    /// look flat next to the bin/slice dimensions. 1.6 matches the OrderFlowSurfaceSpike window
-    /// so the two surfaces feel consistent side-by-side.</summary>
-    private const double HeightScale = 1.6;
+    /// look flat next to the bin/slice dimensions. Driven live from the VM's
+    /// <see cref="ImbalanceHeatFrontViewModel.SurfaceHeightScale"/> axis slider (default 1.6,
+    /// matching the OrderFlowSurfaceSpike window so the two surfaces feel consistent side-by-side).</summary>
+    private double HeightScale => _vm?.SurfaceHeightScale ?? 1.6;
 
     public ImbalanceHeatFrontWindow()
     {
@@ -55,7 +56,7 @@ public partial class ImbalanceHeatFrontWindow : MetroWindow
         var cols = surface.GetLength(1);
         if (rows < 2 || cols < 2) return;
 
-        var mesh = BuildSurfaceMesh(surface, rows, cols);
+        var mesh = BuildSurfaceMesh(surface, rows, cols, HeightScale);
         var material = BuildHeatmapMaterial();
         var model = new GeometryModel3D { Geometry = mesh, Material = material, BackMaterial = material };
         View3D.Children.Add(new ModelVisual3D { Content = model });
@@ -84,7 +85,7 @@ public partial class ImbalanceHeatFrontWindow : MetroWindow
         }
     }
 
-    private static MeshGeometry3D BuildSurfaceMesh(double[,] surface, int rows, int cols)
+    private static MeshGeometry3D BuildSurfaceMesh(double[,] surface, int rows, int cols, double heightScale)
     {
         var mesh = new MeshGeometry3D();
         var positions = new Point3DCollection(rows * cols);
@@ -98,7 +99,7 @@ public partial class ImbalanceHeatFrontWindow : MetroWindow
                 positions.Add(new Point3D(
                     c / (double)(cols - 1),
                     r / (double)(rows - 1),
-                    v * 0.5 * HeightScale));
+                    v * 0.5 * heightScale));
                 // Texture U maps [-1, +1] → [0, 1] for the horizontal gradient brush.
                 textureCoords.Add(new Point((v + 1.0) * 0.5, 0.5));
             }

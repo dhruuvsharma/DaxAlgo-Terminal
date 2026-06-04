@@ -32,7 +32,45 @@
                 <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" IsDefault="True" MinWidth="120" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
             </StackPanel></Border>
         </ScrollViewer>
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Button Content="▶ Start" Command="{Binding StartCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSpinner Label="Bars shown" Minimum="30" Maximum="600" Step="10" StringFormat="0"
+                                          Value="{Binding ChartBarsShown, Mode=TwoWay}" />
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="Y axis" FontSize="10" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,2" />
+                            <CheckBox Content="Auto" IsChecked="{Binding YAutoScale, Mode=TwoWay}" />
+                        </StackPanel>
+                        <uic:ParamSpinner Label="Y min" Minimum="0" Maximum="1" Step="0.0001" StringFormat="0.#####" SpinnerWidth="92"
+                                          Value="{Binding YAxisMin, Mode=TwoWay}"
+                                          IsEnabled="{Binding YAutoScale, Converter={StaticResource InverseBooleanConverter}}" />
+                        <uic:ParamSpinner Label="Y max" Minimum="0" Maximum="1" Step="0.0001" StringFormat="0.#####" SpinnerWidth="92"
+                                          Value="{Binding YAxisMax, Mode=TwoWay}"
+                                          IsEnabled="{Binding YAutoScale, Converter={StaticResource InverseBooleanConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
+                            <TextBlock Text="PARAMS (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                            <uic:ParamSpinner Label="Window ticks" Minimum="10" Maximum="5000" Step="10" StringFormat="0"
+                                              Value="{Binding WindowTicks, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Toxicity thr" Minimum="0.5" Maximum="0.99" Step="0.01" StringFormat="0.00"
+                                              Value="{Binding ToxicityThreshold, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Hold ticks" Minimum="1" Maximum="5000" Step="10" StringFormat="0"
+                                              Value="{Binding HoldTicks, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Quantity" Minimum="1" Maximum="1000" Step="1" StringFormat="0"
+                                              Value="{Binding Quantity, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+            <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Border Grid.Row="0" Style="{StaticResource Strategy.HeaderBar}"><StackPanel Orientation="Horizontal">
                 <TextBlock Text="Symbol:" Style="{StaticResource Strategy.DashLabel}" /><TextBlock Text="{Binding SelectedInstrument.DisplayName}" Margin="6,0,16,0" FontWeight="SemiBold" />
@@ -47,6 +85,7 @@
                 <TextBlock Text="  |  Signals:" Style="{StaticResource Strategy.DashLabel}" Margin="20,0,0,0" /><TextBlock Text="{Binding Signals.Count}" Margin="6,0,0,0" Style="{StaticResource Strategy.DashValue}" />
                 <TextBlock Margin="20,0,0,0" Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold" Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Text="● ALGO ARMED" />
             </StackPanel></Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </ui:StrategyWindowBase>

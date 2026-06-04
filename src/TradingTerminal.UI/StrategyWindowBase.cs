@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using MahApps.Metro.Controls;
 using ScottPlot.WPF;
+using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.UI;
 
@@ -65,6 +66,26 @@ public abstract class StrategyWindowBase : MetroWindow
     private void OnBarsChanged(object? sender, EventArgs e)
     {
         if (_vm is not null && _hostsConfigured) OnRedrawCharts(_vm);
+    }
+
+    /// <summary>
+    /// Applies the shared live axis controls from the param strip after a subclass has plotted
+    /// and auto-scaled: trims the X axis to the last <see cref="LiveSignalStrategyViewModelBase.ChartBarsShown"/>
+    /// bars (time-based zoom) and pins the Y axis to a manual range when
+    /// <see cref="LiveSignalStrategyViewModelBase.YAutoScale"/> is off. Call at the end of
+    /// <see cref="OnRedrawCharts"/>, passing the bars used for the X timeline.
+    /// </summary>
+    protected static void ApplyAxisControls(ScottPlot.Plot plot, LiveSignalStrategyViewModelBase vm, IReadOnlyList<Bar> bars)
+    {
+        var n = bars.Count;
+        if (n >= 2 && vm.ChartBarsShown > 0 && n > vm.ChartBarsShown)
+        {
+            var left = bars[n - vm.ChartBarsShown].TimestampUtc.ToOADate();
+            var right = bars[n - 1].TimestampUtc.ToOADate();
+            if (right > left) plot.Axes.SetLimitsX(left, right);
+        }
+        if (!vm.YAutoScale && vm.YAxisMax > vm.YAxisMin)
+            plot.Axes.SetLimitsY(vm.YAxisMin, vm.YAxisMax);
     }
 
     private async void OnClosed(object? sender, EventArgs e)

@@ -26,6 +26,7 @@ public partial class VolatilityTargetedStrategyWindow : StrategyWindowBase
         target.LineStyle.Pattern = ScottPlot.LinePattern.Dashed; target.Text = $"Target {vm.TargetVol:F5}";
 
         plot.Axes.AutoScale();
+        ApplyAxisControls(plot, vm, bars);
         IndicatorPlot.Refresh();
     }
 }

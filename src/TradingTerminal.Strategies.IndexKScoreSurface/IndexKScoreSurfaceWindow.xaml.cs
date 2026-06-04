@@ -12,9 +12,10 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
 
     /// <summary>Vertical exaggeration of the K-axis. K_final ∈ [-1.5, +1.5] is mapped to
     /// world-Z in [-0.5, +0.5] × HeightScale so the surface looks pronounced next to the
-    /// unit-square X/Y footprint. Matches the OrderFlowSurfaceSpike / ImbalanceHeatFront
-    /// convention so the three cube/surface windows feel consistent side-by-side.</summary>
-    private const double HeightScale = 1.6;
+    /// unit-square X/Y footprint. Driven live from the VM's
+    /// <see cref="IndexKScoreSurfaceViewModel.SurfaceHeightScale"/> axis slider (default 1.6,
+    /// matching the OrderFlowSurfaceSpike / ImbalanceHeatFront windows).</summary>
+    private double HeightScale => _vm?.SurfaceHeightScale ?? 1.6;
 
     /// <summary>Maximum |K| we map to the renderer (anything beyond clamps to the edge of the
     /// gradient). K_final ∈ [-1.5, +1.5], so 1.5 is the natural ceiling.</summary>
@@ -30,16 +31,27 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_vm is not null)
+        {
             _vm.SurfaceChanged -= OnSurfaceChanged;
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+        }
         _vm = e.NewValue as IndexKScoreSurfaceViewModel;
         if (_vm is not null)
         {
             _vm.SurfaceChanged += OnSurfaceChanged;
+            _vm.PropertyChanged += OnVmPropertyChanged;
             Redraw();
         }
     }
 
     private void OnSurfaceChanged(object? sender, EventArgs e) => Redraw();
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // The K-height axis slider is render-only — repaint when it changes.
+        if (e.PropertyName == nameof(IndexKScoreSurfaceViewModel.SurfaceHeightScale))
+            Redraw();
+    }
 
     private void Redraw()
     {
@@ -63,7 +75,7 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
         var cols = surface.GetLength(1);
         if (rows < 2 || cols < 2) return;
 
-        var mesh = BuildSurfaceMesh(surface, thresholds, rows, cols);
+        var mesh = BuildSurfaceMesh(surface, thresholds, rows, cols, HeightScale);
         var material = BuildHeatmapMaterial();
         var model = new GeometryModel3D { Geometry = mesh, Material = material, BackMaterial = material };
         View3D.Children.Add(new ModelVisual3D { Content = model });
@@ -87,7 +99,7 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
     /// The Z-axis height carries the signed K value directly, so direction is unambiguous from
     /// geometry even when the user can't read the color.
     /// </summary>
-    private static MeshGeometry3D BuildSurfaceMesh(double[,] surface, double[] thresholds, int rows, int cols)
+    private static MeshGeometry3D BuildSurfaceMesh(double[,] surface, double[] thresholds, int rows, int cols, double heightScale)
     {
         var mesh = new MeshGeometry3D();
         var positions = new Point3DCollection(rows * cols);
@@ -103,7 +115,7 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
                 positions.Add(new Point3D(
                     c / (double)(cols - 1),
                     r / (double)(rows - 1),
-                    k / KMaxClamp * 0.5 * HeightScale));
+                    k / KMaxClamp * 0.5 * heightScale));
 
                 var u = MapTextureU(k, thr);
                 textureCoords.Add(new Point(u, 0.5));
@@ -280,6 +292,7 @@ public partial class IndexKScoreSurfaceWindow : MetroWindow
     {
         if (_vm is null) return;
         _vm.SurfaceChanged -= OnSurfaceChanged;
+        _vm.PropertyChanged -= OnVmPropertyChanged;
         await _vm.StopStreamAsync();
         _vm.Dispose();
     }

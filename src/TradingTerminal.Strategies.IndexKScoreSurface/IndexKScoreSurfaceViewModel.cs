@@ -99,6 +99,10 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     [ObservableProperty] private string? _validationError;
     [ObservableProperty] private string _status = "Configure the strategy to begin.";
 
+    /// <summary>Vertical exaggeration of the K (Z) axis on the 3D surface — render-only, so it's
+    /// live while streaming. The Window reads it when building the mesh and re-renders on change.</summary>
+    [ObservableProperty] private double _surfaceHeightScale = 1.6;
+
     [ObservableProperty] private int _piercingUpCount;
     [ObservableProperty] private int _piercingDownCount;
     [ObservableProperty] private double _cumulativeKUp;
@@ -182,6 +186,35 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
             ? $"Armed on {SelectedFamily?.DisplayName} ({ComponentsReady}/{ComponentsTotal} ready)"
             : $"Streaming {SelectedFamily?.DisplayName} — algo idle";
     }
+
+    /// <summary>Strip "▶ Start" — rebuilds the aggregator with the current (possibly edited)
+    /// thresholds and component ordering, then restarts the multi-component stream. This is how
+    /// the locked params get re-applied after a Stop.</summary>
+    [RelayCommand]
+    private void Start()
+    {
+        if (IsStreaming || SelectedFamily is null) return;
+        ValidationError = null;
+        if (TMin <= 0 || TMax <= 0 || TMin >= TMax)
+        { ValidationError = "Thresholds require 0 < T_min < T_max."; return; }
+        if (MinPierceCount < 1) { ValidationError = "Min pierce count must be >= 1."; return; }
+        if (CumKThreshold <= 0) { ValidationError = "Cumulative K threshold must be > 0."; return; }
+        try
+        {
+            _aggregator = new IndexKScoreAggregator(
+                SelectedFamily.Components, TMin, TMax, MinPierceCount, CumKThreshold);
+        }
+        catch (Exception ex) { ValidationError = ex.Message; return; }
+
+        _orderedComponents = SelectedFamily.Components.OrderBy(c => c.IndexWeight).ToList();
+        ComponentsTotal = _orderedComponents.Count;
+        ComponentsReady = 0;
+        _ = StartStreamAsync(CancellationToken.None);
+    }
+
+    /// <summary>Strip "■ Stop" — stops the stream so the locked threshold/indicator params can be edited.</summary>
+    [RelayCommand]
+    private Task Stop() => StopStreamAsync();
 
     private async Task StartStreamAsync(CancellationToken ct)
     {

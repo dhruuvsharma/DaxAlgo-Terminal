@@ -142,7 +142,72 @@
         </Grid>
 
         <!-- Surface view -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <!-- Live tuning strip. The ridge-detection params are baked into the engine + calculator
+                 at build time, so they are locked while the stream runs; Stop to edit them, then
+                 Start to rebuild with the new values. The surface Z-scale is render-only and live. -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Button Content="▶ Start" Command="{Binding StartCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSlider Label="Z height ×" Minimum="0.4" Maximum="4" Step="0.1"
+                                         SliderWidth="130" Value="{Binding SurfaceHeightScale, Mode=TwoWay}" />
+
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <!-- Ridge params: locked while streaming (rebuild the engine on Start). -->
+                        <StackPanel Orientation="Horizontal"
+                                    IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
+                            <TextBlock Text="RIDGE (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                            <uic:ParamSpinner Label="Levels (X)" Minimum="1" Maximum="20" Step="1" StringFormat="0"
+                                              Value="{Binding NumLevels, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Slices (Y)" Minimum="2" Maximum="120" Step="1" StringFormat="0"
+                                              Value="{Binding NumSlices, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Ridge thr" Minimum="0.05" Maximum="1" Step="0.05" StringFormat="0.00"
+                                              Value="{Binding RidgeThreshold, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Ridge width" Minimum="1" Maximum="20" Step="1" StringFormat="0"
+                                              Value="{Binding RidgeWidth, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Confirm" Minimum="1" Maximum="20" Step="1" StringFormat="0"
+                                              Value="{Binding ConfirmationSlices, Mode=TwoWay}" />
+
+                            <Border Style="{StaticResource Strategy.ParamDivider}" />
+                            <ToggleButton x:Name="MoreToggle" Content="More ▾" VerticalAlignment="Center" Padding="10,3" />
+                            <Popup IsOpen="{Binding IsChecked, ElementName=MoreToggle}"
+                                   PlacementTarget="{Binding ElementName=MoreToggle}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True">
+                                <Border Style="{StaticResource Strategy.ParamPopout}">
+                                    <StackPanel>
+                                        <TextBlock Text="More ridge params (applied on Start)" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                        <WrapPanel>
+                                            <uic:ParamSpinner Label="Events/slice" Minimum="1" Maximum="200" Step="1" StringFormat="0"
+                                                              Value="{Binding EventsPerSlice, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="Ticks/slice" Minimum="1" Maximum="200" Step="1" StringFormat="0"
+                                                              Value="{Binding TicksPerSlice, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="Quantity" Minimum="1" Maximum="1000" Step="1" StringFormat="0"
+                                                              Value="{Binding Quantity, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="SL (pips)" Minimum="0.1" Maximum="200" Step="0.5" StringFormat="0.0"
+                                                              Value="{Binding StopLossPips, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="TP (pips)" Minimum="0.1" Maximum="200" Step="0.5" StringFormat="0.0"
+                                                              Value="{Binding TakeProfitPips, Mode=TwoWay}" />
+                                        </WrapPanel>
+                                        <CheckBox Content="Momentum mode (enter WITH ridge; uncheck for Mean-Reversion)"
+                                                  IsChecked="{Binding MomentumMode}" Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -220,6 +285,7 @@
                                Text="● ALGO ARMED" />
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </mah:MetroWindow>

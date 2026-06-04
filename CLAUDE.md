@@ -41,12 +41,16 @@ Core           → (nothing)
 | Broker clients, backtest engine + strategies, notifications, regime, `WpfDispatcher` | `TradingTerminal.Infrastructure` |
 | ViewModelBase, themes, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI` |
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
-| AI analyst seam + dock, ML features, backtest analysis, factor research, enricher, `AddAi()` | `TradingTerminal.Ai` |
+| AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
+| AI tool windows (one project each) — Market analyst, factor research, ML features, backtest analysis | `TradingTerminal.Ai.<Name>` (`MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`) |
 | Per-strategy live windows (9) | `TradingTerminal.Strategies.<Name>` |
-| Shell, MainWindow, DI composition (`AppDependencyInjection`), `App.xaml.cs` | `TradingTerminal.App` |
+| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`MarkovRegime`/`Backtest`/`Recording`) |
+| Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
 Live strategies (9): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
+
+Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint.
 
 ## Architectural rules (always relevant)
 
@@ -73,7 +77,7 @@ Live strategies (9): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKSco
 | `market-data-pipeline` | Touching `TradingTerminal.MarketData` (hub/store/ingest/registry/archive). |
 | `regime-cube-strategy` | Any 3D regime-cube/surface strategy from `ideas.md`. |
 | `archive-offloader` | The Telegram archive offloader. |
-| `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher, the AI dock pane (all in `TradingTerminal.Ai`). |
+| `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`); the AI dock pane lives in `TradingTerminal.Ai.MarketAnalyst`. |
 | `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML/AvalonDock. |
 
 ## Subagents & model routing

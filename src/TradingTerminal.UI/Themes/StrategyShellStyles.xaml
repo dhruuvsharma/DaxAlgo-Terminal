@@ -76,4 +76,40 @@
         <Setter Property="Padding" Value="12,4" />
     </Style>
 
+    <!-- ===== Live parameter strip ===== -->
+    <!-- Always-visible top toolbar of tunables on the running view. Hosts ParamSpinner /
+         ParamSlider controls; advanced params live behind a "More" popout. Engine-baked
+         params are locked while streaming (IsEnabled bound to !IsStreaming by the consumer). -->
+    <Style x:Key="Strategy.ParamStrip" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="12,6" />
+    </Style>
+
+    <!-- Themed surface for the "More" Popup contents (Popups render with no inherited bg). -->
+    <Style x:Key="Strategy.ParamPopout" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MaxWidth" Value="560" />
+    </Style>
+
+    <!-- Vertical section divider between groups of tunables in the strip. -->
+    <Style x:Key="Strategy.ParamDivider" TargetType="Border">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="Margin" Value="4,2,12,2" />
+    </Style>
+
+    <!-- Small caps-ish group caption inside the strip (e.g. "TUNING", "AXIS"). -->
+    <Style x:Key="Strategy.ParamGroupLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,10,0" />
+    </Style>
+
 </ResourceDictionary>

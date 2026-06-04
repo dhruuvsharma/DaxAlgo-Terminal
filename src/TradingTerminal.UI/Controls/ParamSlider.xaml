@@ -1,0 +1,22 @@
+<UserControl x:Class="TradingTerminal.UI.Controls.ParamSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <StackPanel Margin="0,0,12,0" VerticalAlignment="Center" Width="{Binding SliderWidth, ElementName=Root}">
+        <DockPanel Margin="0,0,0,1">
+            <TextBlock Text="{Binding Label, ElementName=Root}"
+                       FontSize="10"
+                       Foreground="{DynamicResource Text.Secondary}" />
+            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right"
+                       FontSize="10" FontFamily="Consolas"
+                       Foreground="{DynamicResource Text.Primary}"
+                       Text="{Binding Value, ElementName=Root, StringFormat={}{0:0.###}}" />
+        </DockPanel>
+        <Slider Minimum="{Binding Minimum, ElementName=Root}"
+                Maximum="{Binding Maximum, ElementName=Root}"
+                SmallChange="{Binding Step, ElementName=Root}"
+                LargeChange="{Binding Step, ElementName=Root}"
+                TickFrequency="{Binding Step, ElementName=Root}"
+                Value="{Binding Value, ElementName=Root, Mode=TwoWay}" />
+    </StackPanel>
+</UserControl>

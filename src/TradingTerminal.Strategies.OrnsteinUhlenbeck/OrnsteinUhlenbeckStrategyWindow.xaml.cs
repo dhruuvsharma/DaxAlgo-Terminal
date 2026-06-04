@@ -33,6 +33,7 @@ public partial class OrnsteinUhlenbeckStrategyWindow : StrategyWindowBase
         AddHLine(plot, -vm.StopZ,  StrategyChartHelpers.WarningColor, $"-stop {vm.StopZ:F2}");
 
         plot.Axes.AutoScale();
+        ApplyAxisControls(plot, vm, bars);
         IndicatorPlot.Refresh();
     }
 

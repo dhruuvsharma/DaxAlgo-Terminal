@@ -6,6 +6,7 @@
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:helix="http://helix-toolkit.org/wpf"
                  xmlns:local="clr-namespace:TradingTerminal.Strategies.IndexKScoreSurface"
+                 xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Index K-Score Surface"
                  Height="820" Width="1400"
@@ -113,7 +114,65 @@
         </Grid>
 
         <!-- Surface view -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <!-- Live tuning strip. The aggregator (thresholds, pierce gate) and per-component
+                 calculators (indicator windows) are baked at Start, so all of those are locked
+                 while streaming (Stop to edit, Start to rebuild). K-height is render-only. -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <Button Content="▶ Start" Command="{Binding StartCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
+                                Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSlider Label="K height ×" Minimum="0.4" Maximum="4" Step="0.1" SliderWidth="120"
+                                         Value="{Binding SurfaceHeightScale, Mode=TwoWay}" />
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
+                            <TextBlock Text="THRESHOLDS (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                            <uic:ParamSpinner Label="T_min" Minimum="0.01" Maximum="1.5" Step="0.05" StringFormat="0.00"
+                                              Value="{Binding TMin, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="T_max" Minimum="0.01" Maximum="1.5" Step="0.05" StringFormat="0.00"
+                                              Value="{Binding TMax, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="Min pierce" Minimum="1" Maximum="50" Step="1" StringFormat="0"
+                                              Value="{Binding MinPierceCount, Mode=TwoWay}" />
+                            <uic:ParamSpinner Label="ΣK thr" Minimum="0.1" Maximum="100" Step="0.5" StringFormat="0.0"
+                                              Value="{Binding CumKThreshold, Mode=TwoWay}" />
+                            <Border Style="{StaticResource Strategy.ParamDivider}" />
+                            <ToggleButton x:Name="MoreToggle" Content="More ▾" VerticalAlignment="Center" Padding="10,3" />
+                            <Popup IsOpen="{Binding IsChecked, ElementName=MoreToggle}"
+                                   PlacementTarget="{Binding ElementName=MoreToggle}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True">
+                                <Border Style="{StaticResource Strategy.ParamPopout}">
+                                    <StackPanel>
+                                        <TextBlock Text="Indicator windows (applied on Start)" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                        <WrapPanel>
+                                            <uic:ParamSpinner Label="RSI len" Minimum="2" Maximum="200" Step="1" StringFormat="0"
+                                                              Value="{Binding RsiLength, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="MACD fast" Minimum="2" Maximum="200" Step="1" StringFormat="0"
+                                                              Value="{Binding MacdFast, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="MACD slow" Minimum="2" Maximum="400" Step="1" StringFormat="0"
+                                                              Value="{Binding MacdSlow, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="MACD sig" Minimum="2" Maximum="200" Step="1" StringFormat="0"
+                                                              Value="{Binding MacdSignal, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="ATR len" Minimum="2" Maximum="200" Step="1" StringFormat="0"
+                                                              Value="{Binding AtrLength, Mode=TwoWay}" />
+                                            <uic:ParamSpinner Label="ATR reg" Minimum="2" Maximum="400" Step="1" StringFormat="0"
+                                                              Value="{Binding AtrRegLength, Mode=TwoWay}" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -209,6 +268,7 @@
                                Text="● ALGO ARMED" />
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </mah:MetroWindow>

@@ -295,7 +295,82 @@
         </ScrollViewer>
 
         <!-- ===== Chart + dashboard ===== -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <!-- Live tuning strip. Every Cumulative Delta parameter is read fresh on each closed
+                 bar, so all of these take effect immediately while streaming — no restart needed. -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="TUNING" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSpinner Label="Window (bars)" Minimum="2" Maximum="50" Step="1" StringFormat="0"
+                                          Value="{Binding WindowSize, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="Delta thr ±" Minimum="1" Maximum="5000" Step="10" StringFormat="0"
+                                          SpinnerWidth="84" Value="{Binding DeltaThreshold, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="Min conf" Minimum="0" Maximum="5" Step="1" StringFormat="0"
+                                          Value="{Binding MinConfirmations, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="ADX ≥" Minimum="0" Maximum="100" Step="0.5" StringFormat="0.0"
+                                          Value="{Binding AdxThreshold, Mode=TwoWay}" />
+
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <uic:ParamSpinner Label="Bars shown" Minimum="30" Maximum="300" Step="10" StringFormat="0"
+                                          Value="{Binding ChartBarsShown, Mode=TwoWay}" />
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="Price Y" FontSize="10" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,2" />
+                            <CheckBox Content="Auto" IsChecked="{Binding PriceAutoScale, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <uic:ParamSpinner Label="Y min" Minimum="0" Maximum="1000000" Step="0.0001" StringFormat="0.#####"
+                                          SpinnerWidth="92" Value="{Binding PriceAxisMin, Mode=TwoWay}"
+                                          IsEnabled="{Binding PriceAutoScale, Converter={StaticResource InverseBooleanConverter}}" />
+                        <uic:ParamSpinner Label="Y max" Minimum="0" Maximum="1000000" Step="0.0001" StringFormat="0.#####"
+                                          SpinnerWidth="92" Value="{Binding PriceAxisMax, Mode=TwoWay}"
+                                          IsEnabled="{Binding PriceAutoScale, Converter={StaticResource InverseBooleanConverter}}" />
+
+                        <Border Style="{StaticResource Strategy.ParamDivider}" />
+                        <ToggleButton x:Name="MoreToggle" Content="More ▾" VerticalAlignment="Center" Padding="10,3" />
+                        <Popup IsOpen="{Binding IsChecked, ElementName=MoreToggle}"
+                               PlacementTarget="{Binding ElementName=MoreToggle}" Placement="Bottom"
+                               StaysOpen="False" AllowsTransparency="True">
+                            <Border Style="{StaticResource Strategy.ParamPopout}">
+                                <StackPanel>
+                                    <TextBlock Text="Advanced filters — all live" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <WrapPanel>
+                                        <uic:ParamSpinner Label="EMA slope bars" Minimum="1" Maximum="50" Step="1" StringFormat="0"
+                                                          Value="{Binding EmaSlopeBars, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Spread avg ×" Minimum="0.5" Maximum="10" Step="0.1" StringFormat="0.00"
+                                                          Value="{Binding SpreadAvgMultiplier, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Spread hist" Minimum="1" Maximum="200" Step="1" StringFormat="0"
+                                                          Value="{Binding SpreadHistorySize, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Max spread" Minimum="0" Maximum="1" Step="0.00001" StringFormat="0.#####"
+                                                          SpinnerWidth="92" Value="{Binding MaxSpread, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Min ATR" Minimum="0" Maximum="1" Step="0.00001" StringFormat="0.#####"
+                                                          SpinnerWidth="92" Value="{Binding MinAtr, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Max ATR" Minimum="0" Maximum="1" Step="0.00001" StringFormat="0.#####"
+                                                          SpinnerWidth="92" Value="{Binding MaxAtr, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Max daily" Minimum="1" Maximum="100" Step="1" StringFormat="0"
+                                                          Value="{Binding MaxDailySignals, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Max / session" Minimum="1" Maximum="100" Step="1" StringFormat="0"
+                                                          Value="{Binding MaxSignalsPerSession, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Cooldown (s)" Minimum="0" Maximum="7200" Step="30" StringFormat="0"
+                                                          SpinnerWidth="84" Value="{Binding MinSecondsBetweenSignals, Mode=TwoWay}" />
+                                    </WrapPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox Content="HTF filter" IsChecked="{Binding UseHtfFilter}" Margin="0,0,12,0" />
+                                        <CheckBox Content="Session filter" IsChecked="{Binding UseSessionFilter}" Margin="0,0,12,0" />
+                                        <CheckBox Content="Overlap only" IsChecked="{Binding OverlapOnly}" Margin="0,0,12,0" />
+                                        <CheckBox Content="Asia" IsChecked="{Binding UseAsiaSession}" Margin="0,0,12,0" />
+                                        <CheckBox Content="London" IsChecked="{Binding UseLondonSession}" Margin="0,0,12,0" />
+                                        <CheckBox Content="New York" IsChecked="{Binding UseNewYorkSession}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="320" />
@@ -469,6 +544,7 @@
                     </Grid>
                 </Grid>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
     </Grid>
 </mah:MetroWindow>
