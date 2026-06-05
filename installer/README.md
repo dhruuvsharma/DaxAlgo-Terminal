@@ -37,11 +37,14 @@ script that produces a single `DaxAlgo-Terminal-Setup-vX.Y.Z.exe`.
    ```powershell
    & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
        /DMyAppVersion=1.0.0 `
-       /DMySourceDir="..\publish\DaxAlgo-Terminal" `
+       /DMySourceDir="C:\DaxAlgoBuild\DaxAlgo-Terminal" `
        installer\DaxAlgoTerminal.iss
    ```
 
-   The setup `.exe` lands in `installer\Output\`.
+**Output location:** local builds write all artifacts under **`C:\DaxAlgoBuild\`** by default
+(`DaxAlgo-Terminal\` published app, `installer\DaxAlgo-Terminal-Setup-vX.Y.Z.exe`), keeping build
+output off the code-only repo drive. Override with `publish.ps1 -Output <path>` or `/DMyOutputDir=`
++ `/DMySourceDir=` on `ISCC`. The CI release workflow overrides this back to the runner workspace.
 
 The CI **Release** workflow does all of this automatically on a `vX.Y.Z` tag and attaches the
 setup `.exe` (alongside the portable zip) to the draft GitHub Release.

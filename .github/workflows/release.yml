@@ -15,6 +15,10 @@ on:
 permissions:
   contents: write
 
+# Opt JS-based actions into Node 24 now (silences the Node 20 deprecation warnings).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   publish:
     runs-on: windows-latest
@@ -72,8 +76,10 @@ jobs:
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          # Keep the installer inside the runner workspace (overrides the local C:\DaxAlgoBuild default).
           & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
                   "/DMySourceDir=$(Resolve-Path publish/DaxAlgo-Terminal)" `
+                  "/DMyOutputDir=Output" `
                   installer/DaxAlgoTerminal.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)." }
           $setup = "installer/Output/DaxAlgo-Terminal-Setup-v${{ steps.ver.outputs.version }}.exe"

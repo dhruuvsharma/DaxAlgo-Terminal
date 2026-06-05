@@ -18,7 +18,13 @@
 
 #ifndef MySourceDir
   ; Default: the staged folder produced by scripts\publish.ps1 / the release workflow.
-  #define MySourceDir "..\publish\DaxAlgo-Terminal"
+  #define MySourceDir "C:\DaxAlgoBuild\DaxAlgo-Terminal"
+#endif
+
+#ifndef MyOutputDir
+  ; Build artifacts live off the (code-only) repo drive by default. Override with
+  ; /DMyOutputDir=... (the release workflow points this back inside the runner workspace).
+  #define MyOutputDir "C:\DaxAlgoBuild\installer"
 #endif
 
 #define MyAppName "DaxAlgo Terminal"
@@ -48,7 +54,7 @@ DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName} v{#MyAppVersion}
 
-OutputDir=Output
+OutputDir={#MyOutputDir}
 OutputBaseFilename=DaxAlgo-Terminal-Setup-v{#MyAppVersion}
 SetupIconFile=..\src\TradingTerminal.App\Icon\DaxAlgoLogo.ico
 WizardStyle=modern

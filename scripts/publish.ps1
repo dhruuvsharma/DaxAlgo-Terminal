@@ -7,7 +7,8 @@
     Version stamped into the assemblies and the output folder/zip name. Defaults to 1.0.0.
 
 .PARAMETER Output
-    Output root. Defaults to .\publish.
+    Output root for the published app, zip, and installer. Defaults to C:\DaxAlgoBuild so build
+    artifacts never land on the (code-only) repo drive. Override to publish elsewhere.
 
 .PARAMETER Zip
     Also produce a versioned .zip alongside the published folder.
@@ -21,7 +22,7 @@
 [CmdletBinding()]
 param(
     [string]$Version = '1.0.0',
-    [string]$Output  = 'publish',
+    [string]$Output  = 'C:\DaxAlgoBuild',
     [switch]$Zip,
     [switch]$Installer
 )
@@ -68,10 +69,13 @@ try {
             throw "Inno Setup (iscc) not found. Install it (choco install innosetup) or drop -Installer."
         }
 
-        $stageFull = (Resolve-Path $stage).Path
-        & $iscc "/DMyAppVersion=$Version" "/DMySourceDir=$stageFull" 'installer/DaxAlgoTerminal.iss'
+        $stageFull    = (Resolve-Path $stage).Path
+        $installerOut = Join-Path $Output 'installer'
+        New-Item -ItemType Directory -Force -Path $installerOut | Out-Null
+        & $iscc "/DMyAppVersion=$Version" "/DMySourceDir=$stageFull" "/DMyOutputDir=$installerOut" `
+                'installer/DaxAlgoTerminal.iss'
         if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)." }
-        Write-Host "Installer built to installer/Output/DaxAlgo-Terminal-Setup-v$Version.exe" -ForegroundColor Green
+        Write-Host "Installer built to $installerOut\DaxAlgo-Terminal-Setup-v$Version.exe" -ForegroundColor Green
     }
 }
 finally {
