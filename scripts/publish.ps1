@@ -30,26 +30,23 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 Push-Location $repo
 try {
-    $rid     = 'win-x64'
-    $appOut  = Join-Path $Output 'app'
-    $cliOut  = Join-Path $Output 'cli'
-    $stage   = Join-Path $Output 'DaxAlgo-Terminal'
+    $rid   = 'win-x64'
+    $stage = Join-Path $Output 'DaxAlgo-Terminal'
 
     Write-Host "Publishing DaxAlgo Terminal v$Version ($rid)…" -ForegroundColor Cyan
 
+    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+
+    # Publish straight into the final layout (app at the root, CLI under cli\). Publishing
+    # in place avoids duplicating ~430 MB of self-contained output into a separate stage copy.
     dotnet publish src/TradingTerminal.App/TradingTerminal.App.csproj `
-        -c Release -r $rid --self-contained true -p:Version=$Version -o $appOut
+        -c Release -r $rid --self-contained true -p:Version=$Version -o $stage
     if ($LASTEXITCODE -ne 0) { throw "App publish failed ($LASTEXITCODE)." }
 
     dotnet publish src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj `
-        -c Release -r $rid --self-contained true -p:Version=$Version -o $cliOut
+        -c Release -r $rid --self-contained true -p:Version=$Version -o (Join-Path $stage 'cli')
     if ($LASTEXITCODE -ne 0) { throw "CLI publish failed ($LASTEXITCODE)." }
 
-    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $stage | Out-Null
-    Copy-Item "$appOut/*" $stage -Recurse -Force
-    New-Item -ItemType Directory -Force -Path (Join-Path $stage 'cli') | Out-Null
-    Copy-Item "$cliOut/*" (Join-Path $stage 'cli') -Recurse -Force
     Copy-Item README.md, CHANGELOG.md, LICENSE $stage -Force
 
     Write-Host "Published to $stage" -ForegroundColor Green

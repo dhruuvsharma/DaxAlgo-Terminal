@@ -44,23 +44,18 @@ jobs:
           dotnet publish src/TradingTerminal.App/TradingTerminal.App.csproj
           -c Release -r win-x64 --self-contained true
           -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/app
+          -o publish/DaxAlgo-Terminal
 
       - name: Publish backtest CLI (self-contained win-x64)
         run: >
           dotnet publish src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj
           -c Release -r win-x64 --self-contained true
           -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/cli
+          -o publish/DaxAlgo-Terminal/cli
 
-      - name: Stage release contents
+      - name: Stage release docs
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path publish/DaxAlgo-Terminal | Out-Null
-          Copy-Item publish/app/* publish/DaxAlgo-Terminal -Recurse -Force
-          New-Item -ItemType Directory -Force -Path publish/DaxAlgo-Terminal/cli | Out-Null
-          Copy-Item publish/cli/* publish/DaxAlgo-Terminal/cli -Recurse -Force
-          Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal -Force
+        run: Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal -Force
 
       - name: Zip (portable)
         shell: pwsh
