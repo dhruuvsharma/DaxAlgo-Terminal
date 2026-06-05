@@ -262,6 +262,14 @@
                 <MenuItem Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />
             </MenuItem>
+
+            <MenuItem Header="_Help">
+                <MenuItem Header="_Support the developer…"
+                          Command="{Binding OpenSupportCommand}"
+                          ToolTip="Send feedback to the developer and learn how to support the project." />
+                <MenuItem Header="_About DaxAlgo Terminal…"
+                          Command="{Binding OpenSupportCommand}" />
+            </MenuItem>
         </Menu>
 
         <!-- Disconnect banner -->

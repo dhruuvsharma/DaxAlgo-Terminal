@@ -100,6 +100,17 @@ public static class AppDependencyInjection
         return services;
     }
 
+    /// <summary>The "Support the developer" surface: the thank-you / feedback window plus the prompt
+    /// service that shows it once per launch and backs the Help menu. No secrets — feedback is
+    /// delivered via a <c>mailto:</c> the user's own mail client sends.</summary>
+    public static IServiceCollection AddSupport(this IServiceCollection services)
+    {
+        services.AddTransient<TradingTerminal.App.Support.SupportViewModel>();
+        services.AddTransient<TradingTerminal.App.Support.SupportWindow>();
+        services.AddSingleton<TradingTerminal.App.Support.ISupportPrompt, TradingTerminal.App.Support.SupportPrompt>();
+        return services;
+    }
+
     /// <summary>Settings dialogs (today: notifications). Add new settings tabs here.</summary>
     public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
     {

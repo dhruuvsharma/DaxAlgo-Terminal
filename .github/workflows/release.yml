@@ -1,0 +1,79 @@
+name: Release
+
+# Publishes a self-contained Windows build and attaches the zip to a GitHub Release
+# whenever a version tag (e.g. v1.0.0) is pushed.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 1.0.0). Defaults to the tag.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($v)) {
+            $v = "${{ github.ref_name }}" -replace '^v', ''
+          }
+          if ([string]::IsNullOrWhiteSpace($v)) { $v = "1.0.0" }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Building version $v"
+
+      - name: Publish app (self-contained win-x64)
+        run: >
+          dotnet publish src/TradingTerminal.App/TradingTerminal.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o publish/app
+
+      - name: Publish backtest CLI (self-contained win-x64)
+        run: >
+          dotnet publish src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o publish/cli
+
+      - name: Stage release contents
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path publish/DaxAlgo-Terminal | Out-Null
+          Copy-Item publish/app/* publish/DaxAlgo-Terminal -Recurse -Force
+          New-Item -ItemType Directory -Force -Path publish/DaxAlgo-Terminal/cli | Out-Null
+          Copy-Item publish/cli/* publish/DaxAlgo-Terminal/cli -Recurse -Force
+          Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal -Force
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          $name = "DaxAlgo-Terminal-v${{ steps.ver.outputs.version }}-win-x64.zip"
+          Compress-Archive -Path publish/DaxAlgo-Terminal/* -DestinationPath $name -Force
+          "asset=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        id: zip
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DaxAlgo Terminal v${{ steps.ver.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: true
+          files: ${{ steps.zip.outputs.asset }}

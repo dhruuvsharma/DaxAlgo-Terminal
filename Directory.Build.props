@@ -12,6 +12,13 @@
     <Authors>DaxAlgo</Authors>
     <Product>TradingTerminal</Product>
     <Copyright>Copyright (c) $([System.DateTime]::UtcNow.Year)</Copyright>
+
+    <!-- Release version (single source of truth). Bump for every release; the git tag
+         the release workflow runs on (e.g. v1.0.0) should match VersionPrefix. -->
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>
     <PlatformTarget>AnyCPU</PlatformTarget>

@@ -578,6 +578,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _logger.LogInformation("Opened live correlation matrix window");
     }
 
+    /// <summary>Help → Support the developer. Routes through the shared prompt service so the window
+    /// is single-instance whether opened here or auto-shown on launch.</summary>
+    [RelayCommand]
+    public void OpenSupport() =>
+        _services.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
+            .Show(Application.Current.MainWindow);
+
     [RelayCommand]
     public void OpenCharts()
     {

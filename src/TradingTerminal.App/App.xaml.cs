@@ -108,6 +108,7 @@ public partial class App : Application
                 services.AddShell();
                 services.AddBacktestSurface();
                 services.AddSettingsSurface();
+                services.AddSupport();
                 services.AddRecordingSurface();
                 services.AddCorrelationSurface();
                 // Charts menu tools.
@@ -159,6 +160,10 @@ public partial class App : Application
         MainWindow = mainWindow;
         mainWindow.Show();
         loginWindow.Close();
+
+        // Friendly once-per-launch "support the developer" nudge, after a short randomised delay.
+        _host.Services.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
+            .MaybeShowOnLaunch(mainWindow);
     }
 
     protected override async void OnExit(ExitEventArgs e)
