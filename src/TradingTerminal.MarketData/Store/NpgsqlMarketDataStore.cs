@@ -110,6 +110,25 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
         cmd.ExecuteNonQuery();
     }
 
+    public override async Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default)
+    {
+        await using var cn = new NpgsqlConnection(_connectionString);
+        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cmd = new NpgsqlCommand("""
+            SELECT MIN(mn), MAX(mx) FROM (
+                SELECT MIN(event_time) mn, MAX(event_time) mx FROM quotes
+                UNION ALL SELECT MIN(event_time), MAX(event_time) FROM trades
+                UNION ALL SELECT MIN(open_time),  MAX(open_time)  FROM bars
+            ) s
+            """, cn);
+        await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        if (!await rdr.ReadAsync(ct).ConfigureAwait(false) || rdr.IsDBNull(0) || rdr.IsDBNull(1))
+            return StoredDataExtent.Empty;
+        return new StoredDataExtent(
+            DateTime.SpecifyKind(rdr.GetFieldValue<DateTime>(0), DateTimeKind.Utc),
+            DateTime.SpecifyKind(rdr.GetFieldValue<DateTime>(1), DateTimeKind.Utc));
+    }
+
     public override async Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
         InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default)
     {

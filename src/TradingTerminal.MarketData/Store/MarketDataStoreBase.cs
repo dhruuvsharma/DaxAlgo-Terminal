@@ -25,7 +25,7 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
 
     protected readonly record struct WriteOp(WriteKind Kind, Quote? Quote, TradePrint? Trade, OhlcvBar? Bar, DepthRecord? Depth = null);
 
-    private readonly bool _persist;
+    private volatile bool _persist;
     private readonly int _batchSize;
     private readonly ILogger _logger;
     private readonly Channel<object> _channel; // WriteOp records or TaskCompletionSource flush markers
@@ -46,6 +46,11 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     }
 
     protected void StartWriter() => _writerLoop = Task.Run(() => RunWriterAsync(_cts.Token));
+
+    /// <summary>Turns persistence on for a store that was constructed inert (e.g. QuestDB unreachable at
+    /// startup). Subclasses call this once their backend connection is live so enqueues stop no-opping —
+    /// no app restart required. The writer loop is already running.</summary>
+    protected void EnablePersistence() => _persist = true;
 
     public void EnqueueQuote(Quote quote)
     {
@@ -69,6 +74,11 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
                 WriteKind.Depth, null, null, null,
                 new DepthRecord(instrumentId, snapshot, source, DateTime.UtcNow)));
     }
+
+    /// <summary>Default: report "no data". Backends that can cheaply MIN/MAX their time columns
+    /// override this so the archive coverage view knows the real data span.</summary>
+    public virtual Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default) =>
+        Task.FromResult(StoredDataExtent.Empty);
 
     public async Task FlushAsync(CancellationToken ct = default)
     {

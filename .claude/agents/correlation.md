@@ -8,7 +8,8 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 You are the **TradingTerminal.Correlation** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.Correlation/`.
 
 ## Owns
-- `CorrelationMatrixWindow(.xaml/.cs)`, `CorrelationMatrixViewModel`, `CorrelationServiceCollectionExtensions` (`AddCorrelationSurface`). Hosted under the Tools menu.
+- Two windows sharing `CorrelationPickerViewModelBase` (instrument checklist + grid rendering): the historical `CorrelationMatrixWindow`/`CorrelationMatrixViewModel` (on-demand bar fetch) and the live `LiveCorrelationMatrixWindow`/`LiveCorrelationMatrixViewModel` (rolling sampler over `IMarketDataHub.Quotes`). `CorrelationServiceCollectionExtensions` (`AddCorrelationSurface`) registers both. Hosted under the Tools menu.
+- Shared picker/matrix types live in `CorrelationPickerViewModelBase.cs` (`SelectableInstrument`, `InstrumentCategory`, `CorrelationRow/Cell`); math in `Core.Analytics.CorrelationCalculator`.
 
 ## Dependency rule (never break)
 **→ UI, Infrastructure, MarketData, Core.** App opens it via `IServiceProvider`.

@@ -124,6 +124,25 @@ internal sealed class ArchiveManifestStore : IDisposable
         return result;
     }
 
+    /// <summary>Id of an archive that fully covers [from, to) for the given transport (its range
+    /// spans the window), or null if none — i.e. the window still holds un-offloaded data.</summary>
+    public long? FindCovering(DateTime fromUtc, DateTime toUtc, string transport)
+    {
+        using var cn = new SqliteConnection(_connectionString);
+        cn.Open();
+        using var cmd = cn.CreateCommand();
+        cmd.CommandText = """
+            SELECT id FROM archive_manifest
+            WHERE transport=$tx AND from_utc_micros<=$from AND to_utc_micros>=$to
+            ORDER BY uploaded_micros DESC LIMIT 1
+            """;
+        cmd.Parameters.AddWithValue("$tx", transport);
+        cmd.Parameters.AddWithValue("$from", ToMicros(fromUtc));
+        cmd.Parameters.AddWithValue("$to", ToMicros(toUtc));
+        var result = cmd.ExecuteScalar();
+        return result is null or DBNull ? null : Convert.ToInt64(result);
+    }
+
     public ArchiveManifestEntry? FindOverlapping(DateTime fromUtc, DateTime toUtc)
     {
         using var cn = new SqliteConnection(_connectionString);

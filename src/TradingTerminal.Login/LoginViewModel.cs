@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.UI;
 
@@ -20,16 +21,19 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 {
     private readonly IBrokerSelector _brokerSelector;
     private readonly SessionContext _session;
+    private readonly IQuestDbLauncher _questDb;
     private readonly ILogger<LoginViewModel> _logger;
 
     public LoginViewModel(
         IBrokerSelector brokerSelector,
         IBrokerLoginFormFactory forms,
         SessionContext session,
+        IQuestDbLauncher questDb,
         ILogger<LoginViewModel> logger)
     {
         _brokerSelector = brokerSelector;
         _session = session;
+        _questDb = questDb;
         _logger = logger;
 
         AvailableForms = forms.All;
@@ -49,6 +53,28 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         _brokerSelector.StateChanged += OnSelectorStateChanged;
 
         RefreshConnectedSummary();
+        InitializeQuestDb();
+    }
+
+    /// <summary>QuestDB is the only market-data backend that needs an external server up before the
+    /// terminal can persist ticks. We surface its status on the login screen and, when auto-start is on,
+    /// kick the Docker launch off in the background here — so it warms up (and re-arms the store) while
+    /// the user is signing in, rather than stalling the main window later.</summary>
+    private void InitializeQuestDb()
+    {
+        ShowQuestDb = _questDb.IsApplicable;
+        if (!ShowQuestDb) return;
+
+        if (_questDb.IsReachable())
+        {
+            QuestDbReady = true;
+            QuestDbStatus = "QuestDB ready";
+            return;
+        }
+
+        QuestDbStatus = "QuestDB not running";
+        if (_questDb.AutoStart)
+            _ = StartQuestDbInternalAsync(); // fire-and-forget warm-up; status updates as it progresses
     }
 
     public IReadOnlyList<IBrokerLoginForm> AvailableForms { get; }
@@ -72,6 +98,55 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     /// <summary>Disabled until at least one broker is in <see cref="ConnectionState.Connected"/>.</summary>
     public bool CanLaunch => ConnectedCount > 0;
+
+    // ── QuestDB warm-up (only shown when QuestDB is the configured tick backend) ──────────────────
+
+    /// <summary>True when QuestDB is the configured backend — gates the status pill + button.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartQuestDbCommand))]
+    private bool _showQuestDb;
+
+    /// <summary>QuestDB is up and the store is persisting.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartQuestDbCommand))]
+    private bool _questDbReady;
+
+    /// <summary>A start attempt is in flight (Docker Desktop / container coming up).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartQuestDbCommand))]
+    private bool _isQuestDbBusy;
+
+    /// <summary>Human-readable QuestDB status shown on the login screen.</summary>
+    [ObservableProperty]
+    private string _questDbStatus = "QuestDB";
+
+    private bool CanStartQuestDb() => ShowQuestDb && !IsQuestDbBusy && !QuestDbReady;
+
+    /// <summary>Manual retry for the QuestDB launch (also runs automatically when auto-start is on).</summary>
+    [RelayCommand(CanExecute = nameof(CanStartQuestDb))]
+    private Task StartQuestDb() => StartQuestDbInternalAsync();
+
+    private async Task StartQuestDbInternalAsync()
+    {
+        if (IsQuestDbBusy) return;
+        IsQuestDbBusy = true; // NotifyCanExecuteChangedFor keeps the button in sync
+        QuestDbStatus = "Starting QuestDB…";
+        try
+        {
+            var ok = await _questDb.StartAsync().ConfigureAwait(true);
+            QuestDbReady = ok;
+            QuestDbStatus = ok ? "QuestDB ready" : "QuestDB unavailable — click to retry";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "QuestDB launch from the login screen failed");
+            QuestDbStatus = "QuestDB error — click to retry";
+        }
+        finally
+        {
+            IsQuestDbBusy = false;
+        }
+    }
 
     public event EventHandler<bool>? LoginCompleted;
 

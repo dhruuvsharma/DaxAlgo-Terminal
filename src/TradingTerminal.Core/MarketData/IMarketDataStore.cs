@@ -29,6 +29,13 @@ public interface IMarketDataStore
     /// <summary>Flush any queued records to disk now. Mainly for tests and graceful shutdown.</summary>
     Task FlushAsync(CancellationToken ct = default);
 
+    /// <summary>Earliest and latest event time held in the store across the persisted tables
+    /// (quotes/trades/bars, plus depth where the backend stores it). Drives the archive coverage /
+    /// instant-offload view. Default implementation reports "no data" so backends and fakes that
+    /// don't track an extent keep working; the real stores override it.</summary>
+    Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default) =>
+        Task.FromResult(StoredDataExtent.Empty);
+
     /// <summary>Most recent <paramref name="count"/> bars for an instrument/size, oldest→newest,
     /// for strategy warm-up.</summary>
     Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(

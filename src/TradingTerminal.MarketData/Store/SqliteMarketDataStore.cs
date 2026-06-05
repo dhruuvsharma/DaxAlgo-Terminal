@@ -131,6 +131,25 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
         cmd.Parameters["$fin"].Value = b.IsFinal ? 1 : 0;
     }
 
+    public override async Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default)
+    {
+        await using var cn = new SqliteConnection(_connectionString);
+        await cn.OpenAsync(ct).ConfigureAwait(false);
+        using var cmd = cn.CreateCommand();
+        cmd.CommandText = """
+            SELECT
+              MIN(mn), MAX(mx) FROM (
+                SELECT MIN(event_time) mn, MAX(event_time) mx FROM quotes
+                UNION ALL SELECT MIN(event_time), MAX(event_time) FROM trades
+                UNION ALL SELECT MIN(open_time),  MAX(open_time)  FROM bars
+              )
+            """;
+        await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        if (!await rdr.ReadAsync(ct).ConfigureAwait(false) || rdr.IsDBNull(0) || rdr.IsDBNull(1))
+            return StoredDataExtent.Empty;
+        return new StoredDataExtent(EpochTime.FromMicros(rdr.GetInt64(0)), EpochTime.FromMicros(rdr.GetInt64(1)));
+    }
+
     public override async Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
         InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default)
     {

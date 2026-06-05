@@ -17,6 +17,7 @@ using TradingTerminal.Charts;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Correlation;
+using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
 using TradingTerminal.MarketRegime;
@@ -26,6 +27,7 @@ using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
 using TradingTerminal.Ai.BacktestAnalysis;
+using TradingTerminal.Infrastructure.MarketData.Store;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -50,9 +52,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
     private const string MarkovRegimeTabId = "tools.regime.markov";
     private const string CorrelationWindowId = "tools.correlation";
+    private const string LiveCorrelationWindowId = "tools.correlation.live";
     private const string ChartsWindowId = "tools.charts";
     private const string OrderBookWindowId = "tools.orderbook";
     private const string FootprintWindowId = "tools.footprint";
+    private const string HeatmapWindowId = "tools.heatmap";
+    private const string ImbalanceHeatmapWindowId = "tools.heatmap.imbalance";
+    private const string VolumeHeatmapWindowId = "tools.heatmap.volume";
+    private const string VolumeBubbleHeatmapWindowId = "tools.heatmap.bubble";
+    private const string VolatilityHeatmapWindowId = "tools.heatmap.volatility";
+    private const string CorrelationHeatmapWindowId = "tools.heatmap.correlation";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -331,11 +340,48 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         System.Windows.Application.Current.Shutdown();
     }
 
+    /// <summary>File → Start QuestDB. Brings up the QuestDB Docker container (launching Docker Desktop
+    /// first if the daemon is down) and re-arms the store so tick persistence engages without a restart.
+    /// Progress shows in the activity log. No-op-with-a-message when QuestDB isn't the configured backend.</summary>
+    [RelayCommand]
+    public async Task StartQuestDbAsync()
+    {
+        var service = _services.GetRequiredService<QuestDbDockerService>();
+        await service.StartAsync().ConfigureAwait(false);
+    }
+
     [RelayCommand]
     public void ShowStrategies() => IsStrategiesVisible = true;
 
     [RelayCommand]
     public void ShowLogs() => IsLogsVisible = true;
+
+    /// <summary>Copies the selected activity-log rows to the clipboard (tab-aligned text). Falls back
+    /// to copying every currently-visible row when nothing is selected, so Ctrl+C / "Copy" always
+    /// yields something useful.</summary>
+    [RelayCommand]
+    private void CopyLog(System.Collections.IList? selected)
+    {
+        var rows = selected is { Count: > 0 }
+            ? selected.Cast<LogEntry>()
+            : ActivityLog.Cast<LogEntry>();
+        CopyEntriesToClipboard(rows);
+    }
+
+    /// <summary>Copies every row currently visible in the activity log (honouring the active filter).</summary>
+    [RelayCommand]
+    private void CopyAllLogs() => CopyEntriesToClipboard(ActivityLog.Cast<LogEntry>());
+
+    private static void CopyEntriesToClipboard(IEnumerable<LogEntry> entries)
+    {
+        var text = string.Join(Environment.NewLine, entries.Select(FormatLogEntry));
+        if (string.IsNullOrEmpty(text)) return;
+        try { System.Windows.Clipboard.SetText(text); }
+        catch { /* clipboard can be transiently locked by another process — ignore */ }
+    }
+
+    private static string FormatLogEntry(LogEntry e) =>
+        $"{e.TimestampUtc:HH:mm:ss}  {e.Source,-20}  {e.Level,-5}  {e.Message}";
 
     [RelayCommand]
     public void OpenBacktest()
@@ -510,6 +556,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    public void OpenLiveCorrelation()
+    {
+        if (_openWindows.TryGetValue(LiveCorrelationWindowId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<LiveCorrelationMatrixViewModel>();
+        var window = _services.GetRequiredService<LiveCorrelationMatrixWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(LiveCorrelationWindowId);
+            vm.Dispose();
+        };
+        _openWindows[LiveCorrelationWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened live correlation matrix window");
+    }
+
+    [RelayCommand]
     public void OpenCharts()
     {
         if (_openWindows.TryGetValue(ChartsWindowId, out var existing))
@@ -576,6 +645,99 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _openWindows[FootprintWindowId] = window;
         window.Show();
         _logger.LogInformation("Opened volume footprint window");
+    }
+
+    [RelayCommand]
+    public void OpenHeatmap()
+    {
+        if (_openWindows.TryGetValue(HeatmapWindowId, out var existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<DepthHeatmapViewModel>();
+        var window = _services.GetRequiredService<DepthHeatmapWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(HeatmapWindowId);
+            vm.Dispose();
+        };
+        _openWindows[HeatmapWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened depth heatmap window");
+    }
+
+    [RelayCommand]
+    public void OpenImbalanceHeatmap()
+    {
+        if (_openWindows.TryGetValue(ImbalanceHeatmapWindowId, out var existing)) { existing.Activate(); return; }
+        var vm = _services.GetRequiredService<ImbalanceHeatmapViewModel>();
+        var window = _services.GetRequiredService<ImbalanceHeatmapWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) => { _openWindows.Remove(ImbalanceHeatmapWindowId); vm.Dispose(); };
+        _openWindows[ImbalanceHeatmapWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened order-book imbalance heatmap window");
+    }
+
+    [RelayCommand]
+    public void OpenVolumeHeatmap()
+    {
+        if (_openWindows.TryGetValue(VolumeHeatmapWindowId, out var existing)) { existing.Activate(); return; }
+        var vm = _services.GetRequiredService<VolumeProfileHeatmapViewModel>();
+        var window = _services.GetRequiredService<VolumeProfileHeatmapWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) => { _openWindows.Remove(VolumeHeatmapWindowId); vm.Dispose(); };
+        _openWindows[VolumeHeatmapWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened volume-at-price heatmap window");
+    }
+
+    [RelayCommand]
+    public void OpenVolumeBubbleHeatmap()
+    {
+        if (_openWindows.TryGetValue(VolumeBubbleHeatmapWindowId, out var existing)) { existing.Activate(); return; }
+        var vm = _services.GetRequiredService<VolumeBubbleHeatmapViewModel>();
+        var window = _services.GetRequiredService<VolumeBubbleHeatmapWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) => { _openWindows.Remove(VolumeBubbleHeatmapWindowId); vm.Dispose(); };
+        _openWindows[VolumeBubbleHeatmapWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened volume bubble heatmap window");
+    }
+
+    [RelayCommand]
+    public void OpenVolatilityHeatmap()
+    {
+        if (_openWindows.TryGetValue(VolatilityHeatmapWindowId, out var existing)) { existing.Activate(); return; }
+        var vm = _services.GetRequiredService<VolatilityHeatmapViewModel>();
+        var window = _services.GetRequiredService<VolatilityHeatmapWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) => { _openWindows.Remove(VolatilityHeatmapWindowId); vm.Dispose(); };
+        _openWindows[VolatilityHeatmapWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened cross-asset volatility heatmap window");
+    }
+
+    [RelayCommand]
+    public void OpenCorrelationHeatmap()
+    {
+        if (_openWindows.TryGetValue(CorrelationHeatmapWindowId, out var existing)) { existing.Activate(); return; }
+        var vm = _services.GetRequiredService<CorrelationHeatmapViewModel>();
+        var window = _services.GetRequiredService<CorrelationHeatmapWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) => { _openWindows.Remove(CorrelationHeatmapWindowId); vm.Dispose(); };
+        _openWindows[CorrelationHeatmapWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened rolling correlation heatmap window");
     }
 
     [RelayCommand]
@@ -663,10 +825,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void OpenArchiveActivity()
+    public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
+
+    private ArchiveActivityViewModel OpenOrActivateArchiveHistory()
     {
         var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ArchiveActivityTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
+        if (existing is not null)
+        {
+            ActiveTab = existing;
+            return (ArchiveActivityViewModel)((FrameworkElement)existing.Content!).DataContext;
+        }
 
         var vm = _services.GetRequiredService<ArchiveActivityViewModel>();
         var view = _services.GetRequiredService<ArchiveActivityView>();
@@ -674,13 +842,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         var tab = new DockTab
         {
-            Title = "Archive activity",
+            Title = "Archive history",
             ContentId = ArchiveActivityTabId,
             Content = view,
             CanClose = true,
         };
         OpenTabs.Add(tab);
         ActiveTab = tab;
+        return vm;
+    }
+
+    /// <summary>Data → Instant offload: opens the Archive history view and immediately ships every
+    /// pending period to Telegram, so the run's progress is visible as it goes.</summary>
+    [RelayCommand]
+    public void InstantOffload()
+    {
+        var vm = OpenOrActivateArchiveHistory();
+        if (vm.InstantOffloadCommand.CanExecute(null))
+            vm.InstantOffloadCommand.Execute(null);
     }
 
     public Task StartAsync()

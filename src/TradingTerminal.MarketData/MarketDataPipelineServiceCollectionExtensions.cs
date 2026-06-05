@@ -71,6 +71,11 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
         services.AddSingleton<IMarketDataIngest, MarketDataIngestService>();
 
+        // Backs the manual File → Start QuestDB command (launch Docker Desktop + container, re-arm live).
+        // Exposed via IQuestDbLauncher too, so store-agnostic layers (the login screen) can warm it up.
+        services.AddSingleton<QuestDbDockerService>();
+        services.AddSingleton<IQuestDbLauncher>(sp => sp.GetRequiredService<QuestDbDockerService>());
+
         // Instrument-universe pre-loader. Hosted service so it kicks in once the host starts and
         // reacts to every Connected transition on every registered broker — the service subscribes
         // to each per-broker state stream via IBrokerSelector.StateOf, so multi-broker setups run
@@ -96,14 +101,21 @@ public static class MarketDataPipelineServiceCollectionExtensions
     /// </summary>
     private static IMarketDataStore BuildQuestDbStore(string sqliteConn, MarketDataStoreOptions opts, ILoggerFactory lf)
     {
+        var log = lf.CreateLogger("MarketData");
+
         var barStore = new SqliteMarketDataStore(
             sqliteConn, opts.PersistLiveData, opts.WriteBatchSize, lf.CreateLogger<SqliteMarketDataStore>());
 
+        // Probe only — never block here. The store is resolved on the UI thread (the login screen
+        // pulls in the launcher), so the actual Docker start runs asynchronously from the login screen
+        // (QuestDbDockerService, honouring AutoStartDocker) or File → Start QuestDB, then re-arms the
+        // store live via IReactivatableTickStore. If QuestDB is already up we wire the sender now.
         var reachable = CanReachQuestDb(opts.QuestDbPgConnectionString);
         if (!reachable)
-            lf.CreateLogger("MarketData").LogError(
-                "QuestDB unreachable ({Conn}) — L1/L2/trade persistence is DISABLED until QuestDB is up. " +
-                "No fallback to SQLite for ticks (by configuration). Bars still persist to SQLite.",
+            log.LogWarning(
+                "QuestDB not reachable yet ({Conn}) — L1/L2/trade persistence stays off until it's up. " +
+                "It will be started from the login screen (or File → Start QuestDB) and engaged without a restart. " +
+                "Bars still persist to SQLite.",
                 opts.QuestDbPgConnectionString);
 
         var tickStore = new QuestDbMarketDataStore(

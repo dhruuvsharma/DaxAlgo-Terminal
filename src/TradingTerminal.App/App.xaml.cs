@@ -25,6 +25,7 @@ using TradingTerminal.Charts;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Correlation;
+using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
 using TradingTerminal.MarketRegime;
@@ -113,6 +114,7 @@ public partial class App : Application
                 services.AddChartsSurface();
                 services.AddOrderBookSurface();
                 services.AddFootprintSurface();
+                services.AddHeatmapSurface();
                 // AI tools — the analyst client seam (Null/Http) plus the four AI UI panels.
                 services.AddAiAnalyst(ctx.Configuration);
                 services.AddMarketAnalyst();

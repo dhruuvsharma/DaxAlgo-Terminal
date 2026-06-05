@@ -22,22 +22,32 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// Depth, which the SQLite/Postgres stores deliberately drop, is persisted here as one row per book
 /// level: <c>(instrument, side, level, price, size)</c>, reconstructed into snapshots on read.</para>
 /// </summary>
-internal sealed class QuestDbMarketDataStore : MarketDataStoreBase
+internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatableTickStore
 {
     private const string TsFormat = "yyyy-MM-ddTHH:mm:ss.ffffff";
 
+    private readonly string _ilpConfig;
     private readonly string _pgConnectionString;
-    private readonly bool _available;
-    private readonly ISender? _sender;
+    private readonly bool _persistRequested;
+    private readonly int _depthRetentionDays;
+    private readonly ILogger _logger;
+    private readonly object _activationGate = new();
+    private volatile bool _available;
+    private volatile ISender? _sender;
 
     /// <param name="available">False when QuestDB was unreachable at startup: the store is inert
-    /// (no sender, no schema, persistence off) but still satisfies the interface so the app runs.</param>
+    /// (no sender, no schema, persistence off) but still satisfies the interface so the app runs.
+    /// Can be flipped live later via <see cref="TryActivate"/>.</param>
     public QuestDbMarketDataStore(
         string ilpConfig, string pgConnectionString, bool persist, bool available,
         int batchSize, int depthRetentionDays, ILogger logger)
         : base(persist && available, batchSize, logger)
     {
+        _ilpConfig = ilpConfig;
         _pgConnectionString = pgConnectionString;
+        _persistRequested = persist;
+        _depthRetentionDays = depthRetentionDays;
+        _logger = logger;
         _available = available;
         if (available)
         {
@@ -45,6 +55,35 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase
             _sender = Sender.New(ilpConfig);
         }
         StartWriter();
+    }
+
+    public bool IsActive => _available;
+
+    /// <summary>Brings the store live after a late QuestDB start: creates the schema + ILP sender and
+    /// flips persistence on (if it was requested). Safe to call repeatedly and from any thread — the
+    /// sender is published before persistence is enabled so the single writer thread never sees a live
+    /// <c>_persist</c> with a null sender. Returns false if QuestDB still can't be reached.</summary>
+    public bool TryActivate()
+    {
+        if (_available) return true;
+        lock (_activationGate)
+        {
+            if (_available) return true;
+            try
+            {
+                QuestDbSchema.EnsureCreated(_pgConnectionString, _depthRetentionDays, _logger);
+                _sender = Sender.New(_ilpConfig);
+                _available = true;
+                if (_persistRequested) EnablePersistence();
+                _logger.LogInformation("QuestDB store activated — tick/depth persistence is now live.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "QuestDB activation failed — store stays inert.");
+                return false;
+            }
+        }
     }
 
     protected override void WriteBatch(IReadOnlyList<WriteOp> batch)
@@ -108,6 +147,34 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase
             .Column("source", source)
             .Column("ingest_time", ingest)
             .At(ts);
+
+    public override async Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default)
+    {
+        if (!_available) return StoredDataExtent.Empty;
+        // One min/max per tick table; bars live in SQLite and are merged in by CompositeMarketDataStore.
+        var extent = StoredDataExtent.Empty;
+        foreach (var table in new[] { "quotes", "trades", "depth" })
+            extent = StoredDataExtent.Combine(extent, await TableExtentAsync(table, ct).ConfigureAwait(false));
+        return extent;
+    }
+
+    private async Task<StoredDataExtent> TableExtentAsync(string table, CancellationToken ct)
+    {
+        try
+        {
+            await using var cn = new NpgsqlConnection(_pgConnectionString);
+            await cn.OpenAsync(ct).ConfigureAwait(false);
+            await using var cmd = new NpgsqlCommand($"SELECT min(ts), max(ts) FROM {table}", cn);
+            await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            if (!await rdr.ReadAsync(ct).ConfigureAwait(false) || rdr.IsDBNull(0) || rdr.IsDBNull(1))
+                return StoredDataExtent.Empty;
+            return new StoredDataExtent(Utc(rdr.GetDateTime(0)), Utc(rdr.GetDateTime(1)));
+        }
+        catch
+        {
+            return StoredDataExtent.Empty; // table missing / unreachable — treat as no data
+        }
+    }
 
     public override Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
         InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default) =>

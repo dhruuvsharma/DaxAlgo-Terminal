@@ -44,13 +44,13 @@ Core           → (nothing)
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
 | AI tool windows (one project each) — Market analyst, factor research, ML features, backtest analysis | `TradingTerminal.Ai.<Name>` (`MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`) |
 | Per-strategy live windows (9) | `TradingTerminal.Strategies.<Name>` |
-| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`MarkovRegime`/`Backtest`/`Recording`) |
+| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`MarkovRegime`/`Backtest`/`Recording`) |
 | Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
 Live strategies (9): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
 
-Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint.
+Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap.
 
 ## Architectural rules (always relevant)
 

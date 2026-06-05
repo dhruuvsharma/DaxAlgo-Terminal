@@ -68,7 +68,9 @@ TradingTerminal.sln
 │   ├── TradingTerminal.Charts                    TradingView-style chart window (WebView2) ┐
 │   ├── TradingTerminal.OrderBook                 L2 depth ladder window                    │
 │   ├── TradingTerminal.VolumeFootprint           Volume footprint cluster chart            │
-│   ├── TradingTerminal.Correlation               Correlation matrix window                 │ per-tool projects,
+│   ├── TradingTerminal.Heatmap                   Heatmaps: depth/imbalance/volume/bubbles/  │
+│   │                                              vol/correlation (ScottPlot, dark)         │
+│   ├── TradingTerminal.Correlation               Correlation matrix (historical + live)    │ per-tool projects,
 │   ├── TradingTerminal.MarketRegime              Market regime composite window            │ one Add…Surface
 │   ├── TradingTerminal.InstrumentRegime          Per-instrument regime window              │ extension each
 │   ├── TradingTerminal.MarkovRegime              Markov regime window                      │
@@ -79,7 +81,7 @@ TradingTerminal.sln
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```
 
-The `.sln` groups these under **Charts** (Charts/OrderBook/VolumeFootprint), **Tools** (Correlation/regimes/Backtest/Recording), **AI** (Ai + the four `Ai.*` windows), and **Strategies** solution folders.
+The `.sln` groups these under **Charts** (Charts/OrderBook/VolumeFootprint/Heatmap), **Tools** (Correlation/regimes/Backtest/Recording), **AI** (Ai + the four `Ai.*` windows), and **Strategies** solution folders.
 
 ## Key interfaces
 

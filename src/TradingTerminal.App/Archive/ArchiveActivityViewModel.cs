@@ -8,7 +8,9 @@ using TradingTerminal.UI;
 namespace TradingTerminal.App.Archive;
 
 /// <summary>
-/// Activity tab — lists every archive in the manifest with restore-from-Telegram action per row.
+/// Archive history tab — the coverage map (which periods of local data are on Telegram vs still
+/// pending), a one-click "instant offload" of everything pending, and the list of past uploads with
+/// per-row restore.
 /// </summary>
 public sealed partial class ArchiveActivityViewModel : ViewModelBase
 {
@@ -22,14 +24,24 @@ public sealed partial class ArchiveActivityViewModel : ViewModelBase
         _archiver = archiver;
         _logger = logger;
         Rows = new ObservableCollection<ArchiveRow>();
+        Coverage = new ObservableCollection<CoverageRow>();
         _ = RefreshAsync();
     }
 
     public ObservableCollection<ArchiveRow> Rows { get; }
 
+    /// <summary>Period-by-period coverage — each window labelled Offloaded or Pending.</summary>
+    public ObservableCollection<CoverageRow> Coverage { get; }
+
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private ArchiveRow? _selectedRow;
+    [ObservableProperty] private int _pendingCount;
+    [ObservableProperty] private string _coverageSummary = "Scanning local data…";
+
+    /// <summary>True when there's pending data to offload — gates the Instant offload button.</summary>
+    public bool HasPending => PendingCount > 0;
+    partial void OnPendingCountChanged(int value) => OnPropertyChanged(nameof(HasPending));
 
     [RelayCommand]
     public async Task RefreshAsync()
@@ -40,8 +52,17 @@ public sealed partial class ArchiveActivityViewModel : ViewModelBase
             var entries = await _archiver.ListArchivesAsync();
             Rows.Clear();
             foreach (var e in entries) Rows.Add(ArchiveRow.From(e));
+
+            var coverage = await _archiver.GetCoverageAsync();
+            Coverage.Clear();
+            foreach (var w in coverage) Coverage.Add(new CoverageRow(w));
+            PendingCount = coverage.Count(w => !w.Offloaded);
+            CoverageSummary = coverage.Count == 0
+                ? "No local data to offload yet."
+                : $"{coverage.Count} period(s) · {coverage.Count - PendingCount} offloaded · {PendingCount} pending.";
+
             StatusMessage = entries.Count == 0
-                ? "No archives yet — configure Telegram in Archive Settings, then run an Offload."
+                ? "No archives yet — log in to Telegram in Data → Market data archive, then offload."
                 : $"{entries.Count} archive(s) on record.";
         }
         catch (Exception ex)
@@ -50,6 +71,34 @@ public sealed partial class ArchiveActivityViewModel : ViewModelBase
             _logger.LogError(ex, "Archive activity refresh failed");
         }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>Instantly ship every pending period to Telegram (≤2 GB parts, verified, then pruned).</summary>
+    [RelayCommand]
+    public async Task InstantOffloadAsync()
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        try
+        {
+            StatusMessage = "Starting instant offload…";
+            var progress = new Progress<string>(line => StatusMessage = line);
+            var result = await Task.Run(() => _archiver.OffloadPendingAsync(progress, CancellationToken.None));
+            StatusMessage = result.Pending == 0
+                ? "Nothing pending — all local data is already on Telegram."
+                : $"Instant offload done — {result.Archived}/{result.Pending} offloaded" +
+                  (result.Failed > 0 ? $", {result.Failed} failed" : "") + ".";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Instant offload failed: {ex.Message}";
+            _logger.LogError(ex, "Instant offload failed");
+        }
+        finally
+        {
+            IsBusy = false;
+            await RefreshAsync();
+        }
     }
 
     [RelayCommand]
@@ -96,4 +145,18 @@ public sealed class ArchiveRow
         : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB"
         : bytes < 1024L * 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MB"
         : $"{bytes / (1024.0 * 1024 * 1024):0.##} GB";
+}
+
+/// <summary>Row-shaped projection of one coverage window — a period of local data labelled by
+/// whether it's already on Telegram.</summary>
+public sealed class CoverageRow
+{
+    private readonly ArchiveCoverageWindow _w;
+    public CoverageRow(ArchiveCoverageWindow w) => _w = w;
+
+    public string PeriodLabel => _w.PeriodLabel;
+    public string Range => $"{_w.FromUtc:yyyy-MM-dd} → {_w.ToUtc:yyyy-MM-dd}";
+    public bool Offloaded => _w.Offloaded;
+    public string Status => _w.Offloaded ? "Offloaded" : "Pending";
+    public string ArchiveRef => _w.ArchiveId is { } id ? $"#{id}" : "—";
 }

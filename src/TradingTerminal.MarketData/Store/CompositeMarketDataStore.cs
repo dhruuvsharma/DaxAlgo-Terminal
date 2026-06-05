@@ -12,7 +12,7 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// that stream. This is the store registered when <see cref="Core.Configuration.MarketDataProvider.QuestDb"/>
 /// is selected; everything above the <see cref="IMarketDataStore"/> seam is unaware of the split.
 /// </summary>
-internal sealed class CompositeMarketDataStore : IMarketDataStore, IDisposable
+internal sealed class CompositeMarketDataStore : IMarketDataStore, IReactivatableTickStore, IDisposable
 {
     private readonly IMarketDataStore _tickStore;
     private readonly IMarketDataStore _barStore;
@@ -34,6 +34,13 @@ internal sealed class CompositeMarketDataStore : IMarketDataStore, IDisposable
     {
         await _tickStore.FlushAsync(ct).ConfigureAwait(false);
         await _barStore.FlushAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default)
+    {
+        var ticks = await _tickStore.GetDataExtentAsync(ct).ConfigureAwait(false);
+        var bars = await _barStore.GetDataExtentAsync(ct).ConfigureAwait(false);
+        return StoredDataExtent.Combine(ticks, bars);
     }
 
     public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
@@ -67,6 +74,10 @@ internal sealed class CompositeMarketDataStore : IMarketDataStore, IDisposable
 
     public Task<long> DeleteDepthInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
         _tickStore.DeleteDepthInRangeAsync(fromUtc, toUtc, ct);
+
+    // Re-arm delegates to the tick store (QuestDB); bars are always live in SQLite.
+    public bool IsActive => (_tickStore as IReactivatableTickStore)?.IsActive ?? true;
+    public bool TryActivate() => (_tickStore as IReactivatableTickStore)?.TryActivate() ?? true;
 
     public void Dispose()
     {

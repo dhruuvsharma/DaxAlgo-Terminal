@@ -178,6 +178,9 @@
             <MenuItem Header="_File">
                 <MenuItem Header="_Reconnect to broker"
                           Command="{Binding ReconnectCommand}" />
+                <MenuItem Header="Start _QuestDB"
+                          Command="{Binding StartQuestDbCommand}"
+                          ToolTip="Launch Docker Desktop (if needed) and the QuestDB container, then enable tick persistence without restarting." />
                 <Separator />
                 <MenuItem Header="E_xit"
                           Command="{Binding ExitCommand}"
@@ -206,6 +209,8 @@
                           Command="{Binding OpenMarkovRegimeCommand}" />
                 <MenuItem Header="_Correlation matrix…"
                           Command="{Binding OpenCorrelationCommand}" />
+                <MenuItem Header="_Live correlation matrix…"
+                          Command="{Binding OpenLiveCorrelationCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Charts">
@@ -215,6 +220,20 @@
                           Command="{Binding OpenOrderBookCommand}" />
                 <MenuItem Header="_Volume footprint…"
                           Command="{Binding OpenFootprintCommand}" />
+                <MenuItem Header="_Heatmaps">
+                    <MenuItem Header="_Depth (Bookmap-style)…"
+                              Command="{Binding OpenHeatmapCommand}" />
+                    <MenuItem Header="Order-book _imbalance…"
+                              Command="{Binding OpenImbalanceHeatmapCommand}" />
+                    <MenuItem Header="_Volume-at-price…"
+                              Command="{Binding OpenVolumeHeatmapCommand}" />
+                    <MenuItem Header="Volume _bubbles…"
+                              Command="{Binding OpenVolumeBubbleHeatmapCommand}" />
+                    <MenuItem Header="Cross-asset vola_tility…"
+                              Command="{Binding OpenVolatilityHeatmapCommand}" />
+                    <MenuItem Header="Rolling _correlation…"
+                              Command="{Binding OpenCorrelationHeatmapCommand}" />
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="_AI tools">
@@ -229,13 +248,19 @@
                           Command="{Binding OpenAiAnalystCommand}" />
             </MenuItem>
 
+            <MenuItem Header="_Data">
+                <MenuItem Header="_Market data archive…"
+                          Command="{Binding OpenArchiveSettingsCommand}" />
+                <MenuItem Header="Archive _history…"
+                          Command="{Binding OpenArchiveActivityCommand}" />
+                <Separator />
+                <MenuItem Header="_Instant offload (all pending)…"
+                          Command="{Binding InstantOffloadCommand}" />
+            </MenuItem>
+
             <MenuItem Header="_Settings">
                 <MenuItem Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />
-                <MenuItem Header="Market data _archive…"
-                          Command="{Binding OpenArchiveSettingsCommand}" />
-                <MenuItem Header="Archive _activity…"
-                          Command="{Binding OpenArchiveActivityCommand}" />
             </MenuItem>
         </Menu>
 
@@ -429,12 +454,29 @@
                                             </Grid>
                                         </Border>
 
-                                        <ListBox Grid.Row="1"
+                                        <ListBox x:Name="LogList"
+                                                 Grid.Row="1"
                                                  ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.ActivityLog}"
+                                                 SelectionMode="Extended"
                                                  FontFamily="{DynamicResource Font.Mono}"
                                                  FontSize="11"
                                                  BorderThickness="0"
                                                  Background="{DynamicResource Background.Surface}">
+                                            <ListBox.InputBindings>
+                                                <!-- Ctrl+C copies the selected rows (or all visible rows if none selected). -->
+                                                <KeyBinding Key="C" Modifiers="Control"
+                                                            Command="{Binding ElementName=RootWindow, Path=DataContext.CopyLogCommand}"
+                                                            CommandParameter="{Binding ElementName=LogList, Path=SelectedItems}" />
+                                            </ListBox.InputBindings>
+                                            <ListBox.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Copy"
+                                                              Command="{Binding PlacementTarget.DataContext.CopyLogCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                              CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <MenuItem Header="Copy all"
+                                                              Command="{Binding PlacementTarget.DataContext.CopyAllLogsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                </ContextMenu>
+                                            </ListBox.ContextMenu>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal">

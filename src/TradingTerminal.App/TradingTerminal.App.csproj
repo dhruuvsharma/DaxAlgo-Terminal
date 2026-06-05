@@ -37,6 +37,7 @@
     <ProjectReference Include="..\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
     <ProjectReference Include="..\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
     <ProjectReference Include="..\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
     <!-- Tools-menu surfaces -->
     <ProjectReference Include="..\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarketRegime\TradingTerminal.MarketRegime.csproj" />

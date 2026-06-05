@@ -36,6 +36,7 @@ the change in its own context — keeping the main thread's context lean.
 | Charts | `charts` | sonnet |
 | OrderBook | `orderbook` | sonnet |
 | VolumeFootprint | `volumefootprint` | sonnet |
+| Heatmap | `heatmap` | sonnet |
 | Correlation | `correlation` | sonnet |
 | MarketRegime | `marketregime` | sonnet |
 | InstrumentRegime | `instrumentregime` | sonnet |

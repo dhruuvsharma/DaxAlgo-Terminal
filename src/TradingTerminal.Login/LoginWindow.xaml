@@ -63,8 +63,8 @@
                 BorderThickness="1"
                 BorderBrush="{DynamicResource Border.Brush}"
                 Background="{DynamicResource Background.Surface}">
-            <StackPanel Orientation="Horizontal">
-                <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
+            <DockPanel LastChildFill="False">
+                <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
                     <Ellipse.Style>
                         <Style TargetType="Ellipse">
                             <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
@@ -76,10 +76,45 @@
                         </Style>
                     </Ellipse.Style>
                 </Ellipse>
-                <TextBlock Text="{Binding ConnectedSummary}"
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding ConnectedSummary}"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource Text.Primary}" />
-            </StackPanel>
+
+                <!-- QuestDB warm-up: status pill + start/retry button. Hidden unless QuestDB is the
+                     configured tick backend; auto-starts in the background while the user signs in. -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding ShowQuestDb, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Border Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding QuestDbReady}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsQuestDbBusy}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding QuestDbStatus}" FontSize="11"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Text.Primary}" />
+                        </StackPanel>
+                    </Border>
+                    <ProgressBar IsIndeterminate="{Binding IsQuestDbBusy}"
+                                 Visibility="{Binding IsQuestDbBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                 Width="80" Height="4" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Button Content="Start QuestDB"
+                            Command="{Binding StartQuestDbCommand}"
+                            MinWidth="100" Padding="8,2" />
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- Per-broker expanders. Each form's UserControl is injected from code-behind into the

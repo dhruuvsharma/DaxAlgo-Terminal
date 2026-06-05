@@ -177,6 +177,86 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
         string? transport = null, int maxRows = 200, CancellationToken ct = default) =>
         Task.FromResult(_manifest.List(transport, maxRows));
 
+    public async Task<IReadOnlyList<ArchiveCoverageWindow>> GetCoverageAsync(CancellationToken ct = default)
+    {
+        var windows = await ComputeWindowsAsync(ct).ConfigureAwait(false);
+        windows.Reverse(); // newest window first for display
+        return windows;
+    }
+
+    public async Task<InstantOffloadResult> OffloadPendingAsync(IProgress<string>? progress, CancellationToken ct)
+    {
+        if (!_transport.IsReady)
+            throw new InvalidOperationException(
+                $"Transport '{_transport.Name}' is not ready — log in to Telegram first (Data → Market data archive).");
+
+        var pending = (await ComputeWindowsAsync(ct).ConfigureAwait(false))
+            .Where(w => !w.Offloaded)
+            .OrderBy(w => w.FromUtc)
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            progress?.Report("Nothing to offload — all local data is already on Telegram.");
+            return new InstantOffloadResult(0, 0, 0, 0);
+        }
+
+        var target = BuildDefaultTarget(_options.CurrentValue);
+        progress?.Report($"{pending.Count} pending window(s) to offload…");
+
+        int archived = 0, failed = 0;
+        long bytes = 0;
+        foreach (var w in pending)
+        {
+            ct.ThrowIfCancellationRequested();
+            progress?.Report(
+                $"[{archived + failed + 1}/{pending.Count}] {w.PeriodLabel} " +
+                $"[{w.FromUtc:yyyy-MM-dd} → {w.ToUtc:yyyy-MM-dd})…");
+            try
+            {
+                var r = await ArchiveRangeAsync(w.FromUtc, w.ToUtc, target, progress, ct).ConfigureAwait(false);
+                archived++;
+                bytes += r.Entry.TotalBytes;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                failed++;
+                _logger.LogError(ex, "Instant offload failed for window {Label} [{From:o} → {To:o})",
+                    w.PeriodLabel, w.FromUtc, w.ToUtc);
+                progress?.Report($"  ↳ failed: {ex.Message}");
+            }
+        }
+
+        progress?.Report($"Instant offload complete — {archived} offloaded, {failed} failed, {Fmt(bytes)} shipped.");
+        return new InstantOffloadResult(archived, pending.Count, failed, bytes);
+    }
+
+    /// <summary>Period-aligned windows spanning the local data extent (oldest first), each labelled
+    /// against the manifest. The current in-progress period is excluded (data still arriving).</summary>
+    private async Task<List<ArchiveCoverageWindow>> ComputeWindowsAsync(CancellationToken ct)
+    {
+        var opts = _options.CurrentValue;
+        var extent = await _store.GetDataExtentAsync(ct).ConfigureAwait(false);
+        var windows = new List<ArchiveCoverageWindow>();
+        if (!extent.HasData) return windows;
+
+        foreach (var (from, to) in ArchivePeriodMath.ClosedWindows(extent.EarliestUtc!.Value, DateTime.UtcNow, opts.Period))
+        {
+            ct.ThrowIfCancellationRequested();
+            var coverId = _manifest.FindCovering(from, to, _transport.Name);
+            windows.Add(new ArchiveCoverageWindow(
+                BuildPeriodLabel(from, to, opts.Period), from, to, coverId is not null, coverId));
+        }
+        return windows;
+    }
+
+    private static ArchiveTarget BuildDefaultTarget(ArchiveOptions opts) =>
+        string.Equals(opts.DefaultTargetKind, "chat", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(opts.DefaultTargetChatRef)
+            ? ArchiveTarget.Chat(opts.DefaultTargetChatRef!.Trim())
+            : ArchiveTarget.SavedMessages;
+
     public async Task RestoreAsync(
         ArchiveManifestEntry entry,
         IProgress<string>? progress,

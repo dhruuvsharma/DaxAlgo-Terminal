@@ -64,6 +64,22 @@ public sealed record ArchiveResult(
     bool VerifiedRoundTrip,
     bool LocalDataDeleted);
 
+/// <summary>One period-aligned window of the local data span, labelled by whether it's already on
+/// Telegram. Backs the "which data is offloaded vs not" coverage view and the instant-offload run.</summary>
+public sealed record ArchiveCoverageWindow(
+    string PeriodLabel,
+    DateTime FromUtc,
+    DateTime ToUtc,
+    bool Offloaded,
+    long? ArchiveId);
+
+/// <summary>Summary of an instant-offload run — how many pending windows were shipped vs failed.</summary>
+public sealed record InstantOffloadResult(
+    int Archived,
+    int Pending,
+    int Failed,
+    long TotalBytes);
+
 /// <summary>UTC boundary math for archive periods. Both the scheduler and the UI use this so
 /// "last week" / "last month" mean the same thing in every code path.</summary>
 public static class ArchivePeriodMath
@@ -88,5 +104,45 @@ public static class ArchivePeriodMath
     {
         var firstOfThisMonth = DateTime.SpecifyKind(new DateTime(nowUtc.Year, nowUtc.Month, 1), DateTimeKind.Utc);
         return (firstOfThisMonth.AddMonths(-1), firstOfThisMonth);
+    }
+
+    /// <summary>Start of the period that contains <paramref name="utc"/> — the Monday of its week,
+    /// or the first of its month.</summary>
+    public static DateTime PeriodStart(DateTime utc, ArchivePeriod period)
+    {
+        var day = DateTime.SpecifyKind(utc.Date, DateTimeKind.Utc);
+        return period switch
+        {
+            ArchivePeriod.Weekly => day.AddDays(-(((int)day.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7)),
+            ArchivePeriod.Monthly => DateTime.SpecifyKind(new DateTime(utc.Year, utc.Month, 1), DateTimeKind.Utc),
+            _ => throw new ArgumentOutOfRangeException(nameof(period)),
+        };
+    }
+
+    /// <summary>The window immediately after <paramref name="startUtc"/> — [start, start+1 period).</summary>
+    public static (DateTime FromUtc, DateTime ToUtc) PeriodWindow(DateTime startUtc, ArchivePeriod period) =>
+        period switch
+        {
+            ArchivePeriod.Weekly => (startUtc, startUtc.AddDays(7)),
+            ArchivePeriod.Monthly => (startUtc, startUtc.AddMonths(1)),
+            _ => throw new ArgumentOutOfRangeException(nameof(period)),
+        };
+
+    /// <summary>Enumerate every closed period-aligned window covering [<paramref name="earliestUtc"/>,
+    /// <paramref name="nowUtc"/>), stopping before the still-open current period so in-flight data is
+    /// never archived. The first window is snapped back to the period boundary containing the earliest
+    /// row.</summary>
+    public static IEnumerable<(DateTime FromUtc, DateTime ToUtc)> ClosedWindows(
+        DateTime earliestUtc, DateTime nowUtc, ArchivePeriod period)
+    {
+        var endExclusive = ClosedPeriod(nowUtc, period).ToUtc; // start of the current open period
+        var cursor = PeriodStart(earliestUtc, period);
+        while (true)
+        {
+            var (from, to) = PeriodWindow(cursor, period);
+            if (to > endExclusive) yield break;
+            yield return (from, to);
+            cursor = to;
+        }
     }
 }
