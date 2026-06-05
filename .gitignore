@@ -4,6 +4,7 @@ obj/
 out/
 [Bb]uild/
 [Pp]ublish/
+installer/Output/
 *.user
 *.suo
 *.userosscache

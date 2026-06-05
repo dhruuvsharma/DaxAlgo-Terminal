@@ -39,5 +39,8 @@ no live order execution.**
 - **Universal Activity Log**, MahApps Metro + AvalonDock VS2013 Dark shell, multi-broker login.
 - **Support the developer** window — a once-per-launch thank-you with a "write to the developer"
   feedback channel (delivered via the user's own mail client). All features are and remain free.
+- **Windows installer** (Inno Setup) — per-user install of the self-contained app, with an opt-in
+  page that downloads and installs the external dependencies on demand (WebView2 Runtime for Charts,
+  Docker Desktop for the QuestDB store). Shipped alongside a portable zip on every tagged release.
 
 [1.0.0]: https://github.com/dhruuvsharma/DaxAlgo-Terminal/releases/tag/v1.0.0

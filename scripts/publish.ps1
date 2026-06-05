@@ -12,14 +12,18 @@
 .PARAMETER Zip
     Also produce a versioned .zip alongside the published folder.
 
+.PARAMETER Installer
+    Also build the Inno Setup installer (requires iscc on PATH or Inno Setup 6 installed).
+
 .EXAMPLE
-    ./scripts/publish.ps1 -Version 1.0.0 -Zip
+    ./scripts/publish.ps1 -Version 1.0.0 -Zip -Installer
 #>
 [CmdletBinding()]
 param(
     [string]$Version = '1.0.0',
     [string]$Output  = 'publish',
-    [switch]$Zip
+    [switch]$Zip,
+    [switch]$Installer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,6 +59,22 @@ try {
         if (Test-Path $asset) { Remove-Item $asset -Force }
         Compress-Archive -Path "$stage/*" -DestinationPath $asset -Force
         Write-Host "Zipped to $asset" -ForegroundColor Green
+    }
+
+    if ($Installer) {
+        $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+        if (-not $iscc) {
+            $candidate = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+            if (Test-Path $candidate) { $iscc = $candidate }
+        }
+        if (-not $iscc) {
+            throw "Inno Setup (iscc) not found. Install it (choco install innosetup) or drop -Installer."
+        }
+
+        $stageFull = (Resolve-Path $stage).Path
+        & $iscc "/DMyAppVersion=$Version" "/DMySourceDir=$stageFull" 'installer/DaxAlgoTerminal.iss'
+        if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)." }
+        Write-Host "Installer built to installer/Output/DaxAlgo-Terminal-Setup-v$Version.exe" -ForegroundColor Green
     }
 }
 finally {

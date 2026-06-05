@@ -62,7 +62,7 @@ jobs:
           Copy-Item publish/cli/* publish/DaxAlgo-Terminal/cli -Recurse -Force
           Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal -Force
 
-      - name: Zip
+      - name: Zip (portable)
         shell: pwsh
         run: |
           $name = "DaxAlgo-Terminal-v${{ steps.ver.outputs.version }}-win-x64.zip"
@@ -70,10 +70,27 @@ jobs:
           "asset=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
         id: zip
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
+                  "/DMySourceDir=$(Resolve-Path publish/DaxAlgo-Terminal)" `
+                  installer/DaxAlgoTerminal.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)." }
+          $setup = "installer/Output/DaxAlgo-Terminal-Setup-v${{ steps.ver.outputs.version }}.exe"
+          "setup=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+        id: installer
+
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: DaxAlgo Terminal v${{ steps.ver.outputs.version }}
           body_path: CHANGELOG.md
           draft: true
-          files: ${{ steps.zip.outputs.asset }}
+          files: |
+            ${{ steps.zip.outputs.asset }}
+            ${{ steps.installer.outputs.setup }}

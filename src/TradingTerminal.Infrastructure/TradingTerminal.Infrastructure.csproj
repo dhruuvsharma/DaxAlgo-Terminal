@@ -36,7 +36,6 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
     <Reference Include="CSharpAPI">
       <HintPath>$(_ResolvedTwsApiDll)</HintPath>
       <Private>true</Private>
@@ -106,6 +105,10 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
     <PackageReference Include="System.Reactive" Version="6.0.1" />
+    <!-- Roslyn — powers the runtime strategy-authoring compiler (RoslynStrategyCompiler, always
+         compiled). Must be unconditional: it has nothing to do with the IB TWS API and was
+         previously (wrongly) gated behind it, which broke clean builds without TWS installed. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
     <!-- Spotware-published cTrader Open API 2.0 client (TLS + protobuf framing). Always restored;
          the RealCTraderClient compiles unconditionally. -->
     <PackageReference Include="cTrader.OpenAPI.Net" Version="1.4.4" />
