@@ -6,9 +6,26 @@ ownership, dependency constraints (the solution graph it must not break), conven
 and which skill to load first. Give a prompt naming the area and the matching agent does
 the change in its own context — keeping the main thread's context lean.
 
-> **Token note:** all 30 descriptions load into the system prompt every session. If the
+> **Token note:** all 36 descriptions load into the system prompt every session. If the
 > baseline cost feels heavy, collapse the rarely-touched ones (e.g. fold the 9 `strat-*`
 > into one `strategies` agent) — they're just files in this folder.
+
+## Orchestration & live monitoring
+
+You don't pick agents by hand — prompt the main thread naming the area, and it fans the
+work out to the owning agent, which loads its skill (see the per-agent → skill mapping in
+[`../MULTI-AGENT.md`](../MULTI-AGENT.md)). For parallel work, agents launch as background
+subagents.
+
+**Watch them live** (there is no "FleetView" feature — these are the real mechanisms):
+- **`claude agents`** (CLI Agent View) — every session grouped by *Needs input / Working
+  / Completed*, peek or attach to any one.
+- **`Ctrl+B`** — background a running subagent so several run concurrently.
+- **Desktop app → Views → Tasks** — live pane of all background agents; drag beside the
+  conversation for a split view.
+- **Forks** — `CLAUDE_CODE_FORK_SUBAGENT=1` for parallel forks with a fork panel.
+
+Full workflow + env toggles: [`../MULTI-AGENT.md`](../MULTI-AGENT.md).
 
 ## Foundational layer
 | Project | Agent | Model |
