@@ -13,14 +13,17 @@ script that produces a single `DaxAlgo-Terminal-Setup-vX.Y.Z.exe`.
   dependencies the app can use:
   - **Microsoft WebView2 Runtime** — required for the Charts window (usually already present on
     Windows 11). Checked by default; skipped automatically if already installed.
-  - **Docker Desktop** — needed for the QuestDB high-performance tick store (the default store
-    backend). Unchecked by default (large ~500 MB download, needs Windows virtualization / WSL2).
+  - **Docker Desktop** — powers the QuestDB high-performance tick store (the default store
+    backend). **Checked by default** (large ~500 MB download, needs Windows virtualization / WSL2).
     Skipped automatically if already installed.
 
   Selected-but-missing dependencies are downloaded just before install and run silently. Each
-  third-party installer self-elevates via its own UAC prompt. The app works without either — Charts
-  needs WebView2, and without Docker the store falls back to SQLite (or switch
-  `MarketDataStore:Provider` to `Sqlite`).
+  third-party installer self-elevates via its own UAC prompt. The app works even if a dependency is
+  skipped or its install needs a reboot: Charts needs WebView2, and **the app always launches
+  without Docker** — bars persist to SQLite and L1/L2/trade persistence simply stays off until
+  QuestDB is up. Once Docker is installed and running, the login screen auto-starts the QuestDB
+  container (`AutoStartDocker`, on by default) and engages tick persistence live — no app restart.
+  To opt out of QuestDB entirely, set `MarketDataStore:Provider` to `Sqlite`.
 
 ## Build it
 

@@ -70,7 +70,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"
 ; Optional external dependencies. Skipped automatically at runtime if already present.
 Name: "installwebview2"; Description: "Install Microsoft WebView2 Runtime (required for the Charts window)"; GroupDescription: "Required components:"
-Name: "installdocker"; Description: "Install Docker Desktop (needed for the QuestDB tick store — large ~500 MB download, requires Windows virtualization / WSL2)"; GroupDescription: "Required components:"; Flags: unchecked
+Name: "installdocker"; Description: "Install Docker Desktop (powers the QuestDB high-performance tick store — large ~500 MB download, requires Windows virtualization / WSL2; a reboot may be needed before it runs)"; GroupDescription: "Required components:"
 
 [Files]
 ; The entire published self-contained app folder (exe + runtime + appsettings + cli\).
