@@ -28,9 +28,14 @@ public static class ArchiveServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var opts = (sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<ArchiveOptions>>()).CurrentValue;
-            var path = opts.ManifestDatabasePath ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "DaxAlgoTerminal", "archive-manifest.db");
+            // Treat blank as "not set": an empty DataSource makes SQLite hand every connection its own
+            // private temp DB, so the table created on the write connection is invisible to readers
+            // ("no such table: archive_manifest"). Fall back to the per-user default instead.
+            var path = string.IsNullOrWhiteSpace(opts.ManifestDatabasePath)
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DaxAlgoTerminal", "archive-manifest.db")
+                : opts.ManifestDatabasePath;
             return new ArchiveManifestStore(path);
         });
 

@@ -18,6 +18,10 @@ internal sealed class ArchiveManifestStore : IDisposable
 
     public ArchiveManifestStore(string databasePath)
     {
+        // A blank DataSource makes SQLite give every connection its own private temp DB, so the table
+        // created here would be invisible to readers. Fail loudly rather than silently lose history.
+        if (string.IsNullOrWhiteSpace(databasePath))
+            throw new ArgumentException("Archive manifest database path must not be blank.", nameof(databasePath));
         var dir = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         _connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString();

@@ -72,56 +72,71 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
             throw new InvalidOperationException(
                 $"Transport '{_transport.Name}' is not ready (credentials missing or login pending).");
 
-        var stagingRoot = opts.StagingDirectory ?? DefaultStaging();
+        var stagingRoot = string.IsNullOrWhiteSpace(opts.StagingDirectory) ? DefaultStaging() : opts.StagingDirectory;
         var builder = new ArchiveBundleBuilder(_store, _registry, _logger);
 
-        progress?.Report($"Building bundle for [{fromUtc:s} → {toUtc:s})…");
-        var bundle = await builder.BuildAsync(
-            fromUtc, toUtc, opts.Tables, stagingRoot, opts.MaxPartBytes, progress, ct);
+        progress?.Report($"Building documents for [{fromUtc:s} → {toUtc:s})…");
+        var bundle = await builder.BuildAsync(fromUtc, toUtc, opts.Tables, stagingRoot, progress, ct);
 
         try
         {
-            // Upload every part.
+            // Upload each labelled document as its own Telegram file, splitting only the ones that
+            // alone exceed the cap. Each uploaded blob is stamped with its document identity so the
+            // restorer can regroup parts and re-import without an inner manifest.
             var uploadedRefs = new List<ArchiveBlobRef>();
             var periodLabel = BuildPeriodLabel(fromUtc, toUtc, opts.Period);
-            for (var i = 0; i < bundle.Parts.Count; i++)
+            var docNum = 0;
+            foreach (var doc in bundle.Documents)
             {
-                var part = bundle.Parts[i];
-                var display = bundle.Parts.Count == 1
-                    ? $"daxalgo-marketdata-{periodLabel}.zip"
-                    : $"daxalgo-marketdata-{periodLabel}.zip.part{i + 1:D2}";
-                progress?.Report($"Uploading {display} ({Fmt(part.SizeBytes)})…");
-                await using var fs = File.OpenRead(part.LocalPath);
-                var blob = await _transport.UploadAsync(fs, display, part.SizeBytes, target,
-                    new Progress<long>(b => { /* per-part progress events could route to UI */ }),
-                    ct);
-                uploadedRefs.Add(blob);
+                docNum++;
+                if (doc.SizeBytes <= opts.MaxPartBytes)
+                {
+                    progress?.Report($"[{docNum}/{bundle.Documents.Count}] Uploading {doc.DisplayName} " +
+                                     $"({doc.Rows:n0} rows, {Fmt(doc.SizeBytes)})…");
+                    await using var fs = File.OpenRead(doc.LocalPath);
+                    var blob = await _transport.UploadAsync(fs, doc.DisplayName, doc.SizeBytes, target, null, ct);
+                    uploadedRefs.Add(StampDocMeta(blob, doc, partIndex: 1, partCount: 1, sha: doc.Sha256Hex));
+                }
+                else
+                {
+                    var slices = await ArchiveBundleBuilder.SplitFileAsync(doc.LocalPath, bundle.WorkDir, opts.MaxPartBytes, ct);
+                    progress?.Report($"[{docNum}/{bundle.Documents.Count}] {doc.DisplayName} is {Fmt(doc.SizeBytes)} " +
+                                     $"— splitting into {slices.Count} parts (cap = {Fmt(opts.MaxPartBytes)})…");
+                    for (var i = 0; i < slices.Count; i++)
+                    {
+                        var slice = slices[i];
+                        progress?.Report($"    Uploading {slice.Name} ({Fmt(slice.SizeBytes)})…");
+                        await using var fs = File.OpenRead(slice.LocalPath);
+                        var blob = await _transport.UploadAsync(fs, slice.Name, slice.SizeBytes, target, null, ct);
+                        uploadedRefs.Add(StampDocMeta(blob, doc, partIndex: i + 1, partCount: slices.Count, sha: slice.Sha256Hex));
+                    }
+                }
             }
 
-            // Verify round-trip (optional but on by default).
+            // Verify round-trip (optional but on by default): re-download each uploaded blob and
+            // confirm its sha256 matches what we sent.
             var verified = false;
             if (opts.VerifyAfterUpload)
             {
                 progress?.Report("Verifying upload checksums…");
-                for (var i = 0; i < bundle.Parts.Count; i++)
+                for (var i = 0; i < uploadedRefs.Count; i++)
                 {
-                    var part = bundle.Parts[i];
                     var blob = uploadedRefs[i];
                     var tmp = Path.Combine(bundle.WorkDir, $"verify-{i}.bin");
                     await using (var dst = File.Create(tmp))
                         await _transport.DownloadAsync(blob, dst, null, ct);
                     var rsha = await ArchiveBundleBuilder.ComputeSha256Async(tmp, ct);
                     File.Delete(tmp);
-                    if (!string.Equals(rsha, part.Sha256Hex, StringComparison.OrdinalIgnoreCase))
-                        throw new IOException($"Round-trip sha256 mismatch on part {i + 1}: " +
-                                              $"sent={part.Sha256Hex}, downloaded={rsha}.");
+                    if (!string.Equals(rsha, blob.Sha256Hex, StringComparison.OrdinalIgnoreCase))
+                        throw new IOException($"Round-trip sha256 mismatch on '{blob.PartName}': " +
+                                              $"sent={blob.Sha256Hex}, downloaded={rsha}.");
                 }
                 verified = true;
             }
 
             // Record manifest BEFORE deleting anything local.
-            var totalSha = ComposeTotalSha(bundle.Parts);
-            var totalBytes = bundle.Parts.Sum(p => p.SizeBytes);
+            var totalSha = ComposeTotalSha(uploadedRefs.Select(r => r.Sha256Hex));
+            var totalBytes = uploadedRefs.Sum(p => p.SizeBytes);
             var entry = new ArchiveManifestEntry(
                 Id: 0,
                 PeriodLabel: periodLabel,
@@ -266,8 +281,76 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
             throw new InvalidOperationException(
                 $"Archive #{entry.Id} was uploaded via '{entry.Transport}', but the active transport is '{_transport.Name}'.");
 
+        // Per-document archives stamp ArchiveDocMeta.Format into every blob; older single-zip bundles
+        // don't — fall back to the legacy concat-unzip path for those so old archives still restore.
+        var isPerDocument = entry.Parts.Any(p =>
+            p.Metadata.TryGetValue(ArchiveDocMeta.Format, out var f) && f == ArchiveDocMeta.PerDocument);
+        if (isPerDocument)
+            await RestorePerDocumentAsync(entry, progress, ct);
+        else
+            await RestoreLegacyZipAsync(entry, progress, ct);
+    }
+
+    /// <summary>Restore a per-document archive: regroup each document's parts by <see cref="ArchiveDocMeta.DocKey"/>,
+    /// download + concatenate them back into the original parquet, then re-import by declared kind.</summary>
+    private async Task RestorePerDocumentAsync(
+        ArchiveManifestEntry entry, IProgress<string>? progress, CancellationToken ct)
+    {
         var opts = _options.CurrentValue;
-        var stagingRoot = opts.StagingDirectory ?? DefaultStaging();
+        var stagingRoot = string.IsNullOrWhiteSpace(opts.StagingDirectory) ? DefaultStaging() : opts.StagingDirectory;
+        var workDir = Path.Combine(stagingRoot, $"restore-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(workDir);
+
+        try
+        {
+            var documents = entry.Parts
+                .GroupBy(p => p.Metadata.TryGetValue(ArchiveDocMeta.DocKey, out var k) ? k : p.PartName)
+                .ToList();
+            var docNum = 0;
+            foreach (var docParts in documents)
+            {
+                ct.ThrowIfCancellationRequested();
+                docNum++;
+                var ordered = docParts
+                    .OrderBy(p => int.TryParse(p.Metadata.GetValueOrDefault(ArchiveDocMeta.PartIndex), out var ix) ? ix : 0)
+                    .ToList();
+                var kind = ordered[0].Metadata.GetValueOrDefault(ArchiveDocMeta.Kind, "");
+
+                progress?.Report($"[{docNum}/{documents.Count}] Downloading {docParts.Key}" +
+                                 (ordered.Count > 1 ? $" ({ordered.Count} parts)…" : "…"));
+                var parquetPath = Path.Combine(workDir, $"{Guid.NewGuid():N}.parquet");
+                await using (var dst = File.Create(parquetPath))
+                    foreach (var part in ordered)
+                        await _transport.DownloadAsync(part, dst, null, ct);
+
+                long rows = kind switch
+                {
+                    "quotes" => await ImportQuotesAsync(parquetPath, ct),
+                    "bars" => await ImportBarsAsync(parquetPath, ct),
+                    "trades" => await ImportTradesAsync(parquetPath, ct),
+                    "depth" => await ImportDepthAsync(parquetPath, ct),
+                    _ => 0,
+                };
+                File.Delete(parquetPath);
+                progress?.Report($"Restored {kind}: {rows:n0} rows from {docParts.Key}.");
+            }
+            await _store.FlushAsync(ct);
+            progress?.Report("Restore complete.");
+        }
+        finally
+        {
+            try { if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Failed to clean restore dir {Dir}", workDir); }
+        }
+    }
+
+    /// <summary>Restore a legacy single-zip bundle: download all parts, concatenate into one zip,
+    /// unzip, read the inner manifest.json, and re-import each parquet.</summary>
+    private async Task RestoreLegacyZipAsync(
+        ArchiveManifestEntry entry, IProgress<string>? progress, CancellationToken ct)
+    {
+        var opts = _options.CurrentValue;
+        var stagingRoot = string.IsNullOrWhiteSpace(opts.StagingDirectory) ? DefaultStaging() : opts.StagingDirectory;
         var workDir = Path.Combine(stagingRoot, $"restore-{Guid.NewGuid():N}");
         Directory.CreateDirectory(workDir);
 
@@ -337,7 +420,7 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
         }
     }
 
-    private async Task ImportQuotesAsync(string parquetPath, CancellationToken ct)
+    private async Task<long> ImportQuotesAsync(string parquetPath, CancellationToken ct)
     {
         await using var fs = File.OpenRead(parquetPath);
         var rows = await ParquetSerializer.DeserializeAsync<QuoteParquetRow>(fs, null, ct);
@@ -349,9 +432,10 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                 r.Bid, r.Ask, r.BidSize, r.AskSize,
                 (BrokerKind)r.Source, r.Sequence, r.EventTimeApproximate));
         }
+        return rows.Count;
     }
 
-    private async Task ImportBarsAsync(string parquetPath, CancellationToken ct)
+    private async Task<long> ImportBarsAsync(string parquetPath, CancellationToken ct)
     {
         await using var fs = File.OpenRead(parquetPath);
         var rows = await ParquetSerializer.DeserializeAsync<BarParquetRow>(fs, null, ct);
@@ -362,9 +446,10 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                 FromMicros(r.OpenTimeMicros), r.Open, r.High, r.Low, r.Close, r.Volume,
                 (BrokerKind)r.Source, r.IsFinal));
         }
+        return rows.Count;
     }
 
-    private async Task ImportTradesAsync(string parquetPath, CancellationToken ct)
+    private async Task<long> ImportTradesAsync(string parquetPath, CancellationToken ct)
     {
         await using var fs = File.OpenRead(parquetPath);
         var rows = await ParquetSerializer.DeserializeAsync<TradeParquetRow>(fs, null, ct);
@@ -376,9 +461,10 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
                 r.Price, r.Size, (AggressorSide)r.Aggressor,
                 (BrokerKind)r.Source, r.Sequence, r.EventTimeApproximate));
         }
+        return rows.Count;
     }
 
-    private async Task ImportDepthAsync(string parquetPath, CancellationToken ct)
+    private async Task<long> ImportDepthAsync(string parquetPath, CancellationToken ct)
     {
         await using var fs = File.OpenRead(parquetPath);
         var rows = await ParquetSerializer.DeserializeAsync<DepthParquetRow>(fs, null, ct);
@@ -415,22 +501,48 @@ internal sealed class MarketDataArchiver : IMarketDataArchiver
             if (r.Side == "B") bids.Add(level); else asks.Add(level);
         }
         Flush();
+        return rows.Count;
     }
 
     /// <summary>Format a prune row count: QuestDB's partition drop reports an unknown count (-1).</summary>
     private static string Pruned(long n) => n < 0 ? "partition(s) of" : n.ToString("n0");
 
-    private static string ComposeTotalSha(IReadOnlyList<BundlePart> parts)
+    /// <summary>One sha256 over the concatenation of every part's sha256 — a stable digest of the
+    /// whole archive regardless of how many documents/parts it spans.</summary>
+    private static string ComposeTotalSha(IEnumerable<string> partHexes)
     {
-        if (parts.Count == 1) return parts[0].Sha256Hex;
+        var hexes = partHexes.ToList();
+        if (hexes.Count == 1) return hexes[0];
         using var sha = SHA256.Create();
-        foreach (var p in parts)
+        foreach (var hex in hexes)
         {
-            var bytes = Convert.FromHexString(p.Sha256Hex);
+            var bytes = Convert.FromHexString(hex);
             sha.TransformBlock(bytes, 0, bytes.Length, null, 0);
         }
         sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
         return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
+    }
+
+    /// <summary>Copy the transport's blob ref and stamp the document identity + part position into its
+    /// metadata (preserving the transport's own keys), plus the known sha256 used for verification.</summary>
+    private static ArchiveBlobRef StampDocMeta(
+        ArchiveBlobRef blob, BuiltDocument doc, int partIndex, int partCount, string sha)
+    {
+        var meta = new Dictionary<string, string>(blob.Metadata, StringComparer.Ordinal)
+        {
+            [ArchiveDocMeta.Format] = ArchiveDocMeta.PerDocument,
+            [ArchiveDocMeta.Kind] = doc.Kind,
+            [ArchiveDocMeta.DocKey] = doc.DisplayName,
+            [ArchiveDocMeta.PartIndex] = partIndex.ToString(),
+            [ArchiveDocMeta.PartCount] = partCount.ToString(),
+            [ArchiveDocMeta.InstrumentId] = doc.InstrumentId.ToString(),
+            [ArchiveDocMeta.Symbol] = doc.Symbol,
+            [ArchiveDocMeta.Exchange] = doc.Exchange,
+            [ArchiveDocMeta.Broker] = doc.Broker,
+            [ArchiveDocMeta.BarSize] = doc.BarSizeLabel,
+            [ArchiveDocMeta.Rows] = doc.Rows.ToString(),
+        };
+        return blob with { Sha256Hex = sha, Metadata = meta };
     }
 
     public static string BuildPeriodLabel(DateTime fromUtc, DateTime toUtc, ArchivePeriod period) =>

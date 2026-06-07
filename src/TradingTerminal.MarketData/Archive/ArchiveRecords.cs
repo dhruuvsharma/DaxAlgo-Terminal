@@ -60,8 +60,31 @@ internal sealed class DepthParquetRow
     public int Source { get; set; }
 }
 
-/// <summary>JSON manifest dropped inside each archive zip. Lists every parquet file and the
-/// range it covers so the restorer doesn't need to enumerate the zip blindly.</summary>
+/// <summary>
+/// Keys the archiver stamps into each uploaded blob's <c>Metadata</c> so the per-document restore
+/// path can group a document's parts, order them, and re-import the reassembled parquet — without an
+/// inner manifest. <see cref="Format"/> = <see cref="PerDocument"/> distinguishes this layout from
+/// the legacy single-zip bundle (whose parts carry none of these keys).
+/// </summary>
+internal static class ArchiveDocMeta
+{
+    public const string Format = "format";
+    public const string PerDocument = "perdoc";
+    public const string Kind = "kind";            // quotes | bars | trades | depth
+    public const string DocKey = "doc";           // groups the parts of one logical document
+    public const string PartIndex = "part";       // 1-based slice index within the document
+    public const string PartCount = "parts";      // total slices in the document
+    public const string InstrumentId = "instrument_id";
+    public const string Symbol = "symbol";
+    public const string Exchange = "exchange";
+    public const string Broker = "broker";
+    public const string BarSize = "bar_size";
+    public const string Rows = "rows";
+}
+
+/// <summary>JSON manifest dropped inside a legacy archive zip. Lists every parquet file and the
+/// range it covers so the restorer doesn't need to enumerate the zip blindly. Retained for restoring
+/// archives produced before the per-document layout.</summary>
 internal sealed class BundleManifest
 {
     public int Version { get; set; } = 1;
