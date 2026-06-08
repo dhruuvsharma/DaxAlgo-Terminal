@@ -1,8 +1,8 @@
 # Broker setup
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-08
 
-The terminal speaks to four broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), and **Alpaca** (REST + WebSocket via `Alpaca.Markets`).
+The terminal speaks to four real broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), and **Alpaca** (REST + WebSocket via `Alpaca.Markets`) — plus an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
@@ -19,11 +19,12 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | Broker | Transport | Real client status | Historical | Live ticks | L2 depth | Order routing |
 |---|---|---|---|---|---|---|
 | Interactive Brokers | TCP socket → `EClientSocket` | Wired when `CSharpAPI.dll` is found at build time | Real (`reqHistoricalData`) | Real (`reqMktData` L1) | `reqMktDepth` exists — not yet wired, throws | Not yet wired |
-| NinjaTrader 8 | `NTDirect.dll` P/Invoke (ANSI) | Wired when `NTDirect.dll` is found at build time + `UseRealClient=true` | Synthesized (NTDirect has no historical export) | Real, polled at 200 ms | Not exposed by NTDirect — out of scope | Real, via `NTDirect.Command(...)` |
+| NinjaTrader 8 | `NTDirect.dll` P/Invoke (ANSI) | Wired when `NTDirect.dll` is found at build time | Synthesized (NTDirect has no historical export) | Real, polled at 200 ms | Not exposed by NTDirect — out of scope | Real, via `NTDirect.Command(...)` |
 | cTrader | TLS + protobuf to Spotware cloud | Always wired (NuGet package always restores) | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | Real, push (`ProtoOASubscribeDepthQuotesReq`) | Real, via `ProtoOANewOrderReq` |
 | Alpaca | REST (history) + WebSocket (live) | Always wired (NuGet package always restores) | Real (`HistoricalBarsRequest` / `HistoricalCryptoBarsRequest`) | Real, push (`IAlpacaDataStreamingClient`) | Not exposed by Alpaca — throws | Not yet wired |
+| Simulated | In-process, no SDK, no network | Always registered | Replay from local store | Synthetic random-walk **or** store replay | Supported (synthetic + replay) | n/a (data/signals only) |
 
-When the real client for IB / NT / cTrader isn't wired, the synthetic `Fake*Client` runs instead — a plausible random-walk for development. **Alpaca has no synthetic fallback**.
+There are **no per-broker synthetic fallbacks** — each real client is registered only when its SDK is available (IB/NT gated on a resolved DLL; cTrader/Alpaca always restore from NuGet), and a connect simply fails if the broker isn't reachable. To run with no broker at all, use the always-registered **`Simulated`** backend instead (see [below](#simulated-offline-development)).
 
 ## Interactive Brokers
 
@@ -40,7 +41,7 @@ The `Infrastructure` csproj searches, in order:
 2. `$(TwsApiClientDll)` MSBuild property — `dotnet build -p:TwsApiClientDll="D:\path\CSharpAPI.dll"`.
 3. `C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll` — the standard installer location.
 
-If any resolves, the build prints `IB CSharpAPI resolved from: <path>` and `RealIbClient` is compiled in. Otherwise `FakeIbClient` runs.
+If any resolves, the build prints `IB CSharpAPI resolved from: <path>` and `RealIbClient` is compiled in (`HAS_IBAPI`). Otherwise IB simply isn't registered — there's no synthetic IB fallback; use the `Simulated` backend for an offline feed.
 
 ### TWS configuration
 
@@ -59,10 +60,11 @@ In **TWS → File → Global Configuration → API → Settings**:
   "Port": 7497,
   "ClientId": 1,
   "AccountType": "Paper",
-  "UseRealClient": true,
   "MarketDataType": 1
 }
 ```
+
+> The real IB client is wired purely at build time by DLL resolution (`HAS_IBAPI`); there's no longer a `UseRealClient` switch. To run without IB, use the `Simulated` backend (see [below](#simulated-offline-development)). The legacy `UseRealClient` key still present in `appsettings.json` is ignored.
 
 `MarketDataType` accepts `1` (Live), `3` (Delayed, free, ~15 min lag), `4` (Delayed-Frozen). Switch to `3` if you see IB error 10089 ("requires additional subscription").
 
@@ -93,12 +95,11 @@ If any resolves, the build prints `NTDirect resolved from: <path>` and copies th
 ```json
 "NinjaTrader": {
   "AccountName": "Sim101",
-  "DefaultFuturesContractMonth": "06-26",
-  "UseRealClient": true
+  "DefaultFuturesContractMonth": "06-26"
 }
 ```
 
-`AccountName` is the NT account the client drives (default sim is `Sim101`). `DefaultFuturesContractMonth` is appended to bare futures symbols, e.g. `ES` becomes `ES 06-26`. `UseRealClient` defaults to `false` — you must opt in explicitly.
+`AccountName` is the NT account the client drives (default sim is `Sim101`). `DefaultFuturesContractMonth` is appended to bare futures symbols, e.g. `ES` becomes `ES 06-26`. Like IB, the NT client is wired purely by DLL resolution at build time (`HAS_NTAPI`) — the legacy `UseRealClient` key is no longer read.
 
 ### Known limitations
 
@@ -173,7 +174,20 @@ Paste both into the Alpaca tile on the login screen. Tick **Use live endpoint** 
 ### Limitations
 
 - **No L2 depth.** Alpaca only exposes L1 NBBO quotes; `SubscribeDepthAsync` throws `NotSupportedException`. Use IB (when wired) or cTrader for L2.
-- **No synthetic fallback.** Unlike IB / NT / cTrader, Alpaca has no `Fake*Client` — credentials are mandatory.
+- **Credentials are mandatory.** Like every real broker, Alpaca has no synthetic fallback — to run without credentials, use the `Simulated` backend below.
+
+## Simulated (offline development)
+
+`BrokerKind.Simulated` is an in-process `IBrokerClient` (`SimulatedBrokerClient`, in `Infrastructure/Simulation/`) with **no broker and no network** — it's always registered, alongside the four real backends. It exists so the whole app (ingest → hub → strategies/tools) can run fully offline. Unlike the real backends it supports **both trade tape and L2 depth** in either mode.
+
+It's not shown as a login tile; it's wired up by the dev launch profiles (`DOTNET_ENVIRONMENT` = `DevSim` / `DevReplay`), which skip login and auto-connect it. Two feed modes, set by `SimulatedBroker:Mode`:
+
+| Mode | What it does |
+|---|---|
+| `Synthetic` (default) | Deterministic seeded random-walk generated in-process. Needs no recorded data. Lists the instruments in `SimulatedBroker:Instruments`. |
+| `Replay` | Streams recorded data out of the local market-data store on a speed-scaled clock (`SpeedMultiplier`), re-emitting it as if live. Lists whatever the store holds; falls back to the synthetic feed for any instrument/stream with no data, so a window is never empty. |
+
+See [configuration.md](configuration.md#simulatedbroker) for the full key reference and [getting-started.md](getting-started.md#dev-launch-profiles-skip-login-run-offline) for the launch profiles.
 
 ## Secrets and persistence
 

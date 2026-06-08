@@ -1,6 +1,6 @@
 # Contributing
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-08
 
 How to add new features without breaking the layering rules. The constraints come from [architecture.md](architecture.md) — read that first if you haven't.
 
@@ -30,9 +30,7 @@ See [strategies.md](strategies.md#adding-a-new-strategy) for the full recipe. Sh
 
 1. Add a `BrokerKind` enum value in `Core/Brokers/BrokerKind.cs`.
 2. Add an `XxxOptions` record in `Core/Configuration/`.
-3. Implement `IBrokerClient` in `Infrastructure/Xxx/`. Provide both:
-   - `RealXxxClient` — the actual integration. Gate behind a compile-time constant if it depends on a sideloaded DLL (mirror the `HAS_IBAPI` / `HAS_NTAPI` pattern in `Infrastructure.csproj`).
-   - `FakeXxxClient` — a synthetic fallback so the build is always green. *Exception*: skip this if credentials are mandatory (Alpaca-style).
+3. Implement `RealXxxClient : IBrokerClient` in `Infrastructure/Xxx/` — the actual integration. Gate behind a compile-time constant if it depends on a sideloaded DLL (mirror the `HAS_IBAPI` / `HAS_NTAPI` pattern in `Infrastructure.csproj`). There are **no per-broker synthetic fallbacks** — the always-registered `Simulated` broker covers offline runs, so a new broker just registers its real client (and isn't registered at all when its SDK is absent).
 4. Register both `IBrokerClient` and `BrokerConnectionMode` for the new broker in `DependencyInjection.cs`. `BrokerSelector` auto-discovers them via `IEnumerable<IBrokerClient>`.
 5. Add a tile + form panel to `LoginWindow.xaml` (alongside the existing IB / NT / cTrader / Alpaca tiles) and a corresponding `SelectXxx` command + form fields to `LoginViewModel`.
 

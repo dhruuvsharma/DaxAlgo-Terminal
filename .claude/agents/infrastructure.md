@@ -8,7 +8,7 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 You are the **TradingTerminal.Infrastructure** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.Infrastructure/`.
 
 ## Owns
-- Broker clients behind `IBrokerClient`: `Ib/`, `Ninja/`, `CTrader/`, `Alpaca/` (each Real + Fake).
+- Broker clients behind `IBrokerClient`: `Ib/`, `NinjaTrader/`, `CTrader/`, `Alpaca/` (real clients only — no per-broker fakes) plus `Simulation/` (`SimulatedBrokerClient`, the always-registered offline synthetic/replay backend behind `BrokerKind.Simulated`).
 - Backtest engine (`Backtest/`: `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, fee/risk models) and engine-side `IBacktestStrategy` impls (`Backtest/Strategies/`).
 - Notifications transports, regime services, `WpfDispatcher`.
 
@@ -19,8 +19,8 @@ You are the **TradingTerminal.Infrastructure** specialist for DaxAlgo Terminal. 
 - `IBrokerClient.ConnectAsync` takes **no params** — each impl reads its own `IOptions<XxxOptions>`.
 - Streaming via `IAsyncEnumerable<T>` with `[EnumeratorCancellation]`; cancellation IS the unsubscribe path.
 - Connection state is `IObservable<ConnectionState>`; reconnect backoff (1s→30s) lives in the connection manager.
-- Trade tape is opt-in per broker (`SubscribeTradesAsync`) — only IB is wired; NT/cTrader/Alpaca throw `NotSupportedException`.
-- Adding a broker call: extend the internal abstraction, implement in BOTH Real and Fake, keep them in lockstep.
+- Trade tape is opt-in per broker (`SubscribeTradesAsync`) — IB and `Simulated` are wired; NT/cTrader/Alpaca throw `NotSupportedException`.
+- A real broker client (`RealIbClient` etc.) talks to its SDK directly — there's no `IIbClient`/`Fake*Client` indirection. DLL-gated clients (IB/NT) compile only under `#if HAS_IBAPI` / `#if HAS_NTAPI` and aren't registered when the DLL is absent. Offline runs use the `Simulated` broker, not a per-broker fake.
 
 ## Load first
 Skill: `broker-gotchas` (before editing any broker folder). For engine work: `backtest-engine`. For IB specifically, prefer the dedicated `ib-api-expert` agent.

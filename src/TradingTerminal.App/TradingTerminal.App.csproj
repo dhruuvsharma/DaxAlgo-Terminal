@@ -84,6 +84,20 @@
           Condition="Exists('..\..\appsettings.local.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!--
+      Dev launch-profile overrides, selected via DOTNET_ENVIRONMENT (DevLive / DevReplay /
+      DevSim from Properties/launchSettings.json). Off in the shipped appsettings.json; these
+      enable login-bypass + the Simulated broker feed for offline development.
+    -->
+    <None Include="..\..\appsettings.DevLive.json" Link="appsettings.DevLive.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\appsettings.DevReplay.json" Link="appsettings.DevReplay.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\appsettings.DevSim.json" Link="appsettings.DevSim.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <!--

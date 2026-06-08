@@ -1,6 +1,6 @@
 # Architecture
 
-> Last updated: 2026-05-31
+> Last updated: 2026-06-08
 
 The design rationale, key interface signatures, and constraints that the rest of the codebase honors. For installation and runtime setup, see [getting-started.md](getting-started.md). For per-broker quirks, see [brokers.md](brokers.md). For feature-level deep dives, see [market-data.md](market-data.md), [market-regime.md](market-regime.md), [backtesting.md](backtesting.md), [notifications.md](notifications.md), [ai-analyst.md](ai-analyst.md).
 
@@ -460,7 +460,14 @@ The per-broker quirk list (callbacks, threading subtleties, depth-event reconstr
 - Both streaming clients are connected and authenticated eagerly inside `ConnectAsync` so the first tick subscription doesn't pay the auth round-trip.
 - Live bars are aggregated from the tick stream so the bar cadence (`BarSize`) stays configurable.
 - **No L2 depth** — Alpaca's WebSocket API only emits NBBO-style L1 quotes.
-- **No `Fake*Client`** — credentials are mandatory.
+- **Credentials are mandatory** — like every real client, no synthetic fallback (use the `Simulated` backend instead).
+
+### Simulated — `SimulatedBrokerClient` (always registered)
+
+- In-process `IBrokerClient` with no broker and no network, in `Infrastructure/Simulation/`. Backs `BrokerKind.Simulated` for the offline dev launch profiles (`DevSim` / `DevReplay`).
+- Two feed modes (`SimulatedBrokerOptions.Mode`): **Synthetic** — a deterministic seeded random walk needing zero recorded data; **Replay** — streams recorded data out of `IMarketDataStore` on a speed-scaled clock, re-emitting it as if live (synthetic fallback per instrument/stream where the store is empty).
+- Supports **both trade tape and L2 depth**, unlike the NT/cTrader/Alpaca backends. Not wrapped in `MeteredBrokerClient` (no external API calls to count).
+- Everything downstream (ingest → hub → strategies/tools) consumes it exactly like a real broker — it's a full peer in the DI graph, not a test double.
 
 ## Testing strategy
 
@@ -477,7 +484,7 @@ Tests live in `tests/TradingTerminal.Tests` and use xUnit + FluentAssertions + N
 - **Canonical pipeline** — `InstrumentRegistry` is idempotent, `MarketDataHub` fans one publish out to multiple subscribers, `MarketDataIngestService` sets `EventTimeApproximate` for brokers that only report arrival time. Store backends: `SqliteMarketDataStoreTests` always runs; `NpgsqlMarketDataStoreTests` self-skips when Docker isn't reachable.
 - **Market regime** — `MarketRegimeCalculator` produces the expected composite + band on hand-built `RegimeInputs`.
 
-The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as a smoke test for the full DI graph.
+The `SimulatedBrokerClient` (synthetic + replay feed) is covered by `SimulatedBrokerClientTests` and also doubles as an offline smoke test for the full DI graph.
 
 ## Code-style preferences
 
@@ -492,7 +499,7 @@ The synthetic `Fake*Client` per broker isn't unit-tested directly but doubles as
 ## Assumptions
 
 - **`net9.0-windows`.** Only the .NET 9 SDK is installed on the dev box. WPF works identically.
-- **Synthetic data is always usable.** `Fake*Client` per broker (except Alpaca) means the build runs even with zero broker setup.
+- **Offline run is always possible.** The always-registered `Simulated` broker (synthetic random-walk or local-store replay) means the build runs end-to-end with zero broker setup — the dev launch profiles wire it up and skip login.
 - **Per-broker SDK delivery.**
   - IB: `CSharpAPI.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or the standard `C:\TWS API\…` path.
   - NT: `NTDirect.dll` sideloaded; auto-discovered from `lib/`, an MSBuild prop, or `%USERPROFILE%\Documents\NinjaTrader 8\bin64\`.

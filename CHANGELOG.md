@@ -4,6 +4,27 @@ All notable changes to **DaxAlgo Terminal** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`Simulated` broker** (`BrokerKind.Simulated`, `SimulatedBrokerClient`) — an always-registered,
+  in-process `IBrokerClient` with no broker and no network. Two feed modes: a deterministic
+  random-walk (**Synthetic**) or speed-scaled **Replay** of the local market-data store. Supports
+  trade tape and L2 depth. Configured via the `SimulatedBroker` section (`SimulatedBrokerOptions`).
+- **Dev launch profiles** — `Dev: Simulated (offline)` / `Dev: Replay (local DB)` /
+  `Dev: Live (no login)` in `launchSettings.json`, selected by `DOTNET_ENVIRONMENT`
+  (`DevSim` / `DevReplay` / `DevLive`), each layering an `appsettings.{Env}.json` over the base.
+- **`Dev` config section** (`DevOptions`) — `BypassLogin` skips the login window and auto-connects
+  `AutoConnectBrokers` (a failed connect is logged, never fatal). Off in the shipped build.
+
+### Changed
+
+- **Removed per-broker synthetic fallbacks** (`Fake*Client`). Real broker clients are now registered
+  only when their SDK is available (IB/NT gated on a resolved DLL via `HAS_IBAPI`/`HAS_NTAPI`;
+  cTrader/Alpaca always restore from NuGet); offline runs use the new `Simulated` broker instead.
+  The `InteractiveBrokers`/`NinjaTrader` `UseRealClient` keys are no longer read.
+
 ## [1.0.0] — 2026-06-05
 
 First public release. A modular, multi-broker WPF trading terminal — **data and signals only,

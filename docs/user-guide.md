@@ -1,6 +1,6 @@
 # User guide
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-08
 
 A daily-use walkthrough for **using** the terminal. For installation and the first launch, see [getting-started.md](getting-started.md). For per-broker setup, see [brokers.md](brokers.md). For each feature in depth, follow the cross-links.
 
@@ -40,7 +40,7 @@ After **Sign in**, the main shell opens. The status bar at the bottom shows conn
 +--------------------------------------------------------------+
 ```
 
-- **Top header strip** — terminal wordmark, function-key tiles, active broker name + LIVE/FAKE mode badge, signed-in user, UTC clock.
+- **Top header strip** — terminal wordmark, function-key tiles, active broker name + connection-mode badge (the broker's mode, e.g. *Interactive Brokers* / *Paper Alpaca* / *Simulated (synthetic)* — green when any connected broker is live, amber otherwise), signed-in user, UTC clock.
 - **Strategies pane (left, full window height)** — list of every registered strategy. Double-click to open.
 - **Document area (centre)** — tabs for tools (Backtest, Recorder, Factor Research, Market Regime, Notifications) and inline strategy panes. Strategies usually open as their own **floating window**, not as a tab.
 - **Logs pane (bottom right)** — in-memory Serilog sink. Live tail of everything happening; turn on if a strategy isn't behaving.

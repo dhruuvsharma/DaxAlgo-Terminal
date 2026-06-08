@@ -15,6 +15,7 @@ using TradingTerminal.Infrastructure.Alpaca;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
+using TradingTerminal.Infrastructure.Simulation;
 #if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
 #endif
@@ -113,6 +114,25 @@ public static class DependencyInjection
                 Description: opt.IsLive
                     ? "Connected to api.alpaca.markets (funded account)."
                     : "Connected to paper-api.alpaca.markets (paper trading).");
+        });
+
+        // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
+        // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local
+        // store. Not wrapped in MeteredBrokerClient — there are no external API calls to count.
+        services.AddSingleton<IBrokerClient>(sp =>
+            ActivatorUtilities.CreateInstance<SimulatedBrokerClient>(sp));
+
+        services.AddSingleton<BrokerConnectionMode>(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<SimulatedBrokerOptions>>().Value;
+            var replay = opt.Mode == SimulatedFeedMode.Replay;
+            return new BrokerConnectionMode(
+                BrokerKind.Simulated,
+                IsLive: false,
+                DisplayName: replay ? "Simulated (replay)" : "Simulated (synthetic)",
+                Description: replay
+                    ? "Replays recorded data from the local store as a live feed — offline, no broker."
+                    : "In-process random-walk feed. Fully offline — no broker, no network.");
         });
 
         services.AddSingleton<IBrokerSelector, BrokerSelector>();

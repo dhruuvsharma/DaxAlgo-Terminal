@@ -16,7 +16,7 @@ Each backend has its own footguns. The seam (`IBrokerClient`) hides them from th
 - **The TWS API is not on NuGet.** Don't suggest `dotnet add package IBApi`.
 - **EWrapper callbacks are on the IB reader thread.** Always marshal to UI dispatcher inside `MarketDataRepository` before touching observable collections.
 - **Error 502** = TWS not running / wrong port. **Error 200** = no security found for contract. **Error 326** = clientId collision.
-- Real client is preferred over fake by default (`InteractiveBrokers:UseRealClient: true` in appsettings.json) since `C:\TWS API\` is the standard install path.
+- The IB client is wired purely by build-time DLL resolution (`HAS_IBAPI`) — there's no `UseRealClient` switch and no synthetic IB fallback. For offline runs use the always-registered `Simulated` broker instead. (The `UseRealClient` key still in `appsettings.json` is vestigial and ignored.)
 
 When in doubt, escalate to the `ib-api-expert` subagent.
 

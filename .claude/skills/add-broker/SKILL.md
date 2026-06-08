@@ -12,22 +12,22 @@ The app already has four broker backends: IB / NT / cTrader / Alpaca. Each opens
 ## Recipe
 
 1. **New folder** under `src/TradingTerminal.Infrastructure/<Broker>/` (e.g. `Tradovate/`).
-2. **Implement `IBrokerClient`** twice:
-   - `Real<Broker>Client` — talks to the actual SDK. If the SDK is a private DLL (not on NuGet), gate the file with `#if HAS_<BROKER>API` and add the resolution logic to `Infrastructure.csproj` (mirror the `HAS_IBAPI` / `HAS_NTAPI` blocks). If the SDK is a NuGet package, always wire it (mirror cTrader).
-   - `Fake<Broker>Client` — synthetic data for tests/offline. Must work without the SDK present.
-3. **Options class** — `<Broker>Options` in `Infrastructure/<Broker>/`. Read from `appsettings.json` via `IOptions<XxxOptions>`. `ConnectAsync` takes no parameters — it reads its own options.
-4. **DI block** in `App.xaml.cs`:
+2. **Implement `Real<Broker>Client : IBrokerClient`** — talks to the actual SDK. If the SDK is a private DLL (not on NuGet), gate the file with `#if HAS_<BROKER>API` and add the resolution logic to `Infrastructure.csproj` (mirror the `HAS_IBAPI` / `HAS_NTAPI` blocks); the client is then simply not registered when the DLL is absent. If the SDK is a NuGet package, always wire it (mirror cTrader). **There is no `Fake<Broker>Client`** — the project dropped per-broker synthetic fallbacks in favour of one always-registered `Simulated` broker (`SimulatedBrokerClient`) that covers all offline runs. Don't add a fake; if you need offline data, that's what `Simulated` is for.
+3. **Options class** — `<Broker>Options` in `Core/Configuration/`. Read from `appsettings.json` via `IOptions<XxxOptions>`. `ConnectAsync` takes no parameters — it reads its own options.
+4. **DI block** in `Infrastructure/DependencyInjection.cs` (not `App.xaml.cs` — that only `Configure`s the options section):
    ```csharp
-   services.Configure<TradovateOptions>(config.GetSection("Tradovate"));
-   if (config.GetValue<bool>("Tradovate:UseRealClient")) {
-       services.AddSingleton<IBrokerClient, RealTradovateClient>();
-   } else {
-       services.AddSingleton<IBrokerClient, FakeTradovateClient>();
-   }
+   // gate on HAS_TRADOVATEAPI if it's a sideloaded DLL; omit the #if for a NuGet SDK
+   services.AddSingleton<IBrokerClient>(sp =>
+       new MeteredBrokerClient(
+           ActivatorUtilities.CreateInstance<RealTradovateClient>(sp),
+           sp.GetRequiredService<IBrokerApiMeter>()));
+
+   services.AddSingleton<BrokerConnectionMode>(sp => new BrokerConnectionMode(
+       BrokerKind.Tradovate, IsLive: true, DisplayName: "Tradovate", Description: "…"));
    ```
-   Register alongside the existing IB/NT/cTrader blocks.
+   Register alongside the existing IB/NT/cTrader/Alpaca/Simulated blocks. In `App.xaml.cs`, add the matching `services.Configure<TradovateOptions>(ctx.Configuration.GetSection(TradovateOptions.SectionName));`.
 5. **Login form** — add a new `<Broker>LoginFormViewModel : IBrokerLoginForm` in `src/TradingTerminal.Login/Forms/`. Register it twice in `LoginServiceCollectionExtensions.AddLogin` (in `TradingTerminal.Login`) (as concrete + as `IBrokerLoginForm` factory delegate, mirroring the four existing forms). It pushes user-supplied creds into `<Broker>Options` before flipping `IBrokerSelector`.
-6. **appsettings.json** — add a `"Tradovate": { "UseRealClient": false, ... }` section.
+6. **appsettings.json** — add a `"Tradovate": { ... }` section (no `UseRealClient` switch — availability is decided by SDK/DLL presence at build time).
 7. **Trade tape** — `SubscribeTradesAsync` returns `IAsyncEnumerable<TradeTick>`. If the SDK exposes per-print trade flow with an aggressor flag, wire it (mirror IB's `reqTickByTickData("AllLast")` pattern). Otherwise throw `NotSupportedException` and add the broker to the no-trade-tape capability matrix in [[project-strategy-ideas]].
 8. **Instrument discovery** — if the broker has a symbol search / contract universe endpoint, register an `IInstrumentDiscoveryService` impl so the universe tab + dropdown can resolve canonical `InstrumentId`s.
 

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-08
 
 Consolidated symptom → likely cause / fix table across every subsystem. For deeper context, follow the cross-links.
 
@@ -11,7 +11,7 @@ Consolidated symptom → likely cause / fix table across every subsystem. For de
 | `dotnet build` complains about missing .NET 8 SDK | This project targets `net9.0-windows`. Install the .NET 9 SDK. |
 | Tests fail with a STA error | The `Xunit.StaFact` package didn't restore. The WPF-touching test uses `[WpfFact]` which spins up an STA thread. Run `dotnet restore` again. |
 | Build error after pulling: `_wpftmp.csproj` can't see a type | WPF `MarkupCompilePass1` limitation. Clean `obj/` and rebuild, OR move the offending type to a referenced assembly. |
-| `IB CSharpAPI resolved from:` is missing from the build output | `CSharpAPI.dll` couldn't be found. See [brokers.md](brokers.md#dll-resolution-order). The synthetic `FakeIbClient` will run instead. |
+| `IB CSharpAPI resolved from:` is missing from the build output | `CSharpAPI.dll` couldn't be found, so IB isn't registered (no synthetic IB fallback). See [brokers.md](brokers.md#dll-resolution-order). To run offline, use the `Simulated` backend (e.g. the `Dev: Simulated (offline)` launch profile). |
 | `NTDirect resolved from:` is missing | `NTDirect.dll` couldn't be found at any of the resolution paths. See [brokers.md](brokers.md#dll-resolution-order). |
 
 ## Interactive Brokers
@@ -22,13 +22,13 @@ Consolidated symptom → likely cause / fix table across every subsystem. For de
 | `IB error 502: Couldn't connect to TWS` | API mode not enabled in TWS. Enable **API → Settings → Enable ActiveX and Socket Clients** and add `127.0.0.1` to trusted IPs. |
 | `IB error 326: client id is already in use` | Change `InteractiveBrokers:ClientId` to a value not used by any other client (Excel, Bookmap, another instance of the terminal). |
 | `IB error 10089: requires additional subscription` | No real-time market-data sub on that contract. Switch `MarketDataType` to `3` (Delayed) in the login form. |
-| Chart shows synthetic random-walk bars | `RealIbClient` wasn't compiled in (no `IB CSharpAPI resolved from:` line at build time). Drop `CSharpAPI.dll` into `lib/` or install TWS API to its standard path. |
+| Chart shows synthetic random-walk bars | You're connected to the `Simulated` broker (a dev launch profile, or `Dev:AutoConnectBrokers` includes `Simulated`). For real IB data, connect the Interactive Brokers tile — and make sure `RealIbClient` was compiled in (`IB CSharpAPI resolved from:` at build time; drop `CSharpAPI.dll` into `lib/` or install TWS API to its standard path). |
 
 ## NinjaTrader 8
 
 | Symptom | Cause / fix |
 |---|---|
-| `rc != 0` on connect | NT 8 isn't running, or **Tools → Options → AT Interface → AT Interface enabled** isn't ticked, or `UseRealClient` is false. |
+| `rc != 0` on connect | NT 8 isn't running, or **Tools → Options → AT Interface → AT Interface enabled** isn't ticked. (The NT client is wired purely by `NTDirect.dll` resolution at build time — there's no `UseRealClient` switch; if it isn't registered at all, the `NTDirect resolved from:` line was missing from the build.) |
 | `DllNotFoundException` on connect | `NTDirect.dll` wasn't copied next to the assembly. Verify the build printed `NTDirect resolved from:`. |
 | Charts show flat lines / no bars | NT has no historical bar API; the client synthesizes a series anchored on the current `LastPrice`. Expected — get a real broker if you need real history. |
 | `Tick.BidSize` / `Tick.AskSize` always 0 | NTDirect doesn't expose L1 sizes. Expected — there is no workaround inside the AT Interface. |

@@ -1,6 +1,6 @@
 # Getting started
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-08
 
 The shortest path from a clean clone to a running shell. For broker-specific configuration after the first launch, see [brokers.md](brokers.md). For the daily-use walkthrough, see [user-guide.md](user-guide.md).
 
@@ -12,7 +12,7 @@ The shortest path from a clean clone to a running shell. For broker-specific con
 | .NET SDK | 9.x (target framework is `net9.0-windows`) |
 | Git | any recent version |
 
-You do **not** need any broker installed to build and run — the synthetic `Fake*Client` random-walks run out of the box for IB, NinjaTrader, and cTrader. Alpaca has no synthetic fallback, so the Alpaca tile only works once credentials are filled in.
+You do **not** need any broker installed to build and run. The always-registered **`Simulated` broker** (`BrokerKind.Simulated`) serves a synthetic random-walk feed — or replay of your local store — so the whole app runs fully offline with no broker, no network, and no Docker. The four real broker tiles (IB / NinjaTrader / cTrader / Alpaca) only connect once their SDK is wired and credentials are filled in. The quickest offline launch is the **`Dev: Simulated (offline)`** profile below, which skips login entirely.
 
 Optional:
 
@@ -44,12 +44,24 @@ dotnet run --project src/TradingTerminal.App -c Release
 
 The login window opens with four broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca. Pick one, fill in the form, and click **Sign in**. On success, the main shell opens.
 
-Quick smoke test without any broker:
+### Dev launch profiles (skip login, run offline)
 
-1. Pick the **Interactive Brokers** tile.
-2. Leave the host/port at defaults.
-3. Untick `UseRealClient` in `appsettings.json` first (so `FakeIbClient` is wired), or just connect anyway and let the IB connect fail — the rest of the app still launches.
-4. Double-click any strategy in the left pane to open it and watch synthetic ticks flow.
+For development the fastest path is a launch profile that bypasses login and auto-connects the `Simulated` broker. `src/TradingTerminal.App/Properties/launchSettings.json` defines them; each is selected by `DOTNET_ENVIRONMENT`, which layers an `appsettings.{Env}.json` (repo root) over `appsettings.json`.
+
+| Profile | `DOTNET_ENVIRONMENT` | Behaviour |
+|---|---|---|
+| `App (Login)` | *(none)* | Normal — login window shown. |
+| `Dev: Simulated (offline)` | `DevSim` | No login; `Simulated` broker, **Synthetic** random-walk. Fully offline (SQLite, no Docker/network). |
+| `Dev: Replay (local DB)` | `DevReplay` | No login; `Simulated` broker, **Replay** of the local store (10× clock), synthetic fallback where no data. |
+| `Dev: Live (no login)` | `DevLive` | No login; auto-connects a real broker (default IB) using saved credentials. |
+
+Pick one from the Visual Studio debug-target dropdown, or set the environment from the shell:
+
+```powershell
+$env:DOTNET_ENVIRONMENT = "DevSim"; dotnet run --project src/TradingTerminal.App
+```
+
+Then double-click any strategy in the left pane to open it and watch ticks flow. These dev files are off in the shipped build. See [configuration.md](configuration.md#dev-launch-profiles) for the `Dev` / `SimulatedBroker` keys.
 
 ## Repo layout (at a glance)
 

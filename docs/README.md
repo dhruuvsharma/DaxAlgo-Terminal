@@ -1,6 +1,6 @@
 # DaxAlgo Terminal — Documentation
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-08
 
 Focused documentation for the DaxAlgo Terminal. The repo-root [README](../README.md) is a one-page landing; this folder is where the detail lives.
 
@@ -38,5 +38,5 @@ Focused documentation for the DaxAlgo Terminal. The repo-root [README](../README
 
 - All timestamps in docs are UTC; instrument bar timestamps are UTC unless explicitly stated.
 - All paths assume Windows (`%LOCALAPPDATA%\…`); the project is `net9.0-windows` and not cross-platform.
-- "Live mode" means the real broker SDK is wired; "synthetic / fake mode" means the `Fake*Client` random-walk fallback (available for IB, NT, cTrader — not Alpaca).
+- "Live mode" means a real broker SDK is wired and connected; "offline / simulated mode" means the always-registered `Simulated` broker — a synthetic random-walk feed or replay of the local store, wired up by the dev launch profiles.
 - Code references use `file:line` so they remain valid when read in any editor.

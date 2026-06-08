@@ -32,9 +32,9 @@ dotnet build -c Release
 dotnet run --project src/TradingTerminal.App -c Release
 ```
 
-You don't need any broker installed to build and run — the synthetic `Fake*Client` random-walks run out of the box for IB, NT, and cTrader. Alpaca is the only broker that requires real credentials.
+You don't need any broker installed to build and run — the always-registered **`Simulated` broker** serves a synthetic random-walk feed (or replay of your local store) so the whole app runs fully offline. The dev launch profiles (`Dev: Simulated (offline)` etc.) even skip the login window and auto-connect it.
 
-For setup details (DLL resolution, port numbers, OAuth flow, API keys), see [docs/getting-started.md](docs/getting-started.md) and [docs/brokers.md](docs/brokers.md).
+For setup details (DLL resolution, port numbers, OAuth flow, API keys, dev launch profiles), see [docs/getting-started.md](docs/getting-started.md) and [docs/brokers.md](docs/brokers.md).
 
 ## Screenshots
 

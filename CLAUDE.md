@@ -106,7 +106,20 @@ dotnet test
 dotnet run --project src/TradingTerminal.App
 ```
 
-Defaults: `InteractiveBrokers:UseRealClient: true` (TWS API at `C:\TWS API\`); NinjaTrader `false`; cTrader needs OAuth at login; Alpaca needs ApiKey+Secret (`IsLive` toggles paper/live; live stock stream pinned to IEX). No broker required to build/run — `Fake*Client` random-walks work out of the box.
+Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` from `C:\TWS API\`; `HAS_NTAPI` from `NTDirect.dll`) — there's no `UseRealClient` switch and no per-broker synthetic fallback; cTrader needs OAuth at login; Alpaca needs ApiKey+Secret (`IsLive` toggles paper/live; live stock stream pinned to IEX). No broker required to build/run — the `Simulated` broker (`BrokerKind.Simulated`, `SimulatedBrokerClient` in `Infrastructure/Simulation/`) is always registered and serves a synthetic random-walk feed or local-store replay.
+
+### Dev launch profiles (login bypass + data-source switch)
+
+`src/TradingTerminal.App/Properties/launchSettings.json` defines profiles selected by `DOTNET_ENVIRONMENT`, each layering an `appsettings.{Env}.json` (repo root) over `appsettings.json`. `DevOptions.BypassLogin` skips the login window and auto-connects `DevOptions.AutoConnectBrokers`; `SimulatedBrokerOptions` drives the feed.
+
+| Profile | `DOTNET_ENVIRONMENT` | Behaviour |
+|---|---|---|
+| `App (Login)` | *(none)* | Normal — login window shown. |
+| `Dev: Simulated (offline)` | `DevSim` | No login; `Simulated` broker, **Synthetic** random-walk. Fully offline (SQLite, no Docker/network). |
+| `Dev: Replay (local DB)` | `DevReplay` | No login; `Simulated` broker, **Replay** of the local store (10× clock), synthetic fallback where no data. |
+| `Dev: Live (no login)` | `DevLive` | No login; auto-connects a real broker (default IB) using saved credentials. |
+
+Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/TradingTerminal.App`. These dev files are off in the shipped build.
 
 ## What NOT to do
 

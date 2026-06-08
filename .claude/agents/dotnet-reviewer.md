@@ -32,12 +32,12 @@ You are the pre-commit reviewer for **DaxAlgo Terminal** (WPF + .NET 9 + IB TWS 
 - `internal` by default; `public` only at module boundaries.
 - Comments only when the *why* is non-obvious. Flag comments that just restate the code.
 - No defensive null-checks on internal calls.
-- New `IIbClient` methods must exist in BOTH `RealIbClient` (under `#if HAS_IBAPI`) and `FakeIbClient`. Asymmetry is a blocker.
+- IB SDK calls live directly in `RealIbClient` under `#if HAS_IBAPI` — there's no `IIbClient`/`FakeIbClient` pair to keep in sync. Flag any `IBApi.*` reference that escapes an `#if HAS_IBAPI` block.
 
 ## Test coverage check
 
 - Any change to a strategy view-model should have a corresponding test in `TradingTerminal.Tests`.
-- Any change to `MarketDataRepository`, `ConnectionManager`, or `IIbClient` surface should have a test using `FakeIbClient` or `NSubstitute`.
+- Any change to `MarketDataRepository`, `ConnectionManager`, or the `IBrokerClient` surface should have a test using `NSubstitute` (or the `Simulated` broker for end-to-end data flow).
 - Flag missing tests as a blocker if the new code is non-trivial.
 
 ## Output format

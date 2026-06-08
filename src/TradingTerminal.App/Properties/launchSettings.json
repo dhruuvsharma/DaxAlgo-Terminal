@@ -1,0 +1,25 @@
+{
+  "profiles": {
+    "App (Login)": {
+      "commandName": "Project"
+    },
+    "Dev: Simulated (offline)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSim"
+      }
+    },
+    "Dev: Replay (local DB)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevReplay"
+      }
+    },
+    "Dev: Live (no login)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevLive"
+      }
+    }
+  }
+}

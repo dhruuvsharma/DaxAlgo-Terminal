@@ -5,11 +5,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Serilog;
 using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Login;
 using TradingTerminal.Infrastructure;
@@ -59,6 +61,11 @@ public partial class App : Application
             {
                 cfg.SetBasePath(assemblyDir);
                 cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                // Per-environment dev overrides (selected via DOTNET_ENVIRONMENT from the launch
+                // profiles: DevLive / DevReplay / DevSim). Layered over appsettings.json but under
+                // appsettings.local.json so a developer's local file still wins.
+                cfg.AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json",
+                    optional: true, reloadOnChange: true);
                 cfg.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
                 // Per-user override files edited by the Settings tabs. Layered last so the
@@ -90,6 +97,13 @@ public partial class App : Application
                     ctx.Configuration.GetSection(CTraderOptions.SectionName));
                 services.Configure<AlpacaOptions>(
                     ctx.Configuration.GetSection(AlpacaOptions.SectionName));
+
+                // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
+                // turned on by the DevLive/DevReplay/DevSim environment files).
+                services.Configure<DevOptions>(
+                    ctx.Configuration.GetSection(DevOptions.SectionName));
+                services.Configure<SimulatedBrokerOptions>(
+                    ctx.Configuration.GetSection(SimulatedBrokerOptions.SectionName));
 
                 // Cross-cutting infrastructure
                 services.AddSingleton(inMemoryLogSink);
@@ -135,7 +149,12 @@ public partial class App : Application
         // Hold the app open across the login → main-window transition.
         ShutdownMode = ShutdownMode.OnLastWindowClose;
 
-        ShowLoginAndProceed();
+        // Dev launch profiles can skip the login window entirely (see DevOptions).
+        var dev = _host.Services.GetRequiredService<IOptions<DevOptions>>().Value;
+        if (dev.BypassLogin)
+            await ConnectAndShowMainAsync(dev);
+        else
+            ShowLoginAndProceed();
     }
 
     private void ShowLoginAndProceed()
@@ -155,16 +174,56 @@ public partial class App : Application
             return;
         }
 
+        var mainWindow = ShowMain();
+        loginWindow.Close();
+        RunSupportPrompt(mainWindow);
+    }
+
+    /// <summary>
+    /// Dev login-bypass path: auto-connect the configured brokers (same call the login forms make,
+    /// non-blocking — connection state flows reactively into the shell) and open the main window.
+    /// A broker that's unavailable or fails to connect is logged to the Activity Log, never fatal.
+    /// </summary>
+    private async Task ConnectAndShowMainAsync(DevOptions dev)
+    {
+        var selector = _host!.Services.GetRequiredService<IBrokerSelector>();
+        var log = _host.Services.GetRequiredService<InMemoryLogSink>();
+
+        foreach (var kind in dev.AutoConnectBrokers)
+        {
+            if (!selector.IsAvailable(kind))
+            {
+                log.Append("Dev", "Warning", $"Auto-connect skipped — broker {kind} is not available in this build.");
+                continue;
+            }
+
+            try
+            {
+                log.Append("Dev", "Information", $"Login bypassed — auto-connecting {kind}…");
+                await selector.ConnectAsync(kind);
+            }
+            catch (Exception ex)
+            {
+                log.Append("Dev", "Error", $"Auto-connect {kind} failed: {ex.Message}");
+            }
+        }
+
+        RunSupportPrompt(ShowMain());
+    }
+
+    private Window ShowMain()
+    {
         var mainFactory = _host!.Services.GetRequiredService<IMainShellFactory>();
         var mainWindow = mainFactory.Create();
         MainWindow = mainWindow;
         mainWindow.Show();
-        loginWindow.Close();
-
-        // Friendly once-per-launch "support the developer" nudge, after a short randomised delay.
-        _host.Services.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
-            .MaybeShowOnLaunch(mainWindow);
+        return mainWindow;
     }
+
+    /// <summary>Friendly once-per-launch "support the developer" nudge, after a short randomised delay.</summary>
+    private void RunSupportPrompt(Window owner) =>
+        _host!.Services.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
+            .MaybeShowOnLaunch(owner);
 
     protected override async void OnExit(ExitEventArgs e)
     {
