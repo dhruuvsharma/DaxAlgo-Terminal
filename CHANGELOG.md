@@ -8,6 +8,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- **Binance backend** (`BrokerKind.Binance`, `RealBinanceClient`) — real, live crypto market data
+  (bars, L1 `@bookTicker`, L2 `@depth`, `@trade` tape) over Binance's **public** WebSocket + REST,
+  with **no API key and no account**. Always registered (no SDK/NuGet — raw `ClientWebSocket` +
+  `HttpClient` + `System.Text.Json`), with a per-stream reconnect loop and a no-fields
+  **Binance (no login)** tile. The zero-credential way to run the terminal against a real feed.
+  Configured via the `Binance` section (`BinanceOptions`); geo-blocked regions can repoint to
+  Binance.US / data-api.binance.vision hosts.
 - **`Simulated` broker** (`BrokerKind.Simulated`, `SimulatedBrokerClient`) — an always-registered,
   in-process `IBrokerClient` with no broker and no network. Two feed modes: a deterministic
   random-walk (**Synthetic**) or speed-scaled **Replay** of the local market-data store. Supports

@@ -34,6 +34,9 @@ public static class LoginServiceCollectionExtensions
         services.AddSingleton<AlpacaLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<AlpacaLoginFormViewModel>());
 
+        services.AddSingleton<BinanceLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<BinanceLoginFormViewModel>());
+
         services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
         return services;
     }

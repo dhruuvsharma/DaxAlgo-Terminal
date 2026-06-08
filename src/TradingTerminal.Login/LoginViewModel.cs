@@ -84,11 +84,13 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public NinjaLoginFormViewModel? NinjaForm => AvailableForms.OfType<NinjaLoginFormViewModel>().FirstOrDefault();
     public CTraderLoginFormViewModel? CTraderForm => AvailableForms.OfType<CTraderLoginFormViewModel>().FirstOrDefault();
     public AlpacaLoginFormViewModel? AlpacaForm => AvailableForms.OfType<AlpacaLoginFormViewModel>().FirstOrDefault();
+    public BinanceLoginFormViewModel? BinanceForm => AvailableForms.OfType<BinanceLoginFormViewModel>().FirstOrDefault();
 
     public bool HasIb => IbForm is not null;
     public bool HasNinja => NinjaForm is not null;
     public bool HasCTrader => CTraderForm is not null;
     public bool HasAlpaca => AlpacaForm is not null;
+    public bool HasBinance => BinanceForm is not null;
 
     [ObservableProperty]
     private int _connectedCount;
@@ -211,6 +213,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         BrokerKind.NinjaTrader => "NinjaTrader",
         BrokerKind.CTrader => "cTrader",
         BrokerKind.Alpaca => "Alpaca",
+        BrokerKind.Binance => "Binance",
         _ => kind.ToString(),
     };
 

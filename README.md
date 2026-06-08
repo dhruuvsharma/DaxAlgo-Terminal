@@ -32,9 +32,9 @@ dotnet build -c Release
 dotnet run --project src/TradingTerminal.App -c Release
 ```
 
-You don't need any broker installed to build and run — the always-registered **`Simulated` broker** serves a synthetic random-walk feed (or replay of your local store) so the whole app runs fully offline. The dev launch profiles (`Dev: Simulated (offline)` etc.) even skip the login window and auto-connect it.
+You don't need any broker account to build and run. The **`Binance`** tile streams real, live crypto data (bars, L1, **L2 depth**, trades) over Binance's public WebSocket with **no API key and no account** — just click Connect. For a fully-offline run, the always-registered **`Simulated` broker** serves a synthetic random-walk feed (or replay of your local store); the dev launch profiles (`Dev: Simulated (offline)` etc.) even skip the login window.
 
-For setup details (DLL resolution, port numbers, OAuth flow, API keys, dev launch profiles), see [docs/getting-started.md](docs/getting-started.md) and [docs/brokers.md](docs/brokers.md).
+For setup details (DLL resolution, port numbers, OAuth flow, API keys, the keyless Binance feed, dev launch profiles), see [docs/getting-started.md](docs/getting-started.md) and [docs/brokers.md](docs/brokers.md).
 
 ## Screenshots
 

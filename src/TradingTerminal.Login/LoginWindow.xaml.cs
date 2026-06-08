@@ -38,5 +38,7 @@ public partial class LoginWindow : MetroWindow
             CTraderFormHost.Content = new CTraderLoginForm { DataContext = ct };
         if (vm.AlpacaForm is { } al)
             AlpacaFormHost.Content = new AlpacaLoginForm { DataContext = al };
+        if (vm.BinanceForm is { } bn)
+            BinanceFormHost.Content = new BinanceLoginForm { DataContext = bn };
     }
 }

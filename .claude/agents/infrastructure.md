@@ -8,7 +8,7 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 You are the **TradingTerminal.Infrastructure** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.Infrastructure/`.
 
 ## Owns
-- Broker clients behind `IBrokerClient`: `Ib/`, `NinjaTrader/`, `CTrader/`, `Alpaca/` (real clients only — no per-broker fakes) plus `Simulation/` (`SimulatedBrokerClient`, the always-registered offline synthetic/replay backend behind `BrokerKind.Simulated`).
+- Broker clients behind `IBrokerClient`: `Ib/`, `NinjaTrader/`, `CTrader/`, `Alpaca/` (real clients only — no per-broker fakes), `Binance/` (`RealBinanceClient` — keyless public crypto WS/REST, always registered), plus `Simulation/` (`SimulatedBrokerClient`, the always-registered offline synthetic/replay backend behind `BrokerKind.Simulated`).
 - Backtest engine (`Backtest/`: `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, fee/risk models) and engine-side `IBacktestStrategy` impls (`Backtest/Strategies/`).
 - Notifications transports, regime services, `WpfDispatcher`.
 

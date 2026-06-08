@@ -12,6 +12,7 @@ using TradingTerminal.Infrastructure.Backtest.Persistence;
 using TradingTerminal.Infrastructure.Brokers;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Infrastructure.Alpaca;
+using TradingTerminal.Infrastructure.Binance;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.MarketData;
@@ -115,6 +116,21 @@ public static class DependencyInjection
                     ? "Connected to api.alpaca.markets (funded account)."
                     : "Connected to paper-api.alpaca.markets (paper trading).");
         });
+
+        // Binance — always available (public market data over WebSocket + REST; no SDK, no key,
+        // no account). Real, live crypto bars / L1 / L2 / trades — the zero-credential way to run
+        // the terminal against a real feed. Metered like the other networked brokers.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealBinanceClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
+                BrokerKind.Binance,
+                IsLive: true,
+                DisplayName: "Binance (live data)",
+                Description: "Public Binance market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
 
         // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
         // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local

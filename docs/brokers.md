@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-08
 
-The terminal speaks to four real broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), and **Alpaca** (REST + WebSocket via `Alpaca.Markets`) — plus an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
+The terminal speaks to four account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), and **Alpaca** (REST + WebSocket via `Alpaca.Markets`). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
@@ -22,6 +22,7 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | NinjaTrader 8 | `NTDirect.dll` P/Invoke (ANSI) | Wired when `NTDirect.dll` is found at build time | Synthesized (NTDirect has no historical export) | Real, polled at 200 ms | Not exposed by NTDirect — out of scope | Real, via `NTDirect.Command(...)` |
 | cTrader | TLS + protobuf to Spotware cloud | Always wired (NuGet package always restores) | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | Real, push (`ProtoOASubscribeDepthQuotesReq`) | Real, via `ProtoOANewOrderReq` |
 | Alpaca | REST (history) + WebSocket (live) | Always wired (NuGet package always restores) | Real (`HistoricalBarsRequest` / `HistoricalCryptoBarsRequest`) | Real, push (`IAlpacaDataStreamingClient`) | Not exposed by Alpaca — throws | Not yet wired |
+| Binance | Public WebSocket + REST (no SDK) | Always wired — **no key, no account** | Real (`/api/v3/klines`) | Real, push (`@bookTicker`) | Real, push (`@depth{5\|10\|20}@100ms`) | n/a (data/signals only) |
 | Simulated | In-process, no SDK, no network | Always registered | Replay from local store | Synthetic random-walk **or** store replay | Supported (synthetic + replay) | n/a (data/signals only) |
 
 There are **no per-broker synthetic fallbacks** — each real client is registered only when its SDK is available (IB/NT gated on a resolved DLL; cTrader/Alpaca always restore from NuGet), and a connect simply fails if the broker isn't reachable. To run with no broker at all, use the always-registered **`Simulated`** backend instead (see [below](#simulated-offline-development)).
@@ -175,6 +176,48 @@ Paste both into the Alpaca tile on the login screen. Tick **Use live endpoint** 
 
 - **No L2 depth.** Alpaca only exposes L1 NBBO quotes; `SubscribeDepthAsync` throws `NotSupportedException`. Use IB (when wired) or cTrader for L2.
 - **Credentials are mandatory.** Like every real broker, Alpaca has no synthetic fallback — to run without credentials, use the `Simulated` backend below.
+
+## Binance (public market data — no key)
+
+`BrokerKind.Binance` (`RealBinanceClient`, in `Infrastructure/Binance/`) streams real, live crypto market data from Binance's **public** WebSocket + REST endpoints. These need **no API key and no account**, so it's the zero-credential way to run the terminal against a real feed — ideal for demos and first-run evaluation. It's always registered (no SDK or NuGet dependency — just `ClientWebSocket` + `HttpClient` + `System.Text.Json`).
+
+On the login screen it shows as a **Binance (no login)** tile with no fields — just click **Connect**. It carries the full data surface for crypto pairs:
+
+| Channel | Binance stream / endpoint |
+|---|---|
+| L1 ticks | `<symbol>@bookTicker` |
+| L2 depth | `<symbol>@depth{5\|10\|20}@100ms` (partial-book snapshots — no reconstruction needed) |
+| Trade tape | `<symbol>@trade` (the `m` maker flag maps to the aggressor side) |
+| Live bars | `<symbol>@kline_<interval>` |
+| Historical bars | REST `GET /api/v3/klines` |
+
+So unlike the equity backends, Binance gives the order book / footprint / 3D cube strategies real depth + trade flow with zero setup.
+
+### `appsettings.json` keys
+
+```json
+"Binance": {
+  "RestBaseUrl": "https://api.binance.com",
+  "WsBaseUrl": "wss://stream.binance.com:9443",
+  "Instruments": [ "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT" ],
+  "SizeScale": 1000.0
+}
+```
+
+- **`Instruments`** — curated symbols (Binance native form, no slash) shown in the picker. Subscriptions accept any valid Binance symbol regardless.
+- **`SizeScale`** — crypto quantities are fractional but the canonical size fields are integers (`long`); every size (quote/depth/bar volume) is multiplied by this and rounded so the order-book / footprint views stay non-zero and comparable. Purely a relative-size scale.
+
+### Geo-blocking
+
+The global `api.binance.com` / `stream.binance.com` hosts are unavailable in some regions (notably the US). If `Connect` fails with a reachability error, point the two base URLs at an accessible host:
+
+- **Binance.US**: `https://api.binance.us` + `wss://stream.binance.us:9443`
+- **Data-only mirror**: `https://data-api.binance.vision` + `wss://data-stream.binance.vision`
+
+### Limitations
+
+- **Crypto only.** Binance is a crypto exchange — no equities/futures/FX. For real equity data use IB or Alpaca; for FX/CFD with L2 use a free cTrader demo.
+- **Data only.** No order path (the whole build is data/signals only). Live bars come from the kline stream; `RequestHistoricalBarsAsync` pulls up to 1000 klines per call.
 
 ## Simulated (offline development)
 

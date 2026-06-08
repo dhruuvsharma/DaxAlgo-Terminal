@@ -97,6 +97,8 @@ public partial class App : Application
                     ctx.Configuration.GetSection(CTraderOptions.SectionName));
                 services.Configure<AlpacaOptions>(
                     ctx.Configuration.GetSection(AlpacaOptions.SectionName));
+                services.Configure<BinanceOptions>(
+                    ctx.Configuration.GetSection(BinanceOptions.SectionName));
 
                 // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
                 // turned on by the DevLive/DevReplay/DevSim environment files).

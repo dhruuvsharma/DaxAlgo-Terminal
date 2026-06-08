@@ -1,0 +1,140 @@
+using System.Text.Json;
+using FluentAssertions;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.Infrastructure.Binance;
+using Xunit;
+
+namespace TradingTerminal.Tests.Infrastructure;
+
+/// <summary>
+/// Offline tests for the Binance public-feed JSON parsers. No network — they feed the parsers
+/// real Binance payload shapes and assert the mapping into the canonical domain records.
+/// </summary>
+public sealed class BinanceParsingTests
+{
+    private const double Scale = 1000.0;
+
+    private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
+
+    [Fact]
+    public void ParseBookTicker_maps_bid_ask_and_scales_sizes()
+    {
+        var el = Json("""{"u":400900217,"s":"BTCUSDT","b":"25.35","B":"0.5","a":"25.36","A":"1.25"}""");
+
+        var tick = RealBinanceClient.ParseBookTicker(el, Scale);
+
+        tick.Should().NotBeNull();
+        tick!.Bid.Should().Be(25.35);
+        tick.Ask.Should().Be(25.36);
+        tick.BidSize.Should().Be(500);   // 0.5  * 1000
+        tick.AskSize.Should().Be(1250);  // 1.25 * 1000
+    }
+
+    [Fact]
+    public void ParseBookTicker_returns_null_on_unexpected_shape()
+    {
+        RealBinanceClient.ParseBookTicker(Json("""{"result":null,"id":1}"""), Scale).Should().BeNull();
+        RealBinanceClient.ParseBookTicker(Json("\"pong\""), Scale).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(true, AggressorSide.Sell)]   // buyer is the maker → seller initiated
+    [InlineData(false, AggressorSide.Buy)]   // buyer is the taker → buyer initiated
+    public void ParseTrade_maps_maker_flag_to_aggressor(bool buyerIsMaker, AggressorSide expected)
+    {
+        var el = Json($$"""{"e":"trade","E":1700000000123,"s":"BTCUSDT","p":"42010.5","q":"3","T":1700000000100,"m":{{(buyerIsMaker ? "true" : "false")}}}""");
+
+        var trade = RealBinanceClient.ParseTrade(el);
+
+        trade.Should().NotBeNull();
+        trade!.Price.Should().Be(42010.5);
+        trade.Size.Should().Be(3);
+        trade.Aggressor.Should().Be(expected);
+        trade.TimestampUtc.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1700000000100).UtcDateTime);
+    }
+
+    [Fact]
+    public void ParseDepth_builds_snapshot_preserving_side_order()
+    {
+        var el = Json("""
+            {
+              "lastUpdateId": 160,
+              "bids": [["100.5","2"],["100.4","1.5"]],
+              "asks": [["100.6","0.25"],["100.7","4"]]
+            }
+            """);
+
+        var depth = RealBinanceClient.ParseDepth(el, Scale);
+
+        depth.Should().NotBeNull();
+        depth!.Bids.Should().HaveCount(2);
+        depth.Asks.Should().HaveCount(2);
+        depth.BestBid.Should().Be(100.5);
+        depth.BestBidSize.Should().Be(2000);  // 2 * 1000
+        depth.BestAsk.Should().Be(100.6);
+        depth.BestAskSize.Should().Be(250);   // 0.25 * 1000
+    }
+
+    [Fact]
+    public void ParseKline_maps_ohlcv_and_open_time()
+    {
+        var el = Json("""
+            {
+              "e":"kline","E":1700000005000,"s":"BTCUSDT",
+              "k":{"t":1700000000000,"T":1700000059999,"i":"1m",
+                   "o":"100","h":"110","l":"95","c":"105","v":"12.5","x":false}
+            }
+            """);
+
+        var bar = RealBinanceClient.ParseKline(el, Scale);
+
+        bar.Should().NotBeNull();
+        bar!.Open.Should().Be(100);
+        bar.High.Should().Be(110);
+        bar.Low.Should().Be(95);
+        bar.Close.Should().Be(105);
+        bar.Volume.Should().Be(12500); // 12.5 * 1000
+        bar.TimestampUtc.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1700000000000).UtcDateTime);
+    }
+
+    [Fact]
+    public void ParseHistoricalKlines_maps_rows_oldest_first()
+    {
+        var el = Json("""
+            [
+              [1700000000000,"100","110","95","105","10",1700000059999,"0",5,"0","0","0"],
+              [1700000060000,"105","112","104","108","20",1700000119999,"0",7,"0","0","0"]
+            ]
+            """);
+
+        var bars = RealBinanceClient.ParseHistoricalKlines(el, Scale);
+
+        bars.Should().HaveCount(2);
+        bars[0].Open.Should().Be(100);
+        bars[0].Volume.Should().Be(10000); // 10 * 1000
+        bars[1].Close.Should().Be(108);
+        bars[1].TimestampUtc.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1700000060000).UtcDateTime);
+    }
+
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(5, 5)]
+    [InlineData(7, 10)]
+    [InlineData(10, 10)]
+    [InlineData(11, 20)]
+    [InlineData(50, 20)]
+    public void BinanceDepthLevels_snaps_to_supported_tiers(int requested, int expected)
+    {
+        RealBinanceClient.BinanceDepthLevels(requested).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(BarSize.OneMinute, "1m")]
+    [InlineData(BarSize.FiveMinutes, "5m")]
+    [InlineData(BarSize.OneHour, "1h")]
+    [InlineData(BarSize.OneDay, "1d")]
+    public void MapInterval_maps_bar_sizes(BarSize size, string expected)
+    {
+        RealBinanceClient.MapInterval(size).Should().Be(expected);
+    }
+}

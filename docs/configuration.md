@@ -65,6 +65,19 @@ OAuth credentials are entered on the login form, never in `appsettings.json`.
 | `ReconnectInitialDelaySeconds` | `1` | Initial backoff. |
 | `ReconnectMaxDelaySeconds` | `30` | Cap on backoff. |
 
+### `Binance`
+
+Real, live crypto market data from Binance's **public** WebSocket + REST endpoints — **no API key, no account**. See [brokers.md](brokers.md#binance-public-market-data-no-key).
+
+| Key | Default | Notes |
+|---|---|---|
+| `RestBaseUrl` | `https://api.binance.com` | Ping + historical klines. Use `https://api.binance.us` or `https://data-api.binance.vision` if the global host is geo-blocked. |
+| `WsBaseUrl` | `wss://stream.binance.com:9443` | Live streams (`/ws/<stream>`). Match the REST host's region (`wss://stream.binance.us:9443` / `wss://data-stream.binance.vision`). |
+| `Instruments` | `BTCUSDT … LTCUSDT` (10) | Curated symbols (native form, no slash) shown in the picker. Subscriptions accept any valid Binance symbol. |
+| `SizeScale` | `1000.0` | Fractional crypto sizes × this, rounded to the integer canonical size fields, so order-book/footprint sizes stay non-zero. Relative-size scale only. |
+| `ReconnectInitialDelaySeconds` | `1` | Initial backoff for the per-stream WebSocket reconnect. |
+| `ReconnectMaxDelaySeconds` | `30` | Cap on backoff. |
+
 ## Dev launch profiles
 
 `src/TradingTerminal.App/Properties/launchSettings.json` defines launch profiles that set `DOTNET_ENVIRONMENT`, which layers a matching `appsettings.{Env}.json` (repo root) over `appsettings.json`. These are developer conveniences — **off in the shipped build** (no `DOTNET_ENVIRONMENT` set ⇒ no dev file loaded).

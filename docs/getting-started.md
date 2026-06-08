@@ -12,7 +12,12 @@ The shortest path from a clean clone to a running shell. For broker-specific con
 | .NET SDK | 9.x (target framework is `net9.0-windows`) |
 | Git | any recent version |
 
-You do **not** need any broker installed to build and run. The always-registered **`Simulated` broker** (`BrokerKind.Simulated`) serves a synthetic random-walk feed — or replay of your local store — so the whole app runs fully offline with no broker, no network, and no Docker. The four real broker tiles (IB / NinjaTrader / cTrader / Alpaca) only connect once their SDK is wired and credentials are filled in. The quickest offline launch is the **`Dev: Simulated (offline)`** profile below, which skips login entirely.
+You do **not** need any broker account to build and run. Two zero-credential paths give you data out of the box:
+
+- **`Binance` (real, live data)** — the **Binance (no login)** tile streams real crypto bars / L1 / **L2 depth** / trades over Binance's public WebSocket with no API key and no account. Just click Connect. (Crypto only; geo-blocked regions repoint the host — see [brokers.md](brokers.md#binance-public-market-data-no-key).)
+- **`Simulated` (fully offline)** — an in-process synthetic random-walk feed, or replay of your local store; no network, no Docker. The quickest offline launch is the **`Dev: Simulated (offline)`** profile below, which skips login entirely.
+
+The four account-based broker tiles (IB / NinjaTrader / cTrader / Alpaca) only connect once their SDK is wired and credentials are filled in.
 
 Optional:
 
