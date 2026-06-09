@@ -40,8 +40,12 @@ load automatically when you open Claude Code in this folder:
 - **`.claude/hooks/`** — session-start orientation + a build/doc-sync check on stop (PowerShell).
 - **`.claude/MULTI-AGENT.md`** — how the multi-agent workflow is meant to be driven.
 
-`scripts/setup-claude-code.bat` only installs the *tooling*; cloning the repo is what delivers the
-AI config. `claude-here.bat` just `cd`s to the repo root and runs `claude` so that config is picked up.
+`scripts/setup-claude-code.bat` installs the *tooling* (Git, .NET 9 SDK, Claude Code, and checks for
+PowerShell, which the hooks need), then **verifies** the committed `.claude/` workflow and reports what's
+wired (`✓ 38 agents, ✓ 14 skills, ✓ 4 hooks, ✓ settings.json/MULTI-AGENT.md/CLAUDE.md`). Cloning the repo
+is what *delivers* the AI config — the script never copies it into your global `~/.claude/` (a global copy
+would drift from the repo and break the agents' repo-relative paths). `claude-here.bat` just `cd`s to the
+repo root and runs `claude` so that project-scoped config is picked up automatically.
 
 > **Personal vs shared settings.** `.claude/settings.json` is the **shared** project config (checked
 > in) and ships **conservative defaults** — `acceptEdits` mode (edits auto-apply; they're
