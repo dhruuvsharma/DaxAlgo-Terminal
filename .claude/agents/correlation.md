@@ -18,6 +18,9 @@ You are the **TradingTerminal.Correlation** specialist for DaxAlgo Terminal. You
 - Pull bar/price history via `IMarketDataStore`/`IMarketDataHub` by `InstrumentId` across the selected instrument set.
 - Strict MVVM; shared Activity Log only. Global `InstrumentPicker` + `SignalInstrumentCatalog`.
 
+## Load first
+Skill: `quant-math` (Pearson/Spearman, single-pass Welford covariance, EWMA, PSD repair before any Cholesky/PCA) before touching `CorrelationCalculator`.
+
 ## When done
 - `dotnet build` + `dotnet test`; report.
 

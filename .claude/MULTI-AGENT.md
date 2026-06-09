@@ -9,10 +9,12 @@ skill and does the change in its own context, keeping the main thread lean.
 This is already wired. Nothing to "turn on" in the repo. What this doc covers:
 how the fleet is organized, and how to **watch agents work live**.
 
-## The fleet (36 agents)
+## The fleet (38 agents)
 
 Routing index lives in [`agents/README.md`](agents/README.md). Summary:
 
+- **3 orchestration** — `manager` (lead/architect planner), `build-runner` (build+test gate),
+  `verifier` (plan-aware watcher). These sit *above* the workers; see "The spine" below.
 - **8 foundational** — `core-domain`, `market-data`, `infrastructure`, `ui-shared`,
   `login`, `ai-seam`, `app-shell`, `backtest-cli`.
 - **4 AI windows** — `ai-marketanalyst`, `ai-factorresearch`, `ai-mlfeatures`,
@@ -26,6 +28,33 @@ Routing index lives in [`agents/README.md`](agents/README.md). Summary:
   `strat-volatilitytargeted`.
 - **4 specialists** — `ib-api-expert`, `xaml-fixer`, `wpf-explorer`, `dotnet-reviewer`.
 
+## The spine (manager → workers → build → verify)
+
+The realization of the "company of agents". Claude Code spawns **one level deep** — a subagent
+can't spawn its own subagents — so the **main thread is the general contractor** and the manager
+hands back a plan rather than dispatching workers itself:
+
+```
+prompt
+  │
+  ▼  invoke `manager` (read-only)  ──►  returns an Execution Plan
+  │
+main thread dispatches each plan task to its worker agent (parallel where independent)
+  │
+  ▼  invoke `build-runner`  ──►  dotnet build + test, pass/fail
+  │
+  ▼  invoke `verifier` (given the plan)  ──►  BLOCKER/NIT punch list
+  │
+  ▼  Stop → `build-on-stop` + `verify-on-stop` hooks gate the turn (hard block on
+            compile errors / layer-graph / SDK leaks)
+```
+
+- **`manager`** loads `software-architecture` (decomposition, the design-pattern catalog, SOLID
+  checks, the plan contract). It is the only agent that holds the whole-project picture.
+- **Workers** are the per-project agents below; each loads its own skill.
+- **`build-runner`** then **`verifier`** are the gate. The `verify-on-stop.ps1` hook enforces the
+  deterministic subset even if the agent step is skipped.
+
 ### Each agent → its skill
 
 The agent does project-scoped *ownership + guardrails*; the skill carries the *recipe*.
@@ -33,15 +62,20 @@ The agent loads the skill so you don't have to name it.
 
 | Agent(s) | Skill loaded first |
 |---|---|
+| `manager` | `software-architecture` (+ `navigator`; skim `quant-math` for quant routing) |
 | `infrastructure` | `broker-gotchas` (+ `backtest-engine`); IB → defer to `ib-api-expert` |
 | `market-data` | `market-data-pipeline` (+ `archive-offloader`) |
 | `ui-shared` | `wpf-mvvm-rules` (binding/theme → `xaml-fixer`) |
 | `backtest-cli`, `backtest-tool` | `backtest-engine` |
-| `strat-orderflowcube`, `strat-orderflowsurfacespike`, `strat-imbalanceheatfront`, `strat-indexkscoresurface` | `regime-cube-strategy` → `add-strategy` |
-| other `strat-*` | `add-strategy` |
+| `strat-orderflowcube`, `strat-orderflowsurfacespike`, `strat-indexkscoresurface` | `regime-cube-strategy` + `quant-math` → `add-strategy` |
+| `strat-imbalanceheatfront` | `regime-cube-strategy` → `add-strategy` |
+| `strat-ornsteinuhlenbeck`, `strat-orderflowtoxicity` | `quant-math` → `add-strategy` |
+| other `strat-*` | `add-strategy` (+ `quant-math` where it touches stats/geometry) |
+| `correlation`, `markovregime` | `quant-math` |
 | `ai-*` (4 windows + `ai-seam`) | `ai-analyst` |
 | `app-shell` | `navigator` |
-| `core-domain`, tool windows | inline conventions (no single skill) |
+| `build-runner`, `verifier` | (own instructions; `verifier` is plan-aware) |
+| `core-domain`, other tool windows | inline conventions (no single skill) |
 
 ## Watching agents work live
 
@@ -75,15 +109,23 @@ conversation; each inherits full context, and a fork panel appears under the pro
 
 ## Typical loop
 
-1. You prompt the main thread ("change the Charts symbol picker", "wire a 5th broker").
-2. Main thread routes to the owning agent (`charts`, or `add-broker` recipe via
-   `infrastructure`), which loads its skill.
-3. For parallel work, agents are launched in the background → watch them in
-   `claude agents` / Tasks pane.
-4. Each agent reports back; main thread integrates and runs `dotnet build` / `dotnet test`.
+**Small change** (one project): prompt the main thread naming the area → it routes to the owning
+worker (`charts`, etc.), which loads its skill → `build-runner` → done. No manager needed.
+
+**Multi-project change**: 
+1. You prompt the main thread ("wire a 5th broker", "add a vol-of-vol regime cube").
+2. Main thread invokes **`manager`** → gets an Execution Plan (tasks, owners, skills, sequence).
+3. Main thread dispatches each task to its worker; independent tasks run backgrounded → watch
+   them in `claude agents` / the Tasks pane.
+4. Workers report back; main thread invokes **`build-runner`** (build+test) then **`verifier`**
+   (given the plan) for the punch list.
+5. On Stop, `build-on-stop` + `verify-on-stop` hooks gate the turn — a hard block on compile
+   errors, layer-graph violations, or SDK leaks.
 
 ## Token note
 
-All 36 agent descriptions load into every session's system prompt. If that baseline ever
+All 38 agent descriptions load into every session's system prompt. If that baseline ever
 feels heavy, collapse rarely-touched ones (e.g. fold the 9 `strat-*` into one
-`strategies` agent) — they're just files in [`agents/`](agents/).
+`strategies` agent) — they're just files in [`agents/`](agents/). The 3 orchestration agents
+(`manager`/`build-runner`/`verifier`) earn their slot by keeping the main thread's context lean
+on big changes.

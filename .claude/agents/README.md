@@ -10,12 +10,28 @@ the change in its own context — keeping the main thread's context lean.
 > baseline cost feels heavy, collapse the rarely-touched ones (e.g. fold the 9 `strat-*`
 > into one `strategies` agent) — they're just files in this folder.
 
+## Orchestration tier (the "company of agents")
+
+A small org sits *above* the per-project workers. The main thread plays general contractor:
+it invokes the **manager** to get a plan, dispatches the worker agents that plan names, then
+runs **build-runner** and **verifier** as the gate.
+
+| Role | Agent | Model | What it does |
+|---|---|---|---|
+| Lead / architect | `manager` | opus | Read-only. Decomposes a prompt into an ordered, agent-routed **Execution Plan** (loads `software-architecture`). Returns the plan — never edits code. |
+| Build gate | `build-runner` | haiku | Runs `dotnet build` + `dotnet test`, returns a distilled pass/fail report. |
+| Watcher / verifier | `verifier` | sonnet | Plan-aware review of the integrated diff vs the solution graph, MVVM, threading, quant math, tests. Returns a BLOCKER/NIT punch list. |
+
+The `verify-on-stop.ps1` Stop hook is the verifier's **enforcement arm** — a deterministic
+layer-graph + SDK-leak gate that *blocks turn-end* on violations the agent can't be trusted to
+catch every time. (Build errors are gated by `build-on-stop.ps1`.)
+
 ## Orchestration & live monitoring
 
-You don't pick agents by hand — prompt the main thread naming the area, and it fans the
-work out to the owning agent, which loads its skill (see the per-agent → skill mapping in
-[`../MULTI-AGENT.md`](../MULTI-AGENT.md)). For parallel work, agents launch as background
-subagents.
+You don't pick agents by hand — prompt the main thread naming the area (or ask it to "plan this
+with the manager"), and it fans the work out to the owning agent, which loads its skill (see the
+per-agent → skill mapping in [`../MULTI-AGENT.md`](../MULTI-AGENT.md)). For parallel work, agents
+launch as background subagents.
 
 **Watch them live** (there is no "FleetView" feature — these are the real mechanisms):
 - **`claude agents`** (CLI Agent View) — every session grouped by *Needs input / Working

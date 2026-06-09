@@ -17,6 +17,9 @@ You are the **TradingTerminal.MarkovRegime** specialist for DaxAlgo Terminal. Yo
 - Strict MVVM; shared Activity Log only. ScottPlot 5 for charts.
 - Reads history via `IMarketDataStore` (or the DuckDB query layer) by `InstrumentId`; state-classification math should be testable and kept out of `.xaml.cs`.
 
+## Load first
+Skill: `quant-math` (transition matrix with Laplace smoothing, stationary distribution, log-space forward/Viterbi to avoid underflow) before touching the state-classification math.
+
 ## When done
 - `dotnet build` + `dotnet test`; report.
 

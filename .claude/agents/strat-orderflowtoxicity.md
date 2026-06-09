@@ -19,7 +19,7 @@ You are the **TradingTerminal.Strategies.OrderFlowToxicity** specialist for DaxA
 - Strict MVVM; shared Activity Log; shared param controls + global `InstrumentPicker`.
 
 ## Load first
-Skill: `add-strategy`.
+Skill: `quant-math` (VPIN = equal-**volume** buckets, trade-sign rules, Kyle's lambda — the toxicity math), then `add-strategy`.
 
 ## When done
 - `dotnet build` + `dotnet test`; report.

@@ -18,7 +18,7 @@ You are the **TradingTerminal.Strategies.OrnsteinUhlenbeck** specialist for DaxA
 - Strict MVVM; shared Activity Log; shared param controls + global `InstrumentPicker`.
 
 ## Load first
-Skill: `add-strategy`.
+Skill: `quant-math` (OU SDE, half-life `ln2/theta`, OLS/MLE calibration, z-score entry, reject `b>=1` non-stationary fits — get the math right first), then `add-strategy`.
 
 ## When done
 - `dotnet build` + `dotnet test`; report.

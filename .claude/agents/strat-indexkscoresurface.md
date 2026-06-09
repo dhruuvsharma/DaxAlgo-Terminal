@@ -18,7 +18,7 @@ You are the **TradingTerminal.Strategies.IndexKScoreSurface** specialist for Dax
 - Surface mesh updates marshal through the VM. Strict MVVM; shared Activity Log; shared param controls.
 
 ## Load first
-Skill: `regime-cube-strategy` (surface/3D conventions), then `add-strategy`.
+Skill: `regime-cube-strategy` (surface/3D conventions), then `add-strategy`. Load `quant-math` for the K-score statistics (z-scoring/normalization) and the surface-mesh geometry.
 
 ## When done
 - `dotnet build` + `dotnet test`; report.

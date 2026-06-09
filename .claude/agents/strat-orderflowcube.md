@@ -19,7 +19,7 @@ You are the **TradingTerminal.Strategies.OrderFlowCube** specialist for DaxAlgo 
 - 3D scatter updates marshal through the VM (never `Dispatcher.Invoke` in code-behind). Strict MVVM; shared Activity Log; shared param controls.
 
 ## Load first
-Skill: `regime-cube-strategy` (this is the reference implementation), then `add-strategy`.
+Skill: `regime-cube-strategy` (this is the reference implementation), then `add-strategy`. Load `quant-math` for the axis normalization / 3D geometry and the microstructure (signed-volume, imbalance) math.
 
 ## When done
 - `dotnet build` + `dotnet test`; report.

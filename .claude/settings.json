@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "acceptEdits",
     "allow": [
       "Bash(git status:*)",
       "Bash(git diff:*)",
@@ -16,7 +16,6 @@
       "Bash(find:*)"
     ]
   },
-  "autoAcceptEdits": true,
   "hooks": {
     "SessionStart": [
       {
@@ -38,6 +37,11 @@
             "type": "command",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\build-on-stop.ps1\"",
             "timeout": 90
+          },
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\verify-on-stop.ps1\"",
+            "timeout": 20
           },
           {
             "type": "command",

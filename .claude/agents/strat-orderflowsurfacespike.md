@@ -19,7 +19,7 @@ You are the **TradingTerminal.Strategies.OrderFlowSurfaceSpike** specialist for 
 - Surface mesh updates marshal through the VM. Strict MVVM; shared Activity Log; shared param controls.
 
 ## Load first
-Skill: `regime-cube-strategy`, then `add-strategy`.
+Skill: `regime-cube-strategy`, then `add-strategy`. Load `quant-math` for surface meshing / normal recomputation and the microstructure (signed-volume, VPIN) math behind the spike.
 
 ## When done
 - `dotnet build` + `dotnet test`; report.
