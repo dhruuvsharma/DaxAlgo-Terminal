@@ -21,6 +21,7 @@ using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Regime;
+using TradingTerminal.UI.Converters;
 using TradingTerminal.UI.Logging;
 // Per-tool projects (Charts menu + Tools menu + AI tools), each shipping its own Add*Surface extension.
 using TradingTerminal.Charts;
@@ -51,6 +52,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Seed the shared strategy-pill converter into Application resources before any window is
+        // shown, so {StaticResource StrategyTagsConverter} resolves in the MainWindow strategy list.
+        // Mirrors InstrumentPicker's ctor-time registration (MC3074 same-assembly XAML workaround).
+        StrategyDataRequirementConverter.EnsureConverterRegistered();
 
         var inMemoryLogSink = new InMemoryLogSink();
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;

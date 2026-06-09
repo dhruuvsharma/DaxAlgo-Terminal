@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 
@@ -59,24 +60,36 @@ public static class BacktestStrategyCatalog
         // ── L2 / depth-of-market themed (cTrader DOM territory) ───────────────────────
         new BacktestStrategyOption(
             Id: "vpin",
-            DisplayName: "Order-flow toxicity / VPIN-style (L2)",
+            DisplayName: "Order-flow toxicity / VPIN-style (L1 approx.)",
             Build: contract => new OrderFlowToxicityStrategy(contract)),
         new BacktestStrategyOption(
             Id: "orderFlowCube",
             DisplayName: "Order-flow regime cube (CVD × aggressor × size)",
-            Build: contract => new OrderFlowCubeStrategy(contract)),
+            Build: contract => new OrderFlowCubeStrategy(contract))
+        {
+            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape,
+        },
         new BacktestStrategyOption(
             Id: "orderFlowSurfaceSpike",
             DisplayName: "Order-flow surface spike detector (Z-score over slice×bin matrix)",
-            Build: contract => new OrderFlowSurfaceSpikeStrategy(contract)),
+            Build: contract => new OrderFlowSurfaceSpikeStrategy(contract))
+        {
+            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape,
+        },
         new BacktestStrategyOption(
             Id: "imbalanceHeatFront",
             DisplayName: "Imbalance Heat Front (L2 bid-ask pressure surface)",
-            Build: contract => new ImbalanceHeatFrontStrategy(contract)),
+            Build: contract => new ImbalanceHeatFrontStrategy(contract))
+        {
+            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
+        },
         new BacktestStrategyOption(
             Id: "apexScalper",
             DisplayName: "APEX microstructure scalper (composite, 8 signals)",
-            Build: contract => new ApexScalperStrategy(contract)),
+            Build: contract => new ApexScalperStrategy(contract))
+        {
+            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
+        },
         new BacktestStrategyOption(
             Id: "indexKScoreSurface",
             DisplayName: "Index K-Score Surface (single-instrument backtest variant)",

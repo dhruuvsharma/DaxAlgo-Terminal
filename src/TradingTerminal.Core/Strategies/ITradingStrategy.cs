@@ -12,4 +12,14 @@ public interface ITradingStrategy
     string DisplayName { get; }
 
     string Description { get; }
+
+    /// <summary>
+    /// The market data this strategy consumes. Defaults to the universal baseline
+    /// (<see cref="StrategyDataRequirement.L1"/> | <see cref="StrategyDataRequirement.Bars"/>);
+    /// only strategies that additionally need <see cref="StrategyDataRequirement.Depth"/> or
+    /// <see cref="StrategyDataRequirement.TradeTape"/> override this. The wiring gates the
+    /// extras against the connected broker's data-capability.
+    /// </summary>
+    StrategyDataRequirement DataRequirement =>
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
 }

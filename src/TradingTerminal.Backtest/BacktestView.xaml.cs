@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using TradingTerminal.UI.Converters;
 
 namespace TradingTerminal.Backtest;
 
@@ -6,6 +7,9 @@ public partial class BacktestView : UserControl
 {
     public BacktestView()
     {
+        // Register the shared converter in Application.Current.Resources before XAML realises
+        // the ComboBox item template — same pattern as InstrumentPicker.
+        StrategyDataRequirementConverter.EnsureConverterRegistered();
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
     }

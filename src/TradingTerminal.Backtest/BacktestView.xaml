@@ -21,11 +21,40 @@
                 <TextBlock Text="Configuration" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" />
 
                 <TextBlock Text="Strategy" />
+                <!-- StrategyTagsConverter is registered in app-level resources by the view ctor
+                     (StrategyDataRequirementConverter.EnsureConverterRegistered). MC3074 prevents
+                     declaring it in this same-assembly XAML, so it lives in Application.Resources
+                     and resolves here via StaticResource, identical to InstrumentTagsConverter. -->
                 <ComboBox ItemsSource="{Binding Strategies}"
                           SelectedItem="{Binding SelectedStrategy}"
-                          DisplayMemberPath="DisplayName"
                           IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
-                          Margin="0,2,0,8" />
+                          Margin="0,2,0,8">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel LastChildFill="True">
+                                <ItemsControl DockPanel.Dock="Right" VerticalAlignment="Center"
+                                              ItemsSource="{Binding DataRequirement, Converter={StaticResource StrategyTagsConverter}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{Binding Background}" CornerRadius="3"
+                                                    Padding="5,1" Margin="3,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
+                                                           FontSize="10" FontWeight="SemiBold" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
+                                           Margin="0,0,8,0" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
                 <TextBlock Text="Symbol" />
                 <TextBox Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}"

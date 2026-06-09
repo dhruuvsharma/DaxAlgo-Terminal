@@ -399,6 +399,30 @@
                                                                TextWrapping="Wrap"
                                                                FontSize="11"
                                                                Margin="12,0,0,0" />
+                                                    <!-- Data-requirement pills (L1 / BAR / L2 / TAPE) via the shared
+                                                         StrategyTagsConverter — reads the strategy's DataRequirement. -->
+                                                    <ItemsControl ItemsSource="{Binding Converter={StaticResource StrategyTagsConverter}}"
+                                                                  Margin="12,4,0,0">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel Orientation="Horizontal" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Background="{Binding Background}"
+                                                                        CornerRadius="3"
+                                                                        Padding="5,1"
+                                                                        Margin="0,0,3,0"
+                                                                        VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Text}"
+                                                                               Foreground="{Binding Foreground}"
+                                                                               FontSize="10"
+                                                                               FontWeight="SemiBold" />
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
