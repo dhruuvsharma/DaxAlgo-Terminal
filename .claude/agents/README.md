@@ -85,6 +85,7 @@ Full workflow + env toggles: [`../MULTI-AGENT.md`](../MULTI-AGENT.md).
 | Strategies.ImbalanceHeatFront | `strat-imbalanceheatfront` | sonnet |
 | Strategies.IndexKScoreSurface | `strat-indexkscoresurface` | opus |
 | Strategies.OrderFlowCube | `strat-orderflowcube` | opus |
+| Strategies.OrderFlowPressureMap | `strat-orderflowpressuremap` | sonnet |
 | Strategies.OrderFlowSurfaceSpike | `strat-orderflowsurfacespike` | opus |
 | Strategies.OrderFlowToxicity | `strat-orderflowtoxicity` | sonnet |
 | Strategies.OrnsteinUhlenbeck | `strat-ornsteinuhlenbeck` | sonnet |

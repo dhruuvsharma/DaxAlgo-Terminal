@@ -43,12 +43,14 @@ Core           → (nothing)
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
 | AI tool windows (one project each) — Market analyst, factor research, ML features, backtest analysis | `TradingTerminal.Ai.<Name>` (`MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`) |
-| Per-strategy live windows (9) | `TradingTerminal.Strategies.<Name>` |
+| Per-strategy live windows (10) | `TradingTerminal.Strategies.<Name>` |
 | Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`MarkovRegime`/`Backtest`/`Recording`) |
 | Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
-Live strategies (9): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
+Live strategies (10): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
+
+**Strategy-vs-tool rule:** anything that registers an `ITradingStrategy` / `StrategyFactoryRegistration` (including multi-ticker *monitor* strategies like OrderFlowPressureMap) is a **strategy**: project `TradingTerminal.Strategies.<Name>`, namespace to match, **Strategies** solution folder, DI via `Add<Name>Strategy()` called from `AddStrategyPlugins()`. Tool projects (`Add…Surface`, Tools/Charts menu) are only for non-strategy windows. When in doubt: if it belongs in the Strategies pane, it's a strategy project.
 
 Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap.
 
@@ -132,6 +134,7 @@ Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet ru
 - Don't rename `net9.0-windows` → `net8.0-windows`. Don't put broker SDK types in `Core`/`UI`/`MarketData`.
 - Don't make `Core` depend on anything, or `MarketData` depend on `Infrastructure`.
 - Don't `new` strategies/brokers from the shell — go through `IStrategyFactory` / `IBrokerSelector`.
+- Don't build a strategy as a tool project: no `TradingTerminal.<Name>` + `Add…Surface` for anything with an `ITradingStrategy` — it must be `TradingTerminal.Strategies.<Name>` in the Strategies solution folder (see the strategy-vs-tool rule above).
 - Don't subscribe to broker streams from a VM — go through `IMarketDataHub` / `IMarketDataIngest`.
 - Don't write live bars to the store (tick-primary ingest).
 - Don't add per-window log panels — use the shared `InMemoryLogSink` (Activity Log).

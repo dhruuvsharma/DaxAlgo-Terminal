@@ -33,6 +33,7 @@ The split means the same logic powers backtest sweeps and live signal mode witho
 | Regime cube (3D) | `imbalanceHeatFront` | L2 bid/ask pressure surface with mirror-book detection. |
 | Regime cube (3D) | `indexKScoreSurface` | Per-component K-score surface for index baskets. |
 | Composite | `apexScalper` | APEX microstructure scalper — 8-signal composite with risk caps. |
+| Monitor | `orderflow.pressuremap` | 1-Minute Order Flow Pressure Map — S&P 100/500 ticker × time heatmap flagging unusual 1m volume and absorption vs. breakthrough. Live-only window (`TradingTerminal.Strategies.OrderFlowPressureMap`, no backtest id). |
 
 The same engine ids are selectable in the Backtest tab and the `daxalgo-backtest` CLI. **Cumulative delta** ships as a live-only window (`TradingTerminal.Strategies.CumulativeDelta`, no backtest id).
 

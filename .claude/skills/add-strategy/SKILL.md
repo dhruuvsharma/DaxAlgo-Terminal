@@ -12,6 +12,8 @@ Strategies are plug-ins. The shell never references strategy concretes — they'
 
 Most strategies need both. Some (HFT/MM) may only ship as engine-side.
 
+**HARD NAMING RULE — no exceptions.** If it registers an `ITradingStrategy` / `StrategyFactoryRegistration` (i.e. it appears in the shell's Strategies pane), it is a strategy project: `src/TradingTerminal.Strategies.<Name>/`, namespace `TradingTerminal.Strategies.<Name>`, **Strategies** solution folder, DI file `DependencyInjection.cs` exposing `Add<Name>Strategy()`, registered from `AddStrategyPlugins()` in `AppDependencyInjection.cs` — NOT from the tool blocks in `App.xaml.cs`. This applies even to monitor/screener-style strategies with no per-instrument signal loop (e.g. OrderFlowPressureMap, a multi-ticker heatmap) and even when the VM doesn't inherit `LiveSignalStrategyViewModelBase`. `TradingTerminal.<Name>` + `Add…Surface` is reserved for non-strategy tool windows. (This rule exists because OrderFlowPressureMap was once misbuilt as a tool project and had to be renamed.)
+
 ## Engine-side (IBacktestStrategy) recipe
 
 1. **New file** `src/TradingTerminal.Infrastructure/Backtest/Strategies/<Name>Strategy.cs`.
