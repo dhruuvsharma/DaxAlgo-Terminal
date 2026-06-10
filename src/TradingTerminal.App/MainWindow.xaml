@@ -207,6 +207,8 @@
                           Command="{Binding OpenInstrumentRegimeCommand}" />
                 <MenuItem Header="Mar_kov regime…"
                           Command="{Binding OpenMarkovRegimeCommand}" />
+                <MenuItem Header="_Advanced market regime…"
+                          Command="{Binding OpenAdvancedRegimeCommand}" />
                 <MenuItem Header="_Correlation matrix…"
                           Command="{Binding OpenCorrelationCommand}" />
                 <MenuItem Header="_Live correlation matrix…"

@@ -23,6 +23,7 @@ using TradingTerminal.Recording;
 using TradingTerminal.MarketRegime;
 using TradingTerminal.InstrumentRegime;
 using TradingTerminal.MarkovRegime;
+using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
@@ -51,6 +52,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string RegimeTabId = "tools.regime";
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
     private const string MarkovRegimeTabId = "tools.regime.markov";
+    private const string AdvancedRegimeTabId = "tools.regime.advanced";
     private const string CorrelationWindowId = "tools.correlation";
     private const string LiveCorrelationWindowId = "tools.correlation.live";
     private const string ChartsWindowId = "tools.charts";
@@ -786,6 +788,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             CanClose = true,
         };
         OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenAdvancedRegime()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == AdvancedRegimeTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<AdvancedMarketRegimeViewModel>();
+        var view = _services.GetRequiredService<AdvancedMarketRegimeView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Advanced market regime",
+            ContentId = AdvancedRegimeTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        // The VM may be running an auto-refresh loop — stop it when the tab closes.
+        _tabDisposables[tab] = vm;
         ActiveTab = tab;
     }
 

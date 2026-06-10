@@ -38,11 +38,13 @@
     <ProjectReference Include="..\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
     <ProjectReference Include="..\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
     <ProjectReference Include="..\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
     <!-- Tools-menu surfaces -->
     <ProjectReference Include="..\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarketRegime\TradingTerminal.MarketRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.InstrumentRegime\TradingTerminal.InstrumentRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
+    <ProjectReference Include="..\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
     <ProjectReference Include="..\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
     <!-- AI tools (shared seam ref is above; these are the UI panels) -->

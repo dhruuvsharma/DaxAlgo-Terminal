@@ -34,6 +34,7 @@ using TradingTerminal.Recording;
 using TradingTerminal.MarketRegime;
 using TradingTerminal.InstrumentRegime;
 using TradingTerminal.MarkovRegime;
+using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
@@ -148,6 +149,7 @@ public partial class App : Application
                 services.AddMarketRegimeSurface();
                 services.AddInstrumentRegimeSurface();
                 services.AddMarkovRegimeSurface();
+                services.AddAdvancedMarketRegimeSurface();
                 services.AddArchiveSurface();
             })
             .Build();
