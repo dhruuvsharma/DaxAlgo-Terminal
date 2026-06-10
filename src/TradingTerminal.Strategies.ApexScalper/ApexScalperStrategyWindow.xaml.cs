@@ -5,9 +5,9 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using ScottPlot.WPF;
-using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.UI;
-using Engine = TradingTerminal.Infrastructure.Backtest.Strategies;
 
 namespace TradingTerminal.Strategies.ApexScalper;
 
@@ -16,18 +16,51 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
     private const int LadderDepth = 10;
     private const double LadderBarMaxWidth = 90.0;
 
-    /// <summary>Composite score range mapped onto the gauge track. The score itself is a
-    /// weighted average that rarely exceeds ±2 — ±3 leaves headroom without making the centre
-    /// look squashed.</summary>
+    /// <summary>Composite score range mapped onto the gauge track. Rarely exceeds ±2; ±3 leaves headroom.</summary>
     private const double GaugeRange = 3.0;
 
+    // ── Order book colours ────────────────────────────────────────────────────────────────────────
     private static readonly SolidColorBrush AskFull = new(Color.FromRgb(200, 50, 50));
     private static readonly SolidColorBrush AskDim = new(Color.FromRgb(110, 25, 25));
     private static readonly SolidColorBrush BidFull = new(Color.FromRgb(0, 160, 130));
     private static readonly SolidColorBrush BidDim = new(Color.FromRgb(0, 80, 65));
 
+    // ── Footprint colours ─────────────────────────────────────────────────────────────────────────
     private static readonly SolidColorBrush BullCandleFill = new(Color.FromRgb(0, 200, 83));
     private static readonly SolidColorBrush BearCandleFill = new(Color.FromRgb(255, 23, 68));
+
+    private const double FpAxisWidth = 64;
+    private const double FpColWidth = 96;
+    private const double FpRowHeight = 15;
+    private const double FpHeaderHeight = 18;
+    private const double FpFooterHeight = 46;
+
+    private static readonly SolidColorBrush FpBuyBrush = new(Color.FromRgb(0x2E, 0x7D, 0x32));
+    private static readonly SolidColorBrush FpSellBrush = new(Color.FromRgb(0xC6, 0x28, 0x28));
+    private static readonly SolidColorBrush FpPocPen = new(Color.FromRgb(0xFF, 0xD5, 0x4F));
+    private static readonly SolidColorBrush FpGridPen = new(Color.FromArgb(0x40, 0x88, 0x88, 0x88));
+    private static readonly SolidColorBrush FpTextBrush = new(Color.FromRgb(0xE0, 0xE0, 0xE0));
+    private static readonly SolidColorBrush FpDimText = new(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    private static readonly SolidColorBrush FpAskImbPen = new(Color.FromRgb(0x00, 0xE6, 0x76));
+    private static readonly SolidColorBrush FpBidImbPen = new(Color.FromRgb(0xFF, 0x52, 0x52));
+    private static readonly SolidColorBrush FpLiveHeader = new(Color.FromRgb(0x29, 0xB6, 0xF6));
+
+    // ── Badge colours ─────────────────────────────────────────────────────────────────────────────
+    private static readonly SolidColorBrush BadgeBootstrap = new(Color.FromRgb(0xFF, 0xA0, 0x00));
+    private static readonly SolidColorBrush BadgeRealTape = new(Color.FromRgb(0x00, 0xC8, 0x53));
+    private static readonly SolidColorBrush BadgeSynthetic = new(Color.FromRgb(0xFF, 0xC1, 0x07));
+
+    static ApexScalperStrategyWindow()
+    {
+        foreach (var b in new Brush[]
+        {
+            AskFull, AskDim, BidFull, BidDim, BullCandleFill, BearCandleFill,
+            FpBuyBrush, FpSellBrush, FpPocPen, FpGridPen, FpTextBrush, FpDimText,
+            FpAskImbPen, FpBidImbPen, FpLiveHeader,
+            BadgeBootstrap, BadgeRealTape, BadgeSynthetic,
+        })
+            b.Freeze();
+    }
 
     private readonly LadderRow[] _askRows = new LadderRow[LadderDepth];
     private readonly LadderRow[] _bidRows = new LadderRow[LadderDepth];
@@ -43,35 +76,30 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
         _redrawTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
-            // ~30 FPS — fast enough to feel live, slow enough not to swamp ScottPlot when ticks
-            // arrive at hundreds-per-second on liquid FX.
             Interval = TimeSpan.FromMilliseconds(33),
         };
         _redrawTimer.Tick += OnRedrawTimer;
         Loaded += (_, _) => _redrawTimer.Start();
         Closed += (_, _) => _redrawTimer.Stop();
 
-        // Re-render the gauge when the track resizes so the needle stays anchored.
         GaugeTrackHost.SizeChanged += (_, _) => { _chartDirty = true; };
     }
 
     protected override IEnumerable<WpfPlot> ChartHosts => new[]
     {
         DeltaPlot, VpinPlot,
-        ObiShallowPlot, ObiDeepPlot,
-        FootprintPlot, AbsorptionPlot,
-        HvpPlot, TapeSpeedPlot,
+        InitiativePlot, ControlPlot,
+        FootprintPlot, KylePlot,
+        WedgePlot, TapeSpeedPlot,
+        CvdPlot, ObiPlot,
     };
 
-    /// <summary>Re-render the order book whenever LatestDepth changes; everything else
-    /// piggy-backs on the redraw timer.</summary>
     protected override void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         base.OnVmPropertyChanged(sender, e);
         if (sender is not LiveSignalStrategyViewModelBase vm) return;
         if (e.PropertyName == nameof(LiveSignalStrategyViewModelBase.LatestDepth))
             RenderOrderBook(vm.LatestDepth);
-        // "Max candles" / "FP bars" are render-only — repaint on the next timer tick when they change.
         else if (e.PropertyName is nameof(ApexScalperStrategyViewModel.MaxChartCandles)
                               or nameof(ApexScalperStrategyViewModel.FootprintBarsVisible))
             _chartDirty = true;
@@ -85,13 +113,11 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         var history = engine?.History;
         var maxN = Math.Max(10, vm.MaxChartCandles);
 
-        // Build the tail: trimmed history + the live Latest snapshot appended so the rightmost
-        // point on each indicator chart moves every tick. If Latest is already in history
-        // (snapshot frozen after a candle roll) skip the append.
-        Engine.ApexSnapshot[] tail;
+        // Assemble display tail: trimmed history + live Latest appended if not already the tail.
+        ApexSnapshotV2[] tail;
         if (history is null || history.Count == 0)
         {
-            tail = engine?.Latest is { } latestOnly ? new[] { latestOnly } : Array.Empty<Engine.ApexSnapshot>();
+            tail = engine?.Latest is { } latestOnly ? new[] { latestOnly } : Array.Empty<ApexSnapshotV2>();
         }
         else
         {
@@ -104,24 +130,31 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
                 tail = trimmed;
             else
             {
-                tail = new Engine.ApexSnapshot[trimmed.Length + 1];
+                tail = new ApexSnapshotV2[trimmed.Length + 1];
                 Array.Copy(trimmed, tail, trimmed.Length);
                 tail[^1] = live;
             }
         }
 
-        DrawSeries(DeltaPlot, tail, s => s.Delta.Score, signed: true);
-        DrawSeries(VpinPlot, tail, s => s.Vpin.Score, signed: true);
-        DrawSeries(ObiShallowPlot, tail, s => s.ObiShallow.Score, signed: true);
-        DrawSeries(ObiDeepPlot, tail, s => s.ObiDeep.Score, signed: true);
-        DrawSeries(FootprintPlot, tail, s => s.Footprint.Score, signed: true);
-        DrawSeries(AbsorptionPlot, tail, s => s.Absorption.Score, signed: true);
-        DrawSeries(HvpPlot, tail, s => s.Hvp.Score, signed: true);
-        DrawSeries(TapeSpeedPlot, tail, s => s.TapeSpeed.Score, signed: true);
+        // Helper: extract named-signal score from the v2 Signals list.
+        static Func<ApexSnapshotV2, double> SigPick(string name) =>
+            s => s.Signals.FirstOrDefault(x => x.Name == name)?.Score ?? 0.0;
+
+        DrawSeries(DeltaPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigDelta), signed: true);
+        DrawSeries(VpinPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigVpin), signed: true);
+        DrawSeries(InitiativePlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigInitiative), signed: true);
+        DrawSeries(ControlPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigControl), signed: true);
+        DrawSeries(FootprintPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigFootprint), signed: true);
+        DrawSeries(KylePlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigKyle), signed: true);
+        DrawSeries(WedgePlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigWedge), signed: true);
+        DrawSeries(TapeSpeedPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigTapeSpeed), signed: true);
+        DrawSeries(CvdPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigCvd), signed: true);
+        DrawSeries(ObiPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigObi), signed: true);
 
         RenderOrderBook(baseVm.LatestDepth);
-        RenderGauge(engine?.Latest?.Composite, vm.CompositeThreshold);
-        RenderFootprint(engine, vm.FootprintBarsVisible, vm.CompositeThreshold);
+        RenderGauge(engine?.Latest?.Composite, vm.BootstrapThreshold);
+        UpdateBadges(vm);
+        RenderFootprint(engine, vm.FootprintBarsVisible, vm.BootstrapThreshold);
     }
 
     private LiveSignalStrategyViewModelBase? _tickVm;
@@ -143,10 +176,38 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         OnRedrawCharts(_tickVm);
     }
 
-    /// <summary>Draws a single time-series. When <paramref name="signed"/> is true,
-    /// adds a dotted zero-line.</summary>
-    private static void DrawSeries(WpfPlot host, IReadOnlyList<Engine.ApexSnapshot> tail,
-        Func<Engine.ApexSnapshot, double> pick, bool signed)
+    // ── Feed-quality and bootstrap badges ────────────────────────────────────────────────────────
+
+    private void UpdateBadges(ApexScalperStrategyViewModel vm)
+    {
+        // Bootstrap badge
+        BootstrapBadge.Visibility = vm.BootstrapMode ? Visibility.Visible : Visibility.Collapsed;
+
+        // Feed-quality badge: RealTape (green) vs SyntheticL1 (amber).
+        // We combine the base-VM TradeTapeAvailable with the snapshot FeedQuality so the badge
+        // reflects both the broker capability probe and the actual snapshot tag.
+        var snap = vm.LatestSnapshot;
+        if (snap is null || snap.FeedQuality == FeedQuality.None)
+        {
+            FeedQualityBadge.Text = "No Feed";
+            FeedQualityBadge.Foreground = FpDimText;
+        }
+        else if (snap.FeedQuality == FeedQuality.RealTape)
+        {
+            FeedQualityBadge.Text = vm.TradeTapeAvailable ? "Real Tape" : "Real Tape (probe pending)";
+            FeedQualityBadge.Foreground = BadgeRealTape;
+        }
+        else
+        {
+            FeedQualityBadge.Text = "Synthetic L1";
+            FeedQualityBadge.Foreground = BadgeSynthetic;
+        }
+    }
+
+    // ── Scatter chart helper ──────────────────────────────────────────────────────────────────────
+
+    private static void DrawSeries(WpfPlot host, IReadOnlyList<ApexSnapshotV2> tail,
+        Func<ApexSnapshotV2, double> pick, bool signed)
     {
         var plot = host.Plot;
         plot.Clear();
@@ -175,7 +236,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         host.Refresh();
     }
 
-    // ── Composite sentiment gauge ──────────────────────────────────────────────────
+    // ── Composite sentiment gauge ─────────────────────────────────────────────────────────────────
 
     private void RenderGauge(double? composite, double threshold)
     {
@@ -195,7 +256,6 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
             Canvas.SetLeft(GaugeNeedle, normalised * trackWidth);
         }
 
-        // Threshold ticks: short vertical lines at ±threshold on the track.
         GaugeTicks.Children.Clear();
         if (threshold > 0 && threshold < GaugeRange)
         {
@@ -219,41 +279,16 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         GaugeTicks.Children.Add(line);
     }
 
-    // ── Footprint cluster ──────────────────────────────────────────────────────────
-    // Rendering convention copied from VolumeFootprintWindow (sell|buy halves per price level,
-    // volume-scaled alpha, POC outline, shared price axis), then customised for the strategy:
-    // the data is the engine's own tick-rule footprint (what the Footprint signal scores), cells
-    // flagged by the engine's 3:1 diagonal imbalance rule get a bright outline, and each bar's
-    // footer carries Δ / Σ plus the composite it closed on and a ▲/▼ marker where the trade
-    // gate actually fired.
+    // ── Footprint cluster ─────────────────────────────────────────────────────────────────────────
+    // Renders the engine's Core FootprintBar list (TradingTerminal.Core.MarketData.FootprintBar).
+    // Projection convention follows VolumeFootprintModels.RenderBar: buy/sell POC (argmax by side)
+    // is computed locally from the rows where needed for the visual overlay. Field names use the
+    // Core type directly (TotalVolume, BuyVolume, SellVolume, BidImbalance, AskImbalance).
 
-    private const double FpAxisWidth = 64;
-    private const double FpColWidth = 96;
-    private const double FpRowHeight = 15;
-    private const double FpHeaderHeight = 18;
-    private const double FpFooterHeight = 46;
-
-    private static readonly SolidColorBrush FpBuyBrush = new(Color.FromRgb(0x2E, 0x7D, 0x32));
-    private static readonly SolidColorBrush FpSellBrush = new(Color.FromRgb(0xC6, 0x28, 0x28));
-    private static readonly SolidColorBrush FpPocPen = new(Color.FromRgb(0xFF, 0xD5, 0x4F));
-    private static readonly SolidColorBrush FpGridPen = new(Color.FromArgb(0x40, 0x88, 0x88, 0x88));
-    private static readonly SolidColorBrush FpTextBrush = new(Color.FromRgb(0xE0, 0xE0, 0xE0));
-    private static readonly SolidColorBrush FpDimText = new(Color.FromRgb(0x9E, 0x9E, 0x9E));
-    private static readonly SolidColorBrush FpAskImbPen = new(Color.FromRgb(0x00, 0xE6, 0x76));
-    private static readonly SolidColorBrush FpBidImbPen = new(Color.FromRgb(0xFF, 0x52, 0x52));
-    private static readonly SolidColorBrush FpLiveHeader = new(Color.FromRgb(0x29, 0xB6, 0xF6));
-
-    static ApexScalperStrategyWindow()
-    {
-        foreach (var b in new Brush[]
-        {
-            FpBuyBrush, FpSellBrush, FpPocPen, FpGridPen, FpTextBrush, FpDimText,
-            FpAskImbPen, FpBidImbPen, FpLiveHeader,
-        })
-            b.Freeze();
-    }
-
-    private void RenderFootprint(Engine.ApexScalperStrategy? engine, int visibleBars, double threshold)
+    private void RenderFootprint(
+        TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy? engine,
+        int visibleBars,
+        double threshold)
     {
         ApexFootprintCanvas.Children.Clear();
         var all = engine?.FootprintBars;
@@ -266,50 +301,63 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
 
         var skip = Math.Max(0, all.Count - Math.Max(4, visibleBars));
-        var bars = new List<Engine.ApexFootprintBar>(all.Count - skip);
-        for (var i = skip; i < all.Count; i++) bars.Add(all[i]);
+        var bars = all.Skip(skip).ToList();   // Core FootprintBar list
 
-        // Shared price axis: union of every traded level across the visible bars, high → low.
+        // Shared price axis: union of every traded level, high → low.
         var prices = new SortedSet<double>();
         long maxCellVol = 1;
         foreach (var bar in bars)
             foreach (var row in bar.Rows)
             {
                 prices.Add(row.Price);
-                var total = row.BuyVolume + row.SellVolume;
+                var total = row.TotalVolume;
                 if (total > maxCellVol) maxCellVol = total;
             }
-        var rows = prices.Reverse().ToList();
-        var rowIndex = new Dictionary<double, int>(rows.Count);
-        for (var i = 0; i < rows.Count; i++) rowIndex[rows[i]] = i;
+        var rowsDesc = prices.Reverse().ToList();
+        var rowIndex = new Dictionary<double, int>(rowsDesc.Count);
+        for (var i = 0; i < rowsDesc.Count; i++) rowIndex[rowsDesc[i]] = i;
 
-        var decimals = FpDecimals(rows);
+        var decimals = FpDecimals(rowsDesc);
 
         ApexFootprintCanvas.Width = FpAxisWidth + bars.Count * FpColWidth;
-        ApexFootprintCanvas.Height = FpHeaderHeight + rows.Count * FpRowHeight + FpFooterHeight;
+        ApexFootprintCanvas.Height = FpHeaderHeight + rowsDesc.Count * FpRowHeight + FpFooterHeight;
 
-        for (var r = 0; r < rows.Count; r++)
-            AddFpText(rows[r].ToString("N" + decimals, System.Globalization.CultureInfo.InvariantCulture),
+        for (var r = 0; r < rowsDesc.Count; r++)
+            AddFpText(rowsDesc[r].ToString("N" + decimals, System.Globalization.CultureInfo.InvariantCulture),
                 0, FpHeaderHeight + r * FpRowHeight, FpAxisWidth - 6, FpRowHeight, FpDimText, 10, TextAlignment.Right);
 
-        for (var b = 0; b < bars.Count; b++)
-            DrawFootprintBar(bars[b], b, rowIndex, rows.Count, maxCellVol);
+        // Get the engine's live snapshot for composite/direction overlay on completed bars.
+        var latest = engine?.Latest;
+        var lastSnap = engine?.History is { } hist && hist.Count > 0 ? hist[^1] : null;
 
-        var lastCompleted = bars.LastOrDefault(x => !x.IsLive);
+        for (var b = 0; b < bars.Count; b++)
+            DrawFootprintBar(bars[b], b, rowIndex, rowsDesc.Count, maxCellVol, isLive: b == bars.Count - 1 && all[^1].StartUtc == bars[b].StartUtc, latest, lastSnap);
+
+        var lastCompleted = bars.Count > 1 ? bars[^2] : bars.Count == 1 ? bars[0] : null;
         FootprintStatus.Text = lastCompleted is null
             ? $"{bars.Count} bars"
-            : $"{bars.Count} bars · stack ↑{lastCompleted.StackedBull} ↓{lastCompleted.StackedBear} · gate ±{threshold:0.00}";
+            : $"{bars.Count} bars · stack ↑{lastCompleted.StackedBuy} ↓{lastCompleted.StackedSell} · gate ±{threshold:0.00}";
 
         FootprintScroll.ScrollToRightEnd();
     }
 
-    private void DrawFootprintBar(Engine.ApexFootprintBar bar, int colIndex,
-        IReadOnlyDictionary<double, int> rowIndex, int rowCount, long maxCellVol)
+    private void DrawFootprintBar(
+        FootprintBar bar,
+        int colIndex,
+        IReadOnlyDictionary<double, int> rowIndex,
+        int rowCount,
+        long maxCellVol,
+        bool isLive,
+        ApexSnapshotV2? liveSnap,
+        ApexSnapshotV2? lastCompletedSnap)
     {
         var x = FpAxisWidth + colIndex * FpColWidth;
 
-        AddFpText(bar.IsLive ? bar.StartUtc.ToLocalTime().ToString("HH:mm:ss") + " •" : bar.StartUtc.ToLocalTime().ToString("HH:mm:ss"),
-            x, 0, FpColWidth, FpHeaderHeight, bar.IsLive ? FpLiveHeader : FpDimText, 10, TextAlignment.Center);
+        AddFpText(isLive
+                ? bar.StartUtc.ToLocalTime().ToString("HH:mm:ss") + " •"
+                : bar.StartUtc.ToLocalTime().ToString("HH:mm:ss"),
+            x, 0, FpColWidth, FpHeaderHeight,
+            isLive ? FpLiveHeader : FpDimText, 10, TextAlignment.Center);
 
         var halfW = (FpColWidth - 2) / 2.0;
         foreach (var row in bar.Rows)
@@ -317,10 +365,11 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
             if (!rowIndex.TryGetValue(row.Price, out var r)) continue;
             var y = FpHeaderHeight + r * FpRowHeight;
 
+            // Core field names: SellVolume, BuyVolume, TotalVolume, BidImbalance, AskImbalance, PocPrice
             AddFpCellHalf(x + 1, y, halfW, row.SellVolume, maxCellVol, FpSellBrush, isLeft: true);
             AddFpCellHalf(x + 1 + halfW, y, halfW, row.BuyVolume, maxCellVol, FpBuyBrush, isLeft: false);
 
-            // Strategy's 3:1 diagonal imbalances — the raw input to the stacked-imbalance signal.
+            // 3:1 diagonal imbalances — the Core flags (same field names as before)
             if (row.AskImbalance)
                 ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle
                 {
@@ -343,7 +392,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
                 }, x + 1, y));
         }
 
-        // Footer: Δ / Σ, the composite the bar closed on, and the fired-signal marker.
+        // Footer: Δ / Σ, composite at close, trade-gate marker.
         var fy = FpHeaderHeight + rowCount * FpRowHeight;
         ApexFootprintCanvas.Children.Add(new Line
         {
@@ -355,17 +404,28 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         AddFpText($"Δ {bar.Delta:+#;-#;0}  Σ {FpCompact(bar.TotalVolume)}",
             x, fy + 2, FpColWidth, 14, deltaBrush, 10, TextAlignment.Center);
 
-        if (bar.IsLive)
+        if (isLive)
         {
             AddFpText("forming…", x, fy + 16, FpColWidth, 14, FpDimText, 10, TextAlignment.Center);
         }
         else
         {
-            var compBrush = bar.Composite > 0 ? BullCandleFill : bar.Composite < 0 ? BearCandleFill : FpDimText;
-            var marker = bar.SignalDirection > 0 ? "  ▲ LONG" : bar.SignalDirection < 0 ? "  ▼ SHORT" : string.Empty;
-            AddFpText($"C {bar.Composite:+0.00;-0.00;0.00}{marker}",
-                x, fy + 16, FpColWidth, 14,
-                bar.SignalDirection != 0 ? compBrush : FpDimText, 10, TextAlignment.Center);
+            // Use the last completed bar's snapshot for the composite overlay.
+            var snap = lastCompletedSnap ?? liveSnap;
+            if (snap is not null)
+            {
+                var composite = snap.Composite;
+                var direction = snap.CompositeDirection;
+                var compBrush = composite > 0 ? BullCandleFill : composite < 0 ? BearCandleFill : FpDimText;
+                var marker = direction > 0 ? "  ▲ LONG" : direction < 0 ? "  ▼ SHORT" : string.Empty;
+                AddFpText($"C {composite:+0.00;-0.00;0.00}{marker}",
+                    x, fy + 16, FpColWidth, 14,
+                    direction != 0 ? compBrush : FpDimText, 10, TextAlignment.Center);
+            }
+            else
+            {
+                AddFpText("—", x, fy + 16, FpColWidth, 14, FpDimText, 10, TextAlignment.Center);
+            }
         }
     }
 
@@ -413,8 +473,6 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         return a >= 1_000_000 ? $"{v / 1e6:0.#}M" : a >= 10_000 ? $"{v / 1e3:0.#}K" : v.ToString("N0");
     }
 
-    /// <summary>Decimals for the price axis: derived from the smallest gap between traded levels
-    /// (the engine buckets at 5 decimals, so this lands on 2 for equities, 4-5 for FX).</summary>
     private static int FpDecimals(List<double> rowsDescending)
     {
         var minDiff = double.MaxValue;
@@ -429,14 +487,10 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         return decimals;
     }
 
-    // ── Order book ladder ──────────────────────────────────────────────────────────
+    // ── Order book ladder ─────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Pre-builds the 21 ladder rows (10 asks, 1 spread, 10 bids) once. Updates on
-    /// depth changes mutate the existing Rectangle widths + label text rather than tearing
-    /// down the visual tree.</summary>
     private void BuildLadder()
     {
-        // Asks rendered top-down, tightest at the bottom (closest to the spread row).
         for (var i = LadderDepth - 1; i >= 0; i--)
         {
             var row = new LadderRow(AskDim);
@@ -470,15 +524,11 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
     }
 
-    private void RenderOrderBook(DepthSnapshot? depth)
+    private void RenderOrderBook(TradingTerminal.Core.Domain.DepthSnapshot? depth)
     {
         if (depth is null || (depth.Bids.Count == 0 && depth.Asks.Count == 0))
         {
-            for (var i = 0; i < LadderDepth; i++)
-            {
-                _askRows[i].Clear();
-                _bidRows[i].Clear();
-            }
+            for (var i = 0; i < LadderDepth; i++) { _askRows[i].Clear(); _bidRows[i].Clear(); }
             if (_spreadLabel is not null) _spreadLabel.Text = "—";
             OrderBookStatus.Text = "awaiting depth";
             return;
@@ -505,29 +555,20 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
             if (i < depth.Asks.Count && depth.Asks[i].Size > 0)
             {
                 var level = depth.Asks[i];
-                var widthFraction = (double)level.Size / maxSize;
-                _askRows[i].Set(level.Price, level.Size, widthFraction * LadderBarMaxWidth,
+                _askRows[i].Set(level.Price, level.Size, (double)level.Size / maxSize * LadderBarMaxWidth,
                     i == largestAskIdx ? AskFull : AskDim);
             }
-            else
-            {
-                _askRows[i].Clear();
-            }
+            else _askRows[i].Clear();
         }
-
         for (var i = 0; i < LadderDepth; i++)
         {
             if (i < depth.Bids.Count && depth.Bids[i].Size > 0)
             {
                 var level = depth.Bids[i];
-                var widthFraction = (double)level.Size / maxSize;
-                _bidRows[i].Set(level.Price, level.Size, widthFraction * LadderBarMaxWidth,
+                _bidRows[i].Set(level.Price, level.Size, (double)level.Size / maxSize * LadderBarMaxWidth,
                     i == largestBidIdx ? BidFull : BidDim);
             }
-            else
-            {
-                _bidRows[i].Clear();
-            }
+            else _bidRows[i].Clear();
         }
 
         var bestAsk = depth.Asks.Count > 0 ? (double?)depth.Asks[0].Price : null;
@@ -546,9 +587,6 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
     }
 
-    /// <summary>One row of the depth ladder — a bar (Rectangle) growing leftward from the left
-    /// edge plus a price + size label on the right. Pre-allocated; rendering only mutates
-    /// width / fill / text.</summary>
     private sealed class LadderRow
     {
         public Grid Root { get; }

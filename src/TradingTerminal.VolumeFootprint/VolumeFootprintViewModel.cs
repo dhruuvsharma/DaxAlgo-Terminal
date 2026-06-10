@@ -18,7 +18,7 @@ namespace TradingTerminal.VolumeFootprint;
 /// it resolves the source broker, pumps the trade tape (with a synthetic L1-derived fallback for
 /// brokers that don't wire <c>SubscribeTradesAsync</c>, so the chart still works against the fake
 /// client / cTrader / Alpaca), and aggregates each <see cref="TradePrint"/> into time-bucketed
-/// <see cref="FootprintBar"/>s with per-price buy/sell volume, delta and point-of-control.
+/// <see cref="RenderBar"/>s via <see cref="FootprintFeatures.BuildBar"/> (the shared Core extractor).
 ///
 /// The window renders the cluster grid onto a Canvas in code-behind off the <see cref="FootprintChanged"/>
 /// event — same convention the Order Flow Cube window uses (presentation, not business logic). This VM
@@ -51,9 +51,16 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private readonly QuoteTradeSynthesizer _synth = new();
     private bool _useSynthetic;
 
-    private FootprintBar? _currentBar;
+    // ── Per-bar accumulator ────────────────────────────────────────────────────────────────
+    // Instead of a mutable FootprintBar mutated by Add(), we keep the raw prints for the
+    // forming bar and call FootprintFeatures.BuildBar (Core) on every trade to rebuild the
+    // immutable Core bar. This ensures the chart and Apex v2 engine score from the same math.
+    private readonly List<FootprintPrint> _currentPrints = new();
     private DateTime _currentBucketStart = DateTime.MinValue;
     private long _cumulativeDelta;
+
+    // Cached render bar for the forming bar so we can replace it in Bars in-place.
+    private RenderBar? _currentRenderBar;
 
     /// <summary>Wall-clock arrival times of recent trades, pruned to <see cref="TicksWindow"/>, so the
     /// stats panel can show a live ticks-per-second throughput that decays when flow stops.</summary>
@@ -100,7 +107,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         // Bars) before it exists. The _ready guard suppresses those mid-construction callbacks; we
         // kick off a single Restart() explicitly once everything is wired.
         _allInstruments = SignalInstrumentCatalog.All;
-        Bars = new ObservableCollection<FootprintBar>();
+        Bars = new ObservableCollection<RenderBar>();
         Instruments = new ObservableCollection<SignalInstrument>(_allInstruments.Take(MaxInstrumentsDisplayed));
         Intervals = new ObservableCollection<FootprintInterval>(AllIntervals);
 
@@ -124,7 +131,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     public ObservableCollection<FootprintInterval> Intervals { get; }
 
     /// <summary>Most recent footprint bars, oldest first (rendered left → right).</summary>
-    public ObservableCollection<FootprintBar> Bars { get; }
+    public ObservableCollection<RenderBar> Bars { get; }
 
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
     [ObservableProperty] private FootprintInterval? _selectedInterval;
@@ -226,7 +233,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
         _useSynthetic = !BrokerSupportsTradeTape(broker);
         _synth.Reset();
-        _currentBar = null;
+        _currentPrints.Clear();
+        _currentRenderBar = null;
         _currentBucketStart = DateTime.MinValue;
         _cumulativeDelta = 0;
         TradesSeen = 0;
@@ -299,41 +307,72 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         var ts = trade.EventTimeUtc;
         var span = interval.Span;
         var bucket = new DateTime(ts.Ticks - (ts.Ticks % span.Ticks), DateTimeKind.Utc);
+        var tickSize = TickSize;
+        var quality = _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape;
 
-        if (_currentBar is null || bucket != _currentBucketStart)
+        if (bucket != _currentBucketStart)
         {
-            // Finalize the prior bar's cumulative delta before rolling.
-            if (_currentBar is not null)
+            // Finalize the completed bar: seal the prior prints into the Bars collection.
+            if (_currentBucketStart != DateTime.MinValue && _currentRenderBar is not null)
             {
-                _cumulativeDelta += _currentBar.Delta;
-                _currentBar.CumulativeDelta = _cumulativeDelta;
+                // The forming bar was already added; rebuild it as a finalized bar and
+                // update the cumulative-delta thread before rolling.
+                var finalized = BuildRenderBar(_currentPrints, tickSize, _currentBucketStart, bucket, quality, _cumulativeDelta);
+                _cumulativeDelta += finalized.Core.Delta;
+                // Replace the last entry (the forming bar) with the finalized version.
+                if (Bars.Count > 0) Bars[^1] = finalized;
             }
+
             _currentBucketStart = bucket;
-            _currentBar = new FootprintBar(bucket, TickSize);
-            Bars.Add(_currentBar);
-            while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
+            _currentPrints.Clear();
+            _currentRenderBar = null;
         }
 
-        var isBuy = trade.Aggressor switch
-        {
-            AggressorSide.Buy => true,
-            AggressorSide.Sell => false,
-            // Unknown aggressor (illiquid first prints) — fall back to nothing rather than mislabel.
-            _ => (bool?)null,
-        } ?? (trade.Price >= (_currentBar?.Close is { } c && !double.IsNaN(c) ? c : trade.Price));
+        // Accumulate this print using Core's FootprintPrint projection.
+        _currentPrints.Add(FootprintPrint.From(trade));
 
-        _currentBar!.Add(trade.Price, trade.Size, isBuy);
+        // Rebuild the forming bar from all accumulated prints. The Core extractor is stateless,
+        // deterministic and cheap (O(prints) per call); rebuilding on every trade is correct and
+        // gives the same result as the old incremental Add() path.
+        var formingBar = BuildRenderBar(_currentPrints, tickSize, bucket,
+            bucket + span, quality, _cumulativeDelta);
+        _currentRenderBar = formingBar;
+
+        if (_currentBucketStart == bucket && (Bars.Count == 0 || Bars[^1].StartUtc != bucket))
+        {
+            Bars.Add(formingBar);
+            while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
+        }
+        else if (Bars.Count > 0 && Bars[^1].StartUtc == bucket)
+        {
+            // Replace the forming bar with the freshly rebuilt version.
+            Bars[^1] = formingBar;
+        }
 
         TradesSeen++;
         _tradeArrivals.Enqueue(DateTime.UtcNow);
         // Live forming-bar delta folds into the running session delta for the header read-out.
-        SessionDelta = _cumulativeDelta + _currentBar.Delta;
-        // Keep the forming bar's running CVD current so the footer reads right before it rolls.
-        _currentBar.CumulativeDelta = SessionDelta;
+        SessionDelta = _cumulativeDelta + formingBar.Core.Delta;
 
         UpdateStats();
         Status = $"{SelectedInstrument?.DisplayName} · {Bars.Count} bars · {TradesSeen} trades · CVD {SessionDelta:+#;-#;0}";
         FootprintChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Delegates bar construction to <see cref="FootprintFeatures.BuildBar"/> (Core) and
+    /// wraps the result in a <see cref="RenderBar"/> that adds the argmax buy/sell POC fields the
+    /// overlay connector lines need.</summary>
+    private static RenderBar BuildRenderBar(
+        IReadOnlyList<FootprintPrint> prints,
+        double tickSize,
+        DateTime startUtc,
+        DateTime endUtc,
+        FeedQuality quality,
+        long cumulativeDeltaBefore)
+    {
+        var core = FootprintFeatures.BuildBar(prints, tickSize, startUtc, endUtc,
+            quality, cumulativeDeltaBefore);
+        return new RenderBar(core);
     }
 
     /// <summary>Recomputes the POC regression and the stats-panel read-outs from the visible bars.
@@ -344,17 +383,17 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         int n = bars.Count;
 
         // Least-squares fit of each POC flavour (price vs column index) over bars with a valid POC.
-        (PocSlope, PocIntercept, HasRegression) = FitPoc(b => b.PointOfControl);
+        (PocSlope, PocIntercept, HasRegression)         = FitPoc(b => b.PointOfControl);
         (BuyPocSlope, BuyPocIntercept, HasBuyRegression) = FitPoc(b => b.BuyPointOfControl);
         (SellPocSlope, SellPocIntercept, HasSellRegression) = FitPoc(b => b.SellPointOfControl);
 
-        (PocSlopeText, PocSlopeDirection) = FormatSlope(HasRegression, PocSlope);
-        (BuyPocSlopeText, BuyPocSlopeDirection) = FormatSlope(HasBuyRegression, BuyPocSlope);
+        (PocSlopeText, PocSlopeDirection)     = FormatSlope(HasRegression, PocSlope);
+        (BuyPocSlopeText, BuyPocSlopeDirection)   = FormatSlope(HasBuyRegression, BuyPocSlope);
         (SellPocSlopeText, SellPocSlopeDirection) = FormatSlope(HasSellRegression, SellPocSlope);
 
-        // Buy/sell split is recoverable from each bar's total + delta (buy = (Σ+Δ)/2).
+        // Buy/sell split from Core bar fields.
         long buy = 0, sell = 0;
-        foreach (var b in bars) { buy += (b.TotalVolume + b.Delta) / 2; sell += (b.TotalVolume - b.Delta) / 2; }
+        foreach (var b in bars) { buy += b.Core.BuyVolume; sell += b.Core.SellVolume; }
         var vol = buy + sell;
         VisibleVolumeText = vol.ToString("N0", CultureInfo.InvariantCulture);
         BuySellText = vol > 0
@@ -371,7 +410,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     /// <summary>Least-squares fit of a chosen POC price (y) against column index (x) over the visible
     /// bars, skipping bars whose POC is NaN. Returns (slope price/bar, intercept at column 0, valid).</summary>
-    private (double slope, double intercept, bool has) FitPoc(Func<FootprintBar, double> selector)
+    private (double slope, double intercept, bool has) FitPoc(Func<RenderBar, double> selector)
     {
         var bars = Bars;
         double sx = 0, sy = 0, sxx = 0, sxy = 0;
@@ -427,6 +466,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private void ClearBars()
     {
         Bars.Clear();
+        _currentPrints.Clear();
+        _currentRenderBar = null;
         FootprintChanged?.Invoke(this, EventArgs.Empty);
     }
 

@@ -1,107 +1,55 @@
+using TradingTerminal.Core.MarketData;
+
 namespace TradingTerminal.VolumeFootprint;
 
 /// <summary>
-/// One price level inside a footprint bar: the volume that traded at this price bucket split by
-/// aggressor side. <see cref="Total"/> drives the point-of-control pick; <see cref="Delta"/> drives
-/// the per-cell colour (buy-dominant green, sell-dominant red).
+/// WPF render model for one footprint bar. Wraps the immutable <see cref="FootprintBar"/>
+/// produced by <see cref="FootprintFeatures.BuildBar"/> and adds the two argmax-per-side POC
+/// prices that the overlay needs. Core supplies BuyCentroid and SellCentroid (VWAP per side),
+/// but the connector lines want the argmax row — so those two fields are computed locally from
+/// the bar's Rows once when the bar is produced and cached here.
 /// </summary>
-public sealed class FootprintCell
+public sealed class RenderBar
 {
-    public FootprintCell(double price) => Price = price;
-
-    /// <summary>Bucket centre price (snapped to the configured tick size).</summary>
-    public double Price { get; }
-
-    /// <summary>Volume that lifted the offer (buy-initiated) at this level.</summary>
-    public long BuyVolume { get; private set; }
-
-    /// <summary>Volume that hit the bid (sell-initiated) at this level.</summary>
-    public long SellVolume { get; private set; }
-
-    public long Total => BuyVolume + SellVolume;
-    public long Delta => BuyVolume - SellVolume;
-
-    public void AddBuy(long size) => BuyVolume += size;
-    public void AddSell(long size) => SellVolume += size;
-}
-
-/// <summary>
-/// A single footprint (cluster) bar — all trades inside one time bucket, bucketed by price into
-/// <see cref="Cells"/>. Aggregates the bar delta, total volume, traded high/low and the
-/// point-of-control (highest-volume price). Mutated live as trades arrive while the bar is forming.
-/// </summary>
-public sealed class FootprintBar
-{
-    private readonly SortedDictionary<long, FootprintCell> _cells = new();
-    private readonly double _tickSize;
-
-    public FootprintBar(DateTime startUtc, double tickSize)
+    public RenderBar(FootprintBar core)
     {
-        StartUtc = startUtc;
-        _tickSize = tickSize > 0 ? tickSize : 0.25;
+        Core = core;
+
+        // Argmax buy POC: row with the largest BuyVolume.
+        long bestBuy = 0;
+        long bestSell = 0;
+        BuyPointOfControl = double.NaN;
+        SellPointOfControl = double.NaN;
+        foreach (var row in core.Rows)
+        {
+            if (row.BuyVolume > bestBuy)  { bestBuy  = row.BuyVolume;  BuyPointOfControl  = row.Price; }
+            if (row.SellVolume > bestSell) { bestSell = row.SellVolume; SellPointOfControl = row.Price; }
+        }
     }
 
-    public DateTime StartUtc { get; }
+    /// <summary>The canonical bar produced by Core's stateless extractor.</summary>
+    public FootprintBar Core { get; }
 
-    public long TotalVolume { get; private set; }
-    public long Delta { get; private set; }
+    // ── Forwarded properties used by the window code-behind ────────────────────────────────
 
-    /// <summary>Running cumulative delta across all bars up to and including this one. Set by the VM
-    /// when the bar is appended so the footer can show a CVD trend without re-summing.</summary>
-    public long CumulativeDelta { get; set; }
+    public DateTime StartUtc      => Core.StartUtc;
+    public long     TotalVolume   => Core.TotalVolume;
+    public long     Delta         => Core.Delta;
+    public long     CumulativeDelta => Core.CumulativeDelta;
 
-    public double High { get; private set; } = double.NaN;
-    public double Low { get; private set; } = double.NaN;
-    public double Open { get; private set; } = double.NaN;
-    public double Close { get; private set; } = double.NaN;
+    /// <summary>Total-volume point of control (argmax total-volume row price), from Core.</summary>
+    public double PointOfControl  => Core.PocPrice;
 
-    /// <summary>Price level with the most total volume (point of control), or NaN for an empty bar.</summary>
-    public double PointOfControl { get; private set; } = double.NaN;
+    /// <summary>Argmax buy-volume row price. Computed locally from <see cref="FootprintBar.Rows"/>
+    /// because Core exposes BuyCentroid (VWAP), not an argmax.</summary>
+    public double BuyPointOfControl  { get; }
 
-    /// <summary>Price level with the most buy-initiated volume (buy point of control), or NaN if no
-    /// buys have printed in this bar.</summary>
-    public double BuyPointOfControl { get; private set; } = double.NaN;
+    /// <summary>Argmax sell-volume row price. Same convention as <see cref="BuyPointOfControl"/>.</summary>
+    public double SellPointOfControl { get; }
 
-    /// <summary>Price level with the most sell-initiated volume (sell point of control), or NaN if no
-    /// sells have printed in this bar.</summary>
-    public double SellPointOfControl { get; private set; } = double.NaN;
+    /// <summary>Price rows ordered high → low, as returned by Core.</summary>
+    public IReadOnlyList<Core.MarketData.FootprintFeatureRow> Cells => Core.Rows;
 
-    /// <summary>Cells ordered high price → low price (the order they render top-to-bottom).</summary>
-    public IEnumerable<FootprintCell> Cells => _cells.Values.Reverse();
-
-    public bool IsEmpty => _cells.Count == 0;
-
-    public void Add(double price, long size, bool isBuy)
-    {
-        if (size <= 0) return;
-        var bucketKey = (long)Math.Round(price / _tickSize, MidpointRounding.AwayFromZero);
-        var bucketPrice = bucketKey * _tickSize;
-
-        if (!_cells.TryGetValue(bucketKey, out var cell))
-        {
-            cell = new FootprintCell(bucketPrice);
-            _cells[bucketKey] = cell;
-        }
-        if (isBuy) cell.AddBuy(size); else cell.AddSell(size);
-
-        TotalVolume += size;
-        Delta += isBuy ? size : -size;
-        if (double.IsNaN(Open)) Open = price;
-        Close = price;
-        if (double.IsNaN(High) || price > High) High = price;
-        if (double.IsNaN(Low) || price < Low) Low = price;
-
-        // Recompute the three POCs incrementally — cheap, bars are bounded by a few hundred levels.
-        long bestTotal = -1, bestBuy = 0, bestSell = 0;
-        double pocPrice = double.NaN, buyPocPrice = double.NaN, sellPocPrice = double.NaN;
-        foreach (var c in _cells.Values)
-        {
-            if (c.Total > bestTotal) { bestTotal = c.Total; pocPrice = c.Price; }
-            if (c.BuyVolume > bestBuy) { bestBuy = c.BuyVolume; buyPocPrice = c.Price; }
-            if (c.SellVolume > bestSell) { bestSell = c.SellVolume; sellPocPrice = c.Price; }
-        }
-        PointOfControl = pocPrice;
-        BuyPointOfControl = buyPocPrice;
-        SellPointOfControl = sellPocPrice;
-    }
+    /// <summary>Feed quality tag from the Core bar (RealTape or SyntheticL1).</summary>
+    public FeedQuality Quality => Core.Quality;
 }

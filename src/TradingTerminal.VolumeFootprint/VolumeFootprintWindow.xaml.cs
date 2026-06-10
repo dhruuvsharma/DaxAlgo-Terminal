@@ -83,7 +83,8 @@ public partial class VolumeFootprintWindow : MetroWindow
             foreach (var cell in bar.Cells)
             {
                 prices.Add(cell.Price);
-                if (cell.Total > maxCellVol) maxCellVol = cell.Total;
+                // Core's FootprintFeatureRow.TotalVolume replaces the old FootprintCell.Total.
+                if (cell.TotalVolume > maxCellVol) maxCellVol = cell.TotalVolume;
             }
         var rows = prices.Reverse().ToList(); // descending price (top = highest)
         var rowIndex = new Dictionary<double, int>(rows.Count);
@@ -105,7 +106,7 @@ public partial class VolumeFootprintWindow : MetroWindow
 
     /// <summary>Draws the connector + regression lines for the total / buy / sell points-of-control.
     /// All ride above the cluster cells (added last). Regression slopes/intercepts come from the VM.</summary>
-    private void DrawPocOverlay(List<FootprintBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex)
+    private void DrawPocOverlay(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex)
     {
         if (_vm is null) return;
         DrawPocSeries(bars, rows, rowIndex, b => b.PointOfControl,
@@ -118,8 +119,8 @@ public partial class VolumeFootprintWindow : MetroWindow
 
     /// <summary>Draws one POC flavour: a polyline through the centre of each bar's selected POC cell
     /// (dots per vertex), plus its dashed least-squares regression line from the first to last column.</summary>
-    private void DrawPocSeries(List<FootprintBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex,
-        Func<FootprintBar, double> pocSelector, bool hasRegression, double slope, double intercept,
+    private void DrawPocSeries(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex,
+        Func<RenderBar, double> pocSelector, bool hasRegression, double slope, double intercept,
         Brush connectorBrush, Brush regressionBrush, double dotRadius)
     {
         var pts = new PointCollection();
@@ -193,7 +194,7 @@ public partial class VolumeFootprintWindow : MetroWindow
         }
     }
 
-    private void DrawBar(FootprintBar bar, int colIndex, IReadOnlyDictionary<double, int> rowIndex,
+    private void DrawBar(RenderBar bar, int colIndex, IReadOnlyDictionary<double, int> rowIndex,
         long maxCellVol, int decimals)
     {
         var x = LeftAxisWidth + colIndex * ColumnWidth;
@@ -202,7 +203,7 @@ public partial class VolumeFootprintWindow : MetroWindow
         AddText(bar.StartUtc.ToLocalTime().ToString("HH:mm:ss"), x, 0, ColumnWidth, HeaderHeight,
             DimText, 10.5, TextAlignment.Center);
 
-        // Cells.
+        // Cells (Core FootprintFeatureRow: SellVolume left / BuyVolume right).
         var halfW = (ColumnWidth - 2) / 2.0;
         foreach (var cell in bar.Cells)
         {

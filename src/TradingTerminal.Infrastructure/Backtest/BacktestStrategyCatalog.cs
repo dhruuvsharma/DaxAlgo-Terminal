@@ -85,10 +85,12 @@ public static class BacktestStrategyCatalog
         },
         new BacktestStrategyOption(
             Id: "apexScalper",
-            DisplayName: "APEX microstructure scalper (composite, 8 signals)",
+            DisplayName: "APEX microstructure scalper v2 (tape-primary, calibrated composite)",
             Build: contract => new ApexScalperStrategy(contract))
         {
-            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
+            // v2 is trade-tape primary; L1 quotes drive the synthetic fallback and spread, depth
+            // is optional (OBI participates only when a genuine depth stream is live and fresh).
+            DataRequirement = StrategyDataRequirement.TradeTape | StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
         },
         new BacktestStrategyOption(
             Id: "indexKScoreSurface",

@@ -4,9 +4,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
@@ -63,6 +65,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     private IBacktestStrategy? _strategy;
     private IDisposable? _eventSubscription;
     private IDisposable? _ingestHandle;
+    private IDisposable? _tradeIngestHandle;
     private DateTime _currentBarStart = DateTime.MinValue;
     private double _barOpen, _barHigh, _barLow, _barClose;
     private long _barVolume;
@@ -123,6 +126,27 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// depth pump on the UI thread; raised via <see cref="ObservablePropertyAttribute"/> so the
     /// order-book pane re-renders automatically when it changes.</summary>
     [ObservableProperty] private DepthSnapshot? _latestDepth;
+
+    /// <summary>
+    /// True when the active broker is known to support the trade tape for the selected
+    /// instrument, false when it threw <see cref="NotSupportedException"/> during the
+    /// trade-pump probe. Only meaningful when <see cref="DataRequirement"/> includes
+    /// <see cref="StrategyDataRequirement.TradeTape"/>. Derived windows bind this to a
+    /// feed-quality badge. Set on the UI thread; defaults to false until the pump starts.
+    /// </summary>
+    [ObservableProperty] private bool _tradeTapeAvailable;
+
+    /// <summary>
+    /// The market data feeds this hosted strategy needs. The base default is
+    /// <see cref="StrategyDataRequirement.L1"/> | <see cref="StrategyDataRequirement.Bars"/>;
+    /// subclasses that consume depth or trade tape override this to include
+    /// <see cref="StrategyDataRequirement.Depth"/> and/or
+    /// <see cref="StrategyDataRequirement.TradeTape"/> respectively. The base
+    /// <see cref="StartAsync"/> reads this once at the moment Continue is pressed
+    /// to decide which pumps to start — changing it after streaming begins has no effect.
+    /// </summary>
+    protected virtual StrategyDataRequirement DataRequirement =>
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
 
     /// <summary>Instruments shown in the picker — a capped, search-filtered view of
     /// <see cref="AllInstruments"/>.</summary>
@@ -347,6 +371,15 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
         _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
         _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
+
+        // Opt-in trade-tape pump: only started when the hosted strategy declares TradeTape in
+        // its DataRequirement. The pump probes broker capability before subscribing so the
+        // TradeTapeAvailable badge reflects reality rather than crashing on NotSupportedException.
+        if (DataRequirement.HasFlag(StrategyDataRequirement.TradeTape))
+        {
+            TradeTapeAvailable = false;
+            _ = RunTradeStreamAsync(broker, contract, instrumentId, _streamCts.Token);
+        }
     }
 
     [RelayCommand]
@@ -359,6 +392,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId); }
 
         _ingestHandle?.Dispose(); _ingestHandle = null;
+        _tradeIngestHandle?.Dispose(); _tradeIngestHandle = null;
         _eventSubscription?.Dispose(); _eventSubscription = null;
         if (_router is not null) { _router.SignalEmitted -= OnSignalEmitted; _router = null; }
         _strategy = null;
@@ -366,6 +400,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         IsStreaming = false;
         IsAlgoRunning = false;
         LatestDepth = null;
+        TradeTapeAvailable = false;
         Status = "Stopped";
         Log("STREAM", "Stopped");
     }
@@ -483,6 +518,83 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
     }
 
+    /// <summary>
+    /// Opt-in trade-tape pump running alongside the quote and depth pumps, started only when
+    /// <see cref="DataRequirement"/> includes <see cref="StrategyDataRequirement.TradeTape"/>.
+    ///
+    /// <para>Capability is probed before subscribing: the active broker client's
+    /// <c>SubscribeTradesAsync</c> is called in a try/catch for
+    /// <see cref="NotSupportedException"/>. Brokers without a trade tape (NinjaTrader,
+    /// cTrader, Alpaca in this build) throw synchronously from the method body; IB and
+    /// Simulated return a valid async enumerator. On a <see cref="NotSupportedException"/>
+    /// the pump logs once via the shared Activity Log, sets
+    /// <see cref="TradeTapeAvailable"/> to <c>false</c>, and exits — quote/bar/depth pumps
+    /// are unaffected. On success the pump subscribes the ingest trade feed, consumes
+    /// <see cref="IMarketDataHub.Trades"/> off the hub, and forwards each
+    /// <see cref="TradePrint"/> to <see cref="IBacktestStrategy.OnTradeAsync"/>.</para>
+    ///
+    /// <para>The channel/marshalling/cancellation pattern is identical to
+    /// <see cref="RunDepthStreamAsync"/>. A bounded <see cref="Channel{T}"/> decouples the
+    /// hub publish thread from the consumer so a slow strategy cannot block ingest.</para>
+    /// </summary>
+    private async Task RunTradeStreamAsync(
+        BrokerKind broker, Contract contract, InstrumentId instrumentId, CancellationToken ct)
+    {
+        // Probe broker capability before subscribing. Brokers without a trade tape throw
+        // NotSupportedException directly from SubscribeTradesAsync (before any MoveNextAsync),
+        // so a plain try/catch here is sufficient — we don't need to start iterating.
+        try
+        {
+            // Probe: discard the enumerator immediately; we only want to know if it throws.
+            // The actual streaming goes through the ingest / hub below.
+            _ = _services.Selector.Get(broker).SubscribeTradesAsync(contract, ct);
+        }
+        catch (NotSupportedException nse)
+        {
+            await UiThread.RunAsync(() =>
+            {
+                TradeTapeAvailable = false;
+                Log("TAPE", $"Trade tape not available on {broker}: {nse.Message.Split('.')[0]}");
+            });
+            return;
+        }
+
+        // Broker supports trades — subscribe the ingest feed and set the availability flag.
+        _tradeIngestHandle = _services.Ingest.SubscribeTrades(contract, broker);
+        await UiThread.RunAsync(() => TradeTapeAvailable = true);
+
+        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Trades(instrumentId).Subscribe(t =>
+            channel.Writer.TryWrite(t));
+
+        try
+        {
+            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
+            {
+                if (_strategy is null || _router is null) break;
+                await UiThread.RunAsync(async () =>
+                {
+                    try { await _strategy.OnTradeAsync(trade, _clock, _router, ct); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId); }
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} trade stream ended", StrategyId);
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+        }
+    }
+
     private void AggregateBar(Tick tick)
     {
         var mid = (tick.Bid + tick.Ask) * 0.5;
@@ -548,6 +660,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _ingestHandle?.Dispose();
+        _tradeIngestHandle?.Dispose();
         _eventSubscription?.Dispose();
     }
 }
