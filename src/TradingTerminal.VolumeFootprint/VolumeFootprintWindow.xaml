@@ -65,12 +65,122 @@
             </Grid>
         </Border>
 
-        <!-- Footprint cluster grid (drawn in code-behind onto the Canvas) -->
-        <ScrollViewer Grid.Row="1" x:Name="Scroll"
-                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                      Background="{DynamicResource Background.Primary}">
-            <Canvas x:Name="FootprintCanvas" Background="Transparent" />
-        </ScrollViewer>
+        <!-- Footprint cluster grid (drawn in code-behind onto the Canvas) + floating stats panel -->
+        <Grid Grid.Row="1">
+            <ScrollViewer x:Name="Scroll"
+                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                          Background="{DynamicResource Background.Primary}">
+                <Canvas x:Name="FootprintCanvas" Background="Transparent" />
+            </ScrollViewer>
+
+            <!-- Floating analytics panel: POC-regression slope, CVD, ticks/sec and volume read-outs.
+                 Sits over the chart's top-right and does not scroll with the canvas. -->
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,18,0"
+                    Background="{DynamicResource Background.Elevated}" Opacity="0.96"
+                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="4"
+                    Padding="11,8" MinWidth="184">
+                <Border.Resources>
+                    <Style x:Key="Lbl" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Margin" Value="0,1,14,1" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                    <Style x:Key="Val" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="FontFamily" Value="Consolas" />
+                        <Setter Property="TextAlignment" Value="Right" />
+                        <Setter Property="Margin" Value="0,1,0,1" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                    <Style x:Key="ValSlope" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PocSlopeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding PocSlopeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValBuySlope" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding BuyPocSlopeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding BuyPocSlopeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValSellSlope" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SellPocSlopeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SellPocSlopeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValCvd" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CvdDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding CvdDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Resources>
+                <StackPanel>
+                    <TextBlock Text="FOOTPRINT STATS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,6" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="POC slope" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PocSlopeText}" Style="{StaticResource ValSlope}" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Buy POC slope" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BuyPocSlopeText}" Style="{StaticResource ValBuySlope}" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Sell POC slope" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SellPocSlopeText}" Style="{StaticResource ValSellSlope}" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Cumulative Δ" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SessionDelta, StringFormat={}{0:+#;-#;0}}" Style="{StaticResource ValCvd}" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Ticks / sec" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding TicksPerSecondText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Volume" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding VisibleVolumeText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Buy / Sell" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding BuySellText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="POC" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding CurrentPocText}" Style="{StaticResource Val}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- Legend + status -->
         <Border Grid.Row="2"
@@ -88,7 +198,15 @@
                     <Border Width="11" Height="11" Background="#C62828" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="sell vol" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
                     <Border Width="11" Height="11" BorderBrush="#FFD54F" BorderThickness="2" VerticalAlignment="Center" Margin="0,0,4,0" />
-                    <TextBlock Text="POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#FFA726" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#00E676" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="Buy POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#FF5252" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="Sell POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#29B6F6" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="regression (dashed)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
                            Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"

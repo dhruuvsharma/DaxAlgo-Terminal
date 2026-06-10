@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Threading.Channels;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -53,6 +55,15 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private DateTime _currentBucketStart = DateTime.MinValue;
     private long _cumulativeDelta;
 
+    /// <summary>Wall-clock arrival times of recent trades, pruned to <see cref="TicksWindow"/>, so the
+    /// stats panel can show a live ticks-per-second throughput that decays when flow stops.</summary>
+    private readonly Queue<DateTime> _tradeArrivals = new();
+    private static readonly TimeSpan TicksWindow = TimeSpan.FromSeconds(2);
+
+    /// <summary>Refreshes the ticks/sec read-out (which must decay between trades) off the UI thread's
+    /// dispatcher. The chart canvas is only redrawn on actual trades, not on this tick.</summary>
+    private readonly DispatcherTimer _statsTimer;
+
     /// <summary>False until the constructor has built every collection. Suppresses the
     /// <c>[ObservableProperty]</c> setters' On*Changed callbacks from running <see cref="Restart"/>
     /// against half-initialized state.</summary>
@@ -97,6 +108,13 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
                              ?? Instruments.FirstOrDefault();
         SelectedInterval = Intervals.First(i => i.Label == "1m");
 
+        _statsTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(500),
+        };
+        _statsTimer.Tick += (_, _) => UpdateTicksPerSecond();
+        _statsTimer.Start();
+
         _ready = true;
         _ = LoadInstrumentsAsync();
         Restart();
@@ -116,6 +134,40 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private string _status = "Pick an instrument to stream its footprint.";
     [ObservableProperty] private long _tradesSeen;
     [ObservableProperty] private long _sessionDelta;
+
+    // ── Top-right stats panel ──────────────────────────────────────────────────────────────────
+    [ObservableProperty] private string _pocSlopeText = "—";
+    /// <summary>Sign of the POC-regression slope: +1 rising, -1 falling, 0 flat (drives the colour).</summary>
+    [ObservableProperty] private int _pocSlopeDirection;
+    [ObservableProperty] private string _buyPocSlopeText = "—";
+    [ObservableProperty] private int _buyPocSlopeDirection;
+    [ObservableProperty] private string _sellPocSlopeText = "—";
+    [ObservableProperty] private int _sellPocSlopeDirection;
+    [ObservableProperty] private int _cvdDirection;
+    [ObservableProperty] private string _ticksPerSecondText = "0.0";
+    [ObservableProperty] private string _visibleVolumeText = "0";
+    [ObservableProperty] private string _buySellText = "—";
+    [ObservableProperty] private string _currentPocText = "—";
+
+    /// <summary>Least-squares slope of POC price against bar (column) index across the visible bars,
+    /// in price units per bar. Read by the window code-behind to draw the regression line.</summary>
+    public double PocSlope { get; private set; }
+
+    /// <summary>Intercept of the POC regression at column 0, in price units.</summary>
+    public double PocIntercept { get; private set; }
+
+    /// <summary>True once ≥2 bars carry a valid POC, so a regression line can be drawn.</summary>
+    public bool HasRegression { get; private set; }
+
+    /// <summary>Buy-POC regression (slope/intercept/validity), same convention as the total POC.</summary>
+    public double BuyPocSlope { get; private set; }
+    public double BuyPocIntercept { get; private set; }
+    public bool HasBuyRegression { get; private set; }
+
+    /// <summary>Sell-POC regression (slope/intercept/validity), same convention as the total POC.</summary>
+    public double SellPocSlope { get; private set; }
+    public double SellPocIntercept { get; private set; }
+    public bool HasSellRegression { get; private set; }
 
     /// <summary>Raised on the UI thread whenever the bar set changes and the canvas should redraw.</summary>
     public event EventHandler? FootprintChanged;
@@ -179,6 +231,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _cumulativeDelta = 0;
         TradesSeen = 0;
         SessionDelta = 0;
+        ResetStats();
         ClearBars();
 
         var tape = _useSynthetic ? "synthetic L1-derived" : "real trade tape";
@@ -272,13 +325,103 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _currentBar!.Add(trade.Price, trade.Size, isBuy);
 
         TradesSeen++;
+        _tradeArrivals.Enqueue(DateTime.UtcNow);
         // Live forming-bar delta folds into the running session delta for the header read-out.
         SessionDelta = _cumulativeDelta + _currentBar.Delta;
         // Keep the forming bar's running CVD current so the footer reads right before it rolls.
         _currentBar.CumulativeDelta = SessionDelta;
 
+        UpdateStats();
         Status = $"{SelectedInstrument?.DisplayName} · {Bars.Count} bars · {TradesSeen} trades · CVD {SessionDelta:+#;-#;0}";
         FootprintChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Recomputes the POC regression and the stats-panel read-outs from the visible bars.
+    /// Called on each trade (UI thread) before the canvas redraws. Cheap — O(visible bars).</summary>
+    private void UpdateStats()
+    {
+        var bars = Bars;
+        int n = bars.Count;
+
+        // Least-squares fit of each POC flavour (price vs column index) over bars with a valid POC.
+        (PocSlope, PocIntercept, HasRegression) = FitPoc(b => b.PointOfControl);
+        (BuyPocSlope, BuyPocIntercept, HasBuyRegression) = FitPoc(b => b.BuyPointOfControl);
+        (SellPocSlope, SellPocIntercept, HasSellRegression) = FitPoc(b => b.SellPointOfControl);
+
+        (PocSlopeText, PocSlopeDirection) = FormatSlope(HasRegression, PocSlope);
+        (BuyPocSlopeText, BuyPocSlopeDirection) = FormatSlope(HasBuyRegression, BuyPocSlope);
+        (SellPocSlopeText, SellPocSlopeDirection) = FormatSlope(HasSellRegression, SellPocSlope);
+
+        // Buy/sell split is recoverable from each bar's total + delta (buy = (Σ+Δ)/2).
+        long buy = 0, sell = 0;
+        foreach (var b in bars) { buy += (b.TotalVolume + b.Delta) / 2; sell += (b.TotalVolume - b.Delta) / 2; }
+        var vol = buy + sell;
+        VisibleVolumeText = vol.ToString("N0", CultureInfo.InvariantCulture);
+        BuySellText = vol > 0
+            ? $"{100.0 * buy / vol:0}% / {100.0 * sell / vol:0}%"
+            : "—";
+
+        var lastPoc = n > 0 ? bars[n - 1].PointOfControl : double.NaN;
+        CurrentPocText = double.IsNaN(lastPoc)
+            ? "—"
+            : lastPoc.ToString("N" + DecimalsFor(TickSize), CultureInfo.InvariantCulture);
+
+        CvdDirection = Math.Sign(SessionDelta);
+    }
+
+    /// <summary>Least-squares fit of a chosen POC price (y) against column index (x) over the visible
+    /// bars, skipping bars whose POC is NaN. Returns (slope price/bar, intercept at column 0, valid).</summary>
+    private (double slope, double intercept, bool has) FitPoc(Func<FootprintBar, double> selector)
+    {
+        var bars = Bars;
+        double sx = 0, sy = 0, sxx = 0, sxy = 0;
+        int m = 0;
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var p = selector(bars[i]);
+            if (double.IsNaN(p)) continue;
+            sx += i; sy += p; sxx += (double)i * i; sxy += i * p; m++;
+        }
+        var denom = m * sxx - sx * sx;
+        if (m < 2 || Math.Abs(denom) < 1e-9) return (0, 0, false);
+        var slope = (m * sxy - sx * sy) / denom;
+        return (slope, (sy - slope * sx) / m, true);
+    }
+
+    private static (string text, int direction) FormatSlope(bool has, double slope) =>
+        has
+            ? ($"{slope:+0.####;-0.####;0} /bar", slope > 1e-9 ? 1 : slope < -1e-9 ? -1 : 0)
+            : ("—", 0);
+
+    /// <summary>Prunes the arrival window and republishes the live ticks/sec rate. Runs on the stats
+    /// timer so the figure decays toward zero when the tape goes quiet.</summary>
+    private void UpdateTicksPerSecond()
+    {
+        var cutoff = DateTime.UtcNow - TicksWindow;
+        while (_tradeArrivals.Count > 0 && _tradeArrivals.Peek() < cutoff) _tradeArrivals.Dequeue();
+        var rate = _tradeArrivals.Count / TicksWindow.TotalSeconds;
+        TicksPerSecondText = rate.ToString("0.0", CultureInfo.InvariantCulture);
+    }
+
+    private void ResetStats()
+    {
+        _tradeArrivals.Clear();
+        PocSlope = 0; PocIntercept = 0; HasRegression = false;
+        BuyPocSlope = 0; BuyPocIntercept = 0; HasBuyRegression = false;
+        SellPocSlope = 0; SellPocIntercept = 0; HasSellRegression = false;
+        PocSlopeText = "—"; PocSlopeDirection = 0;
+        BuyPocSlopeText = "—"; BuyPocSlopeDirection = 0;
+        SellPocSlopeText = "—"; SellPocSlopeDirection = 0;
+        CvdDirection = 0;
+        TicksPerSecondText = "0.0"; VisibleVolumeText = "0"; BuySellText = "—"; CurrentPocText = "—";
+    }
+
+    private static int DecimalsFor(double tick)
+    {
+        if (tick >= 1) return 0;
+        var decimals = 0;
+        while (tick < 1 && decimals < 8) { tick *= 10; decimals++; }
+        return decimals;
     }
 
     private void ClearBars()
@@ -315,7 +458,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _tradeHandle?.Dispose(); _tradeHandle = null;
     }
 
-    public void Dispose() => StopStream();
+    public void Dispose()
+    {
+        _statsTimer.Stop();
+        StopStream();
+    }
 }
 
 /// <summary>

@@ -58,6 +58,14 @@ public sealed class FootprintBar
     /// <summary>Price level with the most total volume (point of control), or NaN for an empty bar.</summary>
     public double PointOfControl { get; private set; } = double.NaN;
 
+    /// <summary>Price level with the most buy-initiated volume (buy point of control), or NaN if no
+    /// buys have printed in this bar.</summary>
+    public double BuyPointOfControl { get; private set; } = double.NaN;
+
+    /// <summary>Price level with the most sell-initiated volume (sell point of control), or NaN if no
+    /// sells have printed in this bar.</summary>
+    public double SellPointOfControl { get; private set; } = double.NaN;
+
     /// <summary>Cells ordered high price → low price (the order they render top-to-bottom).</summary>
     public IEnumerable<FootprintCell> Cells => _cells.Values.Reverse();
 
@@ -83,10 +91,17 @@ public sealed class FootprintBar
         if (double.IsNaN(High) || price > High) High = price;
         if (double.IsNaN(Low) || price < Low) Low = price;
 
-        // Recompute POC incrementally — cheap, bars are bounded by a few hundred levels at most.
-        long best = -1; double pocPrice = double.NaN;
+        // Recompute the three POCs incrementally — cheap, bars are bounded by a few hundred levels.
+        long bestTotal = -1, bestBuy = 0, bestSell = 0;
+        double pocPrice = double.NaN, buyPocPrice = double.NaN, sellPocPrice = double.NaN;
         foreach (var c in _cells.Values)
-            if (c.Total > best) { best = c.Total; pocPrice = c.Price; }
+        {
+            if (c.Total > bestTotal) { bestTotal = c.Total; pocPrice = c.Price; }
+            if (c.BuyVolume > bestBuy) { bestBuy = c.BuyVolume; buyPocPrice = c.Price; }
+            if (c.SellVolume > bestSell) { bestSell = c.SellVolume; sellPocPrice = c.Price; }
+        }
         PointOfControl = pocPrice;
+        BuyPointOfControl = buyPocPrice;
+        SellPointOfControl = sellPocPrice;
     }
 }

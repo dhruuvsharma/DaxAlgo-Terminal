@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -20,10 +21,12 @@ namespace TradingTerminal.Strategies.IndexKScoreSurface;
 /// <see cref="IndexKScoreAggregator"/>. The aggregator's per-stock thresholds and
 /// piercing-aggregation logic produce the index-level LONG / SHORT signals.
 ///
-/// <para>On Start, each component is warmed up from <see cref="IMarketDataStore.GetRecentBarsAsync"/>
-/// at the chosen timeframe (falling back to 1-minute bars aggregated locally) so the 3D heat
-/// surface paints with historical context immediately, instead of waiting one full bar interval
-/// per component.</para>
+/// <para>On Start, each component is warmed up cache-first via
+/// <see cref="IMarketDataRepository.GetHistoricalBarsAsync"/> at the chosen timeframe — the local
+/// store is served when present, otherwise bars are fetched from the component's broker and
+/// persisted (falling back to local 1-minute bars aggregated to the target interval when neither
+/// has data) — so the 3D heat surface paints with historical context immediately, instead of
+/// waiting one full bar interval per component.</para>
 ///
 /// <para>The surface itself is a [time-slice × component] matrix of <c>K_final</c> values,
 /// keyed by sorting components by ascending index weight (lightest on the left, heaviest on
@@ -51,6 +54,13 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     private IndexKScoreAggregator? _aggregator;
     private bool _lastLong;
     private bool _lastShort;
+
+    /// <summary>Coalesces intra-bar surface repaints across all N components down to a bounded
+    /// render rate (~8 Hz) so a burst of quotes across the index family doesn't trigger a redraw
+    /// storm. Set <see cref="_surfaceDirty"/> on each quote; the timer flushes one repaint.</summary>
+    private DispatcherTimer? _renderTimer;
+    private volatile bool _surfaceDirty;
+    private static readonly TimeSpan RenderInterval = TimeSpan.FromMilliseconds(125);
 
     public IndexKScoreSurfaceViewModel(
         LiveStrategyHostServices services,
@@ -265,32 +275,70 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         if (failedSymbols.Count > 0)
             AddLog("ERROR", $"Failed: {string.Join(", ", failedSymbols)}");
 
-        // Warm up each component's calculator + K history from the store so the surface paints
-        // with context immediately, not after one full bar interval per component.
+        // Warm up each component's calculator + K history from the store/broker so the surface
+        // paints with context immediately, not after one full bar interval per component.
         await WarmupAsync(idsBySymbol, streamCt);
 
-        // Initial snapshot.
+        // Initial snapshot — paint immediately even with zero warmup bars so the window shows the
+        // threshold curtain + axes (BuildSurface always pads to a full 30×N matrix). Also start
+        // the coalesced intra-bar render timer so the surface moves between bar closes.
         var snap = _aggregator.BuildAggregate(DateTime.UtcNow);
-        await UiThread.RunAsync(() => ApplySnapshot(snap));
+        await UiThread.RunAsync(() =>
+        {
+            ApplySnapshot(snap);
+            StartRenderTimer();
+        });
     }
 
-    /// <summary>Loads recent bars per component from the local store and feeds them into each
-    /// calculator + K-history queue. First tries the user's selected timeframe; for components
-    /// where the store has no bars at that size, falls back to 1-minute bars and aggregates them
-    /// locally. Silent on per-component failures — partial warmup is better than none.</summary>
+    /// <summary>Starts (or restarts) the ~8 Hz coalescing render timer. Each tick checks the dirty
+    /// flag and, if set, repaints the surface with the current provisional (intra-bar) column. Runs
+    /// on the UI dispatcher; must be created on the UI thread.</summary>
+    private void StartRenderTimer()
+    {
+        // Guard against double-start: a rapid Stop→Start could otherwise leave two live timers
+        // (StopRenderTimer nulls the field on the UI thread, but if we re-create here before that
+        // action runs we'd orphan the old one). Caller is already on the UI thread.
+        if (_renderTimer is not null) return;
+        var timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = RenderInterval };
+        timer.Tick += OnRenderTick;
+        _renderTimer = timer;
+        timer.Start();
+    }
+
+    /// <summary>Coalesced repaint. Render-only: rebuilds the surface matrix (overlaying each
+    /// component's provisional intra-bar K on the newest column) and fires <see cref="SurfaceChanged"/>.
+    /// Does NOT touch the calculator, K-history, or aggregator — those stay bar-close-driven, so
+    /// signal/entry semantics are unchanged.</summary>
+    private void OnRenderTick(object? sender, EventArgs e)
+    {
+        if (!_surfaceDirty) return;
+        _surfaceDirty = false;
+        if (_aggregator is null || _orderedComponents.Count == 0) return;
+        BuildSurface();
+        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Loads recent bars per component and feeds them into each calculator + K-history
+    /// queue so the surface paints with context immediately, not after one full bar interval per
+    /// component. History comes from <see cref="IMarketDataRepository.GetHistoricalBarsAsync"/> —
+    /// cache-first: it serves the local store when present, otherwise fetches from the component's
+    /// broker and persists, so an empty store still populates the surface within seconds. As a
+    /// last resort (broker returns nothing too) we fall back to local 1-minute bars aggregated to
+    /// the target interval. Silent on per-component failures — partial warmup is better than none.</summary>
     private async Task WarmupAsync(IReadOnlyDictionary<string, InstrumentId> idsBySymbol, CancellationToken ct)
     {
         if (idsBySymbol.Count == 0) return;
         await UiThread.RunAsync(() =>
         {
             IsWarmingUp = true;
-            AddLog("INFO", $"Loading history: {SelectedBarSize.ToDisplayString()} × {KHistoryLength} bars per component (fallback: 1m × aggregate)");
+            AddLog("INFO", $"Loading history: {SelectedBarSize.ToDisplayString()} × {KHistoryLength} bars per component (broker-backed, store cache-first)");
         });
 
         var targetInterval = SelectedBarSize.ToTimeSpan();
         // Request enough rows that the calculator's longest indicator (MA50, ATR_Reg, etc.)
         // has fully warmed up state before we trim to KHistoryLength for the surface.
         var rawRequest = Math.Max(KHistoryLength + 80, 150);
+        var duration = targetInterval * rawRequest;
 
         var tasks = idsBySymbol.Select(async kv =>
         {
@@ -298,16 +346,18 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
             if (!_runtimes.TryGetValue(symbol, out var runtime)) return (symbol, 0);
             try
             {
-                IReadOnlyList<Bar> warmup;
-                var direct = await _services.Store.GetRecentBarsAsync(instrumentId, SelectedBarSize, rawRequest, ct);
-                if (direct.Count > 0)
+                BrokerKind broker = ResolveBroker(runtime.Component);
+
+                // Cache-first via the repository: local store hit, else broker fetch + persist.
+                // Returns Bar directly — no OhlcvBar.ToBar() projection.
+                IReadOnlyList<Bar> warmup = await _services.Repository.GetHistoricalBarsAsync(
+                    runtime.Component.Contract, broker, SelectedBarSize, duration, ct);
+
+                if (warmup.Count == 0)
                 {
-                    warmup = direct.Select(b => b.ToBar()).ToList();
-                }
-                else
-                {
-                    // Fall back to 1-minute bars and aggregate locally so users with sparse
-                    // store history still get *some* context on the surface.
+                    // Last resort — neither store nor broker had bars at the target size. Pull
+                    // local 1-minute bars and aggregate locally so users with only sparse minute
+                    // history still get *some* context on the surface.
                     var perTarget = Math.Max(1, (int)Math.Round(targetInterval.TotalMinutes));
                     var oneMin = await _services.Store.GetRecentBarsAsync(
                         instrumentId, BarSize.OneMinute, rawRequest * perTarget, ct);
@@ -343,7 +393,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
             IsWarmingUp = false;
             AddLog("WIRE",
                 nonEmpty == 0
-                    ? "Warmup: no historical data in store — surface will fill as live bars complete."
+                    ? "Warmup: no historical data from store or broker — surface will fill as live bars complete."
                     : $"Warmup: loaded {total} bars across {nonEmpty}/{results.Length} components.");
         });
     }
@@ -403,6 +453,8 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         var bucket = new DateTime(bucketTicks, DateTimeKind.Utc);
 
         Bar? completed = null;
+        IndexKScoreCalculator.Snapshot? barSnapshot = null;
+        IndexSnapshot? indexSnap = null;
         lock (runtime.Lock)
         {
             if (runtime.CurrentBarStart == DateTime.MinValue)
@@ -410,6 +462,8 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
                 runtime.CurrentBarStart = bucket;
                 runtime.Open = runtime.High = runtime.Low = runtime.Close = mid;
                 runtime.Volume = 1;
+                runtime.ProvisionalK = double.NaN;
+                MarkSurfaceDirty();
                 return;
             }
 
@@ -419,6 +473,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
                 runtime.CurrentBarStart = bucket;
                 runtime.Open = runtime.High = runtime.Low = runtime.Close = mid;
                 runtime.Volume = 1;
+                runtime.ProvisionalK = double.NaN;
             }
             else
             {
@@ -427,25 +482,62 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
                 runtime.Close = mid;
                 runtime.Volume++;
             }
-        }
 
-        if (completed is { } bar)
-        {
-            var snapshot = runtime.Calculator.OnBar(bar);
-            if (snapshot is { } s)
+            // Render-only provisional K for the in-progress bar: take the last finalized K and
+            // nudge it by the in-progress bar's return from its open, clamped to the K range. This
+            // makes the newest surface column drift intra-bar with price without invoking the
+            // (stateful) calculator. Replaced by the real K on bar close.
+            runtime.ProvisionalK = ComputeProvisionalK(runtime);
+
+            // On bar close, finalize K and mutate the per-component K-history INSIDE the lock so the
+            // UI-thread render tick (BuildSurface, which copies KHistory under the same lock) never
+            // races a concurrent enumerate + Enqueue/Dequeue on the non-thread-safe Queue<T>.
+            if (completed is { } bar)
             {
-                runtime.LastK = s.KFinal;
-                runtime.KHistory.Enqueue(s.KFinal);
-                while (runtime.KHistory.Count > KHistoryLength) runtime.KHistory.Dequeue();
-
-                var indexSnap = _aggregator.Update(symbol, s);
-                _ = UiThread.RunAsync(() =>
+                barSnapshot = runtime.Calculator.OnBar(bar);
+                if (barSnapshot is { } s)
                 {
-                    LogBar(symbol, bar, s);
-                    if (indexSnap is { } idx) ApplySnapshot(idx);
-                });
+                    runtime.LastK = s.KFinal;
+                    runtime.KHistory.Enqueue(s.KFinal);
+                    while (runtime.KHistory.Count > KHistoryLength) runtime.KHistory.Dequeue();
+                    indexSnap = _aggregator.Update(symbol, s);
+                }
             }
         }
+
+        // Every quote dirties the surface; the coalescing render timer flushes one repaint at the
+        // bounded render rate. Cheap + thread-safe (volatile flag) — safe to call off the UI thread.
+        MarkSurfaceDirty();
+
+        if (completed is { } closedBar && barSnapshot is { } closedSnap)
+        {
+            _ = UiThread.RunAsync(() =>
+            {
+                LogBar(symbol, closedBar, closedSnap);
+                if (indexSnap is { } idx) ApplySnapshot(idx);
+            });
+        }
+    }
+
+    /// <summary>Flags the surface for the next coalesced repaint. Thread-safe — volatile write,
+    /// no UI marshalling. The <see cref="_renderTimer"/> tick (on the UI thread) consumes it.</summary>
+    private void MarkSurfaceDirty() => _surfaceDirty = true;
+
+    /// <summary>Render-only running K for an in-progress bar. Caller holds <c>runtime.Lock</c>.
+    /// Blends the last finalized K toward the sign of the in-progress bar's return-from-open,
+    /// scaled by an intra-bar gain and clamped to the K range (±1.5). Purely a visual hint so the
+    /// newest surface column drifts with price between bar closes; never feeds signals.</summary>
+    private static double ComputeProvisionalK(ComponentRuntime runtime)
+    {
+        const double kClamp = 1.5;
+        // Intra-bar fractional return from the bar's open. Normalised by a small reference move so
+        // a typical bar's drift maps to a meaningful K nudge without dominating the finalized K.
+        if (runtime.Open <= 0) return runtime.LastK;
+        var ret = (runtime.Close - runtime.Open) / runtime.Open;
+        const double refMove = 0.002;   // ~0.2% reference intra-bar move → full-unit nudge
+        const double gain = 0.6;        // how much the provisional can deviate from LastK
+        var nudge = Math.Clamp(ret / refMove, -1.0, 1.0) * gain;
+        return Math.Clamp(runtime.LastK + nudge, -kClamp, kClamp);
     }
 
     /// <summary>One log line per component per bar close — OHLC + K + breakdown of top signals
@@ -521,10 +613,24 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
             symbols[c] = comp.Symbol;
             if (!_runtimes.TryGetValue(comp.Symbol, out var rt)) continue;
 
-            var hist = rt.KHistory.ToArray();
+            // Snapshot the per-component shared state (K-history + provisional K) under the runtime
+            // lock — OnQuote mutates these on the hub/broker thread, and Queue<T> is not thread-safe
+            // for concurrent enumerate + Enqueue/Dequeue. Copy under the lock, render after.
+            double[] hist;
+            double prov;
+            lock (rt.Lock)
+            {
+                hist = rt.KHistory.ToArray();
+                prov = rt.ProvisionalK;
+            }
+
             var pad = rows - hist.Length;
             for (var t = 0; t < hist.Length; t++)
                 matrix[pad + t, c] = hist[t];
+
+            // Overlay the in-progress bar's provisional (render-only) K on the newest time row so
+            // the surface drifts intra-bar. Leaves the finalized K-history untouched.
+            if (!double.IsNaN(prov)) matrix[rows - 1, c] = prov;
         }
 
         Surface = matrix;
@@ -559,6 +665,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _streamCts = null;
+        StopRenderTimer();
         foreach (var h in _hubSubscriptions) h.Dispose();
         _hubSubscriptions.Clear();
         foreach (var h in _ingestHandles) h.Dispose();
@@ -575,10 +682,29 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     {
         _streamCts?.Cancel();
         _streamCts?.Dispose();
+        StopRenderTimer();
         foreach (var h in _hubSubscriptions) h.Dispose();
         _hubSubscriptions.Clear();
         foreach (var h in _ingestHandles) h.Dispose();
         _ingestHandles.Clear();
+    }
+
+    /// <summary>Stops + tears down the coalescing render timer. Safe to call from any thread — the
+    /// null-out, <see cref="DispatcherTimer.Stop"/> and unhook all happen inside one UI-thread
+    /// action so the ordering is deterministic: a subsequent <see cref="StartRenderTimer"/> queued
+    /// on the UI thread observes <c>_renderTimer == null</c> only after the old timer has stopped,
+    /// so a rapid Stop→Start cannot leave two live timers.</summary>
+    private void StopRenderTimer()
+    {
+        if (_renderTimer is null) return;
+        UiThread.RunAsync(() =>
+        {
+            var timer = _renderTimer;
+            if (timer is null) return;
+            _renderTimer = null;
+            timer.Stop();
+            timer.Tick -= OnRenderTick;
+        });
     }
 
     private sealed class ComponentRuntime(IndexComponent component, IndexKScoreCalculator calc, TimeSpan barInterval)
@@ -594,6 +720,13 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         public double Close { get; set; }
         public long Volume { get; set; }
         public double LastK { get; set; }
+
+        /// <summary>Running, render-only K for the in-progress (incomplete) bar. Derived from the
+        /// last finalized K nudged by the in-progress bar's return from its open — purely a visual
+        /// hint so the surface's newest column moves intra-bar. Never feeds the calculator or the
+        /// aggregator (those stay bar-close-driven). NaN until the first in-progress tick.</summary>
+        public double ProvisionalK { get; set; } = double.NaN;
+
         public Queue<double> KHistory { get; } = new();
     }
 }

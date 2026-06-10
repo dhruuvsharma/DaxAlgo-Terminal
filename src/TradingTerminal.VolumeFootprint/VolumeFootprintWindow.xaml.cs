@@ -30,10 +30,14 @@ public partial class VolumeFootprintWindow : MetroWindow
     private static readonly Brush DimText = new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E));
     private static readonly Brush UpBrush = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
     private static readonly Brush DownBrush = new SolidColorBrush(Color.FromRgb(0xE5, 0x73, 0x73));
+    private static readonly Brush PocLineBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xA7, 0x26)); // total POC connector
+    private static readonly Brush RegLineBrush = new SolidColorBrush(Color.FromRgb(0x29, 0xB6, 0xF6)); // total POC regression
+    private static readonly Brush BuyPocBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));  // buy POC line + regression
+    private static readonly Brush SellPocBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x52, 0x52)); // sell POC line + regression
 
     static VolumeFootprintWindow()
     {
-        foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush })
+        foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush, PocLineBrush, RegLineBrush, BuyPocBrush, SellPocBrush })
             b.Freeze();
     }
 
@@ -94,6 +98,89 @@ public partial class VolumeFootprintWindow : MetroWindow
 
         for (var b = 0; b < bars.Count; b++)
             DrawBar(bars[b], b, rowIndex, maxCellVol, decimals);
+
+        // POC connector + regression line drawn last so they sit on top of the cells.
+        DrawPocOverlay(bars, rows, rowIndex);
+    }
+
+    /// <summary>Draws the connector + regression lines for the total / buy / sell points-of-control.
+    /// All ride above the cluster cells (added last). Regression slopes/intercepts come from the VM.</summary>
+    private void DrawPocOverlay(List<FootprintBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex)
+    {
+        if (_vm is null) return;
+        DrawPocSeries(bars, rows, rowIndex, b => b.PointOfControl,
+            _vm.HasRegression, _vm.PocSlope, _vm.PocIntercept, PocLineBrush, RegLineBrush, 2.5);
+        DrawPocSeries(bars, rows, rowIndex, b => b.BuyPointOfControl,
+            _vm.HasBuyRegression, _vm.BuyPocSlope, _vm.BuyPocIntercept, BuyPocBrush, BuyPocBrush, 2.0);
+        DrawPocSeries(bars, rows, rowIndex, b => b.SellPointOfControl,
+            _vm.HasSellRegression, _vm.SellPocSlope, _vm.SellPocIntercept, SellPocBrush, SellPocBrush, 2.0);
+    }
+
+    /// <summary>Draws one POC flavour: a polyline through the centre of each bar's selected POC cell
+    /// (dots per vertex), plus its dashed least-squares regression line from the first to last column.</summary>
+    private void DrawPocSeries(List<FootprintBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex,
+        Func<FootprintBar, double> pocSelector, bool hasRegression, double slope, double intercept,
+        Brush connectorBrush, Brush regressionBrush, double dotRadius)
+    {
+        var pts = new PointCollection();
+        var dots = new List<Point>();
+        for (var b = 0; b < bars.Count; b++)
+        {
+            var poc = pocSelector(bars[b]);
+            if (double.IsNaN(poc) || !rowIndex.TryGetValue(poc, out var r)) continue;
+            var p = new Point(
+                LeftAxisWidth + b * ColumnWidth + ColumnWidth / 2.0,
+                HeaderHeight + r * RowHeight + RowHeight / 2.0);
+            pts.Add(p);
+            dots.Add(p);
+        }
+
+        if (pts.Count >= 2)
+            FootprintCanvas.Children.Add(new Polyline
+            {
+                Points = pts,
+                Stroke = connectorBrush,
+                StrokeThickness = 1.8,
+                StrokeLineJoin = PenLineJoin.Round,
+            });
+
+        var d2 = dotRadius * 2;
+        foreach (var d in dots)
+            FootprintCanvas.Children.Add(Place(
+                new Ellipse { Width = d2, Height = d2, Fill = connectorBrush }, d.X - dotRadius, d.Y - dotRadius));
+
+        // Regression line: from column 0 to the last column at the fitted POC price.
+        if (hasRegression && bars.Count >= 2 && rows.Count > 0)
+        {
+            var lastCol = bars.Count - 1;
+            FootprintCanvas.Children.Add(new Line
+            {
+                X1 = LeftAxisWidth + ColumnWidth / 2.0,
+                Y1 = PriceToY(intercept, rows),
+                X2 = LeftAxisWidth + lastCol * ColumnWidth + ColumnWidth / 2.0,
+                Y2 = PriceToY(intercept + slope * lastCol, rows),
+                Stroke = regressionBrush,
+                StrokeThickness = 1.6,
+                StrokeDashArray = new DoubleCollection { 5, 3 },
+            });
+        }
+    }
+
+    /// <summary>Maps a continuous price to a canvas Y by interpolating between the discrete price rows
+    /// (which may be non-uniformly spaced where price gaps exist). Clamps outside the traded range.</summary>
+    private static double PriceToY(double price, List<double> rows)
+    {
+        if (price >= rows[0]) return HeaderHeight + RowHeight / 2.0;
+        if (price <= rows[^1]) return HeaderHeight + (rows.Count - 1) * RowHeight + RowHeight / 2.0;
+        for (var r = 0; r < rows.Count - 1; r++)
+        {
+            if (rows[r] >= price && price >= rows[r + 1])
+            {
+                var frac = (rows[r] - price) / (rows[r] - rows[r + 1]);
+                return HeaderHeight + (r + frac) * RowHeight + RowHeight / 2.0;
+            }
+        }
+        return HeaderHeight + RowHeight / 2.0;
     }
 
     private void DrawPriceAxis(List<double> rows, int decimals)
