@@ -12,6 +12,7 @@ using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.IndexKScoreSurface;
 using TradingTerminal.Strategies.OrderFlowCube;
+using TradingTerminal.Strategies.OrderFlowPressureMap;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
@@ -67,6 +68,7 @@ public static class AppDependencyInjection
 
         // L2 / depth-of-market
         services.AddOrderFlowToxicityStrategy();
+        services.AddOrderFlowPressureMapStrategy();
         services.AddOrderFlowCubeStrategy();
         services.AddOrderFlowSurfaceSpikeStrategy();
         services.AddImbalanceHeatFrontStrategy();
