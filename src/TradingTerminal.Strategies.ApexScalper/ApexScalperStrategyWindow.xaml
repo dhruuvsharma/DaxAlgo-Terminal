@@ -90,6 +90,20 @@
                         <TextBox   Grid.Row="1" Grid.Column="3" Text="{Binding FixedQuantity, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0" />
                     </Grid>
 
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="2*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Strategy.SetupFieldLabel}" Text="Candle interval" Margin="0,0,4,4" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Strategy.SetupFieldLabel}" Text="Footprint tick size" Margin="4,0,4,4" />
+                        <ComboBox  Grid.Row="1" Grid.Column="0" ItemsSource="{Binding CandleIntervals}"
+                                   SelectedItem="{Binding SelectedCandleInterval}" DisplayMemberPath="Label" Margin="0,0,4,0" />
+                        <TextBox   Grid.Row="1" Grid.Column="1" Text="{Binding FootprintTickSizeText, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,4,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="One engine clock: signals + footprint bucket on this interval; rows snap to the tick grid."
+                                   Foreground="{DynamicResource Text.Secondary}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </Grid>
+
                     <CheckBox IsChecked="{Binding UseDynamicSizing}" Content="Use dynamic sizing (risk %)" Margin="0,0,0,8" />
 
                     <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Allowed sessions (UTC)" Margin="0,0,0,4" />
@@ -128,6 +142,8 @@
                         <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <uic:ParamSpinner Label="Max candles" Minimum="10" Maximum="500" Step="10" StringFormat="0"
                                           Value="{Binding MaxChartCandles, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="FP bars" Minimum="4" Maximum="16" Step="1" StringFormat="0"
+                                          Value="{Binding FootprintBarsVisible, Mode=TwoWay}" />
                         <Border Style="{StaticResource Strategy.ParamDivider}" />
                         <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsStreaming, Converter={StaticResource InverseBooleanConverter}}">
                             <TextBlock Text="PARAMS (locked while streaming)" Style="{StaticResource Strategy.ParamGroupLabel}" />
@@ -155,6 +171,13 @@
                                             <uic:ParamSpinner Label="Fixed qty" Minimum="1" Maximum="1000" Step="1" StringFormat="0"
                                                               Value="{Binding FixedQuantity, Mode=TwoWay}" />
                                         </WrapPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <TextBlock Text="Candle interval" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <ComboBox Width="72" ItemsSource="{Binding CandleIntervals}"
+                                                      SelectedItem="{Binding SelectedCandleInterval}" DisplayMemberPath="Label" />
+                                            <TextBlock Text="FP tick size" VerticalAlignment="Center" Margin="14,0,6,0" />
+                                            <TextBox Width="72" Text="{Binding FootprintTickSizeText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
                                         <CheckBox Content="Use dynamic sizing (risk %)" IsChecked="{Binding UseDynamicSizing}" Margin="0,8,0,4" />
                                         <StackPanel Orientation="Horizontal">
                                             <CheckBox Content="Asian" IsChecked="{Binding TradeAsian}" Margin="0,0,12,0" />
@@ -208,10 +231,12 @@
                         <ColumnDefinition Width="*"  MinWidth="200" />  <!-- Order book      -->
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left column: signals grid stacked above the composite sentiment gauge. -->
+                    <!-- Left column: signals grid, footprint cluster, then the sentiment gauge. -->
                     <Grid Grid.Column="0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*"  MinHeight="200" />   <!-- Signals grid       -->
+                        <RowDefinition Height="*"   MinHeight="160" />  <!-- Signals grid       -->
+                        <RowDefinition Height="Auto" />                 <!-- HSplit             -->
+                        <RowDefinition Height="190" MinHeight="110" />  <!-- Footprint cluster  -->
                         <RowDefinition Height="Auto" />                 <!-- HSplit             -->
                         <RowDefinition Height="60" MinHeight="40" />    <!-- Sentiment gauge    -->
                     </Grid.RowDefinitions>
@@ -284,7 +309,7 @@
                         <Border Grid.Row="4" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Footprint" />
+                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Footprint score" />
                                 <scottplot:WpfPlot x:Name="FootprintPlot" Grid.Row="1" />
                             </Grid>
                         </Border>
@@ -322,11 +347,56 @@
                                   Background="{DynamicResource Border.Brush}"
                                   ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
 
+                    <!-- Footprint cluster: the engine's own per-price tick-rule buy/sell footprint
+                         bars (the exact data the Footprint signal scores), rendered Volume-Footprint
+                         style in code-behind — sell|buy halves per level, POC outline, 3:1 imbalance
+                         highlights, per-bar Δ/Σ + composite-at-close, ▲/▼ where the trade gate fired. -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            Background="{DynamicResource Background.Surface}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0"
+                                    Background="{DynamicResource Background.Elevated}"
+                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                                    Padding="6,3">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="FOOTPRINT CLUSTER"
+                                               Foreground="{DynamicResource Text.Header}"
+                                               FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" x:Name="FootprintStatus"
+                                               Margin="8,0,0,0" HorizontalAlignment="Right"
+                                               Foreground="{DynamicResource Text.Secondary}"
+                                               FontSize="10" VerticalAlignment="Center"
+                                               Text="awaiting ticks" />
+                                </Grid>
+                            </Border>
+                            <ScrollViewer Grid.Row="1" x:Name="FootprintScroll"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto">
+                                <Canvas x:Name="ApexFootprintCanvas"
+                                        Background="{DynamicResource Background.Surface}"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top" />
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <GridSplitter Grid.Row="3" Height="4"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  Background="{DynamicResource Border.Brush}"
+                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
                     <!-- Composite sentiment gauge: a horizontal slider with red on the left
                          (short bias), grey at centre (neutral), green on the right (long bias).
                          The triangle marker tracks the latest composite score; tick marks denote
                          the user's CompositeThreshold so it's visible where the trade gate sits. -->
-                    <Border Grid.Row="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                    <Border Grid.Row="4" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             Background="{DynamicResource Background.Surface}">
                         <Grid Margin="6,4,6,4">
                             <Grid.RowDefinitions>
@@ -387,13 +457,11 @@
                                   Background="{DynamicResource Border.Brush}"
                                   ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
 
-                    <!-- Right column: order book (top) + live candle (bottom), separated by a
-                         horizontal splitter so the user can rebalance them. -->
+                    <!-- Right column: the live order book. (The live-candle panel was retired —
+                         the footprint cluster's forming bar shows the same information richer.) -->
                     <Grid Grid.Column="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"  MinHeight="120" />  <!-- Order book      -->
-                            <RowDefinition Height="Auto" />                <!-- HSplit          -->
-                            <RowDefinition Height="*"  MinHeight="120" />  <!-- Live candle     -->
                         </Grid.RowDefinitions>
 
                         <!-- Live order book — 10 ask levels (tightest at the bottom), spread row,
@@ -437,91 +505,6 @@
                             </Grid>
                         </Border>
 
-                        <GridSplitter Grid.Row="1" Height="4"
-                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                      Background="{DynamicResource Border.Brush}"
-                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                        <!-- Live candle: the in-progress internal candle the engine is currently
-                             building. Body + wick on the left, OHLC / volume / delta stats on the
-                             right. Resets visually when the engine rolls into a new candle. -->
-                        <Border Grid.Row="2"
-                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                                Background="{DynamicResource Background.Surface}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-
-                                <Border Grid.Row="0"
-                                        Background="{DynamicResource Background.Elevated}"
-                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                                        Padding="6,3">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="LIVE CANDLE"
-                                                   Foreground="{DynamicResource Text.Header}"
-                                                   FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1" x:Name="LiveCandleStatus"
-                                                   Margin="8,0,0,0" HorizontalAlignment="Right"
-                                                   Foreground="{DynamicResource Text.Secondary}"
-                                                   FontSize="10" VerticalAlignment="Center"
-                                                   Text="awaiting tick" />
-                                    </Grid>
-                                </Border>
-
-                                <Grid Grid.Row="1" Margin="6,6,6,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="60" />     <!-- candle drawing -->
-                                        <ColumnDefinition Width="*" />      <!-- stats          -->
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- The candle itself: wick line + body rectangle, positioned
-                                         in code-behind so the body height tracks |Close-Open| and
-                                         vertical position tracks Low..High. -->
-                                    <Canvas Grid.Column="0" x:Name="LiveCandleCanvas" Background="{DynamicResource Background.Surface}" />
-
-                                    <!-- Stats column: O/H/L/C, volume, delta, buy/sell, efficiency. -->
-                                    <Grid Grid.Column="1" Margin="6,0,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="O" />
-                                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="LiveOpen"  Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="H" />
-                                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="LiveHigh"  Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="L" />
-                                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LiveLow"   Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="C" />
-                                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="LiveClose" Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashKey}" Text="Vol" />
-                                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="LiveVolume" Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashKey}" Text="Δ" />
-                                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="LiveDelta"  Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashKey}" Text="B / S" />
-                                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="LiveBuySell" Style="{StaticResource DashValue}" Text="—" />
-                                        <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource DashKey}" Text="Δ eff" />
-                                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="LiveDeltaEff" Style="{StaticResource DashValue}" Text="—" />
-                                    </Grid>
-                                </Grid>
-                            </Grid>
-                        </Border>
                     </Grid>
                 </Grid>
 

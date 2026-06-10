@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtest;
@@ -34,6 +36,38 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
     /// <summary>Number of recent internal candles to draw on every per-indicator chart.</summary>
     [ObservableProperty] private int _maxChartCandles = 60;
 
+    /// <summary>Number of footprint bars the cluster chart renders (render-only, live-tunable).
+    /// The engine exposes at most 16 completed bars plus the forming one.</summary>
+    [ObservableProperty] private int _footprintBarsVisible = 10;
+
+    /// <summary>Selectable internal-candle intervals — the timeframe every signal window AND the
+    /// footprint cluster buckets on (one engine clock, like the Volume Footprint tool's interval).
+    /// Locked while streaming; applied when the engine is rebuilt on Start.</summary>
+    public sealed record CandleIntervalOption(string Label, TimeSpan Span)
+    {
+        public override string ToString() => Label;
+    }
+
+    public ObservableCollection<CandleIntervalOption> CandleIntervals { get; } = new(new[]
+    {
+        new CandleIntervalOption("15s", TimeSpan.FromSeconds(15)),
+        new CandleIntervalOption("30s", TimeSpan.FromSeconds(30)),
+        new CandleIntervalOption("1m",  TimeSpan.FromMinutes(1)),
+        new CandleIntervalOption("5m",  TimeSpan.FromMinutes(5)),
+    });
+
+    [ObservableProperty] private CandleIntervalOption? _selectedCandleInterval;
+
+    /// <summary>Price grid the footprint rows snap to (mirrors the Volume Footprint tool's tick
+    /// size). Feeds the engine's footprint builder, so it also shapes the stacked-imbalance
+    /// signal's rows. Locked while streaming.</summary>
+    [ObservableProperty] private string _footprintTickSizeText = "0.25";
+
+    private double FootprintTickSize =>
+        double.TryParse(FootprintTickSizeText, NumberStyles.Any, CultureInfo.InvariantCulture, out var t) && t > 0
+            ? t
+            : 0.25;
+
     /// <summary>Latest flat strategy snapshot. Bound by the dashboard panel; updates on each
     /// completed chart bar (every 15s by the base class default).</summary>
     [ObservableProperty] private Engine.ApexSnapshot? _latestSnapshot;
@@ -56,6 +90,7 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
             strategyDisplayName: "APEX microstructure scalper",
             services, notifications, clock, routerFactory, logger)
     {
+        SelectedCandleInterval = CandleIntervals.First(i => i.Label == "1m");
     }
 
     protected override IBacktestStrategy BuildStrategy(Contract contract)
@@ -63,6 +98,8 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
         _engine = new Engine.ApexScalperStrategy(
             contract,
             windowSize: WindowSize,
+            candleInterval: SelectedCandleInterval?.Span,
+            footprintTickSize: FootprintTickSize,
             compositeThreshold: CompositeThreshold,
             minSignalsAgree: MinSignalsAgree,
             riskPercent: RiskPercent,
@@ -110,6 +147,10 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
         if (FixedQuantity <= 0) return "Quantity must be positive.";
         if (MaxDailyLossPercent <= 0) return "Daily-loss cap must be positive.";
         if (MaxChartCandles < 10 || MaxChartCandles > 500) return "Max chart candles must be in [10, 500].";
+        if (FootprintBarsVisible < 4 || FootprintBarsVisible > 16) return "Footprint bars must be in [4, 16].";
+        if (SelectedCandleInterval is null) return "Pick a candle interval.";
+        if (!double.TryParse(FootprintTickSizeText, NumberStyles.Any, CultureInfo.InvariantCulture, out var tick) || tick <= 0)
+            return "Footprint tick size must be a positive number (e.g. 0.25 or 0.0001).";
         if (!TradeAsian && !TradeLondon && !TradeNewYork && !TradeLondonNy)
             return "Enable at least one session.";
         return null;

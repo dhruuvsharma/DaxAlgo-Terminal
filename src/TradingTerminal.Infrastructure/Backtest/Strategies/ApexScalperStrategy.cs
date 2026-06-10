@@ -25,6 +25,31 @@ public sealed record ApexLiveCandle(
     long Delta,
     double DeltaEfficiency);
 
+/// <summary>One price row of a footprint bar, exposed for the live UI cluster chart. Bid volume
+/// is sell-initiated, ask volume buy-initiated (tick-rule classified — the same data the
+/// strategy's Footprint signal scores). Imbalance flags use the engine's 3:1 diagonal rule.</summary>
+public sealed record ApexFootprintRow(
+    double Price,
+    long SellVolume,
+    long BuyVolume,
+    bool BidImbalance,
+    bool AskImbalance);
+
+/// <summary>A completed (or live forming) footprint bar for the UI cluster chart: per-price rows
+/// plus the bar aggregates and the composite score/signal direction captured when the bar closed
+/// (0 while forming or when the trade gate was shut).</summary>
+public sealed record ApexFootprintBar(
+    DateTime StartUtc,
+    IReadOnlyList<ApexFootprintRow> Rows,
+    double PocPrice,
+    long TotalVolume,
+    long Delta,
+    int StackedBull,
+    int StackedBear,
+    double Composite,
+    int SignalDirection,
+    bool IsLive);
+
 /// <summary>Flat snapshot of the strategy state at a point in time. Built after each tick
 /// for the live dashboard; pushed into a history ring on each completed internal candle so
 /// per-indicator charts can draw a recent time series.</summary>
@@ -72,6 +97,9 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     // ── Parameters (1:1 with MT5 Inputs.mqh) ────────────────────────────────────────
     public int WindowSize { get; }
     public TimeSpan CandleInterval { get; }
+
+    /// <summary>Price grid the footprint rows snap to; 0 = legacy 5-decimal mid rounding.</summary>
+    public double FootprintTickSize { get; }
 
     public double WeightDelta { get; }
     public double WeightVpin { get; }
@@ -211,6 +239,65 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         }
     }
 
+    /// <summary>How many completed footprint bars <see cref="FootprintBars"/> projects (plus the
+    /// live forming bar). Bounded so the per-redraw projection stays cheap.</summary>
+    private const int MaxFootprintBarsExposed = 16;
+
+    /// <summary>
+    /// The strategy's footprint bars for the UI cluster chart, oldest first, ending with the live
+    /// forming bar. This is a read-only projection of the same internal <c>FootprintBuilder</c>
+    /// state the Footprint signal scores — per-price tick-rule buy/sell volume at the engine's
+    /// candle interval — so the chart shows exactly what the strategy trades on.
+    /// </summary>
+    public IReadOnlyList<ApexFootprintBar> FootprintBars
+    {
+        get
+        {
+            var completed = _fb.Completed; // newest-first
+            var take = Math.Min(completed.Count, MaxFootprintBarsExposed);
+            var list = new List<ApexFootprintBar>(take + 1);
+            for (var i = take - 1; i >= 0; i--)
+                list.Add(ProjectFootprint(completed[i], isLive: false));
+            var live = _fb.Live;
+            if (live.Rows.Count > 0 && live.Time != DateTime.MinValue)
+                list.Add(ProjectFootprint(live, isLive: true));
+            return list;
+        }
+    }
+
+    private static ApexFootprintBar ProjectFootprint(FootprintCandle fc, bool isLive)
+    {
+        long total = 0, delta = 0;
+        var rows = new List<ApexFootprintRow>(fc.Rows.Count);
+        // Rows accumulate in arrival order — project sorted high → low for rendering. The live
+        // bar hasn't been finalised, so derive its imbalance flags with the same 3:1 rule.
+        foreach (var r in fc.Rows.OrderByDescending(r => r.Price))
+        {
+            total += r.BidVolume + r.AskVolume;
+            delta += r.AskVolume - r.BidVolume;
+            var bidImb = isLive ? r.BidVolume > r.AskVolume * 3.0 : r.BidImbalance;
+            var askImb = isLive ? r.AskVolume > r.BidVolume * 3.0 : r.AskImbalance;
+            rows.Add(new ApexFootprintRow(r.Price, r.BidVolume, r.AskVolume, bidImb, askImb));
+        }
+
+        // The live bar's POC isn't finalised either — pick it on the fly.
+        var poc = fc.PocPrice;
+        if (isLive)
+        {
+            long best = -1;
+            foreach (var r in fc.Rows)
+            {
+                var t = r.BidVolume + r.AskVolume;
+                if (t > best) { best = t; poc = r.Price; }
+            }
+        }
+
+        return new ApexFootprintBar(
+            fc.Time, rows, poc, total, delta,
+            fc.StackedBull, fc.StackedBear,
+            fc.CompositeAtClose, fc.SignalDirectionAtClose, isLive);
+    }
+
     /// <summary>Snapshots taken at each completed internal candle, oldest first. Capped at
     /// <see cref="MaxHistory"/>; callers should trim to a tail length they care about.</summary>
     public IReadOnlyList<ApexSnapshot> History
@@ -272,7 +359,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         int minSecondsBetweenTrades = 30,
         bool tradeAsian = false, bool tradeLondon = true,
         bool tradeNewYork = true, bool tradeLondonNy = true,
-        double maxSpreadPriceUnits = 0.0030)
+        double maxSpreadPriceUnits = 0.0030,
+        // Footprint price bucketing. 0 keeps the legacy behaviour (round mid to 5 decimals);
+        // any positive value snaps each tick to that price grid, like the Volume Footprint tool.
+        double footprintTickSize = 0)
     {
         _contract = contract;
         WindowSize = windowSize;
@@ -355,10 +445,11 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         TradeNewYork = tradeNewYork;
         TradeLondonNy = tradeLondonNy;
         MaxSpreadPriceUnits = maxSpreadPriceUnits;
+        FootprintTickSize = footprintTickSize;
 
         _tc = new TickCollector(capacity: 5_000);
         _cb = new CandleBuilder(WindowSize + 5, CandleInterval);
-        _fb = new FootprintBuilder(WindowSize + 5);
+        _fb = new FootprintBuilder(WindowSize + 5, footprintTickSize);
         _vp = new VolumeProfile(maxNodes: 2_000);
 
         _vpinAccum = new VpinAccumulator(maxBuckets: 50, bucketVolume: VpinBucketVolume);
@@ -429,6 +520,17 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         {
             _vp.AddCandle(lastCandle, _fb.LastCompleted);
             _fb.CompleteLast();
+            // Stamp the just-closed footprint with the composite from the last tick of that
+            // candle (Latest hasn't been reassigned yet this tick) so the cluster chart can
+            // annotate each bar with the score / fired-signal marker it closed on.
+            if (Latest is { } prevSnap && _fb.LastCompleted is { } closedFc)
+            {
+                closedFc.CompositeAtClose = prevSnap.Composite;
+                closedFc.SignalDirectionAtClose =
+                    prevSnap.TradeAllowed && prevSnap.CompositeDirection != 0
+                        ? prevSnap.CompositeDirection
+                        : 0;
+            }
         }
 
         // 2. Risk / regime maintenance (every tick is cheap; regime only refreshes on bar roll).
@@ -1257,6 +1359,8 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         public int StackedBear;   // max consecutive zero-ask (full bid absorption)
         public double PocPrice;
         public long PocVolume;
+        public double CompositeAtClose;     // stamped at roll for the UI cluster chart
+        public int SignalDirectionAtClose;  // ±1 when the trade gate was open at close, else 0
 
         public void Finalise(double ratio)
         {
@@ -1394,12 +1498,17 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private sealed class FootprintBuilder
     {
         private readonly int _maxWindow;
+        private readonly double _tickSize;
         private readonly LinkedList<FootprintCandle> _completed = new();
         private FootprintCandle? _current;
         private DateTime _currentTime = DateTime.MinValue;
         public FootprintCandle Live => _current ??= new FootprintCandle { Time = DateTime.MinValue };
 
-        public FootprintBuilder(int maxWindow) { _maxWindow = maxWindow; }
+        public FootprintBuilder(int maxWindow, double tickSize = 0)
+        {
+            _maxWindow = maxWindow;
+            _tickSize = tickSize;
+        }
 
         public FootprintCandle? LastCompleted => _completed.Last?.Value;
 
@@ -1426,8 +1535,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
                 _current = new FootprintCandle { Time = barStart };
                 _currentTime = barStart;
             }
-            var price = Math.Round(ct.Mid, 5);
-            var row = _current.Rows.FirstOrDefault(r => Math.Abs(r.Price - price) < 1e-7);
+            var price = _tickSize > 0
+                ? Math.Round(Math.Round(ct.Mid / _tickSize, MidpointRounding.AwayFromZero) * _tickSize, 8)
+                : Math.Round(ct.Mid, 5);
+            var row = _current.Rows.FirstOrDefault(r => Math.Abs(r.Price - price) < 1e-9);
             if (row is null) { row = new FootprintRow { Price = price }; _current.Rows.Add(row); }
             if (ct.Direction > 0) row.AskVolume += ct.Volume;
             else if (ct.Direction < 0) row.BidVolume += ct.Volume;

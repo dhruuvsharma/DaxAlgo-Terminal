@@ -28,14 +28,10 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
     private static readonly SolidColorBrush BullCandleFill = new(Color.FromRgb(0, 200, 83));
     private static readonly SolidColorBrush BearCandleFill = new(Color.FromRgb(255, 23, 68));
-    private static readonly SolidColorBrush WickStroke = new(Color.FromRgb(220, 220, 220));
 
     private readonly LadderRow[] _askRows = new LadderRow[LadderDepth];
     private readonly LadderRow[] _bidRows = new LadderRow[LadderDepth];
     private TextBlock? _spreadLabel;
-
-    private Line? _candleWick;
-    private Rectangle? _candleBody;
 
     private readonly DispatcherTimer _redrawTimer;
     private bool _chartDirty;
@@ -44,7 +40,6 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
     {
         InitializeComponent();
         BuildLadder();
-        BuildLiveCandleVisual();
 
         _redrawTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -58,7 +53,6 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
         // Re-render the gauge when the track resizes so the needle stays anchored.
         GaugeTrackHost.SizeChanged += (_, _) => { _chartDirty = true; };
-        LiveCandleCanvas.SizeChanged += (_, _) => { _chartDirty = true; };
     }
 
     protected override IEnumerable<WpfPlot> ChartHosts => new[]
@@ -77,8 +71,9 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         if (sender is not LiveSignalStrategyViewModelBase vm) return;
         if (e.PropertyName == nameof(LiveSignalStrategyViewModelBase.LatestDepth))
             RenderOrderBook(vm.LatestDepth);
-        // "Max candles" is render-only — repaint on the next timer tick when it changes.
-        else if (e.PropertyName == nameof(ApexScalperStrategyViewModel.MaxChartCandles))
+        // "Max candles" / "FP bars" are render-only — repaint on the next timer tick when they change.
+        else if (e.PropertyName is nameof(ApexScalperStrategyViewModel.MaxChartCandles)
+                              or nameof(ApexScalperStrategyViewModel.FootprintBarsVisible))
             _chartDirty = true;
     }
 
@@ -126,7 +121,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
         RenderOrderBook(baseVm.LatestDepth);
         RenderGauge(engine?.Latest?.Composite, vm.CompositeThreshold);
-        RenderLiveCandle(engine?.LiveCandle);
+        RenderFootprint(engine, vm.FootprintBarsVisible, vm.CompositeThreshold);
     }
 
     private LiveSignalStrategyViewModelBase? _tickVm;
@@ -224,87 +219,214 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         GaugeTicks.Children.Add(line);
     }
 
-    // ── Live candle ────────────────────────────────────────────────────────────────
+    // ── Footprint cluster ──────────────────────────────────────────────────────────
+    // Rendering convention copied from VolumeFootprintWindow (sell|buy halves per price level,
+    // volume-scaled alpha, POC outline, shared price axis), then customised for the strategy:
+    // the data is the engine's own tick-rule footprint (what the Footprint signal scores), cells
+    // flagged by the engine's 3:1 diagonal imbalance rule get a bright outline, and each bar's
+    // footer carries Δ / Σ plus the composite it closed on and a ▲/▼ marker where the trade
+    // gate actually fired.
 
-    private void BuildLiveCandleVisual()
+    private const double FpAxisWidth = 64;
+    private const double FpColWidth = 96;
+    private const double FpRowHeight = 15;
+    private const double FpHeaderHeight = 18;
+    private const double FpFooterHeight = 46;
+
+    private static readonly SolidColorBrush FpBuyBrush = new(Color.FromRgb(0x2E, 0x7D, 0x32));
+    private static readonly SolidColorBrush FpSellBrush = new(Color.FromRgb(0xC6, 0x28, 0x28));
+    private static readonly SolidColorBrush FpPocPen = new(Color.FromRgb(0xFF, 0xD5, 0x4F));
+    private static readonly SolidColorBrush FpGridPen = new(Color.FromArgb(0x40, 0x88, 0x88, 0x88));
+    private static readonly SolidColorBrush FpTextBrush = new(Color.FromRgb(0xE0, 0xE0, 0xE0));
+    private static readonly SolidColorBrush FpDimText = new(Color.FromRgb(0x9E, 0x9E, 0x9E));
+    private static readonly SolidColorBrush FpAskImbPen = new(Color.FromRgb(0x00, 0xE6, 0x76));
+    private static readonly SolidColorBrush FpBidImbPen = new(Color.FromRgb(0xFF, 0x52, 0x52));
+    private static readonly SolidColorBrush FpLiveHeader = new(Color.FromRgb(0x29, 0xB6, 0xF6));
+
+    static ApexScalperStrategyWindow()
     {
-        _candleWick = new Line
+        foreach (var b in new Brush[]
         {
-            Stroke = WickStroke,
-            StrokeThickness = 1.5,
-        };
-        LiveCandleCanvas.Children.Add(_candleWick);
-
-        _candleBody = new Rectangle
-        {
-            Fill = BullCandleFill,
-            Stroke = WickStroke,
-            StrokeThickness = 1,
-            Width = 22,
-        };
-        LiveCandleCanvas.Children.Add(_candleBody);
+            FpBuyBrush, FpSellBrush, FpPocPen, FpGridPen, FpTextBrush, FpDimText,
+            FpAskImbPen, FpBidImbPen, FpLiveHeader,
+        })
+            b.Freeze();
     }
 
-    private void RenderLiveCandle(Engine.ApexLiveCandle? candle)
+    private void RenderFootprint(Engine.ApexScalperStrategy? engine, int visibleBars, double threshold)
     {
-        if (candle is null || _candleWick is null || _candleBody is null)
+        ApexFootprintCanvas.Children.Clear();
+        var all = engine?.FootprintBars;
+        if (all is null || all.Count == 0)
         {
-            ClearLiveCandle();
+            ApexFootprintCanvas.Width = 0;
+            ApexFootprintCanvas.Height = 0;
+            FootprintStatus.Text = "awaiting ticks";
             return;
         }
 
-        var w = LiveCandleCanvas.ActualWidth;
-        var h = LiveCandleCanvas.ActualHeight;
-        if (w <= 0 || h <= 0) return;
+        var skip = Math.Max(0, all.Count - Math.Max(4, visibleBars));
+        var bars = new List<Engine.ApexFootprintBar>(all.Count - skip);
+        for (var i = skip; i < all.Count; i++) bars.Add(all[i]);
 
-        // Map [Low, High] vertically onto [h-2, 2] (Y grows downward in WPF Canvas).
-        double range = Math.Max(candle.High - candle.Low, 1e-9);
-        double topPad = 4, bottomPad = 4;
-        double drawH = Math.Max(h - topPad - bottomPad, 1);
-        double Y(double price) => topPad + (1.0 - (price - candle.Low) / range) * drawH;
+        // Shared price axis: union of every traded level across the visible bars, high → low.
+        var prices = new SortedSet<double>();
+        long maxCellVol = 1;
+        foreach (var bar in bars)
+            foreach (var row in bar.Rows)
+            {
+                prices.Add(row.Price);
+                var total = row.BuyVolume + row.SellVolume;
+                if (total > maxCellVol) maxCellVol = total;
+            }
+        var rows = prices.Reverse().ToList();
+        var rowIndex = new Dictionary<double, int>(rows.Count);
+        for (var i = 0; i < rows.Count; i++) rowIndex[rows[i]] = i;
 
-        var cx = w * 0.5;
-        _candleWick.X1 = cx; _candleWick.X2 = cx;
-        _candleWick.Y1 = Y(candle.High);
-        _candleWick.Y2 = Y(candle.Low);
+        var decimals = FpDecimals(rows);
 
-        var bullish = candle.Close >= candle.Open;
-        _candleBody.Fill = bullish ? BullCandleFill : BearCandleFill;
-        var bodyTop = Y(Math.Max(candle.Open, candle.Close));
-        var bodyBottom = Y(Math.Min(candle.Open, candle.Close));
-        _candleBody.Width = Math.Min(w - 8, 22);
-        _candleBody.Height = Math.Max(bodyBottom - bodyTop, 1);
-        Canvas.SetLeft(_candleBody, cx - _candleBody.Width * 0.5);
-        Canvas.SetTop(_candleBody, bodyTop);
+        ApexFootprintCanvas.Width = FpAxisWidth + bars.Count * FpColWidth;
+        ApexFootprintCanvas.Height = FpHeaderHeight + rows.Count * FpRowHeight + FpFooterHeight;
 
-        // Stats
-        LiveOpen.Text = candle.Open.ToString("F5");
-        LiveHigh.Text = candle.High.ToString("F5");
-        LiveLow.Text = candle.Low.ToString("F5");
-        LiveClose.Text = candle.Close.ToString("F5");
-        LiveVolume.Text = candle.Volume.ToString("N0");
-        LiveDelta.Text = candle.Delta.ToString("+0;-0;0");
-        LiveDelta.Foreground = candle.Delta switch
-        {
-            > 0 => BullCandleFill,
-            < 0 => BearCandleFill,
-            _ => (Brush?)TryFindResource("Text.Primary") ?? Brushes.Gainsboro,
-        };
-        LiveBuySell.Text = $"{candle.BuyVolume:N0} / {candle.SellVolume:N0}";
-        LiveDeltaEff.Text = candle.DeltaEfficiency.ToString("F2");
+        for (var r = 0; r < rows.Count; r++)
+            AddFpText(rows[r].ToString("N" + decimals, System.Globalization.CultureInfo.InvariantCulture),
+                0, FpHeaderHeight + r * FpRowHeight, FpAxisWidth - 6, FpRowHeight, FpDimText, 10, TextAlignment.Right);
 
-        var elapsed = DateTime.UtcNow - candle.OpenTimeUtc;
-        if (elapsed.TotalSeconds < 0) elapsed = TimeSpan.Zero;
-        LiveCandleStatus.Text = $"{candle.OpenTimeUtc:HH:mm:ss}  +{(int)elapsed.TotalMinutes:D2}:{elapsed.Seconds:D2}";
+        for (var b = 0; b < bars.Count; b++)
+            DrawFootprintBar(bars[b], b, rowIndex, rows.Count, maxCellVol);
+
+        var lastCompleted = bars.LastOrDefault(x => !x.IsLive);
+        FootprintStatus.Text = lastCompleted is null
+            ? $"{bars.Count} bars"
+            : $"{bars.Count} bars · stack ↑{lastCompleted.StackedBull} ↓{lastCompleted.StackedBear} · gate ±{threshold:0.00}";
+
+        FootprintScroll.ScrollToRightEnd();
     }
 
-    private void ClearLiveCandle()
+    private void DrawFootprintBar(Engine.ApexFootprintBar bar, int colIndex,
+        IReadOnlyDictionary<double, int> rowIndex, int rowCount, long maxCellVol)
     {
-        if (_candleWick is not null) { _candleWick.X1 = _candleWick.X2 = 0; _candleWick.Y1 = _candleWick.Y2 = 0; }
-        if (_candleBody is not null) { _candleBody.Width = 0; _candleBody.Height = 0; }
-        LiveOpen.Text = LiveHigh.Text = LiveLow.Text = LiveClose.Text = "—";
-        LiveVolume.Text = LiveDelta.Text = LiveBuySell.Text = LiveDeltaEff.Text = "—";
-        LiveCandleStatus.Text = "awaiting tick";
+        var x = FpAxisWidth + colIndex * FpColWidth;
+
+        AddFpText(bar.IsLive ? bar.StartUtc.ToLocalTime().ToString("HH:mm:ss") + " •" : bar.StartUtc.ToLocalTime().ToString("HH:mm:ss"),
+            x, 0, FpColWidth, FpHeaderHeight, bar.IsLive ? FpLiveHeader : FpDimText, 10, TextAlignment.Center);
+
+        var halfW = (FpColWidth - 2) / 2.0;
+        foreach (var row in bar.Rows)
+        {
+            if (!rowIndex.TryGetValue(row.Price, out var r)) continue;
+            var y = FpHeaderHeight + r * FpRowHeight;
+
+            AddFpCellHalf(x + 1, y, halfW, row.SellVolume, maxCellVol, FpSellBrush, isLeft: true);
+            AddFpCellHalf(x + 1 + halfW, y, halfW, row.BuyVolume, maxCellVol, FpBuyBrush, isLeft: false);
+
+            // Strategy's 3:1 diagonal imbalances — the raw input to the stacked-imbalance signal.
+            if (row.AskImbalance)
+                ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle
+                {
+                    Width = halfW, Height = FpRowHeight,
+                    Stroke = FpAskImbPen, StrokeThickness = 1.2, Fill = Brushes.Transparent,
+                }, x + 1 + halfW, y));
+            if (row.BidImbalance)
+                ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle
+                {
+                    Width = halfW, Height = FpRowHeight,
+                    Stroke = FpBidImbPen, StrokeThickness = 1.2, Fill = Brushes.Transparent,
+                }, x + 1, y));
+
+            var isPoc = !double.IsNaN(bar.PocPrice) && Math.Abs(row.Price - bar.PocPrice) < 1e-9;
+            if (isPoc)
+                ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle
+                {
+                    Width = FpColWidth - 2, Height = FpRowHeight,
+                    Stroke = FpPocPen, StrokeThickness = 1.3, Fill = Brushes.Transparent,
+                }, x + 1, y));
+        }
+
+        // Footer: Δ / Σ, the composite the bar closed on, and the fired-signal marker.
+        var fy = FpHeaderHeight + rowCount * FpRowHeight;
+        ApexFootprintCanvas.Children.Add(new Line
+        {
+            X1 = x, Y1 = fy + 1, X2 = x + FpColWidth, Y2 = fy + 1,
+            Stroke = FpGridPen, StrokeThickness = 1,
+        });
+
+        var deltaBrush = bar.Delta >= 0 ? BullCandleFill : BearCandleFill;
+        AddFpText($"Δ {bar.Delta:+#;-#;0}  Σ {FpCompact(bar.TotalVolume)}",
+            x, fy + 2, FpColWidth, 14, deltaBrush, 10, TextAlignment.Center);
+
+        if (bar.IsLive)
+        {
+            AddFpText("forming…", x, fy + 16, FpColWidth, 14, FpDimText, 10, TextAlignment.Center);
+        }
+        else
+        {
+            var compBrush = bar.Composite > 0 ? BullCandleFill : bar.Composite < 0 ? BearCandleFill : FpDimText;
+            var marker = bar.SignalDirection > 0 ? "  ▲ LONG" : bar.SignalDirection < 0 ? "  ▼ SHORT" : string.Empty;
+            AddFpText($"C {bar.Composite:+0.00;-0.00;0.00}{marker}",
+                x, fy + 16, FpColWidth, 14,
+                bar.SignalDirection != 0 ? compBrush : FpDimText, 10, TextAlignment.Center);
+        }
+    }
+
+    private void AddFpCellHalf(double x, double y, double w, long vol, long maxVol, SolidColorBrush baseBrush, bool isLeft)
+    {
+        if (vol <= 0) return;
+        var alpha = (byte)(36 + 170.0 * Math.Min(1.0, (double)vol / maxVol));
+        var c = baseBrush.Color;
+        var fill = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+        fill.Freeze();
+        ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle { Width = w, Height = FpRowHeight, Fill = fill }, x, y));
+        AddFpText(FpCompact(vol), x, y, w - 3, FpRowHeight, FpTextBrush, 9.5,
+            isLeft ? TextAlignment.Right : TextAlignment.Left, leftPad: isLeft ? 0 : 3);
+    }
+
+    private void AddFpText(string text, double x, double y, double w, double h, Brush brush, double size,
+        TextAlignment align, double leftPad = 0)
+    {
+        var tb = new TextBlock
+        {
+            Text = text,
+            Foreground = brush,
+            FontSize = size,
+            FontFamily = new FontFamily("Consolas"),
+            Width = w,
+            Height = h,
+            TextAlignment = align,
+            Padding = new Thickness(leftPad, 0, 3, 0),
+        };
+        Canvas.SetLeft(tb, x);
+        Canvas.SetTop(tb, y + (h - size - 4) / 2.0);
+        ApexFootprintCanvas.Children.Add(tb);
+    }
+
+    private static UIElement FpPlace(UIElement el, double x, double y)
+    {
+        Canvas.SetLeft(el, x);
+        Canvas.SetTop(el, y);
+        return el;
+    }
+
+    private static string FpCompact(long v)
+    {
+        var a = Math.Abs(v);
+        return a >= 1_000_000 ? $"{v / 1e6:0.#}M" : a >= 10_000 ? $"{v / 1e3:0.#}K" : v.ToString("N0");
+    }
+
+    /// <summary>Decimals for the price axis: derived from the smallest gap between traded levels
+    /// (the engine buckets at 5 decimals, so this lands on 2 for equities, 4-5 for FX).</summary>
+    private static int FpDecimals(List<double> rowsDescending)
+    {
+        var minDiff = double.MaxValue;
+        for (var i = 1; i < rowsDescending.Count; i++)
+        {
+            var d = rowsDescending[i - 1] - rowsDescending[i];
+            if (d > 1e-9 && d < minDiff) minDiff = d;
+        }
+        if (minDiff == double.MaxValue) return 2;
+        var decimals = 0;
+        while (minDiff < 0.999 && decimals < 5) { minDiff *= 10; decimals++; }
+        return decimals;
     }
 
     // ── Order book ladder ──────────────────────────────────────────────────────────
