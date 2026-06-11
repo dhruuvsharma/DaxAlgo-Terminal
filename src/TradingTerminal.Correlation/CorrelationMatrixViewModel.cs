@@ -120,8 +120,7 @@ public sealed partial class CorrelationMatrixViewModel : CorrelationPickerViewMo
             {
                 StatusMessage = "Not enough historical data to correlate (need ≥2 instruments with bars)."
                     + (skipped.Count > 0 ? $" Skipped: {string.Join(", ", skipped)}." : string.Empty);
-                Labels.Clear();
-                MatrixRows.Clear();
+                MatrixResult = null;
                 SampleCount = 0;
                 return;
             }

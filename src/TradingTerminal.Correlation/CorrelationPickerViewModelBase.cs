@@ -43,8 +43,6 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
 
         Instruments = new ObservableCollection<SelectableInstrument>();
         Categories = new ObservableCollection<string> { AllCategories };
-        Labels = new ObservableCollection<string>();
-        MatrixRows = new ObservableCollection<CorrelationRow>();
 
         // Group the picker by canonical category, ordered category-then-symbol so the headers
         // (Crypto, FX, Commodities, Indices, ETFs, Stocks, …) come out in a predictable order.
@@ -60,13 +58,16 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
     public ObservableCollection<SelectableInstrument> Instruments { get; }
     public ICollectionView InstrumentsView { get; }
     public ObservableCollection<string> Categories { get; }
-    public ObservableCollection<string> Labels { get; }
-    public ObservableCollection<CorrelationRow> MatrixRows { get; }
 
     [ObservableProperty] private string _selectedCategory = AllCategories;
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private string _statusMessage = "Loading instruments…";
     [ObservableProperty] private int _sampleCount;
+
+    /// <summary>The latest computed matrix, rendered as one immutable snapshot by
+    /// <see cref="CorrelationMatrixControl"/> — a single property change per update instead of
+    /// rebuilding N² cell elements (which made the live tool stutter at its sample cadence).</summary>
+    [ObservableProperty] private CorrelationMatrix? _matrixResult;
 
     public int SelectedCount => AllInstruments.Count(i => i.IsSelected);
 
@@ -151,30 +152,11 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
         OnPropertyChanged(nameof(SelectedCount));
     }
 
-    /// <summary>Renders a computed matrix into <see cref="Labels"/>/<see cref="MatrixRows"/> and
-    /// updates <see cref="SampleCount"/>. Must be called on the UI thread.</summary>
+    /// <summary>Publishes a computed matrix to the grid (one snapshot swap — the rendering control
+    /// redraws in a single pass). Must be called on the UI thread.</summary>
     protected void BuildMatrix(CorrelationMatrix result)
     {
-        Labels.Clear();
-        foreach (var label in result.Labels)
-            Labels.Add(label);
-
-        MatrixRows.Clear();
-        for (int i = 0; i < result.Size; i++)
-        {
-            var cells = new List<CorrelationCell>(result.Size);
-            for (int j = 0; j < result.Size; j++)
-            {
-                double v = result.At(i, j);
-                cells.Add(new CorrelationCell(
-                    Value: v,
-                    Display: v.ToString("+0.00;-0.00;0.00"),
-                    RowLabel: result.Labels[i],
-                    ColLabel: result.Labels[j]));
-            }
-            MatrixRows.Add(new CorrelationRow(result.Labels[i], cells));
-        }
-
+        MatrixResult = result;
         SampleCount = result.SampleCount;
     }
 
@@ -295,9 +277,3 @@ internal static class InstrumentCategory
         new string(symbol.TakeWhile(char.IsLetter).ToArray());
 }
 
-/// <summary>One row of the rendered matrix: a row header plus its cells (one per column).</summary>
-public sealed record CorrelationRow(string Header, IReadOnlyList<CorrelationCell> Cells);
-
-/// <summary>A single matrix cell. <see cref="Value"/> feeds the diverging-colour converter;
-/// <see cref="Display"/> is the formatted number shown in the cell.</summary>
-public sealed record CorrelationCell(double Value, string Display, string RowLabel, string ColLabel);

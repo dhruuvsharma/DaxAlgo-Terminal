@@ -13,13 +13,6 @@
                  Foreground="{DynamicResource Text.Primary}"
                  d:DesignHeight="680" d:DesignWidth="960">
 
-    <Window.Resources>
-        <!-- Horizontal stack for the matrix rows / column headers. -->
-        <ItemsPanelTemplate x:Key="HorizontalPanel">
-            <StackPanel Orientation="Horizontal" />
-        </ItemsPanelTemplate>
-    </Window.Resources>
-
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />   <!-- title -->
@@ -181,65 +174,12 @@
                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                               Padding="10">
-                    <StackPanel>
-                        <!-- Column headers (rotated), offset by the row-header width -->
-                        <StackPanel Orientation="Horizontal">
-                            <Border Width="92" Height="74" />
-                            <ItemsControl ItemsSource="{Binding Labels}"
-                                          ItemsPanel="{StaticResource HorizontalPanel}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Width="40" Height="74" VerticalAlignment="Bottom">
-                                            <TextBlock Text="{Binding}" FontSize="11"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                                                       Margin="0,0,0,4">
-                                                <TextBlock.LayoutTransform>
-                                                    <RotateTransform Angle="-90" />
-                                                </TextBlock.LayoutTransform>
-                                            </TextBlock>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-
-                        <!-- Matrix rows -->
-                        <ItemsControl ItemsSource="{Binding MatrixRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border Width="92" Height="30" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Header}" FontSize="11"
-                                                       HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                       Margin="0,0,8,0" TextTrimming="CharacterEllipsis" />
-                                        </Border>
-                                        <ItemsControl ItemsSource="{Binding Cells}"
-                                                      ItemsPanel="{StaticResource HorizontalPanel}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Width="40" Height="30"
-                                                            BorderBrush="{DynamicResource Background.Primary}"
-                                                            BorderThickness="1"
-                                                            Background="{Binding Value, Converter={StaticResource CorrelationToBrushConverter}}">
-                                                        <Border.ToolTip>
-                                                            <MultiBinding StringFormat="{}{0} ↔ {1}: {2}">
-                                                                <Binding Path="RowLabel" />
-                                                                <Binding Path="ColLabel" />
-                                                                <Binding Path="Display" />
-                                                            </MultiBinding>
-                                                        </Border.ToolTip>
-                                                        <TextBlock Text="{Binding Display}" FontSize="10"
-                                                                   Foreground="White"
-                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                    <!-- Hosts the CorrelationMatrixControl (injected from code-behind — same-project
+                         element types don't survive MarkupCompilePass2, same quirk as LoginWindow).
+                         One retained-mode element redraws the whole heat grid per update instead of
+                         re-templating N² cell elements per sample tick. -->
+                    <ContentControl x:Name="MatrixHost"
+                                    HorizontalAlignment="Left" VerticalAlignment="Top" />
                 </ScrollViewer>
             </Border>
         </Grid>
