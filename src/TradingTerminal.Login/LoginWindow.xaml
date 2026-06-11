@@ -530,12 +530,16 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0"
-                       Text="Connect at least one broker, then launch the terminal."
-                       Foreground="{DynamicResource Text.Secondary}"
-                       FontSize="11"
-                       VerticalAlignment="Center"
-                       Margin="0,0,12,0" />
+            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                <TextBlock Text="Connect at least one broker, then launch the terminal."
+                           Foreground="{DynamicResource Text.Secondary}"
+                           FontSize="11" />
+                <CheckBox Content="Auto Connect — connect all brokers on startup"
+                          IsChecked="{Binding AutoConnect}"
+                          FontSize="11"
+                          Margin="0,6,0,0"
+                          ToolTip="On the next launch, every broker with saved settings connects automatically — no clicking each Connect button." />
+            </StackPanel>
 
             <Button Grid.Column="1" Content="Cancel"
                     Command="{Binding CancelCommand}"

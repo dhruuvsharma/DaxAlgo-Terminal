@@ -22,6 +22,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly IBrokerSelector _brokerSelector;
     private readonly SessionContext _session;
     private readonly IQuestDbLauncher _questDb;
+    private readonly CredentialStore _credentialStore;
     private readonly ILogger<LoginViewModel> _logger;
 
     public LoginViewModel(
@@ -29,11 +30,13 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         IBrokerLoginFormFactory forms,
         SessionContext session,
         IQuestDbLauncher questDb,
+        CredentialStore credentialStore,
         ILogger<LoginViewModel> logger)
     {
         _brokerSelector = brokerSelector;
         _session = session;
         _questDb = questDb;
+        _credentialStore = credentialStore;
         _logger = logger;
 
         AvailableForms = forms.All;
@@ -54,6 +57,41 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
         RefreshConnectedSummary();
         InitializeQuestDb();
+
+        // Hydrate the persisted Auto Connect preference straight into the backing field so the
+        // OnAutoConnectChanged persistence hook doesn't fire during construction.
+        _autoConnect = _credentialStore.Load().AutoConnect;
+        if (_autoConnect) AutoConnectAll();
+    }
+
+    // ── Auto Connect ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>When ticked, the terminal fires every available broker's Connect (with its saved
+    /// credentials) as soon as the login window opens on the next launch. Persisted immediately.</summary>
+    [ObservableProperty]
+    private bool _autoConnect;
+
+    partial void OnAutoConnectChanged(bool value)
+    {
+        // Load-modify-save so we never clobber credentials a form saved in the meantime.
+        var stored = _credentialStore.Load();
+        stored.AutoConnect = value;
+        _credentialStore.Save(stored);
+    }
+
+    /// <summary>Fires Connect on every broker form that is ready to submit (saved credentials,
+    /// broker SDK present). Each form's own command handles timeout/failure UI independently, so
+    /// one unreachable broker never blocks the others.</summary>
+    private void AutoConnectAll()
+    {
+        var started = 0;
+        foreach (var form in AvailableForms.OfType<BrokerLoginFormBase>())
+        {
+            if (!form.ConnectCommand.CanExecute(null)) continue;
+            started++;
+            _ = form.ConnectCommand.ExecuteAsync(null);
+        }
+        _logger.LogInformation("Auto Connect: started {Count} broker connection attempt(s)", started);
     }
 
     /// <summary>QuestDB is the only market-data backend that needs an external server up before the

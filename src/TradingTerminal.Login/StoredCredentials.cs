@@ -15,6 +15,10 @@ public sealed class StoredCredentials
     /// <summary>Which broker the user last signed in with. Drives the form shown on next launch.</summary>
     public BrokerKind SelectedBroker { get; set; } = BrokerKind.InteractiveBrokers;
 
+    /// <summary>When true, the login window fires every available broker's Connect on startup
+    /// (each form using its own persisted credentials) instead of waiting for manual clicks.</summary>
+    public bool AutoConnect { get; set; }
+
     public string? Username { get; set; }
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 7497;
