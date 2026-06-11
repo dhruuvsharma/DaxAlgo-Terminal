@@ -12,18 +12,28 @@ using TradingTerminal.UI;
 namespace TradingTerminal.Strategies.CumulativeDelta;
 
 /// <summary>
-/// View-model for the Cumulative Delta Scalper — sniper-mode port of the cTrader cBot at
-/// platforms/cTrader/CumulativeDeltaScalper/src/CumulativeDeltaScalper.cs.
+/// View-model for the Cumulative Delta Scalper.
 ///
-/// Tick-level uptick/downtick delta is summed across a sliding window of N candles.
-/// Entry on cumulative-delta crossover of ±DeltaThreshold, gated by up to five confirmations:
-///   1. Momentum alignment — last 3 bar-deltas share direction.
-///   2. HTF EMA(50) on 15m — bid above EMA for longs, below for shorts.
-///   3. EMA slope over <see cref="EmaSlopeBars"/> 15m bars matches signal direction.
-///   4. ADX(14) on 15m ≥ <see cref="AdxThreshold"/> (trending regime).
-///   5. Spread inside both rolling-avg multiplier and a hard cap.
-/// Multi-window session filter (Asia / London / NewYork / Overlap, GMT). Per-session and
-/// daily caps with an inter-signal cooldown.
+/// <para><b>Delta source (tape-primary).</b> When the broker supplies a trade tape the per-bar
+/// delta is true aggressor-side volume (buy − sell contracts) and each closed bar also yields a
+/// Core <see cref="FootprintBar"/> (volume-at-price clusters, POC, 3:1 stacked imbalances) for the
+/// footprint panel and the footprint confirmation. When no tape ever arrives the engine falls back
+/// to the original bid-tick uptick/downtick proxy (the cTrader-port behaviour) — the active mode
+/// is surfaced as <see cref="FeedMode"/>.</para>
+///
+/// <para><b>Trigger.</b> Bar deltas are summed across a sliding window of N candles; a signal
+/// candidate fires on the windowed cumulative delta crossing ±threshold. The threshold is
+/// <b>adaptive</b> by default (<see cref="AutoThreshold"/>): θ = <see cref="ThresholdSigma"/> · σ
+/// of the recent windowed-cumΔ distribution, so the same setting works on EURUSD ticks and MES
+/// contracts alike; a fixed manual threshold remains available.</para>
+///
+/// <para><b>Confirmations (up to 6).</b> Momentum alignment (last 3 bar-deltas), HTF EMA(50) on
+/// 15m, EMA slope, ADX(14) ≥ threshold, spread calm, and — tape only — footprint stacked-imbalance
+/// agreement. Pre-signal guards (session window, spread cap, ATR band, cooldown, daily/session
+/// caps) are evaluated every bar and published as <see cref="Gates"/> /
+/// <see cref="Confirmations"/> rows so the UI can show exactly why the strategy is or isn't
+/// firing. Spread/ATR gates are expressed in <b>basis points of price</b> — never absolute price
+/// units — so they are instrument-agnostic.</para>
 ///
 /// Display-only — no orders, no SL/TP, no lot sizing. Signals appear in the dashboard, the
 /// log, and the notifier.
@@ -45,12 +55,33 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private IDisposable? _ticksHandle;
     private IDisposable? _chartBarsHandle;
     private IDisposable? _htfBarsHandle;
+    private IDisposable? _tradesHandle;
     private double _prevBid;
     private bool _prevBidInitialised;
 
-    // Tick-level uptick/downtick accounting for the in-progress bar.
+    // Tick-level uptick/downtick accounting for the in-progress bar (proxy mode only).
     private int _uptickCount;
     private int _downtickCount;
+
+    // Trade-tape accounting for the in-progress bar (primary mode).
+    private bool _sawRealTape;
+    private double _priorTradePrice;
+    private AggressorSide _priorTradeClass = AggressorSide.Unknown;
+    private long _tapeBuyVolume;
+    private long _tapeSellVolume;
+    private readonly List<FootprintPrint> _barPrints = new(2_048);
+    private long _cumulativeDeltaAll;
+
+    private const int MaxFootprintBars = 8;
+    private readonly List<FootprintBar> _footprintBars = new();
+
+    /// <summary>Completed footprint bars (tape mode only), oldest first. Rendered by the window.</summary>
+    public IReadOnlyList<FootprintBar> FootprintBars => _footprintBars;
+    public event EventHandler? FootprintChanged;
+
+    // Recent windowed-cumΔ values backing the adaptive threshold.
+    private const int CumDeltaHistorySize = 80;
+    private readonly List<int> _cumDeltaHistory = new(CumDeltaHistorySize);
 
     // Closed-bar circular buffer.
     private readonly int[] _circularBuffer = new int[MaxWindowSize];
@@ -175,23 +206,36 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private BarSize _selectedTimeframe;
 
     [ObservableProperty] private int _windowSize = 10;
+
+    /// <summary>Manual crossover threshold — used only when <see cref="AutoThreshold"/> is off.</summary>
     [ObservableProperty] private int _deltaThreshold = 300;
 
+    /// <summary>Adaptive threshold: θ = <see cref="ThresholdSigma"/>·σ of recent windowed cumΔ.
+    /// Makes the trigger scale-free across tick-proxy counts and real tape volume.</summary>
+    [ObservableProperty] private bool _autoThreshold = true;
+    [ObservableProperty] private double _thresholdSigma = 2.0;
+
+    /// <summary>The threshold actually applied on the last closed bar (manual or adaptive).</summary>
+    [ObservableProperty] private int _effectiveThreshold = 300;
+
     // Sniper filters
-    [ObservableProperty] private int _minConfirmations = 5;
+    [ObservableProperty] private int _minConfirmations = 3;
     [ObservableProperty] private int _emaSlopeBars = 3;
     [ObservableProperty] private double _adxThreshold = 18.0;
     [ObservableProperty] private double _spreadAvgMultiplier = 1.5;
     [ObservableProperty] private int _spreadHistorySize = 30;
-    [ObservableProperty] private double _maxSpread = 0.00015; // price units; ~15 points on EURUSD
 
-    // Volatility gate
-    [ObservableProperty] private double _minAtr = 0.00030;
-    [ObservableProperty] private double _maxAtr = 0.00200;
+    /// <summary>Hard spread cap in basis points of price (1 bp = 0.01%). ~1.4 bp ≈ the old
+    /// 0.00015 EURUSD default, but works unchanged on futures/stocks.</summary>
+    [ObservableProperty] private double _maxSpreadBp = 2.5;
+
+    // Volatility gate — ATR(14) as basis points of price, instrument-agnostic.
+    [ObservableProperty] private double _minAtrBp = 1.0;
+    [ObservableProperty] private double _maxAtrBp = 50.0;
 
     // Session windows (GMT minute-of-day boundaries; users edit hours via the form)
     [ObservableProperty] private bool _useSessionFilter = true;
-    [ObservableProperty] private bool _overlapOnly = true;
+    [ObservableProperty] private bool _overlapOnly = false;
 
     [ObservableProperty] private int _overlapStartHour = 12;
     [ObservableProperty] private int _overlapStartMin  = 30;
@@ -212,9 +256,9 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private int _newYorkEndHour   = 17;
 
     [ObservableProperty] private bool _useHtfFilter = true;
-    [ObservableProperty] private int _maxSignalsPerSession = 2;
-    [ObservableProperty] private int _maxDailySignals = 3;
-    [ObservableProperty] private int _minSecondsBetweenSignals = 900;
+    [ObservableProperty] private int _maxSignalsPerSession = 4;
+    [ObservableProperty] private int _maxDailySignals = 8;
+    [ObservableProperty] private int _minSecondsBetweenSignals = 300;
 
     [ObservableProperty] private bool _isConfigured;
     [ObservableProperty] private string? _validationError;
@@ -225,8 +269,24 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     public ObservableCollection<int> BarDeltas { get; }
     public ObservableCollection<string> RecentSignals { get; }
 
+    /// <summary>Per-closed-bar (time, barΔ, windowed cumΔ) points for the delta pane —
+    /// shares the price chart's time axis.</summary>
+    public ObservableCollection<DeltaPoint> DeltaPoints { get; } = new();
+
+    /// <summary>Pre-signal gates evaluated on every closed bar — the "why is nothing firing" board.</summary>
+    public ObservableCollection<GateRow> Gates { get; } = new();
+
+    /// <summary>Confirmation checks evaluated each bar against the current cumΔ lean.</summary>
+    public ObservableCollection<GateRow> Confirmations { get; } = new();
+
     [ObservableProperty] private string _status = "Configure the strategy to begin.";
     [ObservableProperty] private string _guardReason = "";
+
+    /// <summary>"Real tape" once a genuine trade print arrives; "Bid-tick proxy" otherwise.</summary>
+    [ObservableProperty] private string _feedMode = "—";
+
+    /// <summary>6 with a real tape (footprint confirmation participates), 5 in proxy mode.</summary>
+    public int MaxConfirmations => _sawRealTape ? 6 : 5;
 
     [ObservableProperty] private double? _lastBid;
     [ObservableProperty] private double? _lastAsk;
@@ -276,12 +336,12 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             { ValidationError = $"Window size must be between 2 and {MaxWindowSize}."; return; }
         if (DeltaThreshold <= 0)
             { ValidationError = "Delta threshold must be positive."; return; }
-        if (MinConfirmations is < 0 or > 5)
-            { ValidationError = "Min confirmations must be between 0 and 5."; return; }
+        if (MinConfirmations is < 0 or > 6)
+            { ValidationError = "Min confirmations must be between 0 and 6."; return; }
         if (SpreadHistorySize is < 1 or > MaxSpreadHistorySize)
             { ValidationError = $"Spread history size must be between 1 and {MaxSpreadHistorySize}."; return; }
-        if (MinAtr < 0 || MaxAtr <= MinAtr)
-            { ValidationError = "Max ATR must be greater than Min ATR (and both ≥ 0)."; return; }
+        if (MinAtrBp < 0 || MaxAtrBp <= MinAtrBp)
+            { ValidationError = "Max ATR (bp) must be greater than Min ATR (bp), both ≥ 0."; return; }
 
         IsConfigured = true;
         _ = StartStreamAsync();
@@ -295,7 +355,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _logger.LogInformation("CumulativeDelta sniper {State} for {Symbol}",
             IsAlgoRunning ? "ARMED" : "STOPPED", label);
         Status = IsAlgoRunning
-            ? $"Sniper armed on {label} — minConf {MinConfirmations}/5"
+            ? $"Sniper armed on {label} — minConf {MinConfirmations}/{MaxConfirmations}"
             : $"Streaming {label} — sniper idle";
     }
 
@@ -335,9 +395,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         _cts = new CancellationTokenSource();
         IsStreaming = true;
+        FeedMode = "Bid-tick proxy (no tape yet)";
         Status = $"Streaming {SelectedInstrument.DisplayName} — sniper idle";
 
         _ = RunTicksAsync(contract, broker, _cts.Token);
+        _ = RunTradesAsync(contract, broker, _cts.Token);
         _ = RunChartBarsAsync(contract, broker, chartTf, _cts.Token);
         _ = RunHtfBarsAsync(contract, broker, _cts.Token);
     }
@@ -350,6 +412,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _ticksHandle?.Dispose(); _ticksHandle = null;
         _chartBarsHandle?.Dispose(); _chartBarsHandle = null;
         _htfBarsHandle?.Dispose(); _htfBarsHandle = null;
+        _tradesHandle?.Dispose(); _tradesHandle = null;
         IsStreaming = false;
         IsAlgoRunning = false;
         Status = "Stopped";
@@ -364,6 +427,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _ticksHandle?.Dispose(); _ticksHandle = null;
         _chartBarsHandle?.Dispose(); _chartBarsHandle = null;
         _htfBarsHandle?.Dispose(); _htfBarsHandle = null;
+        _tradesHandle?.Dispose(); _tradesHandle = null;
     }
 
     // ---------- Tick stream (bid-tick rule) ----------
@@ -406,6 +470,9 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         LastAsk = tick.Ask;
         LastSpread = tick.Ask - tick.Bid;
 
+        // With a real tape the quote stream only refreshes bid/ask/spread — delta comes from prints.
+        if (_sawRealTape) return;
+
         if (!_prevBidInitialised)
         {
             _prevBid = tick.Bid;
@@ -418,6 +485,69 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _prevBid = tick.Bid;
         LiveDelta = _uptickCount - _downtickCount;
     }
+
+    // ---------- Trade-tape stream (primary delta source + footprint) ----------
+
+    private async Task RunTradesAsync(Contract contract, BrokerKind broker, CancellationToken ct)
+    {
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
+        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+        });
+
+        using var subscription = _services.Hub.Trades(instrumentId).Subscribe(t =>
+            channel.Writer.TryWrite(t));
+        // No-op handle on brokers without a tape — the channel simply never produces.
+        _tradesHandle = _services.Ingest.SubscribeTrades(contract, broker);
+
+        try
+        {
+            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
+                await UiThread.RunAsync(() => ProcessTrade(trade));
+        }
+        catch (OperationCanceledException) { /* expected */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Trade-tape stream ended");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+        }
+    }
+
+    private void ProcessTrade(TradePrint trade)
+    {
+        if (!_sawRealTape)
+        {
+            _sawRealTape = true;
+            FeedMode = "Real tape";
+            OnPropertyChanged(nameof(MaxConfirmations));
+            _logger.LogInformation("[CumulativeDelta] Real trade tape detected — switching delta to aggressor volume");
+        }
+
+        var aggressor = trade.Aggressor;
+        if (aggressor == AggressorSide.Unknown && LastBid is { } bid && LastAsk is { } ask && ask > bid)
+            aggressor = Microstructure.ClassifyAggressor(trade.Price, bid, ask, _priorTradePrice, _priorTradeClass);
+        _priorTradePrice = trade.Price;
+        if (aggressor != AggressorSide.Unknown) _priorTradeClass = aggressor;
+
+        _barPrints.Add(new FootprintPrint(trade.Price, trade.Size, aggressor, trade.EventTimeUtc));
+
+        if (aggressor == AggressorSide.Buy) _tapeBuyVolume += trade.Size;
+        else if (aggressor == AggressorSide.Sell) _tapeSellVolume += trade.Size;
+        else
+        {
+            var half = trade.Size / 2;
+            _tapeBuyVolume += trade.Size - half;
+            _tapeSellVolume += half;
+        }
+        LiveDelta = ClampToInt(_tapeBuyVolume - _tapeSellVolume);
+    }
+
+    private static int ClampToInt(long v) => (int)Math.Clamp(v, int.MinValue, int.MaxValue);
 
     // ---------- Chart-TF bar stream: finalise bars, drive signals ----------
 
@@ -469,7 +599,19 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private void OnBarClosed()
     {
         var w = Math.Clamp(WindowSize, 2, MaxWindowSize);
-        var candleDelta = _uptickCount - _downtickCount;
+        var closedBar = Bars.Count > 0 ? Bars[^1] : null;
+
+        // Tape-primary: aggressor-volume delta + a footprint bar; proxy: bid-tick counts.
+        int candleDelta;
+        if (_sawRealTape)
+        {
+            candleDelta = ClampToInt(_tapeBuyVolume - _tapeSellVolume);
+            CompleteFootprintBar(closedBar);
+        }
+        else
+        {
+            candleDelta = _uptickCount - _downtickCount;
+        }
 
         _circularBuffer[_bufferIndex] = candleDelta;
         _bufferIndex = (_bufferIndex + 1) % w;
@@ -479,10 +621,17 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         var start = (_bufferFilled >= w) ? _bufferIndex : 0;
         for (var i = 0; i < _bufferFilled; i++)
             BarDeltas.Add(_circularBuffer[(start + i) % w]);
-        DeltasChanged?.Invoke(this, EventArgs.Empty);
 
         var cumDelta = SumWindow(w);
         CumulativeDelta = cumDelta;
+
+        _cumDeltaHistory.Add(cumDelta);
+        while (_cumDeltaHistory.Count > CumDeltaHistorySize) _cumDeltaHistory.RemoveAt(0);
+        EffectiveThreshold = ComputeEffectiveThreshold();
+
+        DeltaPoints.Add(new DeltaPoint(closedBar?.TimestampUtc ?? DateTime.UtcNow, candleDelta, cumDelta));
+        while (DeltaPoints.Count > MaxBarsRetained) DeltaPoints.RemoveAt(0);
+        DeltasChanged?.Invoke(this, EventArgs.Empty);
 
         // Sample once per bar.
         if (LastSpread is { } s)
@@ -495,10 +644,14 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         _uptickCount = 0;
         _downtickCount = 0;
+        _tapeBuyVolume = 0;
+        _tapeSellVolume = 0;
         LiveDelta = 0;
 
         UpdateSessionState();
         ResetDailyCountersIfNeeded();
+        UpdateGateBoard();
+        UpdateConfirmationBoard(Math.Sign(cumDelta));
 
         if (_bufferFilled < w)
         {
@@ -514,6 +667,65 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         EvaluateSignal(crossover, cumDelta);
     }
 
+    /// <summary>Builds the closed bar's footprint via Core (volume-at-price, POC, 3:1 stacks).</summary>
+    private void CompleteFootprintBar(Bar? closedBar)
+    {
+        if (_barPrints.Count == 0) return;
+
+        var startUtc = closedBar?.TimestampUtc ?? _barPrints[0].TimeUtc;
+        var endUtc = startUtc + TimeframeSpan(SelectedTimeframe);
+        var row = FootprintRowSize();
+        var fp = FootprintFeatures.BuildBar(_barPrints, row, startUtc, endUtc, FeedQuality.RealTape, _cumulativeDeltaAll);
+        _cumulativeDeltaAll = fp.CumulativeDelta;
+
+        _footprintBars.Add(fp);
+        while (_footprintBars.Count > MaxFootprintBars) _footprintBars.RemoveAt(0);
+        _barPrints.Clear();
+        FootprintChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Row size from the chart-TF ATR snapped to a 1-2-5 ladder (instrument-agnostic).</summary>
+    private double FootprintRowSize()
+    {
+        var atr = LastAtr ?? 0;
+        if (atr <= 0 && _barPrints.Count > 1)
+        {
+            double min = double.MaxValue, max = double.MinValue;
+            foreach (var p in _barPrints) { if (p.Price < min) min = p.Price; if (p.Price > max) max = p.Price; }
+            atr = max - min;
+        }
+        if (atr <= 0) return 0.0001;
+
+        var raw = atr / 12.0;
+        var mag = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+        var norm = raw / mag;
+        var snap = norm < 1.5 ? 1.0 : norm < 3.5 ? 2.0 : norm < 7.5 ? 5.0 : 10.0;
+        return snap * mag;
+    }
+
+    private static TimeSpan TimeframeSpan(BarSize size) => size switch
+    {
+        BarSize.OneMinute => TimeSpan.FromMinutes(1),
+        BarSize.ThreeMinutes => TimeSpan.FromMinutes(3),
+        BarSize.FiveMinutes => TimeSpan.FromMinutes(5),
+        BarSize.FifteenMinutes => TimeSpan.FromMinutes(15),
+        _ => TimeSpan.FromMinutes(1),
+    };
+
+    private int ComputeEffectiveThreshold()
+    {
+        if (!AutoThreshold) return Math.Max(1, DeltaThreshold);
+        if (_cumDeltaHistory.Count < 10) return Math.Max(1, DeltaThreshold);
+
+        double mean = 0;
+        foreach (var v in _cumDeltaHistory) mean += v;
+        mean /= _cumDeltaHistory.Count;
+        double acc = 0;
+        foreach (var v in _cumDeltaHistory) { var d = v - mean; acc += d * d; }
+        var sd = Math.Sqrt(acc / _cumDeltaHistory.Count);
+        return Math.Max(1, (int)Math.Ceiling(Math.Max(0.5, ThresholdSigma) * sd));
+    }
+
     private void EvaluateSignal(int crossover, int cumDelta)
     {
         var symbol = SelectedInstrument?.DisplayName ?? "(none)";
@@ -527,19 +739,20 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         var conf = CountConfirmations(crossover);
         LastConfirmationScore = conf;
+        var maxConf = MaxConfirmations;
 
         if (conf < MinConfirmations)
         {
-            GuardReason = $"CONF {conf}/5 (need {MinConfirmations})";
+            GuardReason = $"CONF {conf}/{maxConf} (need {MinConfirmations})";
             // Record a low-conf attempt as an idle signal so the user can tune the bar.
-            PushSignalLine($"{DateTime.Now:HH:mm:ss}  (idle)  {direction} cumΔ={cumDelta} conf={conf}/5");
+            PushSignalLine($"{DateTime.Now:HH:mm:ss}  (idle)  {direction} cumΔ={cumDelta} conf={conf}/{maxConf}");
             _notifications.PublishAsync(new StrategyNotification(
                 Kind: NotificationKind.IdleSignal,
                 StrategyId: "cumulative.delta.scalper",
                 StrategyName: "Cumulative Delta",
                 Symbol: symbol,
                 Direction: direction,
-                Message: $"(idle) {direction} cumΔ={cumDelta} conf={conf}/5",
+                Message: $"(idle) {direction} cumΔ={cumDelta} conf={conf}/{maxConf}",
                 TimestampUtc: DateTime.UtcNow))
                 .FireAndForgetSafe(_logger, "cumdelta low-conf idle");
             return;
@@ -549,14 +762,14 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         if (!IsAlgoRunning)
         {
-            PushSignalLine($"{DateTime.Now:HH:mm:ss}  (idle)  {direction} cumΔ={cumDelta} conf={conf}/5");
+            PushSignalLine($"{DateTime.Now:HH:mm:ss}  (idle)  {direction} cumΔ={cumDelta} conf={conf}/{maxConf}");
             _notifications.PublishAsync(new StrategyNotification(
                 Kind: NotificationKind.IdleSignal,
                 StrategyId: "cumulative.delta.scalper",
                 StrategyName: "Cumulative Delta",
                 Symbol: symbol,
                 Direction: direction,
-                Message: $"(idle) {direction} cumΔ={cumDelta} conf={conf}/5",
+                Message: $"(idle) {direction} cumΔ={cumDelta} conf={conf}/{maxConf}",
                 TimestampUtc: DateTime.UtcNow))
                 .FireAndForgetSafe(_logger, "cumdelta unarmed idle");
             return;
@@ -566,10 +779,10 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _sessionSignalCount++;
         _lastSignalTimeUtc = DateTime.UtcNow;
 
-        var line = $"{DateTime.Now:HH:mm:ss}  ARMED  {direction} cumΔ={cumDelta} conf={conf}/5 sess={_currentSession}";
+        var line = $"{DateTime.Now:HH:mm:ss}  ARMED  {direction} cumΔ={cumDelta} conf={conf}/{maxConf} sess={_currentSession}";
         PushSignalLine(line);
-        _logger.LogInformation("[CumulativeDelta] SNIPER {Direction} cumDelta={CumDelta} conf={Conf}/5 session={Session}",
-            direction, cumDelta, conf, _currentSession);
+        _logger.LogInformation("[CumulativeDelta] SNIPER {Direction} cumDelta={CumDelta} conf={Conf}/{MaxConf} session={Session}",
+            direction, cumDelta, conf, maxConf, _currentSession);
 
         _notifications.PublishAsync(new StrategyNotification(
             Kind: NotificationKind.Signal,
@@ -577,7 +790,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             StrategyName: "Cumulative Delta",
             Symbol: symbol,
             Direction: direction,
-            Message: $"SNIPER {direction}  cumΔ={cumDelta}  conf={conf}/5  session={_currentSession}",
+            Message: $"SNIPER {direction}  cumΔ={cumDelta}  conf={conf}/{maxConf}  session={_currentSession}",
             TimestampUtc: DateTime.UtcNow))
             .FireAndForgetSafe(_logger, "cumdelta sniper signal");
     }
@@ -592,7 +805,19 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         if (CheckEmaSlope(signal))          c++;
         if (CheckAdxTrending())             c++;
         if (CheckSpread())                  c++;
+        if (_sawRealTape && CheckFootprint(signal)) c++;
         return c;
+    }
+
+    /// <summary>Footprint confirmation (tape only): the last completed bar's stacked-imbalance
+    /// contrast — falling back to its delta sign — must agree with the signal direction.</summary>
+    private bool CheckFootprint(int signal)
+    {
+        if (_footprintBars.Count == 0) return false;
+        var fp = _footprintBars[^1];
+        var stack = fp.StackedBuy - fp.StackedSell;
+        if (stack != 0) return signal > 0 ? stack > 0 : stack < 0;
+        return signal > 0 ? fp.Delta > 0 : fp.Delta < 0;
     }
 
     private bool CheckMomentumAlignment(int signal)
@@ -631,12 +856,20 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     private bool CheckSpread()
     {
-        if (LastSpread is not { } cur) return false;
-        if (cur > MaxSpread) return false;
+        if (SpreadBp() is not { } bp) return false;
+        if (bp > MaxSpreadBp) return false;
         var avg = AvgSpread ?? 0;
         if (avg <= 0) return true; // bootstrap
-        return cur <= avg * SpreadAvgMultiplier;
+        return LastSpread is { } cur && cur <= avg * SpreadAvgMultiplier;
     }
+
+    /// <summary>Current spread in basis points of price (instrument-agnostic), or null pre-quote.</summary>
+    private double? SpreadBp() =>
+        LastSpread is { } s && LastBid is { } bid && bid > 0 ? s / bid * 10_000.0 : null;
+
+    /// <summary>ATR(14) on the chart TF in basis points of price, or null while warming.</summary>
+    private double? AtrBp() =>
+        LastAtr is { } atr && LastBid is { } bid && bid > 0 ? atr / bid * 10_000.0 : null;
 
     // ---------- Pre-signal guards (cheap, run before confirmation count) ----------
 
@@ -645,8 +878,8 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         if (UseSessionFilter && _currentSession == SessionId.None)
             { reason = "SESSION CLOSED"; return false; }
 
-        if (LastSpread is { } s && s > MaxSpread)
-            { reason = $"SPREAD HIGH ({s:F5}>{MaxSpread:F5})"; return false; }
+        if (SpreadBp() is { } sbp && sbp > MaxSpreadBp)
+            { reason = $"SPREAD HIGH ({sbp:F2}bp>{MaxSpreadBp:F1}bp)"; return false; }
 
         if (TodaySignalCount >= MaxDailySignals)
             { reason = $"DAILY LIMIT ({TodaySignalCount}/{MaxDailySignals})"; return false; }
@@ -662,10 +895,10 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             reason = $"COOLDOWN ({left:F0}s left)"; return false;
         }
 
-        if (LastAtr is { } atr)
+        if (AtrBp() is { } abp)
         {
-            if (atr < MinAtr) { reason = $"ATR LOW ({atr:F5})"; return false; }
-            if (atr > MaxAtr) { reason = $"ATR HIGH ({atr:F5})"; return false; }
+            if (abp < MinAtrBp) { reason = $"ATR LOW ({abp:F1}bp<{MinAtrBp:F1}bp)"; return false; }
+            if (abp > MaxAtrBp) { reason = $"ATR HIGH ({abp:F1}bp>{MaxAtrBp:F1}bp)"; return false; }
         }
         else
         {
@@ -678,9 +911,60 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     private int ClassifyCrossover(int cumDelta, int previousCumDelta)
     {
-        if (previousCumDelta <=  DeltaThreshold && cumDelta >  DeltaThreshold) return  1;
-        if (previousCumDelta >= -DeltaThreshold && cumDelta < -DeltaThreshold) return -1;
+        var t = Math.Max(1, EffectiveThreshold);
+        if (previousCumDelta <=  t && cumDelta >  t) return  1;
+        if (previousCumDelta >= -t && cumDelta < -t) return -1;
         return 0;
+    }
+
+    // ---------- Gate / confirmation boards (rebuilt every closed bar for the UI) ----------
+
+    private void UpdateGateBoard()
+    {
+        Gates.Clear();
+
+        var sessionPass = !UseSessionFilter || _currentSession != SessionId.None;
+        Gates.Add(new GateRow("Session", sessionPass,
+            UseSessionFilter ? _currentSession.ToString() : "filter off"));
+
+        var sbp = SpreadBp();
+        Gates.Add(new GateRow("Spread cap", sbp is { } sv && sv <= MaxSpreadBp,
+            sbp is { } sv2 ? $"{sv2:0.00} ≤ {MaxSpreadBp:0.0} bp" : "no quote"));
+
+        var abp = AtrBp();
+        Gates.Add(new GateRow("ATR band", abp is { } av && av >= MinAtrBp && av <= MaxAtrBp,
+            abp is { } av2 ? $"{av2:0.0} in [{MinAtrBp:0.#}–{MaxAtrBp:0.#}] bp" : "warming"));
+
+        var now = DateTime.UtcNow;
+        var cooldownEnd = _lastSignalTimeUtc == DateTime.MinValue
+            ? DateTime.MinValue : _lastSignalTimeUtc.AddSeconds(MinSecondsBetweenSignals);
+        var cooldownPass = now >= cooldownEnd;
+        Gates.Add(new GateRow("Cooldown", cooldownPass,
+            cooldownPass ? "clear" : $"{(cooldownEnd - now).TotalSeconds:F0}s left"));
+
+        Gates.Add(new GateRow("Caps", TodaySignalCount < MaxDailySignals && _sessionSignalCount < MaxSignalsPerSession,
+            $"day {TodaySignalCount}/{MaxDailySignals} · sess {_sessionSignalCount}/{MaxSignalsPerSession}"));
+    }
+
+    private void UpdateConfirmationBoard(int lean)
+    {
+        Confirmations.Clear();
+        var dir = lean == 0 ? 1 : lean;   // show the long-side evaluation when flat
+
+        Confirmations.Add(new GateRow("Momentum 3-bar", CheckMomentumAlignment(dir), "bar Δs aligned"));
+        Confirmations.Add(new GateRow("HTF EMA(50)", CheckHtfEma(dir),
+            UseHtfFilter ? (LastEmaHtf is { } e ? $"bid vs {e:0.#####}" : "warming") : "filter off"));
+        Confirmations.Add(new GateRow("EMA slope", CheckEmaSlope(dir), $"{EmaSlopeBars} × 15m bars"));
+        Confirmations.Add(new GateRow("ADX trending", CheckAdxTrending(),
+            LastAdx is { } adx ? $"{adx:0.0} ≥ {AdxThreshold:0.0}" : "warming"));
+        Confirmations.Add(new GateRow("Spread calm", CheckSpread(),
+            SpreadBp() is { } sb ? $"{sb:0.00} bp" : "no quote"));
+        if (_sawRealTape)
+        {
+            var fp = _footprintBars.Count > 0 ? _footprintBars[^1] : null;
+            Confirmations.Add(new GateRow("Footprint stack", CheckFootprint(dir),
+                fp is null ? "no bar yet" : $"↑{fp.StackedBuy} ↓{fp.StackedSell} Δ{fp.Delta:+#;-#;0}"));
+        }
     }
 
     // ---------- HTF (15m) bar stream: EMA(50) + ADX(14) ----------
@@ -834,6 +1118,18 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _prevBidInitialised = false;
         _uptickCount = 0;
         _downtickCount = 0;
+        _sawRealTape = false;
+        _priorTradePrice = 0;
+        _priorTradeClass = AggressorSide.Unknown;
+        _tapeBuyVolume = 0;
+        _tapeSellVolume = 0;
+        _barPrints.Clear();
+        _cumulativeDeltaAll = 0;
+        _footprintBars.Clear();
+        _cumDeltaHistory.Clear();
+        DeltaPoints.Clear();
+        Gates.Clear();
+        Confirmations.Clear();
         _sessionSignalCount = 0;
         _lastSignalTimeUtc = DateTime.MinValue;
         _currentSession = SessionId.None;
@@ -842,8 +1138,17 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         CumulativeDelta = 0;
         AvgSpread = null;
         LastConfirmationScore = 0;
+        FeedMode = "—";
+        OnPropertyChanged(nameof(MaxConfirmations));
+        FootprintChanged?.Invoke(this, EventArgs.Empty);
     }
 }
+
+/// <summary>One pass/fail row in the gate or confirmation board.</summary>
+public sealed record GateRow(string Name, bool Pass, string Detail);
+
+/// <summary>One closed bar's delta sample for the time-axis delta pane.</summary>
+public sealed record DeltaPoint(DateTime TimeUtc, double BarDelta, double WindowCum);
 
 public enum SessionId
 {

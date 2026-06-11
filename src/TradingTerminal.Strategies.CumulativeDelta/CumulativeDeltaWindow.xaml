@@ -1,4 +1,4 @@
-﻿<mah:MetroWindow x:Class="TradingTerminal.Strategies.CumulativeDelta.CumulativeDeltaWindow"
+<mah:MetroWindow x:Class="TradingTerminal.Strategies.CumulativeDelta.CumulativeDeltaWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,24 +9,79 @@
                  xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Cumulative Delta Scalper"
-                 Height="780" Width="1180"
+                 Height="820" Width="1280"
                  WindowStartupLocation="CenterOwner"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-        <!-- Style for label cell of a dashboard row: dim, left-aligned. -->
+        <!-- Rounded card chrome (matches the Apex window) -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style x:Key="CardHeader" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="6,6,0,0" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="CardStatus" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
         <Style x:Key="DashLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="Margin" Value="0,2,8,2" />
         </Style>
-        <!-- Style for value cell of a dashboard row: monospaced, semibold, right-aligned. -->
         <Style x:Key="DashValueStyle" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="Margin" Value="0,2,0,2" />
         </Style>
+        <!-- Pass/fail row used by the gate + confirmation boards -->
+        <DataTemplate x:Key="GateRowTemplate">
+            <Grid Margin="0,1,0,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" FontSize="10" FontWeight="Bold" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="✗" />
+                            <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Pass}" Value="True">
+                                    <Setter Property="Text" Value="✓" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="11"
+                           Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="10" FontFamily="Consolas"
+                           Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
     </mah:MetroWindow.Resources>
 
     <mah:MetroWindow.LeftWindowCommands>
@@ -62,12 +117,13 @@
                     Background="{DynamicResource Background.Surface}"
                     BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="1"
+                    CornerRadius="6"
                     Padding="24"
                     Margin="0,24">
                 <StackPanel>
                     <TextBlock Text="Configure Cumulative Delta Scalper (Sniper)"
                                FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock Text="Tick uptick/downtick → bar deltas → sliding-window cumulative delta. Trigger on cross of ±threshold gated by up to five confirmations (momentum, HTF EMA, EMA slope, ADX, dynamic spread)."
+                    <TextBlock Text="Trade-tape aggressor delta (with footprint clusters) summed over a sliding window of N candles; bid-tick proxy when no tape exists. Trigger on cumΔ crossing ±θ — adaptive θ = σ-scaled by default — gated by up to six confirmations (momentum, HTF EMA, EMA slope, ADX, spread, footprint stack). Spread/ATR gates are in basis points, so any instrument works."
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource Text.Secondary}"
                                Margin="0,0,0,16" />
@@ -78,12 +134,12 @@
                                           SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
                                           Margin="0,0,0,12" />
 
-                    <TextBlock Text="Chart timeframe (drives ATR + bar deltas)" Margin="0,0,0,4" />
+                    <TextBlock Text="Chart timeframe (drives bar deltas + ATR + footprint)" Margin="0,0,0,4" />
                     <ComboBox ItemsSource="{Binding TimeframeOptions}"
                               SelectedItem="{Binding SelectedTimeframe}"
                               Margin="0,0,0,12" />
 
-                    <Grid Margin="0,0,0,12">
+                    <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
@@ -93,17 +149,27 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Window size (bars)" Margin="0,0,4,4" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Delta threshold (±)" Margin="4,0,0,4" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Threshold σ (adaptive)" Margin="4,0,0,4" />
                         <TextBox   Grid.Row="1" Grid.Column="0"
                                    Text="{Binding WindowSize, UpdateSourceTrigger=PropertyChanged}"
                                    Margin="0,0,4,0" />
                         <TextBox   Grid.Row="1" Grid.Column="1"
-                                   Text="{Binding DeltaThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                   Text="{Binding ThresholdSigma, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}"
                                    Margin="4,0,0,0" />
+                    </Grid>
+                    <CheckBox Content="Adaptive threshold (θ = σ × stdev of recent cumΔ — recommended)"
+                              IsChecked="{Binding AutoThreshold}" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,12"
+                          IsEnabled="{Binding AutoThreshold, Converter={StaticResource InverseBooleanConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Manual delta threshold (±)" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBox   Grid.Column="1" Text="{Binding DeltaThreshold, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
 
                     <!-- Sniper filters -->
-                    <Expander Header="Sniper filters (5-confirmation gate)"
+                    <Expander Header="Sniper filters (confirmation gate)"
                               IsExpanded="True"
                               Margin="0,0,0,12">
                         <StackPanel Margin="0,8,0,0">
@@ -116,7 +182,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Min confirmations (0–5)" Margin="0,0,4,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Min confirmations (0–6)" Margin="0,0,4,4" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" Text="EMA slope bars" Margin="4,0,0,4" />
                                 <TextBox   Grid.Row="1" Grid.Column="0"
                                            Text="{Binding MinConfirmations, UpdateSourceTrigger=PropertyChanged}"
@@ -153,12 +219,12 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Spread history size" Margin="0,0,4,4" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Max spread (price)" Margin="4,0,0,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Max spread (bp of price)" Margin="4,0,0,4" />
                                 <TextBox   Grid.Row="1" Grid.Column="0"
                                            Text="{Binding SpreadHistorySize, UpdateSourceTrigger=PropertyChanged}"
                                            Margin="0,0,4,0" />
                                 <TextBox   Grid.Row="1" Grid.Column="1"
-                                           Text="{Binding MaxSpread, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
+                                           Text="{Binding MaxSpreadBp, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
                                            Margin="4,0,0,0" />
                             </Grid>
                             <CheckBox Content="Use HTF filter (15m EMA(50) — needed for confirmations 2 &amp; 3)"
@@ -167,7 +233,7 @@
                     </Expander>
 
                     <!-- Volatility -->
-                    <Expander Header="Volatility (ATR gate)"
+                    <Expander Header="Volatility (ATR gate, basis points of price)"
                               Margin="0,0,0,12">
                         <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
@@ -178,20 +244,19 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Min ATR" Margin="0,0,4,4" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Max ATR" Margin="4,0,0,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Min ATR (bp)" Margin="0,0,4,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Max ATR (bp)" Margin="4,0,0,4" />
                             <TextBox   Grid.Row="1" Grid.Column="0"
-                                       Text="{Binding MinAtr, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
+                                       Text="{Binding MinAtrBp, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
                                        Margin="0,0,4,0" />
                             <TextBox   Grid.Row="1" Grid.Column="1"
-                                       Text="{Binding MaxAtr, UpdateSourceTrigger=PropertyChanged, StringFormat=F5}"
+                                       Text="{Binding MaxAtrBp, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}"
                                        Margin="4,0,0,0" />
                         </Grid>
                     </Expander>
 
                     <!-- Sessions -->
                     <Expander Header="Sessions (GMT)"
-                              IsExpanded="True"
                               Margin="0,0,0,12">
                         <StackPanel Margin="0,8,0,0">
                             <CheckBox Content="Use session filter"
@@ -294,20 +359,27 @@
             </Border>
         </ScrollViewer>
 
-        <!-- ===== Chart + dashboard ===== -->
+        <!-- ===== Running layout ===== -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
 
-            <!-- Live tuning strip. Every Cumulative Delta parameter is read fresh on each closed
-                 bar, so all of these take effect immediately while streaming — no restart needed. -->
+            <!-- Live tuning strip — every parameter is read fresh on each closed bar. -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="TUNING" Style="{StaticResource Strategy.ParamGroupLabel}" />
+                        <TextBlock Text="TRIGGER" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <uic:ParamSpinner Label="Window (bars)" Minimum="2" Maximum="50" Step="1" StringFormat="0"
                                           Value="{Binding WindowSize, Mode=TwoWay}" />
-                        <uic:ParamSpinner Label="Delta thr ±" Minimum="1" Maximum="5000" Step="10" StringFormat="0"
-                                          SpinnerWidth="84" Value="{Binding DeltaThreshold, Mode=TwoWay}" />
-                        <uic:ParamSpinner Label="Min conf" Minimum="0" Maximum="5" Step="1" StringFormat="0"
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="Threshold" FontSize="10" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,2" />
+                            <CheckBox Content="Auto σ" IsChecked="{Binding AutoThreshold, Mode=TwoWay}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <uic:ParamSpinner Label="θ σ-mult" Minimum="0.5" Maximum="5" Step="0.25" StringFormat="0.00"
+                                          Value="{Binding ThresholdSigma, Mode=TwoWay}"
+                                          IsEnabled="{Binding AutoThreshold}" />
+                        <uic:ParamSpinner Label="θ manual ±" Minimum="1" Maximum="100000" Step="10" StringFormat="0"
+                                          SpinnerWidth="84" Value="{Binding DeltaThreshold, Mode=TwoWay}"
+                                          IsEnabled="{Binding AutoThreshold, Converter={StaticResource InverseBooleanConverter}}" />
+                        <uic:ParamSpinner Label="Min conf" Minimum="0" Maximum="6" Step="1" StringFormat="0"
                                           Value="{Binding MinConfirmations, Mode=TwoWay}" />
                         <uic:ParamSpinner Label="ADX ≥" Minimum="0" Maximum="100" Step="0.5" StringFormat="0.0"
                                           Value="{Binding AdxThreshold, Mode=TwoWay}" />
@@ -342,12 +414,12 @@
                                                           Value="{Binding SpreadAvgMultiplier, Mode=TwoWay}" />
                                         <uic:ParamSpinner Label="Spread hist" Minimum="1" Maximum="200" Step="1" StringFormat="0"
                                                           Value="{Binding SpreadHistorySize, Mode=TwoWay}" />
-                                        <uic:ParamSpinner Label="Max spread" Minimum="0" Maximum="1" Step="0.00001" StringFormat="0.#####"
-                                                          SpinnerWidth="92" Value="{Binding MaxSpread, Mode=TwoWay}" />
-                                        <uic:ParamSpinner Label="Min ATR" Minimum="0" Maximum="1" Step="0.00001" StringFormat="0.#####"
-                                                          SpinnerWidth="92" Value="{Binding MinAtr, Mode=TwoWay}" />
-                                        <uic:ParamSpinner Label="Max ATR" Minimum="0" Maximum="1" Step="0.00001" StringFormat="0.#####"
-                                                          SpinnerWidth="92" Value="{Binding MaxAtr, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Max spread bp" Minimum="0" Maximum="50" Step="0.5" StringFormat="0.0"
+                                                          Value="{Binding MaxSpreadBp, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Min ATR bp" Minimum="0" Maximum="200" Step="0.5" StringFormat="0.0"
+                                                          Value="{Binding MinAtrBp, Mode=TwoWay}" />
+                                        <uic:ParamSpinner Label="Max ATR bp" Minimum="0" Maximum="500" Step="1" StringFormat="0.0"
+                                                          Value="{Binding MaxAtrBp, Mode=TwoWay}" />
                                         <uic:ParamSpinner Label="Max daily" Minimum="1" Maximum="100" Step="1" StringFormat="0"
                                                           Value="{Binding MaxDailySignals, Mode=TwoWay}" />
                                         <uic:ParamSpinner Label="Max / session" Minimum="1" Maximum="100" Step="1" StringFormat="0"
@@ -371,179 +443,281 @@
             </Border>
 
             <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="320" />
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <!-- Left column: header + plots -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="160" />
-                </Grid.RowDefinitions>
-
-                <Border Grid.Row="0"
-                        Background="{DynamicResource Background.Surface}"
-                        BorderBrush="{DynamicResource Border.Brush}"
-                        BorderThickness="0,0,0,1"
-                        Padding="12,8">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Symbol:" Foreground="{DynamicResource Text.Secondary}" />
-                        <TextBlock Text="{Binding SelectedInstrument.DisplayName}" Margin="6,0,16,0" FontWeight="SemiBold" />
-                        <TextBlock Text="TF:" Foreground="{DynamicResource Text.Secondary}" />
-                        <TextBlock Text="{Binding SelectedTimeframe}" Margin="6,0,16,0" />
-                        <TextBlock Text="Window:" Foreground="{DynamicResource Text.Secondary}" />
-                        <TextBlock Text="{Binding WindowSize}" Margin="6,0,16,0" />
-                        <TextBlock Text="Threshold ±" Foreground="{DynamicResource Text.Secondary}" />
-                        <TextBlock Text="{Binding DeltaThreshold}" Margin="6,0,16,0" />
-                        <TextBlock Margin="20,0,0,0"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   Text="{Binding Status}" />
-                    </StackPanel>
-                </Border>
-
-                <scottplot:WpfPlot x:Name="PricePlot" Grid.Row="1" />
-
-                <scottplot:WpfPlot x:Name="DeltaPlot" Grid.Row="2" />
-            </Grid>
-
-            <!-- Right column: live dashboard + signal log -->
-            <Border Grid.Column="1"
-                    Background="{DynamicResource Background.Elevated}"
+            <!-- Header bar -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource Background.Surface}"
                     BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1,0,0,0"
-                    Padding="12">
-                <Grid>
+                    BorderThickness="0,0,0,1"
+                    Padding="12,8">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Symbol:" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="{Binding SelectedInstrument.DisplayName}" Margin="6,0,16,0" FontWeight="SemiBold" />
+                    <TextBlock Text="TF:" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="{Binding SelectedTimeframe}" Margin="6,0,16,0" />
+                    <TextBlock Text="θ eff:" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="{Binding EffectiveThreshold}" Margin="6,0,16,0" FontFamily="Consolas" />
+                    <Border Background="{DynamicResource Background.Elevated}" CornerRadius="3" Padding="6,1"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding FeedMode}" FontSize="10" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding FeedMode}" Value="Real tape">
+                                            <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <TextBlock Margin="20,0,0,0"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Text="{Binding Status}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Main: charts (left) | splitter | dashboard (right, resizable) -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="420" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="300" MinWidth="240" MaxWidth="520" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: price / delta (shared time axis) / footprint -->
+                <Grid Grid.Column="0" Margin="6,6,0,6">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="*"   MinHeight="160" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="170" MinHeight="100" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="160" MinHeight="90" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <TextBlock Style="{StaticResource CardTitle}" Text="PRICE" />
+                            </Border>
+                            <scottplot:WpfPlot x:Name="PricePlot" Grid.Row="1" Margin="1" />
+                        </Grid>
+                    </Border>
+
+                    <GridSplitter Grid.Row="1" Height="6" Margin="0,1"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  Background="Transparent"
+                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                    <Border Grid.Row="2" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="DELTA — per-bar Δ + windowed cumΔ vs ±θ" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CardStatus}"
+                                               Text="{Binding CumulativeDelta, StringFormat='cumΔ {0}'}" />
+                                </Grid>
+                            </Border>
+                            <scottplot:WpfPlot x:Name="DeltaPlot" Grid.Row="1" Margin="1" />
+                        </Grid>
+                    </Border>
+
+                    <GridSplitter Grid.Row="3" Height="6" Margin="0,1"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  Background="Transparent"
+                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                    <!-- Footprint cluster (tape mode — rendered in code-behind) -->
+                    <Border Grid.Row="4" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="FOOTPRINT CLUSTER" />
+                                    <TextBlock Grid.Column="1" x:Name="FootprintStatus" Style="{StaticResource CardStatus}"
+                                               Text="awaiting trade tape" />
+                                </Grid>
+                            </Border>
+                            <ScrollViewer Grid.Row="1" x:Name="FootprintScroll"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto">
+                                <Canvas x:Name="FootprintCanvas"
+                                        Background="{DynamicResource Background.Surface}"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top" />
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <GridSplitter Grid.Column="1" Width="6" Margin="1,6"
+                              HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                              Background="Transparent"
+                              ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
+
+                <!-- Right: live values, gates, confirmations, signal log -->
+                <Grid Grid.Column="2" Margin="0,6,6,6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0">
-                        <TextBlock Text="Live"
-                                   FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource Accent.Brush}"
-                                   Margin="0,0,0,6" />
-
+                    <!-- LIVE -->
+                    <Border Grid.Row="0" Style="{StaticResource Card}">
                         <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Bid" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastBid, StringFormat=F5, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Ask" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastAsk, StringFormat=F5, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Spread" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastSpread, StringFormat=F5, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Avg spread" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding AvgSpread, StringFormat=F5, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Live Δ (bar)" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LiveDelta}" />
-
-                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Σ cumΔ (window)" />
-                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding CumulativeDelta}" />
-
-                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="ATR(14)" />
-                            <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastAtr, StringFormat=F5, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="EMA(50) 15m" />
-                            <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastEmaHtf, StringFormat=F5, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="ADX(14) 15m" />
-                            <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastAdx, StringFormat=F1, FallbackValue=—}" />
-
-                            <TextBlock Grid.Row="9" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Session" />
-                            <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding ActiveSession}" />
-
-                            <TextBlock Grid.Row="10" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Last conf" />
-                            <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding LastConfirmationScore, StringFormat='{}{0}/5'}" />
-
-                            <TextBlock Grid.Row="11" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Signals today" />
-                            <TextBlock Grid.Row="11" Grid.Column="1" Style="{StaticResource DashValueStyle}"
-                                       Text="{Binding TodaySignalCount}" />
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <TextBlock Style="{StaticResource CardTitle}" Text="LIVE" />
+                            </Border>
+                            <Grid Grid.Row="1" Margin="8,4,8,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Bid / Ask" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding LastBid, StringFormat=F5, FallbackValue=—}" />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text=" / " />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding LastAsk, StringFormat=F5, FallbackValue=—}" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Spread / avg" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding LastSpread, StringFormat=F5, FallbackValue=—}" />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text=" / " />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding AvgSpread, StringFormat=F5, FallbackValue=—}" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Live Δ (bar)" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValueStyle}" Text="{Binding LiveDelta}" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Σ cumΔ (window)" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource DashValueStyle}" Text="{Binding CumulativeDelta}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="θ effective (±)" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource DashValueStyle}" Text="{Binding EffectiveThreshold}" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="ATR(14) / EMA / ADX" />
+                                <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding LastAtr, StringFormat=F5, FallbackValue=—}" />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text=" · " />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding LastAdx, StringFormat=F1, FallbackValue=—}" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Session / today" />
+                                <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding ActiveSession}" />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text=" · " />
+                                    <TextBlock Style="{StaticResource DashValueStyle}" Text="{Binding TodaySignalCount}" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource DashLabelStyle}" Text="Last conf" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource DashValueStyle}" Text="{Binding LastConfirmationScore}" />
+                            </Grid>
                         </Grid>
+                    </Border>
 
-                        <Border Background="{DynamicResource Background.Surface}"
-                                Padding="8,4" Margin="0,8,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Guard:"
-                                           Foreground="{DynamicResource Text.Secondary}"
-                                           Margin="0,0,6,0" />
-                                <TextBlock Text="{Binding GuardReason, FallbackValue=—}"
-                                           FontWeight="SemiBold" />
-                            </StackPanel>
-                        </Border>
+                    <!-- GATES -->
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,6,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="GATES" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CardStatus}" Text="{Binding GuardReason}" />
+                                </Grid>
+                            </Border>
+                            <ItemsControl Grid.Row="1" Margin="8,4,8,6"
+                                          ItemsSource="{Binding Gates}"
+                                          ItemTemplate="{StaticResource GateRowTemplate}" />
+                        </Grid>
+                    </Border>
 
-                        <Border Background="{DynamicResource Warning.Brush}"
-                                Padding="8,4" Margin="0,8,0,0"
-                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="● ALGO ARMED" FontWeight="SemiBold" Foreground="White" />
-                        </Border>
-                    </StackPanel>
+                    <!-- CONFIRMATIONS -->
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,6,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="CONFIRMATIONS" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CardStatus}">
+                                        <Run Text="need" /><Run Text="{Binding MinConfirmations, Mode=OneWay}" /><Run Text="/" /><Run Text="{Binding MaxConfirmations, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <ItemsControl Grid.Row="1" Margin="8,4,8,6"
+                                          ItemsSource="{Binding Confirmations}"
+                                          ItemTemplate="{StaticResource GateRowTemplate}" />
+                        </Grid>
+                    </Border>
 
-                    <Separator Grid.Row="1" Margin="0,12,0,8" />
-
-                    <Grid Grid.Row="2">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0"
-                                   Text="Recent signals"
-                                   FontSize="13" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource Accent.Brush}"
-                                   Margin="0,0,0,4" />
-                        <ListBox Grid.Row="1"
-                                 ItemsSource="{Binding RecentSignals}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}"
-                                               FontFamily="Consolas"
-                                               FontSize="11"
-                                               TextWrapping="Wrap" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
+                    <!-- SIGNALS -->
+                    <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,6,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="RECENT SIGNALS" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CardStatus}"
+                                               Text="● ARMED" FontWeight="Bold"
+                                               Foreground="{DynamicResource Warning.Brush}"
+                                               Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                </Grid>
+                            </Border>
+                            <ListBox Grid.Row="1"
+                                     Margin="4,2,4,4"
+                                     ItemsSource="{Binding RecentSignals}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
                 </Grid>
-            </Border>
+            </Grid>
             </Grid>
         </DockPanel>
     </Grid>

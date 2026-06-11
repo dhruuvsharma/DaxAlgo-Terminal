@@ -7,15 +7,16 @@ public sealed class CumulativeDeltaStrategy : ITradingStrategy
     public string Id => "cumulative.delta.scalper";
     public string DisplayName => "Cumulative Delta Scalper";
     public string Description =>
-        "Sniper-mode tick delta scalper. Bid-tick uptick/downtick → bar deltas → window crossover of " +
-        "±threshold, gated by 5 confirmations (momentum, HTF EMA, EMA slope, ADX, dynamic spread). " +
-        "Multi-session GMT (Asia/London/NY/Overlap), per-session and daily caps, inter-signal cooldown. " +
+        "Sniper-mode order-flow delta scalper. Trade-tape aggressor delta (with footprint clusters) — " +
+        "bid-tick proxy when no tape — summed over a sliding bar window; trigger on cumΔ crossing an " +
+        "adaptive ±σ threshold, gated by up to 6 confirmations (momentum, HTF EMA, EMA slope, ADX, " +
+        "spread, footprint stack). Basis-point spread/ATR gates work on any instrument. " +
         "Display only — does not place orders.";
 
     /// <summary>
-    /// Requires L1 quotes (bid-tick uptick/downtick rule) and OHLCV bars (chart-TF delta
-    /// window, ATR, HTF EMA/ADX). No depth or trade-tape feed is consumed.
+    /// Requires L1 quotes and OHLCV bars; consumes the trade tape when the broker provides one
+    /// (IB) for true aggressor-volume delta + footprints, degrading to the bid-tick proxy otherwise.
     /// </summary>
     public StrategyDataRequirement DataRequirement =>
-        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape;
 }

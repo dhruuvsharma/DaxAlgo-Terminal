@@ -96,7 +96,11 @@ public sealed class QuestDbMarketDataStoreTests
 
         using var store = NewStore();
         var id = new InstrumentId(Random.Shared.Next(3_000_000, 4_000_000));
-        var t0 = new DateTime(2026, 1, 2, 15, 30, 0, DateTimeKind.Utc);
+        // The shared dev depth table may carry a TTL (applied when the app runs with
+        // DepthRetentionDays > 0). A fixed historical timestamp lands in an already-expired
+        // partition and is dropped before the read — so stamp the snapshot with "now".
+        var now = DateTime.UtcNow;
+        var t0 = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Utc);
 
         var snapshot = new DepthSnapshot(
             t0,
