@@ -50,10 +50,19 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
         new CandleIntervalOption("15s", TimeSpan.FromSeconds(15)),
         new CandleIntervalOption("30s", TimeSpan.FromSeconds(30)),
         new CandleIntervalOption("1m",  TimeSpan.FromMinutes(1)),
+        new CandleIntervalOption("2m",  TimeSpan.FromMinutes(2)),
+        new CandleIntervalOption("3m",  TimeSpan.FromMinutes(3)),
         new CandleIntervalOption("5m",  TimeSpan.FromMinutes(5)),
+        new CandleIntervalOption("10m", TimeSpan.FromMinutes(10)),
+        new CandleIntervalOption("15m", TimeSpan.FromMinutes(15)),
     });
 
     [ObservableProperty] private CandleIntervalOption? _selectedCandleInterval;
+
+    /// <summary>Visible x-axis span of the SIGNALS chart, in minutes. 0 = auto: the window is
+    /// MaxChartCandles × candle interval, so the scale tracks the selected timeframe. Render-only
+    /// and live-tunable — never touches engine state.</summary>
+    [ObservableProperty] private double _chartXSpanMinutes;
 
     /// <summary>Price grid the footprint rows snap to. Feeds the engine's footprint builder.</summary>
     [ObservableProperty] private string _footprintTickSizeText = "0.25";

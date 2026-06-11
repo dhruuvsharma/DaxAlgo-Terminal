@@ -160,6 +160,9 @@
                         <TextBlock Text="AXIS" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <uic:ParamSpinner Label="Max candles" Minimum="10" Maximum="500" Step="10" StringFormat="0"
                                           Value="{Binding MaxChartCandles, Mode=TwoWay}" />
+                        <uic:ParamSpinner Label="X span min (0=auto)" Minimum="0" Maximum="480" Step="5" StringFormat="0"
+                                          SpinnerWidth="84" Value="{Binding ChartXSpanMinutes, Mode=TwoWay}"
+                                          ToolTip="Visible time window of the SIGNALS chart. 0 = auto: Max candles × candle interval, so the scale follows the timeframe." />
                         <uic:ParamSpinner Label="FP bars" Minimum="4" Maximum="24" Step="1" StringFormat="0"
                                           Value="{Binding FootprintBarsVisible, Mode=TwoWay}" />
                         <Border Style="{StaticResource Strategy.ParamDivider}" />

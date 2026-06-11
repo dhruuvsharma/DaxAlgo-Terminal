@@ -123,7 +123,9 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         if (e.PropertyName == nameof(LiveSignalStrategyViewModelBase.LatestDepth))
             RenderOrderBook(vm.LatestDepth);
         else if (e.PropertyName is nameof(ApexScalperStrategyViewModel.MaxChartCandles)
-                              or nameof(ApexScalperStrategyViewModel.FootprintBarsVisible))
+                              or nameof(ApexScalperStrategyViewModel.FootprintBarsVisible)
+                              or nameof(ApexScalperStrategyViewModel.ChartXSpanMinutes)
+                              or nameof(ApexScalperStrategyViewModel.SelectedCandleInterval))
             _chartDirty = true;
     }
 
@@ -158,7 +160,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
             }
         }
 
-        DrawSignals(tail);
+        DrawSignals(vm, tail);
 
         RenderOrderBook(baseVm.LatestDepth);
         RenderGauge(engine?.Latest?.Composite, vm.BootstrapThreshold);
@@ -237,7 +239,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
     }
 
-    private void DrawSignals(IReadOnlyList<ApexSnapshotV2> tail)
+    private void DrawSignals(ApexScalperStrategyViewModel vm, IReadOnlyList<ApexSnapshotV2> tail)
     {
         var plot = SignalsPlot.Plot;
         plot.Clear();
@@ -246,15 +248,33 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         var xs = new double[tail.Count];
         for (var i = 0; i < tail.Count; i++) xs[i] = tail[i].TimestampUtc.ToOADate();
 
+        // Visible x-window scales with the engine timeframe: MaxChartCandles × candle interval,
+        // or the explicit "X span (min)" override. Anchored to the newest snapshot so warm-up
+        // seeds at a coarser cadence can't stretch the axis and cram live candles into a sliver.
+        var interval = vm.SelectedCandleInterval?.Span ?? TimeSpan.FromMinutes(1);
+        var spanDays = vm.ChartXSpanMinutes > 0
+            ? TimeSpan.FromMinutes(vm.ChartXSpanMinutes).TotalDays
+            : interval.TotalDays * Math.Max(10, vm.MaxChartCandles);
+        var xRight = xs[^1] + interval.TotalDays * 0.5;
+        var xLeft = xRight - spanDays;
+
         var zero = plot.Add.HorizontalLine(0, color: StrategyChartHelpers.MutedColor);
         zero.LineStyle.Pattern = ScottPlot.LinePattern.Dotted;
 
+        // Y range over the visible window only — points left of the window must not skew it.
+        double yMin = double.MaxValue, yMax = double.MinValue;
         for (var s = 0; s < SeriesDefs.Length; s++)
         {
             if (!_seriesEnabled[s]) continue;
             var def = SeriesDefs[s];
             var ys = new double[tail.Count];
-            for (var i = 0; i < tail.Count; i++) ys[i] = def.Pick(tail[i]);
+            for (var i = 0; i < tail.Count; i++)
+            {
+                ys[i] = def.Pick(tail[i]);
+                if (xs[i] < xLeft) continue;
+                if (ys[i] < yMin) yMin = ys[i];
+                if (ys[i] > yMax) yMax = ys[i];
+            }
 
             var scatter = plot.Add.Scatter(xs, ys);
             scatter.Color = ScottPlot.Color.FromHex(def.Hex);
@@ -263,7 +283,17 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
 
         plot.Axes.DateTimeTicksBottom();
-        plot.Axes.AutoScale();
+        plot.Axes.SetLimitsX(xLeft, xRight);
+        if (yMin <= yMax)
+        {
+            var pad = Math.Max(0.1, (yMax - yMin) * 0.08);
+            plot.Axes.SetLimitsY(yMin - pad, yMax + pad);
+        }
+        else
+        {
+            plot.Axes.AutoScale();
+            plot.Axes.SetLimitsX(xLeft, xRight);
+        }
         SignalsPlot.Refresh();
     }
 
