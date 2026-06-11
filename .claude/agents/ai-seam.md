@@ -24,4 +24,4 @@ Skill: `ai-analyst`.
 - `dotnet build` + `dotnet test`; report. Note any change requiring a sidecar contract update.
 
 ## Escalate to main thread when
-- The work is actually in an AI tool **window** → route to `ai-marketanalyst` / `ai-factorresearch` / `ai-mlfeatures` / `ai-backtestanalysis`.
+- The work is actually in an AI tool **window** → route to `ai-windows`.

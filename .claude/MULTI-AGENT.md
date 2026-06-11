@@ -1,15 +1,15 @@
 # Multi-agent workflow & live monitoring
 
-DaxAlgo Terminal ships a **per-project agent fleet**: one implementer agent per
-`src/TradingTerminal.*` project, each scoped to that project's ownership, dependency
-constraints, and conventions — and each knows which **skill** to load first. You prompt
-the main thread; it fans work out to the matching project agent; the agent loads its
-skill and does the change in its own context, keeping the main thread lean.
+DaxAlgo Terminal ships a **lean agent fleet**: an orchestration spine over a small set of
+scoped implementers, each knowing its projects' ownership, dependency constraints, and which
+**skill** to load first. You prompt the main thread; it works **inline by default** and fans
+out to agents only when the work genuinely warrants it (see "Token discipline" in
+[`agents/README.md`](agents/README.md)).
 
 This is already wired. Nothing to "turn on" in the repo. What this doc covers:
 how the fleet is organized, and how to **watch agents work live**.
 
-## The fleet (38 agents)
+## The fleet (18 agents)
 
 Routing index lives in [`agents/README.md`](agents/README.md). Summary:
 
@@ -17,18 +17,24 @@ Routing index lives in [`agents/README.md`](agents/README.md). Summary:
   `verifier` (plan-aware watcher). These sit *above* the workers; see "The spine" below.
 - **8 foundational** — `core-domain`, `market-data`, `infrastructure`, `ui-shared`,
   `login`, `ai-seam`, `app-shell`, `backtest-cli`.
-- **4 AI windows** — `ai-marketanalyst`, `ai-factorresearch`, `ai-mlfeatures`,
-  `ai-backtestanalysis`.
-- **10 tool windows** — `charts`, `orderbook`, `volumefootprint`, `heatmap`,
-  `correlation`, `marketregime`, `instrumentregime`, `markovregime`, `backtest-tool`,
-  `recording`.
-- **9 strategy windows** — `strat-apexscalper`, `strat-cumulativedelta`,
-  `strat-imbalanceheatfront`, `strat-indexkscoresurface`, `strat-orderflowcube`,
-  `strat-orderflowsurfacespike`, `strat-orderflowtoxicity`, `strat-ornsteinuhlenbeck`,
-  `strat-volatilitytargeted`.
+- **3 consolidated window owners** — `strategies` (all 10 `Strategies.*` live windows),
+  `tool-windows` (all 10 tool/chart windows), `ai-windows` (all 4 `Ai.*` windows).
+  Per-project quirks live in tables inside each agent body.
 - **4 specialists** — `ib-api-expert`, `xaml-fixer`, `wpf-explorer`, `dotnet-reviewer`.
 
+> This was previously a 39-agent per-project fleet. All descriptions load into the system
+> prompt on every request, and per-window agents pulled routine one-file edits onto the
+> expensive cold-start path — so the 24 single-window agents were folded into the three
+> consolidated owners above.
+
 ## The spine (manager → workers → build → verify)
+
+**The spine is opt-in, not the default.** Use it only for features spanning **3+ projects**
+with parallelizable parts. Single-project and 1–2-file changes are done inline on the main
+thread (load the skill yourself); the Stop hooks gate the turn — no manager, build-runner,
+or verifier spawns. Each subagent starts cold and re-derives context, so the spine roughly
+multiplies token cost by the number of agents involved — it must buy parallelism or context
+isolation to be worth it.
 
 The realization of the "company of agents". Claude Code spawns **one level deep** — a subagent
 can't spawn its own subagents — so the **main thread is the general contractor** and the manager
@@ -66,16 +72,13 @@ The agent loads the skill so you don't have to name it.
 | `infrastructure` | `broker-gotchas` (+ `backtest-engine`); IB → defer to `ib-api-expert` |
 | `market-data` | `market-data-pipeline` (+ `archive-offloader`) |
 | `ui-shared` | `wpf-mvvm-rules` (binding/theme → `xaml-fixer`) |
-| `backtest-cli`, `backtest-tool` | `backtest-engine` |
-| `strat-orderflowcube`, `strat-orderflowsurfacespike`, `strat-indexkscoresurface` | `regime-cube-strategy` + `quant-math` → `add-strategy` |
-| `strat-imbalanceheatfront` | `regime-cube-strategy` → `add-strategy` |
-| `strat-ornsteinuhlenbeck`, `strat-orderflowtoxicity` | `quant-math` → `add-strategy` |
-| other `strat-*` | `add-strategy` (+ `quant-math` where it touches stats/geometry) |
-| `correlation`, `markovregime` | `quant-math` |
-| `ai-*` (4 windows + `ai-seam`) | `ai-analyst` |
+| `backtest-cli` | `backtest-engine` |
+| `strategies` | per-strategy table in its body: `add-strategy`, plus `regime-cube-strategy`/`quant-math` for cube/surface/OU/VPIN work |
+| `tool-windows` | per-project table in its body: `quant-math` (Correlation/MarkovRegime), `backtest-engine` (Backtest tab) |
+| `ai-windows`, `ai-seam` | `ai-analyst` |
 | `app-shell` | `navigator` |
 | `build-runner`, `verifier` | (own instructions; `verifier` is plan-aware) |
-| `core-domain`, other tool windows | inline conventions (no single skill) |
+| `core-domain` | inline conventions (no single skill) |
 
 ## Watching agents work live
 
@@ -109,12 +112,18 @@ conversation; each inherits full context, and a fork panel appears under the pro
 
 ## Typical loop
 
-**Small change** (one project): prompt the main thread naming the area → it routes to the owning
-worker (`charts`, etc.), which loads its skill → `build-runner` → done. No manager needed.
+**Small change** (one project, 1–2 files): the main thread does it **inline** — loads the
+relevant skill, edits, runs `dotnet build` itself. No agents spawned; the Stop hooks are the
+gate. This is the common case and the cheap path.
 
-**Multi-project change**: 
+**Single-project but heavy** (big exploration, or IB/XAML specialist territory): one worker
+(`strategies` / `tool-windows` / `ai-windows` / a foundational agent / `ib-api-expert` /
+`xaml-fixer`), then inline `dotnet build`. Still no spine.
+
+**Multi-project change** (3+ projects, parallelizable):
 1. You prompt the main thread ("wire a 5th broker", "add a vol-of-vol regime cube").
-2. Main thread invokes **`manager`** → gets an Execution Plan (tasks, owners, skills, sequence).
+2. Main thread invokes **`manager`** → gets an Execution Plan (tasks, owners, skills, sequence,
+   **with file paths + findings embedded** so workers don't re-explore).
 3. Main thread dispatches each task to its worker; independent tasks run backgrounded → watch
    them in `claude agents` / the Tasks pane.
 4. Workers report back; main thread invokes **`build-runner`** (build+test) then **`verifier`**
@@ -124,8 +133,8 @@ worker (`charts`, etc.), which loads its skill → `build-runner` → done. No m
 
 ## Token note
 
-All 38 agent descriptions load into every session's system prompt. If that baseline ever
-feels heavy, collapse rarely-touched ones (e.g. fold the 9 `strat-*` into one
-`strategies` agent) — they're just files in [`agents/`](agents/). The 3 orchestration agents
-(`manager`/`build-runner`/`verifier`) earn their slot by keeping the main thread's context lean
-on big changes.
+Every agent description loads into the system prompt on every request — that's why the fleet
+is 18 agents, not 39. Keep descriptions tight, keep per-project detail in agent **bodies**
+(loaded only on spawn), and don't add a new agent when a row in an existing consolidated
+agent's table will do. The full spawn-vs-inline rules live in
+[`agents/README.md`](agents/README.md) ("Token discipline").

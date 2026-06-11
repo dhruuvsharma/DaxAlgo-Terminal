@@ -37,7 +37,10 @@ App             → everything (composition root only)
 1. **Find the seam.** Most features cross layers bottom-up: Core type → pipeline plumbing →
    Infrastructure impl → UI window/VM → App wiring. Order tasks *bottom-up* so each worker
    builds against an interface that already exists.
-2. **One task = one owning agent = one project.** If a task names two projects, split it.
+2. **One task = one owning agent = one project.** If a task names two projects, split it —
+   unless both belong to the same consolidated owner (`strategies` owns all `Strategies.*`,
+   `tool-windows` all ten tool windows, `ai-windows` all four `Ai.*` windows), in which case
+   one task per project, same agent.
 3. **Sequence by dependency, not by convenience.** A UI task that binds to a Core record that
    doesn't exist yet must wait for the Core task. Mark dependencies explicitly.
 4. **Name the pattern.** Don't say "add a broker" — say "new `IBrokerClient` adapter +
@@ -79,8 +82,8 @@ Core" routed to `core-domain` — never bolt logic onto a concrete.
 
 If a task involves OU calibration, correlation/PCA, 3D surface/cube geometry, VPIN/toxicity,
 Markov transitions, or volatility estimators, the plan must tell that worker to load
-`quant-math` first (the strat-*, `correlation`, `markovregime`, `marketregime`,
-`instrumentregime` agents). Getting the math seam wrong is expensive downstream.
+`quant-math` first (the `strategies` and `tool-windows` agents, or the main thread for
+genuinely hard cube/surface math). Getting the math seam wrong is expensive downstream.
 
 ## Plan output contract (what the manager returns)
 
@@ -96,6 +99,7 @@ Return exactly this structure — the main thread executes it top-down:
 
 ### Tasks (in dependency order)
 1. [agent: <owner>] <imperative task> — files: <paths>; loads skill: <skill>
+   context: <key facts from exploration the worker needs — existing types/signatures/DI lines>
    depends-on: none
    acceptance: <observable done condition>
 2. [agent: <owner>] ...

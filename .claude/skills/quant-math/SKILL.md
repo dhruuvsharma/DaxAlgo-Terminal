@@ -9,7 +9,7 @@ Reference for the math the strategy, regime, and correlation agents need. Each b
 formula, the **numerically stable** form to actually code, and where it lands in the repo. Math
 in `Core/MarketData/Indicators` + `Microstructure`; calibration in the engine-side strategy.
 
-## Ornstein–Uhlenbeck (mean reversion) — `strat-ornsteinuhlenbeck`
+## Ornstein–Uhlenbeck (mean reversion) — `Strategies.OrnsteinUhlenbeck`
 
 Continuous SDE: `dXₜ = θ(μ − Xₜ)dt + σ dWₜ` (θ>0 reversion speed, μ long-run mean, σ vol).
 
@@ -35,7 +35,7 @@ Continuous SDE: `dXₜ = θ(μ − Xₜ)dt + σ dWₜ` (θ>0 reversion speed, μ
 - **Cholesky** `Σ = L Lᵀ` to generate correlated normals (`x = L z`) for Monte-Carlo / synth
   feeds. Falls over if Σ isn't PSD — do the repair above first.
 
-## 3D geometry — Helix cube/surface viz — `strat-orderflowcube`, `strat-orderflowsurfacespike`, `strat-indexkscoresurface`
+## 3D geometry — Helix cube/surface viz — `Strategies.OrderFlowCube` / `OrderFlowSurfaceSpike` / `IndexKScoreSurface`
 
 - **Axis normalization**: each raw axis (price-Δ, delta, time, toxicity…) has wildly different
   units. Map to a common `[0,1]` (or `[−1,1]`) cube via robust min/max (5th–95th pctile, not
@@ -49,7 +49,7 @@ Continuous SDE: `dXₜ = θ(μ − Xₜ)dt + σ dWₜ` (θ>0 reversion speed, μ
 - **Performance**: rebuild the mesh off the UI thread, assign the finished `Geometry3D` on the
   dispatcher once. Never mutate vertex collections per-tick on the UI thread.
 
-## Microstructure — `strat-orderflowtoxicity`, `strat-cumulativedelta`, `strat-imbalanceheatfront`
+## Microstructure — `Strategies.OrderFlowToxicity` / `CumulativeDelta` / `ImbalanceHeatFront`
 
 - **Trade sign** (no quote-at-trade): **tick rule** (uptick=+1, downtick=−1, carry on equal) or
   **Lee–Ready** (compare to prevailing mid; at-mid → tick rule). Document which one.
@@ -69,7 +69,7 @@ Continuous SDE: `dXₜ = θ(μ − Xₜ)dt + σ dWₜ` (θ>0 reversion speed, μ
 - **Forward / Viterbi** for HMM regime inference — work in **log space** (sum of log-probs) to
   avoid underflow over long sequences.
 
-## Volatility — `strat-volatilitytargeted`, vol-of-vol
+## Volatility — `Strategies.VolatilityTargeted`, vol-of-vol
 
 - **Realized vol** = √(Σ rᵢ² · annualization). **EWMA vol** `σ²ₜ = λσ²ₜ₋₁ + (1−λ)r²ₜ`.
 - **Range estimators** (tighter than close-to-close): **Garman–Klass** uses OHLC; **Parkinson**

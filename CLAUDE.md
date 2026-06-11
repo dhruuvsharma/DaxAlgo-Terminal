@@ -82,17 +82,18 @@ Per-tool projects: the App shell no longer hosts tool windows — each tool is i
 | `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`); the AI dock pane lives in `TradingTerminal.Ai.MarketAnalyst`. |
 | `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML/AvalonDock. |
 | `software-architecture` | Planning multi-project work — decomposition, design-pattern catalog, the plan contract. The `manager` agent loads this. |
-| `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (strat-*, `correlation`, `markovregime`). |
+| `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (`Strategies.*`, Correlation, MarkovRegime). |
 | `skill-author` | Adding/fixing a skill — frontmatter, "pushy" triggering, bespoke-vs-external + the licensing rule. |
 
 ## Subagents & model routing
 
-Match the cheapest model tall enough for the task. Spawn a subagent only when search breadth, parallelism, or specialized expertise justifies it — default to the main thread.
+Match the cheapest model tall enough for the task. Spawn a subagent only when search breadth, parallelism, or specialized expertise justifies it — **default to the main thread**. A spawn starts cold (system prompt + CLAUDE.md + skill + re-exploration), so single-project / 1–2-file changes are always done inline; the Stop hooks (`build-on-stop`, `verify-on-stop`) are the gate — no `build-runner`/`verifier` spawns for inline work. The manager → workers → build-runner → verifier spine is reserved for features spanning **3+ projects** with parallelizable parts; manager plans must embed file paths + findings so workers don't re-explore. Full rules: `.claude/agents/README.md` ("Token discipline").
 
 | Task shape | Route to | Model |
 |---|---|---|
-| Plan a multi-project change → get an Execution Plan to run | `manager` (loads `software-architecture`) | Opus |
-| Build+test gate after workers finish | `build-runner` | Haiku |
+| Feature spanning 3+ projects → get an Execution Plan to run | `manager` (loads `software-architecture`) | Opus |
+| Single-project edit in a strategy / tool / AI window | main thread inline; or `strategies` / `tool-windows` / `ai-windows` if it's heavy | Sonnet |
+| Build+test gate after parallel workers (otherwise `dotnet build` inline) | `build-runner` | Haiku |
 | Plan-aware review of the integrated diff (the watcher) | `verifier` | Sonnet |
 | "Where is X?", project-internal lookups (3+ rounds) | `wpf-explorer` | Haiku |
 | Broad cross-cutting "how does X work?" research | `Explore` (general-purpose) | Sonnet |

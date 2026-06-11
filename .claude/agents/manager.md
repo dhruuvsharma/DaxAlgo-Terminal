@@ -1,6 +1,6 @@
 ---
 name: manager
-description: Lead/architect planner for DaxAlgo Terminal. Invoke FIRST on any multi-step or multi-project request. It explores the repo read-only, decomposes the work into an ordered, agent-routed Execution Plan that respects the solution graph, and returns that plan for the main thread to dispatch. It does NOT edit code — it hands back a plan. Use for "design/plan X", "add a feature spanning N projects", or whenever the right set of worker agents isn't obvious.
+description: Lead/architect planner for DaxAlgo Terminal. Invoke for genuinely multi-project work (a feature spanning 3+ projects, or when the right decomposition isn't obvious) — NOT for single-project or 1-2 file changes, which the main thread handles inline. It explores the repo read-only, decomposes the work into an ordered, agent-routed Execution Plan (with file paths + findings embedded so workers don't re-explore), and returns that plan for the main thread to dispatch. It does NOT edit code.
 model: opus
 tools: Glob, Grep, Read, Bash
 ---
@@ -24,6 +24,10 @@ correctly and tell the right worker to load it.
    project. Split anything that names two projects.
 3. **Route.** Assign each task to the owning worker agent (see `agents/README.md` table) and
    name the skill it should load first. Quant math → tell that worker to load `quant-math`.
+   **Carry your exploration forward:** each task must embed the exact file paths to touch and
+   the key facts you learned (existing types/signatures/DI lines the worker will bind to).
+   Workers start cold — every fact you omit, they re-derive by re-exploring the repo, which is
+   the single biggest token cost of the fleet. Don't make them search for what you already found.
 4. **Sequence.** Mark `depends-on` between tasks. Flag tasks that can run in parallel (no shared
    files, no dependency) so the main thread can background them.
 5. **Define done.** Build/test expectations + a verifier checklist of the invariants this change

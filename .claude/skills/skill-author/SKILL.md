@@ -46,7 +46,7 @@ Match the existing skills (`navigator`, `add-strategy`, `quant-math`, …):
 1. Add the skill folder + `SKILL.md`.
 2. Add a row to the **agent → skill** table in `.claude/MULTI-AGENT.md`.
 3. Add a `## Load first` line to each owning agent in `.claude/agents/<agent>.md` so the worker
-   loads it automatically (that's how `quant-math` reaches the strat-*/correlation/markov agents).
+   loads it automatically (that's how `quant-math` reaches the `strategies`/`tool-windows` agents).
 4. If it's broadly useful, mention it in the `CLAUDE.md` skills table.
 
 ## Does it trigger? (cheap eval)
