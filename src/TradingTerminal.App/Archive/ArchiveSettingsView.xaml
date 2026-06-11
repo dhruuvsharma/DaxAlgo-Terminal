@@ -25,17 +25,19 @@
                 <StackPanel>
                     <TextBlock Text="Telegram login" FontWeight="SemiBold" Margin="0,0,0,8" />
 
+                    <!-- Credentials are masked on screen (and DPAPI-encrypted on disk); the
+                         PasswordBoxes are wired in code-behind because Password is not bindable. -->
                     <TextBlock Text="API id  (from my.telegram.org / Apps)" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding ApiId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             FontFamily="Consolas" Margin="0,0,0,8" />
+                    <PasswordBox x:Name="ApiIdBox" PasswordChanged="ApiIdBox_PasswordChanged"
+                                 FontFamily="Consolas" Margin="0,0,0,8" />
 
                     <TextBlock Text="API hash" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding ApiHash, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             FontFamily="Consolas" Margin="0,0,0,8" />
+                    <PasswordBox x:Name="ApiHashBox" PasswordChanged="ApiHashBox_PasswordChanged"
+                                 FontFamily="Consolas" Margin="0,0,0,8" />
 
                     <TextBlock Text="Phone number  (international, e.g. +9198…)" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding PhoneNumber, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             FontFamily="Consolas" Margin="0,0,0,12" />
+                    <PasswordBox x:Name="PhoneNumberBox" PasswordChanged="PhoneNumberBox_PasswordChanged"
+                                 FontFamily="Consolas" Margin="0,0,0,12" />
 
                     <StackPanel Orientation="Horizontal">
                         <Button Content="Login to Telegram"
