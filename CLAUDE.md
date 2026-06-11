@@ -1,6 +1,6 @@
 # DaxAlgo Terminal — Claude Working Guide
 
-A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Four brokers behind one `IBrokerClient` seam: Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket). **Data/signals only — no live order execution.**
+A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Five brokers behind one `IBrokerClient` seam: Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam (futures FCM, REST + WebSocket API v2) — plus keyless Binance public data and the offline Simulated backend. **Data/signals only — no live order execution.**
 
 This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigger) and **docs/**. Don't re-derive conventions each session — load the matching skill, or `navigator` for "where does X live".
 
@@ -65,7 +65,7 @@ Per-tool projects: the App shell no longer hosts tool windows — each tool is i
 7. **Store writes are non-blocking** (`Enqueue*` returns immediately; batched background writer). **Ingest is tick-primary — don't write live bars to the store** (bars are aggregated downstream).
 8. **Live strategy VMs subscribe to the hub, not the broker.** `LiveSignalStrategyViewModelBase` consumes `IMarketDataHub.Quotes/Bars/Depth(InstrumentId)` and starts pumps via `IMarketDataIngest.Subscribe(...)`. The `LiveStrategyHostServices` bundle (Repository + Hub + Ingest + Store + BrokerSelector + **ActivityLog**) is injected into every per-strategy VM ctor — don't add ad-hoc deps to that ctor.
 9. **Universal Activity Log.** There's one app-wide log (`InMemoryLogSink`, in `UI`): Serilog feeds it as `Source="System"`; strategies/tabs append via `Log(...)` / `ActivityLog.Append(source, level, msg)` tagged by name. The MainWindow `ACTIVITY LOG` pane renders the filtered union. **Don't add per-window log panels** — route to the shared sink.
-10. **Trade tape is opt-in per broker** (`SubscribeTradesAsync`). Only IB is wired; NT/cTrader/Alpaca throw `NotSupportedException`. Trade-tape strategies must check capability and fail loudly.
+10. **Trade tape is opt-in per broker** (`SubscribeTradesAsync`). IB, Binance, and Ironbeam are wired; NT/cTrader/Alpaca throw `NotSupportedException`. Trade-tape strategies must check capability and fail loudly.
 11. **Polyglot seams are subprocess + HTTP/JSON** (AI analyst, C++ backtester) — no Python/native deps in the C# build. Bind the sidecar to `127.0.0.1` only.
 
 ## Skills (lazy-loaded — invoke via the Skill tool when relevant)

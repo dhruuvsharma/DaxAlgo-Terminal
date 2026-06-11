@@ -37,6 +37,9 @@ public static class LoginServiceCollectionExtensions
         services.AddSingleton<BinanceLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<BinanceLoginFormViewModel>());
 
+        services.AddSingleton<IronBeamLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<IronBeamLoginFormViewModel>());
+
         services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
         return services;
     }

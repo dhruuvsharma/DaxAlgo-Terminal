@@ -1,0 +1,40 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.IronBeamLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:TradingTerminal.App.Login.Forms"
+             mc:Ignorable="d"
+             d:DesignHeight="380" d:DesignWidth="500">
+    <StackPanel>
+
+        <TextBlock Text="Username" Margin="0,0,0,4" />
+        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Ironbeam account username"
+                 Margin="0,0,0,12" />
+
+        <TextBlock Text="API key" Margin="0,0,0,4" />
+        <PasswordBox x:Name="ApiKeyBox"
+                     PasswordChanged="ApiKeyBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine"
+                     Margin="0,0,0,12" />
+
+        <CheckBox Content="Live account (live.ironbeamapi.com)"
+                  IsChecked="{Binding IsLive}"
+                  Margin="0,0,0,8" />
+
+        <Border Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                Padding="10,6"
+                Margin="0,12,0,0">
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run FontWeight="SemiBold" Text="Heads up:" />
+                <Run Text="Keys are issued by Ironbeam; demo accounts use demo.ironbeamapi.com. Docs: docs.ironbeamapi.com" />
+            </TextBlock>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -16,7 +16,7 @@ A daily-use walkthrough for **using** the terminal. For installation and the fir
 dotnet run --project src/TradingTerminal.App
 ```
 
-You see the **login window** with four broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca. Pick one — the terminal swaps the entire data path (history, ticks, depth, connection state) to whichever broker you log in with.
+You see the **login window** with broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, and the keyless Binance feed. Connect one or more — sessions are concurrent, and each instrument routes its data path (history, ticks, depth, tape, connection state) through the broker it belongs to.
 
 After **Sign in**, the main shell opens. The status bar at the bottom shows connection state, your user/account, active broker, and tab count. If the login fails, watch the **Logs** pane — every broker error is logged there with enough detail to act on (IB error codes, cTrader `ProtoOAErrorRes`, NT `rc != 0` reasons).
 

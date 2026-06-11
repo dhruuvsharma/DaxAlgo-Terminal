@@ -52,6 +52,20 @@ public sealed class StoredCredentials
         set => CTraderAccessTokenEncryptedBase64 = EncryptDpapi(value);
     }
 
+    // ---- IronBeam-specific fields ----
+    public string? IronBeamUsername { get; set; }
+    public bool IronBeamIsLive { get; set; }
+
+    /// <summary>Base64-encoded DPAPI ciphertext for the IronBeam API key.</summary>
+    public string? IronBeamApiKeyEncryptedBase64 { get; set; }
+
+    [JsonIgnore]
+    public string? IronBeamApiKey
+    {
+        get => DecryptDpapi(IronBeamApiKeyEncryptedBase64);
+        set => IronBeamApiKeyEncryptedBase64 = EncryptDpapi(value);
+    }
+
     // ---- Alpaca-specific fields ----
     public string AlpacaApiKey { get; set; } = string.Empty;
     public bool AlpacaIsLive { get; set; }

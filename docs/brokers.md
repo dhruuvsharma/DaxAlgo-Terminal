@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-08
 
-The terminal speaks to four account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), and **Alpaca** (REST + WebSocket via `Alpaca.Markets`). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
+The terminal speaks to five account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), and **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
@@ -22,6 +22,7 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | NinjaTrader 8 | `NTDirect.dll` P/Invoke (ANSI) | Wired when `NTDirect.dll` is found at build time | Synthesized (NTDirect has no historical export) | Real, polled at 200 ms | Not exposed by NTDirect — out of scope | Real, via `NTDirect.Command(...)` |
 | cTrader | TLS + protobuf to Spotware cloud | Always wired (NuGet package always restores) | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | Real, push (`ProtoOASubscribeDepthQuotesReq`) | Real, via `ProtoOANewOrderReq` |
 | Alpaca | REST (history) + WebSocket (live) | Always wired (NuGet package always restores) | Real (`HistoricalBarsRequest` / `HistoricalCryptoBarsRequest`) | Real, push (`IAlpacaDataStreamingClient`) | Not exposed by Alpaca — throws | Not yet wired |
+| Ironbeam | REST + WebSocket API v2 (no SDK) | Always wired (plain HTTP/WS) | Not exposed by API v2 — returns empty | Real, push (`q` stream events) | Real, push (`d` stream events) | n/a (data/signals only) |
 | Binance | Public WebSocket + REST (no SDK) | Always wired — **no key, no account** | Real (`/api/v3/klines`) | Real, push (`@bookTicker`) | Real, push (`@depth{5\|10\|20}@100ms`) | n/a (data/signals only) |
 | Simulated | In-process, no SDK, no network | Always registered | Replay from local store | Synthetic random-walk **or** store replay | Supported (synthetic + replay) | n/a (data/signals only) |
 
@@ -176,6 +177,46 @@ Paste both into the Alpaca tile on the login screen. Tick **Use live endpoint** 
 
 - **No L2 depth.** Alpaca only exposes L1 NBBO quotes; `SubscribeDepthAsync` throws `NotSupportedException`. Use IB (when wired) or cTrader for L2.
 - **Credentials are mandatory.** Like every real broker, Alpaca has no synthetic fallback — to run without credentials, use the `Simulated` backend below.
+
+## Ironbeam (futures, REST + WebSocket)
+
+`BrokerKind.IronBeam` (`RealIronBeamClient`, in `Infrastructure/IronBeam/`) talks to the Ironbeam
+FCM's **API v2** — plain REST + WebSocket, no SDK (just `HttpClient` + `ClientWebSocket` +
+`System.Text.Json`, like Binance). Docs: <https://docs.ironbeamapi.com/>.
+
+**Connection flow:** `POST {base}/auth` (`username` + API key as the `password` field) → JWT token →
+`GET {base}/stream/create` → one multiplexed WebSocket at
+`wss://{host}/v2/stream/{streamId}?token={token}`. Quotes / depth / trades are then enabled per
+symbol via REST `GET /market/{quotes|depths|trades}/subscribe/{streamId}?symbols=…`
+(**max 10 symbols per stream**). On a drop the client re-auths, creates a fresh stream, re-issues
+every active subscription, and backs off 1 s → 30 s — live `IAsyncEnumerable` consumers keep
+streaming across reconnects.
+
+| Channel | Ironbeam endpoint / event |
+|---|---|
+| L1 quotes | `q` events on the stream |
+| L2 depth | `d` events (bid/ask level arrays) |
+| **Trade tape** | `tr` events — per-print price/size/direction (the second tape-capable broker after IB) |
+| Historical bars | not exposed by API v2 REST — returns empty (bars aggregate downstream from ticks) |
+| Order routing | n/a (data/signals only) |
+
+**Symbols** use Ironbeam's `EXCHANGE:SYMBOL.MonthCodeYY` format (e.g. `XCME:ES.U16`). A
+`Contract.Symbol` containing `:` passes through verbatim; otherwise the client composes
+`{Exchange|XCME}:{Symbol}` — supply the fully-qualified symbol for a specific expiry.
+
+```jsonc
+"IronBeam": {
+  "Username": "",
+  "ApiKey": "",                       // sent as the auth "password" (non-Enterprise accounts)
+  "IsLive": false,                    // false → demo.ironbeamapi.com, true → live.ironbeamapi.com
+  "BaseUrlOverride": "",              // pin a different host/version without a rebuild
+  "ReconnectInitialDelaySeconds": 1,
+  "ReconnectMaxDelaySeconds": 30
+}
+```
+
+The login tile takes Username + API key (DPAPI-encrypted on disk, like Alpaca's secret) and a
+demo/live toggle.
 
 ## Binance (public market data — no key)
 

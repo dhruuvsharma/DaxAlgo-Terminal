@@ -15,6 +15,7 @@ using TradingTerminal.Infrastructure.Alpaca;
 using TradingTerminal.Infrastructure.Binance;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
+using TradingTerminal.Infrastructure.IronBeam;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Simulation;
 #if HAS_NTAPI
@@ -131,6 +132,25 @@ public static class DependencyInjection
                 IsLive: true,
                 DisplayName: "Binance (live data)",
                 Description: "Public Binance market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
+
+        // Ironbeam — always available (futures FCM over a hand-rolled REST + WebSocket API v2; no SDK
+        // DLL gate, just HTTP). JWT auth from username + API key, market data through a server-created
+        // stream (L1 quotes / L2 depth / real trade tape). Demo or live by options. Metered like the
+        // other networked brokers.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealIronBeamClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+
+        services.AddSingleton<BrokerConnectionMode>(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<IronBeamOptions>>().Value;
+            return new BrokerConnectionMode(
+                BrokerKind.IronBeam,
+                IsLive: opt.IsLive,
+                DisplayName: opt.IsLive ? "Ironbeam · Live" : "Ironbeam · Demo",
+                Description: "Futures (FCM) — REST + WebSocket API v2; demo or live by options");
+        });
 
         // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
         // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local

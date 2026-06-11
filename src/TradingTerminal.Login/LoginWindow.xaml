@@ -389,6 +389,71 @@
                     </StackPanel>
                 </Expander>
 
+                <!-- IronBeam -->
+                <Expander Margin="0,0,0,8"
+                          IsExpanded="False"
+                          Visibility="{Binding HasIronBeam, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
+                                    Background="#D84315" Margin="0,0,10,0">
+                                <TextBlock Text="IRB" Foreground="White" FontWeight="Bold" FontSize="11"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding IronBeamForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="REST + WebSocket · futures, L1/L2 + trade tape" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IronBeamForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IronBeamForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding IronBeamForm.StatusText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="IronBeamFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect"
+                                    Command="{Binding IronBeamForm.ConnectCommand}"
+                                    MinWidth="100"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect"
+                                    Command="{Binding IronBeamForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left"
+                                         IsIndeterminate="{Binding IronBeamForm.IsConnecting}"
+                                         Visibility="{Binding IronBeamForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}"
+                                Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding IronBeamForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding IronBeamForm.ErrorMessage}" Foreground="White"
+                                       TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+
                 <!-- Binance (public market data — no login). Expanded by default so the zero-credential
                      "try it with real data" path is the first thing a new user sees. -->
                 <Expander Margin="0,0,0,8"

@@ -85,12 +85,14 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public CTraderLoginFormViewModel? CTraderForm => AvailableForms.OfType<CTraderLoginFormViewModel>().FirstOrDefault();
     public AlpacaLoginFormViewModel? AlpacaForm => AvailableForms.OfType<AlpacaLoginFormViewModel>().FirstOrDefault();
     public BinanceLoginFormViewModel? BinanceForm => AvailableForms.OfType<BinanceLoginFormViewModel>().FirstOrDefault();
+    public IronBeamLoginFormViewModel? IronBeamForm => AvailableForms.OfType<IronBeamLoginFormViewModel>().FirstOrDefault();
 
     public bool HasIb => IbForm is not null;
     public bool HasNinja => NinjaForm is not null;
     public bool HasCTrader => CTraderForm is not null;
     public bool HasAlpaca => AlpacaForm is not null;
     public bool HasBinance => BinanceForm is not null;
+    public bool HasIronBeam => IronBeamForm is not null;
 
     [ObservableProperty]
     private int _connectedCount;
@@ -214,6 +216,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         BrokerKind.CTrader => "cTrader",
         BrokerKind.Alpaca => "Alpaca",
         BrokerKind.Binance => "Binance",
+        BrokerKind.IronBeam => "Ironbeam",
         _ => kind.ToString(),
     };
 

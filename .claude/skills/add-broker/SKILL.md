@@ -1,13 +1,13 @@
 ---
 name: add-broker
-description: Recipe for wiring a fifth broker backend into DaxAlgo Terminal behind the IBrokerClient seam, alongside the existing four (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca). Use when the user asks to add a broker (e.g. "add Tradovate", "wire up Rithmic", "implement IBrokerClient for X"). Covers project layout, DI registration, login tile, options binding, fake vs real split, and the layering rules that must not be broken.
+description: Recipe for wiring a new broker backend into DaxAlgo Terminal behind the IBrokerClient seam, alongside the existing six (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbeam, Binance). Use when the user asks to add a broker (e.g. "add Tradovate", "wire up Rithmic", "implement IBrokerClient for X"). Covers project layout, DI registration, login tile, options binding, fake vs real split, and the layering rules that must not be broken.
 ---
 
 # Add a Broker
 
 A broker is a plug-in. The shell, repository, view-models, and strategies must stay completely untouched. If you find yourself editing `MarketDataRepository`, `ConnectionManager`, or any view-model — stop.
 
-The app already has four broker backends: IB / NT / cTrader / Alpaca. Each opens a concurrent session — login no longer picks one broker. Mirror the existing patterns.
+The app already has six backends: IB / NT / cTrader / Alpaca / Ironbeam (REST+WS, no SDK) / Binance (keyless public data), plus the always-on Simulated. Each opens a concurrent session — login no longer picks one broker. Mirror the existing patterns; for a no-SDK REST+WebSocket broker, `Infrastructure/IronBeam/` and `Infrastructure/Binance/` are the references.
 
 ## Recipe
 

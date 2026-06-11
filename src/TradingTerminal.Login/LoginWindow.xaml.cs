@@ -40,5 +40,7 @@ public partial class LoginWindow : MetroWindow
             AlpacaFormHost.Content = new AlpacaLoginForm { DataContext = al };
         if (vm.BinanceForm is { } bn)
             BinanceFormHost.Content = new BinanceLoginForm { DataContext = bn };
+        if (vm.IronBeamForm is { } ib2)
+            IronBeamFormHost.Content = new IronBeamLoginForm { DataContext = ib2 };
     }
 }

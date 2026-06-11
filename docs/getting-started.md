@@ -47,7 +47,7 @@ cTrader and Alpaca are always compiled in (NuGet packages — no DLL gate).
 dotnet run --project src/TradingTerminal.App -c Release
 ```
 
-The login window opens with four broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca. Pick one, fill in the form, and click **Sign in**. On success, the main shell opens.
+The login window opens with broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, and the keyless Binance feed. Connect one or more (sessions are concurrent), and the main shell opens.
 
 ### Dev launch profiles (skip login, run offline)
 

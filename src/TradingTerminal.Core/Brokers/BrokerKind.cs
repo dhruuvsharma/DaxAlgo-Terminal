@@ -23,4 +23,13 @@ public enum BrokerKind
     /// See <c>RealBinanceClient</c> / <c>BinanceOptions</c>.
     /// </summary>
     Binance,
+
+    /// <summary>
+    /// Ironbeam futures (FCM) — REST + WebSocket API v2 against demo.ironbeamapi.com /
+    /// live.ironbeamapi.com. JWT auth (POST /v2/auth with username + API key), market data via a
+    /// server-created stream (GET /stream/create → wss://{host}/v2/stream/{streamId}?token=...).
+    /// Supplies L1 quotes, L2 depth, and a real trade tape.
+    /// See <c>RealIronBeamClient</c> / <c>IronBeamOptions</c>.
+    /// </summary>
+    IronBeam,
 }
