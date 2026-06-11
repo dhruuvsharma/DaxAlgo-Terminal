@@ -11,11 +11,39 @@
                        Background="{DynamicResource Background.Primary}" Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-        <Style x:Key="PaneTitle" TargetType="TextBlock">
+        <!-- Rounded card chrome shared by every pane in the running layout -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style x:Key="CardHeader" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="6,6,0,0" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="CardStatus" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
             <Setter Property="FontSize" Value="10" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
+        <!-- Per-series show/hide chips (populated by code-behind, presentation only) -->
+        <Style x:Key="SeriesChip" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="Margin" Value="0,1,12,1" />
+            <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="6,2,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style x:Key="DashSection" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
@@ -202,172 +230,64 @@
                 </StackPanel>
             </Border>
 
-            <!-- Main content: charts (left 3*) + dashboard (right 1*) -->
+            <!-- Main content: chart stack (left, *) | splitter | order book + dashboard (right, resizable px) -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*" />
-                    <ColumnDefinition Width="1*" MinWidth="280" />
+                    <ColumnDefinition Width="*" MinWidth="420" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="280" MinWidth="220" MaxWidth="560" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Charts pane -->
-                <Grid Grid.Column="0" Margin="4,4,4,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" MinWidth="320" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*"  MinWidth="200" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Left column: 5-pair signal grid, footprint cluster, gauge -->
-                    <Grid Grid.Column="0">
+                <!-- ── Left: signals chart, footprint cluster, composite gauge ── -->
+                <Grid Grid.Column="0" Margin="6,6,0,6">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*"   MinHeight="200" />
+                        <RowDefinition Height="*"   MinHeight="180" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="190" MinHeight="110" />
+                        <RowDefinition Height="200" MinHeight="110" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="60"  MinHeight="40" />
                     </Grid.RowDefinitions>
 
-                    <!-- 5 rows × 2 cols: Delta/VPIN, Initiative/Control, Footprint/Kyle, Wedge/TapeSpeed, CVD/OBI -->
-                    <Grid Grid.Row="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" MinHeight="60" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" MinHeight="60" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" MinHeight="60" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" MinHeight="60" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" MinHeight="60" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"  MinWidth="80" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*"  MinWidth="80" />
-                        </Grid.ColumnDefinitions>
-
-                        <GridSplitter Grid.Column="1" Grid.RowSpan="9" Width="4"
-                                      HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                      Background="{DynamicResource Border.Brush}"
-                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
-
-                        <!-- Row 0: Delta / VPIN -->
-                        <Border Grid.Row="0" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Delta" />
-                                <scottplot:WpfPlot x:Name="DeltaPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="0" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="VPIN" />
-                                <scottplot:WpfPlot x:Name="VpinPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <GridSplitter Grid.Row="1" Grid.ColumnSpan="3" Height="4"
-                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                      Background="{DynamicResource Border.Brush}"
-                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                        <!-- Row 2: Initiative / Control -->
-                        <Border Grid.Row="2" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Initiative (β_b−β_s)" />
-                                <scottplot:WpfPlot x:Name="InitiativePlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="2" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Control ρ" />
-                                <scottplot:WpfPlot x:Name="ControlPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <GridSplitter Grid.Row="3" Grid.ColumnSpan="3" Height="4"
-                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                      Background="{DynamicResource Border.Brush}"
-                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                        <!-- Row 4: Footprint / Kyle -->
-                        <Border Grid.Row="4" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Footprint imbalance" />
-                                <scottplot:WpfPlot x:Name="FootprintPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="4" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Kyle-λ residual" />
-                                <scottplot:WpfPlot x:Name="KylePlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <GridSplitter Grid.Row="5" Grid.ColumnSpan="3" Height="4"
-                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                      Background="{DynamicResource Border.Brush}"
-                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                        <!-- Row 6: Wedge / Tape Speed -->
-                        <Border Grid.Row="6" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Wedge dynamics" />
-                                <scottplot:WpfPlot x:Name="WedgePlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="6" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="Tape speed" />
-                                <scottplot:WpfPlot x:Name="TapeSpeedPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <GridSplitter Grid.Row="7" Grid.ColumnSpan="3" Height="4"
-                                      HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                      Background="{DynamicResource Border.Brush}"
-                                      ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                        <!-- Row 8: CVD / OBI -->
-                        <Border Grid.Row="8" Grid.Column="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="CVD divergence" />
-                                <scottplot:WpfPlot x:Name="CvdPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="8" Grid.Column="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Style="{StaticResource PaneTitle}" Text="OBI (live depth)" />
-                                <scottplot:WpfPlot x:Name="ObiPlot" Grid.Row="1" />
-                            </Grid>
-                        </Border>
-                    </Grid>
-
-                    <GridSplitter Grid.Row="1" Height="4"
-                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                  Background="{DynamicResource Border.Brush}"
-                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                    <!-- Footprint cluster (Core FootprintBar/FootprintFeatureRow — rendered in code-behind) -->
-                    <Border Grid.Row="2" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                            Background="{DynamicResource Background.Surface}">
+                    <!-- All signal scores on one shared time axis; chips toggle series -->
+                    <Border Grid.Row="0" Style="{StaticResource Card}">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <Border Grid.Row="0"
-                                    Background="{DynamicResource Background.Elevated}"
-                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                                    Padding="6,3">
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="FOOTPRINT CLUSTER"
-                                               Foreground="{DynamicResource Text.Header}"
-                                               FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" x:Name="FootprintStatus"
-                                               Margin="8,0,0,0" HorizontalAlignment="Right"
-                                               Foreground="{DynamicResource Text.Secondary}"
-                                               FontSize="10" VerticalAlignment="Center"
-                                               Text="awaiting ticks" />
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="SIGNALS" Margin="0,0,14,0" />
+                                    <WrapPanel Grid.Column="1" x:Name="SeriesTogglePanel" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <scottplot:WpfPlot x:Name="SignalsPlot" Grid.Row="1" Margin="1" />
+                        </Grid>
+                    </Border>
+
+                    <GridSplitter Grid.Row="1" Height="6" Margin="0,1"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  Background="Transparent"
+                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
+
+                    <!-- Footprint cluster (Core FootprintBar/FootprintFeatureRow — rendered in code-behind) -->
+                    <Border Grid.Row="2" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="FOOTPRINT CLUSTER" />
+                                    <TextBlock Grid.Column="1" x:Name="FootprintStatus" Style="{StaticResource CardStatus}" Text="awaiting ticks" />
                                 </Grid>
                             </Border>
                             <ScrollViewer Grid.Row="1" x:Name="FootprintScroll"
@@ -380,18 +300,12 @@
                         </Grid>
                     </Border>
 
-                    <GridSplitter Grid.Row="3" Height="4"
-                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                  Background="{DynamicResource Border.Brush}"
-                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Rows" ShowsPreview="False" />
-
-                    <!-- Composite sentiment gauge -->
-                    <Border Grid.Row="4" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                            Background="{DynamicResource Background.Surface}">
-                        <Grid Margin="6,4,6,4">
+                    <!-- Composite sentiment gauge (slim strip) -->
+                    <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,6,0,0">
+                        <Grid Margin="10,5,10,6">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid Grid.Row="0">
                                 <Grid.ColumnDefinitions>
@@ -434,239 +348,231 @@
                             </Grid>
                         </Grid>
                     </Border>
-                    </Grid>   <!-- end chart stack -->
-
-                    <GridSplitter Grid.Column="1" Width="4"
-                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                  Background="{DynamicResource Border.Brush}"
-                                  ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
-
-                    <!-- Order book -->
-                    <Grid Grid.Column="2">
-                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                                Background="{DynamicResource Background.Surface}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-                                <Border Grid.Row="0"
-                                        Background="{DynamicResource Background.Elevated}"
-                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                                        Padding="6,3">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="ORDER BOOK"
-                                                   Foreground="{DynamicResource Text.Header}"
-                                                   FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1" x:Name="OrderBookStatus"
-                                                   Margin="8,0,0,0" HorizontalAlignment="Right"
-                                                   Foreground="{DynamicResource Text.Secondary}"
-                                                   FontSize="10" VerticalAlignment="Center"
-                                                   Text="awaiting depth" />
-                                    </Grid>
-                                </Border>
-                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled">
-                                    <StackPanel x:Name="OrderBookLadder" Orientation="Vertical" />
-                                </ScrollViewer>
-                            </Grid>
-                        </Border>
-                    </Grid>
                 </Grid>
 
-                <!-- ── Dashboard panel ── -->
-                <Border Grid.Column="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                        Background="{DynamicResource Background.Elevated}" Margin="0,4,4,4" Padding="10">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
+                <GridSplitter Grid.Column="1" Width="6" Margin="1,6"
+                              HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                              Background="Transparent"
+                              ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" ShowsPreview="False" />
 
-                            <!-- Composite -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="COMPOSITE" Margin="0,0,0,4" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Score C" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding CompositeText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Direction" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding CompositeDirectionText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Trade OK" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.TradeAllowed, FallbackValue=—}" />
-                                <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="Kill switch" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.KillSwitch, FallbackValue=—}" />
-                            </Grid>
+                <!-- ── Right: order book (auto height) over dashboard, resizable column ── -->
+                <Grid Grid.Column="2" Margin="0,6,6,6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                            <!-- g(C) / calibration -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="CALIBRATION" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="g(C) exp. return" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding GcText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Cond. slippage" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding CostHurdleText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Bootstrap mode" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding BootstrapMode, FallbackValue=—}" />
-                            </Grid>
+                    <!-- Order book — sizes to the ladder, never stretches -->
+                    <Border Grid.Row="0" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Style="{StaticResource CardHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="ORDER BOOK" />
+                                    <TextBlock Grid.Column="1" x:Name="OrderBookStatus" Style="{StaticResource CardStatus}" Text="awaiting depth" />
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Row="1" x:Name="OrderBookLadder" Orientation="Vertical" Margin="4,3,4,5" />
+                        </Grid>
+                    </Border>
 
-                            <!-- Regime / feed -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="REGIME / FEED" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Regime" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding RegimeText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Feed quality" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding FeedQualityText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Session P&amp;L" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding SessionPnlText, FallbackValue=—}" />
-                            </Grid>
+                    <!-- Dashboard -->
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,6,0,0"
+                            Background="{DynamicResource Background.Elevated}" Padding="10,4,10,10">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
 
-                            <!-- Kyle / epsilon -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="KYLE / EPSILON" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="λ̂ (price impact)" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding KyleLambdaText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="ε_cum" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding EpsilonCumText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="ε_cum z" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding EpsilonCumZText, FallbackValue=—}" />
-                            </Grid>
+                                <!-- Composite -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="COMPOSITE" Margin="0,4,0,4" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Score C" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding CompositeText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Direction" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding CompositeDirectionText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Trade OK" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.TradeAllowed, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="Kill switch" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.KillSwitch, FallbackValue=—}" />
+                                </Grid>
 
-                            <!-- Line fits / geometry -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="LINE FITS / GEOMETRY" />
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.ColumnSpan="3"
-                                           Style="{StaticResource DashKey}" Text="    slope  R²"
-                                           Margin="0,0,0,2" HorizontalAlignment="Right" FontSize="10" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Buy line β" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding BuyLineSlopeText, FallbackValue=—}" Margin="0,0,6,2" />
-                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding BuyLineR2Text, FallbackValue=—}" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Sell line β" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding SellLineSlopeText, FallbackValue=—}" Margin="0,0,6,2" />
-                                <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding SellLineR2Text, FallbackValue=—}" />
-                                <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="POC line β" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding PocLineSlopeText, FallbackValue=—}" Margin="0,0,6,2" />
-                                <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding PocLineR2Text, FallbackValue=—}" />
-                                <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashKey}" Text="Control ρ / dρ" />
-                                <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding ControlRhoText, FallbackValue=—}" Margin="0,0,6,2" />
-                                <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding ControlVelocityText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashKey}" Text="Wedge w / dw" />
-                                <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding WedgeWidthText, FallbackValue=—}" Margin="0,0,6,2" />
-                                <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding WedgeVelocityText, FallbackValue=—}" />
-                                <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashKey}" Text="Value dev z_p" />
-                                <TextBlock Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource MonoValue}" Text="{Binding ValueDeviationZText, FallbackValue=—}" />
-                            </Grid>
+                                <!-- g(C) / calibration -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="CALIBRATION" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="g(C) exp. return" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding GcText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Cond. slippage" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding CostHurdleText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Bootstrap mode" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding BootstrapMode, FallbackValue=—}" />
+                                </Grid>
 
-                            <!-- Signals list (per-row from engine's SignalNames order) -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="SIGNALS" />
-                            <!-- Header row -->
-                            <Grid Margin="0,0,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="40" />
-                                    <ColumnDefinition Width="38" />
-                                    <ColumnDefinition Width="30" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Style="{StaticResource DashKey}" Text="Name" Margin="0,0,4,0" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource DashKey}" Text="Score" HorizontalAlignment="Right" />
-                                <TextBlock Grid.Column="2" Style="{StaticResource DashKey}" Text="Conf" HorizontalAlignment="Right" />
-                                <TextBlock Grid.Column="3" Style="{StaticResource DashKey}" Text="TTL%" HorizontalAlignment="Right" />
-                            </Grid>
-                            <ItemsControl ItemsSource="{Binding SignalStates}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,1,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="40" />
-                                                <ColumnDefinition Width="38" />
-                                                <ColumnDefinition Width="30" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" FontSize="10" FontFamily="Consolas"
-                                                       Text="{Binding Name}"
-                                                       Foreground="{DynamicResource Text.Secondary}" />
-                                            <TextBlock Grid.Column="1" FontSize="10" FontFamily="Consolas"
-                                                       HorizontalAlignment="Right"
-                                                       Text="{Binding Score, StringFormat=+0.00;-0.00;0.00}"
-                                                       Foreground="{DynamicResource Text.Primary}" />
-                                            <TextBlock Grid.Column="2" FontSize="10" FontFamily="Consolas"
-                                                       HorizontalAlignment="Right"
-                                                       Text="{Binding Confidence, StringFormat=F2}"
-                                                       Foreground="{DynamicResource Text.Secondary}" />
-                                            <TextBlock Grid.Column="3" FontSize="10" FontFamily="Consolas"
-                                                       HorizontalAlignment="Right"
-                                                       Text="{Binding TtlRemaining, StringFormat=P0}"
-                                                       Foreground="{DynamicResource Text.Secondary}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                <!-- Regime / feed -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="REGIME / FEED" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Regime" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding RegimeText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Feed quality" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding FeedQualityText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Session P&amp;L" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding SessionPnlText, FallbackValue=—}" />
+                                </Grid>
 
-                            <!-- Weight vector -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="WEIGHTS (Σ⁻¹·IC)" />
-                            <Grid Margin="0,0,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="60" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Style="{StaticResource DashKey}" Text="Signal" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource DashKey}" Text="Weight" HorizontalAlignment="Right" />
-                            </Grid>
-                            <ItemsControl ItemsSource="{Binding SignalWeights}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,1,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" /><ColumnDefinition Width="60" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" FontSize="10" FontFamily="Consolas"
-                                                       Text="{Binding SignalName}"
-                                                       Foreground="{DynamicResource Text.Secondary}" />
-                                            <TextBlock Grid.Column="1" FontSize="10" FontFamily="Consolas"
-                                                       HorizontalAlignment="Right"
-                                                       Text="{Binding Weight, StringFormat=+0.000;-0.000;0.000}"
-                                                       Foreground="{DynamicResource Text.Primary}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                <!-- Kyle / epsilon -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="KYLE / EPSILON" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="λ̂ (price impact)" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding KyleLambdaText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="ε_cum" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding EpsilonCumText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="ε_cum z" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding EpsilonCumZText, FallbackValue=—}" />
+                                </Grid>
 
-                            <!-- Position -->
-                            <TextBlock Style="{StaticResource DashSection}" Text="POSITION" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Net qty" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.Position, FallbackValue=—}" />
-                            </Grid>
+                                <!-- Line fits / geometry -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="LINE FITS / GEOMETRY" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="3"
+                                               Style="{StaticResource DashKey}" Text="    slope  R²"
+                                               Margin="0,0,0,2" HorizontalAlignment="Right" FontSize="10" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Buy line β" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding BuyLineSlopeText, FallbackValue=—}" Margin="0,0,6,2" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding BuyLineR2Text, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Sell line β" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding SellLineSlopeText, FallbackValue=—}" Margin="0,0,6,2" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding SellLineR2Text, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="POC line β" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding PocLineSlopeText, FallbackValue=—}" Margin="0,0,6,2" />
+                                    <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding PocLineR2Text, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource DashKey}" Text="Control ρ / dρ" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding ControlRhoText, FallbackValue=—}" Margin="0,0,6,2" />
+                                    <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding ControlVelocityText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource DashKey}" Text="Wedge w / dw" />
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding WedgeWidthText, FallbackValue=—}" Margin="0,0,6,2" />
+                                    <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource MonoValue}" Text="{Binding WedgeVelocityText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource DashKey}" Text="Value dev z_p" />
+                                    <TextBlock Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource MonoValue}" Text="{Binding ValueDeviationZText, FallbackValue=—}" />
+                                </Grid>
 
-                        </StackPanel>
-                    </ScrollViewer>
-                </Border>
+                                <!-- Signals list (per-row from engine's SignalNames order) -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="SIGNALS" />
+                                <!-- Header row -->
+                                <Grid Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="40" />
+                                        <ColumnDefinition Width="38" />
+                                        <ColumnDefinition Width="30" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource DashKey}" Text="Name" Margin="0,0,4,0" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource DashKey}" Text="Score" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource DashKey}" Text="Conf" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Column="3" Style="{StaticResource DashKey}" Text="TTL%" HorizontalAlignment="Right" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding SignalStates}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,1,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="40" />
+                                                    <ColumnDefinition Width="38" />
+                                                    <ColumnDefinition Width="30" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" FontSize="10" FontFamily="Consolas"
+                                                           Text="{Binding Name}"
+                                                           Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Grid.Column="1" FontSize="10" FontFamily="Consolas"
+                                                           HorizontalAlignment="Right"
+                                                           Text="{Binding Score, StringFormat=+0.00;-0.00;0.00}"
+                                                           Foreground="{DynamicResource Text.Primary}" />
+                                                <TextBlock Grid.Column="2" FontSize="10" FontFamily="Consolas"
+                                                           HorizontalAlignment="Right"
+                                                           Text="{Binding Confidence, StringFormat=F2}"
+                                                           Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Grid.Column="3" FontSize="10" FontFamily="Consolas"
+                                                           HorizontalAlignment="Right"
+                                                           Text="{Binding TtlRemaining, StringFormat=P0}"
+                                                           Foreground="{DynamicResource Text.Secondary}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Weight vector -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="WEIGHTS (Σ⁻¹·IC)" />
+                                <Grid Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="60" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource DashKey}" Text="Signal" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource DashKey}" Text="Weight" HorizontalAlignment="Right" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding SignalWeights}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,1,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="60" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" FontSize="10" FontFamily="Consolas"
+                                                           Text="{Binding SignalName}"
+                                                           Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Grid.Column="1" FontSize="10" FontFamily="Consolas"
+                                                           HorizontalAlignment="Right"
+                                                           Text="{Binding Weight, StringFormat=+0.000;-0.000;0.000}"
+                                                           Foreground="{DynamicResource Text.Primary}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Position -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="POSITION" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Net qty" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.Position, FallbackValue=—}" />
+                                </Grid>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- Footer -->

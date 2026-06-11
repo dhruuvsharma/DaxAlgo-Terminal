@@ -8,6 +8,7 @@ using ScottPlot.WPF;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.UI;
+using Engine = TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy;
 
 namespace TradingTerminal.Strategies.ApexScalper;
 
@@ -50,6 +51,32 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
     private static readonly SolidColorBrush BadgeRealTape = new(Color.FromRgb(0x00, 0xC8, 0x53));
     private static readonly SolidColorBrush BadgeSynthetic = new(Color.FromRgb(0xFF, 0xC1, 0x07));
 
+    // ── Consolidated signal chart ─────────────────────────────────────────────────────────────────
+    // All scores share one time axis; each series gets a colour-matched show/hide chip.
+
+    private sealed record SeriesDef(string Label, string Hex, float LineWidth, Func<ApexSnapshotV2, double> Pick);
+
+    private static Func<ApexSnapshotV2, double> Sig(string name) =>
+        s => s.Signals.FirstOrDefault(x => x.Name == name)?.Score ?? 0.0;
+
+    private static readonly SeriesDef[] SeriesDefs =
+    {
+        new("Composite", "#FFFFFF", 2.2f, s => s.Composite),
+        new("Delta",      "#4FC3F7", 1.4f, Sig(Engine.SigDelta)),
+        new("VPIN",       "#FFB74D", 1.4f, Sig(Engine.SigVpin)),
+        new("Initiative", "#81C784", 1.4f, Sig(Engine.SigInitiative)),
+        new("Control",    "#BA68C8", 1.4f, Sig(Engine.SigControl)),
+        new("Footprint",  "#F06292", 1.4f, Sig(Engine.SigFootprint)),
+        new("Kyle λ",     "#FFD54F", 1.4f, Sig(Engine.SigKyle)),
+        new("Wedge",      "#4DB6AC", 1.4f, Sig(Engine.SigWedge)),
+        new("Value",      "#B0BEC5", 1.4f, Sig(Engine.SigValue)),
+        new("Tape speed", "#A1887F", 1.4f, Sig(Engine.SigTapeSpeed)),
+        new("CVD",        "#90CAF9", 1.4f, Sig(Engine.SigCvd)),
+        new("OBI",        "#E57373", 1.4f, Sig(Engine.SigObi)),
+    };
+
+    private readonly bool[] _seriesEnabled = Enumerable.Repeat(true, SeriesDefs.Length).ToArray();
+
     static ApexScalperStrategyWindow()
     {
         foreach (var b in new Brush[]
@@ -65,6 +92,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
     private readonly LadderRow[] _askRows = new LadderRow[LadderDepth];
     private readonly LadderRow[] _bidRows = new LadderRow[LadderDepth];
     private TextBlock? _spreadLabel;
+    private Border? _spreadBorder;
 
     private readonly DispatcherTimer _redrawTimer;
     private bool _chartDirty;
@@ -73,6 +101,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
     {
         InitializeComponent();
         BuildLadder();
+        BuildSeriesToggles();
 
         _redrawTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -85,14 +114,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         GaugeTrackHost.SizeChanged += (_, _) => { _chartDirty = true; };
     }
 
-    protected override IEnumerable<WpfPlot> ChartHosts => new[]
-    {
-        DeltaPlot, VpinPlot,
-        InitiativePlot, ControlPlot,
-        FootprintPlot, KylePlot,
-        WedgePlot, TapeSpeedPlot,
-        CvdPlot, ObiPlot,
-    };
+    protected override IEnumerable<WpfPlot> ChartHosts => new[] { SignalsPlot };
 
     protected override void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -136,20 +158,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
             }
         }
 
-        // Helper: extract named-signal score from the v2 Signals list.
-        static Func<ApexSnapshotV2, double> SigPick(string name) =>
-            s => s.Signals.FirstOrDefault(x => x.Name == name)?.Score ?? 0.0;
-
-        DrawSeries(DeltaPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigDelta), signed: true);
-        DrawSeries(VpinPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigVpin), signed: true);
-        DrawSeries(InitiativePlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigInitiative), signed: true);
-        DrawSeries(ControlPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigControl), signed: true);
-        DrawSeries(FootprintPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigFootprint), signed: true);
-        DrawSeries(KylePlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigKyle), signed: true);
-        DrawSeries(WedgePlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigWedge), signed: true);
-        DrawSeries(TapeSpeedPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigTapeSpeed), signed: true);
-        DrawSeries(CvdPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigCvd), signed: true);
-        DrawSeries(ObiPlot, tail, SigPick(TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy.SigObi), signed: true);
+        DrawSignals(tail);
 
         RenderOrderBook(baseVm.LatestDepth);
         RenderGauge(engine?.Latest?.Composite, vm.BootstrapThreshold);
@@ -204,36 +213,58 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
     }
 
-    // ── Scatter chart helper ──────────────────────────────────────────────────────────────────────
+    // ── Consolidated signal chart ─────────────────────────────────────────────────────────────────
 
-    private static void DrawSeries(WpfPlot host, IReadOnlyList<ApexSnapshotV2> tail,
-        Func<ApexSnapshotV2, double> pick, bool signed)
+    private void BuildSeriesToggles()
     {
-        var plot = host.Plot;
+        var chipStyle = (Style)FindResource("SeriesChip");
+        for (var s = 0; s < SeriesDefs.Length; s++)
+        {
+            var index = s;
+            var def = SeriesDefs[s];
+            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(def.Hex));
+            brush.Freeze();
+            var chip = new CheckBox
+            {
+                Style = chipStyle,
+                Content = def.Label,
+                Foreground = brush,
+                IsChecked = _seriesEnabled[s],
+            };
+            chip.Checked += (_, _) => { _seriesEnabled[index] = true; _chartDirty = true; };
+            chip.Unchecked += (_, _) => { _seriesEnabled[index] = false; _chartDirty = true; };
+            SeriesTogglePanel.Children.Add(chip);
+        }
+    }
+
+    private void DrawSignals(IReadOnlyList<ApexSnapshotV2> tail)
+    {
+        var plot = SignalsPlot.Plot;
         plot.Clear();
-        if (tail.Count == 0) { host.Refresh(); return; }
+        if (tail.Count == 0) { SignalsPlot.Refresh(); return; }
 
         var xs = new double[tail.Count];
-        var ys = new double[tail.Count];
-        for (var i = 0; i < tail.Count; i++)
-        {
-            xs[i] = tail[i].TimestampUtc.ToOADate();
-            ys[i] = pick(tail[i]);
-        }
-        var scatter = plot.Add.Scatter(xs, ys);
-        scatter.Color = StrategyChartHelpers.AccentColor;
-        scatter.LineWidth = 1.5f;
-        scatter.MarkerStyle.IsVisible = false;
+        for (var i = 0; i < tail.Count; i++) xs[i] = tail[i].TimestampUtc.ToOADate();
 
-        if (signed)
+        var zero = plot.Add.HorizontalLine(0, color: StrategyChartHelpers.MutedColor);
+        zero.LineStyle.Pattern = ScottPlot.LinePattern.Dotted;
+
+        for (var s = 0; s < SeriesDefs.Length; s++)
         {
-            var zero = plot.Add.HorizontalLine(0, color: StrategyChartHelpers.MutedColor);
-            zero.LineStyle.Pattern = ScottPlot.LinePattern.Dotted;
+            if (!_seriesEnabled[s]) continue;
+            var def = SeriesDefs[s];
+            var ys = new double[tail.Count];
+            for (var i = 0; i < tail.Count; i++) ys[i] = def.Pick(tail[i]);
+
+            var scatter = plot.Add.Scatter(xs, ys);
+            scatter.Color = ScottPlot.Color.FromHex(def.Hex);
+            scatter.LineWidth = def.LineWidth;
+            scatter.MarkerStyle.IsVisible = false;
         }
 
         plot.Axes.DateTimeTicksBottom();
         plot.Axes.AutoScale();
-        host.Refresh();
+        SignalsPlot.Refresh();
     }
 
     // ── Composite sentiment gauge ─────────────────────────────────────────────────────────────────
@@ -503,7 +534,10 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
             Background = new SolidColorBrush(Color.FromRgb(25, 25, 40)),
             Padding = new Thickness(6, 2, 6, 2),
             Height = 18,
+            CornerRadius = new CornerRadius(3),
+            Visibility = Visibility.Collapsed,
         };
+        _spreadBorder = spread;
         _spreadLabel = new TextBlock
         {
             Text = "—",
@@ -530,9 +564,11 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         {
             for (var i = 0; i < LadderDepth; i++) { _askRows[i].Clear(); _bidRows[i].Clear(); }
             if (_spreadLabel is not null) _spreadLabel.Text = "—";
+            if (_spreadBorder is not null) _spreadBorder.Visibility = Visibility.Collapsed;
             OrderBookStatus.Text = "awaiting depth";
             return;
         }
+        if (_spreadBorder is not null) _spreadBorder.Visibility = Visibility.Visible;
 
         long maxSize = 1;
         long largestAskIdx = -1; long largestBidIdx = -1;
@@ -595,7 +631,8 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
         public LadderRow(Brush dimBrush)
         {
-            Root = new Grid { Height = 16, Margin = new Thickness(0, 1, 0, 0) };
+            // Collapsed until depth arrives so the order-book card sizes to the real level count.
+            Root = new Grid { Height = 16, Margin = new Thickness(0, 1, 0, 0), Visibility = Visibility.Collapsed };
             Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LadderBarMaxWidth, GridUnitType.Pixel) });
             Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
@@ -626,6 +663,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
         public void Set(double price, long size, double barWidth, Brush brush)
         {
+            Root.Visibility = Visibility.Visible;
             _bar.Width = Math.Max(0, Math.Min(LadderBarMaxWidth, barWidth));
             _bar.Fill = brush;
             _label.Text = $"{price:F5}  {size}";
@@ -633,6 +671,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
         public void Clear()
         {
+            Root.Visibility = Visibility.Collapsed;
             _bar.Width = 0;
             _label.Text = string.Empty;
         }
