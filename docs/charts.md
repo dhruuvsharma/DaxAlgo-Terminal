@@ -36,7 +36,7 @@ History lookback is fixed per timeframe: 1m → 2 days, 5m → 5 days, 15m → 1
 
 ## Order book
 
-**Charts → Order book…** — the full live L2 ladder for one instrument: asks stacked above, bids below, size bars scaled per side.
+**Charts → Order book…** — the full live L2 ladder for one instrument: asks stacked above, bids below, per-level size bars normalized to the largest level on either side, plus cumulative size per level.
 
 | Input | Values |
 |---|---|
@@ -119,7 +119,7 @@ A time-evolving volume profile from the trade tape: prints bucketed into **2-sec
 
 ### Volume bubbles
 
-Every print drawn as a bubble at (time, price): diameter 4–22 px by `√(size/max)`, colored by aggressor side (green = buy, red = sell, grey = unknown). Keeps individual prints distinct, so blocks and sweeps stand out. Last **600 trades** stay on screen.
+Every print drawn as a bubble at (time, price): diameter `4 + 22·√(size/max)` px (4–26 px), colored by aggressor side (green = buy, red = sell, grey = unknown). Keeps individual prints distinct, so blocks and sweeps stand out. Last **600 trades** stay on screen.
 
 ### Cross-asset volatility
 
@@ -131,10 +131,13 @@ N×N grid of the ticked instruments colored by live pairwise **Pearson correlati
 
 ## Code reference
 
-| What | Where |
-|---|---|
-| Charts window | `src/TradingTerminal.Charts/` (WebView2 assets under `Assets/`) |
-| Order book | `src/TradingTerminal.OrderBook/` |
-| Volume footprint | `src/TradingTerminal.VolumeFootprint/` (bar math: `FootprintFeatures` in Core; fits: `Core/Quant/CurveFitting.cs`) |
-| Heatmaps (all six) | `src/TradingTerminal.Heatmap/` (`HeatmapRenderer`, per-window VMs, shared bases) |
-| DI | each project ships an `Add…Surface()` extension called from `App.xaml.cs` |
+Each project carries its own README with the full setting/color/math detail:
+
+| What | Where | Per-project README |
+|---|---|---|
+| Charts window | `src/TradingTerminal.Charts/` (WebView2 assets under `Assets/`) | [README](../src/TradingTerminal.Charts/README.md) |
+| Order book | `src/TradingTerminal.OrderBook/` | [README](../src/TradingTerminal.OrderBook/README.md) |
+| Volume footprint | `src/TradingTerminal.VolumeFootprint/` (bar math: `FootprintFeatures` in Core; fits: `Core/Quant/CurveFitting.cs`) | [README](../src/TradingTerminal.VolumeFootprint/README.md) — incl. the regression-fit and predictor math |
+| Heatmaps (all six) | `src/TradingTerminal.Heatmap/` (`HeatmapRenderer`, per-window VMs, shared bases) | [README](../src/TradingTerminal.Heatmap/README.md) |
+
+DI: each project ships an `Add…Surface()` extension called from `App.xaml.cs`.
