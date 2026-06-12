@@ -1,8 +1,8 @@
 # Broker setup
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-12
 
-The terminal speaks to five account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), and **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
+The terminal speaks to six account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)), and **London Strategic Edge** (free multi-asset data, API key only — see [below](#london-strategic-edge-free-multi-asset-data)). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
@@ -23,6 +23,7 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | cTrader | TLS + protobuf to Spotware cloud | Always wired (NuGet package always restores) | Real (`ProtoOAGetTrendbarsReq`) | Real, push (`ProtoOASpotEvent`) | Real, push (`ProtoOASubscribeDepthQuotesReq`) | Real, via `ProtoOANewOrderReq` |
 | Alpaca | REST (history) + WebSocket (live) | Always wired (NuGet package always restores) | Real (`HistoricalBarsRequest` / `HistoricalCryptoBarsRequest`) | Real, push (`IAlpacaDataStreamingClient`) | Not exposed by Alpaca — throws | Not yet wired |
 | Ironbeam | REST + WebSocket API v2 (no SDK) | Always wired (plain HTTP/WS) | Not exposed by API v2 — returns empty | Real, push (`q` stream events) | Real, push (`d` stream events) | n/a (data/signals only) |
+| London Strategic Edge | WebSocket (live) + PostgREST-style REST (history), no SDK | Always wired (plain HTTP/WS) | Real (`x_candles_{tf}` / `candles_{slug}` tables) | Real, push (`tick` messages) | Not in the feed — throws | n/a (data/signals only) |
 | Binance | Public WebSocket + REST (no SDK) | Always wired — **no key, no account** | Real (`/api/v3/klines`) | Real, push (`@bookTicker`) | Real, push (`@depth{5\|10\|20}@100ms`) | n/a (data/signals only) |
 | Simulated | In-process, no SDK, no network | Always registered | Replay from local store | Synthetic random-walk **or** store replay | Supported (synthetic + replay) | n/a (data/signals only) |
 
@@ -217,6 +218,52 @@ streaming across reconnects.
 
 The login tile takes Username + API key (DPAPI-encrypted on disk, like Alpaca's secret) and a
 demo/live toggle.
+
+## London Strategic Edge (free multi-asset data)
+
+`BrokerKind.LondonStrategicEdge` (`RealLondonStrategicEdgeClient`, in
+`Infrastructure/LondonStrategicEdge/`) streams free multi-asset market data — US/intl stocks, 80+
+FX pairs, crypto, commodities, indices, ETFs (~16,000 instruments) — from
+<https://londonstrategicedge.com>. No SDK (plain `ClientWebSocket` + `HttpClient`); the only
+credential is a free API key from <https://londonstrategicedge.com/websockets>.
+
+**Connection flow:** open `wss://data-ws.londonstrategicedge.com`, send
+`{"action":"auth","api_key":…}`, wait for `{"type":"authenticated"}`, then
+`{"action":"subscribe","symbol":…}` per instrument — every update arrives as a
+`{"type":"tick", symbol, price, bid, ask, volume, ts, replay}` message on the one socket. A
+keepalive `{"action":"ping"}` goes out every 25 s (server idle timeout 600 s). On a drop the
+client reconnects with 1 s → 30 s backoff, re-auths, and re-subscribes; **fatal** errors
+(`INVALID_KEY` / `MISSING_KEY` / `QUOTA_EXCEEDED`) stop the pump and surface as `Failed` instead
+of retry-looping — `QUOTA_EXCEEDED` means the 50 GB/month free tier is exhausted for the month.
+
+| Channel | LSE endpoint / message |
+|---|---|
+| L1 ticks | `tick` messages on the socket (bid/ask nullable — degrades to last-price-as-both-sides) |
+| Historical bars | PostgREST-style REST at `api.londonstrategicedge.com/iso` — shared `x_candles_{5m,15m,1h,4h,1d}` tables (`symbol=eq.…` filter), per-symbol `candles_{slug}` tables for 1m (`d_candles_{slug}` fallback), key in `x-api-key`, 5,000 rows/call |
+| L2 depth | not in the feed — throws `NotSupportedException` |
+| Trade tape | **deliberately not wired** — the tick stream carries price+volume but is unverified as true per-print trades; verify against IB tape on a liquid symbol before enabling |
+| Instrument discovery | keyless `feed-catalog.json` (`{symbol,name,category}`) → `ListInstrumentsAsync` |
+| Order routing | n/a — the provider has no order path at all |
+
+**Symbols** are LSE-native: plain tickers for stocks/ETFs (`AAPL`), slash pairs for FX/crypto
+(`EUR/USD`, `BTC/USD`). A bare 6-letter `CASH` contract is auto-split (`EURUSD` → `EUR/USD`);
+everything else passes through verbatim.
+
+```jsonc
+"LondonStrategicEdge": {
+  "ApiKey": "",                       // lse_live_… — free, from londonstrategicedge.com/websockets
+  "WsUrl": "wss://data-ws.londonstrategicedge.com",
+  "RestBaseUrl": "https://api.londonstrategicedge.com/iso",
+  "CatalogUrl": "https://londonstrategicedge.com/feed-catalog.json",
+  "PingIntervalSeconds": 25,
+  "ReconnectInitialDelaySeconds": 1,
+  "ReconnectMaxDelaySeconds": 30
+}
+```
+
+The login tile takes just the API key (DPAPI-encrypted on disk, like the other secrets). Mind the
+shared quota: streaming many symbols all day plus heavy history pulls draw from the same
+50 GB/month allowance (REST is additionally capped at 100 calls/min).
 
 ## Binance (public market data — no key)
 

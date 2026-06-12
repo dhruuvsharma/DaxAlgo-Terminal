@@ -124,6 +124,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public AlpacaLoginFormViewModel? AlpacaForm => AvailableForms.OfType<AlpacaLoginFormViewModel>().FirstOrDefault();
     public BinanceLoginFormViewModel? BinanceForm => AvailableForms.OfType<BinanceLoginFormViewModel>().FirstOrDefault();
     public IronBeamLoginFormViewModel? IronBeamForm => AvailableForms.OfType<IronBeamLoginFormViewModel>().FirstOrDefault();
+    public LondonStrategicEdgeLoginFormViewModel? LondonStrategicEdgeForm => AvailableForms.OfType<LondonStrategicEdgeLoginFormViewModel>().FirstOrDefault();
 
     public bool HasIb => IbForm is not null;
     public bool HasNinja => NinjaForm is not null;
@@ -131,6 +132,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public bool HasAlpaca => AlpacaForm is not null;
     public bool HasBinance => BinanceForm is not null;
     public bool HasIronBeam => IronBeamForm is not null;
+    public bool HasLondonStrategicEdge => LondonStrategicEdgeForm is not null;
 
     [ObservableProperty]
     private int _connectedCount;
@@ -255,6 +257,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         BrokerKind.Alpaca => "Alpaca",
         BrokerKind.Binance => "Binance",
         BrokerKind.IronBeam => "Ironbeam",
+        BrokerKind.LondonStrategicEdge => "LSE Data",
         _ => kind.ToString(),
     };
 

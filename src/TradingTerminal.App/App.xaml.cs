@@ -108,6 +108,8 @@ public partial class App : Application
                     ctx.Configuration.GetSection(BinanceOptions.SectionName));
                 services.Configure<IronBeamOptions>(
                     ctx.Configuration.GetSection(IronBeamOptions.SectionName));
+                services.Configure<LondonStrategicEdgeOptions>(
+                    ctx.Configuration.GetSection(LondonStrategicEdgeOptions.SectionName));
 
                 // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
                 // turned on by the DevLive/DevReplay/DevSim environment files).

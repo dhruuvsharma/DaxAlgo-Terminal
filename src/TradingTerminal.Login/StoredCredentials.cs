@@ -70,6 +70,18 @@ public sealed class StoredCredentials
         set => IronBeamApiKeyEncryptedBase64 = EncryptDpapi(value);
     }
 
+    // ---- London Strategic Edge-specific fields ----
+
+    /// <summary>Base64-encoded DPAPI ciphertext for the London Strategic Edge API key.</summary>
+    public string? LondonStrategicEdgeApiKeyEncryptedBase64 { get; set; }
+
+    [JsonIgnore]
+    public string? LondonStrategicEdgeApiKey
+    {
+        get => DecryptDpapi(LondonStrategicEdgeApiKeyEncryptedBase64);
+        set => LondonStrategicEdgeApiKeyEncryptedBase64 = EncryptDpapi(value);
+    }
+
     // ---- Alpaca-specific fields ----
     public string AlpacaApiKey { get; set; } = string.Empty;
     public bool AlpacaIsLive { get; set; }

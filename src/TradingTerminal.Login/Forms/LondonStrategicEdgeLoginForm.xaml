@@ -1,0 +1,31 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.LondonStrategicEdgeLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:TradingTerminal.App.Login.Forms"
+             mc:Ignorable="d"
+             d:DesignHeight="380" d:DesignWidth="500">
+    <StackPanel>
+
+        <TextBlock Text="API key" Margin="0,0,0,4" />
+        <PasswordBox x:Name="ApiKeyBox"
+                     PasswordChanged="ApiKeyBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="lse_live_… — stored DPAPI-encrypted on this machine"
+                     Margin="0,0,0,12" />
+
+        <Border Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                Padding="10,6"
+                Margin="0,12,0,0">
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run FontWeight="SemiBold" Text="Heads up:" />
+                <Run Text="Free keys are issued at londonstrategicedge.com/websockets. The free tier is 50 GB/month shared between streaming and history; L1 ticks + OHLCV only (no depth, no trade tape)." />
+            </TextBlock>
+        </Border>
+    </StackPanel>
+</UserControl>

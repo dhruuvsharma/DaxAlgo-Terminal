@@ -1,6 +1,6 @@
 # DaxAlgo Terminal — Claude Working Guide
 
-A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Five brokers behind one `IBrokerClient` seam: Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam (futures FCM, REST + WebSocket API v2) — plus keyless Binance public data and the offline Simulated backend. **Data/signals only — no live order execution.**
+A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Six brokers behind one `IBrokerClient` seam: Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam (futures FCM, REST + WebSocket API v2), London Strategic Edge (free multi-asset L1 + history, WebSocket + REST) — plus keyless Binance public data and the offline Simulated backend. **Data/signals only — no live order execution.**
 
 This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigger) and **docs/**. Don't re-derive conventions each session — load the matching skill, or `navigator` for "where does X live".
 

@@ -42,5 +42,7 @@ public partial class LoginWindow : MetroWindow
             BinanceFormHost.Content = new BinanceLoginForm { DataContext = bn };
         if (vm.IronBeamForm is { } ib2)
             IronBeamFormHost.Content = new IronBeamLoginForm { DataContext = ib2 };
+        if (vm.LondonStrategicEdgeForm is { } lse)
+            LondonStrategicEdgeFormHost.Content = new LondonStrategicEdgeLoginForm { DataContext = lse };
     }
 }

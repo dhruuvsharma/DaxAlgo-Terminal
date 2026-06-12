@@ -32,4 +32,15 @@ public enum BrokerKind
     /// See <c>RealIronBeamClient</c> / <c>IronBeamOptions</c>.
     /// </summary>
     IronBeam,
+
+    /// <summary>
+    /// London Strategic Edge — free multi-asset market data (stocks, FX, crypto, commodities,
+    /// indices, ETFs) over a single WebSocket (wss://data-ws.londonstrategicedge.com) plus a
+    /// PostgREST-style REST history API (api.londonstrategicedge.com/iso). API-key auth, data-only
+    /// (no order path exists at the provider at all). Supplies L1 ticks and historical OHLCV; no
+    /// depth, and the trade tape is not wired until the tick stream is verified to carry true
+    /// prints. Appended last to keep existing ordinal values stable.
+    /// See <c>RealLondonStrategicEdgeClient</c> / <c>LondonStrategicEdgeOptions</c>.
+    /// </summary>
+    LondonStrategicEdge,
 }

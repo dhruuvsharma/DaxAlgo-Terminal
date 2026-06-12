@@ -16,6 +16,7 @@ using TradingTerminal.Infrastructure.Binance;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.IronBeam;
+using TradingTerminal.Infrastructure.LondonStrategicEdge;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Simulation;
 #if HAS_NTAPI
@@ -151,6 +152,23 @@ public static class DependencyInjection
                 DisplayName: opt.IsLive ? "Ironbeam · Live" : "Ironbeam · Demo",
                 Description: "Futures (FCM) — REST + WebSocket API v2; demo or live by options");
         });
+
+        // London Strategic Edge — always available (free multi-asset L1 ticks + historical OHLCV
+        // over a single WebSocket + PostgREST-style REST; no SDK, just an API key). Data-only at
+        // the provider (no order path exists). No depth; trade tape deliberately not wired until
+        // the tick stream is verified to carry true prints. Metered like the other networked
+        // brokers.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealLondonStrategicEdgeClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
+                BrokerKind.LondonStrategicEdge,
+                IsLive: true,
+                DisplayName: "London Strategic Edge",
+                Description: "Free multi-asset market data — live L1 ticks + historical OHLCV for stocks, FX, crypto, commodities, indices, ETFs. 50 GB/month free tier."));
 
         // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
         // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local
