@@ -87,7 +87,7 @@ Three more regime tools live under **Tools**: **Instrument regime** (per-instrum
 
 ## Charts & order-flow windows
 
-The **Charts** menu hosts the market-microstructure visualizations. Each opens as its own window against any connected broker:
+The **Charts** menu hosts the market-microstructure visualizations. Each opens as its own window against any connected broker. Full per-window reference — inputs, parameters, read-outs, data requirements — in [charts.md](charts.md). In short:
 
 - **Charts** — TradingView-style candlestick charting (WebView2-hosted).
 - **Order book** — live L2 depth ladder for brokers that serve depth.
