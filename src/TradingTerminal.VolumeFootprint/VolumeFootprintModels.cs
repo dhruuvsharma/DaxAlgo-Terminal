@@ -6,9 +6,14 @@ namespace TradingTerminal.VolumeFootprint;
 /// <summary>Which POC series an overlay fit curve belongs to (drives the brush choice).</summary>
 public enum PocSeries { Total, Buy, Sell }
 
-/// <summary>One fitted overlay curve: ŷ price per visible column for one fit kind × POC series.
+/// <summary>One fitted overlay curve: ŷ price per column for one fit kind × POC series. When the
+/// predictor is on the array extends past the visible bars by the prediction horizon.
 /// Produced by the VM (<c>RecomputeFitCurves</c>), drawn by the window code-behind.</summary>
 public sealed record PocFitCurve(CurveFitKind Kind, PocSeries Series, IReadOnlyList<double> Prices);
+
+/// <summary>One virtual (predicted) column: per-series consensus prices — the mean of every
+/// enabled fit kind extrapolated to that future column. NaN where a series had no valid fit.</summary>
+public sealed record PredictedBar(double Poc, double BuyPoc, double SellPoc);
 
 /// <summary>
 /// WPF render model for one footprint bar. Wraps the immutable <see cref="FootprintBar"/>

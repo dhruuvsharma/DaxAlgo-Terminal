@@ -166,9 +166,18 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private bool _showLogarithmicFit;
     [ObservableProperty] private bool _showLowessFit;
 
-    /// <summary>Fitted overlay curves (one ŷ per visible column) for every enabled fit kind ×
-    /// POC series. Rebuilt on each trade and on checkbox toggles; read by the code-behind.</summary>
+    // ── Virtual predictor (forward extrapolation of the enabled fits) ─────────────────────────
+    [ObservableProperty] private bool _showPredictedBars = true;
+    [ObservableProperty] private int _predictionBars = 5;
+
+    /// <summary>Fitted overlay curves (one ŷ per column, extended by the prediction horizon when
+    /// the predictor is on) for every enabled fit kind × POC series. Rebuilt on each trade and on
+    /// checkbox toggles; read by the code-behind.</summary>
     public IReadOnlyList<PocFitCurve> FitCurves { get; private set; } = Array.Empty<PocFitCurve>();
+
+    /// <summary>Virtual predicted columns past the last bar — per-series consensus (mean) of every
+    /// enabled fit extrapolated forward. Empty when the predictor is off or no fit is enabled.</summary>
+    public IReadOnlyList<PredictedBar> Predicted { get; private set; } = Array.Empty<PredictedBar>();
 
     /// <summary>Least-squares slope of POC price against bar (column) index across the visible bars,
     /// in price units per bar. Feeds the stats-panel slope read-out.</summary>
@@ -207,6 +216,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnShowExponentialFitChanged(bool value) => RefreshFitCurves();
     partial void OnShowLogarithmicFitChanged(bool value) => RefreshFitCurves();
     partial void OnShowLowessFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowPredictedBarsChanged(bool value) => RefreshFitCurves();
+    partial void OnPredictionBarsChanged(int value) => RefreshFitCurves();
 
     private async Task LoadInstrumentsAsync()
     {
@@ -443,7 +454,9 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     /// <summary>Fits every enabled <see cref="CurveFitKind"/> to each POC series (total/buy/sell)
     /// and publishes the sampled curves for the overlay. Skips bars whose POC is NaN, but always
-    /// evaluates across the full visible column range so curves span the chart.</summary>
+    /// evaluates across the full visible column range so curves span the chart. When the predictor
+    /// is on, every fit is also evaluated <see cref="PredictionBars"/> columns past the last bar
+    /// and the per-series consensus (mean of the enabled fits) becomes <see cref="Predicted"/>.</summary>
     private void RecomputeFitCurves()
     {
         var bars = Bars;
@@ -452,19 +465,35 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         if (n < 2 || kinds.Count == 0)
         {
             FitCurves = Array.Empty<PocFitCurve>();
+            Predicted = Array.Empty<PredictedBar>();
             return;
         }
 
-        var evalX = new double[n];
-        for (var i = 0; i < n; i++) evalX[i] = i;
+        var horizon = ShowPredictedBars ? Math.Clamp(PredictionBars, 1, 60) : 0;
+        var columns = n + horizon;
+        var evalX = new double[columns];
+        for (var i = 0; i < columns; i++) evalX[i] = i;
 
         var curves = new List<PocFitCurve>();
-        AddCurves(PocSeries.Total, b => b.PointOfControl);
-        AddCurves(PocSeries.Buy, b => b.BuyPointOfControl);
-        AddCurves(PocSeries.Sell, b => b.SellPointOfControl);
+        var totalFits = AddCurves(PocSeries.Total, b => b.PointOfControl);
+        var buyFits = AddCurves(PocSeries.Buy, b => b.BuyPointOfControl);
+        var sellFits = AddCurves(PocSeries.Sell, b => b.SellPointOfControl);
         FitCurves = curves;
 
-        void AddCurves(PocSeries series, Func<RenderBar, double> selector)
+        if (horizon == 0 || curves.Count == 0)
+        {
+            Predicted = Array.Empty<PredictedBar>();
+            return;
+        }
+        var predicted = new PredictedBar[horizon];
+        for (var j = 0; j < horizon; j++)
+            predicted[j] = new PredictedBar(
+                ConsensusAt(totalFits, n + j),
+                ConsensusAt(buyFits, n + j),
+                ConsensusAt(sellFits, n + j));
+        Predicted = predicted;
+
+        List<double[]> AddCurves(PocSeries series, Func<RenderBar, double> selector)
         {
             var xs = new List<double>(n);
             var ys = new List<double>(n);
@@ -475,11 +504,29 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
                 xs.Add(i);
                 ys.Add(p);
             }
+            var fits = new List<double[]>(kinds.Count);
             foreach (var kind in kinds)
             {
                 var fitted = CurveFitting.FitEvaluate(kind, xs, ys, evalX);
-                if (fitted is not null) curves.Add(new PocFitCurve(kind, series, fitted));
+                if (fitted is null) continue;
+                curves.Add(new PocFitCurve(kind, series, fitted));
+                fits.Add(fitted);
             }
+            return fits;
+        }
+
+        static double ConsensusAt(List<double[]> fits, int column)
+        {
+            double sum = 0;
+            var count = 0;
+            foreach (var f in fits)
+            {
+                var v = f[column];
+                if (!double.IsFinite(v)) continue;
+                sum += v;
+                count++;
+            }
+            return count > 0 ? sum / count : double.NaN;
         }
     }
 
@@ -534,6 +581,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     {
         _tradeArrivals.Clear();
         FitCurves = Array.Empty<PocFitCurve>();
+        Predicted = Array.Empty<PredictedBar>();
         PocSlope = 0; PocIntercept = 0; HasRegression = false;
         BuyPocSlope = 0; BuyPocIntercept = 0; HasBuyRegression = false;
         SellPocSlope = 0; SellPocIntercept = 0; HasSellRegression = false;

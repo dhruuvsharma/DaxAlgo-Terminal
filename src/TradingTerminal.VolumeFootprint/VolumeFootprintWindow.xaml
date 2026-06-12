@@ -83,6 +83,13 @@
                 <CheckBox Content="Exponential" IsChecked="{Binding ShowExponentialFit}" />
                 <CheckBox Content="Logarithmic" IsChecked="{Binding ShowLogarithmicFit}" />
                 <CheckBox Content="LOWESS" IsChecked="{Binding ShowLowessFit}" />
+
+                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="2,2,16,2" />
+                <CheckBox Content="Predicted candles" IsChecked="{Binding ShowPredictedBars}" />
+                <TextBlock Text="Bars ahead" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                <mah:NumericUpDown Width="72" Minimum="1" Maximum="30"
+                                   Value="{Binding PredictionBars}" />
             </StackPanel>
             </StackPanel>
         </Border>
@@ -228,7 +235,9 @@
                     <Border Width="14" Height="2" Background="#FF5252" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="Sell POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
                     <Border Width="14" Height="2" Background="#29B6F6" VerticalAlignment="Center" Margin="0,0,4,0" />
-                    <TextBlock Text="fit curves (dash = kind)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="fit curves (dash = kind)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#4CAF50" BorderThickness="1" Background="#382E7D32" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="predicted (fit consensus)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
                            Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"

@@ -35,10 +35,13 @@ public partial class VolumeFootprintWindow : MetroWindow
     private static readonly Brush RegLineBrush = new SolidColorBrush(Color.FromRgb(0x29, 0xB6, 0xF6)); // total POC regression
     private static readonly Brush BuyPocBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));  // buy POC line + regression
     private static readonly Brush SellPocBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x52, 0x52)); // sell POC line + regression
+    private static readonly Brush PredictShade = new SolidColorBrush(Color.FromArgb(0x12, 0x29, 0xB6, 0xF6)); // forecast region wash
+    private static readonly Brush GhostUpFill = new SolidColorBrush(Color.FromArgb(0x38, 0x2E, 0x7D, 0x32));
+    private static readonly Brush GhostDownFill = new SolidColorBrush(Color.FromArgb(0x38, 0xC6, 0x28, 0x28));
 
     static VolumeFootprintWindow()
     {
-        foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush, PocLineBrush, RegLineBrush, BuyPocBrush, SellPocBrush })
+        foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush, PocLineBrush, RegLineBrush, BuyPocBrush, SellPocBrush, PredictShade, GhostUpFill, GhostDownFill })
             b.Freeze();
     }
 
@@ -87,13 +90,22 @@ public partial class VolumeFootprintWindow : MetroWindow
                 // Core's FootprintFeatureRow.TotalVolume replaces the old FootprintCell.Total.
                 if (cell.TotalVolume > maxCellVol) maxCellVol = cell.TotalVolume;
             }
+        // Predicted (virtual) columns extend the price axis: snap each consensus price to the tick
+        // grid so the ghost candles get real rows even above/below the traded range.
+        var predicted = _vm.Predicted;
+        var tick = ParseTick(_vm.TickSizeText);
+        foreach (var p in predicted)
+            foreach (var v in new[] { p.Poc, p.BuyPoc, p.SellPoc })
+                if (double.IsFinite(v))
+                    prices.Add(Math.Round(Math.Round(v / tick) * tick, 10));
+
         var rows = prices.Reverse().ToList(); // descending price (top = highest)
         var rowIndex = new Dictionary<double, int>(rows.Count);
         for (var i = 0; i < rows.Count; i++) rowIndex[rows[i]] = i;
 
-        var decimals = DecimalsFor(ParseTick(_vm.TickSizeText));
+        var decimals = DecimalsFor(tick);
 
-        FootprintCanvas.Width = LeftAxisWidth + bars.Count * ColumnWidth;
+        FootprintCanvas.Width = LeftAxisWidth + (bars.Count + predicted.Count) * ColumnWidth;
         FootprintCanvas.Height = HeaderHeight + rows.Count * RowHeight + FooterHeight;
 
         DrawPriceAxis(rows, decimals);
@@ -101,20 +113,90 @@ public partial class VolumeFootprintWindow : MetroWindow
         for (var b = 0; b < bars.Count; b++)
             DrawBar(bars[b], b, rowIndex, maxCellVol, decimals);
 
-        // POC connector + regression line drawn last so they sit on top of the cells.
-        DrawPocOverlay(bars, rows, rowIndex);
+        // POC connectors, fit curves and predicted columns drawn last so they sit on top of the cells.
+        DrawPocOverlay(bars, rows, rowIndex, decimals);
     }
 
     /// <summary>Draws the connector lines for the total / buy / sell points-of-control plus every
     /// enabled regression-fit curve. All ride above the cluster cells (added last). Fitted curves
     /// come pre-sampled (one price per column) from <see cref="VolumeFootprintViewModel.FitCurves"/>.</summary>
-    private void DrawPocOverlay(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex)
+    private void DrawPocOverlay(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex, int decimals)
     {
         if (_vm is null) return;
         DrawPocSeries(bars, rowIndex, b => b.PointOfControl, PocLineBrush, 2.5);
         DrawPocSeries(bars, rowIndex, b => b.BuyPointOfControl, BuyPocBrush, 2.0);
         DrawPocSeries(bars, rowIndex, b => b.SellPointOfControl, SellPocBrush, 2.0);
-        DrawFitCurves(bars.Count, rows);
+        var predicted = _vm.Predicted;
+        DrawFitCurves(bars.Count + predicted.Count, rows);
+        DrawPredictedBars(bars, predicted, rows, decimals);
+    }
+
+    /// <summary>Draws the virtual predictor: a dashed boundary at "now", a faint wash over the
+    /// forecast region, and one ghost candle per future column — body spanning the consensus
+    /// buy/sell POCs, a dashed orange tick at the consensus total POC, predicted POC in the footer.
+    /// All values come pre-computed from <see cref="VolumeFootprintViewModel.Predicted"/>.</summary>
+    private void DrawPredictedBars(List<RenderBar> bars, IReadOnlyList<PredictedBar> predicted,
+        List<double> rows, int decimals)
+    {
+        if (predicted.Count == 0 || rows.Count == 0) return;
+
+        var x0 = LeftAxisWidth + bars.Count * ColumnWidth;
+        var height = FootprintCanvas.Height;
+
+        FootprintCanvas.Children.Add(Place(new Rectangle
+        {
+            Width = predicted.Count * ColumnWidth,
+            Height = height,
+            Fill = PredictShade,
+        }, x0, 0));
+        FootprintCanvas.Children.Add(new Line
+        {
+            X1 = x0, Y1 = 0, X2 = x0, Y2 = height,
+            Stroke = DimText, StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 4, 4 },
+        });
+
+        var prevPoc = bars.Count > 0 ? bars[^1].PointOfControl : double.NaN;
+        var fy = HeaderHeight + rows.Count * RowHeight;
+        for (var j = 0; j < predicted.Count; j++)
+        {
+            var p = predicted[j];
+            var x = x0 + j * ColumnWidth;
+            AddText($"+{j + 1}", x, 0, ColumnWidth, HeaderHeight, DimText, 10.5, TextAlignment.Center);
+
+            var up = !double.IsFinite(p.Poc) || !double.IsFinite(prevPoc) || p.Poc >= prevPoc;
+            if (double.IsFinite(p.BuyPoc) && double.IsFinite(p.SellPoc))
+            {
+                var yTop = PriceToY(Math.Max(p.BuyPoc, p.SellPoc), rows);
+                var yBottom = PriceToY(Math.Min(p.BuyPoc, p.SellPoc), rows);
+                var bodyW = ColumnWidth * 0.5;
+                FootprintCanvas.Children.Add(Place(new Rectangle
+                {
+                    Width = bodyW,
+                    Height = Math.Max(3, yBottom - yTop),
+                    Fill = up ? GhostUpFill : GhostDownFill,
+                    Stroke = up ? UpBrush : DownBrush,
+                    StrokeThickness = 1.2,
+                    StrokeDashArray = new DoubleCollection { 3, 2 },
+                }, x + (ColumnWidth - bodyW) / 2.0, yTop));
+            }
+
+            if (double.IsFinite(p.Poc))
+            {
+                var y = PriceToY(p.Poc, rows);
+                var tickW = ColumnWidth * 0.72;
+                FootprintCanvas.Children.Add(new Line
+                {
+                    X1 = x + (ColumnWidth - tickW) / 2.0, Y1 = y,
+                    X2 = x + (ColumnWidth + tickW) / 2.0, Y2 = y,
+                    Stroke = PocLineBrush, StrokeThickness = 2,
+                    StrokeDashArray = new DoubleCollection { 2, 2 },
+                });
+                AddText(p.Poc.ToString("N" + decimals, CultureInfo.InvariantCulture),
+                    x, fy + 3, ColumnWidth, 16, DimText, 10.5, TextAlignment.Center);
+                prevPoc = p.Poc;
+            }
+        }
     }
 
     /// <summary>Draws one POC flavour: a polyline through the centre of each bar's selected POC cell
