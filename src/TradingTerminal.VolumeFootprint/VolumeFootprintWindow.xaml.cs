@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using MahApps.Metro.Controls;
+using TradingTerminal.Core.Quant;
 
 namespace TradingTerminal.VolumeFootprint;
 
@@ -104,24 +105,22 @@ public partial class VolumeFootprintWindow : MetroWindow
         DrawPocOverlay(bars, rows, rowIndex);
     }
 
-    /// <summary>Draws the connector + regression lines for the total / buy / sell points-of-control.
-    /// All ride above the cluster cells (added last). Regression slopes/intercepts come from the VM.</summary>
+    /// <summary>Draws the connector lines for the total / buy / sell points-of-control plus every
+    /// enabled regression-fit curve. All ride above the cluster cells (added last). Fitted curves
+    /// come pre-sampled (one price per column) from <see cref="VolumeFootprintViewModel.FitCurves"/>.</summary>
     private void DrawPocOverlay(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex)
     {
         if (_vm is null) return;
-        DrawPocSeries(bars, rows, rowIndex, b => b.PointOfControl,
-            _vm.HasRegression, _vm.PocSlope, _vm.PocIntercept, PocLineBrush, RegLineBrush, 2.5);
-        DrawPocSeries(bars, rows, rowIndex, b => b.BuyPointOfControl,
-            _vm.HasBuyRegression, _vm.BuyPocSlope, _vm.BuyPocIntercept, BuyPocBrush, BuyPocBrush, 2.0);
-        DrawPocSeries(bars, rows, rowIndex, b => b.SellPointOfControl,
-            _vm.HasSellRegression, _vm.SellPocSlope, _vm.SellPocIntercept, SellPocBrush, SellPocBrush, 2.0);
+        DrawPocSeries(bars, rowIndex, b => b.PointOfControl, PocLineBrush, 2.5);
+        DrawPocSeries(bars, rowIndex, b => b.BuyPointOfControl, BuyPocBrush, 2.0);
+        DrawPocSeries(bars, rowIndex, b => b.SellPointOfControl, SellPocBrush, 2.0);
+        DrawFitCurves(bars.Count, rows);
     }
 
     /// <summary>Draws one POC flavour: a polyline through the centre of each bar's selected POC cell
-    /// (dots per vertex), plus its dashed least-squares regression line from the first to last column.</summary>
-    private void DrawPocSeries(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex,
-        Func<RenderBar, double> pocSelector, bool hasRegression, double slope, double intercept,
-        Brush connectorBrush, Brush regressionBrush, double dotRadius)
+    /// (dots per vertex). The regression overlays are drawn separately by <see cref="DrawFitCurves"/>.</summary>
+    private void DrawPocSeries(List<RenderBar> bars, IReadOnlyDictionary<double, int> rowIndex,
+        Func<RenderBar, double> pocSelector, Brush connectorBrush, double dotRadius)
     {
         var pts = new PointCollection();
         var dots = new List<Point>();
@@ -149,23 +148,55 @@ public partial class VolumeFootprintWindow : MetroWindow
         foreach (var d in dots)
             FootprintCanvas.Children.Add(Place(
                 new Ellipse { Width = d2, Height = d2, Fill = connectorBrush }, d.X - dotRadius, d.Y - dotRadius));
+    }
 
-        // Regression line: from column 0 to the last column at the fitted POC price.
-        if (hasRegression && bars.Count >= 2 && rows.Count > 0)
+    /// <summary>Draws every enabled fit curve from the VM, sampled once per column. Brush follows
+    /// the POC series (total/buy/sell); the dash pattern distinguishes the fit kind (LOWESS solid).</summary>
+    private void DrawFitCurves(int columns, List<double> rows)
+    {
+        if (_vm is null || columns < 2 || rows.Count == 0) return;
+        foreach (var curve in _vm.FitCurves)
         {
-            var lastCol = bars.Count - 1;
-            FootprintCanvas.Children.Add(new Line
+            var pts = new PointCollection();
+            var count = Math.Min(columns, curve.Prices.Count);
+            for (var i = 0; i < count; i++)
             {
-                X1 = LeftAxisWidth + ColumnWidth / 2.0,
-                Y1 = PriceToY(intercept, rows),
-                X2 = LeftAxisWidth + lastCol * ColumnWidth + ColumnWidth / 2.0,
-                Y2 = PriceToY(intercept + slope * lastCol, rows),
-                Stroke = regressionBrush,
+                var price = curve.Prices[i];
+                if (!double.IsFinite(price)) continue;
+                pts.Add(new Point(
+                    LeftAxisWidth + i * ColumnWidth + ColumnWidth / 2.0,
+                    PriceToY(price, rows)));
+            }
+            if (pts.Count < 2) continue;
+
+            var line = new Polyline
+            {
+                Points = pts,
+                Stroke = curve.Series switch
+                {
+                    PocSeries.Buy => BuyPocBrush,
+                    PocSeries.Sell => SellPocBrush,
+                    _ => RegLineBrush,
+                },
                 StrokeThickness = 1.6,
-                StrokeDashArray = new DoubleCollection { 5, 3 },
-            });
+                StrokeLineJoin = PenLineJoin.Round,
+            };
+            var dash = DashFor(curve.Kind);
+            if (dash is not null) line.StrokeDashArray = dash;
+            FootprintCanvas.Children.Add(line);
         }
     }
+
+    private static DoubleCollection? DashFor(CurveFitKind kind) => kind switch
+    {
+        CurveFitKind.Linear => new DoubleCollection { 5, 3 },
+        CurveFitKind.Quadratic => new DoubleCollection { 2, 2 },
+        CurveFitKind.Cubic => new DoubleCollection { 7, 2, 2, 2 },
+        CurveFitKind.TheilSen => new DoubleCollection { 12, 3 },
+        CurveFitKind.Exponential => new DoubleCollection { 1, 3 },
+        CurveFitKind.Logarithmic => new DoubleCollection { 4, 2, 1, 2 },
+        _ => null, // Lowess: solid, it's the only smoothed (non-parametric) curve
+    };
 
     /// <summary>Maps a continuous price to a canvas Y by interpolating between the discrete price rows
     /// (which may be non-uniformly spaced where price gaps exist). Clamps outside the traded range.</summary>

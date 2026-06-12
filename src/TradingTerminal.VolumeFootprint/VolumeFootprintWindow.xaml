@@ -18,11 +18,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar: instrument + interval + tick size + bar count -->
+        <!-- Toolbar: instrument + interval + tick size + bar count, plus the regression-fit toggles -->
         <Border Grid.Row="0"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
                 Padding="8,6">
+            <StackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -63,6 +64,27 @@
                 <mah:NumericUpDown Grid.Column="7" Width="72" Minimum="2" Maximum="40"
                                    Value="{Binding MaxBars}" Margin="0,0,16,0" />
             </Grid>
+
+            <!-- Regression-fit toggles: each draws its own POC-fit curve flavour on all three series -->
+            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                <StackPanel.Resources>
+                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Margin" Value="0,0,14,0" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                </StackPanel.Resources>
+                <TextBlock Text="Fits" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                <CheckBox Content="Linear" IsChecked="{Binding ShowLinearFit}" />
+                <CheckBox Content="Quadratic" IsChecked="{Binding ShowQuadraticFit}" />
+                <CheckBox Content="Cubic" IsChecked="{Binding ShowCubicFit}" />
+                <CheckBox Content="Theil–Sen" IsChecked="{Binding ShowTheilSenFit}" />
+                <CheckBox Content="Exponential" IsChecked="{Binding ShowExponentialFit}" />
+                <CheckBox Content="Logarithmic" IsChecked="{Binding ShowLogarithmicFit}" />
+                <CheckBox Content="LOWESS" IsChecked="{Binding ShowLowessFit}" />
+            </StackPanel>
+            </StackPanel>
         </Border>
 
         <!-- Footprint cluster grid (drawn in code-behind onto the Canvas) + floating stats panel -->
@@ -206,7 +228,7 @@
                     <Border Width="14" Height="2" Background="#FF5252" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="Sell POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
                     <Border Width="14" Height="2" Background="#29B6F6" VerticalAlignment="Center" Margin="0,0,4,0" />
-                    <TextBlock Text="regression (dashed)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="fit curves (dash = kind)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
                            Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Quant;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 
@@ -156,8 +157,21 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private string _buySellText = "—";
     [ObservableProperty] private string _currentPocText = "—";
 
+    // ── Regression overlay toggles (one checkbox each in the toolbar) ─────────────────────────
+    [ObservableProperty] private bool _showLinearFit = true;
+    [ObservableProperty] private bool _showQuadraticFit;
+    [ObservableProperty] private bool _showCubicFit;
+    [ObservableProperty] private bool _showTheilSenFit;
+    [ObservableProperty] private bool _showExponentialFit;
+    [ObservableProperty] private bool _showLogarithmicFit;
+    [ObservableProperty] private bool _showLowessFit;
+
+    /// <summary>Fitted overlay curves (one ŷ per visible column) for every enabled fit kind ×
+    /// POC series. Rebuilt on each trade and on checkbox toggles; read by the code-behind.</summary>
+    public IReadOnlyList<PocFitCurve> FitCurves { get; private set; } = Array.Empty<PocFitCurve>();
+
     /// <summary>Least-squares slope of POC price against bar (column) index across the visible bars,
-    /// in price units per bar. Read by the window code-behind to draw the regression line.</summary>
+    /// in price units per bar. Feeds the stats-panel slope read-out.</summary>
     public double PocSlope { get; private set; }
 
     /// <summary>Intercept of the POC regression at column 0, in price units.</summary>
@@ -185,6 +199,14 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnSelectedInstrumentChanged(SignalInstrument? value) { if (_ready) Restart(); }
     partial void OnSelectedIntervalChanged(FootprintInterval? value) { if (_ready) Restart(); }
     partial void OnTickSizeTextChanged(string value) { if (_ready) Restart(); }
+
+    partial void OnShowLinearFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowQuadraticFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowCubicFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowTheilSenFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowExponentialFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowLogarithmicFitChanged(bool value) => RefreshFitCurves();
+    partial void OnShowLowessFitChanged(bool value) => RefreshFitCurves();
 
     private async Task LoadInstrumentsAsync()
     {
@@ -406,6 +428,72 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
             : lastPoc.ToString("N" + DecimalsFor(TickSize), CultureInfo.InvariantCulture);
 
         CvdDirection = Math.Sign(SessionDelta);
+
+        RecomputeFitCurves();
+    }
+
+    /// <summary>Toggle-handler path: recompute the overlay curves and ask the canvas to redraw
+    /// immediately instead of waiting for the next trade.</summary>
+    private void RefreshFitCurves()
+    {
+        if (!_ready) return;
+        RecomputeFitCurves();
+        FootprintChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Fits every enabled <see cref="CurveFitKind"/> to each POC series (total/buy/sell)
+    /// and publishes the sampled curves for the overlay. Skips bars whose POC is NaN, but always
+    /// evaluates across the full visible column range so curves span the chart.</summary>
+    private void RecomputeFitCurves()
+    {
+        var bars = Bars;
+        var n = bars.Count;
+        var kinds = EnabledFitKinds();
+        if (n < 2 || kinds.Count == 0)
+        {
+            FitCurves = Array.Empty<PocFitCurve>();
+            return;
+        }
+
+        var evalX = new double[n];
+        for (var i = 0; i < n; i++) evalX[i] = i;
+
+        var curves = new List<PocFitCurve>();
+        AddCurves(PocSeries.Total, b => b.PointOfControl);
+        AddCurves(PocSeries.Buy, b => b.BuyPointOfControl);
+        AddCurves(PocSeries.Sell, b => b.SellPointOfControl);
+        FitCurves = curves;
+
+        void AddCurves(PocSeries series, Func<RenderBar, double> selector)
+        {
+            var xs = new List<double>(n);
+            var ys = new List<double>(n);
+            for (var i = 0; i < n; i++)
+            {
+                var p = selector(bars[i]);
+                if (double.IsNaN(p)) continue;
+                xs.Add(i);
+                ys.Add(p);
+            }
+            foreach (var kind in kinds)
+            {
+                var fitted = CurveFitting.FitEvaluate(kind, xs, ys, evalX);
+                if (fitted is not null) curves.Add(new PocFitCurve(kind, series, fitted));
+            }
+        }
+    }
+
+    private List<CurveFitKind> EnabledFitKinds()
+    {
+        var kinds = new List<CurveFitKind>(7);
+        if (ShowLinearFit) kinds.Add(CurveFitKind.Linear);
+        if (ShowQuadraticFit) kinds.Add(CurveFitKind.Quadratic);
+        if (ShowCubicFit) kinds.Add(CurveFitKind.Cubic);
+        if (ShowTheilSenFit) kinds.Add(CurveFitKind.TheilSen);
+        if (ShowExponentialFit) kinds.Add(CurveFitKind.Exponential);
+        if (ShowLogarithmicFit) kinds.Add(CurveFitKind.Logarithmic);
+        if (ShowLowessFit) kinds.Add(CurveFitKind.Lowess);
+        return kinds;
     }
 
     /// <summary>Least-squares fit of a chosen POC price (y) against column index (x) over the visible
@@ -445,6 +533,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private void ResetStats()
     {
         _tradeArrivals.Clear();
+        FitCurves = Array.Empty<PocFitCurve>();
         PocSlope = 0; PocIntercept = 0; HasRegression = false;
         BuyPocSlope = 0; BuyPocIntercept = 0; HasBuyRegression = false;
         SellPocSlope = 0; SellPocIntercept = 0; HasSellRegression = false;

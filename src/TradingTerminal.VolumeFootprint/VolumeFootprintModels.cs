@@ -1,6 +1,14 @@
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Quant;
 
 namespace TradingTerminal.VolumeFootprint;
+
+/// <summary>Which POC series an overlay fit curve belongs to (drives the brush choice).</summary>
+public enum PocSeries { Total, Buy, Sell }
+
+/// <summary>One fitted overlay curve: ŷ price per visible column for one fit kind × POC series.
+/// Produced by the VM (<c>RecomputeFitCurves</c>), drawn by the window code-behind.</summary>
+public sealed record PocFitCurve(CurveFitKind Kind, PocSeries Series, IReadOnlyList<double> Prices);
 
 /// <summary>
 /// WPF render model for one footprint bar. Wraps the immutable <see cref="FootprintBar"/>
