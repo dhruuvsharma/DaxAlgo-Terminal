@@ -1,6 +1,6 @@
 # Configuration reference
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-13
 
 Full reference for every key under `appsettings.json` plus the persistence locations for runtime state. For per-broker setup, see [brokers.md](brokers.md). For feature deep-dives that explain *why* a setting exists, follow the cross-links.
 
@@ -191,7 +191,7 @@ See [notifications.md](notifications.md) for the dispatcher architecture and the
 
 | Location | What it holds |
 |---|---|
-| `%LOCALAPPDATA%\DaxAlgoTerminal\connection.json` | DPAPI-encrypted broker creds: IB password, cTrader OAuth secret + access token, Alpaca API secret. |
+| `%LOCALAPPDATA%\DaxAlgoTerminal\connection.json` | DPAPI-encrypted broker creds: IB password, cTrader OAuth secret + access token, Alpaca API secret. Also holds the login window's **Auto Connect** flag (load-modify-save, so per-broker form saves never clobber it). |
 | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` | Default SQLite market-data store. Override via `MarketDataStore:DatabasePath`. |
 | `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json` | Telegram + Discord settings (plain text); AI Analyst provider API keys (DPAPI-encrypted at the field level). |
 | `%LOCALAPPDATA%\DaxAlgoTerminal\archive-manifest.db` | Archive offloader's manifest (what's been shipped to Telegram, with sha256s). Override via `MarketDataArchive:ManifestDatabasePath`. |

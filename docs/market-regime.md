@@ -1,6 +1,6 @@
 # Market regime composite
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-13
 
 A broker-independent **risk-on / risk-off score** (0–100, five bands: Extreme Fear → Extreme Greed) blended from ten weighted sub-signals: volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset. Inputs come from free public endpoints — nothing depends on which broker is connected.
 
@@ -85,6 +85,18 @@ The actual math lives in `Core/Regime/MarketRegimeCalculator` — a pure functio
 | 75–100 | Extreme Greed |
 
 The exact boundaries are in `RegimeStateMapper` (Core).
+
+## Advanced market regime dashboard
+
+**Tools → Advanced market regime…** opens a separate, per-instrument dashboard — a WPF port of a TradingView-style multi-timeframe indicator board, independent of the macro composite above.
+
+- **18 indicator rows**: RSI, MACD, CCI, MA 9/21/50, 3-MA stack, VWAP, SuperTrend, ATR, ATR regression, STD, POC, TRD, delta, cumulative delta, volume buy/sell, and a composite **Trend** needle.
+- **8 toggleable timeframe columns** from 1m to 1D, including aggregated 20m/30m buckets (timeframes are `TimeSpan` buckets aggregated from 1m + 1D bars, not broker `BarSize` requests).
+- Row/column/display toggles, configurable indicator lengths, and auto-refresh.
+
+Each cell is colored bullish / bearish / neutral so you can read trend agreement across timeframes at a glance. Data comes from `IMarketDataRepository` history — it works against any connected broker (or the local store).
+
+Code: pure math + models in `Core/MarketData/AdvancedRegime/` (calculator, bar indicators, `BarTimeframeAggregator`), `AdvancedRegimeService` in Infrastructure, window in `src/TradingTerminal.AdvancedMarketRegime/`.
 
 ## Limitations
 

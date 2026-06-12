@@ -1,25 +1,27 @@
 # DaxAlgo Terminal
 
-> Last updated: 2026-05-31
+> Last updated: 2026-06-13
 
 [![.NET 9](https://img.shields.io/badge/.NET-9.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![WPF](https://img.shields.io/badge/UI-WPF%20%2B%20MahApps%20%2B%20AvalonDock-blueviolet)](#)
-[![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader%20%7C%20Alpaca-orange)](#)
+[![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader%20%7C%20Alpaca%20%7C%20Ironbeam%20%7C%20LSE%20%7C%20Binance-orange)](#)
 
-A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable Bloomberg-style shell. Picks a broker at login (Interactive Brokers, NinjaTrader, cTrader, or Alpaca) and routes everything downstream — historical bars, live ticks, depth, connection state, reconnect logic — through a single `IBrokerClient` seam.
+A modular **multi-broker** WPF trading terminal that hosts strategies as plug-ins inside a dockable Bloomberg-style shell. Connect one or more brokers at login (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbeam, London Strategic Edge, or the keyless Binance feed — sessions are concurrent, with an **Auto Connect** option) and everything downstream — historical bars, live ticks, depth, trade tape, connection state, reconnect logic — routes through a single `IBrokerClient` seam. **Data and signals only — no live order execution.**
 
 ![DaxAlgo Terminal main window](images/mainwindow.png)
 
 ## What ships
 
-- **9 live strategies** behind one `IBacktestStrategy` plug-in seam — HFT/microstructure (Ornstein-Uhlenbeck), index baselines (volatility targeting), L2/DOM order-flow (VPIN toxicity, cumulative delta), and the 3D regime-cube family (Order-Flow Cube, Order-Flow Surface Spike, Imbalance Heat Front, Index K-Score Surface, APEX microstructure scalper). Plus buy-and-hold / mean-reversion / Donchian demos in the backtester.
-- **Four broker backends** behind one `IBrokerClient`: IB (TWS API), NT 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket).
-- **Canonical market-data pipeline** — broker-neutral `InstrumentId`, Rx fanout hub, ref-counted ingest, and a two-backend store (embedded SQLite by default, or PostgreSQL + TimescaleDB via `docker compose`). Postgres auto-falls-back to SQLite when unreachable.
+- **10 live strategies** behind one `IBacktestStrategy` plug-in seam — the APEX tape-primary microstructure scalper, Ornstein-Uhlenbeck mean reversion, volatility-targeted index baseline, L2/DOM order-flow (VPIN toxicity, cumulative delta with footprint clusters, order-flow pressure map over the S&P 100/500), and the 3D regime-cube family (Order-Flow Cube, Order-Flow Surface Spike, Imbalance Heat Front, Index K-Score Surface). Plus buy-and-hold / mean-reversion / Donchian demos in the backtester.
+- **Seven broker backends** behind one `IBrokerClient`: IB (TWS API), NT 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam futures (REST + WebSocket API v2), London Strategic Edge (free multi-asset L1 + history), and keyless Binance public data — plus the always-registered offline `Simulated` broker.
+- **Charts & order-flow windows** — TradingView-style charts (WebView2), live L2 order-book ladder, a bid/ask **volume footprint** with seven toggleable POC regression fits (linear → Theil–Sen → LOWESS) and a virtual fit-consensus predictor, six heatmaps (Bookmap-style depth, imbalance, volume-at-price, bubbles, cross-asset vol, rolling correlation), and live/static correlation matrices.
+- **Machine Learning menu** — stationarity & differencing lab (ADF/KPSS/ACF, fractional differencing), ARIMA + GARCH forecasting with confidence bands, and Kalman filters (local level / trend / time-varying pairs hedge-β) — all over historical bars from the local store.
+- **Canonical market-data pipeline** — broker-neutral `InstrumentId`, Rx fanout hub, ref-counted tick-primary ingest, and a three-backend store (embedded SQLite by default, PostgreSQL + TimescaleDB via `docker compose`, or QuestDB for the high-rate surfaces). Postgres auto-falls-back to SQLite when unreachable. Optional Telegram archive offloader so the local store can prune safely.
 - **Tick-level backtest engine** — `IFeeModel` (zero / maker-taker / bps), `IRiskManager` (per-symbol cap + daily PnL cap), L1 fill model, ParquetTick reader/writer, full stats suite (Sharpe, Sortino, Calmar, Omega, Ulcer, recovery, max consec losses). Headless CLI with `run` / `sweep` / `walkforward` / `mc` / `tca` / `features` subcommands.
 - **Notifications** — bounded `Channel<>` + hosted dispatcher fans signals out to Telegram (Bot API) and Discord (channel webhook), with an optional Ollama LLM commentary enricher.
 - **AI Market Analyst** — four-agent LangGraph (indicator → pattern → trend → decision) in a Python sidecar over loopback HTTP/JSON. Provider-agnostic (OpenAI / Anthropic / Qwen / MiniMax). Renders annotated candlestick + trend-channel charts; degrades gracefully when the sidecar isn't running.
-- **Market regime composite** — 0–100 risk-on / risk-off score blended from 10 sub-signals across Yahoo Finance / FRED / CNN Fear & Greed / AAII. Optional signal gate that suppresses outbound alerts when risk-off.
+- **Market regime suite** — a 0–100 risk-on / risk-off composite blended from 10 sub-signals across Yahoo Finance / FRED / CNN Fear & Greed / AAII (with an optional signal gate), plus per-instrument, Markov transition-matrix, and an 18-indicator × 8-timeframe **Advanced regime dashboard**.
 - **Bloomberg-style shell** — MahApps Metro chrome, AvalonDock VS2013 Dark theme, Consolas monospace throughout, amber accent on pure-black canvas, full-height strategies pane, status-bar mode badge.
 
 ## Quick start

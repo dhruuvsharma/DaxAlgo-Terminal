@@ -1,6 +1,6 @@
 # User guide
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-13
 
 A daily-use walkthrough for **using** the terminal. For installation and the first launch, see [getting-started.md](getting-started.md). For per-broker setup, see [brokers.md](brokers.md). For each feature in depth, follow the cross-links.
 
@@ -16,7 +16,9 @@ A daily-use walkthrough for **using** the terminal. For installation and the fir
 dotnet run --project src/TradingTerminal.App
 ```
 
-You see the **login window** with broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, and the keyless Binance feed. Connect one or more — sessions are concurrent, and each instrument routes its data path (history, ticks, depth, tape, connection state) through the broker it belongs to.
+You see the **login window** with broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, London Strategic Edge, and the keyless Binance feed. Connect one or more — sessions are concurrent, and each instrument routes its data path (history, ticks, depth, tape, connection state) through the broker it belongs to.
+
+Tick **Auto Connect** (bottom of the login window) to have every broker form fire its Connect with saved credentials as soon as the window opens. The flag persists across sessions, and each broker connects independently — one dead broker never blocks the rest.
 
 After **Sign in**, the main shell opens. The status bar at the bottom shows connection state, your user/account, active broker, and tab count. If the login fails, watch the **Logs** pane — every broker error is logged there with enough detail to act on (IB error codes, cTrader `ProtoOAErrorRes`, NT `rc != 0` reasons).
 
@@ -25,13 +27,13 @@ After **Sign in**, the main shell opens. The status bar at the bottom shows conn
 ```
 +--------------------------------------------------------------+
 | DAXALGO TERMINAL · F-keys · BROKER · MODE · USER · clock     |
-| File   View   Tools   AI tools   Settings                    |
+| File View Tools Charts Machine-learning AI Data Settings     |
 +----------------+---------------------------------------------+
 |  STRATEGY      |  Document pane                              |
 |  CATALOG       |   (each opened strategy or tool is a tab    |
-|  - RSI         |    or window here)                          |
+|  - APEX        |    or window here)                          |
 |  - CumDelta    |                                             |
-|  - Microprice  |                                             |
+|  - Toxicity    |                                             |
 |  - ...         |                                             |
 |                +---------------------------------------------+
 |                |  LOGS                                       |
@@ -80,6 +82,36 @@ Optional behaviour:
 - Gate outbound `Signal` notifications when the composite is risk-off (the signal still appears in the strategy's own window).
 
 See [market-regime.md](market-regime.md) for setup, sources, and the gate mechanism.
+
+Three more regime tools live under **Tools**: **Instrument regime** (per-instrument analyzer), **Markov regime** (transition-matrix model over historical bars), and **Advanced market regime** — a multi-timeframe dashboard with 18 indicator rows (RSI, MACD, CCI, MA stack, VWAP, SuperTrend, ATR, POC, delta/cum-delta, a composite Trend needle, …) across 8 toggleable timeframe columns from 1m to 1D. See [market-regime.md](market-regime.md#advanced-market-regime-dashboard).
+
+## Charts & order-flow windows
+
+The **Charts** menu hosts the market-microstructure visualizations. Each opens as its own window against any connected broker:
+
+- **Charts** — TradingView-style candlestick charting (WebView2-hosted).
+- **Order book** — live L2 depth ladder for brokers that serve depth.
+- **Volume footprint** — bid/ask cluster chart (see below).
+- **Heatmaps** — a submenu of six: Bookmap-style depth, order-book imbalance, volume-at-price, volume bubbles, cross-asset volatility, rolling correlation.
+
+### Volume footprint
+
+A bid/ask cluster chart built from the live trade tape (brokers without a native tape get a synthetic L1-derived fallback, flagged in the status line). Pick instrument, bar interval (15s–5m), tick size, and visible bar count. Each column shows per-price buy/sell volume cells, the total POC (yellow outline), and buy/sell POC connector lines; the floating stats panel tracks POC slopes, cumulative delta, ticks/sec, and the buy/sell split.
+
+Two analytics layers sit on top:
+
+- **Regression fits** — seven toggleable fit curves through each POC series (total / buy / sell): linear, quadratic, cubic, Theil–Sen (robust), exponential, logarithmic, and LOWESS. Checkboxes in the toolbar; each kind has its own dash pattern, colored by series.
+- **Virtual predictor** — extrapolates every enabled fit *N* bars past the last column and draws the per-series **consensus** (mean of the selected fits) as ghost candles in a shaded forecast region: body spans the predicted buy↔sell POC, a dashed orange tick marks the predicted total POC, and the predicted price prints in the footer. Toggle with **Predicted candles**, set the horizon with **Bars ahead** (1–30). It is curve extrapolation, not a forecast model — robust fits (linear / Theil–Sen / LOWESS) extrapolate sanely; cubic and exponential can run away over long horizons by design.
+
+## Machine Learning tools
+
+The **Machine learning** menu hosts three offline time-series statistics windows that fit over historical bars from the store — no live subscription:
+
+- **Stationarity & differencing** — ADF + KPSS verdict cards, ACF with white-noise band, rolling-moment bands, and a transform recommendation (none / log / diff / log-returns / fractional differencing).
+- **ARIMA & GARCH** — AIC order search, price forecast with a 95% band, GARCH(1,1) conditional volatility vs the long-run level.
+- **Kalman filter** — local level / local linear trend / dynamic regression (time-varying pairs hedge β with spread z-score), with a Q/R responsiveness knob and innovation-whiteness diagnostics.
+
+See [machine-learning.md](machine-learning.md) for each window in depth and the `Core/Quant/TimeSeries` math reference.
 
 ## Local market-data store
 
@@ -135,9 +167,7 @@ For setup, per-notification enrichment, and graceful-degradation behaviour, see 
 
 ### Add an instrument to the catalog
 
-The shared signal-strategy instrument list lives at `src/TradingTerminal.UI/TradeableInstrument.cs` (class `SignalInstrumentCatalog`). Add a row to `All` following the existing pattern; instruments appear in every strategy's dropdown on next launch.
-
-The RSI strategy keeps its own wider catalog at `src/TradingTerminal.Strategies.Rsi/InstrumentCatalog.cs` — edit there for RSI only.
+The shared signal-strategy instrument list lives at `src/TradingTerminal.UI/TradeableInstrument.cs` (class `SignalInstrumentCatalog`). Add a row to `All` following the existing pattern; instruments appear in every strategy's and tool's picker on next launch (all windows share the one catalog via the global `InstrumentPicker` control).
 
 ### Tune a strategy's parameters
 

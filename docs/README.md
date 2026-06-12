@@ -1,6 +1,6 @@
 # DaxAlgo Terminal — Documentation
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-13
 
 Focused documentation for the DaxAlgo Terminal. The repo-root [README](../README.md) is a one-page landing; this folder is where the detail lives.
 
@@ -21,7 +21,8 @@ Focused documentation for the DaxAlgo Terminal. The repo-root [README](../README
 | [Backtesting](backtesting.md) | Tick-level engine, fees, risk caps, CLI (`run` / `sweep` / `walkforward` / `mc` / `tca` / `features`). |
 | [Market data pipeline](market-data.md) | Canonical pipeline (hub, ingest, store), SQLite vs Postgres/TimescaleDB backends, the Telegram archive offloader. |
 | [Storage map](storage.md) | **Start here if the databases are confusing.** Every storage surface in one table — canonical store, archive manifest, tick recorder, Parquet lake, Telegram archive, DuckDB reader — what each holds, where, and how to read it. |
-| [Market regime](market-regime.md) | The 0–100 risk-on / risk-off composite — sources, weights, optional signal gate. |
+| [Market regime](market-regime.md) | The 0–100 risk-on / risk-off composite — sources, weights, optional signal gate — plus the multi-timeframe Advanced regime dashboard. |
+| [Machine Learning tools](machine-learning.md) | The Machine learning menu: Stationarity & differencing (ADF/KPSS/ACF), ARIMA & GARCH forecasting, Kalman filters (incl. pairs hedge-beta). |
 | [Notifications](notifications.md) | Telegram and Discord transports, Ollama commentary enricher, adding a new transport. |
 | [AI Market Analyst](ai-analyst.md) | Python sidecar setup, four-agent flow, provider/model selection, per-signal enrichment. |
 
