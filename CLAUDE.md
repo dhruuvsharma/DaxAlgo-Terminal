@@ -45,6 +45,7 @@ Core           → (nothing)
 | AI tool windows (one project each) — Market analyst, factor research, ML features, backtest analysis | `TradingTerminal.Ai.<Name>` (`MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`) |
 | Per-strategy live windows (10) | `TradingTerminal.Strategies.<Name>` |
 | Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`MarkovRegime`/`Backtest`/`Recording`) |
+| Machine Learning menu windows (one project each) — time-series stats over historical bars; math lives in `Core/Quant/TimeSeries/` | `TradingTerminal.Ml.<Name>` (`Stationarity`/`ArimaGarch`/`KalmanFilter`) |
 | Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
@@ -52,7 +53,7 @@ Live strategies (10): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKSc
 
 **Strategy-vs-tool rule:** anything that registers an `ITradingStrategy` / `StrategyFactoryRegistration` (including multi-ticker *monitor* strategies like OrderFlowPressureMap) is a **strategy**: project `TradingTerminal.Strategies.<Name>`, namespace to match, **Strategies** solution folder, DI via `Add<Name>Strategy()` called from `AddStrategyPlugins()`. Tool projects (`Add…Surface`, Tools/Charts menu) are only for non-strategy windows. When in doubt: if it belongs in the Strategies pane, it's a strategy project.
 
-Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap.
+Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Machine Learning** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap; the Machine Learning menu hosts Stationarity & Differencing / ARIMA & GARCH / Kalman Filter (`TradingTerminal.Ml.<Name>`, math in `Core/Quant/TimeSeries/`).
 
 ## Architectural rules (always relevant)
 

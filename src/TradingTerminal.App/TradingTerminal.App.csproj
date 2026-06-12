@@ -47,6 +47,10 @@
     <ProjectReference Include="..\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
     <ProjectReference Include="..\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
+    <!-- Machine Learning-menu tools -->
+    <ProjectReference Include="..\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ml.ArimaGarch\TradingTerminal.Ml.ArimaGarch.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ml.KalmanFilter\TradingTerminal.Ml.KalmanFilter.csproj" />
     <!-- AI tools (shared seam ref is above; these are the UI panels) -->
     <ProjectReference Include="..\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
     <ProjectReference Include="..\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />

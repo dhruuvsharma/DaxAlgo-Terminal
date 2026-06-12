@@ -24,6 +24,9 @@ using TradingTerminal.MarketRegime;
 using TradingTerminal.InstrumentRegime;
 using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
+using TradingTerminal.Ml.Stationarity;
+using TradingTerminal.Ml.ArimaGarch;
+using TradingTerminal.Ml.KalmanFilter;
 using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
@@ -53,6 +56,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string InstrumentRegimeTabId = "tools.regime.instrument";
     private const string MarkovRegimeTabId = "tools.regime.markov";
     private const string AdvancedRegimeTabId = "tools.regime.advanced";
+    private const string StationarityTabId = "ml.stationarity";
+    private const string ArimaGarchTabId = "ml.arimagarch";
+    private const string KalmanFilterTabId = "ml.kalmanfilter";
     private const string CorrelationWindowId = "tools.correlation";
     private const string LiveCorrelationWindowId = "tools.correlation.live";
     private const string ChartsWindowId = "tools.charts";
@@ -784,6 +790,69 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Title = "Markov regime",
             ContentId = MarkovRegimeTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenStationarity()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == StationarityTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<StationarityViewModel>();
+        var view = _services.GetRequiredService<StationarityView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Stationarity & differencing",
+            ContentId = StationarityTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenArimaGarch()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ArimaGarchTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<ArimaGarchViewModel>();
+        var view = _services.GetRequiredService<ArimaGarchView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "ARIMA & GARCH",
+            ContentId = ArimaGarchTabId,
+            Content = view,
+            CanClose = true,
+        };
+        OpenTabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    public void OpenKalmanFilter()
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == KalmanFilterTabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        var vm = _services.GetRequiredService<KalmanFilterViewModel>();
+        var view = _services.GetRequiredService<KalmanFilterView>();
+        view.DataContext = vm;
+
+        var tab = new DockTab
+        {
+            Title = "Kalman filter",
+            ContentId = KalmanFilterTabId,
             Content = view,
             CanClose = true,
         };

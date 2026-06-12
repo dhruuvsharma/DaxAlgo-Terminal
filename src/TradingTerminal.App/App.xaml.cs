@@ -35,6 +35,9 @@ using TradingTerminal.MarketRegime;
 using TradingTerminal.InstrumentRegime;
 using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
+using TradingTerminal.Ml.Stationarity;
+using TradingTerminal.Ml.ArimaGarch;
+using TradingTerminal.Ml.KalmanFilter;
 using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
@@ -154,6 +157,10 @@ public partial class App : Application
                 services.AddInstrumentRegimeSurface();
                 services.AddMarkovRegimeSurface();
                 services.AddAdvancedMarketRegimeSurface();
+                // Machine Learning menu — time-series statistics panels.
+                services.AddStationaritySurface();
+                services.AddArimaGarchSurface();
+                services.AddKalmanFilterSurface();
                 services.AddArchiveSurface();
             })
             .Build();

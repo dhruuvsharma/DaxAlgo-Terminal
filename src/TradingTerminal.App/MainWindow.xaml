@@ -238,6 +238,15 @@
                 </MenuItem>
             </MenuItem>
 
+            <MenuItem Header="_Machine learning">
+                <MenuItem Header="_Stationarity &amp; differencing…"
+                          Command="{Binding OpenStationarityCommand}" />
+                <MenuItem Header="_ARIMA &amp; GARCH…"
+                          Command="{Binding OpenArimaGarchCommand}" />
+                <MenuItem Header="_Kalman filter…"
+                          Command="{Binding OpenKalmanFilterCommand}" />
+            </MenuItem>
+
             <MenuItem Header="_AI tools">
                 <MenuItem Header="_Factor research…"
                           Command="{Binding OpenResearchCommand}" />
