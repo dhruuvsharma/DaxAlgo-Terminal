@@ -17,6 +17,8 @@ using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.IronBeam;
 using TradingTerminal.Infrastructure.LondonStrategicEdge;
+using TradingTerminal.Infrastructure.Upstox;
+using TradingTerminal.Core.Brokers.Upstox;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Simulation;
 #if HAS_NTAPI
@@ -169,6 +171,25 @@ public static class DependencyInjection
                 IsLive: true,
                 DisplayName: "London Strategic Edge",
                 Description: "Free multi-asset market data — live L1 ticks + historical OHLCV for stocks, FX, crypto, commodities, indices, ETFs. 50 GB/month free tier."));
+
+        // Upstox — always available (Indian-market broker over REST + WebSocket API v2/v3; no SDK, just
+        // HTTP). OAuth2 access token from the login form, live ticks + 5-level depth over the V3
+        // protobuf market-data feed, historical candles + instrument master over REST. No real trade
+        // tape (feed carries LTP + book). Metered like the other networked brokers.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealUpstoxClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+
+        // One-shot helper for the login form's OAuth2 authorization-code exchange.
+        services.AddSingleton<IUpstoxAuthService, UpstoxAuthService>();
+
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
+                BrokerKind.Upstox,
+                IsLive: true,
+                DisplayName: "Upstox",
+                Description: "Indian markets (NSE/BSE) — REST + WebSocket API v2/v3; OAuth2, live L1 + 5-level depth, historical candles. Data-only."));
 
         // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
         // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local

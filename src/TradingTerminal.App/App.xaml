@@ -30,6 +30,7 @@
                 <!-- Project dark theme overrides -->
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Brushes.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Dark.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Components.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/StrategyShellStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

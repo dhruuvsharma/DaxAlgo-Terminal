@@ -13,7 +13,14 @@ namespace TradingTerminal.Core.Strategies.Apex;
 public readonly record struct ApexTtlMultipliers(
     double DeltaFootprint = 1.5,
     double ObiTapeSpeed = 0.5,
-    double PocLines = 3.0);
+    double PocLines = 3.0)
+{
+    /// <summary>The documented v2 defaults. Constructed explicitly because a record-struct
+    /// parameterless <c>new()</c> zero-initialises and does <em>not</em> apply the primary
+    /// constructor's default values — a bare <c>new()</c> would make every TTL 0, which marks every
+    /// signal stale the instant it is computed and pins the composite at 0.</summary>
+    public static ApexTtlMultipliers Default => new(DeltaFootprint: 1.5, ObiTapeSpeed: 0.5, PocLines: 3.0);
+}
 
 /// <summary>
 /// Configuration for the Apex v2 strategy. <b>Defaults are dimensionless coefficients plus a single
@@ -42,7 +49,7 @@ public sealed record ApexV2Options
 
     // ── TTL ──────────────────────────────────────────────────────────────────────────
     /// <summary>Per-signal TTL multipliers (α): TTL = α · span₀, then regime-scaled.</summary>
-    public ApexTtlMultipliers TtlMultipliers { get; init; } = new();
+    public ApexTtlMultipliers TtlMultipliers { get; init; } = ApexTtlMultipliers.Default;
 
     // ── Estimator windows / forgetting ─────────────────────────────────────────────────
     /// <summary>EW regression forgetting factor δ ∈ (0, 1] (default 0.9).</summary>

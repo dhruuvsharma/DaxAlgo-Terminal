@@ -293,6 +293,28 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         if (_barVolumes.Count > 0)
             _bucketVolume = VolumeTimeBucketer.AdaptiveBucketVolume(_barVolumes.ToArray());
 
+        // Seed the bar-feature buffer with synthetic price-structure bars so the line-fit signals
+        // (initiative / control / wedge / value) are armed the instant streaming starts, instead of
+        // waiting _lineWindow live candles. Historical OHLCV carries no aggressor flow, so we proxy
+        // the price-structure fields only: POC ≈ typical price, and the buy/sell volume centroids by
+        // the bar's upper/lower half (buyers lift toward the high, sellers hit toward the low). These
+        // are honest price levels that track the real recent trend. Flow fields (delta, cumulative
+        // delta) are left at zero and these bars are tagged Synthetic so the flow signals skip them.
+        var lookback = bars.Count > _barFeatures.Capacity ? bars.Count - _barFeatures.Capacity : 0;
+        for (var i = lookback; i < bars.Count; i++)
+        {
+            var b = bars[i];
+            var typical = (b.High + b.Low + b.Close) / 3.0;
+            _barFeatures.Push(new BarFeatures(
+                b.TimestampUtc, b.Open, b.High, b.Low, b.Close,
+                BuyCentroid: (b.High + b.Close) / 2.0,
+                SellCentroid: (b.Low + b.Close) / 2.0,
+                PocPrice: typical, PocValid: typical > 0 ? 1 : 0,
+                Delta: 0, CumulativeDelta: 0, Volume: b.Volume,
+                PocOrClose: typical > 0 ? typical : b.Close,
+                Synthetic: true));
+        }
+
         foreach (var b in bars)
         {
             var mid = (b.High + b.Low + b.Close) / 3.0;
@@ -499,14 +521,28 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         return results;
     }
 
+    /// <summary>The bar-feature series with the warm-up-seeded (<see cref="BarFeatures.Synthetic"/>)
+    /// bars stripped out. Flow signals (delta / Kyle / CVD) score off this so they never read the
+    /// zero-flow proxy bars; the line-fit signals use the full buffer (their price-structure proxy is
+    /// honest). Seeded bars are always the oldest entries, so this is just the live suffix.</summary>
+    private BarFeatures[] LiveBarFeatures()
+    {
+        var all = _barFeatures.ToArray();
+        var live = 0;
+        for (var i = 0; i < all.Length; i++) if (!all[i].Synthetic) live++;
+        if (live == all.Length) return all;
+        var result = new BarFeatures[live];
+        Array.Copy(all, all.Length - live, result, 0, live);
+        return result;
+    }
+
     // ── Signal: Delta ──────────────────────────────────────────────────────────────────────
     private SignalResult CalcDelta(DateTime now, double q)
     {
-        var n = _barFeatures.Count;
+        var feats = LiveBarFeatures();   // oldest → newest, live bars only
+        var n = feats.Length;
         var accelP = Math.Max(1, Math.Min(3, n / 4));
         if (n < Math.Max(6, accelP + 2)) return SignalResult.Invalid(SigDelta, now);
-
-        var feats = _barFeatures.ToArray();   // oldest → newest
         var deltas = new double[n];
         for (var i = 0; i < n; i++) deltas[i] = feats[i].Delta;
 
@@ -627,11 +663,11 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     // ── Signal: Kyle-λ residual ─────────────────────────────────────────────────────────────
     private (SignalResult, double Lambda) CalcKyle(DateTime now, double q)
     {
-        var n = _barFeatures.Count;
+        var feats = LiveBarFeatures();
+        var n = feats.Length;
         var win = Math.Min(_kyleWindow, n);
         if (win < 6) return (SignalResult.Invalid(SigKyle, now), 0);
 
-        var feats = _barFeatures.ToArray();
         var rets = new double[win];
         var flow = new double[win];
         for (var i = 0; i < win; i++)
@@ -765,10 +801,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     // (c) CVD divergence
     private SignalResult CalcCvd(DateTime now, double q)
     {
-        var n = _barFeatures.Count;
+        var feats = LiveBarFeatures();
+        var n = feats.Length;
         var win = Math.Min(_lineWindow, n);
         if (win < 4) return SignalResult.Invalid(SigCvd, now);
-        var feats = _barFeatures.ToArray();
         var x = new double[win]; var price = new double[win]; var cvd = new double[win];
         for (var i = 0; i < win; i++)
         {
@@ -983,7 +1019,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
             // run, but the q multiplier on every confidence already collapses the composite; the
             // calibration gate below then almost always rejects. Surfaced via snapshot.FeedQuality.
         }
-        if (_barFeatures.Count < _lineWindow) return;   // warm window
+        // Warm window: count LIVE bars only. The synthetic warm-up seed arms the line-fit signals
+        // (so the composite/gauge update immediately), but order arming must wait for a full window
+        // of genuine live tape — never trade off the proxy-seeded structure.
+        if (LiveBarFeatures().Length < _lineWindow) return;
         if (!IsSessionAllowed(now)) return;
 
         var secondsSinceClose = (now - _lastTradeCloseUtc).TotalSeconds;
@@ -1369,10 +1408,10 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
 
     private (double Cum, double Z) LastKyleResidual()
     {
-        var n = _barFeatures.Count;
+        var feats = LiveBarFeatures();
+        var n = feats.Length;
         var win = Math.Min(_kyleWindow, n);
         if (win < 6) return (0, 0);
-        var feats = _barFeatures.ToArray();
         var rets = new double[win]; var flow = new double[win];
         for (var i = 0; i < win; i++)
         {
@@ -1472,10 +1511,18 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     }
 
     /// <summary>Per-bar features the line fits / Kyle / CVD consume.</summary>
+    /// <param name="Synthetic">
+    /// True for bars seeded from historical OHLCV during warm-up (<see cref="SeedFromBars"/>). Their
+    /// price-structure fields (centroids, POC, OHLC) are real-derived proxies the line-fit signals
+    /// can use immediately, but they carry <b>no order flow</b> (delta = 0). The flow signals
+    /// (delta / Kyle / CVD) filter these out via <see cref="LiveBarFeatures"/> so they never score
+    /// off fabricated flow; they warm strictly from live tape.
+    /// </param>
     private readonly record struct BarFeatures(
         DateTime EndUtc, double Open, double High, double Low, double Close,
         double BuyCentroid, double SellCentroid, double PocPrice, int PocValid,
-        long Delta, long CumulativeDelta, long Volume, double PocOrClose);
+        long Delta, long CumulativeDelta, long Volume, double PocOrClose,
+        bool Synthetic = false);
 
     private readonly record struct LineTriple(ApexLineFit Buy, ApexLineFit Sell, ApexLineFit Poc, double EndX)
     {
@@ -1535,6 +1582,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         private readonly int _capacity;
         public RingBuffer(int capacity) { _capacity = Math.Max(1, capacity); _q = new Queue<T>(_capacity); }
         public int Count => _q.Count;
+        public int Capacity => _capacity;
         public void Push(T v) { _q.Enqueue(v); while (_q.Count > _capacity) _q.Dequeue(); }
         public T[] ToArray() => _q.ToArray();
     }

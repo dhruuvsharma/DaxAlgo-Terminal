@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-12
 
-The terminal speaks to six account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)), and **London Strategic Edge** (free multi-asset data, API key only — see [below](#london-strategic-edge-free-multi-asset-data)). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
+The terminal speaks to seven account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)), **London Strategic Edge** (free multi-asset data, API key only — see [below](#london-strategic-edge-free-multi-asset-data)), and **Upstox** (Indian markets, OAuth2, REST + WebSocket API v2/v3 — see [below](#upstox-indian-markets-oauth2)). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
@@ -25,6 +25,7 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | Ironbeam | REST + WebSocket API v2 (no SDK) | Always wired (plain HTTP/WS) | Not exposed by API v2 — returns empty | Real, push (`q` stream events) | Real, push (`d` stream events) | n/a (data/signals only) |
 | London Strategic Edge | WebSocket (live) + PostgREST-style REST (history), no SDK | Always wired (plain HTTP/WS) | Real (`x_candles_{tf}` / `candles_{slug}` tables) | Real, push (`tick` messages) | Not in the feed — throws | n/a (data/signals only) |
 | Binance | Public WebSocket + REST (no SDK) | Always wired — **no key, no account** | Real (`/api/v3/klines`) | Real, push (`@bookTicker`) | Real, push (`@depth{5\|10\|20}@100ms`) | n/a (data/signals only) |
+| Upstox | REST + WebSocket API v2/v3 (no SDK) | Always wired (plain HTTP/WS) | Real (`/v2/historical-candle/…`) | Real, push (V3 protobuf feed, `full` mode) | Real, push (5-level book from the same feed) | n/a (data/signals only) |
 | Simulated | In-process, no SDK, no network | Always registered | Replay from local store | Synthetic random-walk **or** store replay | Supported (synthetic + replay) | n/a (data/signals only) |
 
 There are **no per-broker synthetic fallbacks** — each real client is registered only when its SDK is available (IB/NT gated on a resolved DLL; cTrader/Alpaca always restore from NuGet), and a connect simply fails if the broker isn't reachable. To run with no broker at all, use the always-registered **`Simulated`** backend instead (see [below](#simulated-offline-development)).
@@ -320,6 +321,57 @@ It's not shown as a login tile; it's wired up by the dev launch profiles (`DOTNE
 
 See [configuration.md](configuration.md#simulatedbroker) for the full key reference and [getting-started.md](getting-started.md#dev-launch-profiles-skip-login-run-offline) for the launch profiles.
 
+## Upstox (Indian markets, OAuth2)
+
+`BrokerKind.Upstox` (`RealUpstoxClient`, in `Infrastructure/Upstox/`) streams Indian-market data —
+NSE/BSE equities and indices — from the Upstox API v2/v3. No SDK (plain `ClientWebSocket` +
+`HttpClient`); auth is OAuth2 authorization-code. Docs:
+<https://upstox.com/developer/api-documentation/>.
+
+**Auth flow (in the login tile):** **Authorize** opens
+`/v2/login/authorization/dialog?client_id=…&redirect_uri=…&response_type=code` in the browser; after
+signing in, paste the one-time `code` from the redirected URL and click **Get access token**, which
+`POST`s `/v2/login/authorization/token` (`IUpstoxAuthService`) to obtain the token. Tokens **expire
+daily (~03:30 IST)**, so the Authorize → Get token step repeats each trading day.
+
+**Live feed:** `GET /v3/feed/market-data-feed/authorize` returns an authorized `wss://` URL; the
+client connects, sends a **binary** JSON subscribe (`{method:"sub",data:{mode:"full",instrumentKeys:[…]}}`),
+and decodes the binary **protobuf `FeedResponse`** frames with `UpstoxFeedDecoder` (a hand-rolled
+wire-format walker over the already-referenced `Google.Protobuf` runtime — no `Grpc.Tools` build
+step). On a drop the single pump re-authorizes, reconnects, and re-subscribes with 1 s → 30 s
+backoff.
+
+| Channel | Upstox endpoint / message |
+|---|---|
+| L1 ticks | top-of-book from the V3 protobuf feed (`full` mode); falls back to LTP-as-both-sides for indices |
+| L2 depth | 5-level book from the same feed (`MarketLevel.bidAskQuote`) |
+| Historical bars | REST `GET /v2/historical-candle/{key}/{interval}/{to}/{from}` (1minute / 30minute / day) |
+| Trade tape | **not available** — the feed carries LTP + book, not per-print flow; throws `NotSupportedException`, ingest falls back to the synthetic L1 tick rule |
+| Instrument discovery | downloadable NSE master (`assets.upstox.com/.../NSE.json.gz`), filtered to cash equities + indices, cached per session |
+| Order routing | n/a — data/signals only |
+
+**Symbols** are Upstox **instrument keys** (`segment|identifier`, e.g. `NSE_EQ|INE002A01018`,
+`NSE_INDEX|Nifty 50`). Picker rows carry the full key in `Contract.Symbol`; a bare symbol is
+best-effort composed as `NSE_EQ|{symbol}`.
+
+```jsonc
+"Upstox": {
+  "ApiKey": "",        // app API key (client id) from developer.upstox.com
+  "ApiSecret": "",     // app API secret (code→token exchange only)
+  "RedirectUri": "",   // must match the app's registered redirect URI exactly
+  "AccessToken": "",   // filled by the login form's Get-token step; expires daily ~03:30 IST
+  "BaseUrl": "https://api.upstox.com",
+  "ReconnectInitialDelaySeconds": 1,
+  "ReconnectMaxDelaySeconds": 30
+}
+```
+
+> **Protobuf field-number caveat:** `UpstoxFeedDecoder` targets the field numbers from Upstox's
+> published V3 schema; they haven't been verified against a live session in this build. Unknown
+> fields are skipped (so a partial mismatch degrades gracefully rather than throwing). If the feed
+> ever decodes to empty L1/depth despite traffic, re-check the numbers against the current
+> `MarketDataFeedV3.proto`.
+
 ## Secrets and persistence
 
 | Secret | Where it lives |
@@ -327,6 +379,7 @@ See [configuration.md](configuration.md#simulatedbroker) for the full key refere
 | IB password | DPAPI-encrypted in `%LOCALAPPDATA%\DaxAlgoTerminal\connection.json`. |
 | cTrader OAuth secret + access token | Same file. |
 | Alpaca API secret | Same file. |
+| Upstox API secret + access token | Same file (API key + redirect URI in plain text alongside). |
 | AI Analyst provider API key | DPAPI-encrypted in `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json` (different folder — see [ai-analyst.md](ai-analyst.md)). |
 | Notification tokens (Telegram bot, Discord webhook URL) | Plain text in `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json`. These are low-trust secrets — the bot can only post to one chat, the webhook to one channel. |
 

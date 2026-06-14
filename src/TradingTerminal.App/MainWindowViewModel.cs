@@ -31,6 +31,7 @@ using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
 using TradingTerminal.Ai.BacktestAnalysis;
+using TradingTerminal.QuantConnect;
 using TradingTerminal.Infrastructure.MarketData.Store;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
@@ -62,6 +63,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string CorrelationWindowId = "tools.correlation";
     private const string LiveCorrelationWindowId = "tools.correlation.live";
     private const string ChartsWindowId = "tools.charts";
+    private const string QuantConnectWindowId = "tools.quantconnect";
     private const string OrderBookWindowId = "tools.orderbook";
     private const string FootprintWindowId = "tools.footprint";
     private const string HeatmapWindowId = "tools.heatmap";
@@ -614,6 +616,37 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _openWindows[ChartsWindowId] = window;
         window.Show();
         _logger.LogInformation("Opened charts window");
+    }
+
+    // ── QuantConnect / LEAN ─────────────────────────────────────────────────────────────────
+    // One single-instance window with four tabs; each menu item deep-links to a tab index.
+    [RelayCommand] public void OpenQuantConnectBacktest() => OpenQuantConnect(0);
+    [RelayCommand] public void OpenQuantConnectProjects() => OpenQuantConnect(1);
+    [RelayCommand] public void OpenQuantConnectData() => OpenQuantConnect(2);
+    [RelayCommand] public void OpenQuantConnectSettings() => OpenQuantConnect(3);
+
+    private void OpenQuantConnect(int tab)
+    {
+        if (_openWindows.TryGetValue(QuantConnectWindowId, out var existing))
+        {
+            if (existing.DataContext is QuantConnectViewModel evm) evm.SelectedTabIndex = tab;
+            existing.Activate();
+            return;
+        }
+
+        var vm = _services.GetRequiredService<QuantConnectViewModel>();
+        vm.SelectedTabIndex = tab;
+        var window = _services.GetRequiredService<QuantConnectWindow>();
+        window.DataContext = vm;
+        window.Owner = Application.Current.MainWindow;
+        window.Closed += (_, _) =>
+        {
+            _openWindows.Remove(QuantConnectWindowId);
+            vm.Dispose();
+        };
+        _openWindows[QuantConnectWindowId] = window;
+        window.Show();
+        _logger.LogInformation("Opened QuantConnect / LEAN window (tab {Tab})", tab);
     }
 
     [RelayCommand]

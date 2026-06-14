@@ -43,6 +43,9 @@ public static class LoginServiceCollectionExtensions
         services.AddSingleton<LondonStrategicEdgeLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<LondonStrategicEdgeLoginFormViewModel>());
 
+        services.AddSingleton<UpstoxLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<UpstoxLoginFormViewModel>());
+
         services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
         return services;
     }

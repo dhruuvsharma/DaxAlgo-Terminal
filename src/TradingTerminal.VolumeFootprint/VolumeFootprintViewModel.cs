@@ -35,6 +35,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private static bool BrokerSupportsTradeTape(BrokerKind broker) => broker switch
     {
         BrokerKind.InteractiveBrokers => true,
+        BrokerKind.Binance => true,
+        BrokerKind.IronBeam => true,
         _ => false,
     };
 
@@ -53,24 +55,34 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private bool _useSynthetic;
 
     // ── Per-bar accumulator ────────────────────────────────────────────────────────────────
-    // Instead of a mutable FootprintBar mutated by Add(), we keep the raw prints for the
-    // forming bar and call FootprintFeatures.BuildBar (Core) on every trade to rebuild the
-    // immutable Core bar. This ensures the chart and Apex v2 engine score from the same math.
+    // We keep the raw prints for the forming bar and call FootprintFeatures.BuildBar (Core) once
+    // per render tick to rebuild the immutable Core bar. This ensures the chart and Apex v2 engine
+    // score from the same math while keeping the rebuild off the hot per-trade path.
     private readonly List<FootprintPrint> _currentPrints = new();
     private DateTime _currentBucketStart = DateTime.MinValue;
     private long _cumulativeDelta;
 
-    // Cached render bar for the forming bar so we can replace it in Bars in-place.
-    private RenderBar? _currentRenderBar;
+    /// <summary>Set by trade ingest, cleared by the render tick — coalesces many trades into one
+    /// canvas rebuild so a fast tape can't pin the UI thread (the old per-trade redraw both pinned
+    /// the UI and let the unbounded trade channel pile up into GBs of backlog).</summary>
+    private bool _dirty;
+
+    /// <summary>Hard cap on the trade channel so a burst the UI can't drain is bounded in memory
+    /// (oldest prints drop). Batched draining keeps it far from full in normal flow.</summary>
+    private const int TradeChannelCapacity = 100_000;
+
+    /// <summary>Max trades processed in a single UI-thread marshal before yielding, so draining a
+    /// large backlog stays responsive.</summary>
+    private const int MaxDrainBatch = 8_192;
 
     /// <summary>Wall-clock arrival times of recent trades, pruned to <see cref="TicksWindow"/>, so the
     /// stats panel can show a live ticks-per-second throughput that decays when flow stops.</summary>
     private readonly Queue<DateTime> _tradeArrivals = new();
     private static readonly TimeSpan TicksWindow = TimeSpan.FromSeconds(2);
 
-    /// <summary>Refreshes the ticks/sec read-out (which must decay between trades) off the UI thread's
-    /// dispatcher. The chart canvas is only redrawn on actual trades, not on this tick.</summary>
-    private readonly DispatcherTimer _statsTimer;
+    /// <summary>Drives both the ticks/sec decay and the coalesced canvas redraw (~12 fps). Trade
+    /// ingest only marks the chart dirty; this timer does the (expensive) rebuild + redraw.</summary>
+    private readonly DispatcherTimer _renderTimer;
 
     /// <summary>False until the constructor has built every collection. Suppresses the
     /// <c>[ObservableProperty]</c> setters' On*Changed callbacks from running <see cref="Restart"/>
@@ -116,12 +128,12 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
                              ?? Instruments.FirstOrDefault();
         SelectedInterval = Intervals.First(i => i.Label == "1m");
 
-        _statsTimer = new DispatcherTimer(DispatcherPriority.Background)
+        _renderTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromMilliseconds(500),
+            Interval = TimeSpan.FromMilliseconds(80),
         };
-        _statsTimer.Tick += (_, _) => UpdateTicksPerSecond();
-        _statsTimer.Start();
+        _renderTimer.Tick += (_, _) => OnRenderTick();
+        _renderTimer.Start();
 
         _ready = true;
         _ = LoadInstrumentsAsync();
@@ -130,6 +142,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     public ObservableCollection<SignalInstrument> Instruments { get; }
     public ObservableCollection<FootprintInterval> Intervals { get; }
+
+    /// <summary>Cell rendering modes shown in the toolbar combo (Bid×Ask / Delta / Volume).</summary>
+    public IReadOnlyList<CellDisplayMode> DisplayModes { get; } =
+        new[] { CellDisplayMode.BidAsk, CellDisplayMode.Delta, CellDisplayMode.Volume };
 
     /// <summary>Most recent footprint bars, oldest first (rendered left → right).</summary>
     public ObservableCollection<RenderBar> Bars { get; }
@@ -156,6 +172,21 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private string _visibleVolumeText = "0";
     [ObservableProperty] private string _buySellText = "—";
     [ObservableProperty] private string _currentPocText = "—";
+    /// <summary>Stacked-imbalance run counts for the last visible bar ("buy / sell"), from Core.</summary>
+    [ObservableProperty] private string _stackedText = "—";
+
+    // ── Cell display + analytics overlays (redraw-only; no stream restart) ────────────────────
+    [ObservableProperty] private CellDisplayMode _selectedDisplayMode = CellDisplayMode.BidAsk;
+    /// <summary>Highlight Core's diagonal bid/ask imbalances and stacked runs on the cells.</summary>
+    [ObservableProperty] private bool _showImbalances = true;
+    /// <summary>Shade each bar's 70% value area (VAH↔VAL band).</summary>
+    [ObservableProperty] private bool _showValueArea = true;
+    /// <summary>Draw the right-edge composite session volume profile across the visible bars.</summary>
+    [ObservableProperty] private bool _showVolumeProfile = true;
+    /// <summary>Show the per-cell volume figures (off = colour-only heatmap).</summary>
+    [ObservableProperty] private bool _showCellText = true;
+    /// <summary>Vertical zoom — scales the per-row pixel height in the renderer (1 = default).</summary>
+    [ObservableProperty] private double _zoom = 1.0;
 
     // ── Regression overlay toggles (one checkbox each in the toolbar) ─────────────────────────
     [ObservableProperty] private bool _showLinearFit = true;
@@ -219,6 +250,19 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnShowPredictedBarsChanged(bool value) => RefreshFitCurves();
     partial void OnPredictionBarsChanged(int value) => RefreshFitCurves();
 
+    // Display-mode / overlay / zoom toggles only change presentation — redraw, don't restart.
+    partial void OnSelectedDisplayModeChanged(CellDisplayMode value) => RaiseRedraw();
+    partial void OnShowImbalancesChanged(bool value) => RaiseRedraw();
+    partial void OnShowValueAreaChanged(bool value) => RaiseRedraw();
+    partial void OnShowVolumeProfileChanged(bool value) => RaiseRedraw();
+    partial void OnShowCellTextChanged(bool value) => RaiseRedraw();
+    partial void OnZoomChanged(double value) => RaiseRedraw();
+
+    private void RaiseRedraw()
+    {
+        if (_ready) FootprintChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     private async Task LoadInstrumentsAsync()
     {
         try
@@ -267,7 +311,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _useSynthetic = !BrokerSupportsTradeTape(broker);
         _synth.Reset();
         _currentPrints.Clear();
-        _currentRenderBar = null;
+        _dirty = false;
         _currentBucketStart = DateTime.MinValue;
         _cumulativeDelta = 0;
         TradesSeen = 0;
@@ -302,10 +346,14 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
             return;
         }
 
-        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        // Bounded + DropOldest: if a burst outruns the UI drain the channel can never grow without
+        // limit (it caps at TradeChannelCapacity and sheds the oldest prints) — this is the hard
+        // backstop against the old unbounded-channel memory pile-up.
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var sub = _useSynthetic
@@ -316,10 +364,20 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
               })
             : _hub.Trades(instrumentId).Subscribe(t => channel.Writer.TryWrite(t));
 
+        // Drain in batches: one UI-thread marshal per batch instead of one per trade. Aggregation
+        // into the forming bucket is cheap; the (expensive) canvas rebuild is left to the render
+        // timer via the dirty flag, so trade rate is fully decoupled from redraw rate.
+        var batch = new List<TradePrint>(MaxDrainBatch);
         try
         {
-            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
-                await UiThread.RunAsync(() => OnTrade(trade));
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxDrainBatch && channel.Reader.TryRead(out var trade))
+                    batch.Add(trade);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() => IngestBatch(batch));
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -332,61 +390,74 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         }
     }
 
-    private void OnTrade(TradePrint trade)
+    /// <summary>Ingests a drained batch of trades on the UI thread: cheap per-trade accumulation
+    /// (bucket roll/seal + append to the forming bucket) only. The expensive forming-bar rebuild,
+    /// stats and canvas redraw are deferred to <see cref="OnRenderTick"/> via the dirty flag, so a
+    /// fast tape can't pin the UI thread or back the channel up.</summary>
+    private void IngestBatch(List<TradePrint> batch)
     {
         var interval = SelectedInterval;
         if (interval is null) return;
 
-        var ts = trade.EventTimeUtc;
         var span = interval.Span;
-        var bucket = new DateTime(ts.Ticks - (ts.Ticks % span.Ticks), DateTimeKind.Utc);
         var tickSize = TickSize;
         var quality = _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape;
+        var now = DateTime.UtcNow;
 
-        if (bucket != _currentBucketStart)
+        foreach (var trade in batch)
         {
-            // Finalize the completed bar: seal the prior prints into the Bars collection.
-            if (_currentBucketStart != DateTime.MinValue && _currentRenderBar is not null)
+            var ts = trade.EventTimeUtc;
+            var bucket = new DateTime(ts.Ticks - (ts.Ticks % span.Ticks), DateTimeKind.Utc);
+
+            if (bucket != _currentBucketStart)
             {
-                // The forming bar was already added; rebuild it as a finalized bar and
-                // update the cumulative-delta thread before rolling.
-                var finalized = BuildRenderBar(_currentPrints, tickSize, _currentBucketStart, bucket, quality, _cumulativeDelta);
-                _cumulativeDelta += finalized.Core.Delta;
-                // Replace the last entry (the forming bar) with the finalized version.
-                if (Bars.Count > 0) Bars[^1] = finalized;
+                // Seal the completed bucket: build it once and fold its delta into the CVD thread.
+                if (_currentBucketStart != DateTime.MinValue && _currentPrints.Count > 0)
+                {
+                    var finalized = BuildRenderBar(_currentPrints, tickSize, _currentBucketStart,
+                        bucket, quality, _cumulativeDelta);
+                    _cumulativeDelta += finalized.Core.Delta;
+                    if (Bars.Count > 0 && Bars[^1].StartUtc == _currentBucketStart) Bars[^1] = finalized;
+                    else Bars.Add(finalized);
+                    while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
+                }
+
+                _currentBucketStart = bucket;
+                _currentPrints.Clear();
             }
 
-            _currentBucketStart = bucket;
-            _currentPrints.Clear();
-            _currentRenderBar = null;
+            _currentPrints.Add(FootprintPrint.From(trade));
+            TradesSeen++;
+            _tradeArrivals.Enqueue(now);
         }
 
-        // Accumulate this print using Core's FootprintPrint projection.
-        _currentPrints.Add(FootprintPrint.From(trade));
+        _dirty = true;
+    }
 
-        // Rebuild the forming bar from all accumulated prints. The Core extractor is stateless,
-        // deterministic and cheap (O(prints) per call); rebuilding on every trade is correct and
-        // gives the same result as the old incremental Add() path.
-        var formingBar = BuildRenderBar(_currentPrints, tickSize, bucket,
-            bucket + span, quality, _cumulativeDelta);
-        _currentRenderBar = formingBar;
+    /// <summary>Render tick (~12 fps): if trades arrived since the last tick, rebuild the forming
+    /// bar once from the accumulated prints, refresh the stats and redraw the canvas. Always decays
+    /// the ticks/sec read-out so it falls toward zero when the tape goes quiet.</summary>
+    private void OnRenderTick()
+    {
+        UpdateTicksPerSecond();
+        if (!_dirty) return;
+        _dirty = false;
 
-        if (_currentBucketStart == bucket && (Bars.Count == 0 || Bars[^1].StartUtc != bucket))
+        var interval = SelectedInterval;
+        if (interval is null || _currentBucketStart == DateTime.MinValue) return;
+
+        var quality = _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape;
+        var formingBar = BuildRenderBar(_currentPrints, TickSize, _currentBucketStart,
+            _currentBucketStart + interval.Span, quality, _cumulativeDelta);
+
+        if (Bars.Count > 0 && Bars[^1].StartUtc == _currentBucketStart) Bars[^1] = formingBar;
+        else
         {
             Bars.Add(formingBar);
             while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
         }
-        else if (Bars.Count > 0 && Bars[^1].StartUtc == bucket)
-        {
-            // Replace the forming bar with the freshly rebuilt version.
-            Bars[^1] = formingBar;
-        }
 
-        TradesSeen++;
-        _tradeArrivals.Enqueue(DateTime.UtcNow);
-        // Live forming-bar delta folds into the running session delta for the header read-out.
         SessionDelta = _cumulativeDelta + formingBar.Core.Delta;
-
         UpdateStats();
         Status = $"{SelectedInstrument?.DisplayName} · {Bars.Count} bars · {TradesSeen} trades · CVD {SessionDelta:+#;-#;0}";
         FootprintChanged?.Invoke(this, EventArgs.Empty);
@@ -437,6 +508,9 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         CurrentPocText = double.IsNaN(lastPoc)
             ? "—"
             : lastPoc.ToString("N" + DecimalsFor(TickSize), CultureInfo.InvariantCulture);
+
+        // Stacked-imbalance runs for the most recent bar (Core already counts these).
+        StackedText = n > 0 ? $"{bars[n - 1].StackedBuy} / {bars[n - 1].StackedSell}" : "—";
 
         CvdDirection = Math.Sign(SessionDelta);
 
@@ -590,6 +664,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         SellPocSlopeText = "—"; SellPocSlopeDirection = 0;
         CvdDirection = 0;
         TicksPerSecondText = "0.0"; VisibleVolumeText = "0"; BuySellText = "—"; CurrentPocText = "—";
+        StackedText = "—";
     }
 
     private static int DecimalsFor(double tick)
@@ -604,7 +679,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     {
         Bars.Clear();
         _currentPrints.Clear();
-        _currentRenderBar = null;
+        _dirty = false;
         FootprintChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -638,7 +713,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     public void Dispose()
     {
-        _statsTimer.Stop();
+        _renderTimer.Stop();
         StopStream();
     }
 }

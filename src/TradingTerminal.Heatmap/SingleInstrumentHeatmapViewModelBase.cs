@@ -111,14 +111,35 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
     protected void PumpTrades(InstrumentId id, CancellationToken ct, Action<TradePrint> onUi)
         => _ = RunPumpAsync(Hub.Trades(id), ct, onUi);
 
+    // Bounded, DropOldest channel + batch draining: a fast tape the UI can't keep up with is capped
+    // in memory (oldest prints shed) instead of piling an unbounded backlog into GBs over a long
+    // session, and the frame is marked dirty once per drained batch (the render is timer-coalesced).
+    private const int PumpChannelCapacity = 65_536;
+    private const int MaxPumpDrainBatch = 4_096;
+
     private async Task RunPumpAsync<T>(IObservable<T> source, CancellationToken ct, Action<T> onUi)
     {
-        var channel = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        var channel = Channel.CreateBounded<T>(new BoundedChannelOptions(PumpChannelCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
         using var subscription = source.Subscribe(x => channel.Writer.TryWrite(x));
+        var batch = new List<T>(256);
         try
         {
-            await foreach (var item in channel.Reader.ReadAllAsync(ct))
-                await UiThread.RunAsync(() => { onUi(item); MarkDirty(); });
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxPumpDrainBatch && channel.Reader.TryRead(out var item)) batch.Add(item);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() =>
+                {
+                    foreach (var item in batch) onUi(item);
+                    MarkDirty();
+                });
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Logger.LogDebug(ex, "Heatmap pump ended"); }

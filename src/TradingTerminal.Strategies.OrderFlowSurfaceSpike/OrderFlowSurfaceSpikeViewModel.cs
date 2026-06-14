@@ -106,6 +106,11 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
 
     public event EventHandler? SurfaceChanged;
 
+    // Bounded, DropOldest channel + batch draining caps memory under a fast tape (the old unbounded
+    // channel + per-trade marshal could pile a backlog into GBs over a long session).
+    private const int TradeChannelCapacity = 65_536;
+    private const int MaxStreamDrainBatch = 4_096;
+
     private void AddLog(string level, string message) =>
         _appLogSink.Append(LogSource, level, message);
 
@@ -285,10 +290,14 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
             await UiThread.RunAsync(() => AddLog("WIRE", "Synthetic mode — deriving trades from quote stream"));
         }
 
-        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        // Bounded + DropOldest + batch draining: a fast tape the UI can't keep up with is capped in
+        // memory (oldest prints shed) instead of piling an unbounded backlog into GBs, and the
+        // surface is rebuilt once per drained batch rather than once per trade.
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var sub = _useSynthetic
@@ -303,10 +312,20 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
                 ? $"Hub.Quotes({instrumentId.Value}) observer connected (synthesizing)"
                 : $"Hub.Trades({instrumentId.Value}) observer connected"));
 
+        var batch = new List<TradePrint>(256);
         try
         {
-            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
-                await UiThread.RunAsync(() => OnTrade(trade));
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() =>
+                {
+                    foreach (var trade in batch) OnTrade(trade);
+                    SurfaceChanged?.Invoke(this, EventArgs.Empty);
+                });
+            }
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
@@ -351,7 +370,7 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         Surface = _calc.GetZScoreSurface();
 
         EvaluateSignal(trade, add);
-        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+        // Redraw is raised once per drained batch by the pump, not per trade — see RunStreamAsync.
     }
 
     private void EvaluateSignal(TradePrint trade, OrderFlowSurfaceCalculator.AddResult add)

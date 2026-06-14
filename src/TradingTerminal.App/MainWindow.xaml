@@ -30,10 +30,10 @@
 
         <!-- Bloomberg-style header strip: amber wordmark · session · broker · mode · clock -->
         <Border Grid.Row="0"
-                Background="#000000"
+                Background="{DynamicResource Gradient.Chrome}"
                 BorderBrush="{DynamicResource Accent.Brush}"
                 BorderThickness="0,0,0,1"
-                Padding="10,4">
+                Padding="10,5">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -79,7 +79,7 @@
                                FontSize="11"
                                Margin="0,0,12,0"
                                VerticalAlignment="Center" />
-                    <Border Padding="6,1" VerticalAlignment="Center">
+                    <Border Padding="9,2" CornerRadius="9" VerticalAlignment="Center">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
@@ -111,8 +111,9 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="6,1"
+                                <Border Padding="7,1"
                                         Margin="0,0,6,0"
+                                        CornerRadius="8"
                                         VerticalAlignment="Center"
                                         BorderThickness="1"
                                         ToolTip="{Binding TooltipText}">
@@ -170,7 +171,7 @@
 
         <!-- Top menu -->
         <Menu Grid.Row="1"
-              Background="{DynamicResource Background.Elevated}"
+              Background="{DynamicResource Gradient.Chrome}"
               Foreground="{DynamicResource Text.Primary}"
               BorderBrush="{DynamicResource Border.Brush}"
               BorderThickness="0,0,0,1">
@@ -245,6 +246,18 @@
                           Command="{Binding OpenArimaGarchCommand}" />
                 <MenuItem Header="_Kalman filter…"
                           Command="{Binding OpenKalmanFilterCommand}" />
+            </MenuItem>
+
+            <MenuItem Header="_QuantConnect / LEAN">
+                <MenuItem Header="_Backtest runner…"
+                          Command="{Binding OpenQuantConnectBacktestCommand}" />
+                <MenuItem Header="_Projects…"
+                          Command="{Binding OpenQuantConnectProjectsCommand}" />
+                <MenuItem Header="_Data sync…"
+                          Command="{Binding OpenQuantConnectDataCommand}" />
+                <Separator />
+                <MenuItem Header="_Settings &amp; status…"
+                          Command="{Binding OpenQuantConnectSettingsCommand}" />
             </MenuItem>
 
             <MenuItem Header="_AI tools">
@@ -357,21 +370,23 @@
 
                                     <!-- Bloomberg-style section header inside the pane -->
                                     <Border Grid.Row="0"
-                                            Background="{DynamicResource Background.Elevated}"
+                                            Background="{DynamicResource Gradient.Elevated}"
                                             BorderBrush="{DynamicResource Border.Brush}"
                                             BorderThickness="0,0,0,1"
-                                            Padding="8,4">
+                                            Padding="8,7">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       Text="STRATEGY CATALOG"
-                                                       Foreground="{DynamicResource Text.Header}"
-                                                       FontWeight="Bold"
-                                                       FontSize="11"
-                                                       VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Width="3" Height="13" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
+                                                <TextBlock Text="STRATEGY CATALOG"
+                                                           Foreground="{DynamicResource Text.Header}"
+                                                           FontWeight="Bold"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
                                             <TextBlock Grid.Column="1"
                                                        Foreground="{DynamicResource Text.Secondary}"
                                                        FontSize="10"
@@ -474,10 +489,10 @@
 
                                         <!-- Filter strip: matches source / level / message, live. -->
                                         <Border Grid.Row="0"
-                                                Background="{DynamicResource Background.Elevated}"
+                                                Background="{DynamicResource Gradient.Elevated}"
                                                 BorderBrush="{DynamicResource Border.Brush}"
                                                 BorderThickness="0,0,0,1"
-                                                Padding="6,3">
+                                                Padding="6,5">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />

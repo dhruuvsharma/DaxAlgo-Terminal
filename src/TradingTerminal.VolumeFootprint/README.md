@@ -3,9 +3,12 @@
 `TradingTerminal.VolumeFootprint` — **Charts → Volume footprint…**
 
 > Bid/ask cluster chart built from the live trade tape: per-price buy/sell volume cells per
-> time-bucketed bar, POC connector lines, **seven toggleable regression fits** through the POC
-> series, and a **virtual predictor** that extrapolates the enabled fits into ghost candles.
-> Brokers without a native tape get a synthetic L1-derived fallback. **Display only.**
+> time-bucketed bar, with three **cell display modes** (bid×ask / delta / volume profile),
+> diagonal bid-ask **imbalance** + stacked-run highlighting, per-bar **value-area** shading, a
+> right-edge **composite session volume profile**, a mouse **crosshair** with a per-cell read-out,
+> POC connector lines, **seven toggleable regression fits** through the POC series, and a
+> **virtual predictor** that extrapolates the enabled fits into ghost candles. Brokers without a
+> native tape get a synthetic L1-derived fallback. **Display only.**
 
 ## Data requirements
 
@@ -30,9 +33,33 @@ line and logged `WARN` to the Activity Log, and every bar carries a `FeedQuality
 | Fits | 7 checkboxes (Linear on by default) | regression overlays, see below |
 | Predicted candles | checkbox, default on | shows/hides the forecast region |
 | Bars ahead | 1–30, default 5 | predictor horizon |
+| Cells | Bid×Ask / Delta / Volume (default Bid×Ask) | per-cell render mode, see **Advanced rendering** |
+| Imbalances | checkbox, default on | outline diagonal imbalanced cells + stacked-run markers |
+| Value area | checkbox, default on | shade each bar's 70% value area (VAH↔VAL) |
+| Profile | checkbox, default on | right-edge composite session volume profile |
+| Cell volumes | checkbox, default on | show per-cell figures (off = colour-only heatmap) |
+| Zoom | 0.5×–3× slider | vertical row-height zoom |
 
-Changing instrument / interval / tick size restarts the stream and clears the chart. Fit and
-predictor toggles recompute and redraw immediately without restarting.
+Changing instrument / interval / tick size restarts the stream and clears the chart. Fit,
+predictor, display-mode, overlay and zoom toggles recompute and redraw immediately without
+restarting.
+
+## Advanced rendering
+
+- **Cell display modes** — `Bid×Ask` is the classic split (sell left/red, buy right/green);
+  `Delta` paints one cell per row coloured by net delta sign (intensity ∝ |delta|); `Volume`
+  paints a per-row total-volume profile (blue intensity ∝ total). Alpha scales `40 + 180·v/maxRow`
+  in every mode so heavy levels pop.
+- **Imbalances** — uses Core's pre-computed diagonal flags (3:1 ratio): an **ask imbalance** (buy
+  vol dominates the sell vol one tick below) outlines the buy side bright green `#69F0AE`; a **bid
+  imbalance** outlines the sell side `#FF8A80`. The footer shows the bar's longest stacked runs
+  (`▲n` buying / `▼n` selling) and the stats panel mirrors them as `Stacked ▲/▼`.
+- **Value area** — the 70% market-profile band around POC, expanded by annexing the heavier
+  adjacent row until 70% of bar volume is enclosed; drawn as a faint blue band behind the column.
+- **Composite profile** — a right-edge gutter histogram of total volume per price across all
+  visible bars (sell red then buy green, session-POC row outlined yellow).
+- **Crosshair** — hovering the grid draws horizontal/vertical guides and a read-out box with the
+  price and, for the hovered bar, that cell's buy / sell / Δ / total.
 
 ## How a bar is built
 
@@ -61,6 +88,8 @@ Cells and overlays (canvas palette is fixed, theme-independent):
 | `#4CAF50` / `#E57373` | footer Δ text, stats slopes, ghost candle stroke | rising/positive vs falling/negative |
 | `#29B6F6` @ 7% wash | right of the dashed boundary | the predictor's forecast region |
 | `#2E7D32` / `#C62828` @ 22% fill | ghost candle bodies | predicted up / down column |
+| `#69F0AE` / `#FF8A80` outline | imbalanced cells, stacked-run footer | diagonal ask (buy) / bid (sell) imbalance |
+| `#90CAF9` @ 8% fill, 40% edge | band behind a column | the bar's 70% value area |
 | `#9E9E9E` | axis, headers, `+N` labels, predicted POC values | dim chrome text |
 
 So: **series is encoded by color** (blue = total, green = buy, red = sell), **fit kind is encoded

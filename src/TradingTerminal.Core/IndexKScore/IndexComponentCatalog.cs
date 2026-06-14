@@ -1,8 +1,8 @@
 using TradingTerminal.Core.Domain;
-using TradingTerminal.Core.IndexKScore;
 
-namespace TradingTerminal.Strategies.IndexKScoreSurface;
+namespace TradingTerminal.Core.IndexKScore;
 
+/// <summary>A named index universe: its display metadata and weighted constituents.</summary>
 public sealed record IndexFamily(
     string Id,
     string DisplayName,
@@ -10,11 +10,14 @@ public sealed record IndexFamily(
     IReadOnlyList<IndexComponent> Components);
 
 /// <summary>
-/// Hand-curated component catalogs for the major US indices the strategy targets. Weights are
-/// approximate and slow-moving; the user adjusts them in the setup form if they need exact
-/// numbers. Symbols use the standard US-equity contract shape so they resolve uniformly across
-/// IB / Alpaca / NinjaTrader. cTrader is FX-only and won't have these instruments — the host
-/// VM warns when no connected broker can supply the family.
+/// Hand-curated, weighted constituent catalogs for the major US indices. Weights are approximate and
+/// slow-moving; users adjust them in a setup form if they need exact numbers. Symbols use the
+/// standard US-equity contract shape so they resolve uniformly across IB / Alpaca / NinjaTrader.
+/// cTrader is FX-only and won't have these instruments — host VMs warn when no connected broker can
+/// supply the family. Pure Core data — only <see cref="Contract"/> from the domain.
+///
+/// <para><b>Point-in-time reference data.</b> Index membership and weights drift as committees
+/// rebalance, so these lists go stale and are expected to be corrected over time.</para>
 /// </summary>
 public static class IndexComponentCatalog
 {
@@ -24,7 +27,7 @@ public static class IndexComponentCatalog
     {
         // ── Dow Jones Industrial Average (DJIA / US30) — price-weighted, 30 names. ──────
         // Weights are derived from current prices ÷ index divisor; they drift as prices move.
-        // Snapshot ≈ 2026-01 levels for the threshold-surface defaults.
+        // Snapshot ≈ 2026-01 levels.
         new IndexFamily(
             Id: "us30",
             DisplayName: "Dow Jones Industrial Average (US30)",

@@ -97,6 +97,30 @@ public sealed class StoredCredentials
         set => AlpacaApiSecretEncryptedBase64 = EncryptDpapi(value);
     }
 
+    // ---- Upstox-specific fields ----
+    public string UpstoxApiKey { get; set; } = string.Empty;
+    public string UpstoxRedirectUri { get; set; } = string.Empty;
+
+    /// <summary>Base64-encoded DPAPI ciphertext for the Upstox OAuth client secret.</summary>
+    public string? UpstoxApiSecretEncryptedBase64 { get; set; }
+
+    /// <summary>Base64-encoded DPAPI ciphertext for the Upstox access token (expires daily ~03:30 IST).</summary>
+    public string? UpstoxAccessTokenEncryptedBase64 { get; set; }
+
+    [JsonIgnore]
+    public string? UpstoxApiSecret
+    {
+        get => DecryptDpapi(UpstoxApiSecretEncryptedBase64);
+        set => UpstoxApiSecretEncryptedBase64 = EncryptDpapi(value);
+    }
+
+    [JsonIgnore]
+    public string? UpstoxAccessToken
+    {
+        get => DecryptDpapi(UpstoxAccessTokenEncryptedBase64);
+        set => UpstoxAccessTokenEncryptedBase64 = EncryptDpapi(value);
+    }
+
     private static string? DecryptDpapi(string? encryptedBase64)
     {
         if (string.IsNullOrEmpty(encryptedBase64)) return null;

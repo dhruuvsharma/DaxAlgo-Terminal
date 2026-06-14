@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
@@ -11,6 +12,7 @@ using TradingTerminal.Strategies.ApexScalper;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.IndexKScoreSurface;
+using TradingTerminal.Strategies.IndexRegimeGraph;
 using TradingTerminal.Strategies.OrderFlowCube;
 using TradingTerminal.Strategies.OrderFlowPressureMap;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
@@ -41,8 +43,15 @@ public static class AppDependencyInjection
         services.AddFastBacktestRunner();
 
         // Shared signal-strategy infrastructure used by every per-strategy project's VM.
-        // Lives here once so the 21 Add<Name>Strategy() extensions stay one-liners.
+        // Lives here once so the 22 Add<Name>Strategy() extensions stay one-liners.
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
+
+        // The Index Regime Graph strategy consumes the Advanced Market Regime engine. The tool
+        // surface (AddAdvancedMarketRegimeSurface) also registers it, but TryAdd here keeps the
+        // strategy resolvable even if that surface isn't wired.
+        services.TryAddSingleton<
+            Core.MarketData.AdvancedRegime.IAdvancedRegimeProvider,
+            TradingTerminal.Infrastructure.Regime.AdvancedRegime.AdvancedRegimeService>();
 
         // Bundle of canonical-pipeline deps every live strategy VM needs. Resolved once and
         // injected into each per-strategy VM ctor so adding a new strategy doesn't need to
@@ -74,6 +83,7 @@ public static class AppDependencyInjection
         services.AddImbalanceHeatFrontStrategy();
         services.AddApexScalperStrategy();
         services.AddIndexKScoreSurfaceStrategy();
+        services.AddIndexRegimeGraphStrategy();
 
         return services;
     }

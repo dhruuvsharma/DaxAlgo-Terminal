@@ -432,25 +432,40 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     // ---------- Tick stream (bid-tick rule) ----------
 
+    // Hub pumps use bounded, DropOldest channels + batch draining (one UI marshal per drained
+    // batch, not per event) so a fast feed the UI can't keep up with is capped in memory rather
+    // than piling an unbounded backlog into GBs over a long session.
+    private const int QuoteChannelCapacity = 16_384;
+    private const int TradeChannelCapacity = 65_536;
+    private const int BarChannelCapacity = 1_024;
+    private const int MaxStreamDrainBatch = 4_096;
+
     private async Task RunTicksAsync(Contract contract, BrokerKind broker, CancellationToken ct)
     {
         // Canonical pipeline: subscribe to hub.Quotes, project back to Tick (preserves the
         // bid-tick-rule logic in ProcessTick), and start (or join) the L1 broker pump.
         var instrumentId = _services.Ingest.Resolve(contract, broker);
-        var channel = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<Tick>(new BoundedChannelOptions(QuoteChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Quotes(instrumentId).Subscribe(q =>
             channel.Writer.TryWrite(new Tick(q.EventTimeUtc, q.Bid, q.Ask, q.BidSize, q.AskSize)));
         _ticksHandle = _services.Ingest.Subscribe(contract, broker);
 
+        var batch = new List<Tick>(256);
         try
         {
-            await foreach (var tick in channel.Reader.ReadAllAsync(ct))
-                await UiThread.RunAsync(() => ProcessTick(tick));
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() => { foreach (var tick in batch) ProcessTick(tick); });
+            }
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
@@ -491,10 +506,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private async Task RunTradesAsync(Contract contract, BrokerKind broker, CancellationToken ct)
     {
         var instrumentId = _services.Ingest.Resolve(contract, broker);
-        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Trades(instrumentId).Subscribe(t =>
@@ -502,10 +518,16 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         // No-op handle on brokers without a tape — the channel simply never produces.
         _tradesHandle = _services.Ingest.SubscribeTrades(contract, broker);
 
+        var batch = new List<TradePrint>(256);
         try
         {
-            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
-                await UiThread.RunAsync(() => ProcessTrade(trade));
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() => { foreach (var trade in batch) ProcessTrade(trade); });
+            }
         }
         catch (OperationCanceledException) { /* expected */ }
         catch (Exception ex)
@@ -554,10 +576,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private async Task RunChartBarsAsync(Contract contract, BrokerKind broker, BarSize chartTf, CancellationToken ct)
     {
         var instrumentId = _services.Ingest.Resolve(contract, broker);
-        var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<Bar>(new BoundedChannelOptions(BarChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Bars(instrumentId, chartTf).Subscribe(b =>
@@ -985,10 +1008,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             _logger.LogWarning(ex, "HTF history fetch failed");
         }
 
-        var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<Bar>(new BoundedChannelOptions(BarChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Bars(instrumentId, BarSize.FifteenMinutes).Subscribe(b =>

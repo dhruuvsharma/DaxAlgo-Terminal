@@ -149,21 +149,31 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Pumps depth snapshots off the hub through a bounded channel (so the publish thread is
-    /// never blocked by the UI) and rebuilds the ladders on the UI thread for each one.</summary>
+    /// never blocked by the UI) and rebuilds the ladders on the UI thread for the freshest one.</summary>
+    private const int DepthChannelCapacity = 2_048;
+
     private async Task RunDepthStreamAsync(InstrumentId instrumentId, CancellationToken ct)
     {
-        var channel = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
+        // Bounded + DropOldest so a fast book the UI can't keep up with is capped in memory (newest
+        // snapshot wins) instead of piling an unbounded backlog into GBs. We render only the freshest
+        // snapshot per drain — intermediate books are already stale, so coalescing is lossless here.
+        var channel = Channel.CreateBounded<DepthSnapshot>(new BoundedChannelOptions(DepthChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _hub.Depth(instrumentId).Subscribe(s => channel.Writer.TryWrite(s));
 
         try
         {
-            await foreach (var snapshot in channel.Reader.ReadAllAsync(ct))
-                await UiThread.RunAsync(() => Render(snapshot));
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                DepthSnapshot? latest = null;
+                while (channel.Reader.TryRead(out var s)) latest = s;
+                if (latest is { } snap) await UiThread.RunAsync(() => Render(snap));
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

@@ -43,4 +43,15 @@ public enum BrokerKind
     /// See <c>RealLondonStrategicEdgeClient</c> / <c>LondonStrategicEdgeOptions</c>.
     /// </summary>
     LondonStrategicEdge,
+
+    /// <summary>
+    /// Upstox — Indian-market broker (NSE/BSE equities, F&amp;O, commodities) over the Upstox API v2/v3
+    /// (REST + WebSocket, no SDK). OAuth2 auth (authorization-code → access token, expires ~03:30 IST
+    /// daily). Live ticks + 5-level depth stream over the V3 protobuf market-data feed
+    /// (<c>wss://…/v3/feed/market-data-feed</c>); historical candles + the instrument master come over
+    /// REST. No real trade tape (the feed carries LTP + book, not per-print flow) — strategies fall
+    /// back to the synthetic L1 tick rule. Appended last to keep existing ordinal values stable.
+    /// See <c>RealUpstoxClient</c> / <c>UpstoxOptions</c>.
+    /// </summary>
+    Upstox,
 }

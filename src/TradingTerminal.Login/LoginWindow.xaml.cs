@@ -44,5 +44,7 @@ public partial class LoginWindow : MetroWindow
             IronBeamFormHost.Content = new IronBeamLoginForm { DataContext = ib2 };
         if (vm.LondonStrategicEdgeForm is { } lse)
             LondonStrategicEdgeFormHost.Content = new LondonStrategicEdgeLoginForm { DataContext = lse };
+        if (vm.UpstoxForm is { } up)
+            UpstoxFormHost.Content = new UpstoxLoginForm { DataContext = up };
     }
 }

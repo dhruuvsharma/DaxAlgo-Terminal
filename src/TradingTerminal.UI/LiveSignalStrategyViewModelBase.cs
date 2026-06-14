@@ -71,6 +71,15 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     private long _barVolume;
     private static readonly TimeSpan BarInterval = TimeSpan.FromSeconds(15);
 
+    // Hub pumps use bounded, DropOldest channels (not unbounded) so a fast feed the UI can't drain
+    // is capped in memory — the newest event always wins — instead of piling the backlog into GBs
+    // over a long session. Each pump batch-drains: one UI-thread marshal per drained batch rather
+    // than one per event, so the consumer keeps pace and the channel rarely has to shed.
+    private const int QuoteChannelCapacity = 16_384;
+    private const int DepthChannelCapacity = 2_048;
+    private const int TradeChannelCapacity = 65_536;
+    private const int MaxStreamDrainBatch = 4_096;
+
     protected LiveSignalStrategyViewModelBase(
         string strategyId,
         string strategyDisplayName,
@@ -436,30 +445,40 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// can't block ingest.</summary>
     private async Task RunQuoteStreamAsync(InstrumentId instrumentId, CancellationToken ct)
     {
-        var channel = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<Tick>(new BoundedChannelOptions(QuoteChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Quotes(instrumentId).Subscribe(q =>
             channel.Writer.TryWrite(new Tick(q.EventTimeUtc, q.Bid, q.Ask, q.BidSize, q.AskSize)));
 
+        var batch = new List<Tick>(256);
         try
         {
-            await foreach (var tick in channel.Reader.ReadAllAsync(ct))
+            while (await channel.Reader.WaitToReadAsync(ct))
             {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
                 if (_strategy is null || _router is null) break;
                 await UiThread.RunAsync(async () =>
                 {
-                    LastBid = tick.Bid;
-                    LastAsk = tick.Ask;
-                    LastMid = (tick.Bid + tick.Ask) * 0.5;
-                    TicksSeen++;
-                    AggregateBar(tick);
-                    _router.UpdateMarketContext(tick);
-                    try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
-                    catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                    foreach (var tick in batch)
+                    {
+                        if (_strategy is null || _router is null) break;
+                        LastBid = tick.Bid;
+                        LastAsk = tick.Ask;
+                        LastMid = (tick.Bid + tick.Ask) * 0.5;
+                        TicksSeen++;
+                        AggregateBar(tick);
+                        _router.UpdateMarketContext(tick);
+                        try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                    }
+                    // Per-batch redraw trigger — windows coalesce their own redraws off this anyway.
                     TickProcessed?.Invoke(this, EventArgs.Empty);
                 });
             }
@@ -485,25 +504,35 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// </summary>
     private async Task RunDepthStreamAsync(InstrumentId instrumentId, CancellationToken ct)
     {
-        var channel = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<DepthSnapshot>(new BoundedChannelOptions(DepthChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Depth(instrumentId).Subscribe(s =>
             channel.Writer.TryWrite(s));
 
+        var batch = new List<DepthSnapshot>(64);
         try
         {
-            await foreach (var snapshot in channel.Reader.ReadAllAsync(ct))
+            while (await channel.Reader.WaitToReadAsync(ct))
             {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var s)) batch.Add(s);
+                if (batch.Count == 0) continue;
                 if (_strategy is null || _router is null) break;
                 await UiThread.RunAsync(async () =>
                 {
-                    LatestDepth = snapshot;
-                    try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
-                    catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                    foreach (var snapshot in batch)
+                    {
+                        if (_strategy is null || _router is null) break;
+                        try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                    }
+                    // The order-book pane only needs the freshest book; intermediates are stale.
+                    LatestDepth = batch[^1];
                 });
             }
         }
@@ -563,24 +592,33 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _tradeIngestHandle = _services.Ingest.SubscribeTrades(contract, broker);
         await UiThread.RunAsync(() => TradeTapeAvailable = true);
 
-        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var subscription = _services.Hub.Trades(instrumentId).Subscribe(t =>
             channel.Writer.TryWrite(t));
 
+        var batch = new List<TradePrint>(256);
         try
         {
-            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
+            while (await channel.Reader.WaitToReadAsync(ct))
             {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
                 if (_strategy is null || _router is null) break;
                 await UiThread.RunAsync(async () =>
                 {
-                    try { await _strategy.OnTradeAsync(trade, _clock, _router, ct); }
-                    catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId); }
+                    foreach (var trade in batch)
+                    {
+                        if (_strategy is null || _router is null) break;
+                        try { await _strategy.OnTradeAsync(trade, _clock, _router, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId); }
+                    }
                 });
             }
         }

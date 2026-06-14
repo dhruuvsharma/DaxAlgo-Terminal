@@ -140,7 +140,7 @@ internal sealed class RealBinanceClient : IBrokerClient
         Contract contract, CancellationToken ct = default) =>
         StreamAsync(
             $"{StreamSymbol(contract)}@trade",
-            ParseTrade,
+            el => ParseTrade(el, _options.SizeScale),
             ct);
 
     public async ValueTask DisposeAsync()
@@ -270,7 +270,7 @@ internal sealed class RealBinanceClient : IBrokerClient
     }
 
     /// <summary><c>@trade</c> → trade print. <c>m</c> = "buyer is maker": when true the taker (aggressor) is the seller.</summary>
-    internal static TradeTick? ParseTrade(JsonElement el)
+    internal static TradeTick? ParseTrade(JsonElement el, double sizeScale)
     {
         if (el.ValueKind != JsonValueKind.Object) return null;
         if (!el.TryGetProperty("p", out var price) || !el.TryGetProperty("q", out var qty)) return null;
@@ -283,10 +283,12 @@ internal sealed class RealBinanceClient : IBrokerClient
             ? AggressorSide.Sell // buyer is the maker → seller initiated
             : AggressorSide.Buy;
 
-        // Trade size is intentionally NOT pre-scaled here — ingest's Lee-Ready / footprint logic
-        // treats TradeTick.Size as raw units; we keep it raw and only scale on the canonical-size
-        // surfaces (quotes/depth). Round fractional crypto qty to the nearest whole unit.
-        return new TradeTick(time, ParseDouble(price), (long)Math.Round(ParseDouble(qty)), aggressor);
+        // Scale the trade size by SizeScale exactly like quotes/depth/bars. Crypto trade quantities
+        // are fractional (a typical BTC print is well under 1 unit); rounding raw qty to a whole
+        // number floored almost every BTC trade to 0, and the footprint/CVD/VPIN math drops
+        // zero-size prints — so the footprint cluster never accumulated. Scaling keeps sizes
+        // non-zero and comparable across the order-book / footprint / volume surfaces.
+        return new TradeTick(time, ParseDouble(price), ToSize(ParseDouble(qty), sizeScale), aggressor);
     }
 
     /// <summary><c>@depth{N}@100ms</c> partial book → a ready-made snapshot (Binance returns sorted bids desc / asks asc).</summary>

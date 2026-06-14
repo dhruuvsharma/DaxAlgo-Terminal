@@ -44,13 +44,27 @@ public sealed class BinanceParsingTests
     {
         var el = Json($$"""{"e":"trade","E":1700000000123,"s":"BTCUSDT","p":"42010.5","q":"3","T":1700000000100,"m":{{(buyerIsMaker ? "true" : "false")}}}""");
 
-        var trade = RealBinanceClient.ParseTrade(el);
+        var trade = RealBinanceClient.ParseTrade(el, Scale);
 
         trade.Should().NotBeNull();
         trade!.Price.Should().Be(42010.5);
-        trade.Size.Should().Be(3);
+        trade.Size.Should().Be(3000);   // scaled by SizeScale, consistent with quotes/depth/bars
         trade.Aggressor.Should().Be(expected);
         trade.TimestampUtc.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(1700000000100).UtcDateTime);
+    }
+
+    [Fact]
+    public void ParseTrade_scales_fractional_btc_qty_to_nonzero_size()
+    {
+        // Regression: BTC trades are almost always fractional (a 0.012 BTC print is typical). The
+        // old code rounded raw qty to a whole number, flooring sub-1-unit trades to 0 — and the
+        // footprint/CVD/VPIN math drops zero-size prints, so the cluster never updated for BTC.
+        var el = Json("""{"e":"trade","s":"BTCUSDT","p":"42010.5","q":"0.012","T":1700000000100,"m":false}""");
+
+        var trade = RealBinanceClient.ParseTrade(el, Scale);
+
+        trade.Should().NotBeNull();
+        trade!.Size.Should().Be(12);   // round(0.012 * 1000) — survives the Size > 0 filter
     }
 
     [Fact]

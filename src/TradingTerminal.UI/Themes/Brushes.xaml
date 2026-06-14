@@ -40,6 +40,57 @@
     <SolidColorBrush x:Key="Danger.Brush"        Color="{StaticResource Danger.Color}" />
     <SolidColorBrush x:Key="Warning.Brush"       Color="{StaticResource Warning.Color}" />
 
+    <!-- ===================================================================================
+         Premium-terminal depth tokens (added for the v2 fancy theme). All additive — existing
+         keys above are untouched, so every window keeps working while opting into the richer set.
+         =================================================================================== -->
+
+    <!-- Extra flat colours -->
+    <Color x:Key="Surface.Hover.Color">#1C1C1C</Color>
+    <Color x:Key="Border.Strong.Color">#3A3A3A</Color>
+    <Color x:Key="Accent.Hover.Color">#FFA733</Color>
+
+    <SolidColorBrush x:Key="Surface.Hover" Color="{StaticResource Surface.Hover.Color}" />
+    <SolidColorBrush x:Key="Border.Strong" Color="{StaticResource Border.Strong.Color}" />
+    <SolidColorBrush x:Key="Accent.Hover.Brush" Color="{StaticResource Accent.Hover.Color}" />
+
+    <!-- Soft (alpha) semantic fills — for pills / chips / cell washes -->
+    <SolidColorBrush x:Key="Accent.Soft"   Color="#26FF8C00" />
+    <SolidColorBrush x:Key="Bullish.Soft"  Color="#2600C853" />
+    <SolidColorBrush x:Key="Bearish.Soft"  Color="#26FF1744" />
+    <SolidColorBrush x:Key="Warning.Soft"  Color="#26FFD600" />
+    <SolidColorBrush x:Key="Highlight.Soft" Color="#2600BFFF" />
+
+    <!-- Vertical surface gradients (chrome bars, panels, cards) -->
+    <LinearGradientBrush x:Key="Gradient.Chrome" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#1A1A1A" Offset="0" />
+        <GradientStop Color="#0C0C0C" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.Elevated" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#1E1E1E" Offset="0" />
+        <GradientStop Color="#121212" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.Surface" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#121212" Offset="0" />
+        <GradientStop Color="#080808" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Amber-tinted header gradient (left→right) for card/section headers -->
+    <LinearGradientBrush x:Key="Gradient.Header" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#2A1E07" Offset="0" />
+        <GradientStop Color="#130D03" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Accent gradients for primary buttons / active states -->
+    <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFA733" Offset="0" />
+        <GradientStop Color="#FF8C00" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.AccentHover" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFBB55" Offset="0" />
+        <GradientStop Color="#FF9A1A" Offset="1" />
+    </LinearGradientBrush>
+
     <!-- Typographic constants -->
     <FontFamily x:Key="Font.Mono">Consolas, Cascadia Mono, Lucida Console</FontFamily>
 

@@ -91,6 +91,36 @@
                 <mah:NumericUpDown Width="72" Minimum="1" Maximum="30"
                                    Value="{Binding PredictionBars}" />
             </StackPanel>
+
+            <!-- View row: cell display mode, analytics overlays, and vertical zoom -->
+            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                <StackPanel.Resources>
+                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Margin" Value="0,0,14,0" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                </StackPanel.Resources>
+                <TextBlock Text="Cells" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                <ComboBox Width="96" ItemsSource="{Binding DisplayModes}"
+                          SelectedItem="{Binding SelectedDisplayMode}" Margin="0,0,16,0" />
+
+                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="2,2,14,2" />
+                <CheckBox Content="Imbalances" IsChecked="{Binding ShowImbalances}" />
+                <CheckBox Content="Value area" IsChecked="{Binding ShowValueArea}" />
+                <CheckBox Content="Profile" IsChecked="{Binding ShowVolumeProfile}" />
+                <CheckBox Content="Cell volumes" IsChecked="{Binding ShowCellText}" />
+
+                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="2,2,14,2" />
+                <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,8,0"
+                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                <Slider Width="120" Minimum="0.5" Maximum="3" Value="{Binding Zoom}"
+                        TickFrequency="0.5" IsSnapToTickEnabled="False" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Zoom, StringFormat={}{0:0.0}×}" VerticalAlignment="Center"
+                           Margin="8,0,0,0" Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                           FontFamily="Consolas" />
+            </StackPanel>
             </StackPanel>
         </Border>
 
@@ -181,6 +211,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="POC slope" Style="{StaticResource Lbl}" />
@@ -206,6 +237,9 @@
 
                         <TextBlock Grid.Row="7" Grid.Column="0" Text="POC" Style="{StaticResource Lbl}" />
                         <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding CurrentPocText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Stacked ▲/▼" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding StackedText}" Style="{StaticResource Val}" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -237,7 +271,13 @@
                     <Border Width="14" Height="2" Background="#29B6F6" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="fit curves (dash = kind)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
                     <Border Width="11" Height="11" BorderBrush="#4CAF50" BorderThickness="1" Background="#382E7D32" VerticalAlignment="Center" Margin="0,0,4,0" />
-                    <TextBlock Text="predicted (fit consensus)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="predicted" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#69F0AE" BorderThickness="1.6" Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="buy imb" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,8,0" />
+                    <Border Width="11" Height="11" BorderBrush="#FF8A80" BorderThickness="1.6" Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="sell imb" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#6690CAF9" BorderThickness="1" Background="#1490CAF9" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="value area" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
                            Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"

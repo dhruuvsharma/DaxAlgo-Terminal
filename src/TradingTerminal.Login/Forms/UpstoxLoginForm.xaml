@@ -1,0 +1,73 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.UpstoxLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:TradingTerminal.App.Login.Forms"
+             mc:Ignorable="d"
+             d:DesignHeight="520" d:DesignWidth="500">
+    <StackPanel>
+
+        <TextBlock Text="API key" Margin="0,0,0,4" />
+        <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Upstox app API Key (client id)"
+                 Margin="0,0,0,12" />
+
+        <TextBlock Text="API secret" Margin="0,0,0,4" />
+        <PasswordBox x:Name="ApiSecretBox"
+                     PasswordChanged="ApiSecretBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine"
+                     Margin="0,0,0,12" />
+
+        <TextBlock Text="Redirect URI" Margin="0,0,0,4" />
+        <TextBox Text="{Binding RedirectUri, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Must match the app's registered redirect URI exactly"
+                 Margin="0,0,0,12" />
+
+        <!-- Step 1: open the Upstox sign-in dialog in the browser -->
+        <Button Content="1 · Authorize in browser"
+                Command="{Binding AuthorizeCommand}"
+                HorizontalAlignment="Left" MinWidth="180" Margin="0,0,0,12" />
+
+        <TextBlock Text="Authorization code" Margin="0,0,0,4" />
+        <TextBox Text="{Binding AuthCode, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Paste the 'code' query value from the redirected URL"
+                 Margin="0,0,0,8" />
+
+        <!-- Step 2: exchange the code for an access token -->
+        <DockPanel LastChildFill="False" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Left" Content="2 · Get access token"
+                    Command="{Binding ExchangeCodeCommand}"
+                    MinWidth="180" />
+            <ProgressBar DockPanel.Dock="Left"
+                         IsIndeterminate="{Binding IsExchanging}"
+                         Visibility="{Binding IsExchanging, Converter={StaticResource BooleanToVisibilityConverter}}"
+                         Width="100" Height="4" VerticalAlignment="Center" Margin="12,0,0,0" />
+        </DockPanel>
+
+        <TextBlock Text="Access token" Margin="0,0,0,4" />
+        <TextBox Text="{Binding AccessToken, UpdateSourceTrigger=PropertyChanged}"
+                 mah:TextBoxHelper.Watermark="Filled by 'Get access token' (or paste a fresh daily token)"
+                 Margin="0,0,0,8" />
+
+        <TextBlock Text="{Binding AuthMessage}"
+                   TextWrapping="Wrap" FontSize="11"
+                   Foreground="{DynamicResource Text.Secondary}"
+                   Visibility="{Binding AuthMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}"
+                   Margin="0,0,0,4" />
+
+        <Border Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                Padding="10,6"
+                Margin="0,8,0,0">
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run FontWeight="SemiBold" Text="Heads up:" />
+                <Run Text="Create an app at developer.upstox.com to get the API key/secret and set the redirect URI. Access tokens expire daily (~03:30 IST), so re-run Authorize → Get token each trading day. Data-only — no orders are placed." />
+            </TextBlock>
+        </Border>
+    </StackPanel>
+</UserControl>

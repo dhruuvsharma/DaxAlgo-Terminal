@@ -42,6 +42,7 @@ using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
 using TradingTerminal.Ai.BacktestAnalysis;
+using TradingTerminal.QuantConnect;
 
 namespace TradingTerminal.App;
 
@@ -113,6 +114,8 @@ public partial class App : Application
                     ctx.Configuration.GetSection(IronBeamOptions.SectionName));
                 services.Configure<LondonStrategicEdgeOptions>(
                     ctx.Configuration.GetSection(LondonStrategicEdgeOptions.SectionName));
+                services.Configure<UpstoxOptions>(
+                    ctx.Configuration.GetSection(UpstoxOptions.SectionName));
 
                 // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
                 // turned on by the DevLive/DevReplay/DevSim environment files).
@@ -161,6 +164,8 @@ public partial class App : Application
                 services.AddStationaritySurface();
                 services.AddArimaGarchSurface();
                 services.AddKalmanFilterSurface();
+                // QuantConnect / LEAN — polyglot subprocess backtest seam + tool window.
+                services.AddQuantConnectSurface(ctx.Configuration);
                 services.AddArchiveSurface();
             })
             .Build();

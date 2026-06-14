@@ -115,6 +115,11 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
 
     public event EventHandler? TrailChanged;
 
+    // Bounded, DropOldest channel + batch draining caps memory under a fast tape (the old unbounded
+    // channel + per-trade marshal could pile a backlog into GBs over a long session).
+    private const int TradeChannelCapacity = 65_536;
+    private const int MaxStreamDrainBatch = 4_096;
+
     private async Task LoadInstrumentsAsync()
     {
         try
@@ -280,10 +285,14 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
             await UiThread.RunAsync(() => AddLog("WIRE", "Synthetic mode — deriving trades from quote stream"));
         }
 
-        var channel = Channel.CreateUnbounded<TradePrint>(new UnboundedChannelOptions
+        // Bounded + DropOldest + batch draining: a fast tape the UI can't keep up with is capped in
+        // memory (oldest prints shed) instead of piling an unbounded backlog into GBs, and the 3D
+        // chart is rebuilt once per drained batch rather than once per trade.
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         using var sub = _useSynthetic
@@ -298,11 +307,19 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
                 ? $"Hub.Quotes({instrumentId.Value}) observer connected (synthesizing)"
                 : $"Hub.Trades({instrumentId.Value}) observer connected"));
 
+        var batch = new List<TradePrint>(256);
         try
         {
-            await foreach (var trade in channel.Reader.ReadAllAsync(ct))
+            while (await channel.Reader.WaitToReadAsync(ct))
             {
-                await UiThread.RunAsync(() => OnTrade(trade));
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() =>
+                {
+                    foreach (var trade in batch) OnTrade(trade);
+                    TrailChanged?.Invoke(this, EventArgs.Empty);
+                });
             }
         }
         catch (OperationCanceledException) { /* expected */ }
@@ -353,7 +370,7 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         while (TrailPoints.Count > MaxTrailPoints) TrailPoints.RemoveAt(0);
 
         EvaluateRegime();
-        TrailChanged?.Invoke(this, EventArgs.Empty);
+        // Redraw is raised once per drained batch by the pump, not per trade — see RunStreamAsync.
     }
 
     private void EvaluateRegime()
