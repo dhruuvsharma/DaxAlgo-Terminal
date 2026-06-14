@@ -13,6 +13,10 @@ using TradingTerminal.Infrastructure.Brokers;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Infrastructure.Alpaca;
 using TradingTerminal.Infrastructure.Binance;
+using TradingTerminal.Infrastructure.Coinbase;
+using TradingTerminal.Infrastructure.Bybit;
+using TradingTerminal.Infrastructure.Kraken;
+using TradingTerminal.Infrastructure.Okx;
 using TradingTerminal.Infrastructure.CTrader;
 using TradingTerminal.Infrastructure.Ib;
 using TradingTerminal.Infrastructure.IronBeam;
@@ -190,6 +194,41 @@ public static class DependencyInjection
                 IsLive: true,
                 DisplayName: "Upstox",
                 Description: "Indian markets (NSE/BSE) — REST + WebSocket API v2/v3; OAuth2, live L1 + 5-level depth, historical candles. Data-only."));
+
+        // Coinbase / Bybit / Kraken / OKX — always available (public crypto market data over
+        // WebSocket + REST; no SDK, no key, no account). Real, live bars / L1 / L2 / trades — the same
+        // zero-credential pattern as Binance. Metered like the other networked brokers.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealCoinbaseClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(BrokerKind.Coinbase, IsLive: true, DisplayName: "Coinbase (live data)",
+                Description: "Public Coinbase market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
+
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealBybitClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(BrokerKind.Bybit, IsLive: true, DisplayName: "Bybit (live data)",
+                Description: "Public Bybit market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
+
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealKrakenClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(BrokerKind.Kraken, IsLive: true, DisplayName: "Kraken (live data)",
+                Description: "Public Kraken market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
+
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealOkxClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(BrokerKind.Okx, IsLive: true, DisplayName: "OKX (live data)",
+                Description: "Public OKX market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
 
         // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
         // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local

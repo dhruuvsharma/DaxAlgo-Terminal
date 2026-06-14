@@ -109,9 +109,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         ActivityLog = CollectionViewSource.GetDefaultView(logSink.Entries);
         ActivityLog.Filter = FilterActivityEntry;
 
+        Ticker = new Shell.TickerTapeViewModel(
+            services.GetRequiredService<IMarketDataRepository>(),
+            brokerSelector,
+            services.GetRequiredService<ILogger<Shell.TickerTapeViewModel>>());
+
+        OpenTabs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoOpenTabs));
+
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _clockTimer.Tick += (_, _) => CurrentTime = DateTime.Now.ToString("HH:mm:ss");
+        _clockTimer.Tick += (_, _) => UpdateClocks();
         _clockTimer.Start();
+        UpdateClocks();
 
         // Aggregate connection state across every available broker — when any broker is
         // Connected we report Connected; otherwise mirror the most "alive" state.
@@ -152,6 +160,60 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(DisconnectBannerText));
         OnPropertyChanged(nameof(ModeDisplayName));
         OnPropertyChanged(nameof(IsLiveMode));
+        OnPropertyChanged(nameof(ConnectedBrokerCount));
+    }
+
+    /// <summary>Refresh the local + UTC clocks and the (approximate, no DST/holiday calendar) market
+    /// session flags driven by the 1-second timer.</summary>
+    private void UpdateClocks()
+    {
+        CurrentTime = DateTime.Now.ToString("HH:mm:ss");
+        var utc = DateTime.UtcNow;
+        CurrentTimeUtc = utc.ToString("HH:mm:ss");
+        NyseOpen = IsSessionOpen(utc, 14, 30, 21, 0);  // ~09:30–16:00 ET
+        LseOpen = IsSessionOpen(utc, 8, 0, 16, 30);    // ~08:00–16:30 London
+    }
+
+    private static bool IsSessionOpen(DateTime utc, int startH, int startM, int endH, int endM)
+    {
+        if (utc.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) return false;
+        var minutes = utc.Hour * 60 + utc.Minute;
+        return minutes >= startH * 60 + startM && minutes < endH * 60 + endM;
+    }
+
+    /// <summary>Parse the terminal command line and route to the matching window. Accepts bare tool
+    /// keywords (with or without a leading '/'); anything else is treated as a symbol request and opens
+    /// Charts. Mirrors a Bloomberg-style command entry.</summary>
+    [RelayCommand]
+    private void RunCommandLine()
+    {
+        var raw = (CommandText ?? string.Empty).Trim();
+        if (raw.Length == 0) return;
+        var cmd = raw.TrimStart('/').Trim().ToLowerInvariant();
+
+        switch (cmd)
+        {
+            case "charts": case "chart": case "c": OpenCharts(); break;
+            case "orderbook": case "book": case "dom": OpenOrderBook(); break;
+            case "footprint": case "fp": OpenFootprint(); break;
+            case "heatmap": case "hm": OpenHeatmap(); break;
+            case "backtest": case "bt": OpenBacktest(); break;
+            case "regime": case "rg": OpenRegime(); break;
+            case "correlation": case "corr": OpenCorrelation(); break;
+            case "quantconnect": case "lean": case "qc": OpenQuantConnectBacktest(); break;
+            case "research": case "factor": OpenResearch(); break;
+            case "analyst": case "ai": OpenAiAnalyst(); break;
+            case "recorder": case "record": case "rec": OpenRecorder(); break;
+            case "stationarity": case "arima": case "kalman": OpenStationarity(); break;
+            case "help": case "?": OpenSupport(); break;
+            default:
+                // Treat an unknown bare token as a symbol → open Charts and note it in the log.
+                LogSink.Append("Command", "Information", $"> {raw}  (opening Charts)");
+                OpenCharts();
+                break;
+        }
+
+        CommandText = string.Empty;
     }
 
     private readonly Dictionary<string, Window> _openWindows;
@@ -251,6 +313,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
+
+    [ObservableProperty]
+    private string _currentTimeUtc = DateTime.UtcNow.ToString("HH:mm:ss");
+
+    [ObservableProperty]
+    private bool _nyseOpen;
+
+    [ObservableProperty]
+    private bool _lseOpen;
+
+    /// <summary>Bound to the terminal command line in the header. <see cref="RunCommandLineCommand"/>
+    /// parses it and routes to the matching tool/window.</summary>
+    [ObservableProperty]
+    private string _commandText = string.Empty;
+
+    /// <summary>Live ticker tape feed shown under the menu bar.</summary>
+    public Shell.TickerTapeViewModel Ticker { get; }
+
+    /// <summary>Count of brokers currently connected — shown in the status bar.</summary>
+    public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
+
+    /// <summary>True when no document tabs are open — drives the empty-state hint over the dock.</summary>
+    public bool HasNoOpenTabs => OpenTabs.Count == 0;
 
     /// <summary>Two-way: View → Strategies menu binds here; the dock pane's IsHidden flips on this.</summary>
     [ObservableProperty]

@@ -54,4 +54,36 @@ public enum BrokerKind
     /// See <c>RealUpstoxClient</c> / <c>UpstoxOptions</c>.
     /// </summary>
     Upstox,
+
+    /// <summary>
+    /// Coinbase public market data — real, live crypto bars / L1 / L2 / trades over the Advanced
+    /// Trade WebSocket (wss://advanced-trade-ws.coinbase.com: level2 / ticker / market_trades) plus
+    /// REST candles (api.exchange.coinbase.com). No API key, no account. Data-only. Appended last to
+    /// keep existing ordinal values stable. See <c>RealCoinbaseClient</c> / <c>CoinbaseOptions</c>.
+    /// </summary>
+    Coinbase,
+
+    /// <summary>
+    /// Bybit public market data — real, live crypto bars / L1 / L2 / trades over the v5 public
+    /// WebSocket (wss://stream.bybit.com/v5/public/spot: orderbook / tickers / publicTrade / kline)
+    /// plus REST kline. No API key, no account. Data-only. Appended last to keep existing ordinal
+    /// values stable. See <c>RealBybitClient</c> / <c>BybitOptions</c>.
+    /// </summary>
+    Bybit,
+
+    /// <summary>
+    /// Kraken public market data — real, live crypto bars / L1 / L2 / trades over the WebSocket v2
+    /// (wss://ws.kraken.com/v2: book / ticker / trade / ohlc) plus REST OHLC. No API key, no account.
+    /// Data-only. Appended last to keep existing ordinal values stable.
+    /// See <c>RealKrakenClient</c> / <c>KrakenOptions</c>.
+    /// </summary>
+    Kraken,
+
+    /// <summary>
+    /// OKX public market data — real, live crypto bars / L1 / L2 / trades over the v5 public
+    /// WebSocket (wss://ws.okx.com:8443/ws/v5/public: books5 / tickers / trades / candle) plus REST
+    /// candles. No API key, no account. Data-only. Appended last to keep existing ordinal values
+    /// stable. See <c>RealOkxClient</c> / <c>OkxOptions</c>.
+    /// </summary>
+    Okx,
 }

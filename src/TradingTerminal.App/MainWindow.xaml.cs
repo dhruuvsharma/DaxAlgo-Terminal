@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
@@ -14,6 +15,14 @@ public partial class MainWindow : MetroWindow
     {
         InitializeComponent();
         Loaded += OnLoaded;
+
+        // Auto-scroll the Activity Log to the newest entry (console "tail" behaviour).
+        if (LogList.Items is INotifyCollectionChanged incc)
+            incc.CollectionChanged += (_, args) =>
+            {
+                if (args.Action == NotifyCollectionChangedAction.Add && LogList.Items.Count > 0)
+                    LogList.ScrollIntoView(LogList.Items[^1]);
+            };
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

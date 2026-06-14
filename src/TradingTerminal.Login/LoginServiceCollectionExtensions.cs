@@ -46,6 +46,18 @@ public static class LoginServiceCollectionExtensions
         services.AddSingleton<UpstoxLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<UpstoxLoginFormViewModel>());
 
+        services.AddSingleton<CoinbaseLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<CoinbaseLoginFormViewModel>());
+
+        services.AddSingleton<BybitLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<BybitLoginFormViewModel>());
+
+        services.AddSingleton<KrakenLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<KrakenLoginFormViewModel>());
+
+        services.AddSingleton<OkxLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<OkxLoginFormViewModel>());
+
         services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
         return services;
     }

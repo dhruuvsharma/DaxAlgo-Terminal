@@ -126,6 +126,10 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public IronBeamLoginFormViewModel? IronBeamForm => AvailableForms.OfType<IronBeamLoginFormViewModel>().FirstOrDefault();
     public LondonStrategicEdgeLoginFormViewModel? LondonStrategicEdgeForm => AvailableForms.OfType<LondonStrategicEdgeLoginFormViewModel>().FirstOrDefault();
     public UpstoxLoginFormViewModel? UpstoxForm => AvailableForms.OfType<UpstoxLoginFormViewModel>().FirstOrDefault();
+    public CoinbaseLoginFormViewModel? CoinbaseForm => AvailableForms.OfType<CoinbaseLoginFormViewModel>().FirstOrDefault();
+    public BybitLoginFormViewModel? BybitForm => AvailableForms.OfType<BybitLoginFormViewModel>().FirstOrDefault();
+    public KrakenLoginFormViewModel? KrakenForm => AvailableForms.OfType<KrakenLoginFormViewModel>().FirstOrDefault();
+    public OkxLoginFormViewModel? OkxForm => AvailableForms.OfType<OkxLoginFormViewModel>().FirstOrDefault();
 
     public bool HasIb => IbForm is not null;
     public bool HasNinja => NinjaForm is not null;
@@ -135,6 +139,10 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     public bool HasIronBeam => IronBeamForm is not null;
     public bool HasLondonStrategicEdge => LondonStrategicEdgeForm is not null;
     public bool HasUpstox => UpstoxForm is not null;
+    public bool HasCoinbase => CoinbaseForm is not null;
+    public bool HasBybit => BybitForm is not null;
+    public bool HasKraken => KrakenForm is not null;
+    public bool HasOkx => OkxForm is not null;
 
     [ObservableProperty]
     private int _connectedCount;

@@ -116,6 +116,14 @@ public partial class App : Application
                     ctx.Configuration.GetSection(LondonStrategicEdgeOptions.SectionName));
                 services.Configure<UpstoxOptions>(
                     ctx.Configuration.GetSection(UpstoxOptions.SectionName));
+                services.Configure<CoinbaseOptions>(
+                    ctx.Configuration.GetSection(CoinbaseOptions.SectionName));
+                services.Configure<BybitOptions>(
+                    ctx.Configuration.GetSection(BybitOptions.SectionName));
+                services.Configure<KrakenOptions>(
+                    ctx.Configuration.GetSection(KrakenOptions.SectionName));
+                services.Configure<OkxOptions>(
+                    ctx.Configuration.GetSection(OkxOptions.SectionName));
 
                 // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
                 // turned on by the DevLive/DevReplay/DevSim environment files).

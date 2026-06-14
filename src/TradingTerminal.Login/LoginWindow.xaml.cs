@@ -46,5 +46,13 @@ public partial class LoginWindow : MetroWindow
             LondonStrategicEdgeFormHost.Content = new LondonStrategicEdgeLoginForm { DataContext = lse };
         if (vm.UpstoxForm is { } up)
             UpstoxFormHost.Content = new UpstoxLoginForm { DataContext = up };
+        if (vm.CoinbaseForm is { } cb)
+            CoinbaseFormHost.Content = new CoinbaseLoginForm { DataContext = cb };
+        if (vm.BybitForm is { } by)
+            BybitFormHost.Content = new BybitLoginForm { DataContext = by };
+        if (vm.KrakenForm is { } kr)
+            KrakenFormHost.Content = new KrakenLoginForm { DataContext = kr };
+        if (vm.OkxForm is { } ok)
+            OkxFormHost.Content = new OkxLoginForm { DataContext = ok };
     }
 }

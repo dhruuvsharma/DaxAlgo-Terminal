@@ -23,6 +23,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />  <!-- Bloomberg header strip -->
             <RowDefinition Height="Auto" />  <!-- Top menu -->
+            <RowDefinition Height="Auto" />  <!-- Command line + ticker tape -->
             <RowDefinition Height="Auto" />  <!-- Disconnect banner -->
             <RowDefinition Height="*" />    <!-- Dock -->
             <RowDefinition Height="Auto" />  <!-- Status bar -->
@@ -158,13 +159,78 @@
                     <TextBlock Text="{Binding SessionUserDisplay}"
                                Foreground="{DynamicResource Text.Secondary}"
                                FontSize="11"
-                               Margin="0,0,16,0"
+                               Margin="0,0,12,0"
                                VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding CurrentTime}"
-                               Foreground="{DynamicResource Accent.Brush}"
-                               FontWeight="Bold"
-                               FontSize="13"
-                               VerticalAlignment="Center" />
+
+                    <!-- Market session badges (approximate; no DST/holiday calendar) -->
+                    <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center"
+                            Background="{DynamicResource Bullish.Soft}" BorderBrush="{DynamicResource Bullish.Brush}" BorderThickness="1">
+                        <TextBlock Text="CRYPTO 24/7" Foreground="{DynamicResource Bullish.Brush}" FontSize="9" FontWeight="Bold" />
+                    </Border>
+                    <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#1AFFFFFF" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NyseOpen}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource Bullish.Soft}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock FontSize="9" FontWeight="Bold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="NYSE CLOSED" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding NyseOpen}" Value="True">
+                                            <Setter Property="Text" Value="NYSE OPEN" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                    <Border CornerRadius="3" Padding="5,1" Margin="0,0,12,0" VerticalAlignment="Center" BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#1AFFFFFF" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LseOpen}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource Bullish.Soft}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock FontSize="9" FontWeight="Bold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="LSE CLOSED" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding LseOpen}" Value="True">
+                                            <Setter Property="Text" Value="LSE OPEN" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+
+                    <!-- UTC + local clocks -->
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding CurrentTimeUtc}" Foreground="{DynamicResource Accent.Brush}"
+                                       FontWeight="Bold" FontSize="13" />
+                            <TextBlock Text="UTC" Foreground="{DynamicResource Text.Secondary}" FontSize="9"
+                                       VerticalAlignment="Bottom" Margin="3,0,0,1" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding CurrentTime}" Foreground="{DynamicResource Text.Secondary}"
+                                   FontSize="10" HorizontalAlignment="Right" />
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
@@ -296,8 +362,112 @@
             </MenuItem>
         </Menu>
 
-        <!-- Disconnect banner -->
+        <!-- Command line + live ticker tape -->
         <Border Grid.Row="2"
+                Background="{DynamicResource Gradient.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="0,0,0,1"
+                Padding="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Bloomberg-style command line -->
+                <Border Grid.Column="0" Background="{DynamicResource Background.Primary}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,1,0"
+                        Padding="8,3">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&gt;" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold"
+                                   FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox Width="240" BorderThickness="0" Background="Transparent"
+                                 Foreground="{DynamicResource Text.Highlight}" FontFamily="{DynamicResource Font.Mono}"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="Type a command (charts · book · backtest · regime · qc · analyst · help) or a ticker, then Enter"
+                                 Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding RunCommandLineCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <TextBlock Text="GO" Foreground="{DynamicResource Text.Secondary}" FontSize="9" FontWeight="Bold"
+                                   VerticalAlignment="Center" Margin="4,0,2,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Scrolling ticker tape -->
+                <Border Grid.Column="1" ClipToBounds="True" Padding="0">
+                    <Grid>
+                        <TextBlock Text="◴  Connect a broker to stream live prices…" VerticalAlignment="Center"
+                                   Margin="12,0,0,0" Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                                   Visibility="{Binding Ticker.HasItems, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <ItemsControl ItemsSource="{Binding Ticker.Items}" VerticalAlignment="Center"
+                                      Visibility="{Binding Ticker.HasItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.RenderTransform>
+                                <TranslateTransform X="1400" />
+                            </ItemsControl.RenderTransform>
+                            <ItemsControl.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation
+                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                From="1400" To="-2600" Duration="0:0:45" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </ItemsControl.Triggers>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,18,2">
+                                        <TextBlock Text="{Binding Symbol}" Foreground="{DynamicResource Text.Header}"
+                                                   FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBlock Text="{Binding Last, StringFormat=N2}" Foreground="{DynamicResource Text.Primary}"
+                                                   FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                        <TextBlock FontSize="11" VerticalAlignment="Center"
+                                                   Text="{Binding ChangePercent, StringFormat=+0.00;-0.00;0.00}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Direction}" Value="1">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding Direction}" Value="-1">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock FontSize="10" VerticalAlignment="Center" Margin="2,0,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="%" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Direction}" Value="1">
+                                                            <Setter Property="Text" Value="▲" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding Direction}" Value="-1">
+                                                            <Setter Property="Text" Value="▼" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Disconnect banner -->
+        <Border Grid.Row="3"
                 Background="{DynamicResource Danger.Brush}"
                 Padding="12,6"
                 Visibility="{Binding IsDisconnected, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -311,7 +481,7 @@
         </Border>
 
         <!-- AvalonDock layout -->
-        <dock:DockingManager Grid.Row="3"
+        <dock:DockingManager Grid.Row="4"
                              x:Name="Dock"
                              AllowMixedOrientation="True"
                              DocumentsSource="{Binding OpenTabs}"
@@ -540,15 +710,56 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="{Binding TimestampUtc, StringFormat='HH:mm:ss'}"
                                                                    Foreground="{DynamicResource Text.Secondary}"
-                                                                   Margin="0,0,8,0" />
+                                                                   Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                        <!-- colour-coded level pill -->
+                                                        <Border CornerRadius="3" Padding="5,0" Margin="0,0,8,0" MinWidth="46"
+                                                                VerticalAlignment="Center">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="#22FFFFFF" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Level}" Value="Error">
+                                                                            <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" /></DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Level}" Value="ERROR">
+                                                                            <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" /></DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                                                            <Setter Property="Background" Value="{DynamicResource Warning.Soft}" /></DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Level}" Value="WARN">
+                                                                            <Setter Property="Background" Value="{DynamicResource Warning.Soft}" /></DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Level}" Value="ENTRY">
+                                                                            <Setter Property="Background" Value="{DynamicResource Bullish.Soft}" /></DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock Text="{Binding Level}" FontSize="9.5" FontWeight="Bold"
+                                                                       TextAlignment="Center" HorizontalAlignment="Center">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Level}" Value="Error">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Level}" Value="ERROR">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Level}" Value="WARN">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Level}" Value="ENTRY">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
                                                         <TextBlock Text="{Binding Source}"
-                                                                   Width="150"
+                                                                   Width="140"
                                                                    TextTrimming="CharacterEllipsis"
+                                                                   VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource Text.Header}" />
-                                                        <TextBlock Text="{Binding Level}"
-                                                                   Width="50"
-                                                                   Foreground="{DynamicResource Accent.Brush}" />
-                                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource Text.Primary}" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -564,8 +775,26 @@
             </dock:LayoutRoot>
         </dock:DockingManager>
 
+        <!-- Empty-state hint: shown over the document area when no tabs are open. -->
+        <StackPanel Grid.Row="4" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding HasNoOpenTabs, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <TextBlock HorizontalAlignment="Center" FontFamily="Consolas" FontSize="13" LineHeight="15"
+                       Foreground="{DynamicResource Accent.Dim.Brush}" Opacity="0.7">
+                <Run Text="&#x2588;&#x2588;&#x2588;&#x2557; &#x2588;&#x2588;&#x2557; &#x2588;&#x2588;&#x2588;&#x2588;&#x2588;&#x2557; &#x2588;&#x2557;&#x2588;&#x2557;" />
+                <LineBreak />
+                <Run Text="D A X A L G O   T E R M I N A L" />
+            </TextBlock>
+            <TextBlock Text="No documents open" HorizontalAlignment="Center" Margin="0,16,0,4"
+                       Foreground="{DynamicResource Text.Secondary}" FontSize="14" FontWeight="SemiBold" />
+            <TextBlock HorizontalAlignment="Center" Foreground="{DynamicResource Text.Secondary}" FontSize="11" TextAlignment="Center">
+                <Run Text="Double-click a strategy · open a tool from the menu" /><LineBreak />
+                <Run Text="or type a command in the " /><Run Text="&gt;" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold" /><Run Text=" line above (charts · backtest · qc · analyst · help)" />
+            </TextBlock>
+        </StackPanel>
+
         <!-- Status bar -->
-        <StatusBar Grid.Row="4">
+        <StatusBar Grid.Row="5">
             <!-- Connection state dot + label -->
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
@@ -614,6 +843,15 @@
                 <TextBlock>
                     <Run Text="TABS " Foreground="{DynamicResource Text.Secondary}" />
                     <Run Text="{Binding OpenTabs.Count, Mode=OneWay}" Foreground="{DynamicResource Text.Highlight}" />
+                </TextBlock>
+            </StatusBarItem>
+            <Separator />
+
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="LIVE " Foreground="{DynamicResource Text.Secondary}" />
+                    <Run Text="{Binding ConnectedBrokerCount, Mode=OneWay}" Foreground="{DynamicResource Bullish.Brush}" />
+                    <Run Text=" brokers" Foreground="{DynamicResource Text.Secondary}" />
                 </TextBlock>
             </StatusBarItem>
             <Separator />

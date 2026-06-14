@@ -649,6 +649,218 @@
                         </Border>
                     </StackPanel>
                 </Expander>
+
+                <!-- Coinbase (public market data — no login) -->
+                <Expander Margin="0,0,0,8" IsExpanded="False"
+                          Visibility="{Binding HasCoinbase, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#0052FF" Margin="0,0,10,0">
+                                <TextBlock Text="CB" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CoinbaseForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CoinbaseForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding CoinbaseForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding CoinbaseForm.StatusText}" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="CoinbaseFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding CoinbaseForm.ConnectCommand}"
+                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding CoinbaseForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding CoinbaseForm.IsConnecting}"
+                                         Visibility="{Binding CoinbaseForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding CoinbaseForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding CoinbaseForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Bybit (public market data — no login) -->
+                <Expander Margin="0,0,0,8" IsExpanded="False"
+                          Visibility="{Binding HasBybit, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#F7A600" Margin="0,0,10,0">
+                                <TextBlock Text="BY" Foreground="#17181E" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding BybitForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BybitForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding BybitForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding BybitForm.StatusText}" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="BybitFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding BybitForm.ConnectCommand}"
+                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding BybitForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding BybitForm.IsConnecting}"
+                                         Visibility="{Binding BybitForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding BybitForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding BybitForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Kraken (public market data — no login) -->
+                <Expander Margin="0,0,0,8" IsExpanded="False"
+                          Visibility="{Binding HasKraken, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#5741D9" Margin="0,0,10,0">
+                                <TextBlock Text="KR" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding KrakenForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding KrakenForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding KrakenForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding KrakenForm.StatusText}" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="KrakenFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding KrakenForm.ConnectCommand}"
+                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding KrakenForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding KrakenForm.IsConnecting}"
+                                         Visibility="{Binding KrakenForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding KrakenForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding KrakenForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+
+                <!-- OKX (public market data — no login) -->
+                <Expander Margin="0,0,0,8" IsExpanded="False"
+                          Visibility="{Binding HasOkx, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="510">
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#121212" Margin="0,0,10,0">
+                                <TextBlock Text="OK" Foreground="White" FontWeight="Bold" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding OkxForm.DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding OkxForm.IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding OkxForm.IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding OkxForm.StatusText}" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+                    <StackPanel Margin="0,8,0,0">
+                        <ContentControl x:Name="OkxFormHost" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding OkxForm.ConnectCommand}"
+                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding OkxForm.DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding OkxForm.IsConnecting}"
+                                         Visibility="{Binding OkxForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding OkxForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding OkxForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
             </StackPanel>
         </ScrollViewer>
 
