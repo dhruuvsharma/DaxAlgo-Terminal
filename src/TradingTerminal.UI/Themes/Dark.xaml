@@ -2,25 +2,13 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls">
 
-    <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Brushes.xaml" />
-    </ResourceDictionary.MergedDictionaries>
-
     <!-- ===================================================================================
-         Unify the MahApps accent to our amber. The base theme is Dark.Blue, so without this
-         every MahApps highlight (selection, focus ring, checkbox tick, toggle, tab underline,
-         progress bar, scrollbar thumb) renders BLUE and clashes with the Bloomberg amber.
-         These keys are read via DynamicResource inside MahApps templates, and this dictionary
-         merges AFTER MahApps, so our values win app-wide.
+         Structural style layer — theme-agnostic. Every brush/colour/gradient/font key it
+         references is supplied by the active PALETTE dictionary (Themes/Brushes.xaml,
+         Themes/Monochrome.xaml, …), which App.xaml merges *before* this file and which
+         ThemeManager hot-swaps at runtime. All palette references here are DynamicResource so a
+         swap re-skins live. The MahApps accent override now lives in each palette too.
          =================================================================================== -->
-    <SolidColorBrush x:Key="MahApps.Brushes.Accent"  Color="{StaticResource Accent.Color}" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Accent2" Color="#FF9A1A" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Accent3" Color="{StaticResource Accent.Dim.Color}" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Accent4" Color="#80FF8C00" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Highlight" Color="#FF9A1A" />
-    <SolidColorBrush x:Key="MahApps.Brushes.AccentBase" Color="{StaticResource Accent.Color}" />
-    <Color x:Key="MahApps.Colors.Accent">#FF8C00</Color>
-    <Color x:Key="MahApps.Colors.Highlight">#FF9A1A</Color>
 
     <!-- Window / shell defaults -->
     <Style TargetType="{x:Type Window}">

@@ -183,7 +183,11 @@ public abstract partial class SampledHeatmapViewModelBase : CorrelationPickerVie
         RaiseFrame(null);
     }
 
-    public void Dispose() => Teardown();
+    public void Dispose()
+    {
+        Teardown();
+        CleanupInstruments();
+    }
 }
 
 /// <summary>An instrument participating in a sampled heatmap: its picker row + canonical id.</summary>

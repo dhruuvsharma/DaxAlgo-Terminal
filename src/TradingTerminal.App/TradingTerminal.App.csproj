@@ -34,6 +34,7 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
     <!-- Charts-menu tools -->
     <ProjectReference Include="..\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
     <ProjectReference Include="..\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />

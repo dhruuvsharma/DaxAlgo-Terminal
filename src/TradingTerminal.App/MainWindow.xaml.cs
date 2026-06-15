@@ -104,4 +104,18 @@ public partial class MainWindow : MetroWindow
             vm.OpenStrategyCommand.Execute(vm.SelectedStrategy.Id);
     }
 
+    // Opens a research-paper-derived strategy's source paper in the default browser (the "ⓘ" link
+    // on the RESEARCH PAPER pill in the Strategies pane).
+    private void ResearchPaper_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        var url = e.Uri?.AbsoluteUri;
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch { /* best-effort: a missing/blocked browser shouldn't crash the shell */ }
+        e.Handled = true;
+    }
+
 }

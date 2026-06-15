@@ -6,8 +6,23 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-15
+
 ### Added
 
+- **Filtered Order-Flow Imbalance strategy** (`TradingTerminal.Strategies.FilteredOrderFlow`,
+  id `filtered.orderflow.imbalance`) — a research-paper strategy implementing trade-based order-book
+  imbalance `OBI(T)` (net signed-trade count over a rolling window) from Anantha, Jain & Maiti (2025),
+  *"Order-Flow Filtration and Directional Association with Short-Horizon Returns"*
+  ([arXiv:2507.22712](https://arxiv.org/abs/2507.22712)). Classifies `OBI(T)` on a 9-bin regime grid,
+  signals on strong same-sign regimes, and tracks **filtered vs. unfiltered** `OBI(T)` side-by-side
+  (the paper's core comparison). Tape-primary; shared OBI math in `Core/MarketData/OrderFlowImbalance.cs`;
+  also registered in the Backtest tab catalog and the `daxalgo-backtest` CLI (`filteredOrderFlow`).
+- **"Research paper" strategy tag** (`ITradingStrategy.ResearchPaperUrl`) — strategies derived from
+  published papers surface a clickable "📄 Research paper" pill in the Strategies pane that opens the
+  source paper. Currently set on Filtered Order-Flow Imbalance.
+- **Application theme system** — selectable app-wide themes (Dark + new **Monochrome**) via a Theme menu,
+  backed by `UI/Theming/` and `Brushes.xaml`/`Dark.xaml` token updates.
 - **Binance backend** (`BrokerKind.Binance`, `RealBinanceClient`) — real, live crypto market data
   (bars, L1 `@bookTicker`, L2 `@depth`, `@trade` tape) over Binance's **public** WebSocket + REST,
   with **no API key and no account**. Always registered (no SDK/NuGet — raw `ClientWebSocket` +
@@ -27,6 +42,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- **Login window redesign** — reworked broker sign-in UI (`LoginWindow`, `LoginViewModel`) with a
+  shared `BrokerLoginFormBase` and an `InjectedFormHost` for per-broker credential forms.
+- **Order Book window overhaul** — expanded `OrderBookViewModel` / rendering with new `OrderBookModels`.
+- **Correlation & Heatmap windows** — refreshed XAML / layout to match the new theme tokens.
 - **Removed per-broker synthetic fallbacks** (`Fake*Client`). Real broker clients are now registered
   only when their SDK is available (IB/NT gated on a resolved DLL via `HAS_IBAPI`/`HAS_NTAPI`;
   cTrader/Alpaca always restore from NuGet); offline runs use the new `Simulated` broker instead.
@@ -71,4 +90,5 @@ no live order execution.**
   page that downloads and installs the external dependencies on demand (WebView2 Runtime for Charts,
   Docker Desktop for the QuestDB store). Shipped alongside a portable zip on every tagged release.
 
+[1.1.0]: https://github.com/dhruuvsharma/DaxAlgo-Terminal/releases/tag/v1.1.0
 [1.0.0]: https://github.com/dhruuvsharma/DaxAlgo-Terminal/releases/tag/v1.0.0

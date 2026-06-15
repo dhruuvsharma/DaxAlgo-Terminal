@@ -8,16 +8,19 @@
                  xmlns:conv="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Order Book"
-                 Height="760" Width="560"
+                 Height="800" Width="1060"
                  WindowStartupLocation="CenterOwner"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
     <mah:MetroWindow.Resources>
         <conv:BarFractionToGridLengthConverter x:Key="BarToGrid" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <SolidColorBrush x:Key="BidBar" Color="#3326A69A" />
         <SolidColorBrush x:Key="AskBar" Color="#33EF5350" />
         <SolidColorBrush x:Key="BidText" Color="#26A69A" />
         <SolidColorBrush x:Key="AskText" Color="#EF5350" />
+        <SolidColorBrush x:Key="UpText" Color="#4CAF50" />
+        <SolidColorBrush x:Key="DownText" Color="#E57373" />
 
         <!-- One ladder row: a proportional depth bar behind right-aligned Price / Size / Cumulative.
              Bar colour comes from DataContext set on the host ItemsControl (Tag carries the brush). -->
@@ -57,6 +60,50 @@
             <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
             <Setter Property="Margin" Value="6,0" />
         </Style>
+
+        <!-- A stat "chip": tiny caption above a mono value. -->
+        <Style x:Key="StatCaption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        </Style>
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <!-- Cumulative-imbalance value, coloured by sign (ImbalanceDirection). -->
+        <Style x:Key="ImbalanceValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ImbalanceDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource BidText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ImbalanceDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource AskText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- Imbalance-trend slope, coloured by direction. -->
+        <Style x:Key="SlopeValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ImbalanceSlopeDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource UpText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ImbalanceSlopeDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource DownText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- Cumulative-delta value, coloured by direction. -->
+        <Style x:Key="CvdValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CvdDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource UpText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CvdDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource DownText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </mah:MetroWindow.Resources>
 
     <Grid>
@@ -67,7 +114,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar: instrument picker -->
+        <!-- Toolbar: instrument picker + view toggles + sweep size -->
         <Border Grid.Row="0"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
@@ -75,7 +122,9 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="280" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="Instrument" VerticalAlignment="Center" Margin="0,0,8,0"
                            Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
@@ -85,89 +134,159 @@
                                       SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
                                       SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                       MaxDropDownHeight="460" />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="16,0,0,0">
+                    <CheckBox Content="Heatmap" IsChecked="{Binding ShowHeatmap}" Margin="0,0,12,0" />
+                    <CheckBox Content="Trades" IsChecked="{Binding ShowTrades}" Margin="0,0,12,0" />
+                    <CheckBox Content="Microprice" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,12,0" />
+                    <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Sweep size" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <ComboBox Width="90" ItemsSource="{Binding SweepSizes}"
+                              SelectedItem="{Binding SelectedSweepSize}" />
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Top-of-book stats strip -->
+        <!-- Microstructure analytics strip -->
         <Border Grid.Row="1"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
                 Padding="8,5">
-            <StackPanel Orientation="Horizontal">
+            <WrapPanel Orientation="Horizontal">
                 <StackPanel Margin="0,0,18,0">
-                    <TextBlock Text="BID" FontSize="9" Foreground="{StaticResource BidText}" />
+                    <TextBlock Text="BID" Style="{StaticResource StatCaption}" Foreground="{StaticResource BidText}" />
                     <TextBlock Text="{Binding BestBid, StringFormat=N4, TargetNullValue=—}"
-                               FontFamily="Consolas" Foreground="{StaticResource BidText}" />
+                               Style="{StaticResource StatValue}" Foreground="{StaticResource BidText}" />
                 </StackPanel>
                 <StackPanel Margin="0,0,18,0">
-                    <TextBlock Text="ASK" FontSize="9" Foreground="{StaticResource AskText}" />
+                    <TextBlock Text="ASK" Style="{StaticResource StatCaption}" Foreground="{StaticResource AskText}" />
                     <TextBlock Text="{Binding BestAsk, StringFormat=N4, TargetNullValue=—}"
-                               FontFamily="Consolas" Foreground="{StaticResource AskText}" />
+                               Style="{StaticResource StatValue}" Foreground="{StaticResource AskText}" />
                 </StackPanel>
                 <StackPanel Margin="0,0,18,0">
-                    <TextBlock Text="SPREAD" FontSize="9" Foreground="{DynamicResource Text.Secondary}" />
-                    <TextBlock Text="{Binding Spread, StringFormat=N4, TargetNullValue=—}" FontFamily="Consolas" />
+                    <TextBlock Text="SPREAD" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding Spread, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
                 </StackPanel>
                 <StackPanel Margin="0,0,18,0">
-                    <TextBlock Text="MID" FontSize="9" Foreground="{DynamicResource Text.Secondary}" />
-                    <TextBlock Text="{Binding Mid, StringFormat=N4, TargetNullValue=—}" FontFamily="Consolas" />
+                    <TextBlock Text="MID" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding Mid, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
                 </StackPanel>
-                <StackPanel>
-                    <TextBlock Text="LEVELS (B/A)" FontSize="9" Foreground="{DynamicResource Text.Secondary}" />
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="MICROPRICE" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding Microprice, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="WGT MID" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding WeightedMid, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="IMBALANCE" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding ImbalanceCumText}" Style="{StaticResource ImbalanceValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="IMB TREND" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding ImbalanceSlopeText}" Style="{StaticResource SlopeValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="BOOK SKEW" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding BookSkewText}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Style="{StaticResource StatCaption}">
+                        <Run Text="BUY SWEEP " /><Run Text="{Binding SelectedSweepSize, Mode=OneWay, StringFormat=N0}" />
+                    </TextBlock>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding BidLevels}" FontFamily="Consolas" Foreground="{StaticResource BidText}" />
-                        <TextBlock Text=" / " FontFamily="Consolas" />
-                        <TextBlock Text="{Binding AskLevels}" FontFamily="Consolas" Foreground="{StaticResource AskText}" />
+                        <TextBlock Text="{Binding SweepCostBuy, StringFormat=N4, TargetNullValue=—}"
+                                   Style="{StaticResource StatValue}" Foreground="{StaticResource AskText}" />
+                        <TextBlock Text="  ⚠" FontSize="11" Foreground="#FFB300" VerticalAlignment="Center"
+                                   Visibility="{Binding SweepBuyShort, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                 </StackPanel>
-            </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Style="{StaticResource StatCaption}">
+                        <Run Text="SELL SWEEP " /><Run Text="{Binding SelectedSweepSize, Mode=OneWay, StringFormat=N0}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding SweepCostSell, StringFormat=N4, TargetNullValue=—}"
+                               Style="{StaticResource StatValue}" Foreground="{StaticResource BidText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="CVD" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding CumulativeDelta, StringFormat='+#;-#;0'}" Style="{StaticResource CvdValue}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="TAPE" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding TradeTapeText}" Style="{StaticResource StatValue}"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                </StackPanel>
+            </WrapPanel>
         </Border>
 
-        <!-- Ladder: all ask levels (top), then all bid levels (bottom) -->
+        <!-- Main area: liquidity heatmap (left) + classic ladder (right) -->
         <Grid Grid.Row="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="360" />
+            </Grid.ColumnDefinitions>
 
-            <!-- column captions -->
-            <Grid Grid.Row="0" Margin="6,4,6,2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="78" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="PRICE" Style="{StaticResource LadderHeader}" />
-                <TextBlock Grid.Column="1" Text="SIZE" Style="{StaticResource LadderHeader}" Margin="0,0,14,0" />
-                <TextBlock Grid.Column="2" Text="CUMUL." Style="{StaticResource LadderHeader}" TextAlignment="Right" />
-            </Grid>
-
-            <!-- Asks (best ask nearest the spread, i.e. at the bottom of this panel) -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalAlignment="Bottom">
-                <ItemsControl ItemsSource="{Binding Asks}"
-                              Tag="{StaticResource AskBar}"
-                              ItemTemplate="{StaticResource LevelRowTemplate}" />
-            </ScrollViewer>
-
-            <!-- Spread divider -->
-            <Border Grid.Row="2" Background="{DynamicResource Background.Elevated}"
-                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1" Padding="8,3">
-                <TextBlock FontSize="11" Foreground="{DynamicResource Text.Secondary}">
-                    <Run Text="Spread " />
-                    <Run Text="{Binding Spread, StringFormat=N4, TargetNullValue=—, Mode=OneWay}" FontFamily="Consolas" />
-                    <Run Text="   ·   Mid " />
-                    <Run Text="{Binding Mid, StringFormat=N4, TargetNullValue=—, Mode=OneWay}" FontFamily="Consolas" />
-                </TextBlock>
+            <!-- Heatmap: scrolling time × price liquidity, drawn in code-behind off BookChanged. -->
+            <Border Grid.Column="0" Margin="0" ClipToBounds="True"
+                    Background="#0F1115"
+                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,1,0"
+                    SizeChanged="HeatHost_SizeChanged">
+                <Canvas x:Name="HeatCanvas" Background="Transparent" />
             </Border>
 
-            <!-- Bids (best bid at the top) -->
-            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Bids}"
-                              Tag="{StaticResource BidBar}"
-                              ItemTemplate="{StaticResource LevelRowTemplate}" />
-            </ScrollViewer>
+            <!-- Ladder: all ask levels (top), then all bid levels (bottom) -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- column captions -->
+                <Grid Grid.Row="0" Margin="6,4,6,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="78" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="PRICE" Style="{StaticResource LadderHeader}" />
+                    <TextBlock Grid.Column="1" Text="SIZE" Style="{StaticResource LadderHeader}" Margin="0,0,14,0" />
+                    <TextBlock Grid.Column="2" Text="CUMUL." Style="{StaticResource LadderHeader}" TextAlignment="Right" />
+                </Grid>
+
+                <!-- Asks (best ask nearest the spread, i.e. at the bottom of this panel) -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalAlignment="Bottom">
+                    <ItemsControl ItemsSource="{Binding Asks}"
+                                  Tag="{StaticResource AskBar}"
+                                  ItemTemplate="{StaticResource LevelRowTemplate}" />
+                </ScrollViewer>
+
+                <!-- Spread divider -->
+                <Border Grid.Row="2" Background="{DynamicResource Background.Elevated}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1" Padding="8,3">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Text.Secondary}">
+                        <Run Text="Spread " />
+                        <Run Text="{Binding Spread, StringFormat=N4, TargetNullValue=—, Mode=OneWay}" FontFamily="Consolas" />
+                        <Run Text="   ·   Mid " />
+                        <Run Text="{Binding Mid, StringFormat=N4, TargetNullValue=—, Mode=OneWay}" FontFamily="Consolas" />
+                    </TextBlock>
+                </Border>
+
+                <!-- Bids (best bid at the top) -->
+                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Bids}"
+                                  Tag="{StaticResource BidBar}"
+                                  ItemTemplate="{StaticResource LevelRowTemplate}" />
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
         <!-- Status line -->

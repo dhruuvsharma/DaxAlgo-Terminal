@@ -134,6 +134,7 @@ public partial class App : Application
 
                 // Cross-cutting infrastructure
                 services.AddSingleton(inMemoryLogSink);
+                services.AddSingleton<TradingTerminal.UI.Theming.IThemeManager, TradingTerminal.UI.Theming.ThemeManager>();
                 services.AddTradingTerminalInfrastructure();
                 services.AddMarketDataPipeline(ctx.Configuration);
                 services.AddMarketDataArchive(ctx.Configuration);
@@ -179,6 +180,9 @@ public partial class App : Application
             .Build();
 
         await _host.StartAsync();
+
+        // Apply the persisted theme before any window is shown, so the login window already wears it.
+        _host.Services.GetRequiredService<TradingTerminal.UI.Theming.IThemeManager>().ApplySaved();
 
         // Hold the app open across the login → main-window transition.
         ShutdownMode = ShutdownMode.OnLastWindowClose;

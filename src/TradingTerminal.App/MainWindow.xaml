@@ -261,6 +261,19 @@
                 <MenuItem Header="_Logs"
                           IsCheckable="True"
                           IsChecked="{Binding IsLogsVisible, Mode=TwoWay}" />
+                <Separator />
+                <MenuItem Header="_Theme" ItemsSource="{Binding Themes}">
+                    <MenuItem.ItemContainerStyle>
+                        <Style TargetType="MenuItem">
+                            <Setter Property="Header" Value="{Binding Name}" />
+                            <Setter Property="IsCheckable" Value="True" />
+                            <Setter Property="IsChecked" Value="{Binding IsCurrent, Mode=OneWay}" />
+                            <Setter Property="Command"
+                                    Value="{Binding DataContext.ApplyThemeCommand, RelativeSource={RelativeSource AncestorType=Menu}}" />
+                            <Setter Property="CommandParameter" Value="{Binding Id}" />
+                        </Style>
+                    </MenuItem.ItemContainerStyle>
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="_Tools">
@@ -619,6 +632,22 @@
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
+                                                    <!-- "Research paper" tag + info link — shown only for paper-derived
+                                                         strategies (ResearchPaperUrl set). Clicking opens the paper. -->
+                                                    <Border Margin="12,4,0,0"
+                                                            HorizontalAlignment="Left"
+                                                            Background="#4527A0"
+                                                            CornerRadius="3"
+                                                            Padding="5,1"
+                                                            Visibility="{Binding ResearchPaperUrl, Converter={StaticResource StringToVisibilityConverter}}">
+                                                        <TextBlock FontSize="10" FontWeight="SemiBold">
+                                                            <Hyperlink NavigateUri="{Binding ResearchPaperUrl}"
+                                                                       Foreground="#E8DEFF"
+                                                                       TextDecorations="None"
+                                                                       ToolTip="{Binding ResearchPaperUrl}"
+                                                                       RequestNavigate="ResearchPaper_RequestNavigate">📄 RESEARCH PAPER ⓘ</Hyperlink>
+                                                        </TextBlock>
+                                                    </Border>
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>

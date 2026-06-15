@@ -26,6 +26,12 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
 {
     protected const string AllCategories = "All categories";
 
+    /// <summary>Hard cap on how many rows the checklist shows at once. A multi-broker universe is
+    /// thousands of symbols (Alpaca alone ≈10k); dumping all of them into a sorted+grouped view froze
+    /// the window on open. We show the first N (selected rows always pinned) and let search narrow —
+    /// the same bounded-picker pattern the other tool windows use.</summary>
+    private const int MaxVisible = 500;
+
     protected IMarketDataRepository Repository { get; }
     protected IBrokerSelector Selector { get; }
     protected ILogger Logger { get; }
@@ -64,6 +70,11 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
     [ObservableProperty] private string _statusMessage = "Loading instruments…";
     [ObservableProperty] private int _sampleCount;
 
+    /// <summary>How many rows the checklist is currently showing (after the cap/filter) and how many
+    /// exist in total — drives the "showing X of N" chip.</summary>
+    [ObservableProperty] private int _visibleCount;
+    [ObservableProperty] private int _totalCount;
+
     /// <summary>The latest computed matrix, rendered as one immutable snapshot by
     /// <see cref="CorrelationMatrixControl"/> — a single property change per update instead of
     /// rebuilding N² cell elements (which made the live tool stutter at its sample cadence).</summary>
@@ -89,29 +100,35 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
                 return;
             }
 
-            var wrapped = list
-                .Select(i => new SelectableInstrument(i.DisplayName, i.Category, i.Contract, i.Broker))
-                .ToList();
+            // Wrap + classify + dedupe OFF the UI thread. A multi-broker universe is thousands of
+            // rows and the category classification is pure CPU; running it on the dispatcher (as the
+            // old await-continuation did) is what froze the window the moment it opened.
+            var (wrapped, present) = await Task.Run(() =>
+            {
+                var seen = new HashSet<(BrokerKind, string, string)>();
+                var items = new List<SelectableInstrument>(list.Count);
+                foreach (var i in list)
+                {
+                    var key = (i.Broker, i.Contract.Symbol ?? string.Empty, i.Contract.SecType ?? string.Empty);
+                    if (!seen.Add(key)) continue; // drop exact (broker, symbol, type) duplicates
+                    items.Add(new SelectableInstrument(i.DisplayName, i.Category, i.Contract, i.Broker));
+                }
+                var cats = items.Select(w => w.CanonicalCategory).Distinct().OrderBy(InstrumentCategory.OrderOf).ToList();
+                return (items, cats);
+            });
 
             foreach (var w in wrapped)
-                w.SelectionChanged += (_, _) => OnPropertyChanged(nameof(SelectedCount));
+                w.SelectionChanged += OnInstrumentSelectionChanged;
 
             AllInstruments = wrapped;
+            TotalCount = wrapped.Count;
 
-            // Category filter options: "All" + every canonical bucket that's actually present,
-            // ordered the same way the groups render.
-            var present = wrapped
-                .Select(w => w.CanonicalCategory)
-                .Distinct()
-                .OrderBy(InstrumentCategory.OrderOf)
-                .ToList();
             Categories.Clear();
             Categories.Add(AllCategories);
             foreach (var c in present) Categories.Add(c);
             SelectedCategory = AllCategories;
 
             ApplyFilter();
-            StatusMessage = $"{wrapped.Count} instruments across {present.Count} categories — tick at least two to begin.";
         }
         catch (Exception ex)
         {
@@ -119,6 +136,8 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
             StatusMessage = $"Instrument load failed: {ex.Message}";
         }
     }
+
+    private void OnInstrumentSelectionChanged(object? sender, EventArgs e) => OnPropertyChanged(nameof(SelectedCount));
 
     private void ApplyFilter()
     {
@@ -133,9 +152,36 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
                 i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 i.BrokerAbbrev.Contains(term, StringComparison.OrdinalIgnoreCase));
 
+        var shown = query.Take(MaxVisible).ToList();
+        // Ticked rows must stay visible even if they fall outside the cap/filter, so selection survives.
+        foreach (var sel in AllInstruments.Where(i => i.IsSelected))
+            if (!shown.Contains(sel)) shown.Add(sel);
+
+        // Repopulate the (now capped) visible set. We deliberately do NOT wrap this in
+        // InstrumentsView.DeferRefresh(): that defers the *view's* refresh while the source
+        // ObservableCollection still raises CollectionChanged, which ListCollectionView then tries to
+        // process — and it throws "Cannot change … while Refresh is being deferred". With the 500-row
+        // cap the per-item sorted/grouped inserts are cheap, so a plain Clear + Add is correct here.
         Instruments.Clear();
-        foreach (var inst in query)
-            Instruments.Add(inst);
+        foreach (var inst in shown) Instruments.Add(inst);
+
+        VisibleCount = shown.Count;
+        StatusMessage = TotalCount == 0
+            ? "Loading instruments…"
+            : VisibleCount < TotalCount
+                ? $"Showing {VisibleCount} of {TotalCount} — search or pick a category to narrow. Tick ≥2 to begin."
+                : $"{TotalCount} instruments — tick at least two to begin.";
+    }
+
+    /// <summary>Releases everything the picker base holds so the window+VM can be collected: detaches
+    /// the per-row selection handlers (which capture this VM), drops the instrument lists and the last
+    /// matrix snapshot. Subclasses call this from their own Dispose after tearing down data streams.</summary>
+    protected void CleanupInstruments()
+    {
+        foreach (var i in AllInstruments) i.SelectionChanged -= OnInstrumentSelectionChanged;
+        AllInstruments = Array.Empty<SelectableInstrument>();
+        Instruments.Clear();
+        MatrixResult = null;
     }
 
     [RelayCommand]

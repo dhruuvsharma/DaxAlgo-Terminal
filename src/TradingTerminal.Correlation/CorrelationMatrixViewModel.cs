@@ -219,6 +219,8 @@ public sealed partial class CorrelationMatrixViewModel : CorrelationPickerViewMo
     {
         _runCts?.Cancel();
         _runCts?.Dispose();
+        _runCts = null;
+        CleanupInstruments();
     }
 }
 

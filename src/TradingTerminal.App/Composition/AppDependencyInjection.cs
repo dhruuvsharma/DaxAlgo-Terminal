@@ -10,6 +10,7 @@ using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.UI;
 using TradingTerminal.Strategies.ApexScalper;
 using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.IndexKScoreSurface;
 using TradingTerminal.Strategies.IndexRegimeGraph;
@@ -84,6 +85,7 @@ public static class AppDependencyInjection
         services.AddApexScalperStrategy();
         services.AddIndexKScoreSurfaceStrategy();
         services.AddIndexRegimeGraphStrategy();
+        services.AddFilteredOrderFlowStrategy();
 
         return services;
     }

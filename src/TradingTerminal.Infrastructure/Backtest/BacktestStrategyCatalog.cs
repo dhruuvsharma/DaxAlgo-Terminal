@@ -96,5 +96,12 @@ public static class BacktestStrategyCatalog
             Id: "indexKScoreSurface",
             DisplayName: "Index K-Score Surface (single-instrument backtest variant)",
             Build: contract => new IndexKScoreSurfaceStrategy(contract)),
+        new BacktestStrategyOption(
+            Id: "filteredOrderFlow",
+            DisplayName: "Filtered order-flow imbalance OBI(T) (arXiv:2507.22712)",
+            Build: contract => new FilteredOrderFlowStrategy(contract))
+        {
+            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape,
+        },
     };
 }

@@ -85,42 +85,51 @@
                              Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                              mah:TextBoxHelper.Watermark="filter symbols…"
                              mah:TextBoxHelper.ClearTextButton="True" Margin="0,0,0,6" />
-                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding InstrumentsView}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="2,2,0,2">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Content="{Binding DisplayName}" />
-                                        <Border Grid.Column="1" Margin="6,0,4,0"
-                                                Background="{DynamicResource Background.Primary}"
-                                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                                                CornerRadius="3" Padding="4,0" VerticalAlignment="Center" ToolTip="Source broker">
-                                            <TextBlock Text="{Binding BrokerAbbrev}" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                    <!-- Virtualizing, grouped checklist. Virtualization (incl. when grouping) is what
+                         keeps a multi-broker universe from realizing every row at once; the shared
+                         CorrelationPickerViewModelBase also caps the visible set + loads off the UI thread. -->
+                    <ListBox Grid.Row="3" ItemsSource="{Binding InstrumentsView}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.CanContentScroll="True"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="2,1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Content="{Binding DisplayName}"
+                                              VerticalContentAlignment="Center" />
+                                    <Border Grid.Column="1" Margin="6,0,2,0"
+                                            Background="{DynamicResource Background.Elevated}"
+                                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                            CornerRadius="3" Padding="4,0" VerticalAlignment="Center" ToolTip="Source broker">
+                                        <TextBlock Text="{Binding BrokerAbbrev}" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,6,0,2" Padding="0,0,0,2"
+                                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource Text.Header}" />
+                                                <TextBlock Text="{Binding ItemCount, StringFormat=' ({0})'}" Foreground="{DynamicResource Text.Secondary}" />
+                                            </StackPanel>
                                         </Border>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                            <ItemsControl.GroupStyle>
-                                <GroupStyle>
-                                    <GroupStyle.HeaderTemplate>
-                                        <DataTemplate>
-                                            <Border Margin="0,6,0,2" Padding="0,0,0,2"
-                                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource Text.Primary}" />
-                                                    <TextBlock Text="{Binding ItemCount, StringFormat=' ({0})'}" Foreground="{DynamicResource Text.Secondary}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </GroupStyle.HeaderTemplate>
-                                </GroupStyle>
-                            </ItemsControl.GroupStyle>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                    </ListBox>
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,6,0,0">
                         <Button Content="Select visible" Command="{Binding SelectAllVisibleCommand}" Padding="8,3" Margin="0,0,6,0" />
                         <Button Content="Clear" Command="{Binding ClearSelectionCommand}" Padding="8,3" />

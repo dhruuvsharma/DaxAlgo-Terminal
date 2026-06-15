@@ -218,7 +218,11 @@ public sealed partial class LiveCorrelationMatrixViewModel : CorrelationPickerVi
         _latestMid.Clear();
     }
 
-    public void Dispose() => TeardownStreams();
+    public void Dispose()
+    {
+        TeardownStreams();
+        CleanupInstruments();
+    }
 
     /// <summary>An instrument participating in the live matrix: its picker row, its canonical id,
     /// and the rolling buffer of sampled mid prices (oldest first).</summary>

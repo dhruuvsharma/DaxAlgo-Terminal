@@ -1,4 +1,5 @@
-using System.Reactive.Linq;
+using System.ComponentModel;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -12,10 +13,16 @@ namespace TradingTerminal.App.Login;
 
 /// <summary>
 /// Orchestrator for the multi-broker login window. Hosts every registered
-/// <see cref="IBrokerLoginForm"/> as its own expander — each form drives its own
-/// <see cref="IBrokerSelector"/> connect lifecycle independently. The shell only owns the
-/// bottom <c>Launch</c> button, which becomes enabled once at least one broker is
+/// <see cref="IBrokerLoginForm"/> as a row in one grouped, filterable accordion list
+/// (<see cref="FormsView"/>) — each form drives its own <see cref="IBrokerSelector"/> connect
+/// lifecycle independently. The shell only owns the search box, the per-group "Connect all"
+/// action, and the bottom <c>Launch</c> button, which becomes enabled once at least one broker is
 /// <see cref="ConnectionState.Connected"/> and dismisses the window when clicked.
+///
+/// <para>Rows are projected through a single <c>DataTemplate</c> (see <c>LoginWindow.xaml</c> +
+/// <see cref="BrokerFormHost"/>): grouping comes from <see cref="BrokerLoginFormBase.CategoryName"/>,
+/// the accordion is enforced here (one expanded at a time), and the last-connected broker is
+/// pre-expanded on open.</para>
 /// </summary>
 public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 {
@@ -24,6 +31,13 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly IQuestDbLauncher _questDb;
     private readonly CredentialStore _credentialStore;
     private readonly ILogger<LoginViewModel> _logger;
+
+    /// <summary>The forms as their concrete base type, pre-sorted Keyless → Credentialed → Local,
+    /// then by name. Backing list for <see cref="FormsView"/> and the accordion/group commands.</summary>
+    private readonly List<BrokerLoginFormBase> _formItems;
+
+    /// <summary>Guards the accordion collapse-others pass from re-entering via PropertyChanged.</summary>
+    private bool _collapsingOthers;
 
     public LoginViewModel(
         IBrokerSelector brokerSelector,
@@ -51,6 +65,17 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             form.PropertyChanged += OnFormPropertyChanged;
         }
 
+        _formItems = AvailableForms.OfType<BrokerLoginFormBase>()
+            .OrderBy(f => f.CategoryOrder)
+            .ThenBy(f => f.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Grouped, filterable view. Source order (above) determines both the within-group order and
+        // the group order (Keyless first), so no SortDescriptions are needed alongside the grouping.
+        var view = new ListCollectionView(_formItems) { Filter = FilterForm };
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BrokerLoginFormBase.CategoryName)));
+        FormsView = view;
+
         // Aggregate state changes from the selector so the Launch button enable-state updates
         // whenever any broker connects or disconnects.
         _brokerSelector.StateChanged += OnSelectorStateChanged;
@@ -58,10 +83,61 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         RefreshConnectedSummary();
         InitializeQuestDb();
 
+        var stored = _credentialStore.Load();
+        PreExpandLastBroker(stored.SelectedBroker);
+
         // Hydrate the persisted Auto Connect preference straight into the backing field so the
         // OnAutoConnectChanged persistence hook doesn't fire during construction.
-        _autoConnect = _credentialStore.Load().AutoConnect;
+        _autoConnect = stored.AutoConnect;
         if (_autoConnect) AutoConnectAll();
+    }
+
+    public IReadOnlyList<IBrokerLoginForm> AvailableForms { get; }
+
+    /// <summary>Grouped + filtered broker rows the login list binds to. Items are
+    /// <see cref="BrokerLoginFormBase"/>; the group key is <see cref="BrokerLoginFormBase.CategoryName"/>.</summary>
+    public ICollectionView FormsView { get; }
+
+    /// <summary>Live search term — filters the broker rows by name / badge / category.</summary>
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    partial void OnSearchTextChanged(string value) => FormsView.Refresh();
+
+    private bool FilterForm(object obj)
+    {
+        if (obj is not BrokerLoginFormBase f) return false;
+        var q = SearchText?.Trim();
+        if (string.IsNullOrEmpty(q)) return true;
+        return f.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || f.Badge.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || f.CategoryName.Contains(q, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Pre-expands the last-connected broker (or the first keyless one on a fresh install),
+    /// so returning users land on the form they actually use.</summary>
+    private void PreExpandLastBroker(BrokerKind last)
+    {
+        var target = _formItems.FirstOrDefault(f => f.Broker == last)
+                     ?? _formItems.FirstOrDefault(f => f.IsKeyless)
+                     ?? _formItems.FirstOrDefault();
+        if (target is not null) target.IsExpanded = true;
+    }
+
+    /// <summary>Fires Connect on every ready form in the named category (e.g. "Keyless · instant…").
+    /// Bound to each group header's "Connect all" button via the group's <see cref="CollectionViewGroup.Name"/>.</summary>
+    [RelayCommand]
+    private void ConnectGroup(string? categoryName)
+    {
+        if (string.IsNullOrEmpty(categoryName)) return;
+        var started = 0;
+        foreach (var f in _formItems.Where(f => f.CategoryName == categoryName))
+        {
+            if (!f.ConnectCommand.CanExecute(null)) continue;
+            started++;
+            _ = f.ConnectCommand.ExecuteAsync(null);
+        }
+        _logger.LogInformation("Connect group '{Category}': started {Count} attempt(s)", categoryName, started);
     }
 
     // ── Auto Connect ─────────────────────────────────────────────────────────────────────────────
@@ -85,7 +161,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private void AutoConnectAll()
     {
         var started = 0;
-        foreach (var form in AvailableForms.OfType<BrokerLoginFormBase>())
+        foreach (var form in _formItems)
         {
             if (!form.ConnectCommand.CanExecute(null)) continue;
             started++;
@@ -114,35 +190,6 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         if (_questDb.AutoStart)
             _ = StartQuestDbInternalAsync(); // fire-and-forget warm-up; status updates as it progresses
     }
-
-    public IReadOnlyList<IBrokerLoginForm> AvailableForms { get; }
-
-    /// <summary>Typed accessors so XAML can bind each form's UserControl directly without a DataTemplate VM lookup.</summary>
-    public IbLoginFormViewModel? IbForm => AvailableForms.OfType<IbLoginFormViewModel>().FirstOrDefault();
-    public NinjaLoginFormViewModel? NinjaForm => AvailableForms.OfType<NinjaLoginFormViewModel>().FirstOrDefault();
-    public CTraderLoginFormViewModel? CTraderForm => AvailableForms.OfType<CTraderLoginFormViewModel>().FirstOrDefault();
-    public AlpacaLoginFormViewModel? AlpacaForm => AvailableForms.OfType<AlpacaLoginFormViewModel>().FirstOrDefault();
-    public BinanceLoginFormViewModel? BinanceForm => AvailableForms.OfType<BinanceLoginFormViewModel>().FirstOrDefault();
-    public IronBeamLoginFormViewModel? IronBeamForm => AvailableForms.OfType<IronBeamLoginFormViewModel>().FirstOrDefault();
-    public LondonStrategicEdgeLoginFormViewModel? LondonStrategicEdgeForm => AvailableForms.OfType<LondonStrategicEdgeLoginFormViewModel>().FirstOrDefault();
-    public UpstoxLoginFormViewModel? UpstoxForm => AvailableForms.OfType<UpstoxLoginFormViewModel>().FirstOrDefault();
-    public CoinbaseLoginFormViewModel? CoinbaseForm => AvailableForms.OfType<CoinbaseLoginFormViewModel>().FirstOrDefault();
-    public BybitLoginFormViewModel? BybitForm => AvailableForms.OfType<BybitLoginFormViewModel>().FirstOrDefault();
-    public KrakenLoginFormViewModel? KrakenForm => AvailableForms.OfType<KrakenLoginFormViewModel>().FirstOrDefault();
-    public OkxLoginFormViewModel? OkxForm => AvailableForms.OfType<OkxLoginFormViewModel>().FirstOrDefault();
-
-    public bool HasIb => IbForm is not null;
-    public bool HasNinja => NinjaForm is not null;
-    public bool HasCTrader => CTraderForm is not null;
-    public bool HasAlpaca => AlpacaForm is not null;
-    public bool HasBinance => BinanceForm is not null;
-    public bool HasIronBeam => IronBeamForm is not null;
-    public bool HasLondonStrategicEdge => LondonStrategicEdgeForm is not null;
-    public bool HasUpstox => UpstoxForm is not null;
-    public bool HasCoinbase => CoinbaseForm is not null;
-    public bool HasBybit => BybitForm is not null;
-    public bool HasKraken => KrakenForm is not null;
-    public bool HasOkx => OkxForm is not null;
 
     [ObservableProperty]
     private int _connectedCount;
@@ -237,12 +284,35 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             RefreshConnectedSummary();
     }
 
-    private void OnFormPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnFormPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // The form's IsConnected property bounces on every CurrentState change; piggyback there
-        // to keep CanLaunch in sync without polling.
-        if (e.PropertyName is nameof(BrokerLoginFormBase.IsConnected))
+        if (sender is not BrokerLoginFormBase form) return;
+
+        // Accordion: when one row expands, collapse the rest (guarded against re-entry).
+        if (e.PropertyName == nameof(BrokerLoginFormBase.IsExpanded) && form.IsExpanded && !_collapsingOthers)
+        {
+            _collapsingOthers = true;
+            foreach (var other in _formItems)
+                if (!ReferenceEquals(other, form)) other.IsExpanded = false;
+            _collapsingOthers = false;
+            return;
+        }
+
+        // IsConnected bounces on every CurrentState change; piggyback there to keep CanLaunch in
+        // sync and to remember the last broker the user actually connected.
+        if (e.PropertyName == nameof(BrokerLoginFormBase.IsConnected))
+        {
             RefreshConnectedSummary();
+            if (form.IsConnected) RememberLastBroker(form.Broker);
+        }
+    }
+
+    private void RememberLastBroker(BrokerKind broker)
+    {
+        var stored = _credentialStore.Load();
+        if (stored.SelectedBroker == broker) return;
+        stored.SelectedBroker = broker;
+        _credentialStore.Save(stored);
     }
 
     private void RefreshConnectedSummary()

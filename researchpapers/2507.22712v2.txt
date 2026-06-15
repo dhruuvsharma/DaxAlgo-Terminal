@@ -1,0 +1,1290 @@
+arXiv:2507.22712v2 [q-fin.TR] 8 Dec 2025   Order-Flow Filtration and Directional Association with Short-Horizon
+                                                                                 Returns
+
+                                                                 Aditya Nittur Anantha1,2, Shashi Jain1, and Prithwish Maiti3
+
+                                          1Department of Management studies, Indian Institute of Science, Bengaluru, Karnataka, 560012,
+                                                                                                     India
+
+                                                        2SigmaQuant Technologies Pvt. Ltd, Bengaluru, Karnataka, 560066, India
+                                                            3AlgoQuant Technologies Ltd., Bengaluru, Karnataka, 560066, India
+
+                                                                                             December 9, 2025
+
+                                                                                                                       Abstract
+                                                       Electronic markets generate dense order flow with many transient orders, which degrade directional signals
+                                                  derived from the limit order book (LOB) [16, 9]. We study whether simple structural filters on order lifetime,
+                                                  modification count, and modification timing sharpen the association between order book imbalance (OBI) and
+                                                  short-horizon returns in BankNifty index futures, where unfiltered OBI is already known to be a strong short-
+                                                  horizon directional indicator [7, 8, 14]. The efficacy of each filter is evaluated using a three-step diagnostic ladder:
+                                                  contemporaneous correlations, linear association between discretised regimes, and Hawkes event-time excitation
+                                                  between OBI and return regimes. Our results indicate that filtration of the aggregate order flow produces only
+                                                  modest changes relative to the unfiltered benchmark. By contrast, when filters are applied on the parent orders
+                                                  of executed trades, the resulting OBI series exhibits systematically stronger directional association. Motivated
+                                                  by recent regulatory initiatives to curb noisy order flow, we treat the association between OBI and short-horizon
+                                                  returns as a policy-relevant diagnostic of market quality. We then compare unfiltered and filtered OBI series,
+                                                  using tick-by-tick data from the National Stock Exchange of India, to infer how structural filters on the order
+                                                  flow affect OBI-return dynamics in an emerging market setting.
+
+                                          Keywords: High-Frequency Trading, Market Microstructure, Liquidity, Market Design, Policy, Emerging Markets
+
+                                          1 Introduction
+
+                                          Modern electronic markets generate order flow characterised by rapid order updates [16]. This dense order flow
+                                          has resulted in increased adoption of automation and a significant reduction in latency [4]. Microstructure studies
+                                          show that most limit orders are cancelled without execution and that cancellation behaviour is closely related to
+                                          execution risk and queue position [9]. Recent work on fleeting orders and flickering quotes documents that a non-
+                                          trivial fraction of visible depth disappears almost immediately after it appears [10]. Large, short-lived orders can be
+                                          used strategically to create spurious depth and mislead agents that condition on the visible limit order book [32].
+                                          Taken together, the current literature suggests that ephemeral orders whose genuine trading intent is ambiguous,
+                                          occupy a large proportion of the total order flow.
+
+                                              In the presence of such fleeting orders, the association between the visible order flow and realised returns becomes
+                                          harder to interpret empirically because a substantial fraction of messages does not lead to execution [32]. To address
+                                          these concerns, several exchanges and regulators have introduced regulations that explicitly link the number of orders
+                                          submitted to the number of resulting trades, in the form of fees or penalties on high order-to-trade ratios [6, 11, 31].
+                                          These measures increase the cost of submitting large numbers of short-lived orders. The empirical literature studies
+                                          their impact on standard proxies for market quality such as spreads, depth and volatility [13, 19, 5, 22, 20].
+
+                                              In Indian markets, order-to-trade ratio based measures were introduced by the regulator in 2012-13 to curb ex-
+                                          cessive order submissions relative to executions [28, 29, 30]. Existing empirical studies of such interventions evaluate
+                                          their impact on market quality using proxies such as spreads, depth and realised volatility [1]. In continuation with
+                                          the efforts to maintain price-efficiency, regulators have recently introduced order-based surveillance measures that
+                                          penalise patterns of frequent modification and cancellation without execution. In 2021-22, Indian equity derivatives
+                                          markets [25, 26] implemented the `Persistent Noise Creator' framework with penalties for relatively higher use of
+                                          price-changing modifications and cancellations [25, 26]. These penalties are computed by monitoring the order flow
+                                          of each client on a per-contract basis.
+
+                                                                                                                     1
+    However, fleeting orders can arise for several reasons. During periods of volatile market activity, liquidity
+providers repeatedly adjust or cancel standing limit orders to manage adverse selection. The literature also docu-
+ments episodes of manipulative intent in which large orders are placed and cancelled in quick succession to create an
+illusion of depth or directional interest. This leaves open the question of how to evaluate the informational content
+of the order flow that remains when these penalties are in place.
+
+    Among the liquidity estimation methods present in the rich literature on market microstructure, order flow or
+order book imbalance (OBI), the net pressure between buy and sell interest at or near the best quotes, is strongly
+associated with short-horizon price formation. Cont, Kukanov and Stoikov [7, 8] show that, over short intervals,
+price changes are mainly driven by order flow imbalance at the best bid and ask, with a robust linear relation that
+is stable across a large cross-section of U.S. stocks and across intraday sampling scales. Hanke and Weigerding [14]
+document imbalance effects on German equities, and more recent work uses order-flow imbalance as an input to
+trading models that extract alpha at multiple horizons from the limit order book [21, 33]. In this literature, OBI has
+become a natural primitive for constructing short-horizon directional signals. Following this strand of investigation,
+we ask whether the association between OBI and realised short-horizon returns can be used as a diagnostic for
+market quality in markets where order-based penalties and surveillance are already in place.
+
+    We propose a three-step diagnostic framework that is suited to evaluating such regulations and illustrate it on
+BANKNIFTY futures data from the Indian National Stock Exchange (NSE) where order surveillance has recently
+been tightened. First, we examine the linear association between the OBI series and short-horizon returns using
+Pearson correlations at multiple lags. Second, we discretise both imbalance and returns into regimes and ask how
+the empirical distribution of future return regimes depends on the current imbalance regime, treating regimes as
+states of a counting-process representation. Third, we promote regime transitions to point-process events and fit
+multivariate Hawkes models to the joint dynamics of imbalance and return regimes. In this last step of the diagnostic
+ladder, we interpret fitted Hawkes kernel norms and branching ratios as diagnostics of how strongly past imbalance
+events excite future return events, in line with the use of Hawkes processes to study endogeneity and reflexivity in
+financial markets [3, 2, 15, 12, 17].
+
+    In this setting, our contribution is deliberately diagnostic. Using detailed order-level data for a liquid BANKNIFTY
+index futures contract (see Table 1), we implement the three-step ladder described above on both unfiltered and
+filtered imbalance signals. We then compare their behaviour across three trading days, selected to span the early,
+middle and late parts of a monthly futures expiry cycle and to contrast relative levels of market activity. We
+define three simple, lifecycle-based filters at the order level (order lifetime, modification count and time between
+successive modifications). We apply the filters directly to the standing LOB and indirectly via the parent orders of
+executed trades, and recompute order-based and trade-based imbalance series in each case. We then evaluate asso-
+ciation with short-horizon returns through Pearson correlations, regime-based association and event-time excitation
+between OBI and return regimes encoded in the kernel norms of a parametrically specified Hawkes process.
+
+    Using this diagnostic ladder on the tick-by-tick data for BANKNIFTY index futures, we find that order flow
+filtration schemes do not consistently improve the alignment between order-based imbalance and future returns
+across days and horizons, despite the intuition from the cancellation and fleeting-order literature. However, when
+the same filters are applied via the parent orders of realised trades, the resulting filtered trade-based imbalance
+exhibits systematically stronger Hawkes cross-excitation kernel norms from imbalance to return regimes than its
+unfiltered counterpart. Within the limits of our sample and without specifying a forecasting or execution strategy,
+our results suggest that not all trades contribute equally to price formation.
+
+1.1 Related literature
+
+Our work relates to three strands of the market microstructure literature. The first concerns order flow imbalance
+and short-horizon price impact. Studies such as [7, 8, 18] show that relatively simple, unfiltered measures of net
+order flow already have substantial explanatory power for intraday returns. In this perspective, OBI acts as a
+compact summary of directional pressure, and much of the empirical focus is on how OBI is associated with prices
+across horizons and assets.
+
+    The second strand focuses on low-latency message traffic and the prevalence of fleeting orders. Evidence on
+cancellations, rapid order revisions, and quote flickering [16, 10, 9] suggests that a large share of the observed event
+stream reflects activity that does not culminate in execution.
+
+    A third strand models event-time dynamics and reflexivity using point processes. Multivariate Hawkes specifi-
+cations have been used to capture clustered excitation in order arrivals, trades, and price changes [3, 2]. Hawkes
+processes have also been used to study endogeneity and apparent criticality in high-frequency markets [15, 12].
+Related work on state-dependent intensities and regime structure [24, 23] underscores the role of latent states in
+shaping price formation from order flow interactions.
+
+    In this paper we draw on these ideas in a restricted way: Hawkes processes are used as diagnostic tools to
+quantify excitation from imbalance regimes to return regimes under different filtration schemes, rather than as
+forecasting engines or fully specified structural models. We use the empirical findings on OBI as a diagnostic lens
+to analyse price formation in high-frequency pre- and post-filtration.
+
+                                                                           2
+2 Problem Description
+
+We begin by introducing the counting processes and derived statistics used to quantify directional order flow within
+fixed-length evaluation windows. Each quantity is defined using primitives derived from the limit order book.
+
+Definition: Cumulative Event Count.
+Let Nt denote the cumulative count of all LOB events observed up to time t:
+
+                       Nt := I{ti  t}                                                 (1)
+
+                                     ti
+
+where each ti is an event timestamp and I{·} is the indicator function.
+
+    We next define the total number of events arriving in a given lookback window. This interval-level statistic
+forms the base upon which directional and filtered counts are built.
+
+Definition: Event Count over a Lookback Window.
+For fixed horizon h, the number of LOB events in the interval ( - h,  ] is given by:
+
+                       N(-h,] := I{ti  ( - h,  ]}                                     (2)
+
+                                     ti
+
+    Each event in the sequence carries a directional label Yi  {b, s} identifying the active side. The next definition
+isolates directional contributions attributed to an event count.
+
+Definition: Directional Event Count.
+The count of events on side Y  {b, s} in the interval ( - h,  ] is:
+
+                       N(Y -h, ] :=                           I{Yi = Y }              (3)
+
+                                     ti( -h, ]
+
+All event types are included without filtering or weighting.
+
+    Using these directional statistics, we define a normalized imbalance measure that reflects net order flow pressure
+within each window.
+
+Definition: Order Book Imbalance.
+The order book imbalance (OBI) over the window ( - h,  ] is defined as:
+
+OBI(, h)               :=  N(s -h, ]                          -  N(b -h, ]            (4)
+                           N(s -h, ]                          +  N(b -h, ]
+
+where the denominator equals the total number of orders arriving in the interval. When the denominator is
+zero, indicating no directional activity, the interval is excluded from analysis.
+
+    To evaluate market response over the same interval, we construct a realized return from executed trades. This
+requires isolating the relevant subset of the event stream and transforming it into price points.
+
+                                         3
+Definition: Realized Return from Trade event
+Filtration.
+Let the LOB event type space be defined as:
+
+                          E := {, T, M, C}                                                                    (5)
+
+where  denotes new order submission, T trade, M modification, and C cancellation.
+Let t  E denote the event stream from ( - h,  ]. Define a filtration that selects trade events within a lookback
+window:
+
+       F(T-h,] := {i  t : ti  ( - h,  ], i = T }                                                              (6)
+
+Define a transformation that extracts the traded prices at the first and last trade timestamps in ( - h,  ]:
+
+                          G(F(T-h,]) := ptT , ptT                                                             (7)
+
+where
+
+                 t := min{ ti : i  F(T-h,] },                                                                 (8)
+
+                 t := max{ ti : i  F(T-h,] }.                                                                 (9)
+
+and ptT and pTt are the traded prices at the earliest and latest timestamps in F(T-h,], respectively.
+Then the realized return over the interval is defined as:
+
+                          r~( -h, ]           :=  pTt - pTt                                                   (10)
+                                                     ptT
+
+If F(T-h,] = , the return is undefined and the window is excluded from analysis.
+
+            Sells                                 N(s -h, ]                      Trade
+
+                  New Order                                        Modification
+
+                   Trade  New Order               Modification
+
+       Buys
+
+                          N(b -h, ]
+
+        -h                   Evaluation window ( - h,  ]                                 Time
+
+            T                                                                     T
+
+            pTt                               r~( -h, ]                           pTt
+
+Figure 1: Visual depiction of the evaluation window ( - h,  ] used for computing both order book imbalance and realized return.
+
+The OBI is based on the net directional event counts, while the return is computed using the first and last trade prices within the same
+window.
+
+    Figure 1 shows how we compute realised returns. In every window ( -h,  ], we follow the methodology proposed
+in [27] and sign all trade events as `Buy' or `Sell'. We then look for the first and last trade events, irrespective of
+the classified sign, and compute the net difference in traded prices for that window. The sign of the trade events is
+used subsequently to compute the OBI, when using signed trades as the LOB primitive.
+
+    In this study, we evaluate whether the statistical association between order book imbalance and contemporaneous
+price change, both computed over the same backward-looking interval, is strengthened after filtering the LOB event
+stream. Specifically, we assess whether filtering improves explanatory power in terms of (i) empirical correlation
+between OBI(, h) and r~(-h,], and (ii) the structure of fitted excitation kernels in a parametric Hawkes process.
+
+    To this end, we introduce a class of filtration schemes that operate on the raw event sequence before computing
+
+                                              4
+any statistics. These schemes remove ephemeral or structurally unreliable events based on short lifetimes, rapid
+
+modifications, or flickering placement behavior near the top of the LOB. The resulting filtered event streams yield
+corresponding statistics, denoted OBI(f)(, h), which are used for comparative evaluation.
+
+Problem Statement: Evaluation of Filtration-Driven Signal Strength.
+
+Let t  E be the observed event stream. Let F (·) denote a filtration scheme applied to t, with superscript (·)
+indexing a filtering criterion.
+Let r~(-h,] be the realized return computed over each window as defined previously. Define a scoring functional:
+
+                                          S : F (·) × r~ - R    (11)
+
+which quantifies the strength of association between filtered order book imbalance and realized return.
+We consider a set of filtration schemes {F (1), . . . , F (k)}, each yielding filtered statistics OBI(i) and a common
+return sequence r~. Our objective is to determine whether:
+
+S(F (i), r~) > S(F (0), r~) for some i  {1, . . . , k}          (12)
+
+where F (0) denotes the unfiltered case.
+
+3 Methodology
+
+The methodology uses three components. First, we define structural quantities and filtration schemes F (·) that
+remove short-lived or heavily revised orders from the raw tick stream t. Second, we construct imbalance indicators
+from filtered and unfiltered data, including a trade-based benchmark. Third, we apply a three-layer diagnostic
+ladder that moves from value-level correlation to regime-based association, and then to Hawkes excitation norms,
+in order to quantify directional alignment between imbalance and realized returns.
+
+    Using filtered events, we reconstruct the LOB, compute directional features in the evaluation windows, and
+compare them to a reference LOB constructed from the unfiltered stream. The scoring functionals S(F , r~) are then
+applied to quantify the association between directional features and returns across filtration schemes. OBI is used
+to identify directional regimes and interpret score behavior; however, it is not used directly as an input to the score.
+For notational clarity, a summary of all symbols is provided in Appendix Table 4.
+
+3.1 Structure and Basic Quantities
+
+We first introduce the core temporal and structural quantities defined at the order level. Let tj(1) denote the entry
+time of order j, defined as the timestamp at which the order is first submitted to the LOB. Let t(j2) denote its exit
+time, defined as the instant at which the order leaves the LOB, either because it is cancelled or because it is fully
+executed. The total time in the LOB for order j is given by
+
+                                          Tj := tj(2) - tj(1).  (13)
+
+This quantity is used to identify ephemeral orders.
+
+    Modeling Remark. We couple cancellations with trades to compute exit-time because, in our tick data
+    and also in the literature [9], cancellations vastly outnumber executions. Adding the number of trades to
+    the number of cancellations leaves the aggregate essentially unchanged. Additionally, both cancellations and
+    trades affect the same terminal outcome: the removal of an order from the LOB. However, modifications do
+    not. Modifications update the order in place and are therefore treated separately via Mj and Mj.
+
+    In addition to the survival time defined above, we define two modification-based measures. Let Mj denote the
+number of modifications recorded for the order j during its lifetime. We define Mj as the time between the last
+two modifications of order j, provided it was modified at least twice. The quantity Mj captures timing intensity
+in the order update stream and serves to flag aggressively re-priced orders.
+
+    These quantities form the basis for the filtration schemes presented next.
+
+3.2 Filtration Schemes
+
+Let t  E denote the observed LOB event stream. We denote a filter specification using F (·). We define three
+filters defined using the total survival lifetime, modification count, and duration between successive modifications.
+
+                                                     5
+Definition: Order Lifetime Filter, F T (t)
+Let tj(1) and t(j2) denote the entry and exit times of order j, and define Tj := t(j2) - t(j1) as its survival time. Then:
+
+F T (t) := j  t : Tj  T¯                                                                                     (14)
+
+This removes all events corresponding to orders with a lifetime below threshold T¯ .
+
+    Lifetime-based filtering removes orders that are ephemeral but does not address the behaviour of frequently
+modified orders that remain in the LOB. Orders with high modification counts may not reflect a genuine intent
+to trade. We discard such frequently modified orders by applying a second filter based on the number of post-
+submission modifications.
+
+Definition: Modification Count Filter, F M (t)
+Let Mj denote the number of modifications associated with order ID j. Then:
+
+F M (t) := j  t : Mj  M¯                                                                                     (15)
+
+This removes events tied to orders with modification count exceeding threshold M¯ .
+
+    Although the modification count captures the intensity of changes over the lifespan of an order, it does not
+reflect how concentrated those changes are in time. Orders that undergo rapid, successive modifications just before
+cancellation may serve to spoof or mislead. The final filtration scheme targets such temporally clustered behavior
+by requiring a minimum separation between the last two modifications, thereby removing orders that exhibit tightly
+packed adjustment bursts.
+
+Definition: Modification Time Filter, F M(t)
+Let Mj be the time between the last two modifications of order j. Then:
+
+F M(t) := j  t : Mj  M¯                                                                                      (16)
+
+This removes all events corresponding to orders with tightly clustered final modifications, i.e., Mj < M¯ .
+
+Summary of Filtration Schemes. Each of the three filtration schemes introduced above is applied indepen-
+dently in our analysis, allowing us to isolate specific structural noise. The order lifetime filter removes short-lived
+orders that are unlikely to represent genuine trading interest. The modification count filter targets orders with
+frequent quote updates, often indicative of speculative or non-committal behavior. The modification time filter
+excludes orders with rapid adjustments near the end of their lifetime. By treating these filters separately, we assess
+their individual contributions to signal stability and directional clarity without confounding their effects.
+
+3.3 Evaluation Indicators: Order Book Imbalance (OBI and OBI(T))
+
+To support the interpretation of score behavior across filtration schemes, we employ OBI as a regime-defining
+indicator. Although not directly used in scoring, OBI provides a tick-level measure of passive liquidity pressure
+that helps to interpret how structural filters alter the alignment of an established directional signal [8] with the
+short-horizon returns.
+
+    We use the Order Book Imbalance (OBI) measure introduced in Equation (4), which captures the directional
+skew in event arrivals over a backward-looking window ( - h,  ]. OBI values close to ±1 indicate an extreme
+imbalance and are often associated with the future direction of price movement. We compute OBI from the LOB
+reconstructed after each filtration scheme and then segment return-score behavior into distinct imbalance regimes,
+highlighting where structural filtering yields the greatest directional alignment.
+
+    Although order-based OBI provides a real-time view of latent book pressure, it is susceptible to noise from
+fleeting orders and strategic placements. To construct an execution-based benchmark, where the noise induced
+by ambiguous intent is mitigated, we introduce an alternative imbalance measure derived solely from signed trade
+activity. This trade-based OBI [27] captures the realised directional pressure by contrasting buyer-initiated and
+seller-initiated trades within each window. This resulting signal is immune to LOB flicker induced by orders and
+better reflects market commitment.
+
+6
+Definition: Order Book Imbalance by Trades, OBI(T )
+
+Let N[(b-,Th),) and N[(s-,Th),) denote the total number of trades initiated by buyers and sellers, respectively, within
+window [ - h,  ). Then:
+
+OBI(T )( )  :=  N[(b-,Th), )  - N[(s-,Th), )                                    (17)
+                N[(b-,Th), )  + N[(s-,Th), )
+
+    Trade-based OBI differs from order-derived imbalance. The OBI is derived from the relative difference in the
+counts of buy and sell orders, capturing latent liquidity. The trade-based OBI(T ), is based exclusively on realised
+executions. Specifically, we follow the methodology proposed in [27], where each trade is signed using a tick-based
+classification rule and then imbalance is computed as the net signed trade count within each evaluation window. This
+construction eliminates noise from flickering quotes, non-executed strategic placements, and ephemeral cancellations.
+
+3.4 Scoring Functionals
+
+To evaluate the directional informativeness of filtered OBI, we use a sequence of scoring functionals that quantify
+the strength and structure of the association between OBI and returns. The functionals are ordered by increasing
+structural sophistication. We begin with Pearson correlation, which measures the linear association between instan-
+taneous OBI and returns. We then examine the linear association between classified regimes of OBI and returns,
+which reveal directional alignment. Finally, we fit a Hawkes process to the classified order flow, using the same
+classification scheme as defined to examine the linear association, and then examine the causal relationship between
+OBI and returns regimes by analysing Hawkes kernel norms. This layered construction allows us to distinguish
+linear association between the values of OBI and returns from regime-specific directional alignment, with statically
+defined lags, and with dynamic memory structures using Hawkes kernel norms.
+
+(1) Contemporaneous Correlation Score The first diagnostic layer assesses the contemporaneous Pearson
+correlation between the OBI signal values and the traded returns, evaluated over fixed-length time windows. This
+correlation coefficient provides a measure of linear association and serves as a baseline indicator for signed pressure in
+the order flow and price changes. It does not capture temporal directionality or distinguish causal from coincidental
+alignment. We note that although it is sensitive to short-lived volatility in both series, contemporaneous correlation
+provides an interpretable scalar summary.
+
+  Definition: Contemporaneous Correlation Score, S(F ,  )
+  Let X = OBI( ), under filtration F (·) and Y = r~ denote the averaged OBI and return over window [ - h,  ).
+  Then:
+
+S( ) := (X, Y ) = E[(X - E[X])(Y - E[Y ])]                                      (18)
+                              V[X] · V[Y ]
+
+where expectations are computed over a rolling ensemble of evaluation windows.
+
+(2) Explanatory Power under Discretized Regimes To sharpen our investigation on the directional align-
+ment between OBI and returns, we classify both the OBI and returns into discrete regimes. Starting from the
+tick-level OBI series and the realized return series defined above, we fix symmetric thresholds on their empirical
+support. The OBI grid partitions the support into nine ordered regimes, from strong negative to strong positive
+imbalance. The return grid partitions the support into three regimes: positive returns, negative returns, and a
+small neutral band around zero.
+
+    For each evaluation window [ - h,  ), we assign every tick to an OBI regime and a return regime using these
+thresholds. We then construct two regime-count vectors. The first, Q  R9, records how many times each of the
+nine OBI regimes appears in the window. The second, R  R3, records how often each of the three return regimes
+occurs. This produces an aligned time series of regime-count vectors {Q } and {R } throughout the sample.
+
+    Within this regime space, we measure directional alignment in two complementary ways. First, for each window
+ we compute a matrix of Pearson correlation coefficients between OBI regime counts and return regime counts,
+denoted by   R9×3. We then average these matrices over  to obtain an aggregate correlation matrix. From this
+matrix we retain only the entries corresponding to directionally aligned regimes, where positive OBI regimes pair
+with the positive return regime and negative OBI regimes pair with the negative return regime. The directional
+correlation score increases when correlation becomes stronger and more concentrated in these cells.
+
+                7
+    Second, we measure explanatory power through a multivariate linear regression of return regime counts on
+OBI regime counts. For each window, we regress R on Q and compute the coefficient of determination R2( ).
+Aggregating these values over all windows yields a regression-based regime score that summarizes how well the
+composition of OBI regimes explains the composition of return regimes.
+
+    To account for serial dependence, we implement residualised counts. For each component of the OBI regime-
+count series and for each component of the return regime-count series, we fit a univariate ARMA model and extract
+residuals. We then recompute both the directional correlation score and the regression-based regime score using
+these residual series. This isolates the association between those parts of the OBI and returns that are not explained
+by their own past. Finally, we repeat the entire procedure on a grid of positive lags. For each lag , we shift the
+returns regime-count series forward by  while keeping the OBI regime-count series fixed and recompute both scores.
+This lagged analysis tests whether filtered OBI regimes carry directional information for future return regimes rather
+than simply co-moving contemporaneously.
+
+Definition: Directional Correlation Regime Score.
+
+For each window   T , let Q  R9 and R  R3 denote the OBI and return regime­count vectors. We form
+the window­specific Pearson correlation matrix
+
+                                             R3×9,
+
+whose entry ,ij is the correlation between the count of return regime i and the count of OBI regime j in
+window  . The averaged correlation matrix over all B evaluation windows is
+
+                                              1
+                                      ¯(F ) := B  (F ),                                        (19)
+
+                                                  T
+
+where the dependence on the filtration scheme F is made explicit.
+
+Given a directional weight matrix W = (Wij)i=0,...,n-1; j=0,...,m-1 defined below, the directional correlation
+score is defined as a signed, regime­weighted aggregate of the average correlation matrix, which is positive when
+directionally aligned regime pairs dominate and negative when misaligned structure dominates:
+
+                                              n-1 m-1
+
+                            SO BIr~(F ) :=             Wij ¯ij (F ).                           (20)
+
+                                              i=0 j=0
+
+Directional Mask.
+
+To emphasise directionally aligned regime pairs while retaining the sign and overall structure of ¯(F ), we
+introduce a smooth weight matrix
+
+                            W = (Wij )i=0,...,n-1; j=0,...,m-1,                                (21)
+
+with entries
+
+                                      Wij = 1 + biaj ,                                         (22)
+
+and row and column factors
+
+                                      m-1                n-1                                   (23)
+                            aj = j -       ,     bi = - i - 2 ,
+                                      2
+
+for
+                                                  i = 0, . . . , n - 1, j = 0, . . . , m - 1,
+
+and a fixed slope parameter  > 0 (in our implementation  = 0.2). Indices j enumerate OBI regimes from
+strongly negative to strongly positive, and indices i enumerate return regimes from strongly positive to strongly
+negative. This construction yields weights larger than one for cells along the anti­diagonal corresponding to
+directionally aligned OBI and return regimes, weights close to one near the neutral­neutral centre, and weights
+below one for misaligned pairs.
+
+The weight matrix thus acts as a smooth directional mask: it preserves the sign and full pattern of ¯(F ) while
+upweighting directionally aligned OBI­return regime pairs and down­weighting misaligned pairs.
+
+                                                 8
+Definition: Regression­Based Regime Score.
+For each window   T , we fit a multivariate linear regression of return regime counts on OBI regime counts,
+
+                    R = Q +  ,                          (24)
+
+via ordinary least squares and compute the coefficient of determination R2( ). The regression­based regime
+score aggregates explanatory power across windows:
+
+                    SORBIr(F ) :=      R2( ).           (25)
+
+                                    T
+
+In the residualised variant, the vectors Q and R are replaced by residual regime­count vectors obtained from
+univariate ARMA models fitted to each component of the original regime­count processes.
+
+    To visualise the regime-level structure behind these scores, we use Figure 2. The figure shows a schematic 9 × 3
+grid whose horizontal axis corresponds to OBI regimes and whose vertical axis corresponds to the return regimes for
+a generic lag . Cells in the top-right and bottom-left corners represent directionally aligned pairs, where strongly
+positive (negative) OBI regimes co-occur with positive (negative) return regimes.
+
+                    Spectrum for lagged  s
+
+Return regimes  +1
+
+                0
+
+                -1
+
+                    -4 -3 -2 -1 0      1       2  3  4
+
+                    OBI regimes
+
+Figure 2: Schematic illustration of the 9 × 3 regime correlation structure between OBI regimes (horizontal axis) and return regimes
+
+(vertical axis) for three lags. Darker cells indicate directionally aligned pairs.
+
+Modeling Remark.
+
+Regime binning is performed symmetrically around zero, with uniformly spaced intervals across [-1, 1] and
+a central neutral regime for both OBI and returns. The directional correlation score SO BIr(F ) focuses on
+OBI­return regime pairs that are directionally aligned and downweights off-regime associations by construc-
+tion. To evaluate short-term predictive alignment, we recompute both SO BIr(F ) and SORBIr(F ) across
+a grid of positive lags , where OBI regimes at time  are paired with return regimes at  + . To remove
+
+spurious effects from autocorrelation, we repeat the analysis using ARMA residuals for both regime-count
+
+processes. Reporting both raw and residualised scores highlights how robust directional association is to
+
+serial dependence under each filtration scheme.
+
+(3) Hawkes Excitation Norms The final layer in our diagnostic ladder uses a multivariate Hawkes process to
+capture causal excitation in event time. A Hawkes process is a point process whose conditional intensity increases
+after past events and then decays over time [17]. In the multivariate case, each component can excite both itself
+and the others through a matrix of kernels, which makes the model well suited to high-frequency order flow where
+trades and quote changes arrive in bursts and past activity feeds back into future arrivals [2]. In financial markets,
+Hawkes models have been used to quantify reflexivity, that is, the degree to which price changes are endogenous to
+past order flow and price moves [15].
+
+    In our setting, we treat regime-labeled OBI and return events as components of a joint Hawkes process. For
+each tick, OBI is assigned to one of nine regimes and returns to one of three regimes, as described in the previous
+subsection. We then construct a multivariate counting process on a common timeline, where some components rep-
+resent OBI regime events and the remaining components represent return regime events. The Hawkes specification
+links these components through a matrix of excitation kernels that encode how the arrival of an event in a given
+OBI regime affects the future intensity of return events in each return regime.
+
+                    9
+Definition: Multivariate Hawkes Process and Integrated Kernel.
+Let N (t) = N (1)(t), . . . , N (d)(t)  denote a d-dimensional counting process representing all OBI and return
+regimes. A multivariate Hawkes process has conditional intensity vector (t) = (1)(t), . . . , (d)(t)  of the
+form
+
+                 dt
+
+(i)(t) = µ(i) +         ij(t - s) dN (j)(s),                                 (26)
+
+                 j=1 0
+
+                                                                   i = 1, . . . , d,
+
+where µ(i) is a baseline intensity and ij(·) is the excitation kernel from component j to component i. Following
+[27], we use a sum-of-exponentials parameterization,
+
+         M
+
+ij(u) =          i(jm)me-mu1{u>0},                                           (27)
+
+         m=1
+
+with common decay rates {m}m M=1 and component-specific amplitudes {i(jm)}.
+From the estimated kernels we construct the integrated excitation matrix
+
+                             d
+
+=                  ij(u) du         ,                                        (28)
+
+         0                   i,j=1
+
+whose entry ij measures the expected number of offspring events of type i triggered by a single event of type
+j.
+
+    In line with the diagnostic ladder, we focus on cross-excitation from OBI regimes to return regimes. Let OBIr
+denote the submatrix of  that maps the nine OBI regimes to the three return regimes. A large and diagonally
+concentrated OBIr indicates that strongly positive (negative) OBI regimes tend to trigger positive (negative)
+return regimes after accounting for the full event-time history. To summarise this structure in a single scalar,
+we define the Hawkes excitation norm score as the Euclidean norm of the entries of OBIr corresponding to
+directionally aligned regime pairs.
+
+Definition: Hawkes Excitation Norm Score.
+
+Let A index OBI­return regime pairs with matching sign (strongly negative OBI and negative returns, neutral
+OBI and small returns, strongly positive OBI and positive returns). The scoring functional is
+
+SOBIr(F ) :=                 O(i,BjI)r ,                                     (29)
+
+                   (i,j)A
+
+which increases when a filtration scheme F yields a clearer, more directional excitation pattern from imbalance
+regimes to return regimes.
+
+Estimation Remark. Although the multivariate Hawkes specification entails a high parameter count (a
+13 × 13 kernel with multiple exponential components), the estimation sample is of commensurate scale at
+the event level. The large number of observed LOB events provides sufficient information to estimate the
+excitation structure and to assess filtration effects without relying on aggressive regularization.
+
+(4) OBI by trades, OBI(T ) In addition to the imbalance signals derived from the LOB state under the filtration
+
+schemes above, we construct a trade-based imbalance signal that is directly tied to executed transactions. For each
+evaluation window, we compute the trade-based imbalance OBI(T ) from the net signed trade count, using the
+
+tick-based trade classification and windowed construction defined in the preceding subsection.
+
+    To make this object comparable to our structural filters, we apply each of the lifetime, modification count, and
+
+modification time filters to the parent orders that resulted in the trades, identified by the order ID present in the
+tick-by-tick data for every trade. For a given filtration scheme F , we retain a trade in the window only if its
+parent order satisfies the corresponding threshold for that single filter. Trades whose parent orders fail the lifetime
+threshold under F T , the modification count threshold under F M , or the modification time threshold under F M
+are discarded from the analysis for that filter. The resulting trade-based signals, which we denote by OBI(T,F),
+
+therefore reflect the realised directional pressure carried by orders that would also have survived the corresponding
+
+                   10
+structural filter in the book.
+    Compared to standard book-derived OBI, which can be influenced by fleeting or unexecuted quotes, OBI(T ) [27]
+
+is anchored in executed transactions and is less sensitive to short-lived book noise. In our diagnostic ladder, we
+use both the unfiltered trade-based signal OBI(T ) and its parent-filtered variants OBI(T,F) as benchmarks when
+interpreting the Hawkes excitation scores, particularly the cross-kernel norms from trade-based OBI regimes to
+future return regimes.
+
+                                                     Raw OBI & Return Data
+
+Lifetime Filter    Modification Count Filter  Modification Time Filter
+       FT                         FM                        FM
+
+Correlation Score  Regime Score               Hawkes Score
+          S               SR                         S
+
+Figure 3: Schematic overview of the filtration and scoring pipeline. Raw order book imbalance and return streams are processed
+
+through three distinct filtering schemes. The resulting filtered data are then evaluated using correlation, regime-based, and Hawkes
+excitation scoring functionals. This layered structure allows a modular assessment of signal quality under different microstructure filters.
+
+Summary of Scoring Functionals. Figure 3 shows the hierarchical schema of our scoring framework. The
+layered structure offers a coherent diagnostic ladder for evaluating directional informativeness. The first layer
+assesses value-level co-movement using raw Pearson correlation. The second captures structural alignment through
+regime-discretized counts and explanatory regression. The third layer models causal excitation using point process
+dynamics. Together, these layers reveal how filtration clarifies directional signals by reducing noise, emphasizing
+regime-level structure, and uncovering causal influence.
+
+    To maintain strict comparability across filtration schemes, all scoring functionals are computed using identical
+evaluation windows and normalization logic. For each variant, we reconstruct the limit order book from the filtered
+event stream, extract directional signals using the same conventions, and apply the scoring pipeline without model-
+specific tuning. This ensures that any observed differences in association strength can be attributed solely to
+structural filtering, without confounding effects from reparameterization or inconsistent return handling.
+
+4 Data
+
+Our empirical study is based on tick-by-tick data for BANKNIFTY futures and selected equities sourced from the
+Indian National Stock Exchange (NSE). Each tick records a discrete event involving one of four categories: new
+order submission, order modification, order cancellation, or trade execution. Every order is uniquely identified by
+an Order ID (OID), which remains associated with all its subsequent modification events until the order is either
+cancelled or executed.
+
+    Each tick includes a market snapshot comprising the top five levels of the limit order book (LOB), including
+bid/ask prices and corresponding standing volumes. Importantly, the dataset is event-driven: only those ticks that
+induce a change in the top-5 levels of the book are recorded. As a result, periods of inactivity or activity beyond the
+top 5 levels are omitted from the stream, yielding a compact, latency-sensitive representation of market activity.
+
+    To analyze how filtering affects the directional information content of the order flow, we reconstruct alternate
+versions of the limit order book under different filtration schemes. The filtering process is implemented as follows:
+
+   1. For each filtration scheme F (·), we construct a list of Order IDs (OIDs) that are to be excluded from con-
+       tributing to the displayed book.
+
+                   11
+   2. During reconstruction, any new or modified order matching an excluded OID is ignored, except in the case
+       of trade execution. If a filtered OID executes against a resting order, its trade tick is retained to preserve
+       execution consistency and prevent structural imbalance in the reconstructed book.
+
+    This protocol ensures that downstream scoring functionals operate over books that remain structurally valid
+and comparable across filtration schemes.
+
+5 Experimental Setup
+
+We work with tick-level data for BANKNIFTY January 2023 index futures traded on the National Stock Exchange
+of India. The sample consists of three trading days: 2 January, 13 January and 23 January 2023, chosen to span the
+early, middle and late parts of the expiry cycle and to exhibit varying market activity. Each event record contains
+the server timestamp, order identifier, event type (NEW, MODIFY, CANCEL, TRADE), side (bid or ask), price
+and quantity. Using these event streams, we reconstruct the limit order book.
+
+    Evaluation is performed on overlapping time windows. For each anchor time  , we define an evaluation window
+[,  + h) of length h = 10 seconds, over which we compute an imbalance signal, and a subsequent forecast window
+(,  + ] of length  = 1 second, over which we compute the realised traded return r~. Anchor times are spaced every
+15 seconds during the main continuous trading session (09:20­15:25), yielding a large number of non-overlapping
+forecast windows.
+
+    On the event stream t, we apply three filtration schemes defined in Section 3.2. The lifetime filter F T retains
+only events associated with orders whose total survival time Tj exceeds a threshold T¯ . The modification-count filter
+F M retains events for orders with modification counts Mj below a threshold M¯ . The modification-time filter F M
+retains events where the time between order entry and the first modification, Mj, exceeds a threshold M¯ . Each
+scheme can be implemented in real time using only observable order histories.
+
+    Filtration is parametrised by simple threshold grids. For lifetime we consider T¯ = 100 milliseconds, for
+modification time we appy M¯ = 50 milliseconds, and for modification count M¯ = 3 with multiple lags being used
+to determine correlation and regime correlation scores. For each combination of date, threshold and lag, we apply
+one filtration scheme at a time to the same underlying event stream.
+
+    To give a sense of scale, a single BANKNIFTY session typically produces on the order of 108 events. On 23
+January 2023, for example, the unfiltered book reconstruction uses 83,547,534 ticks. Applying the lifetime filter
+removes 5,928,152 order identifiers and yields 51,023,701 ticks in the filtered stream. The modification-count filter
+removes 5,416,670 order identifiers and leaves 72,228,161 ticks, while the modification-time filter removes 168,058
+order identifiers and leaves 47,531,611 ticks. Thus each structural filter removes a sizeable set of short-lived or
+heavily modified orders but still leaves tens of millions of events; any change in directional diagnostics reflects
+altered signal content rather than a collapse in sample size.
+
+    From each filtered event stream we construct order book imbalance (OBI) over [,  + h) and pair it with
+the realised return r~ over the forecast window. These LOB-based imbalance signals are evaluated using the full
+diagnostic ladder described in Section 3: value-level correlations, discretised regime association and Hawkes-based
+excitation norms. In parallel, we construct a trade-based imbalance signal OBI(T ) using signed trade events linked to
+their parent orders. For this trade-based signal we focus on Hawkes-based excitation diagnostics, since any value-
+level correlation or regime association between trade-based imbalance and short-horizon returns is mechanically
+strong and less informative for our purposes.
+
+Table 1: Event-level impact of filtration on BANKNIFTY January futures, 23 January 2023 (T­2 before expiry)
+
+Filter                        Filtered orders count Final ticks
+
+Default book (no filtration)      0 83,547,534
+
+Lifetime filter F T               5,928,152  51,023,701
+Mod-count filter F M              5,416,670  72,228,161
+Mod-time filter F M                          47,531,611
+                                    168,058
+
+    These counts highlight that filtration is a non-trivial design problem at scale. A single BANKNIFTY session
+produces on the order of 108 events, and raw OBI on this stream mixes genuine directional pressure with very
+short-lived and repeatedly modified orders. Structural filters F T , F M , F M each remove on the order of 106
+order identifiers while leaving tens of millions of events in the reconstructed book. Notably, the modification-time
+filter F M removes only 168,058 order IDs yet eliminates approximately 36 million ticks relative to the unfiltered
+stream, more than the lifetime-based filter. This indicates that a relatively small subset of orders generates a
+
+disproportionately large volume of rapid modification activity without leading to execution. In light of this structure,
+
+                              12
+we investigate whether excluding this transient component of the order flow improves the directional content of
+imbalance-based signals, rather than merely reducing the sample size.
+
+6 Results
+
+6.1 Overview
+
+We find a sharp contrast between order-based and trade-based imbalance under structural filtration. For imbalance
+computed from the standing book, lifetime, modification-count and modification-time filters produce only small
+and unstable changes in directional association with short-horizon returns across all three diagnostic layers. For
+trade-based imbalance OBI(T ), the same filters consistently raise Hawkes excitation from imbalance regimes to
+future return regimes on all three sample days. The subsections below first summarise the weak and heterogeneous
+effects for LOB-based OBI, and then document the much clearer Hawkes-based gains for trade-filtered OBI(T ).
+
+    Unless otherwise stated, results are reported by filtration scheme and trading day and then summarised by
+averages across the three dates. The unfiltered series (UF) provides the baseline against which the lifetime (LF),
+modification-count (MF) and modification-time (MTF) filters are compared.
+
+6.2 LOB-based Imbalance: Small and Heterogeneous Effects
+
+For imbalance constructed from standing book depth, all three diagnostics move only slightly under filtration and
+no filter dominates the unfiltered baseline. Table 6.2 reports the average values of the diagnostics for LOB-based
+OBI across all days and filter thresholds. At the correlation layer, all scores are small in absolute terms. The
+average Pearson correlation score S(F ) between unfiltered OBI and subsequent returns is of the order of 10-2,
+and filtration shifts this baseline only marginally. The modification-time filter (MTF) produces the largest relative
+increase, moving the average correlation from 0.01018 (UF) to 0.01133, while the lifetime filter (LF) leaves it
+essentially unchanged and the modification-count filter (MF) lowers it. Across individual days and for varying
+horizons (reported in Appendix Tables 5, 6, 7, 8 and 9), some filter and lag combinations show small gains and
+others show small losses, with no stable pattern.
+
+    The regime-based diagnostics also show modest and mixed changes. The average difference between imbalance
+regimes and subsequent return regimes is smallest under filtration by modification time, with filtration on order
+lifetime delivering a mild improvement relative to the unfiltered OBI and filtration by modification count slightly
+under-performing. The regression-based regime scores SORBIr(F ) for return regimes on imbalance regimes are
+almost identical across filters. Once autocorrelation in the return process is taken into account, the unfiltered and
+filtered series achieve very similar explanatory power in regime space.
+
+    Hawkes-based excitation norms SOBIr(F ) for LOB-based OBI behave in a similar way. On average, filtration
+by modification time yields the highest cross-kernel norm from imbalance regimes to return regimes, followed by
+filtration on modification count, with filtration by order lifetime almost indistinguishable from the unfiltered OBI.
+The differences are small in relative terms, and the ranking of filters varies across days. Taken together, these
+diagnostics indicate that for imbalance constructed from standing book depth, simple structural filters on lifetimes
+and modification behaviour do not deliver a robust and stable improvement in directional association, both causal
+and linear, with short-horizon returns.
+
+Filter Type      S(F )    SO BIr(F )  SORBIr(F )  SO BIr(F )
+Unfiltered (UF)  0.01018      -4.00        8.43      8.9292
+Lifetime (LF)    0.01011      -3.41        8.39      8.9287
+Mod Count (MF)   0.00826      -4.44        8.42      9.0048
+Mod-Time (MTF)   0.01133      -3.39        8.37      9.1745
+
+Table 2: Summary of averaged scores across scoring functionals and filtration schemes for LOB-based OBI.
+
+Note: All values are averaged across the three trading days. The Pearson correlation score S(F ) and the regime-based
+scores SO BIr(F ) and SORBIr(F ) are computed after removing autocorrelation. The Hawkes excitation score SOBIr(F )
+
+uses the sum-of-exponentials kernel variant.
+
+6.3 Trade-Based Imbalance: Stronger Hawkes Excitation Under Filtration
+
+For trade-based imbalance OBI(T ), constructed from signed trades, structural filtration on the parent orders linked
+to the trades produces large and systematic changes in Hawkes excitation norms. We apply the same lifetime-,
+modification-count-, and modification-time-based filters on the linked parent orders and then compute cross-kernel
+Hawkes norms from OBI(T ) regimes to return regimes.
+
+                          13
+    Table 3 reports the excitation scores by filtration scheme and sample date. On all three days, at least one
+
+structural filter produces a substantially higher excitation norm than the unfiltered trade-based benchmark. On
+2 January 2023, filtration by order lifetime raises the excitation score from 10.99 (unfiltered OBI(T )) to 15.22
+(OBI(T ) post filtration by order lifetime), with filtration by modification-count and modification-time also above the
+unfiltered OBI(T ). On 13 January 2023, filtration by order lifetime again almost doubles the excitation score relative
+to unfiltered OBI(T ), and both modification-count and modification-time filters deliver intermediate improvements.
+
+On 23 January 2023, the day with the highest market activity among the 3 sample days, filtration by modification-
+time produces the strongest effect, with the excitation score rising from 11.59 (unfiltered OBI(T )) to 24.74 under
+filtration by modification-time, while filtration by order lifetime results in OBI(T ) slightly above unfiltered OBI(T )
+
+and filtration by modification-count lies slightly below.
+    Across days, modification-time filtration leads to consistently higher Hawkes excitation norms for OBI(T ) than
+
+for the unfiltered OBI(T ), with lifetime and modification-count filtration usually raising excitation as well, although
+
+with smaller and less stable gains. The excitation structure becomes more directional in the sense that trade-based
+
+imbalance events that survive the filters are more often followed by return regimes of the same sign. This effect is
+
+present on every sample date and is much more pronounced than any change observed for LOB-based OBI.
+
+02nd Jan 2023          13th Jan 2023          23rd Jan 2023
+
+Filter SO BI(T )r(F )  Filter SO BI(T )r(F )  Filter SO BI(T )r(F )
+
+UF   10.9933           UF       8.3639        UF   11.5868
+
+LF   15.2172           LF   15.8630           LF   12.0834
+
+MF   13.8234           MF   10.2922           MF   10.8573
+
+MTF  12.0679           MTF  12.7363           MTF  24.7352
+
+Table 3: Hawkes excitation scores S(F ) under a sum-of-exponentials kernel, computed from trade-based imbalance
+OBI(T ), shown by date and filter type. Filter types: UF = Unfiltered, LF = Lifetime Filter, MF = Modification
+
+Count Filter, MTF = Modification-Time Filter.
+
+6.4 Summary Interpretation
+
+For OBI computed from the standing book, lifetime-, modification-count- and modification-time-based filters have
+only small and heterogeneous effects on value-level correlations, regime-based diagnostics and Hawkes excitation
+norms. In this setting, simple filters on order lifetimes and modification patterns do not yield a reliable improvement
+in directional alignment with short-horizon returns.
+
+    In contrast, for OBI(T ) constructed from executed trades and filtered via parent-order lifetimes and modifications,
+the Hawkes diagnostics show a much clearer pattern. On all three sample days, excitation norms from imbalance
+regimes to return regimes are systematically higher under lifetime and modification-time filtration than under the
+unfiltered benchmark, with modification-count filtration showing smaller and less stable gains. Within the limits
+of our three-day sample, this suggests that trades linked to very short-lived or heavily revised orders contribute
+relatively little to the event-time directional structure of returns, whereas trades that pass simple structural filters
+carry a clearer causal imprint. The analysis applied to trade-filtered OBI(T ) reveals filtration effects that remain
+largely invisible in the correlation and regime-based summaries for book-based OBI.
+
+7 Discussion and Conclusion
+
+Our study is anchored by the premise that if a large fraction of low-latency message traffic arises from short-lived
+or heavily revised orders, then filtering such orders should sharpen the directional association between imbalance
+and short-horizon returns. The evidence is asymmetric. For imbalance constructed from the standing book, filters
+based on order lifetimes and modification behaviour have only small, filter-dependent effects on the association
+with subsequent returns. When the same filters are mapped to the parent orders of executed trades and imbalance
+is constructed from the signed trade flow, Hawkes-based excitation norms between imbalance and return regimes
+increase substantially and consistently. Thus, tick-level filtration of all orders does not materially alter book-level
+imbalance signals, whereas filtration applied to trade-linked orders strengthens the event-time directional alignment
+captured by Hawkes diagnostics.
+
+    This pattern aligns with and qualifies existing results on imbalance and message traffic. Work on order flow
+imbalance and price impact, such as [7], shows that simple unfiltered measures of net order flow already have
+substantial explanatory power for short-horizon returns. Our LOB-based findings are consistent with this view:
+the unfiltered imbalance signal already captures most of the linear and regime-level associations recovered by our
+diagnostics, and simple structural filters do not generate a qualitatively new signal at the aggregate depth. At the
+
+                            14
+same time, the literature on low-latency trading emphasises the prevalence of fleeting orders and rapid cancellations
+[16, 10, 9]. Our results suggest that, at the standing depth, much of the noise introduced by such low-persistence
+orders is already averaged out, so structural filtration alone does not produce a markedly sharper LOB-based signal.
+
+    On the most volatile day in our sample, this structure is visible in the raw event data: as shown in Table 1,
+removing  170000 parent order identifiers under the modification-time filter deletes  36 million individual ticks
+from the order flow, indicating that a small subset of fast-revising orders generates a disproportionate share of
+market activity even in a post-surveillance regime. At the same time, the corresponding changes in directional
+scores for order-based imbalance are modest, whereas the trade-based imbalance constructed from the remaining
+parent orders shows clearer gains in Hawkes excitation towards return regimes. Our filters are agnostic to trading
+intent and treat both benign risk-management revisions and strategically noisy activity in the same way. The
+concentration of high-frequency modifications in a small set of parent orders is compatible with an environment
+where interacting automated strategies can generate emergent order-book churn around sharp price moves, even
+when overtly malafide patterns are discouraged at the account level.
+
+    Our analysis is conducted in a market where NSE's "Persistent Noise Creator" framework is already in force
+[25, 26]. The circulars couple high order-to-trade ratios with frequent, priority-lowering modifications on individual
+clients and are designed to deter persistent noisy order flow. Our results suggest that, even in this regime, a small
+subset of modified orders can generate a disproportionate share of low-latency message traffic. When structural
+filters remove these high-activity parent orders, the directional association between trade-based imbalance and return
+regimes, as measured by Hawkes cross-excitation norms, changes more visibly than the corresponding association
+for book-based imbalance. We do not observe trader identities or individual latencies, so we do not evaluate the
+distribution of technological advantages across participants. However, the concentration of rapid modifications in a
+small set of orders suggests that, in the presence of increased automation across all classes of market participants,
+the emergent order flow among these market participants may contribute significantly to the aggregate order flow.
+
+    In this sense, our filtration-and-diagnostic ladder is not a replacement for traditional market-quality measures,
+such as spreads and depth, but rather an additional layer that focuses on how order-based regulations affect the
+aggregate order flow when characterized by short-horizon returns. Multivariate Hawkes specifications provide one
+concrete way to summarise this causal association through excitation norms between imbalance and return regimes.
+In the future, such a methodology could be used to compare alternative surveillance parameters or regulatory
+regimes while considering their effects on aggregate order flow.
+
+    Looking ahead, the proposed diagnostic structure can be embedded in a low-touch optimal-control formulation.
+In such a setting, the lifetime, modification-count, and inter-modification thresholds can be treated as design
+parameters, and each parameter choice would induce a filtered imbalance series with associated correlation, regime
+and Hawkes-based diagnostics as loss variables. An information-based objective, such as the directional association
+between filtered imbalance and short-horizon realised returns, could then be optimised subject to explicit out-of-
+sample checks across contracts and days. Formalising this calibration scheme and assessing its robustness is beyond
+the scope of the present methodological study. However, the illustrative results presented suggest that such a control
+framework could be a promising direction for future work.
+
+References
+
+ [1] Nidhi Aggarwal, Venkatesh Panchapagesan, and Susan Thomas. When is the order-to-trade ratio fee effective?
+      Journal of Financial Markets, 62:100762, 2023. doi: 10.1016/j.finmar.2022.100762. URL https://doi.org/
+      10.1016/j.finmar.2022.100762.
+
+ [2] Emmanuel Bacry, Iacopo Mastromatteo, and Jean-Fran¸cois Muzy. Hawkes processes in finance. Market Mi-
+      crostructure and Liquidity, 1(1):1550005, 2015. doi: 10.1142/S2382626615500057.
+
+ [3] Clive G. Bowsher. Modelling security market events in continuous time: Intensity based, multivariate point
+      process models. Journal of Econometrics, 141(2):876­912, 2007. doi: 10.1016/j.jeconom.2006.11.007.
+
+ [4] Eric Budish, Peter Cramton, and John Shim. The high-frequency trading arms race: Frequent batch auctions
+      as a market design response. The Quarterly Journal of Economics, 130(4):1547­1621, 2015. doi: 10.1093/qje/
+      qjv027.
+
+ [5] Gunther Capelle-Blancard. Curbing the growth of stock trading? order-to-trade ratios and financial transaction
+      taxes. Journal of International Financial Markets, Institutions and Money, 49:48­73, 2017. doi: 10.1016/j.
+      intfin.2017.02.004.
+
+ [6] Cboe Europe Equities. Participant manual: Maximum order to trade ratio (otr) policy. Exchange manual,
+      November 2025. Section 8, Maximum Order to Trade Ratio Policy. Available at https://cdn.cboe.com/
+      resources/participant_resources/Cboe_Europe_Participant_Manual.pdf.
+
+                                                                          15
+ [7] Rama Cont, Arseniy Kukanov, and Sasha Stoikov. The price impact of order book events. Journal of Financial
+      Econometrics, 12(1):47­88, 2014. doi: 10.1093/jjfinec/nbt003.
+
+ [8] Rama Cont, Arseniy Kukanov, and Sasha Stoikov. Price dynamics in a markovian limit order market. SIAM
+      Journal on Financial Mathematics, 5(1):1­25, 2014.
+
+ [9] Petter Dahlstr¨om, Bj¨orn Hagstro¨mer, and Lars L. Nord´en. The determinants of limit order cancellations. The
+      Financial Review, 59(1):181­201, 2024. doi: 10.1111/fire.12363.
+
+[10] David Easley, Marcos Lopez de Prado, and Maureen O'Hara. Discerning information from trade data. Journal
+      of Financial Economics, 120(2):269­285, 2016. ISSN 0304-405X. doi: https://doi.org/10.1016/j.jfineco.2016.
+      01.018. URL https://www.sciencedirect.com/science/article/pii/S0304405X16000246.
+
+[11] Eurex Deutschland. Order-to-trade ratio (otr): Introduction of a volatility factor to the otr limits. Eurex
+      Circular 102/23, November 2023. Available at https://www.eurex.com.
+
+[12] Vladimir Filimonov and Didier Sornette. Apparent criticality and calibration issues in the hawkes self-excited
+      point process model: Application to high-frequency financial data. Quantitative Finance, 15(8):1293­1314,
+      2015. doi: 10.1080/14697688.2015.1032544.
+
+[13] Sylvain Friederich and Richard Payne. Order-to-trade ratios and market liquidity. Journal of Banking &
+      Finance, 50:214­223, 2015. doi: 10.1016/j.jbankfin.2014.10.005.
+
+[14] Michael Hanke and Markus Weigerding. Order flow imbalance effects on the german stock market. Business
+      Research, 8(2):213­238, 2015. doi: 10.1007/s40685-015-0025-0.
+
+[15] Stephen J. Hardiman, Nicolas Bercot, and Jean-Philippe Bouchaud. Critical reflexivity in financial markets: A
+      hawkes process analysis. The European Physical Journal B, 86(10):442, 2013. doi: 10.1140/epjb/e2013-40482-7.
+
+[16] Joel Hasbrouck and Gideon Saar. Low-latency trading. Journal of Financial Markets, 16(4):646­679, 2013.
+      doi: 10.1016/j.finmar.2013.05.003.
+
+[17] Alan G. Hawkes. Spectra of some self-exciting and mutually exciting point processes. Biometrika, 58(1):83­90,
+      1971.
+
+[18] Weibing Huang, Charles-Albert Lehalle, and Mathieu Rosenbaum and. Simulating and analyzing order book
+      data: The queue-reactive model. Journal of the American Statistical Association, 110(509):107­122, 2015. doi:
+      10.1080/01621459.2014.982278.
+
+[19] Kjell Jørgensen, Johannes A. Skjeltorp, and Bernt Arne Ødegaard. Throttling hyperactive robots ­ order-
+      to-trade ratios at the Oslo Stock Exchange. Journal of Financial Markets, 37(1):1­16, 2018. doi: 10.1016/j.
+      finmar.2017.09.001.
+
+[20] Maryna Khomyn and Talis J. Putnin¸s. Algos gone wild: Are order-to-trade ratios excessive? Journal of
+      Banking & Finance, 131:106192, 2021. doi: 10.1016/j.jbankfin.2021.106192.
+
+[21] Petter N. Kolm, Jorge Turiel, and Nicholas Westray. Deep order flow imbalance: Extracting alpha at multiple
+      horizons from the limit order book. Mathematical Finance, 33(4):1044­1081, 2023. doi: 10.1111/mafi.12413.
+
+[22] Andrew Lepone and Alexander Sacco. The impact of message traffic regulatory restrictions on market qual-
+      ity: Evidence from Chi-X Canada. Working paper, Capital Markets Cooperative Research Centre, Sydney,
+      Australia, 2013.
+
+[23] Zhicheng Li, Haipeng Xing, and Xinyun Chen. A multifactor regime-switching model for inter-trade durations
+      in the high-frequency limit order market. Economic Modelling, 118:106082, 2023. doi: 10.1016/j.econmod.
+      2022.106082.
+
+[24] Maxime Morariu-Patrichi and Mikko S. Pakkanen. State-dependent hawkes processes and their application to
+      limit order book modelling. Quantitative Finance, 22(3):563­583, 2022. doi: 10.1080/14697688.2021.1983199.
+
+[25] National Stock Exchange of India Limited. Order based surveillance measure ­ persistent noise creators.
+      Circular, Download Ref. No.: NSE/SURV/47814, Department: Surveillance, March 2021. Dated March 26,
+      2021; addressed to all trading members.
+
+[26] National Stock Exchange of India Limited. Order based surveillance measure ­ persistent noise creators ­
+      update. Circular, Download Ref. No.: NSE/SURV/52992, Department: Surveillance, July 2022. Dated July
+      15, 2022; update to the persistent noise creator framework.
+
+                                                                          16
+[27] A. Nittur Anantha and S. Jain. Forecasting high frequency order flow imbalance using hawkes processes.
+      Computational Economics, 2025.
+
+[28] Securities and Exchange Board of India. Broad guidelines on algorithmic trading. SEBI Circular CIR/M-
+      RD/DP/09/2012, March 2012. Available at https://www.sebi.gov.in.
+
+[29] Securities and Exchange Board of India. Broad guidelines on algorithmic trading: Additional requirements.
+      SEBI Circular CIR/MRD/DP/16/2013, May 2013. Available at https://www.sebi.gov.in.
+
+[30] Securities and Exchange Board of India. Guidelines for order-to-trade ratio (otr) for algorithmic trading. SEBI
+      Circular, 2020. Available at https://www.sebi.gov.in.
+
+[31] U.S. Securities and Exchange Commission. Self-regulatory organizations; cboe edgx exchange, inc.; notice of
+      filing and immediate effectiveness of a proposed rule change to amend its fee schedule to adopt order-to-trade
+      ratio fees. Federal Register, 88(34), 10649­10653, 2023. Available at https://www.federalregister.gov/
+      documents/2023/02/21/2023-03487.
+
+[32] Xintong Wang and Michael P. Wellman. Spoofing the limit order book: An agent-based model. In Proceedings
+      of the 16th Conference on Autonomous Agents and MultiAgent Systems, AAMAS '17, page 651­659, Richland,
+      SC, 2017. International Foundation for Autonomous Agents and Multiagent Systems.
+
+[33] Itsuki Yagi, Masaru Hoshino, Toshihiro Mizuta, and Nan Cao. Impact of high-frequency trading with an order
+      book imbalance strategy on agent-based stock markets. Complexity, 2023:1­14, 2023. doi: 10.1155/2023/
+      3996948.
+
+                                                                          17
+8 Appendix - I: Global Notation Summary
+
+            Table 4: Summary of Symbols and Their First Point of Introduction
+
+Symbol                     Description                                         Section
+
+Market Structure and Events
+
+pb,i, pa,i                 Price at level i on bid / ask side                  Data / Filtration
+                                                                               Data / Filtration
+qb,i, qa,i                 Quantity at level i on bid / ask side               Methodology
+
+T                          Final time in summation/indexed bounds (not         Problem Description
+                                                                               Problem Description
+                           event label)                                        Methodology
+
+T, C                       Trade and cancellation event types
+
+E                          Set of event types (e.g., trades, cancels)
+
+I                          Index set over event dimensions
+
+Feature Extraction and Window Definitions
+
+                           Anchor time for evaluation window                   Problem Description
+                                                                               Problem Description
+h                          Length of evaluation window                         Problem Description
+                                                                               Problem Description
+                           Length of forecast window                           Problem Description
+                                                                               Forecast Target
+[ - h,  )                  Evaluation window                                   Experiment / Results
+                                                                               Problem Description
+(,  + ]                    Forecast window                                     Data / Preprocessing
+                                                                               Data / Preprocessing
+r~                         Realized return over forecast window
+
+r~^                        Predicted return over forecast window
+
+W                          Set of evaluation window anchors 
+
+T (w)                      Tick history over window w
+
+B(w)                       LOB snapshot at start of window w
+
+Filtering and Feature Construction
+
+F                          General filtration scheme applied to event stream   Methodology
+                                                                               Methodology
+Fq                         Quote-persistence filter                            Methodology
+                                                                               Methodology
+Fe                         Event excitation filter (e.g., via Hawkes)          Methodology
+
+G                          Optional auxiliary filter for OBI-related features
+
+K(w)                       Feature extraction map over window w
+
+Order Book Imbalance and Related Measures
+
+OBI[ -h, )                 Order Book Imbalance in evaluation window           Methodology
+qb,1, qa,1                 Changes in top-level quantities                     Methodology
+
+Hawkes Process Components
+
+i (z )                     Intensity for event type i in fused space           Methodology
+                                                                               Methodology
+µi                         Baseline intensity for event type i                 Methodology
+
+ij                         Excitation kernel from j to i                       Methodology
+                                                                               Methodology
+Prediction and Evaluation                                                      Methodology
+
+S(F , r~)                  Scoring functional based on filtration and return   Evaluation
+S ()                       Correlation-based scoring functional                Evaluation
+S ()                       Excitation norm­based scoring functional            Evaluation
+                           (Hawkes)
+
+                           Pearson correlation coefficient
+
+L                          Forecast loss (e.g., absolute or squared error)
+
+I{·}                       Indicator function
+
+Auxiliary Symbols and Derived Constructs
+
+M                          Filtered model variant or mask                      Results
+                                                                               Evaluation
+R                          Return regime bin identifier                        Methodology / Results
+                                                                               Evaluation
+Q, R                       Feature or target vectors for OBI/returns
+Q^, R^                     Predicted values of feature or response
+
+                                               18
+9 Appendix - II: detailed scores across filtration methods and scoring
+     functionals.
+
+This appendix reports the day- and horizon-specific quantities from which the aggregate scores S(F ), SO BIr~(F ),
+SORBIr~(F ) and SOBIr~(F ) in the main text are constructed. For each trading day d and filtration scheme
+F  {UF, LF, MF, MTF}, we report scores at positive horizons h between imbalance and returns, implemented via
+evaluation windows [,  + h).
+
+9.1 Pearson Correlation scores across time horizons
+
+Date Filter   1s       10s       30s       50s       80s       100s
+20230102 UF   0.02067  0.00866   0.00271   0.00368   0.00428   0.00377
+20230102 MTF  0.01233  0.00236   0.00070   0.00033   0.00590   0.00120
+20230102 LF   0.02121  0.00945   0.00463   0.00251   0.00550   0.00332
+20230102 MF   0.00092  0.00371   -0.00520  0.00088   -0.00059  -0.00151
+20230113 UF   0.00353  -0.00503  0.00043   0.00071   -0.00171  -0.00334
+20230113 MTF  0.01248  0.00308   -0.00048  0.00275   0.00164   -0.00182
+20230113 LF   0.00379  -0.00486  0.00053   0.00116   -0.00272  -0.00374
+20230113 MF   0.00123  0.00127   -0.00079  0.00247   0.00076   -0.00236
+20230123 UF   0.02327  -0.00325  0.00154   -0.00044  0.00507   -0.00515
+20230123 MTF  0.03022  -0.00109  0.00225   0.00184   0.00291   -0.00802
+20230123 LF   0.02135  -0.00347  0.00198   -0.00104  0.00500   -0.00524
+20230123 MF   0.02453  0.00075   -0.00009  0.00088   0.00035   -0.00494
+
+Table 5: Pearson correlation magnitudes between order-based imbalance OBI and short-horizon realized returns
+
+r~ for each trading day d and filtration scheme F , at horizons h  {1, 10, 30, 50, 80, 100} seconds (auto-correlation
+included). Each entry corresponds to a horizon-specific correlation score SO BIr~(F ). Filter types: UF = Unfiltered,
+LF = Lifetime Filter, MF = Modification Count Filter, MTF = Modification-Time Filter.
+
+Date Filter   1s       10s       30s       50s       80s       100s
+20230102 UF   0.01192  0.00656   0.00151   0.00400   0.00250   0.00179
+20230102 MTF  0.00715  0.00280   -0.00050  0.00133   0.00407   0.00009
+20230102 LF   0.01219  0.00737   0.00235   0.00326   0.00327   0.00170
+20230102 MF   0.00076  0.00418   -0.00330  0.00104   -0.00051  -0.00050
+20230113 UF   0.00268  -0.00282  0.00026   -0.00060  -0.00097  -0.00076
+20230113 MTF  0.00937  0.00262   0.00056   0.00052   0.00165   -0.00033
+20230113 LF   0.00259  -0.00239  0.00059   -0.00011  -0.00155  -0.00076
+20230113 MF   0.00336  0.00251   0.00008   0.00052   0.00044   -0.00086
+20230123 UF   0.01692  -0.00231  0.00016   0.00062   0.00431   -0.00379
+20230123 MTF  0.02145  -0.00032  0.00143   0.00262   0.00272   -0.00621
+20230123 LF   0.01565  -0.00254  0.00056   0.00009   0.00410   -0.00340
+20230123 MF   0.01882  0.00102   -0.00005  0.00134   0.00032   -0.00404
+
+Table 6: Pearson correlation magnitudes between order-based imbalance OBI and short-horizon realized returns
+
+r~ for each trading day d and filtration scheme F , at horizons h  {1, 10, 30, 50, 80, 100} seconds (auto-correlation
+removed). Each entry corresponds to a horizon-specific correlation score SO BIr~(F ) computed after removing
+auto-correlation effects. Filter types: UF = Unfiltered, LF = Lifetime Filter, MF = Modification Count Filter,
+
+MTF = Modification-Time Filter.
+
+                                 19
+9.2 Discretized Regime Scores across time horizons
+
+Date Filter   SO BIr~(F )  SORBIr~(F )  SO BIr~(F )  SORBIr~(F )  SO BIr~(F )  SORBIr~(F )
+20230102 UF        (1s)         (1s)        (10s)        (10s)        (20s)        (20s)
+20230102 MTF
+20230102 LF   -14.7367     11.5045      -4.8592      9.9368       -11.9828     10.0901
+20230102 MF   -1.4220      11.4001      -0.3291      10.6411      -5.7166      9.9782
+20230113 UF   -12.2667     11.4294      -3.4627      10.2400      -9.8812      10.3134
+20230113 MTF  5.8019       11.2123      -0.1979      10.2374      -6.9759      10.3247
+20230113 LF   -2.7480      10.9939      3.3443       9.9589       0.5709       9.5452
+20230113 MF   2.0873       11.2029      -1.4341      10.0322      1.3986       9.6094
+20230123 UF   -1.4729      11.4112      5.2130       10.1280      0.3083       9.7324
+20230123 MTF  8.7904       10.9055      -0.5019      9.9959       -4.9251      9.3581
+20230123 LF   -20.6215     12.8027      5.5745       11.4413      -7.7442      11.0128
+20230123 MF   -26.5211     12.7044      4.4931       11.3200      -2.4113      11.1883
+              -15.4226     12.7374      5.7728       11.3674      -8.5328      10.8279
+              -11.4672     12.1819      5.1172       10.9107      -2.9086      10.5802
+
+Table 7: Discrete-regime association scores between order-based imbalance OBI and short-horizon realized returns
+r~ across filtration schemes F and horizons h  {1, 10, 20} seconds (auto-correlation included). For each trading
+day d, the columns labelled "CC" report the regime-based correlation scores SO BIr~(F ), and the columns labelled
+"R" report the regression-based regime scores SORBIr~(F ). Filter types: UF = Unfiltered, LF = Lifetime Filter,
+MF = Modification Count Filter, MTF = Modification-Time Filter, CC = regime-based correlation score, R =
+
+regression-based regime score.
+
+Date Filter   SO BIr~(F )  SORBIr~(F )  SO BIr~(F )  SORBIr~(F )  SO BIr~(F )  SORBIr~(F )
+20230102 UF        (1s)         (1s)        (10s)        (10s)        (20s)        (20s)
+20230102 MTF
+20230102 LF   3.1379       7.4766       -2.6766      6.9846       -10.3337     6.9713
+20230102 MF   -3.8815      7.0980       -0.8615      6.5966       -2.5511      6.5350
+20230113 UF   4.1918       7.3520       -2.0460      6.7774       -7.2939      6.8755
+20230113 MTF  -5.1195      7.4436       -12.5525     7.0353       -5.7030      7.2179
+20230113 LF   -22.3374     7.6243       0.2531       7.1001       -3.4353      6.8736
+20230113 MF   -24.9570     7.5030       -5.4746      6.8837       -3.1096      6.8727
+20230123 UF   -23.1734     7.5998       0.1417       7.0376       -3.8746      6.6639
+20230123 MTF  -20.0740     7.6131       -11.4961     6.8947       -3.2838      6.6064
+20230123 LF   -28.2047     10.1765      3.0024       9.3359       -6.3069      8.8993
+20230123 MF   -26.9336     8.7339       -1.7586      8.0028       -3.7381      7.7381
+              -29.3954     9.6022       4.2362       8.6465       -7.1072      8.1884
+              -21.4077     9.9060       0.8114       8.7893       -3.9746      8.5355
+
+Table 8: Discrete-regime association scores between order-based imbalance OBI and short-horizon realized returns
+r~ across filtration schemes F and horizons h  {1, 10, 20} seconds (auto-correlation removed). For each trading day
+d, the columns labelled "CC" report the regime-based correlation scores SO BIr~(F ), and the columns labelled "R"
+report the regression-based regime scores SORBIr~(F ) after auto-correlation removal. Filter types: UF = Unfiltered,
+LF = Lifetime Filter, MF = Modification Count Filter, MTF = Modification-Time Filter, CC = regime-based
+
+correlation score, R = regression-based regime score.
+
+                                        20
+9.3 Hawkes Kernel Norms Score
+
+Date Filter                        SO BIr~(F )
+20230102 UF                        8.7967
+20230102 MTF                       8.9752
+20230102 LF                        8.7149
+20230102 MF                        8.7292
+20230113 UF                        8.7664
+20230113 MTF                       8.8756
+20230113 LF                        8.7267
+20230113 MF                        8.8249
+20230123 UF                        9.2244
+20230123 MTF                       9.6726
+20230123 LF                        9.3454
+20230123 MF                        9.4602
+
+Table 9: Hawkes excitation norms for order-based imbalance OBI across filtration schemes F and trading days d.
+Each entry reports the Hawkes-based score SOBIr~(F ), computed as the sum of cross-excitation kernel norms from
+imbalance to return regimes under a sum-of-exponentials kernel specification. Filter types: UF = Unfiltered, LF =
+
+Lifetime Filter, MF = Modification Count Filter, MTF = Modification-Time Filter.
+
+                               21
+

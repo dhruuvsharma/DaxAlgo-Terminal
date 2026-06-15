@@ -120,8 +120,9 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
     "apexscalper" or "apex" => new ApexScalperStrategy(contract),
     "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
+    "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, apexScalper, indexKScoreSurface.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, apexScalper, indexKScoreSurface, filteredOrderFlow.")
 };
 
 static void PrintSummary(BacktestResult result)

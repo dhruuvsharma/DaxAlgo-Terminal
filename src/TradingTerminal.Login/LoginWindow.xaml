@@ -5,10 +5,11 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:local="clr-namespace:TradingTerminal.App.Login"
-                 xmlns:brokers="clr-namespace:TradingTerminal.Core.Brokers;assembly=TradingTerminal.Core"
+                 xmlns:conv="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
+                 xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Trading Terminal — Sign in"
-                 Height="820" Width="620"
+                 Height="780" Width="640"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
                  ShowMinButton="True"
@@ -17,9 +18,10 @@
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-        <!-- Status-pill colours follow the connection state. The dot reuses the same brush so the
-             pill and the dot stay in lockstep. Default = neutral (Disconnected/Failed); green =
-             Connected; amber = Connecting/Reconnecting. -->
+        <conv:StringToBrushConverter x:Key="StringToBrush" />
+
+        <!-- Status-pill colours follow the connection state. Default = neutral; green = Connected;
+             amber = Connecting/Reconnecting. -->
         <Style x:Key="StatusPill" TargetType="Border">
             <Setter Property="CornerRadius" Value="9" />
             <Setter Property="Padding" Value="8,2" />
@@ -27,13 +29,128 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
+
+        <!-- ── Group header: one per category, with a "Connect all" action ─────────────────────── -->
+        <DataTemplate x:Key="CategoryGroupHeader">
+            <DockPanel Margin="2,10,2,4" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           FontSize="10" FontWeight="SemiBold">
+                    <Run Text="{Binding Name, Mode=OneWay}" />
+                    <Run Text="{Binding ItemCount, Mode=OneWay, StringFormat=({0})}"
+                         Foreground="{DynamicResource Text.Secondary}" />
+                </TextBlock>
+                <Button DockPanel.Dock="Right" Content="Connect all"
+                        FontSize="10" Padding="8,1" MinWidth="0"
+                        Command="{Binding DataContext.ConnectGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding Name}"
+                        ToolTip="Connect every broker in this group that has saved settings." />
+            </DockPanel>
+        </DataTemplate>
+
+        <!-- ── One broker row (item = BrokerLoginFormBase) ─────────────────────────────────────── -->
+        <DataTemplate x:Key="BrokerRowTemplate">
+            <Border Margin="0,0,0,6" CornerRadius="4" BorderThickness="1"
+                    BorderBrush="{DynamicResource Border.Brush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <!-- Keyless rows get a subtle teal accent so the zero-credential path stands out. -->
+                            <DataTrigger Binding="{Binding IsKeyless}" Value="True">
+                                <Setter Property="BorderBrush" Value="#5526A69A" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Background="Transparent">
+                    <Expander.Header>
+                        <DockPanel LastChildFill="False" MinWidth="500">
+                            <!-- Coloured square badge -->
+                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
+                                    Margin="0,0,10,0"
+                                    Background="{Binding BadgeColor, Converter={StaticResource StringToBrush}}">
+                                <TextBlock Text="{Binding Badge}" FontWeight="Bold" FontSize="12"
+                                           Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+
+                            <!-- Name + subtitle -->
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                    <!-- "no key" pill for the keyless brokers -->
+                                    <Border CornerRadius="7" Padding="6,0" Margin="8,0,0,0"
+                                            Background="#2226A69A" VerticalAlignment="Center"
+                                            Visibility="{Binding IsKeyless, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="no key" FontSize="9" Foreground="#26A69A" VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Subtitle}" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+
+                            <!-- Status pill -->
+                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsConnecting}" Value="True">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding StatusText}" FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+                    </Expander.Header>
+
+                    <!-- Expanded body: the broker's credential form + connect controls -->
+                    <StackPanel Margin="10,8,10,10">
+                        <ContentControl uic:InjectedFormHost.Form="{Binding}" />
+                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                            <Button DockPanel.Dock="Right" Content="Connect"
+                                    Command="{Binding ConnectCommand}"
+                                    MinWidth="100"
+                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            <Button DockPanel.Dock="Right" Content="Disconnect"
+                                    Command="{Binding DisconnectCommand}"
+                                    MinWidth="100" Margin="0,0,8,0" />
+                            <ProgressBar DockPanel.Dock="Left"
+                                         IsIndeterminate="{Binding IsConnecting}"
+                                         Visibility="{Binding IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        </DockPanel>
+                        <Border Background="{DynamicResource Danger.Brush}"
+                                Padding="8,4" Margin="0,6,0,0"
+                                Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding ErrorMessage}" Foreground="White"
+                                       TextWrapping="Wrap" FontSize="11" />
+                        </Border>
+                    </StackPanel>
+                </Expander>
+            </Border>
+        </DataTemplate>
     </mah:MetroWindow.Resources>
 
     <Grid Margin="28,16,28,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />  <!-- Brand -->
             <RowDefinition Height="Auto" />  <!-- Summary banner -->
-            <RowDefinition Height="*" />     <!-- Broker form expanders (scrollable) -->
+            <RowDefinition Height="Auto" />  <!-- Search box -->
+            <RowDefinition Height="*" />     <!-- Grouped broker accordion -->
             <RowDefinition Height="Auto" />  <!-- Launch bar -->
             <RowDefinition Height="Auto" />  <!-- Footer -->
         </Grid.RowDefinitions>
@@ -41,7 +158,7 @@
         <!-- Logo + brand -->
         <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,8">
             <Image Source="pack://application:,,,/Icon/DaxAlgoLogo.png"
-                   Width="56" Height="56"
+                   Width="52" Height="52"
                    RenderOptions.BitmapScalingMode="HighQuality" />
             <TextBlock Text="DaxAlgo Terminal"
                        HorizontalAlignment="Center"
@@ -55,7 +172,7 @@
                        Margin="0,2,0,0" />
         </StackPanel>
 
-        <!-- Aggregate summary banner -->
+        <!-- Aggregate summary banner (+ QuestDB warm-up when applicable) -->
         <Border Grid.Row="1"
                 Margin="0,8,0,8"
                 Padding="12,8"
@@ -81,8 +198,6 @@
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource Text.Primary}" />
 
-                <!-- QuestDB warm-up: status pill + start/retry button. Hidden unless QuestDB is the
-                     configured tick backend; auto-starts in the background while the user signs in. -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="{Binding ShowQuestDb, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -117,755 +232,27 @@
             </DockPanel>
         </Border>
 
-        <!-- Per-broker expanders. Each form's UserControl is injected from code-behind into the
-             named ContentControl below; we can't <forms:IbLoginForm/> directly in XAML because
-             WPF's MarkupCompilePass1 doesn't see same-project XAML-generated UserControl partial
-             classes during the LoginWindow.xaml compile. -->
-        <ScrollViewer Grid.Row="2"
+        <!-- Search / filter -->
+        <TextBox Grid.Row="2" Margin="0,0,0,4"
+                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                 mah:TextBoxHelper.Watermark="Search brokers…"
+                 mah:TextBoxHelper.ClearTextButton="True" />
+
+        <!-- Grouped, accordion broker list -->
+        <ScrollViewer Grid.Row="3"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Padding="0,0,4,0">
-            <StackPanel>
-                <!-- IB -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasIb, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#D32F2F" Margin="0,0,10,0">
-                                <TextBlock Text="IB" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding IbForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="TWS API · localhost socket" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <Border.Background>
-                                    <SolidColorBrush Color="{DynamicResource MahApps.Colors.Gray8}" />
-                                </Border.Background>
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IbForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IbForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding IbForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="IbFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding IbForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding IbForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding IbForm.IsConnecting}"
-                                         Visibility="{Binding IbForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding IbForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding IbForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- NinjaTrader -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasNinja, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#1B5E20" Margin="0,0,10,0">
-                                <TextBlock Text="NT" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding NinjaForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="NTDirect · futures, AT Interface" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding NinjaForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding NinjaForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding NinjaForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="NinjaFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding NinjaForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding NinjaForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding NinjaForm.IsConnecting}"
-                                         Visibility="{Binding NinjaForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding NinjaForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding NinjaForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- cTrader -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasCTrader, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#0277BD" Margin="0,0,10,0">
-                                <TextBlock Text="CT" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding CTraderForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="Spotware OAuth · FX + CFD, L2 depth" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CTraderForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding CTraderForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding CTraderForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="CTraderFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding CTraderForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding CTraderForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding CTraderForm.IsConnecting}"
-                                         Visibility="{Binding CTraderForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding CTraderForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding CTraderForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Alpaca -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasAlpaca, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#FFB300" Margin="0,0,10,0">
-                                <TextBlock Text="AL" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding AlpacaForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="REST + WebSocket · stocks + crypto" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding AlpacaForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding AlpacaForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding AlpacaForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="AlpacaFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding AlpacaForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding AlpacaForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding AlpacaForm.IsConnecting}"
-                                         Visibility="{Binding AlpacaForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding AlpacaForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding AlpacaForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- IronBeam -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasIronBeam, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#D84315" Margin="0,0,10,0">
-                                <TextBlock Text="IRB" Foreground="White" FontWeight="Bold" FontSize="11"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding IronBeamForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="REST + WebSocket · futures, L1/L2 + trade tape" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IronBeamForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IronBeamForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding IronBeamForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="IronBeamFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding IronBeamForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding IronBeamForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding IronBeamForm.IsConnecting}"
-                                         Visibility="{Binding IronBeamForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding IronBeamForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding IronBeamForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- London Strategic Edge (free multi-asset data — API key only) -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasLondonStrategicEdge, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#1565C0" Margin="0,0,10,0">
-                                <TextBlock Text="LSE" Foreground="White" FontWeight="Bold" FontSize="11"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding LondonStrategicEdgeForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="WebSocket + REST · free multi-asset L1 + history · API key only" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding LondonStrategicEdgeForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding LondonStrategicEdgeForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding LondonStrategicEdgeForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="LondonStrategicEdgeFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding LondonStrategicEdgeForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding LondonStrategicEdgeForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding LondonStrategicEdgeForm.IsConnecting}"
-                                         Visibility="{Binding LondonStrategicEdgeForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding LondonStrategicEdgeForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding LondonStrategicEdgeForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Upstox (Indian markets — OAuth2) -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="False"
-                          Visibility="{Binding HasUpstox, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#5C2D91" Margin="0,0,10,0">
-                                <TextBlock Text="UP" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding UpstoxForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="REST + WebSocket · NSE/BSE, L1 + 5-level depth · OAuth2" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding UpstoxForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding UpstoxForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding UpstoxForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="UpstoxFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding UpstoxForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding UpstoxForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding UpstoxForm.IsConnecting}"
-                                         Visibility="{Binding UpstoxForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding UpstoxForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding UpstoxForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Binance (public market data — no login). Expanded by default so the zero-credential
-                     "try it with real data" path is the first thing a new user sees. -->
-                <Expander Margin="0,0,0,8"
-                          IsExpanded="True"
-                          Visibility="{Binding HasBinance, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Background="#F0B90B" Margin="0,0,10,0">
-                                <TextBlock Text="BN" Foreground="#1E2026" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding BinanceForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding BinanceForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding BinanceForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding BinanceForm.StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="BinanceFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding BinanceForm.ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding BinanceForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding BinanceForm.IsConnecting}"
-                                         Visibility="{Binding BinanceForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding BinanceForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding BinanceForm.ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Coinbase (public market data — no login) -->
-                <Expander Margin="0,0,0,8" IsExpanded="False"
-                          Visibility="{Binding HasCoinbase, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#0052FF" Margin="0,0,10,0">
-                                <TextBlock Text="CB" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding CoinbaseForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CoinbaseForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding CoinbaseForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding CoinbaseForm.StatusText}" FontSize="11" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="CoinbaseFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding CoinbaseForm.ConnectCommand}"
-                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding CoinbaseForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding CoinbaseForm.IsConnecting}"
-                                         Visibility="{Binding CoinbaseForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding CoinbaseForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding CoinbaseForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Bybit (public market data — no login) -->
-                <Expander Margin="0,0,0,8" IsExpanded="False"
-                          Visibility="{Binding HasBybit, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#F7A600" Margin="0,0,10,0">
-                                <TextBlock Text="BY" Foreground="#17181E" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding BybitForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding BybitForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding BybitForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding BybitForm.StatusText}" FontSize="11" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="BybitFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding BybitForm.ConnectCommand}"
-                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding BybitForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding BybitForm.IsConnecting}"
-                                         Visibility="{Binding BybitForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding BybitForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding BybitForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- Kraken (public market data — no login) -->
-                <Expander Margin="0,0,0,8" IsExpanded="False"
-                          Visibility="{Binding HasKraken, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#5741D9" Margin="0,0,10,0">
-                                <TextBlock Text="KR" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding KrakenForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding KrakenForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding KrakenForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding KrakenForm.StatusText}" FontSize="11" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="KrakenFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding KrakenForm.ConnectCommand}"
-                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding KrakenForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding KrakenForm.IsConnecting}"
-                                         Visibility="{Binding KrakenForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding KrakenForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding KrakenForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-
-                <!-- OKX (public market data — no login) -->
-                <Expander Margin="0,0,0,8" IsExpanded="False"
-                          Visibility="{Binding HasOkx, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="510">
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4" Background="#121212" Margin="0,0,10,0">
-                                <TextBlock Text="OK" Foreground="White" FontWeight="Bold" FontSize="13"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding OkxForm.DisplayName}" FontWeight="SemiBold" />
-                                <TextBlock Text="Public WebSocket · live crypto, L2 depth · no API key" FontSize="10"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                            </StackPanel>
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="8,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding OkxForm.IsConnected}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding OkxForm.IsConnecting}" Value="True">
-                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding OkxForm.StatusText}" FontSize="11" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
-                                </StackPanel>
-                            </Border>
-                        </DockPanel>
-                    </Expander.Header>
-                    <StackPanel Margin="0,8,0,0">
-                        <ContentControl x:Name="OkxFormHost" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect" Command="{Binding OkxForm.ConnectCommand}"
-                                    MinWidth="100" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect" Command="{Binding OkxForm.DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left" IsIndeterminate="{Binding OkxForm.IsConnecting}"
-                                         Visibility="{Binding OkxForm.IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}" Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding OkxForm.ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding OkxForm.ErrorMessage}" Foreground="White" TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
-            </StackPanel>
+                      Padding="0,4,4,0">
+            <ItemsControl ItemsSource="{Binding FormsView}"
+                          ItemTemplate="{StaticResource BrokerRowTemplate}">
+                <ItemsControl.GroupStyle>
+                    <GroupStyle HeaderTemplate="{StaticResource CategoryGroupHeader}" />
+                </ItemsControl.GroupStyle>
+            </ItemsControl>
         </ScrollViewer>
 
         <!-- Launch bar -->
-        <Grid Grid.Row="3" Margin="0,12,0,0">
+        <Grid Grid.Row="4" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -897,7 +284,7 @@
         </Grid>
 
         <!-- Footer -->
-        <TextBlock Grid.Row="4"
+        <TextBlock Grid.Row="5"
                    Text="DaxAlgo Terminal · MIT licensed"
                    Foreground="{DynamicResource Text.Secondary}"
                    FontSize="10"

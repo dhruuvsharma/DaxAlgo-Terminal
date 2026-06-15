@@ -97,6 +97,66 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         _ => "Not connected",
     };
 
+    // ── Presentation metadata (drives the single login DataTemplate) ──────────────────────────────
+    // Badge / colour / subtitle / category used to be hand-written 12× in LoginWindow.xaml. They now
+    // live here, keyed by broker, so the markup is one template and adding a broker is one table row.
+
+    private BrokerTile Tile => Tiles.TryGetValue(Broker, out var t) ? t : FallbackTile;
+
+    /// <summary>Two/three-letter square-badge text (e.g. "BN", "IB").</summary>
+    public string Badge => Tile.Badge;
+    /// <summary>Badge background as a hex string (bound through StringToBrushConverter).</summary>
+    public string BadgeColor => Tile.BadgeColor;
+    /// <summary>Badge foreground hex — dark on the light/yellow badges, white elsewhere.</summary>
+    public string BadgeForeground => Tile.BadgeForeground;
+    /// <summary>One-line "transport · assets · auth" descriptor shown under the broker name.</summary>
+    public string Subtitle => Tile.Subtitle;
+
+    public LoginCategory Category => Tile.Category;
+
+    /// <summary>Group-header label the login list groups rows under.</summary>
+    public string CategoryName => Category switch
+    {
+        LoginCategory.Keyless => "Keyless · instant, no API key",
+        LoginCategory.Credentialed => "Credentialed",
+        _ => "Local bridge",
+    };
+
+    /// <summary>Sort key so groups render Keyless → Credentialed → Local bridge.</summary>
+    public int CategoryOrder => (int)Category;
+
+    /// <summary>Zero-credential public-data brokers — highlighted as the first-run path.</summary>
+    public bool IsKeyless => Category == LoginCategory.Keyless;
+
+    private bool _isExpanded;
+    /// <summary>Accordion state — the <see cref="LoginViewModel"/> enforces one-open-at-a-time.</summary>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set => SetProperty(ref _isExpanded, value);
+    }
+
+    private sealed record BrokerTile(
+        string Badge, string BadgeColor, string BadgeForeground, string Subtitle, LoginCategory Category);
+
+    private static readonly BrokerTile FallbackTile = new("?", "#555555", "#FFFFFF", string.Empty, LoginCategory.Credentialed);
+
+    private static readonly IReadOnlyDictionary<BrokerKind, BrokerTile> Tiles = new Dictionary<BrokerKind, BrokerTile>
+    {
+        [BrokerKind.InteractiveBrokers] = new("IB", "#D32F2F", "#FFFFFF", "TWS API · localhost socket", LoginCategory.LocalBridge),
+        [BrokerKind.NinjaTrader]        = new("NT", "#1B5E20", "#FFFFFF", "NTDirect · futures, AT Interface", LoginCategory.LocalBridge),
+        [BrokerKind.CTrader]            = new("CT", "#0277BD", "#FFFFFF", "Spotware OAuth · FX + CFD, L2 depth", LoginCategory.Credentialed),
+        [BrokerKind.Alpaca]             = new("AL", "#FFB300", "#1E2026", "REST + WebSocket · stocks + crypto", LoginCategory.Credentialed),
+        [BrokerKind.IronBeam]           = new("IRB", "#D84315", "#FFFFFF", "REST + WebSocket · futures, L1/L2 + tape", LoginCategory.Credentialed),
+        [BrokerKind.LondonStrategicEdge] = new("LSE", "#1565C0", "#FFFFFF", "WS + REST · free multi-asset L1 + history · API key", LoginCategory.Credentialed),
+        [BrokerKind.Upstox]             = new("UP", "#5C2D91", "#FFFFFF", "REST + WebSocket · NSE/BSE depth · OAuth2", LoginCategory.Credentialed),
+        [BrokerKind.Binance]            = new("BN", "#F0B90B", "#1E2026", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Coinbase]           = new("CB", "#0052FF", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Bybit]              = new("BY", "#F7A600", "#17181E", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Kraken]             = new("KR", "#5741D9", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Okx]                = new("OK", "#121212", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+    };
+
     public IAsyncRelayCommand ConnectCommand { get; }
     public IAsyncRelayCommand DisconnectCommand { get; }
 
@@ -199,4 +259,14 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         _stateSub?.Dispose();
         _stateSub = null;
     }
+}
+
+/// <summary>How a broker is grouped on the login screen. Ordering doubles as the section order:
+/// the zero-credential keyless exchanges come first (the recommended first-run path), then the
+/// credentialed brokers, then the brokers that bridge to a local app/socket.</summary>
+public enum LoginCategory
+{
+    Keyless = 0,
+    Credentialed = 1,
+    LocalBridge = 2,
 }

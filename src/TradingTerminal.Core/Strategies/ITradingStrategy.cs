@@ -22,4 +22,11 @@ public interface ITradingStrategy
     /// </summary>
     StrategyDataRequirement DataRequirement =>
         StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    /// <summary>
+    /// When this strategy is derived from a published research paper, the canonical URL of that
+    /// paper (e.g. an arXiv abstract page). Drives the "Research paper" tag + info link rendered
+    /// in the Strategies pane. Defaults to <c>null</c> for strategies that aren't paper-derived.
+    /// </summary>
+    string? ResearchPaperUrl => null;
 }

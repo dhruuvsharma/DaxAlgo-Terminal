@@ -41,6 +41,7 @@ using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Theming;
 
 namespace TradingTerminal.App;
 
@@ -82,6 +83,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly IServiceProvider _services;
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
+    private readonly IThemeManager _themeManager;
 
     public MainWindowViewModel(
         IStrategyFactory factory,
@@ -113,6 +115,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             services.GetRequiredService<IMarketDataRepository>(),
             brokerSelector,
             services.GetRequiredService<ILogger<Shell.TickerTapeViewModel>>());
+
+        _themeManager = services.GetRequiredService<IThemeManager>();
+        Themes = new ObservableCollection<ThemeMenuOption>(
+            _themeManager.Themes.Select(t => new ThemeMenuOption(t.Id, t.Name)));
+        SyncThemeChecks();
 
         OpenTabs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoOpenTabs));
 
@@ -450,6 +457,26 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     [RelayCommand]
     public void ShowLogs() => IsLogsVisible = true;
+
+    // ── Theme switching (View → Theme) ────────────────────────────────────────────────────────────
+
+    /// <summary>Selectable app themes, bound to the View → Theme menu. <see cref="ThemeMenuOption.IsCurrent"/>
+    /// drives the radio check; the future anime theme is just one more registry entry in ThemeManager.</summary>
+    public ObservableCollection<ThemeMenuOption> Themes { get; }
+
+    [RelayCommand]
+    private void ApplyTheme(string? themeId)
+    {
+        if (string.IsNullOrEmpty(themeId)) return;
+        _themeManager.Apply(themeId);
+        SyncThemeChecks();
+    }
+
+    private void SyncThemeChecks()
+    {
+        foreach (var option in Themes)
+            option.IsCurrent = string.Equals(option.Id, _themeManager.CurrentThemeId, StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Copies the selected activity-log rows to the clipboard (tab-aligned text). Falls back
     /// to copying every currently-visible row when nothing is selected, so Ctrl+C / "Copy" always

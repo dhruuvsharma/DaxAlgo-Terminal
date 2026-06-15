@@ -6,65 +6,126 @@
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  mc:Ignorable="d"
                  Title="Correlation matrix"
-                 Width="960" Height="680"
-                 MinWidth="720" MinHeight="480"
+                 Width="1000" Height="700"
+                 MinWidth="760" MinHeight="500"
                  TitleCharacterCasing="Normal"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}"
-                 d:DesignHeight="680" d:DesignWidth="960">
+                 d:DesignHeight="700" d:DesignWidth="1000">
+
+    <mah:MetroWindow.Resources>
+        <!-- Card chrome shared by the toolbar / picker / matrix panels -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Gradient.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <!-- Small rounded count/info chip -->
+        <Style x:Key="Chip" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="7,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- One picker row: selection checkbox + broker pill -->
+        <DataTemplate x:Key="PickerRow">
+            <Grid Margin="2,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Content="{Binding DisplayName}"
+                          VerticalContentAlignment="Center" />
+                <Border Grid.Column="1" Margin="6,0,2,0"
+                        Background="{DynamicResource Background.Elevated}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                        CornerRadius="3" Padding="4,0" VerticalAlignment="Center" ToolTip="Source broker">
+                    <TextBlock Text="{Binding BrokerAbbrev}" FontSize="10"
+                               Foreground="{DynamicResource Text.Secondary}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Category section header inside the checklist -->
+        <Style x:Key="PickerGroup" TargetType="GroupItem">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupItem">
+                        <StackPanel>
+                            <Border Margin="0,6,0,2" Padding="0,0,0,2"
+                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Text.Header}" />
+                                    <TextBlock Text="{Binding ItemCount, StringFormat=' ({0})'}"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                </StackPanel>
+                            </Border>
+                            <ItemsPresenter />
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </mah:MetroWindow.Resources>
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />   <!-- title -->
+            <RowDefinition Height="Auto" />   <!-- header band -->
             <RowDefinition Height="Auto" />   <!-- controls -->
             <RowDefinition Height="*" />      <!-- body: picker + matrix -->
-            <RowDefinition Height="Auto" />   <!-- legend -->
         </Grid.RowDefinitions>
 
-        <!-- Title -->
-        <StackPanel Grid.Row="0">
-            <TextBlock Text="Correlation matrix" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="Pearson correlation of bar-to-bar log returns across the selected instruments, over the chosen timeframe and lookback. Green = move together, red = move apart. Series are aligned on their common timestamps before correlating."
-                       Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,0" />
-        </StackPanel>
+        <!-- Header band with accent rule -->
+        <Border Grid.Row="0" Style="{StaticResource Card}" Background="{DynamicResource Gradient.Header}" Padding="0">
+            <DockPanel>
+                <Border DockPanel.Dock="Left" Width="4" Background="{DynamicResource Accent.Brush}"
+                        CornerRadius="6,0,0,6" />
+                <StackPanel Margin="14,10">
+                    <TextBlock Text="Correlation matrix" FontSize="17" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Header}" />
+                    <TextBlock Text="Pearson correlation of bar-to-bar log returns across the selected instruments, over the chosen timeframe and lookback. Series are aligned on common timestamps before correlating."
+                               Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                               FontSize="11" Margin="0,2,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
         <!-- Control bar -->
-        <Border Grid.Row="1" Margin="0,12,0,0"
-                Background="{DynamicResource Background.Surface}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                Padding="10">
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,0"
+                Background="{DynamicResource Gradient.Elevated}" Padding="10,8">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />   <!-- timeframe lbl -->
-                    <ColumnDefinition Width="100" />    <!-- timeframe cb  -->
-                    <ColumnDefinition Width="Auto" />   <!-- lookback lbl  -->
-                    <ColumnDefinition Width="110" />    <!-- lookback cb   -->
-                    <ColumnDefinition Width="Auto" />   <!-- compute       -->
-                    <ColumnDefinition Width="Auto" />   <!-- busy ring     -->
-                    <ColumnDefinition Width="*" />      <!-- status        -->
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="116" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" Text="Timeframe" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox  Grid.Column="1"
-                           ItemsSource="{Binding Timeframes}"
-                           SelectedItem="{Binding SelectedTimeframe}"
-                           DisplayMemberPath="Label"
+                <TextBlock Grid.Column="0" Text="Timeframe" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{DynamicResource Text.Secondary}" />
+                <ComboBox  Grid.Column="1" ItemsSource="{Binding Timeframes}"
+                           SelectedItem="{Binding SelectedTimeframe}" DisplayMemberPath="Label"
                            Margin="0,0,14,0" />
 
-                <TextBlock Grid.Column="2" Text="Lookback" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <ComboBox  Grid.Column="3"
-                           ItemsSource="{Binding Lookbacks}"
-                           SelectedItem="{Binding SelectedLookback}"
-                           DisplayMemberPath="Label"
+                <TextBlock Grid.Column="2" Text="Lookback" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{DynamicResource Text.Secondary}" />
+                <ComboBox  Grid.Column="3" ItemsSource="{Binding Lookbacks}"
+                           SelectedItem="{Binding SelectedLookback}" DisplayMemberPath="Label"
                            Margin="0,0,14,0" />
 
                 <Button Grid.Column="4" Content="Compute"
                         Command="{Binding ComputeCommand}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                        Padding="16,4" Margin="0,0,10,0" />
+                        Padding="18,4" Margin="0,0,10,0" />
 
-                <mah:ProgressRing Grid.Column="5"
-                                  IsActive="{Binding IsBusy}"
+                <mah:ProgressRing Grid.Column="5" IsActive="{Binding IsBusy}"
                                   Width="18" Height="18" Margin="0,0,10,0" />
 
                 <TextBlock Grid.Column="6" Text="{Binding StatusMessage}"
@@ -74,120 +135,123 @@
         </Border>
 
         <!-- Body -->
-        <Grid Grid.Row="2" Margin="0,12,0,0">
+        <Grid Grid.Row="2" Margin="0,10,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="270" />   <!-- instrument picker -->
-                <ColumnDefinition Width="*" />     <!-- matrix -->
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <!-- Instrument checklist -->
-            <Border Grid.Column="0" Margin="0,0,12,0"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                <Grid Margin="8">
+            <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0">
+                <Grid Margin="10">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />   <!-- title -->
-                        <RowDefinition Height="Auto" />   <!-- category filter -->
-                        <RowDefinition Height="Auto" />   <!-- search -->
-                        <RowDefinition Height="*" />      <!-- grouped list -->
-                        <RowDefinition Height="Auto" />   <!-- buttons -->
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="Instruments" FontWeight="SemiBold" Margin="2,0,0,6" />
+                    <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" Text="Instruments" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <Border DockPanel.Dock="Right" Style="{StaticResource Chip}">
+                            <TextBlock Text="{Binding SelectedCount, StringFormat='{}{0} picked'}"
+                                       FontSize="11" Foreground="{DynamicResource Text.Primary}" />
+                        </Border>
+                    </DockPanel>
 
-                    <ComboBox Grid.Row="1"
-                              ItemsSource="{Binding Categories}"
+                    <ComboBox Grid.Row="1" ItemsSource="{Binding Categories}"
                               SelectedItem="{Binding SelectedCategory}"
-                              mah:TextBoxHelper.Watermark="category…"
-                              Margin="0,0,0,6" />
+                              mah:TextBoxHelper.Watermark="category…" Margin="0,0,0,6" />
 
                     <TextBox Grid.Row="2"
                              Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                              mah:TextBoxHelper.Watermark="filter symbols…"
-                             mah:TextBoxHelper.ClearTextButton="True"
-                             Margin="0,0,0,6" />
+                             mah:TextBoxHelper.ClearTextButton="True" Margin="0,0,0,6" />
 
-                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding InstrumentsView}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="2,2,0,2">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <CheckBox Grid.Column="0"
-                                                  IsChecked="{Binding IsSelected}"
-                                                  Content="{Binding DisplayName}" />
-                                        <Border Grid.Column="1" Margin="6,0,4,0"
-                                                Background="{DynamicResource Background.Primary}"
-                                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                                                CornerRadius="3" Padding="4,0" VerticalAlignment="Center"
-                                                ToolTip="Source broker">
-                                            <TextBlock Text="{Binding BrokerAbbrev}" FontSize="10"
-                                                       Foreground="{DynamicResource Text.Secondary}" />
-                                        </Border>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                            <ItemsControl.GroupStyle>
-                                <GroupStyle>
-                                    <GroupStyle.HeaderTemplate>
-                                        <DataTemplate>
-                                            <Border Margin="0,6,0,2" Padding="0,0,0,2"
-                                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource Text.Primary}" />
-                                                    <TextBlock Text="{Binding ItemCount, StringFormat=' ({0})'}"
-                                                               Foreground="{DynamicResource Text.Secondary}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </GroupStyle.HeaderTemplate>
-                                </GroupStyle>
-                            </ItemsControl.GroupStyle>
-                        </ItemsControl>
-                    </ScrollViewer>
+                    <!-- Virtualizing, grouped checklist. Virtualization (incl. when grouping) is what
+                         keeps a multi-broker universe from realizing thousands of rows at once. -->
+                    <ListBox Grid.Row="3" ItemsSource="{Binding InstrumentsView}"
+                             Background="Transparent" BorderThickness="0"
+                             ItemTemplate="{StaticResource PickerRow}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.CanContentScroll="True"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.GroupStyle>
+                            <GroupStyle ContainerStyle="{StaticResource PickerGroup}" />
+                        </ListBox.GroupStyle>
+                    </ListBox>
 
-                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="Select visible" Command="{Binding SelectAllVisibleCommand}"
-                                Padding="8,3" Margin="0,0,6,0" />
-                        <Button Content="Clear" Command="{Binding ClearSelectionCommand}"
-                                Padding="8,3" />
-                        <TextBlock Text="{Binding SelectedCount, StringFormat='{}{0} picked'}"
+                    <DockPanel Grid.Row="4" Margin="0,8,0,0" LastChildFill="False">
+                        <Button DockPanel.Dock="Left" Content="Select visible"
+                                Command="{Binding SelectAllVisibleCommand}" Padding="8,3" Margin="0,0,6,0" />
+                        <Button DockPanel.Dock="Left" Content="Clear"
+                                Command="{Binding ClearSelectionCommand}" Padding="8,3" />
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" FontSize="10"
                                    Foreground="{DynamicResource Text.Secondary}"
-                                   VerticalAlignment="Center" Margin="10,0,0,0" />
-                    </StackPanel>
+                                   Text="{Binding VisibleCount, StringFormat='showing {0}'}" />
+                    </DockPanel>
                 </Grid>
             </Border>
 
             <!-- Matrix -->
-            <Border Grid.Column="1"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                              Padding="10">
-                    <!-- Hosts the CorrelationMatrixControl (injected from code-behind — same-project
-                         element types don't survive MarkupCompilePass2, same quirk as LoginWindow).
-                         One retained-mode element redraws the whole heat grid per update instead of
-                         re-templating N² cell elements per compute. -->
-                    <ContentControl x:Name="MatrixHost"
-                                    HorizontalAlignment="Left" VerticalAlignment="Top" />
-                </ScrollViewer>
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                            <!-- Hosts the immediate-mode CorrelationMatrixControl (injected from
+                                 code-behind — same-project element types don't survive MarkupCompilePass2). -->
+                            <ContentControl x:Name="MatrixHost" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                        </ScrollViewer>
+                        <!-- Empty state -->
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   TextAlignment="Center" FontSize="13"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="Tick at least two instruments, then press Compute.">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MatrixResult}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                    <!-- Gradient legend -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Correlation" Foreground="{DynamicResource Text.Secondary}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11" />
+                        <TextBlock Text="-1" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11" />
+                        <Border Width="180" Height="12" CornerRadius="2"
+                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#C62828" Offset="0" />
+                                    <GradientStop Color="#2D2D30" Offset="0.5" />
+                                    <GradientStop Color="#2E7D32" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <TextBlock Text="+1" VerticalAlignment="Center" Margin="4,0,0,0" FontSize="11" />
+                        <TextBlock VerticalAlignment="Center" Margin="16,0,0,0" FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="{Binding SampleCount, StringFormat='{}{0} samples'}" />
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
-
-        <!-- Legend -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-            <TextBlock Text="Correlation" Foreground="{DynamicResource Text.Secondary}"
-                       VerticalAlignment="Center" Margin="0,0,8,0" />
-            <Border Width="34" Height="16" Background="#C62828" />
-            <TextBlock Text="-1" VerticalAlignment="Center" Margin="3,0,8,0" FontSize="11" />
-            <Border Width="34" Height="16" Background="#2D2D30" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" />
-            <TextBlock Text="0" VerticalAlignment="Center" Margin="3,0,8,0" FontSize="11" />
-            <Border Width="34" Height="16" Background="#2E7D32" />
-            <TextBlock Text="+1" VerticalAlignment="Center" Margin="3,0,0,0" FontSize="11" />
-        </StackPanel>
     </Grid>
 </mah:MetroWindow>
