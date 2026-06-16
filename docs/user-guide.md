@@ -92,7 +92,7 @@ The **Charts** menu hosts the market-microstructure visualizations. Each opens a
 - **Charts** — TradingView-style candlestick charting (WebView2-hosted).
 - **Order book** — live L2 depth ladder for brokers that serve depth.
 - **Volume footprint** — bid/ask cluster chart (see below).
-- **Heatmaps** — a submenu of six: Bookmap-style depth, order-book imbalance, volume-at-price, volume bubbles, cross-asset volatility, rolling correlation.
+- **Bookmap + VolBook** — one combined live microstructure window: L2 liquidity heatmap, trade dots (with large-lot/iceberg flags), session volume profile + VWAP + value area, a CVD panel, the live DOM, and pause/scrub playback with price zoom.
 
 ### Volume footprint
 

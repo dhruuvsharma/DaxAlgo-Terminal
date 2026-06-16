@@ -2,16 +2,13 @@
 
   <PropertyGroup>
     <UseWPF>true</UseWPF>
-    <Description>Depth Heatmap tool: Bookmap-style live L2 liquidity heatmap (price × time, colour = resting size) for a chosen instrument off the canonical hub.</Description>
+    <Description>Bookmap + VolBook tool: a single live microstructure window fusing the L2 liquidity heatmap, trade dots, session volume profile / VWAP / value area, cumulative volume delta, large-lot &amp; iceberg detection, a live DOM, and historical playback — drawn on a WriteableBitmap + overlay canvas off the canonical hub.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <!-- Reuse the multi-select instrument picker (CorrelationPickerViewModelBase) for the
-         instruments×time heatmaps; correlation math lives in Core.Analytics. -->
-    <ProjectReference Include="..\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,7 +16,6 @@
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
-    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
   </ItemGroup>
 
 </Project>

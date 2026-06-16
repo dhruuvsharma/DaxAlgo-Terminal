@@ -1,98 +1,68 @@
-# Heatmaps
+# Bookmap + VolBook
 
-`TradingTerminal.Heatmap` — **Charts → Heatmaps → …** (six windows, one project)
+`TradingTerminal.Heatmap` — **Charts → Bookmap + VolBook…** (one window, one project)
 
-> Scrolling ScottPlot heatmap grids over live market data. Two families: **single-instrument**
-> microstructure grids (depth, imbalance, volume-at-price, volume bubbles) and
-> **multi-instrument** sampled grids (cross-asset volatility, rolling correlation).
+> A single live microstructure surface that fuses everything Bookmap and VolBook® show: the L2
+> **liquidity heatmap**, **trade dots** (with large-lot / iceberg flags), the session **volume
+> profile + VWAP + value area**, a **cumulative-volume-delta** panel, the live **DOM**, and
+> **playback** (pause + scrub + price zoom). Drawn on a custom `WriteableBitmap` + overlay canvas
+> (not ScottPlot) for full control of the aesthetic.
 
-## The two families
+This project used to host six separate ScottPlot heatmaps (depth, imbalance, volume-at-price, volume
+bubbles, cross-asset volatility, rolling correlation). They were folded into — and replaced by — the
+combined window below; the cross-asset volatility/correlation grids are still available as the
+matrices under **Tools → Live correlation matrix**.
 
-### Single-instrument (depth · imbalance · volume-at-price · bubbles)
+## The window
 
-One searchable instrument picker + Start/Stop. The grid buckets price into **120 rows** over the
-observed range and scrolls up to **240 time columns**; rendering is throttled to one redraw per
-**200 ms** (≈5 fps) regardless of feed rate, so a fast book never floods the UI thread.
+One searchable instrument picker + a feature toolbar. Selecting an instrument auto-(re)starts the
+stream; redraws are throttled to one per **200 ms** (≈5 fps) regardless of feed rate, so a fast book
+or tape never floods the UI thread. Needs **L2** for the heatmap/DOM; the volume features need the
+**trade tape** (IB, Binance, Ironbeam, Simulated — others draw the book only).
 
-### Multi-instrument (cross-asset volatility · rolling correlation)
+### What it draws
 
-Category-grouped multi-select instrument checklist (shared with the correlation matrices), plus a
-common **sampler**: on Start every ticked instrument's quote stream is subscribed, the latest mid
-is stashed per instrument, and a timer samples them all onto one shared time grid — index-aligned
-series without timestamp intersection (the Live Correlation Matrix approach).
+- **Liquidity heatmap** — resting L2 size per (price row, time column), magma ramp (dark → bright),
+  √-compressed so thin levels show next to walls. Time-uniform **250 ms columns** (a burst of L2
+  updates refreshes the same column rather than shredding the time axis).
+- **Trade dots** — every print overlaid on the map, radius √-scaled by size, green buy / red sell,
+  positioned by trade time. **Large lots** (a print ≥ 5× the rolling-mean size) get a white outline;
+  **icebergs** (the same price+size print refilling ≥ 4×) get a yellow ring.
+- **SVP — Session Range Volume Profile** (VolBook core) — a session volume-at-price histogram anchored
+  at the left edge, buy/sell split (green/red), semi-transparent over the heatmap. Buckets inside the
+  70 % value area show at full strength, those outside are dimmed, and the **POC bucket is filled gold**.
+  Price bucketed at ≈ price/1000.
+- **VWAP** — the developing session VWAP track (amber): `VWAP = Σ pᵢvᵢ / Σ vᵢ`.
+- **Value area** — labelled dashed **POC** (orange) and **70 % value-area** VAH/VAL (blue) from the
+  session profile.
+- **CVD panel** — a bottom sub-graph: the cumulative volume delta track (cyan, `Σ buy − Σ sell`)
+  over faint per-column net-delta bars (buy up / sell down).
+- **CAV — Cumulative Average Volume** — a compact bottom strip: per-column traded-volume bars with the
+  running session-average-volume line (blue) over them, so columns above/below the session average pop.
+- **COB — Current Order Book** — the right-edge column draws the *current* book: a horizontal bar per
+  price (bid green / ask red) sized by resting volume, with numeric sizes at every visible level
+  (spaced so dense ladders don't overlap) and the cumulative bid/ask depth totals in the footer.
+- **Mid track + crosshair** — the mid-price line over the map, and a hover crosshair reading out
+  price / nearest resting size / session volume-at-price.
 
-| Setting | Values | What it does |
-|---|---|---|
-| Sample step | 1 / 2 (default) / 5 / 10 sec | how often the sampler ticks |
-| Window | 60 / 120 (default) / 240 samples | rolling history per instrument |
+### Toolbar
 
-## Palettes
+| Control | What it does |
+|---|---|
+| Timeframe | Column width on the time axis: `250 ms … 1 m` (default 1 s). A larger timeframe scrolls slower and is lighter to render. |
+| SVP · COB · CAV · VWAP · Value area · CVD panel · Trade dots · Large lots/icebergs | Toggle each overlay independently. |
+| **⏸ Pause** | Freeze the live scroll and enable the scrub slider. |
+| **History** slider | Scrub the visible 320-column window through the retained ~1600-column history. |
+| Mouse wheel over the map | Zoom the price axis around the cursor (1×…50×). **Double-click** resets. |
 
-| Palette | Used by | Reading |
-|---|---|---|
-| **Turbo** (sequential) | depth, volume-at-price | dark → bright = small → large magnitude |
-| **Balance** (diverging, centred on 0) | imbalance, rolling correlation | red = positive (bid-heavy / correlated), blue = negative (ask-heavy / anti-correlated), pale = zero |
-| Per-point colors | bubbles | `#26A69A` buy aggressor, `#EF5350` sell aggressor, grey unknown |
-| `#EBEBEB` line | depth & imbalance | the mid-price track overlaid on the grid |
-
-Chrome: `#1E1E1E` background, `#3F3F46` grid, `#DCDCDC` text — matches the shell's dark theme.
-
-## The six windows
-
-### Depth (Bookmap-style) — needs L2
-
-Cell value = **raw resting size** at that price row and moment, Turbo palette. Both sides of the
-book show as bright bands; persistent horizontal bands are standing walls, a band that vanishes
-just before price reaches it was spoofy. Read-outs: best bid / best ask / mid / columns filled /
-last update.
-
-### Order-book imbalance — needs L2
-
-Same scrolling snapshot history, but each cell is **signed**:
-$\text{cell} = +\text{size}$ for bid levels, $-\text{size}$ for ask levels, Balance palette
-centred on zero. Red below the mid track = stacked support, blue above = stacked resistance.
-Same read-outs as depth.
-
-### Volume-at-price — needs trade tape
-
-A time-evolving volume profile: prints are bucketed into **2-second columns**; within a column,
-volume sums per price row, Turbo palette — hot cells mark where size actually traded (not where
-it was merely quoted). The per-column last trade overlays as a price track. Read-outs: last
-price, total volume. Tape brokers: IB, Binance, Ironbeam, Simulated — others leave the grid
-empty.
-
-### Volume bubbles — needs trade tape
-
-Every print is one bubble at (time, price). Diameter maps trade size by
-$d = 4 + 22\sqrt{\text{size}/\text{max size}}$ px (4–26 px), color = aggressor side. Unlike the
-gridded profile this keeps prints distinct, so blocks and sweeps pop out. The last **600 trades**
-stay on screen. Read-outs: last price, total volume, bubble count.
-
-### Cross-asset volatility — L1 only, any broker
-
-Instruments on Y, time on X, Turbo palette. Cell value is each instrument's **rolling realized
-volatility** at that sample:
-
-$$\sigma_t = \operatorname{std}\bigl(r_{t-19},\dots,r_t\bigr),\qquad r_t = \ln\frac{m_t}{m_{t-1}}$$
-
-over the last **20** sampled mid log-returns (per-sample vol, not annualised — it's a relative
-"what's moving" grid; hot rows are the instruments currently churning). Scrolls 240 columns.
-
-### Rolling correlation — L1 only, any broker
-
-N×N grid of the ticked instruments, recomputed every sample: pairwise **Pearson correlation of
-mid log-returns** over the sample window, Balance palette (red = move together, blue = move
-apart, diagonal ≡ 1). Same math as **Tools → Live correlation matrix** — this is the heatmap
-rendering of it. Correlation needs ≥ 2 instruments ticked; shorter windows react faster but are
-noisier ($\text{SE} \approx 1/\sqrt{n}$ — at 60 samples, |ρ| under ~0.25 is statistically
-indistinguishable from zero).
+Status bar: best bid (green) / ask (red) / mid / spread / last / VWAP / CVD / total volume / status.
 
 ## Code map
 
 | What | Where |
 |---|---|
-| Shared single-instrument plumbing (picker, stream, 200 ms throttle) | `SingleInstrumentHeatmapViewModelBase.cs` |
-| Shared depth-snapshot machinery (rows/columns, mid overlay) | `DepthColumnHeatmapViewModelBase.cs` |
-| Shared multi-instrument sampler (step/window, mid stash) | `SampledHeatmapViewModelBase.cs` |
-| Per-window VMs | `DepthHeatmapViewModel.cs`, `ImbalanceHeatmapViewModel.cs`, `VolumeProfileHeatmapViewModel.cs`, `VolumeBubbleHeatmapViewModel.cs`, `VolatilityHeatmapViewModel.cs`, `CorrelationHeatmapViewModel.cs` |
-| Frame model + ScottPlot rendering (palettes) | `HeatmapFrame.cs`, `HeatmapRenderer.cs` |
+| Shared single-instrument plumbing (picker, stream lifecycle, 200 ms render throttle) | `SingleInstrumentHeatmapViewModelBase.cs` |
+| Data engine — rolling buffers, volume profile / VWAP / value area, CVD + per-column delta, large-lot/iceberg classification, playback state | `BookmapHeatmapViewModel.cs` |
+| All rendering — bitmap heatmap + overlay canvas (profile, VWAP, value area, dots, CVD panel, DOM, crosshair, zoom) | `BookmapHeatmapWindow.xaml` / `.xaml.cs` |
+
+Opened from **Charts → Bookmap + VolBook…** (or the `heatmap` / `bookmap` / `volbook` command).

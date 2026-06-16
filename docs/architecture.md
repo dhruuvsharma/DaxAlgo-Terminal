@@ -68,8 +68,8 @@ TradingTerminal.sln
 │   ├── TradingTerminal.Charts                    TradingView-style chart window (WebView2) ┐
 │   ├── TradingTerminal.OrderBook                 L2 depth ladder window                    │
 │   ├── TradingTerminal.VolumeFootprint           Volume footprint cluster chart            │
-│   ├── TradingTerminal.Heatmap                   Heatmaps: depth/imbalance/volume/bubbles/  │
-│   │                                              vol/correlation (ScottPlot, dark)         │
+│   ├── TradingTerminal.Heatmap                   Bookmap + VolBook: liquidity heatmap +     │
+│   │                                              volume profile/VWAP/CVD/DOM (bitmap, dark) │
 │   ├── TradingTerminal.Correlation               Correlation matrix (historical + live)    │ per-tool projects,
 │   ├── TradingTerminal.MarketRegime              Market regime composite window            │ one Add…Surface
 │   ├── TradingTerminal.InstrumentRegime          Per-instrument regime window              │ extension each

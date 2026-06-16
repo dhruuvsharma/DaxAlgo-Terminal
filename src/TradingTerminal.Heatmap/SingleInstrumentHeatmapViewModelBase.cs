@@ -11,15 +11,15 @@ using TradingTerminal.UI;
 namespace TradingTerminal.Heatmap;
 
 /// <summary>
-/// Shared base for the single-instrument, price × time heatmaps (depth, order-book imbalance,
-/// volume-at-price). Owns everything those have in common: the instrument picker (broker universe,
-/// search, source-broker resolution), the live subscription lifecycle, and a fixed-cadence render
-/// timer that rebuilds the frame off the UI thread's beat so a fast feed can't drive the redraw rate.
+/// Shared base for the single-instrument, price × time microstructure view (the combined Bookmap +
+/// VolBook window). Owns everything that plumbing has in common: the instrument picker (broker
+/// universe, search, source-broker resolution), the live subscription lifecycle, and a fixed-cadence
+/// render timer that fires a redraw off the UI thread's beat so a fast feed can't drive the rate.
 ///
 /// Subclasses provide only the data path: <see cref="StartPumps"/> (which feed to subscribe — depth
-/// or trades — using the <see cref="PumpDepth"/>/<see cref="PumpTrades"/> helpers), what to reset in
-/// <see cref="ResetBuffers"/>, and how to turn the buffered data into a <see cref="HeatmapFrame"/> in
-/// <see cref="BuildFrame"/>. Selecting an instrument auto-(re)starts the stream.
+/// or trades — using the <see cref="PumpDepth"/>/<see cref="PumpTrades"/> helpers) and what to reset
+/// in <see cref="ResetBuffers"/>. Selecting an instrument auto-(re)starts the stream. The window owns
+/// all rendering, reading the subclass's raw rolling buffers on each <see cref="HeatmapUpdated"/> tick.
 /// </summary>
 public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBase, IDisposable
 {
@@ -71,10 +71,7 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private string _status = "Pick an instrument to stream.";
 
-    /// <summary>The latest computed frame, or null before any data has arrived. Read by the code-behind.</summary>
-    public IHeatmapFrame? CurrentFrame { get; private set; }
-
-    /// <summary>Raised on the UI thread after the frame is rebuilt (or cleared). The window redraws.</summary>
+    /// <summary>Raised on the UI thread when the buffers change (timer-coalesced). The window redraws.</summary>
     public event EventHandler? HeatmapUpdated;
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
@@ -89,9 +86,6 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
 
     /// <summary>Clear the subclass's rolling buffers (called on every (re)start).</summary>
     protected abstract void ResetBuffers();
-
-    /// <summary>Project the current buffers into a frame (called on the render tick, UI thread).</summary>
-    protected abstract IHeatmapFrame? BuildFrame();
 
     // ---- helpers for subclasses ----
 
@@ -188,7 +182,7 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
     {
         StopStream();
         ResetBuffers();
-        RaiseFrame(null);
+        HeatmapUpdated?.Invoke(this, EventArgs.Empty);
 
         var instrument = SelectedInstrument;
         if (instrument is null) return;
@@ -215,13 +209,6 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
     {
         if (!_dirty) return;
         _dirty = false;
-        RaiseFrame(BuildFrame());
-    }
-
-    /// <summary>Set the current frame and notify the view. Pass null to clear.</summary>
-    protected void RaiseFrame(IHeatmapFrame? frame)
-    {
-        CurrentFrame = frame;
         HeatmapUpdated?.Invoke(this, EventArgs.Empty);
     }
 

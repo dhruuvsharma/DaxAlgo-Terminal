@@ -43,8 +43,6 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
     <!-- Tools-menu surfaces -->
     <ProjectReference Include="..\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
-    <ProjectReference Include="..\TradingTerminal.MarketRegime\TradingTerminal.MarketRegime.csproj" />
-    <ProjectReference Include="..\TradingTerminal.InstrumentRegime\TradingTerminal.InstrumentRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />

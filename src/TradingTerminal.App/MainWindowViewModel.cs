@@ -20,8 +20,6 @@ using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
-using TradingTerminal.MarketRegime;
-using TradingTerminal.InstrumentRegime;
 using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ml.Stationarity;
@@ -54,8 +52,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string MlFeaturesTabId = "ai.mlfeatures";
     private const string BacktestAnalysisTabId = "ai.backtestanalysis";
     private const string AiAnalystTabId = "ai.marketanalyst";
-    private const string RegimeTabId = "tools.regime";
-    private const string InstrumentRegimeTabId = "tools.regime.instrument";
     private const string MarkovRegimeTabId = "tools.regime.markov";
     private const string AdvancedRegimeTabId = "tools.regime.advanced";
     private const string StationarityTabId = "ml.stationarity";
@@ -67,12 +63,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string QuantConnectWindowId = "tools.quantconnect";
     private const string OrderBookWindowId = "tools.orderbook";
     private const string FootprintWindowId = "tools.footprint";
-    private const string HeatmapWindowId = "tools.heatmap";
-    private const string ImbalanceHeatmapWindowId = "tools.heatmap.imbalance";
-    private const string VolumeHeatmapWindowId = "tools.heatmap.volume";
-    private const string VolumeBubbleHeatmapWindowId = "tools.heatmap.bubble";
-    private const string VolatilityHeatmapWindowId = "tools.heatmap.volatility";
-    private const string CorrelationHeatmapWindowId = "tools.heatmap.correlation";
+    private const string BookmapWindowId = "tools.heatmap.bookmap";
     private const string ArchiveSettingsTabId = "settings.archive";
     private const string ArchiveActivityTabId = "settings.archive.activity";
 
@@ -203,9 +194,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             case "charts": case "chart": case "c": OpenCharts(); break;
             case "orderbook": case "book": case "dom": OpenOrderBook(); break;
             case "footprint": case "fp": OpenFootprint(); break;
-            case "heatmap": case "hm": OpenHeatmap(); break;
+            case "heatmap": case "hm": case "bookmap": case "volbook": OpenBookmap(); break;
             case "backtest": case "bt": OpenBacktest(); break;
-            case "regime": case "rg": OpenRegime(); break;
+            case "regime": case "rg": OpenAdvancedRegime(); break;
             case "correlation": case "corr": OpenCorrelation(); break;
             case "quantconnect": case "lean": case "qc": OpenQuantConnectBacktest(); break;
             case "research": case "factor": OpenResearch(); break;
@@ -632,29 +623,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void OpenRegime()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == RegimeTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<MarketRegimeViewModel>();
-        var view = _services.GetRequiredService<MarketRegimeView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Market regime",
-            ContentId = RegimeTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        // The VM holds a live subscription to the regime stream — dispose it when the tab closes.
-        _tabDisposables[tab] = vm;
-        ActiveTab = tab;
-    }
-
-    [RelayCommand]
     public void OpenCorrelation()
     {
         if (_openWindows.TryGetValue(CorrelationWindowId, out var existing))
@@ -808,117 +776,26 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void OpenHeatmap()
+    public void OpenBookmap()
     {
-        if (_openWindows.TryGetValue(HeatmapWindowId, out var existing))
+        if (_openWindows.TryGetValue(BookmapWindowId, out var existing))
         {
             existing.Activate();
             return;
         }
 
-        var vm = _services.GetRequiredService<DepthHeatmapViewModel>();
-        var window = _services.GetRequiredService<DepthHeatmapWindow>();
+        var vm = _services.GetRequiredService<BookmapHeatmapViewModel>();
+        var window = _services.GetRequiredService<BookmapHeatmapWindow>();
         window.DataContext = vm;
         window.Owner = Application.Current.MainWindow;
         window.Closed += (_, _) =>
         {
-            _openWindows.Remove(HeatmapWindowId);
+            _openWindows.Remove(BookmapWindowId);
             vm.Dispose();
         };
-        _openWindows[HeatmapWindowId] = window;
+        _openWindows[BookmapWindowId] = window;
         window.Show();
-        _logger.LogInformation("Opened depth heatmap window");
-    }
-
-    [RelayCommand]
-    public void OpenImbalanceHeatmap()
-    {
-        if (_openWindows.TryGetValue(ImbalanceHeatmapWindowId, out var existing)) { existing.Activate(); return; }
-        var vm = _services.GetRequiredService<ImbalanceHeatmapViewModel>();
-        var window = _services.GetRequiredService<ImbalanceHeatmapWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) => { _openWindows.Remove(ImbalanceHeatmapWindowId); vm.Dispose(); };
-        _openWindows[ImbalanceHeatmapWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened order-book imbalance heatmap window");
-    }
-
-    [RelayCommand]
-    public void OpenVolumeHeatmap()
-    {
-        if (_openWindows.TryGetValue(VolumeHeatmapWindowId, out var existing)) { existing.Activate(); return; }
-        var vm = _services.GetRequiredService<VolumeProfileHeatmapViewModel>();
-        var window = _services.GetRequiredService<VolumeProfileHeatmapWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) => { _openWindows.Remove(VolumeHeatmapWindowId); vm.Dispose(); };
-        _openWindows[VolumeHeatmapWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened volume-at-price heatmap window");
-    }
-
-    [RelayCommand]
-    public void OpenVolumeBubbleHeatmap()
-    {
-        if (_openWindows.TryGetValue(VolumeBubbleHeatmapWindowId, out var existing)) { existing.Activate(); return; }
-        var vm = _services.GetRequiredService<VolumeBubbleHeatmapViewModel>();
-        var window = _services.GetRequiredService<VolumeBubbleHeatmapWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) => { _openWindows.Remove(VolumeBubbleHeatmapWindowId); vm.Dispose(); };
-        _openWindows[VolumeBubbleHeatmapWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened volume bubble heatmap window");
-    }
-
-    [RelayCommand]
-    public void OpenVolatilityHeatmap()
-    {
-        if (_openWindows.TryGetValue(VolatilityHeatmapWindowId, out var existing)) { existing.Activate(); return; }
-        var vm = _services.GetRequiredService<VolatilityHeatmapViewModel>();
-        var window = _services.GetRequiredService<VolatilityHeatmapWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) => { _openWindows.Remove(VolatilityHeatmapWindowId); vm.Dispose(); };
-        _openWindows[VolatilityHeatmapWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened cross-asset volatility heatmap window");
-    }
-
-    [RelayCommand]
-    public void OpenCorrelationHeatmap()
-    {
-        if (_openWindows.TryGetValue(CorrelationHeatmapWindowId, out var existing)) { existing.Activate(); return; }
-        var vm = _services.GetRequiredService<CorrelationHeatmapViewModel>();
-        var window = _services.GetRequiredService<CorrelationHeatmapWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) => { _openWindows.Remove(CorrelationHeatmapWindowId); vm.Dispose(); };
-        _openWindows[CorrelationHeatmapWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened rolling correlation heatmap window");
-    }
-
-    [RelayCommand]
-    public void OpenInstrumentRegime()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == InstrumentRegimeTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<InstrumentRegimeViewModel>();
-        var view = _services.GetRequiredService<InstrumentRegimeView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Instrument regime",
-            ContentId = InstrumentRegimeTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
+        _logger.LogInformation("Opened Bookmap + VolBook window");
     }
 
     [RelayCommand]

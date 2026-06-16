@@ -31,8 +31,6 @@ using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
-using TradingTerminal.MarketRegime;
-using TradingTerminal.InstrumentRegime;
 using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ml.Stationarity;
@@ -164,9 +162,7 @@ public partial class App : Application
                 services.AddFactorResearch();
                 services.AddMlFeatures();
                 services.AddBacktestAnalysis();
-                // Regime tools — three independent panels.
-                services.AddMarketRegimeSurface();
-                services.AddInstrumentRegimeSurface();
+                // Regime tools — Markov + Advanced market regime panels.
                 services.AddMarkovRegimeSurface();
                 services.AddAdvancedMarketRegimeSurface();
                 // Machine Learning menu — time-series statistics panels.

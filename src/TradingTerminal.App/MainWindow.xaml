@@ -100,61 +100,168 @@
 
                 <!-- Right: API meter chips · user · clock -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- API call meter — one chip per broker, lights amber→red as usage approaches
-                         the soft per-minute cap. Tooltip carries the full breakdown. -->
-                    <ItemsControl ItemsSource="{Binding ApiMeter.Chips}"
-                                  VerticalAlignment="Center"
-                                  Margin="0,0,16,0">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Padding="7,1"
-                                        Margin="0,0,6,0"
-                                        CornerRadius="8"
-                                        VerticalAlignment="Center"
-                                        BorderThickness="1"
-                                        ToolTip="{Binding TooltipText}">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <!-- Default = Untracked (neutral) -->
-                                            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
-                                            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Status}" Value="Healthy">
-                                                    <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource Bullish.Brush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="Warming">
-                                                    <Setter Property="Background" Value="{DynamicResource Warning.Brush}" />
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource Warning.Brush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="Hot">
-                                                    <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource Danger.Brush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Label}"
-                                                   Foreground="#000000"
-                                                   FontWeight="Bold"
-                                                   FontSize="10"
-                                                   Margin="0,0,4,0"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding UsageDisplay}"
-                                                   Foreground="#000000"
-                                                   FontSize="10"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- API tracker — a fancy dropdown button (signal-bar meter + status dot, accent
+                         lights green→amber→red on the hottest broker). Click to drop the full
+                         per-broker breakdown of calls vs soft rate caps. -->
+                    <Grid Margin="0,0,16,0" VerticalAlignment="Center">
+                        <Grid.Resources>
+                            <!-- Button accent (bars + dot) follows the overall API status. -->
+                            <Style x:Key="ApiAccent" TargetType="Shape">
+                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ApiMeter.OverallStatus}" Value="Healthy">
+                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ApiMeter.OverallStatus}" Value="Warming">
+                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ApiMeter.OverallStatus}" Value="Hot">
+                                        <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                            <!-- Per-row status dot in the dropdown. -->
+                            <Style x:Key="ApiRowDot" TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Status}" Value="Healthy">
+                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="Warming">
+                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding Status}" Value="Hot">
+                                        <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Resources>
+
+                        <ToggleButton x:Name="ApiToggle" Cursor="Hand" VerticalAlignment="Center"
+                                      ToolTip="API tracker — calls vs rate limits. Click for the per-broker breakdown.">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Bd" CornerRadius="9" Padding="9,3" BorderThickness="1"
+                                            BorderBrush="{DynamicResource Border.Strong}">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#2A2F3A" Offset="0" />
+                                                <GradientStop Color="#171B22" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Text.Secondary}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <!-- signal-bar meter -->
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="13" Margin="0,0,7,0">
+                                    <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="4"  Margin="0,0,1.5,0" VerticalAlignment="Bottom" />
+                                    <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="7"  Margin="0,0,1.5,0" VerticalAlignment="Bottom" />
+                                    <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="10" Margin="0,0,1.5,0" VerticalAlignment="Bottom" />
+                                    <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="13" VerticalAlignment="Bottom" />
+                                </StackPanel>
+                                <TextBlock Text="API" FontWeight="Bold" FontSize="10"
+                                           Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="{Binding ApiMeter.TotalCalls, StringFormat=N0}" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <Ellipse Style="{StaticResource ApiAccent}" Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBlock Text="▾" FontSize="10" Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <Popup PlacementTarget="{Binding ElementName=ApiToggle}" Placement="Bottom"
+                               IsOpen="{Binding IsChecked, ElementName=ApiToggle}"
+                               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
+                               HorizontalOffset="-6" VerticalOffset="6">
+                            <Border Background="{DynamicResource Background.Surface}"
+                                    BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                                    CornerRadius="8" Margin="8" Width="330">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.55" Color="#000000" />
+                                </Border.Effect>
+                                <StackPanel>
+                                    <!-- header -->
+                                    <Border CornerRadius="8,8,0,0" Padding="12,9">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#2B3550" Offset="0" />
+                                                <GradientStop Color="#1B2030" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="14" Margin="0,0,8,0">
+                                                <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="5"  Margin="0,0,2,0" VerticalAlignment="Bottom" />
+                                                <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="8"  Margin="0,0,2,0" VerticalAlignment="Bottom" />
+                                                <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="11" Margin="0,0,2,0" VerticalAlignment="Bottom" />
+                                                <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="14" VerticalAlignment="Bottom" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="API Tracker" FontWeight="Bold" FontSize="12"
+                                                           Foreground="{DynamicResource Text.Header}" />
+                                                <TextBlock Text="calls vs soft rate limits · per broker" FontSize="10"
+                                                           Foreground="{DynamicResource Text.Secondary}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- per-broker rows -->
+                                    <ItemsControl ItemsSource="{Binding ApiMeter.Chips}" Margin="4,4,4,2">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="8,5" ToolTip="{Binding TooltipText}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Grid.Column="0" Style="{StaticResource ApiRowDot}"
+                                                             Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" FontWeight="Bold" FontSize="11"
+                                                               Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11"
+                                                               Foreground="{DynamicResource Text.Secondary}">
+                                                        <Run Text="{Binding UsageDisplay, Mode=OneWay}" Foreground="{DynamicResource Text.Primary}" />
+                                                        <Run Text="/min" />
+                                                    </TextBlock>
+                                                    <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="10"
+                                                               Foreground="{DynamicResource Text.Secondary}">
+                                                        <Run Text="{Binding TotalCalls, Mode=OneWay, StringFormat=N0}" />
+                                                        <Run Text="total" />
+                                                    </TextBlock>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- empty state -->
+                                    <TextBlock Text="No API activity yet — call counts appear once a broker is talking."
+                                               TextWrapping="Wrap" FontSize="11" Margin="12,6,12,10"
+                                               Foreground="{DynamicResource Text.Secondary}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ApiMeter.HasActivity}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- footer -->
+                                    <Border CornerRadius="0,0,8,8" Padding="12,7" Background="#14FFFFFF"
+                                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+                                        <TextBlock Text="{Binding ApiMeter.SummaryText}" FontSize="10"
+                                                   Foreground="{DynamicResource Text.Secondary}" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
 
                     <TextBlock Text="{Binding SessionUserDisplay}"
                                Foreground="{DynamicResource Text.Secondary}"
@@ -281,10 +388,6 @@
                           Command="{Binding OpenBacktestCommand}" />
                 <MenuItem Header="_Record live ticks…"
                           Command="{Binding OpenRecorderCommand}" />
-                <MenuItem Header="_Market regime…"
-                          Command="{Binding OpenRegimeCommand}" />
-                <MenuItem Header="_Instrument regime…"
-                          Command="{Binding OpenInstrumentRegimeCommand}" />
                 <MenuItem Header="Mar_kov regime…"
                           Command="{Binding OpenMarkovRegimeCommand}" />
                 <MenuItem Header="_Advanced market regime…"
@@ -302,20 +405,8 @@
                           Command="{Binding OpenOrderBookCommand}" />
                 <MenuItem Header="_Volume footprint…"
                           Command="{Binding OpenFootprintCommand}" />
-                <MenuItem Header="_Heatmaps">
-                    <MenuItem Header="_Depth (Bookmap-style)…"
-                              Command="{Binding OpenHeatmapCommand}" />
-                    <MenuItem Header="Order-book _imbalance…"
-                              Command="{Binding OpenImbalanceHeatmapCommand}" />
-                    <MenuItem Header="_Volume-at-price…"
-                              Command="{Binding OpenVolumeHeatmapCommand}" />
-                    <MenuItem Header="Volume _bubbles…"
-                              Command="{Binding OpenVolumeBubbleHeatmapCommand}" />
-                    <MenuItem Header="Cross-asset vola_tility…"
-                              Command="{Binding OpenVolatilityHeatmapCommand}" />
-                    <MenuItem Header="Rolling _correlation…"
-                              Command="{Binding OpenCorrelationHeatmapCommand}" />
-                </MenuItem>
+                <MenuItem Header="_Bookmap + VolBook…"
+                          Command="{Binding OpenBookmapCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Machine learning">
