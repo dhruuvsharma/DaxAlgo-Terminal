@@ -176,6 +176,13 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// <summary>True once the user clicks Continue on the setup form.</summary>
     [ObservableProperty] private bool _isConfigured;
 
+    /// <summary>True while Continue/Start is building the strategy and warming up history — drives the
+    /// loading overlay so the user sees that data is being fetched rather than a frozen/blank chart.</summary>
+    [ObservableProperty] private bool _isStarting;
+
+    /// <summary>Headline shown on the loading overlay while <see cref="IsStarting"/> is true.</summary>
+    [ObservableProperty] private string _loadingTitle = "Loading…";
+
     /// <summary>True only while the user has armed the algo via Run. Display-only otherwise.</summary>
     [ObservableProperty] private bool _isAlgoRunning;
 
@@ -342,52 +349,64 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         var contract = SelectedInstrument.Contract;
         var instrumentId = _services.Ingest.Resolve(contract, broker);
 
-        _streamCts = new CancellationTokenSource();
-        _strategy = BuildStrategy(contract);
-        _router = _routerFactory.Create();
-        _router.SignalEmitted += OnSignalEmitted;
-        _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
-        {
-            try { await _strategy.OnOrderEventAsync(evt, _streamCts.Token); }
-            catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId); }
-        });
-
-        Signals.Clear();
-        Bars.Clear();
-        _currentBarStart = DateTime.MinValue;
-        TicksSeen = 0;
-        IsStreaming = true;
-        Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
-        Log("STREAM", $"Started {SelectedInstrument.DisplayName} ({contract.SecType} {contract.Exchange})");
-
+        // Curtain up: building the strategy + warming history is the slow part the user was waiting on
+        // with no feedback. Always taken down in the finally, on every exit path.
+        IsStarting = true;
+        LoadingTitle = $"Loading {SelectedInstrument.DisplayName}";
+        Status = $"Loading market data for {SelectedInstrument.DisplayName} — {StrategyDisplayName}…";
         try
         {
-            await _strategy.OnStartAsync(_clock, _router, _streamCts.Token);
+            _streamCts = new CancellationTokenSource();
+            _strategy = BuildStrategy(contract);
+            _router = _routerFactory.Create();
+            _router.SignalEmitted += OnSignalEmitted;
+            _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
+            {
+                try { await _strategy.OnOrderEventAsync(evt, _streamCts.Token); }
+                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId); }
+            });
+
+            Signals.Clear();
+            Bars.Clear();
+            _currentBarStart = DateTime.MinValue;
+            TicksSeen = 0;
+            IsStreaming = true;
+            Log("STREAM", $"Started {SelectedInstrument.DisplayName} ({contract.SecType} {contract.Exchange})");
+
+            try
+            {
+                await _strategy.OnStartAsync(_clock, _router, _streamCts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{Strategy} OnStartAsync threw", StrategyId);
+                Status = $"Failed to start: {ex.Message}";
+                await StopAsync();
+                return;
+            }
+
+            await WarmUpBarsAsync(instrumentId, _streamCts.Token);
+            Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
+
+            // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
+            // share the same handle on the ingest side, so a single Subscribe powers both observables.
+            _ingestHandle = _services.Ingest.Subscribe(contract, broker);
+
+            _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
+            _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
+
+            // Opt-in trade-tape pump: only started when the hosted strategy declares TradeTape in
+            // its DataRequirement. The pump probes broker capability before subscribing so the
+            // TradeTapeAvailable badge reflects reality rather than crashing on NotSupportedException.
+            if (DataRequirement.HasFlag(StrategyDataRequirement.TradeTape))
+            {
+                TradeTapeAvailable = false;
+                _ = RunTradeStreamAsync(broker, contract, instrumentId, _streamCts.Token);
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogError(ex, "{Strategy} OnStartAsync threw", StrategyId);
-            Status = $"Failed to start: {ex.Message}";
-            await StopAsync();
-            return;
-        }
-
-        await WarmUpBarsAsync(instrumentId, _streamCts.Token);
-
-        // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
-        // share the same handle on the ingest side, so a single Subscribe powers both observables.
-        _ingestHandle = _services.Ingest.Subscribe(contract, broker);
-
-        _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
-        _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
-
-        // Opt-in trade-tape pump: only started when the hosted strategy declares TradeTape in
-        // its DataRequirement. The pump probes broker capability before subscribing so the
-        // TradeTapeAvailable badge reflects reality rather than crashing on NotSupportedException.
-        if (DataRequirement.HasFlag(StrategyDataRequirement.TradeTape))
-        {
-            TradeTapeAvailable = false;
-            _ = RunTradeStreamAsync(broker, contract, instrumentId, _streamCts.Token);
+            IsStarting = false;
         }
     }
 

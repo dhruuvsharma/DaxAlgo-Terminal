@@ -9,6 +9,7 @@
                  xmlns:dockThemes="clr-namespace:AvalonDock.Themes;assembly=AvalonDock.Themes.VS2013"
                  xmlns:local="clr-namespace:TradingTerminal.App"
                  xmlns:ui="clr-namespace:TradingTerminal.UI;assembly=TradingTerminal.UI"
+                 xmlns:ctl="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="DaxAlgo Terminal"
                  Height="860" Width="1440"
@@ -982,5 +983,12 @@
                            FontWeight="Bold" />
             </StatusBarItem>
         </StatusBar>
+
+        <!-- Loading curtain shown while a strategy/tool/chart window is being built. Spans every row so
+             it covers the whole shell; collapses (and stops blocking input) when IsOpening is false. -->
+        <ctl:BusyOverlay Grid.Row="0" Grid.RowSpan="6"
+                         IsActive="{Binding IsOpening}"
+                         Title="{Binding OpeningTitle}"
+                         Message="{Binding OpeningDetail}" />
     </Grid>
 </mah:MetroWindow>

@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
 using MahApps.Metro.Controls;
 using ScottPlot.WPF;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.UI.Controls;
 
 namespace TradingTerminal.UI;
 
@@ -41,6 +44,33 @@ public abstract class StrategyWindowBase : MetroWindow
         _hostsConfigured = true;
         if (_vm is not null) OnRedrawCharts(_vm);
     }
+
+    /// <summary>
+    /// Wraps the window's content with a shared <see cref="BusyOverlay"/> bound to the base VM's
+    /// <see cref="LiveSignalStrategyViewModelBase.IsStarting"/>, so every chart-strategy window shows a
+    /// loading curtain while Continue/Start builds the strategy and warms up history — no per-window
+    /// XAML required. Runs once, before first render, so the existing visual tree stays intact.
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        if (_busyOverlayInjected || Content is not FrameworkElement existing) return;
+        _busyOverlayInjected = true;
+
+        Content = null;                 // detach before re-parenting into the wrapper grid
+        var grid = new Grid();
+        grid.Children.Add(existing);
+
+        var overlay = new BusyOverlay();
+        overlay.SetBinding(BusyOverlay.IsActiveProperty, new Binding(nameof(LiveSignalStrategyViewModelBase.IsStarting)));
+        overlay.SetBinding(BusyOverlay.TitleProperty, new Binding(nameof(LiveSignalStrategyViewModelBase.LoadingTitle)));
+        overlay.SetBinding(BusyOverlay.MessageProperty, new Binding(nameof(LiveSignalStrategyViewModelBase.Status)));
+        grid.Children.Add(overlay);
+
+        Content = grid;
+    }
+
+    private bool _busyOverlayInjected;
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

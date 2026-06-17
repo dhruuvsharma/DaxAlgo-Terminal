@@ -44,12 +44,9 @@
 
         <!-- Matrix + overlays -->
         <Grid Grid.Row="1">
+            <!-- The retained-draw matrix (PressureMatrixView) is hosted here from code-behind. -->
             <ScrollViewer x:Name="Scroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                          Background="#0B0F14">
-                <Canvas x:Name="PressureCanvas" Background="Transparent"
-                        MouseMove="OnCanvasMouseMove" MouseLeave="OnCanvasMouseLeave"
-                        MouseLeftButtonDown="OnCanvasMouseDown" />
-            </ScrollViewer>
+                          Background="#0B0F14" />
 
             <!-- Pinned-row inline detail overlay -->
             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0"

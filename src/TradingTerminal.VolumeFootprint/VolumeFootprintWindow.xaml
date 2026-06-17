@@ -18,109 +18,147 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar: instrument + interval + tick size + bar count, plus the regression-fit toggles -->
+        <!-- Single neat toolbar: primary data selectors inline, every toggle/tuner grouped into
+             dropdown menus (Regression · Overlays · Display) so the chrome stays compact. -->
         <Border Grid.Row="0"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                Padding="8,6">
-            <StackPanel>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="280" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+                Padding="8,5">
+            <Border.Resources>
+                <!-- Label in front of an inline control. -->
+                <Style x:Key="ToolLabel" TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                    <Setter Property="FontSize" Value="11" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Margin" Value="0,0,6,0" />
+                </Style>
+                <!-- Vertical separator between toolbar groups. -->
+                <Style x:Key="ToolDivider" TargetType="Border">
+                    <Setter Property="Width" Value="1" />
+                    <Setter Property="Background" Value="{DynamicResource Border.Brush}" />
+                    <Setter Property="Margin" Value="10,3" />
+                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                </Style>
+                <!-- Section caption inside a dropdown. -->
+                <Style x:Key="MenuCaption" TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                    <Setter Property="FontSize" Value="10" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Margin" Value="2,0,0,0" />
+                </Style>
+                <!-- Label inside a control-hosting menu item. -->
+                <Style x:Key="MenuItemLabel" TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                    <Setter Property="FontSize" Value="11" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Width" Value="78" />
+                </Style>
+            </Border.Resources>
 
-                <TextBlock Grid.Column="0" Text="Instrument" VerticalAlignment="Center" Margin="0,0,8,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <uic:InstrumentPicker Grid.Column="1"
+            <StackPanel Orientation="Horizontal">
+                <!-- ── Primary data selectors (kept inline; changed most often) ── -->
+                <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
+                <uic:InstrumentPicker Width="240"
                                       ShowSearch="True"
                                       ItemsSource="{Binding Instruments}"
                                       SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
                                       SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
-                                      MaxDropDownHeight="460" Margin="0,0,16,0" />
+                                      MaxDropDownHeight="460" Margin="0,0,12,0" />
 
-                <TextBlock Grid.Column="2" Text="Interval" VerticalAlignment="Center" Margin="0,0,6,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <ComboBox Grid.Column="3" Width="70"
+                <TextBlock Text="Interval" Style="{StaticResource ToolLabel}" />
+                <ComboBox Width="70" VerticalAlignment="Center"
                           ItemsSource="{Binding Intervals}"
                           SelectedItem="{Binding SelectedInterval}"
-                          DisplayMemberPath="Label" Margin="0,0,16,0" />
+                          DisplayMemberPath="Label" />
 
-                <TextBlock Grid.Column="4" Text="Tick size" VerticalAlignment="Center" Margin="0,0,6,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <TextBox Grid.Column="5" Width="64"
-                         Text="{Binding TickSizeText, UpdateSourceTrigger=PropertyChanged, Delay=400}"
-                         Margin="0,0,16,0" />
+                <Border Style="{StaticResource ToolDivider}" />
 
-                <TextBlock Grid.Column="6" Text="Bars" VerticalAlignment="Center" Margin="0,0,6,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <mah:NumericUpDown Grid.Column="7" Width="72" Minimum="2" Maximum="40"
-                                   Value="{Binding MaxBars}" Margin="0,0,16,0" />
-            </Grid>
+                <!-- ── Grouped option menus ── -->
+                <Menu Background="Transparent" IsMainMenu="False" VerticalAlignment="Center"
+                      Foreground="{DynamicResource Text.Primary}">
+                    <!-- Regression: one checkbox per POC-fit curve flavour, plus the forward prediction. -->
+                    <MenuItem Header="📈 Regression ▾">
+                        <MenuItem Header="Regression fits" IsEnabled="False" />
+                        <Separator />
+                        <MenuItem Header="Linear" IsCheckable="True" IsChecked="{Binding ShowLinearFit}" />
+                        <MenuItem Header="Quadratic" IsCheckable="True" IsChecked="{Binding ShowQuadraticFit}" />
+                        <MenuItem Header="Cubic" IsCheckable="True" IsChecked="{Binding ShowCubicFit}" />
+                        <MenuItem Header="Theil–Sen" IsCheckable="True" IsChecked="{Binding ShowTheilSenFit}" />
+                        <MenuItem Header="Exponential" IsCheckable="True" IsChecked="{Binding ShowExponentialFit}" />
+                        <MenuItem Header="Logarithmic" IsCheckable="True" IsChecked="{Binding ShowLogarithmicFit}" />
+                        <MenuItem Header="LOWESS" IsCheckable="True" IsChecked="{Binding ShowLowessFit}" />
+                        <Separator />
+                        <MenuItem Header="Predicted candles" IsCheckable="True" IsChecked="{Binding ShowPredictedBars}" />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Bars ahead" Style="{StaticResource MenuItemLabel}" />
+                                    <mah:NumericUpDown Width="84" Minimum="1" Maximum="30"
+                                                       Value="{Binding PredictionBars}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                    </MenuItem>
 
-            <!-- Regression-fit toggles: each draws its own POC-fit curve flavour on all three series -->
-            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
-                <StackPanel.Resources>
-                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                        <Setter Property="FontSize" Value="11" />
-                        <Setter Property="Margin" Value="0,0,14,0" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                    </Style>
-                </StackPanel.Resources>
-                <TextBlock Text="Fits" VerticalAlignment="Center" Margin="0,0,10,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <CheckBox Content="Linear" IsChecked="{Binding ShowLinearFit}" />
-                <CheckBox Content="Quadratic" IsChecked="{Binding ShowQuadraticFit}" />
-                <CheckBox Content="Cubic" IsChecked="{Binding ShowCubicFit}" />
-                <CheckBox Content="Theil–Sen" IsChecked="{Binding ShowTheilSenFit}" />
-                <CheckBox Content="Exponential" IsChecked="{Binding ShowExponentialFit}" />
-                <CheckBox Content="Logarithmic" IsChecked="{Binding ShowLogarithmicFit}" />
-                <CheckBox Content="LOWESS" IsChecked="{Binding ShowLowessFit}" />
+                    <!-- Overlays: analytics drawn over the footprint cells. -->
+                    <MenuItem Header="◫ Overlays ▾">
+                        <MenuItem Header="Imbalances" IsCheckable="True" IsChecked="{Binding ShowImbalances}" />
+                        <MenuItem Header="Value area" IsCheckable="True" IsChecked="{Binding ShowValueArea}" />
+                        <MenuItem Header="Volume profile" IsCheckable="True" IsChecked="{Binding ShowVolumeProfile}" />
+                        <MenuItem Header="Cell volumes" IsCheckable="True" IsChecked="{Binding ShowCellText}" />
+                    </MenuItem>
 
-                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="2,2,16,2" />
-                <CheckBox Content="Predicted candles" IsChecked="{Binding ShowPredictedBars}" />
-                <TextBlock Text="Bars ahead" VerticalAlignment="Center" Margin="0,0,6,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <mah:NumericUpDown Width="72" Minimum="1" Maximum="30"
-                                   Value="{Binding PredictionBars}" />
-            </StackPanel>
+                    <!-- Display: cell rendering + sizing tuners hosted inline in the dropdown. -->
+                    <MenuItem Header="⚙ Display ▾">
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Cell mode" Style="{StaticResource MenuItemLabel}" />
+                                    <ComboBox Width="110" ItemsSource="{Binding DisplayModes}"
+                                              SelectedItem="{Binding SelectedDisplayMode}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Tick size" Style="{StaticResource MenuItemLabel}" />
+                                    <TextBox Width="84"
+                                             Text="{Binding TickSizeText, UpdateSourceTrigger=PropertyChanged, Delay=400}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Bars shown" Style="{StaticResource MenuItemLabel}" />
+                                    <mah:NumericUpDown Width="84" Minimum="2" Maximum="40"
+                                                       Value="{Binding MaxBars}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Zoom" Style="{StaticResource MenuItemLabel}" />
+                                    <Slider Width="120" Minimum="0.5" Maximum="3" Value="{Binding Zoom}"
+                                            TickFrequency="0.5" IsSnapToTickEnabled="False" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Zoom, StringFormat={}{0:0.0}×}" VerticalAlignment="Center"
+                                               Margin="8,0,0,0" Foreground="{DynamicResource Text.Secondary}"
+                                               FontSize="11" FontFamily="Consolas" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                    </MenuItem>
+                </Menu>
 
-            <!-- View row: cell display mode, analytics overlays, and vertical zoom -->
-            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
-                <StackPanel.Resources>
-                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                        <Setter Property="FontSize" Value="11" />
-                        <Setter Property="Margin" Value="0,0,14,0" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                    </Style>
-                </StackPanel.Resources>
-                <TextBlock Text="Cells" VerticalAlignment="Center" Margin="0,0,6,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <ComboBox Width="96" ItemsSource="{Binding DisplayModes}"
-                          SelectedItem="{Binding SelectedDisplayMode}" Margin="0,0,16,0" />
+                <Border Style="{StaticResource ToolDivider}" />
 
-                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="2,2,14,2" />
-                <CheckBox Content="Imbalances" IsChecked="{Binding ShowImbalances}" />
-                <CheckBox Content="Value area" IsChecked="{Binding ShowValueArea}" />
-                <CheckBox Content="Profile" IsChecked="{Binding ShowVolumeProfile}" />
-                <CheckBox Content="Cell volumes" IsChecked="{Binding ShowCellText}" />
-
-                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="2,2,14,2" />
-                <TextBlock Text="Zoom" VerticalAlignment="Center" Margin="0,0,8,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <Slider Width="120" Minimum="0.5" Maximum="3" Value="{Binding Zoom}"
-                        TickFrequency="0.5" IsSnapToTickEnabled="False" VerticalAlignment="Center" />
+                <!-- Live zoom read-out so the current scale is visible without opening Display. -->
+                <TextBlock Text="Zoom" Style="{StaticResource ToolLabel}" />
                 <TextBlock Text="{Binding Zoom, StringFormat={}{0:0.0}×}" VerticalAlignment="Center"
-                           Margin="8,0,0,0" Foreground="{DynamicResource Text.Secondary}" FontSize="11"
-                           FontFamily="Consolas" />
-            </StackPanel>
+                           Foreground="{DynamicResource Text.Primary}" FontSize="11" FontFamily="Consolas" />
             </StackPanel>
         </Border>
 

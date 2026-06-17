@@ -1,0 +1,24 @@
+<UserControl x:Class="TradingTerminal.UI.Controls.Spinner"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             IsHitTestVisible="False"
+             Focusable="False">
+    <Grid Width="{Binding Diameter, ElementName=Root}"
+          Height="{Binding Diameter, ElementName=Root}">
+        <!-- Faint full ring -->
+        <Ellipse Stroke="{Binding TrackBrush, ElementName=Root}"
+                 StrokeThickness="{Binding Thickness, ElementName=Root}" />
+        <!-- Sweeping arc — continuously rotated while shown -->
+        <Ellipse x:Name="Arc"
+                 Stroke="{Binding ArcBrush, ElementName=Root}"
+                 StrokeThickness="{Binding Thickness, ElementName=Root}"
+                 StrokeStartLineCap="Round"
+                 StrokeEndLineCap="Round"
+                 RenderTransformOrigin="0.5,0.5">
+            <Ellipse.RenderTransform>
+                <RotateTransform x:Name="Rot" Angle="0" />
+            </Ellipse.RenderTransform>
+        </Ellipse>
+    </Grid>
+</UserControl>

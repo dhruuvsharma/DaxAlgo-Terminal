@@ -86,6 +86,13 @@ public sealed class MarketDataRepository : IMarketDataRepository
         // bar is within two bar-widths of "now" (so a strategy reopened a few seconds later
         // doesn't re-pay the historical round-trip). On miss or stale, fetch from the
         // broker, persist every bar (UPSERT-safe), and return the fresh result.
+        //
+        // The store's identity is canonical (broker-neutral), so a single instrument's bars
+        // are shared across brokers. That's correct for the data, but it must NOT let one
+        // broker's cached bars satisfy a request that explicitly named a different broker —
+        // otherwise whichever broker first populated the symbol would silently "win" every
+        // later fetch and the caller's broker choice would be ignored. We therefore only treat
+        // the cache as a hit when its newest bar was sourced from the requested broker.
         var instrumentId = _ingest.Resolve(contract, broker);
         var barSpan = barSize.ToTimeSpan();
         var requiredCount = Math.Max(1, (int)(duration.Ticks / Math.Max(1, barSpan.Ticks)));
@@ -93,10 +100,11 @@ public sealed class MarketDataRepository : IMarketDataRepository
 
         var cached = await _store.GetRecentBarsAsync(instrumentId, barSize, requiredCount, ct);
         if (cached.Count >= requiredCount &&
-            DateTime.UtcNow - cached[^1].OpenTimeUtc <= freshnessWindow)
+            DateTime.UtcNow - cached[^1].OpenTimeUtc <= freshnessWindow &&
+            cached[^1].Source == broker)
         {
-            _logger.LogDebug("Historical {Symbol} {Size} cache-hit ({Count} bars)",
-                contract.Symbol, barSize.ToDisplayString(), cached.Count);
+            _logger.LogDebug("Historical {Symbol} {Size} cache-hit ({Count} bars, source {Broker})",
+                contract.Symbol, barSize.ToDisplayString(), cached.Count, broker);
             return cached.Select(b => b.ToBar()).ToArray();
         }
 

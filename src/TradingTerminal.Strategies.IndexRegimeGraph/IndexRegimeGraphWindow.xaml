@@ -4,44 +4,16 @@
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 xmlns:ctl="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Index Regime Graph"
-                 Height="900" Width="1560"
+                 Height="820" Width="1240"
                  WindowStartupLocation="CenterOwner"
-                 Focusable="True"
                  GlowBrush="{DynamicResource Accent.Brush}"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-
-        <!-- Graph-paper background so pan/zoom is visually obvious. -->
-        <DrawingBrush x:Key="GraphGridBrush" TileMode="Tile" Viewport="0,0,44,44"
-                      ViewportUnits="Absolute" Stretch="None">
-            <DrawingBrush.Drawing>
-                <GeometryDrawing Geometry="M0,0 L0,44 M0,0 L44,0">
-                    <GeometryDrawing.Pen>
-                        <Pen Brush="#12FFB000" Thickness="0.6" />
-                    </GeometryDrawing.Pen>
-                </GeometryDrawing>
-            </DrawingBrush.Drawing>
-        </DrawingBrush>
-
-        <!-- Radial vignette behind the net — gives the canvas depth. -->
-        <RadialGradientBrush x:Key="ViewportBackdrop" GradientOrigin="0.5,0.42" Center="0.5,0.42"
-                             RadiusX="0.85" RadiusY="0.95">
-            <GradientStop Color="#15171F" Offset="0" />
-            <GradientStop Color="#0B0C11" Offset="0.6" />
-            <GradientStop Color="#050608" Offset="1" />
-        </RadialGradientBrush>
-
-        <!-- Glossy specular highlight laid over each node so it reads as a 3-D orb. -->
-        <RadialGradientBrush x:Key="NodeGloss" GradientOrigin="0.34,0.28" Center="0.34,0.28"
-                             RadiusX="0.85" RadiusY="0.85">
-            <GradientStop Color="#70FFFFFF" Offset="0" />
-            <GradientStop Color="#20FFFFFF" Offset="0.35" />
-            <GradientStop Color="#00FFFFFF" Offset="0.75" />
-        </RadialGradientBrush>
 
         <!-- Chrome surface gradients. -->
         <LinearGradientBrush x:Key="ChromeBar" StartPoint="0,0" EndPoint="0,1">
@@ -91,13 +63,6 @@
             </Setter>
         </Style>
 
-        <!-- Small icon-ish square button (zoom +/-). -->
-        <Style x:Key="GraphIconButton" TargetType="Button" BasedOn="{StaticResource GraphToolButton}">
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Padding" Value="0,2" />
-            <Setter Property="FontSize" Value="14" />
-        </Style>
-
         <!-- Status chip in the footer. -->
         <Style x:Key="FooterChip" TargetType="Border">
             <Setter Property="CornerRadius" Value="9" />
@@ -109,63 +74,41 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <!-- DataGrid chrome. -->
-        <Style x:Key="ConstituentHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{StaticResource PanelHeader}" />
+        <!-- Column header cell text. -->
+        <Style x:Key="HeaderText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="10" />
-            <Setter Property="Padding" Value="8,6" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- One heatmap row. Hover highlight + thin separator; fades for no-data rows. -->
+        <Style x:Key="HeatRow" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#15FFFFFF" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-        </Style>
-        <Style x:Key="ConstituentRow" TargetType="DataGridRow">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+            <Setter Property="Padding" Value="0,2" />
             <Style.Triggers>
-                <Trigger Property="AlternationIndex" Value="1">
-                    <Setter Property="Background" Value="#0A0A0A" />
-                </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1A1505" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="ConstituentCell" TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="8,5" />
-            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DataGridCell">
-                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#2A2206" />
+                    <Setter Property="Background" Value="#14FFB000" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Band → foreground for the score/contrib numbers (no converter needed). -->
-        <Style x:Key="BandNumber" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-            <Setter Property="HorizontalAlignment" Value="Right" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Band}" Value="StrongUp">
-                    <Setter Property="Foreground" Value="#16C784" /></DataTrigger>
-                <DataTrigger Binding="{Binding Band}" Value="Up">
-                    <Setter Property="Foreground" Value="#3FB37A" /></DataTrigger>
-                <DataTrigger Binding="{Binding Band}" Value="Down">
-                    <Setter Property="Foreground" Value="#E0555A" /></DataTrigger>
-                <DataTrigger Binding="{Binding Band}" Value="StrongDown">
-                    <Setter Property="Foreground" Value="#E6383C" /></DataTrigger>
-            </Style.Triggers>
+        <!-- Borderless button so a whole summary row is one click target (toggles the drill-down). -->
+        <Style x:Key="RowButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Stretch" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </mah:MetroWindow.Resources>
 
@@ -203,11 +146,10 @@
                     <DropShadowEffect Color="Black" BlurRadius="36" ShadowDepth="0" Opacity="0.6" />
                 </Border.Effect>
                 <StackPanel>
-                    <!-- gradient header with accent rule -->
                     <Border CornerRadius="10,10,0,0" Background="{StaticResource CardHeader}" Padding="24,18">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="◳" FontSize="22" Foreground="{DynamicResource Accent.Brush}"
+                                <TextBlock Text="▦" FontSize="22" Foreground="{DynamicResource Accent.Brush}"
                                            Margin="0,0,10,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Configure Index Regime Graph" FontSize="19" FontWeight="SemiBold"
                                            VerticalAlignment="Center" />
@@ -266,7 +208,7 @@
             <Border DockPanel.Dock="Top" Background="{StaticResource ChromeBar}"
                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="12,7">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="◳" FontSize="16" Foreground="{DynamicResource Accent.Brush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="▦" FontSize="16" Foreground="{DynamicResource Accent.Brush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBlock Text="INDEX REGIME GRAPH" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Text.Header}"
                                VerticalAlignment="Center" Margin="0,0,4,0" />
                     <Border Style="{StaticResource Strategy.ParamDivider}" />
@@ -284,18 +226,6 @@
                     <CheckBox Content="Auto" IsChecked="{Binding AutoRefresh}" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <Border Style="{StaticResource Strategy.ParamDivider}" />
 
-                    <TextBlock Text="VIEW" Style="{StaticResource Strategy.ParamGroupLabel}" />
-                    <Button Content="−" Click="ZoomOut_Click" Style="{StaticResource GraphIconButton}" ToolTip="Zoom out (−)" />
-                    <Border CornerRadius="4" Background="#161616" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                            Padding="0,3" Margin="0,0,3,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="ZoomReadout" Text="100%" Width="46" TextAlignment="Center"
-                                   Foreground="{DynamicResource Text.Highlight}" FontWeight="SemiBold" />
-                    </Border>
-                    <Button Content="+" Click="ZoomIn_Click" Style="{StaticResource GraphIconButton}" ToolTip="Zoom in (+)" />
-                    <Button Content="⤢ Fit" Click="Fit_Click" Style="{StaticResource GraphToolButton}" ToolTip="Fit graph to view (Home)" />
-                    <Button Content="Clear focus" Command="{Binding ClearFocusCommand}" Style="{StaticResource GraphToolButton}" />
-                    <Border Style="{StaticResource Strategy.ParamDivider}" />
-
                     <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}" Text="{Binding Status}" />
                 </StackPanel>
             </Border>
@@ -304,20 +234,6 @@
             <Border DockPanel.Dock="Bottom" Background="{StaticResource ChromeBar}"
                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0" Padding="12,6">
                 <StackPanel Orientation="Horizontal">
-                    <!-- composite pill -->
-                    <Border CornerRadius="9" Padding="11,3" Margin="0,0,12,0" VerticalAlignment="Center"
-                            Background="{Binding CompositeColorHex, Converter={StaticResource StringToBrushConverter}}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="COMPOSITE" Foreground="#CC000000" FontSize="9.5" FontWeight="Bold"
-                                       VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock FontWeight="Bold" Foreground="White" VerticalAlignment="Center"
-                                       Text="{Binding CompositePercent, StringFormat=+0.0;-0.0;0.0}" />
-                            <TextBlock Text="%" Foreground="White" VerticalAlignment="Center" Margin="1,0,8,0" />
-                            <TextBlock FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center"
-                                       Text="{Binding CompositeDirection}" />
-                        </StackPanel>
-                    </Border>
-
                     <Border Style="{StaticResource FooterChip}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="▲" Foreground="{DynamicResource Bullish.Brush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0" />
@@ -350,260 +266,253 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── Heatmap table ──────────────────────────────────────────────────────────── -->
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="460" />
-                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                <!-- Node-graph viewport. Pan/zoom handlers on the viewport border. -->
-                <Border Grid.Column="0" x:Name="GraphViewport" ClipToBounds="True"
-                        Background="{StaticResource ViewportBackdrop}"
-                        Focusable="True"
-                        MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
-                        MouseMove="Viewport_MouseMove"
-                        MouseLeftButtonUp="Viewport_MouseLeftButtonUp"
-                        MouseWheel="Viewport_MouseWheel">
-
+                <!-- Composite hero strip -->
+                <Border Grid.Row="0" Background="{StaticResource PanelHeader}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="18,12">
                     <Grid>
-                        <Canvas x:Name="GraphRoot" RenderTransformOrigin="0,0">
-                            <Canvas.RenderTransform>
-                                <MatrixTransform x:Name="GraphTransform" />
-                            </Canvas.RenderTransform>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                            <!-- graph-paper backdrop (also a big hit surface that bubbles to pan) -->
-                            <Rectangle Canvas.Left="-4000" Canvas.Top="-4000" Width="9000" Height="9000"
-                                       Fill="{StaticResource GraphGridBrush}" />
-
-                            <!-- synapses (behind) -->
-                            <ItemsControl ItemsSource="{Binding GraphEdges}" IsHitTestVisible="False">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Line X1="{Binding From.CenterX}" Y1="{Binding From.CenterY}"
-                                              X2="{Binding To.CenterX}" Y2="{Binding To.CenterY}"
-                                              Stroke="{Binding ColorHex, Converter={StaticResource StringToBrushConverter}}"
-                                              StrokeThickness="{Binding Thickness}" Opacity="{Binding Opacity}"
-                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- neurons (front) -->
-                            <ItemsControl ItemsSource="{Binding GraphNodes}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemContainerStyle>
-                                    <Style TargetType="ContentPresenter">
-                                        <Setter Property="Canvas.Left" Value="{Binding X}" />
-                                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
-                                    </Style>
-                                </ItemsControl.ItemContainerStyle>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Width="{Binding Size}" Height="{Binding Size}" Cursor="Hand"
-                                              MouseLeftButtonDown="Node_MouseLeftButtonDown"
-                                              MouseMove="Node_MouseMove"
-                                              MouseLeftButtonUp="Node_MouseLeftButtonUp">
-                                            <Grid.ToolTip>
-                                                <ToolTip>
-                                                    <StackPanel>
-                                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                                                        <TextBlock Text="{Binding SubLabel}" />
-                                                    </StackPanel>
-                                                </ToolTip>
-                                            </Grid.ToolTip>
-
-                                            <!-- coloured glow (blurred halo); fades out for no-data nodes -->
-                                            <Ellipse Margin="-9" Fill="{Binding ColorHex, Converter={StaticResource StringToBrushConverter}}">
-                                                <Ellipse.Effect>
-                                                    <BlurEffect Radius="16" />
-                                                </Ellipse.Effect>
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Opacity" Value="0.45" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasData}" Value="False">
-                                                                <Setter Property="Opacity" Value="0.0" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
-
-                                            <!-- selection ring -->
-                                            <Ellipse Stroke="{DynamicResource Accent.Brush}" StrokeThickness="2.5" Margin="-5"
-                                                     Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <Ellipse.Effect>
-                                                    <DropShadowEffect Color="#FF8C00" BlurRadius="14" ShadowDepth="0" Opacity="0.9" />
-                                                </Ellipse.Effect>
-                                            </Ellipse>
-
-                                            <!-- body -->
-                                            <Ellipse Fill="{Binding ColorHex, Converter={StaticResource StringToBrushConverter}}"
-                                                     Stroke="#55000000" StrokeThickness="1">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasData}" Value="False">
-                                                                <Setter Property="Opacity" Value="0.28" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
-                                            <!-- glossy specular highlight -->
-                                            <Ellipse Fill="{StaticResource NodeGloss}" IsHitTestVisible="False" />
-                                            <!-- thin rim light -->
-                                            <Ellipse Stroke="#33FFFFFF" StrokeThickness="1" IsHitTestVisible="False" />
-
-                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                <TextBlock Text="{Binding Label}" Foreground="White" TextAlignment="Center"
-                                                           FontWeight="SemiBold" FontSize="{Binding LabelFontSize}">
-                                                    <TextBlock.Effect>
-                                                        <DropShadowEffect Color="Black" BlurRadius="3" ShadowDepth="0.8" Opacity="0.8" />
-                                                    </TextBlock.Effect>
-                                                </TextBlock>
-                                                <TextBlock Text="{Binding SubLabel}" Foreground="#E6FFFFFF" TextAlignment="Center"
-                                                           FontSize="8.5">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding SubLabel}" Value="">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Canvas>
-
-                        <!-- Fixed layer caption + focus banner overlay (not transformed). -->
-                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="14,12"
-                                Background="#B3000000" CornerRadius="6" Padding="12,8" IsHitTestVisible="False"
-                                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="companies → indicators → timeframes → output → ×weight → signal"
-                                           Foreground="{DynamicResource Text.Header}" FontSize="11.5" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding FocusLabel}" Foreground="{DynamicResource Text.Highlight}" FontSize="10.5" Margin="0,3,0,0" />
-                                <TextBlock Text="drag = pan · wheel = zoom · drag a node = move · click a company = focus"
-                                           Foreground="{DynamicResource Text.Secondary}" FontSize="9.5" Margin="0,3,0,0" />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CompositePercent, StringFormat=+0.0;-0.0;0.0}"
+                                       FontSize="34" FontWeight="Bold"
+                                       Foreground="{Binding CompositeColorHex, Converter={StaticResource StringToBrushConverter}}" />
+                            <TextBlock Text="%" FontSize="17" VerticalAlignment="Bottom" Margin="2,0,14,6"
+                                       Foreground="{DynamicResource Text.Secondary}" />
+                            <Border CornerRadius="10" Padding="12,4" VerticalAlignment="Center" Margin="0,0,16,0"
+                                    Background="{Binding CompositeColorHex, Converter={StaticResource StringToBrushConverter}}">
+                                <TextBlock Text="{Binding CompositeDirection}" FontSize="13" FontWeight="Bold" Foreground="White" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding SelectedFamily.DisplayName}" FontWeight="SemiBold" FontSize="13"
+                                           Foreground="{DynamicResource Text.Header}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding HorizonDescription}" Foreground="{DynamicResource Text.Secondary}" FontSize="10.5" />
                             </StackPanel>
-                        </Border>
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="1" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                   Foreground="{DynamicResource Text.Secondary}" FontSize="10.5"
+                                   Text="green = bullish · red = bearish · columns are timeframes (fast → slow)" />
                     </Grid>
                 </Border>
 
-                <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                              Background="{DynamicResource Border.Brush}" />
+                <!-- Column header -->
+                <Border Grid.Row="1" Background="{DynamicResource Background.Elevated}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="12,7">
+                    <Grid Margin="12,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="104" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="84" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="1" Text="SYMBOL" Style="{StaticResource HeaderText}" />
+                        <TextBlock Grid.Column="2" Text="WEIGHT" Style="{StaticResource HeaderText}" TextAlignment="Right" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="3" Text="SCORE" Style="{StaticResource HeaderText}" TextAlignment="Right" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="4" Text="DIRECTION" Style="{StaticResource HeaderText}" Margin="6,0,0,0" />
+                        <ItemsControl Grid.Column="5" ItemsSource="{Binding TimeframeHeaders}" Margin="2,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource HeaderText}"
+                                               TextAlignment="Center" HorizontalAlignment="Stretch" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Grid.Column="6" Text="CONTRIB" Style="{StaticResource HeaderText}" TextAlignment="Right" Margin="0,0,4,0" />
+                    </Grid>
+                </Border>
 
-                <!-- Right panel -->
-                <Grid Grid.Column="2" Background="{DynamicResource Background.Surface}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+                <!-- Rows -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Background="{DynamicResource Background.Surface}">
+                    <ItemsControl ItemsSource="{Binding ConstituentRows}"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <!-- Summary row — click anywhere to toggle the drill-down. -->
+                                    <Button Style="{StaticResource RowButton}"
+                                            Command="{Binding DataContext.ToggleRowCommand, RelativeSource={RelativeSource AncestorType={x:Type mah:MetroWindow}}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Click to show each indicator's result on every timeframe.">
+                                        <Border Style="{StaticResource HeatRow}" Opacity="{Binding RowOpacity}">
+                                            <Grid Margin="12,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="22" />
+                                                    <ColumnDefinition Width="76" />
+                                                    <ColumnDefinition Width="58" />
+                                                    <ColumnDefinition Width="70" />
+                                                    <ColumnDefinition Width="104" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="84" />
+                                                </Grid.ColumnDefinitions>
 
-                    <!-- composite headline -->
-                    <Border Grid.Row="0" Background="{StaticResource PanelHeader}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="16,14">
-                        <StackPanel>
-                            <TextBlock Text="{Binding SelectedFamily.DisplayName}" FontWeight="SemiBold" FontSize="13"
-                                       Foreground="{DynamicResource Text.Header}" TextTrimming="CharacterEllipsis" />
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <TextBlock Text="{Binding CompositePercent, StringFormat=+0.0;-0.0;0.0}"
-                                           FontSize="34" FontWeight="Bold"
-                                           Foreground="{Binding CompositeColorHex, Converter={StaticResource StringToBrushConverter}}">
-                                    <TextBlock.Effect>
-                                        <DropShadowEffect Color="Black" BlurRadius="8" ShadowDepth="0" Opacity="0.6" />
-                                    </TextBlock.Effect>
-                                </TextBlock>
-                                <TextBlock Text="%" FontSize="18" VerticalAlignment="Bottom" Margin="2,0,14,6"
-                                           Foreground="{DynamicResource Text.Secondary}" />
-                                <Border CornerRadius="10" Padding="11,4" VerticalAlignment="Center"
-                                        Background="{Binding CompositeColorHex, Converter={StaticResource StringToBrushConverter}}">
-                                    <TextBlock Text="{Binding CompositeDirection}" FontSize="13" FontWeight="Bold" Foreground="White" />
-                                </Border>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
+                                                <Grid Grid.Column="0">
+                                                    <!-- Expand caret — hidden while this row is still loading. -->
+                                                    <TextBlock FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource Text.Secondary}" Text="▸"
+                                                               Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                                        <Setter Property="Text" Value="▾" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <!-- Per-asset loading spinner — shown while this constituent is being fetched/computed. -->
+                                                    <ctl:Spinner Diameter="13" Thickness="2"
+                                                                 ArcBrush="{DynamicResource Accent.Brush}" TrackBrush="#1FFFFFFF"
+                                                                 HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                                 ToolTip="{Binding LoadStatusText}"
+                                                                 Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                </Grid>
 
-                    <Border Grid.Row="1" Background="{DynamicResource Background.Elevated}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="14,8">
-                        <StackPanel Orientation="Horizontal">
-                            <Border Width="3" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
-                            <TextBlock Text="CONSTITUENTS · BY CONTRIBUTION" FontWeight="SemiBold" FontSize="11"
-                                       Foreground="{DynamicResource Accent.Brush}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Symbol}" FontWeight="SemiBold"
+                                                                   FontFamily="Consolas, Cascadia Mono, monospace" FontSize="12.5"
+                                                                   Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
+                                                        <!-- Terminal-state glyph once loaded (● real · ◷ synthetic · ∅ none). -->
+                                                        <TextBlock Text="{Binding LoadGlyph}" FontSize="8" Margin="4,0,0,0" VerticalAlignment="Center"
+                                                                   Foreground="{Binding LoadGlyphHex, Converter={StaticResource StringToBrushConverter}}" />
+                                                    </StackPanel>
+                                                    <!-- Status caption: queued / loading… / synthetic / no data (hidden once ready). -->
+                                                    <TextBlock Text="{Binding LoadStatusText}" FontSize="8.5" Margin="0,-1,0,0"
+                                                               Foreground="{Binding LoadGlyphHex, Converter={StaticResource StringToBrushConverter}}"
+                                                               Visibility="{Binding ShowLoadStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                </StackPanel>
 
-                    <DataGrid Grid.Row="2" ItemsSource="{Binding ConstituentScores}"
-                              AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" GridLinesVisibility="None"
-                              Background="Transparent" RowBackground="Transparent" BorderThickness="0"
-                              AlternationCount="2"
-                              ColumnHeaderStyle="{StaticResource ConstituentHeader}"
-                              RowStyle="{StaticResource ConstituentRow}"
-                              CellStyle="{StaticResource ConstituentCell}"
-                              FontFamily="Consolas, Cascadia Mono, monospace" FontSize="11.5">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="SYM"  Binding="{Binding Symbol}" Width="58">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            <DataGridTextColumn Header="WT"   Binding="{Binding IndexWeight, StringFormat=P1}" Width="58">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-                                        <Setter Property="HorizontalAlignment" Value="Right" />
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            <DataGridTextColumn Header="SCORE" Binding="{Binding StockScore, StringFormat=+0.00;-0.00;0.00}" Width="64"
-                                                ElementStyle="{StaticResource BandNumber}" />
-                            <DataGridTextColumn Header="CONTRIB" Binding="{Binding Contribution, StringFormat=+0.000;-0.000;0.000}" Width="76"
-                                                ElementStyle="{StaticResource BandNumber}" />
-                            <DataGridTemplateColumn Header="DIR" Width="*">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Border CornerRadius="8" Padding="7,1" HorizontalAlignment="Left">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="#22FFFFFF" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Band}" Value="StrongUp">
-                                                            <Setter Property="Background" Value="#2616C784" /></DataTrigger>
-                                                        <DataTrigger Binding="{Binding Band}" Value="Up">
-                                                            <Setter Property="Background" Value="#203FB37A" /></DataTrigger>
-                                                        <DataTrigger Binding="{Binding Band}" Value="Down">
-                                                            <Setter Property="Background" Value="#26E0555A" /></DataTrigger>
-                                                        <DataTrigger Binding="{Binding Band}" Value="StrongDown">
-                                                            <Setter Property="Background" Value="#30E6383C" /></DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <TextBlock Text="{Binding Band}" FontSize="10" FontWeight="SemiBold"
-                                                       Style="{StaticResource BandNumber}" HorizontalAlignment="Left" />
+                                                <TextBlock Grid.Column="2" Text="{Binding WeightText}" TextAlignment="Right" Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource Text.Secondary}" FontSize="11.5" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{Binding ScoreText}" TextAlignment="Right" Margin="0,0,8,0"
+                                                           FontWeight="SemiBold" FontSize="11.5" VerticalAlignment="Center"
+                                                           Foreground="{Binding ScoreHex, Converter={StaticResource StringToBrushConverter}}" />
+
+                                                <Border Grid.Column="4" CornerRadius="8" Padding="8,1" HorizontalAlignment="Left" Margin="6,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{Binding TintHex, Converter={StaticResource StringToBrushConverter}}">
+                                                    <TextBlock Text="{Binding DirectionText}" FontSize="10" FontWeight="SemiBold"
+                                                               Foreground="{Binding ScoreHex, Converter={StaticResource StringToBrushConverter}}" />
+                                                </Border>
+
+                                                <ItemsControl Grid.Column="5" ItemsSource="{Binding Cells}" Margin="2,0">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="1.5,1" CornerRadius="3" MinHeight="22"
+                                                                    Background="{Binding TintHex, Converter={StaticResource StringToBrushConverter}}"
+                                                                    ToolTip="{Binding Label}">
+                                                                <TextBlock Text="{Binding Text}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           FontSize="10.5" FontFamily="Consolas, Cascadia Mono, monospace"
+                                                                           Foreground="{Binding TextHex, Converter={StaticResource StringToBrushConverter}}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <TextBlock Grid.Column="6" Text="{Binding ContribText}" TextAlignment="Right" Margin="0,0,4,0"
+                                                           FontWeight="SemiBold" FontSize="11.5" VerticalAlignment="Center"
+                                                           FontFamily="Consolas, Cascadia Mono, monospace"
+                                                           Foreground="{Binding ScoreHex, Converter={StaticResource StringToBrushConverter}}" />
+                                            </Grid>
                                         </Border>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
+                                    </Button>
+
+                                    <!-- Drill-down: every indicator's result on every timeframe. -->
+                                    <Border Background="#070707" BorderBrush="#15FFFFFF" BorderThickness="0,0,0,1"
+                                            Padding="34,6,12,10"
+                                            Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <!-- timeframe header for the matrix -->
+                                            <Grid Margin="0,0,0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="78" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="INDICATOR" Style="{StaticResource HeaderText}" FontSize="9" />
+                                                <ItemsControl Grid.Column="1"
+                                                              ItemsSource="{Binding DataContext.TimeframeHeaders, RelativeSource={RelativeSource AncestorType={x:Type mah:MetroWindow}}}"
+                                                              Margin="2,0">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" Style="{StaticResource HeaderText}" FontSize="9"
+                                                                       TextAlignment="Center" HorizontalAlignment="Stretch" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
+
+                                            <!-- one row per indicator -->
+                                            <ItemsControl ItemsSource="{Binding IndicatorMatrix}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,1">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="78" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="10.5"
+                                                                       Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
+                                                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Cells}" Margin="2,0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Margin="1.5,0.5" CornerRadius="2" MinHeight="18"
+                                                                                Background="{Binding TintHex, Converter={StaticResource StringToBrushConverter}}"
+                                                                                ToolTip="{Binding ToolTip}">
+                                                                            <TextBlock Text="{Binding Arrow}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                       FontSize="10"
+                                                                                       Foreground="{Binding TextHex, Converter={StaticResource StringToBrushConverter}}" />
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="No indicator data for this constituent yet."
+                                                       Foreground="{DynamicResource Text.Secondary}" FontSize="10.5" Margin="0,2,0,0"
+                                                       Visibility="{Binding HasMatrix, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
             </Grid>
         </DockPanel>
     </Grid>

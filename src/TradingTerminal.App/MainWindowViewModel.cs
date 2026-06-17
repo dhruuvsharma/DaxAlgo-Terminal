@@ -326,6 +326,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string _commandText = string.Empty;
 
+    // ── "Opening…" loading curtain ───────────────────────────────────────────────────────────
+    // Building a tool/strategy view (ScottPlot, WebView2, Helix, history fetch) is synchronous and
+    // briefly freezes the UI. We paint a full-window BusyOverlay first, then defer the heavy build to
+    // a Background dispatch so the curtain is on screen before the freeze — the user sees *what* is
+    // loading instead of an unresponsive shell.
+
+    /// <summary>True while a window/tab is being constructed — drives the shell's <c>BusyOverlay</c>.</summary>
+    [ObservableProperty]
+    private bool _isOpening;
+
+    /// <summary>Headline on the opening curtain, e.g. "Opening Order Flow Cube…".</summary>
+    [ObservableProperty]
+    private string _openingTitle = "Loading…";
+
+    /// <summary>Sub-line on the opening curtain describing what is being prepared.</summary>
+    [ObservableProperty]
+    private string _openingDetail = string.Empty;
+
     /// <summary>Live ticker tape feed shown under the menu bar.</summary>
     public Shell.TickerTapeViewModel Ticker { get; }
 
@@ -351,6 +369,74 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _eventBus.Publish(new ConnectionStateChangedEvent(value));
     }
 
+    /// <summary>
+    /// Shows the shell loading curtain (<paramref name="title"/>/<paramref name="detail"/>), then runs
+    /// <paramref name="build"/> on a Background dispatch so the curtain paints before the synchronous
+    /// view construction freezes the UI thread. The curtain is always taken down afterwards, even if
+    /// <paramref name="build"/> throws.
+    /// </summary>
+    private void OpenWithOverlay(string title, string detail, Action build)
+    {
+        OpeningTitle = title;
+        OpeningDetail = detail;
+        IsOpening = true;
+
+        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            try { build(); }
+            catch (Exception ex) { _logger.LogError(ex, "Failed while opening {Title}", title); }
+            finally { IsOpening = false; }
+        }));
+    }
+
+    /// <summary>Opens (or focuses) a dock-tab tool, resolving its VM+view from DI and building it behind
+    /// the loading curtain. <paramref name="trackDisposable"/> registers an <see cref="IDisposable"/> VM
+    /// for teardown when the tab closes (e.g. a VM running an auto-refresh loop).</summary>
+    private void OpenTabTool<TVm, TView>(string tabId, string tabTitle, string detail, bool trackDisposable = false)
+        where TVm : class
+        where TView : FrameworkElement
+    {
+        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == tabId);
+        if (existing is not null) { ActiveTab = existing; return; }
+
+        OpenWithOverlay($"Opening {tabTitle}…", detail, () =>
+        {
+            var vm = _services.GetRequiredService<TVm>();
+            var view = _services.GetRequiredService<TView>();
+            view.DataContext = vm;
+
+            var tab = new DockTab { Title = tabTitle, ContentId = tabId, Content = view, CanClose = true };
+            if (trackDisposable && vm is IDisposable d) _tabDisposables[tab] = d;
+            OpenTabs.Add(tab);
+            ActiveTab = tab;
+        });
+    }
+
+    /// <summary>Opens (or focuses) a single-instance tool window, resolving its VM+window from DI and
+    /// building it behind the loading curtain. The VM is disposed when the window closes.</summary>
+    private void OpenWindowTool<TVm, TWindow>(string windowId, string title, string detail)
+        where TVm : class
+        where TWindow : Window
+    {
+        if (_openWindows.TryGetValue(windowId, out var existing)) { existing.Activate(); return; }
+
+        OpenWithOverlay($"Opening {title}…", detail, () =>
+        {
+            var vm = _services.GetRequiredService<TVm>();
+            var window = _services.GetRequiredService<TWindow>();
+            window.DataContext = vm;
+            window.Owner = Application.Current.MainWindow;
+            window.Closed += (_, _) =>
+            {
+                _openWindows.Remove(windowId);
+                if (vm is IDisposable d) d.Dispose();
+            };
+            _openWindows[windowId] = window;
+            window.Show();
+            _logger.LogInformation("Opened {Title} window", title);
+        });
+    }
+
     [RelayCommand]
     public void OpenStrategy(string? strategyId)
     {
@@ -374,37 +460,41 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var host = _factory.Create(strategyId);
-
-        if (host.View is Window window)
+        var stratName = Strategies.FirstOrDefault(s => s.Id == strategyId)?.DisplayName ?? "strategy";
+        OpenWithOverlay($"Opening {stratName}…", "Building the live window and warming the data feed…", () =>
         {
-            var capturedId = strategyId;
-            window.Owner = Application.Current.MainWindow;
-            window.Closed += (_, _) =>
+            var host = _factory.Create(strategyId);
+
+            if (host.View is Window window)
             {
-                _openWindows.Remove(capturedId);
-                if (host.ViewModel is IDisposable d) d.Dispose();
-            };
-            _openWindows[capturedId] = window;
-            window.Show();
-            _eventBus.Publish(new StrategyOpenedEvent(host.StrategyId, host.DisplayName));
-            _logger.LogInformation("Opened strategy window {Id} ({Name})", host.StrategyId, host.DisplayName);
-            return;
-        }
+                var capturedId = strategyId;
+                window.Owner = Application.Current.MainWindow;
+                window.Closed += (_, _) =>
+                {
+                    _openWindows.Remove(capturedId);
+                    if (host.ViewModel is IDisposable d) d.Dispose();
+                };
+                _openWindows[capturedId] = window;
+                window.Show();
+                _eventBus.Publish(new StrategyOpenedEvent(host.StrategyId, host.DisplayName));
+                _logger.LogInformation("Opened strategy window {Id} ({Name})", host.StrategyId, host.DisplayName);
+                return;
+            }
 
-        var tab = new DockTab
-        {
-            Title = host.DisplayName,
-            ContentId = host.StrategyId,
-            Content = host.View,
-            CanClose = true,
-        };
-        if (host.ViewModel is IDisposable disposable)
-            _tabDisposables[tab] = disposable;
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-        _eventBus.Publish(new StrategyOpenedEvent(host.StrategyId, host.DisplayName));
-        _logger.LogInformation("Opened strategy tab {Id} ({Name})", host.StrategyId, host.DisplayName);
+            var tab = new DockTab
+            {
+                Title = host.DisplayName,
+                ContentId = host.StrategyId,
+                Content = host.View,
+                CanClose = true,
+            };
+            if (host.ViewModel is IDisposable disposable)
+                _tabDisposables[tab] = disposable;
+            OpenTabs.Add(tab);
+            ActiveTab = tab;
+            _eventBus.Publish(new StrategyOpenedEvent(host.StrategyId, host.DisplayName));
+            _logger.LogInformation("Opened strategy tab {Id} ({Name})", host.StrategyId, host.DisplayName);
+        });
     }
 
     [RelayCommand]
@@ -497,176 +587,38 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         $"{e.TimestampUtc:HH:mm:ss}  {e.Source,-20}  {e.Level,-5}  {e.Message}";
 
     [RelayCommand]
-    public void OpenBacktest()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == BacktestTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<BacktestViewModel>();
-        var view = _services.GetRequiredService<BacktestView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Backtest",
-            ContentId = BacktestTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenBacktest() =>
+        OpenTabTool<BacktestViewModel, BacktestView>(BacktestTabId, "Backtest", "Loading the backtest workspace…");
 
     [RelayCommand]
-    public void OpenResearch()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ResearchTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<FactorResearchViewModel>();
-        var view = _services.GetRequiredService<FactorResearchView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Factor research",
-            ContentId = ResearchTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenResearch() =>
+        OpenTabTool<FactorResearchViewModel, FactorResearchView>(ResearchTabId, "Factor research", "Loading factor research…");
 
     [RelayCommand]
-    public void OpenRecorder()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == RecorderTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<TickRecorderViewModel>();
-        var view = _services.GetRequiredService<TickRecorderView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Record ticks",
-            ContentId = RecorderTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenRecorder() =>
+        OpenTabTool<TickRecorderViewModel, TickRecorderView>(RecorderTabId, "Record ticks", "Preparing the tick recorder…");
 
     [RelayCommand]
-    public void OpenMlFeatures()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == MlFeaturesTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<MlFeaturesViewModel>();
-        var view = _services.GetRequiredService<MlFeaturesView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "ML features",
-            ContentId = MlFeaturesTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenMlFeatures() =>
+        OpenTabTool<MlFeaturesViewModel, MlFeaturesView>(MlFeaturesTabId, "ML features", "Computing feature definitions…");
 
     [RelayCommand]
-    public void OpenBacktestAnalysis()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == BacktestAnalysisTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<BacktestAnalysisViewModel>();
-        var view = _services.GetRequiredService<BacktestAnalysisView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Backtest analysis",
-            ContentId = BacktestAnalysisTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenBacktestAnalysis() =>
+        OpenTabTool<BacktestAnalysisViewModel, BacktestAnalysisView>(BacktestAnalysisTabId, "Backtest analysis", "Loading backtest analysis…");
 
     [RelayCommand]
-    public void OpenAiAnalyst()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == AiAnalystTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<AiAnalystViewModel>();
-        var view = _services.GetRequiredService<AiAnalystView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "AI market analyst",
-            ContentId = AiAnalystTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenAiAnalyst() =>
+        OpenTabTool<AiAnalystViewModel, AiAnalystView>(AiAnalystTabId, "AI market analyst", "Connecting to the AI analyst…");
 
     [RelayCommand]
-    public void OpenCorrelation()
-    {
-        if (_openWindows.TryGetValue(CorrelationWindowId, out var existing))
-        {
-            existing.Activate();
-            return;
-        }
-
-        var vm = _services.GetRequiredService<CorrelationMatrixViewModel>();
-        var window = _services.GetRequiredService<CorrelationMatrixWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
-        {
-            _openWindows.Remove(CorrelationWindowId);
-            vm.Dispose();
-        };
-        _openWindows[CorrelationWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened correlation matrix window");
-    }
+    public void OpenCorrelation() =>
+        OpenWindowTool<CorrelationMatrixViewModel, CorrelationMatrixWindow>(
+            CorrelationWindowId, "Correlation matrix", "Computing the correlation matrix…");
 
     [RelayCommand]
-    public void OpenLiveCorrelation()
-    {
-        if (_openWindows.TryGetValue(LiveCorrelationWindowId, out var existing))
-        {
-            existing.Activate();
-            return;
-        }
-
-        var vm = _services.GetRequiredService<LiveCorrelationMatrixViewModel>();
-        var window = _services.GetRequiredService<LiveCorrelationMatrixWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
-        {
-            _openWindows.Remove(LiveCorrelationWindowId);
-            vm.Dispose();
-        };
-        _openWindows[LiveCorrelationWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened live correlation matrix window");
-    }
+    public void OpenLiveCorrelation() =>
+        OpenWindowTool<LiveCorrelationMatrixViewModel, LiveCorrelationMatrixWindow>(
+            LiveCorrelationWindowId, "Live correlation matrix", "Wiring the live correlation feed…");
 
     /// <summary>Help → Support the developer. Routes through the shared prompt service so the window
     /// is single-instance whether opened here or auto-shown on launch.</summary>
@@ -676,27 +628,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             .Show(Application.Current.MainWindow);
 
     [RelayCommand]
-    public void OpenCharts()
-    {
-        if (_openWindows.TryGetValue(ChartsWindowId, out var existing))
-        {
-            existing.Activate();
-            return;
-        }
-
-        var vm = _services.GetRequiredService<ChartsViewModel>();
-        var window = _services.GetRequiredService<ChartsWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
-        {
-            _openWindows.Remove(ChartsWindowId);
-            vm.Dispose();
-        };
-        _openWindows[ChartsWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened charts window");
-    }
+    public void OpenCharts() =>
+        OpenWindowTool<ChartsViewModel, ChartsWindow>(ChartsWindowId, "Charts", "Starting the charting engine…");
 
     // ── QuantConnect / LEAN ─────────────────────────────────────────────────────────────────
     // One single-instance window with four tabs; each menu item deep-links to a tab index.
@@ -714,238 +647,65 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var vm = _services.GetRequiredService<QuantConnectViewModel>();
-        vm.SelectedTabIndex = tab;
-        var window = _services.GetRequiredService<QuantConnectWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
+        OpenWithOverlay("Opening QuantConnect / LEAN…", "Loading the LEAN workspace…", () =>
         {
-            _openWindows.Remove(QuantConnectWindowId);
-            vm.Dispose();
-        };
-        _openWindows[QuantConnectWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened QuantConnect / LEAN window (tab {Tab})", tab);
+            var vm = _services.GetRequiredService<QuantConnectViewModel>();
+            vm.SelectedTabIndex = tab;
+            var window = _services.GetRequiredService<QuantConnectWindow>();
+            window.DataContext = vm;
+            window.Owner = Application.Current.MainWindow;
+            window.Closed += (_, _) =>
+            {
+                _openWindows.Remove(QuantConnectWindowId);
+                vm.Dispose();
+            };
+            _openWindows[QuantConnectWindowId] = window;
+            window.Show();
+            _logger.LogInformation("Opened QuantConnect / LEAN window (tab {Tab})", tab);
+        });
     }
 
     [RelayCommand]
-    public void OpenOrderBook()
-    {
-        if (_openWindows.TryGetValue(OrderBookWindowId, out var existing))
-        {
-            existing.Activate();
-            return;
-        }
-
-        var vm = _services.GetRequiredService<OrderBookViewModel>();
-        var window = _services.GetRequiredService<OrderBookWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
-        {
-            _openWindows.Remove(OrderBookWindowId);
-            vm.Dispose();
-        };
-        _openWindows[OrderBookWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened order book window");
-    }
+    public void OpenOrderBook() =>
+        OpenWindowTool<OrderBookViewModel, OrderBookWindow>(OrderBookWindowId, "Order book", "Wiring the depth-of-book feed…");
 
     [RelayCommand]
-    public void OpenFootprint()
-    {
-        if (_openWindows.TryGetValue(FootprintWindowId, out var existing))
-        {
-            existing.Activate();
-            return;
-        }
-
-        var vm = _services.GetRequiredService<VolumeFootprintViewModel>();
-        var window = _services.GetRequiredService<VolumeFootprintWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
-        {
-            _openWindows.Remove(FootprintWindowId);
-            vm.Dispose();
-        };
-        _openWindows[FootprintWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened volume footprint window");
-    }
+    public void OpenFootprint() =>
+        OpenWindowTool<VolumeFootprintViewModel, VolumeFootprintWindow>(FootprintWindowId, "Volume footprint", "Preparing the volume-footprint grid…");
 
     [RelayCommand]
-    public void OpenBookmap()
-    {
-        if (_openWindows.TryGetValue(BookmapWindowId, out var existing))
-        {
-            existing.Activate();
-            return;
-        }
-
-        var vm = _services.GetRequiredService<BookmapHeatmapViewModel>();
-        var window = _services.GetRequiredService<BookmapHeatmapWindow>();
-        window.DataContext = vm;
-        window.Owner = Application.Current.MainWindow;
-        window.Closed += (_, _) =>
-        {
-            _openWindows.Remove(BookmapWindowId);
-            vm.Dispose();
-        };
-        _openWindows[BookmapWindowId] = window;
-        window.Show();
-        _logger.LogInformation("Opened Bookmap + VolBook window");
-    }
+    public void OpenBookmap() =>
+        OpenWindowTool<BookmapHeatmapViewModel, BookmapHeatmapWindow>(BookmapWindowId, "Bookmap + VolBook", "Building the liquidity heatmap…");
 
     [RelayCommand]
-    public void OpenMarkovRegime()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == MarkovRegimeTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<MarkovRegimeViewModel>();
-        var view = _services.GetRequiredService<MarkovRegimeView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Markov regime",
-            ContentId = MarkovRegimeTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenMarkovRegime() =>
+        OpenTabTool<MarkovRegimeViewModel, MarkovRegimeView>(MarkovRegimeTabId, "Markov regime", "Building the Markov regime model…");
 
     [RelayCommand]
-    public void OpenStationarity()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == StationarityTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<StationarityViewModel>();
-        var view = _services.GetRequiredService<StationarityView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Stationarity & differencing",
-            ContentId = StationarityTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenStationarity() =>
+        OpenTabTool<StationarityViewModel, StationarityView>(StationarityTabId, "Stationarity & differencing", "Loading the time-series workspace…");
 
     [RelayCommand]
-    public void OpenArimaGarch()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ArimaGarchTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<ArimaGarchViewModel>();
-        var view = _services.GetRequiredService<ArimaGarchView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "ARIMA & GARCH",
-            ContentId = ArimaGarchTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenArimaGarch() =>
+        OpenTabTool<ArimaGarchViewModel, ArimaGarchView>(ArimaGarchTabId, "ARIMA & GARCH", "Loading the time-series workspace…");
 
     [RelayCommand]
-    public void OpenKalmanFilter()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == KalmanFilterTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<KalmanFilterViewModel>();
-        var view = _services.GetRequiredService<KalmanFilterView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Kalman filter",
-            ContentId = KalmanFilterTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenKalmanFilter() =>
+        OpenTabTool<KalmanFilterViewModel, KalmanFilterView>(KalmanFilterTabId, "Kalman filter", "Loading the time-series workspace…");
 
     [RelayCommand]
-    public void OpenAdvancedRegime()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == AdvancedRegimeTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<AdvancedMarketRegimeViewModel>();
-        var view = _services.GetRequiredService<AdvancedMarketRegimeView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Advanced market regime",
-            ContentId = AdvancedRegimeTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        // The VM may be running an auto-refresh loop — stop it when the tab closes.
-        _tabDisposables[tab] = vm;
-        ActiveTab = tab;
-    }
+    public void OpenAdvancedRegime() =>
+        // The VM runs an auto-refresh loop — track it so it stops when the tab closes.
+        OpenTabTool<AdvancedMarketRegimeViewModel, AdvancedMarketRegimeView>(
+            AdvancedRegimeTabId, "Advanced market regime", "Running the regime indicator stack…", trackDisposable: true);
 
     [RelayCommand]
-    public void OpenNotificationsSettings()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == NotificationsSettingsTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<NotificationsSettingsViewModel>();
-        var view = _services.GetRequiredService<NotificationsSettingsView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Notifications",
-            ContentId = NotificationsSettingsTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenNotificationsSettings() =>
+        OpenTabTool<NotificationsSettingsViewModel, NotificationsSettingsView>(NotificationsSettingsTabId, "Notifications", "Loading settings…");
 
     [RelayCommand]
-    public void OpenArchiveSettings()
-    {
-        var existing = OpenTabs.FirstOrDefault(t => t.ContentId == ArchiveSettingsTabId);
-        if (existing is not null) { ActiveTab = existing; return; }
-
-        var vm = _services.GetRequiredService<ArchiveSettingsViewModel>();
-        var view = _services.GetRequiredService<ArchiveSettingsView>();
-        view.DataContext = vm;
-
-        var tab = new DockTab
-        {
-            Title = "Archive settings",
-            ContentId = ArchiveSettingsTabId,
-            Content = view,
-            CanClose = true,
-        };
-        OpenTabs.Add(tab);
-        ActiveTab = tab;
-    }
+    public void OpenArchiveSettings() =>
+        OpenTabTool<ArchiveSettingsViewModel, ArchiveSettingsView>(ArchiveSettingsTabId, "Archive settings", "Loading settings…");
 
     [RelayCommand]
     public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();

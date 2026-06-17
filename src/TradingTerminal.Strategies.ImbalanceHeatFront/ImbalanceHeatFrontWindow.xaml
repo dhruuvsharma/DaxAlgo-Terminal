@@ -287,5 +287,10 @@
             </Border>
             </Grid>
         </DockPanel>
+
+        <!-- Loading curtain while Continue/Start builds the strategy and warms up history. -->
+        <uic:BusyOverlay IsActive="{Binding IsStarting}"
+                         Title="{Binding LoadingTitle}"
+                         Message="{Binding Status}" />
     </Grid>
 </mah:MetroWindow>

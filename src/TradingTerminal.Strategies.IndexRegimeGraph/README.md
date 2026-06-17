@@ -32,38 +32,31 @@ The **horizon** only changes how a stock's eight timeframes are blended: *Scalp*
   (`AdvancedRegimeService` in Infrastructure) — the same provider the Advanced Market Regime tool
   uses. It pulls bars cache-first via `IMarketDataRepository`, so refreshes after the first are cheap.
 - **`IndexRegimeGraphViewModel`** fans out across constituents with a `SemaphoreSlim(5)` gate
-  (respects IB pacing), re-aggregates progressively as each lands, and drives two synchronized views.
-  Analysis runs off the UI thread; all collection mutation marshals through `UiThread`.
+  (respects IB pacing), re-aggregates progressively as each lands, and drives the heatmap table.
+  Analysis runs off the UI thread; all collection mutation marshals through `UiThread`. Progressive
+  repaints are coalesced (≤ one per 200 ms) so a fan-out of N constituents never floods the UI thread,
+  with a guaranteed authoritative paint at the end of each cycle.
 
 ## The view
 
-A **feed-forward neural net**, left → right, with every layer visible at once and fully connected:
+A **static regime heatmap table** — fast to render, easy to scan. Each constituent is one row, sorted
+by its contribution to the composite:
 
 ```
-companies  →  indicators  →  timeframes  →  output  →  ×weight  →  signal
- (N inputs)     (18)           (8)            (1)                    (1)
+SYMBOL  WEIGHT  SCORE  DIRECTION   1m  3m  5m  15m  20m  30m  1H  1D   CONTRIB
 ```
 
-- **Company** nodes (input layer) are sized by index weight and coloured by their stock score.
-- The **indicator** and **timeframe** hidden layers show the index aggregate by default. **Click a
-  company** to *focus* it: its pathway lights up and the hidden layers + output switch to that
-  company's values (click it again, press `Esc`, or "Clear focus" to return to the aggregate).
-- The **signal** node always shows the composite (Σ output × weight) and its band.
+- The **score / direction** columns are the horizon-blended stock verdict (green = bullish,
+  red = bearish), and **contrib** is `stockScore × normalizedWeight` — what the name adds to the
+  composite.
+- The eight **timeframe cells** are a colour-coded heatmap of that stock's per-timeframe regime score
+  (fast → slow), so divergence across timeframes is visible at a glance.
+- A **composite hero strip** on top shows the index direction (`Σ output × weight`) and band; the
+  footer carries bullish/bearish/ready counts and the synthetic / analysing / armed indicators.
 
-Interaction (pure view state in code-behind, driving one `MatrixTransform`):
-
-| Gesture | Action |
-|---|---|
-| Drag background | Pan |
-| Mouse wheel / `+` `−` buttons / `+`/`-` keys | Zoom about cursor/centre |
-| `⤢ Fit` / `Home` | Fit the whole net to the viewport |
-| Drag a node | Move it (synapses follow) |
-| Click a company | Focus / unfocus its pathway |
-| Arrow keys | Pan · `Tab` cycle companies · `Esc` clear focus |
-
-A graph-paper backdrop makes pan/zoom obvious, and the view fits to the window automatically when
-the graph (re)builds. A right-hand panel lists every constituent (symbol, weight, score,
-contribution, band) sorted by contribution, with the composite headline on top.
+The table virtualizes its rows and uses no per-element bitmap effects, so it stays responsive even
+while a refresh is streaming in. (It replaced an earlier fully-connected node-graph visualization that
+re-rasterized hundreds of blur/shadow effects per pan/zoom frame.)
 
 ## Wiring
 

@@ -70,7 +70,10 @@ public sealed class AdvancedRegimeService : IAdvancedRegimeProvider
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,
+                // Debug, not Warning: a multi-constituent caller (Index Regime Graph) would otherwise
+                // flood the Activity Log with one line per name per refresh. The caller emits a single
+                // aggregated summary instead.
+                _logger.LogDebug(ex,
                     "Advanced regime: 1m base fetch failed for {Symbol} on {Broker}", displaySymbol, broker);
                 baseBars = Array.Empty<Bar>();
             }
@@ -93,7 +96,7 @@ public sealed class AdvancedRegimeService : IAdvancedRegimeProvider
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,
+                _logger.LogDebug(ex,
                     "Advanced regime: 1D fetch failed for {Symbol} on {Broker}", displaySymbol, broker);
                 dailyBars = Array.Empty<Bar>();
             }

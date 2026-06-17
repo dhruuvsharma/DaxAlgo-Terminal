@@ -36,6 +36,19 @@ Most strategies need both. Some (HFT/MM) may only ship as engine-side.
 7. **Hub subscription** — the base class subscribes to `IMarketDataHub.Quotes(InstrumentId)`. For trade-tape strategies, also subscribe to `IMarketDataIngest.SubscribeTrades(...)` and gate Continue on `BrokerSupportsTradeTape(broker)` — today only IB returns true. See [regime-cube-strategy](../regime-cube-strategy/SKILL.md) for the standard shape.
 8. **Warm-up** — `LiveSignalStrategyViewModelBase` reads 1-minute bars from `IMarketDataStore.GetRecentBarsAsync` on Start (granularity intentionally differs from the 15s live aggregation — store has no sub-minute bars and 1m context is better than none).
 
+## Loading & preload rules (EVERY strategy — no exceptions)
+
+Users must never face a frozen or blank window while a strategy does work. Two rules, enforced for every strategy regardless of whether its VM inherits `LiveSignalStrategyViewModelBase`:
+
+1. **Always show a loading curtain with a message.** Any slow step — historical preload, a heavy recompute, a wholesale UI rebuild, a per-asset fan-out — must raise a loading overlay that says *what* is happening.
+   - **Library**: `BusyState` (in `TradingTerminal.UI`) + the `BusyOverlay` control (in `TradingTerminal.UI.Controls`). Expose a `public BusyState Busy { get; } = new();` on the VM, drop `<uic:BusyOverlay IsActive="{Binding Busy.IsActive}" Title="{Binding Busy.Title}" Message="{Binding Busy.Message}" />` as the last child of the window's root grid, and wrap work in `using (Busy.Begin("Loading NQ", "Fetching 200 bars…")) { … }`. Use `Busy.Report("…")` to narrate successive steps. Scopes are ref-counted/nestable; mutate on the UI thread (marshal via `UiThread.RunAsync` from background continuations).
+   - `LiveSignalStrategyViewModelBase` strategies get this for free: the base raises `IsStarting`/`LoadingTitle` across Continue→Start→warm-up and `StrategyWindowBase` auto-injects the overlay. Bespoke-VM strategies must adopt `BusyState` themselves.
+   - Multi-asset strategies should ALSO show per-item progress (see Index Regime Graph's per-constituent spinner via its `AssetLoadState`), not just one global curtain.
+
+2. **Preload the strategy's historical window before going live.** When the user leaves the parameter form (Continue), first load exactly the history the strategy consumes (e.g. if it keys off the last 10 candles, fetch the recent 10), prime the indicators/estimators AND the chart/UI with it, and only then attach the live feed. Never start blank and "fill in" from live ticks alone. `LiveSignalStrategyViewModelBase.WarmUpBarsAsync` is the reference; bespoke VMs replicate the shape: fetch → prime functions → render → subscribe live.
+
+Both rules are visible to the user, so reviewers reject a new strategy that opens blank, freezes on Continue, or starts live without a warm-up.
+
 ## Strategy library reference (textbook reference implementations)
 
 Families currently shipped — read one before writing a new one:
