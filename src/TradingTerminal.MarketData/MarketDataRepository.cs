@@ -98,7 +98,7 @@ public sealed class MarketDataRepository : IMarketDataRepository
         var requiredCount = Math.Max(1, (int)(duration.Ticks / Math.Max(1, barSpan.Ticks)));
         var freshnessWindow = TimeSpan.FromTicks(barSpan.Ticks * 2);
 
-        var cached = await _store.GetRecentBarsAsync(instrumentId, barSize, requiredCount, ct);
+        var cached = await _store.GetRecentBarsAsync(instrumentId, barSize, requiredCount, broker, ct);
         if (cached.Count >= requiredCount &&
             DateTime.UtcNow - cached[^1].OpenTimeUtc <= freshnessWindow &&
             cached[^1].Source == broker)

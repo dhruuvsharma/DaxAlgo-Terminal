@@ -75,7 +75,7 @@ public sealed class LocalParquetLakeExporter
         if (Skip(path, result)) return;
 
         var rows = new List<QuoteParquetRow>();
-        await foreach (var q in _store.ReadQuotesAsync(ins.Id, fromUtc, toUtc, ct).ConfigureAwait(false))
+        await foreach (var q in _store.ReadQuotesAsync(ins.Id, fromUtc, toUtc, source: null, ct).ConfigureAwait(false))
         {
             rows.Add(new QuoteParquetRow
             {
@@ -98,7 +98,7 @@ public sealed class LocalParquetLakeExporter
         if (Skip(path, result)) return;
 
         var rows = new List<TradeParquetRow>();
-        await foreach (var t in _store.ReadTradesAsync(ins.Id, fromUtc, toUtc, ct).ConfigureAwait(false))
+        await foreach (var t in _store.ReadTradesAsync(ins.Id, fromUtc, toUtc, source: null, ct).ConfigureAwait(false))
         {
             rows.Add(new TradeParquetRow
             {
@@ -124,7 +124,7 @@ public sealed class LocalParquetLakeExporter
             if (Skip(path, result)) continue;
 
             var rows = new List<BarParquetRow>();
-            await foreach (var b in _store.ReadBarsAsync(ins.Id, size, fromUtc, toUtc, ct).ConfigureAwait(false))
+            await foreach (var b in _store.ReadBarsAsync(ins.Id, size, fromUtc, toUtc, source: null, ct).ConfigureAwait(false))
             {
                 rows.Add(new BarParquetRow
                 {

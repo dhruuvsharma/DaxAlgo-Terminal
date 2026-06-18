@@ -15,6 +15,16 @@ public enum MarketDataProvider
     /// fallback</b> — when QuestDB is configured but unreachable, tick/depth persistence is disabled
     /// (logged loudly) rather than diverted to SQLite. Bars are unaffected.</summary>
     QuestDb = 2,
+
+    /// <summary>Per-broker embedded SQLite: one time-series file per broker
+    /// (<c>marketdata-{broker}.db</c>) for quotes/trades/bars, so concurrent brokers write in parallel
+    /// (no single-writer lock contention), the same instrument's data never collides across brokers,
+    /// and a broker's history can be wiped by deleting one file. Canonical instrument identity
+    /// (the <c>instruments</c>/<c>instrument_aliases</c> registry) stays in the single shared
+    /// <c>marketdata.db</c>, so <c>InstrumentId</c> remains broker-neutral and cross-venue tools
+    /// keep working. This is the default. Switching from <see cref="Sqlite"/> starts the per-broker
+    /// files fresh (existing single-file time-series is left untouched on disk, but unused).</summary>
+    SqlitePerBroker = 3,
 }
 
 /// <summary>
@@ -30,8 +40,9 @@ public sealed class MarketDataStoreOptions
     /// <summary>Master switch for the persistence + ingest pipeline.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Which storage backend to use (with auto-fallback to SQLite for Postgres).</summary>
-    public MarketDataProvider Provider { get; set; } = MarketDataProvider.Sqlite;
+    /// <summary>Which storage backend to use. Defaults to <see cref="MarketDataProvider.SqlitePerBroker"/>
+    /// (one time-series file per broker; shared identity registry). Postgres auto-falls back to SQLite.</summary>
+    public MarketDataProvider Provider { get; set; } = MarketDataProvider.SqlitePerBroker;
 
     /// <summary>PostgreSQL/TimescaleDB connection string. Defaults to the docker-compose service
     /// (localhost:5432, db/user/pass = daxalgo). Only used when <see cref="Provider"/> is Postgres.</summary>

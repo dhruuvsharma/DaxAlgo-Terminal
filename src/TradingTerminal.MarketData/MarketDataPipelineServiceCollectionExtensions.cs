@@ -27,7 +27,8 @@ public static class MarketDataPipelineServiceCollectionExtensions
         services.Configure<MarketDataStoreOptions>(section);
 
         var opts = section.Get<MarketDataStoreOptions>() ?? new MarketDataStoreOptions();
-        var sqliteConn = BuildSqliteConnectionString(ResolveDatabasePath(opts.DatabasePath));
+        var dbPath = ResolveDatabasePath(opts.DatabasePath);          // .../marketdata.db — the shared registry file
+        var sqliteConn = BuildSqliteConnectionString(dbPath);
         var pgConn = opts.PostgresConnectionString;
 
         // Decide the backend now: Postgres only if configured AND reachable, else SQLite.
@@ -35,6 +36,9 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
         services.AddSingleton<IMarketDataHub, MarketDataHub>();
 
+        // The canonical identity registry stays single-file (the shared marketdata.db) regardless of
+        // backend — including the per-broker store, whose split is only of the time-series tables.
+        // One registry assigns globally-consistent InstrumentIds that every per-broker file references.
         services.AddSingleton<IInstrumentRegistry>(sp =>
         {
             var log = sp.GetRequiredService<ILoggerFactory>();
@@ -50,6 +54,11 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
             if (opts.Provider == MarketDataProvider.QuestDb)
                 return BuildQuestDbStore(sqliteConn, opts, lf);
+
+            if (opts.Provider == MarketDataProvider.SqlitePerBroker)
+                return new PerBrokerSqliteMarketDataStore(
+                    Path.GetDirectoryName(dbPath)!, Path.GetFileNameWithoutExtension(dbPath),
+                    opts.PersistLiveData, opts.WriteBatchSize, opts.DepthRetentionDays, lf);
 
             if (usePostgres)
             {

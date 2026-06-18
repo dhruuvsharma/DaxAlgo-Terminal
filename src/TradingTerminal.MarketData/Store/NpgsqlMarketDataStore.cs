@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
@@ -130,18 +131,20 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
     }
 
     public override async Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
-        InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default)
+        InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null,
+        CancellationToken ct = default)
     {
         await using var cn = new NpgsqlConnection(_connectionString);
         await cn.OpenAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand("""
+        await using var cmd = new NpgsqlCommand($"""
             SELECT open_time,open,high,low,close,volume,source,is_final
-            FROM bars WHERE instrument_id=@i AND bar_size=@s
+            FROM bars WHERE instrument_id=@i AND bar_size=@s{SourceClause(source)}
             ORDER BY open_time DESC LIMIT @n
             """, cn);
         cmd.Parameters.AddWithValue("i", instrumentId.Value);
         cmd.Parameters.AddWithValue("s", (int)size);
         cmd.Parameters.AddWithValue("n", Math.Max(1, count));
+        BindSource(cmd, source);
 
         var result = new List<OhlcvBar>(count);
         await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
@@ -158,19 +161,20 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
     }
 
     public override async IAsyncEnumerable<Quote> ReadQuotesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc,
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await using var cn = new NpgsqlConnection(_connectionString);
         await cn.OpenAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand("""
+        await using var cmd = new NpgsqlCommand($"""
             SELECT event_time,ingest_time,bid,ask,bid_size,ask_size,source,seq,approx_time
-            FROM quotes WHERE instrument_id=@i AND event_time>=@from AND event_time<@to
+            FROM quotes WHERE instrument_id=@i AND event_time>=@from AND event_time<@to{SourceClause(source)}
             ORDER BY event_time
             """, cn);
         cmd.Parameters.AddWithValue("i", instrumentId.Value);
         cmd.Parameters.AddWithValue("from", TimescaleSchema.Utc(fromUtc));
         cmd.Parameters.AddWithValue("to", TimescaleSchema.Utc(toUtc));
+        BindSource(cmd, source);
 
         await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await rdr.ReadAsync(ct).ConfigureAwait(false))
@@ -185,19 +189,20 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
 
     public override async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
-        [EnumeratorCancellation] CancellationToken ct = default)
+        BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
         await using var cn = new NpgsqlConnection(_connectionString);
         await cn.OpenAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand("""
+        await using var cmd = new NpgsqlCommand($"""
             SELECT open_time,open,high,low,close,volume,source,is_final
-            FROM bars WHERE instrument_id=@i AND bar_size=@s AND open_time>=@from AND open_time<@to
+            FROM bars WHERE instrument_id=@i AND bar_size=@s AND open_time>=@from AND open_time<@to{SourceClause(source)}
             ORDER BY open_time
             """, cn);
         cmd.Parameters.AddWithValue("i", instrumentId.Value);
         cmd.Parameters.AddWithValue("s", (int)size);
         cmd.Parameters.AddWithValue("from", TimescaleSchema.Utc(fromUtc));
         cmd.Parameters.AddWithValue("to", TimescaleSchema.Utc(toUtc));
+        BindSource(cmd, source);
 
         await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await rdr.ReadAsync(ct).ConfigureAwait(false))
@@ -230,19 +235,20 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
     }
 
     public override async IAsyncEnumerable<TradePrint> ReadTradesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc,
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await using var cn = new NpgsqlConnection(_connectionString);
         await cn.OpenAsync(ct).ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand("""
+        await using var cmd = new NpgsqlCommand($"""
             SELECT event_time,ingest_time,price,size,aggressor,source,seq,approx_time
-            FROM trades WHERE instrument_id=@i AND event_time>=@from AND event_time<@to
+            FROM trades WHERE instrument_id=@i AND event_time>=@from AND event_time<@to{SourceClause(source)}
             ORDER BY event_time
             """, cn);
         cmd.Parameters.AddWithValue("i", instrumentId.Value);
         cmd.Parameters.AddWithValue("from", TimescaleSchema.Utc(fromUtc));
         cmd.Parameters.AddWithValue("to", TimescaleSchema.Utc(toUtc));
+        BindSource(cmd, source);
 
         await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
         while (await rdr.ReadAsync(ct).ConfigureAwait(false))
@@ -253,5 +259,13 @@ internal sealed class NpgsqlMarketDataStore : MarketDataStoreBase
                 rdr.GetDouble(2), rdr.GetInt64(3), (AggressorSide)rdr.GetInt32(4),
                 (Core.Brokers.BrokerKind)rdr.GetInt32(5), rdr.GetInt64(6), rdr.GetBoolean(7));
         }
+    }
+
+    // ── Optional source (broker) read filter — null = all brokers merged (legacy/archive) ──────
+    private static string SourceClause(BrokerKind? source) => source is null ? "" : " AND source=@src";
+
+    private static void BindSource(NpgsqlCommand cmd, BrokerKind? source)
+    {
+        if (source is { } b) cmd.Parameters.AddWithValue("src", (int)b);
     }
 }

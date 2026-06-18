@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Core.MarketData;
@@ -39,21 +40,25 @@ public sealed class InstrumentDataView
         InstrumentId = instrumentId;
     }
 
-    /// <summary>Stream persisted quotes in [from, to) ascending by event time.</summary>
-    public IAsyncEnumerable<Quote> Quotes(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        _store.ReadQuotesAsync(InstrumentId, fromUtc, toUtc, ct);
+    /// <summary>Stream persisted quotes in [from, to) ascending by event time. <paramref name="source"/>
+    /// set = only that broker's quotes; <c>null</c> = all brokers merged.</summary>
+    public IAsyncEnumerable<Quote> Quotes(DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, CancellationToken ct = default) =>
+        _store.ReadQuotesAsync(InstrumentId, fromUtc, toUtc, source, ct);
 
-    /// <summary>Stream persisted trade prints in [from, to) ascending by event time.</summary>
-    public IAsyncEnumerable<TradePrint> Trades(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        _store.ReadTradesAsync(InstrumentId, fromUtc, toUtc, ct);
+    /// <summary>Stream persisted trade prints in [from, to) ascending by event time. <paramref name="source"/>
+    /// set = only that broker's trades; <c>null</c> = all brokers merged.</summary>
+    public IAsyncEnumerable<TradePrint> Trades(DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, CancellationToken ct = default) =>
+        _store.ReadTradesAsync(InstrumentId, fromUtc, toUtc, source, ct);
 
-    /// <summary>Stream persisted bars at the given cadence in [from, to) ascending by open time.</summary>
-    public IAsyncEnumerable<OhlcvBar> Bars(BarSize size, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        _store.ReadBarsAsync(InstrumentId, size, fromUtc, toUtc, ct);
+    /// <summary>Stream persisted bars at the given cadence in [from, to) ascending by open time.
+    /// <paramref name="source"/> set = only that broker's bars; <c>null</c> = all brokers merged.</summary>
+    public IAsyncEnumerable<OhlcvBar> Bars(BarSize size, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, CancellationToken ct = default) =>
+        _store.ReadBarsAsync(InstrumentId, size, fromUtc, toUtc, source, ct);
 
-    /// <summary>Most recent <paramref name="count"/> bars at the given cadence, oldest→newest.</summary>
-    public Task<IReadOnlyList<OhlcvBar>> RecentBars(BarSize size, int count, CancellationToken ct = default) =>
-        _store.GetRecentBarsAsync(InstrumentId, size, count, ct);
+    /// <summary>Most recent <paramref name="count"/> bars at the given cadence, oldest→newest.
+    /// <paramref name="source"/> set = only that broker's bars; <c>null</c> = all brokers merged.</summary>
+    public Task<IReadOnlyList<OhlcvBar>> RecentBars(BarSize size, int count, BrokerKind? source = null, CancellationToken ct = default) =>
+        _store.GetRecentBarsAsync(InstrumentId, size, count, source, ct);
 }
 
 /// <summary>Entry point for the per-instrument facade. Cheap to call — the returned view holds

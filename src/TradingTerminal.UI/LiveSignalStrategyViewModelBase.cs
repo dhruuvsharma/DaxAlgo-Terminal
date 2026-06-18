@@ -385,7 +385,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                 return;
             }
 
-            await WarmUpBarsAsync(instrumentId, _streamCts.Token);
+            await WarmUpBarsAsync(instrumentId, broker, _streamCts.Token);
             Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
 
             // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
@@ -440,11 +440,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// so the chart isn't empty when the user clicks Start. Granularity intentionally differs from
     /// the 15-second live aggregation that follows — the store has no sub-minute bars and recent
     /// 1-minute context is more useful than no context at all. Silent on failure.</summary>
-    private async Task WarmUpBarsAsync(InstrumentId instrumentId, CancellationToken ct)
+    private async Task WarmUpBarsAsync(InstrumentId instrumentId, BrokerKind broker, CancellationToken ct)
     {
         try
         {
-            var recent = await _services.Store.GetRecentBarsAsync(instrumentId, WarmupBarSize, WarmupBarCount, ct);
+            var recent = await _services.Store.GetRecentBarsAsync(instrumentId, WarmupBarSize, WarmupBarCount, broker, ct);
             if (recent.Count == 0) return;
             foreach (var b in recent) Bars.Add(b.ToBar());
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);

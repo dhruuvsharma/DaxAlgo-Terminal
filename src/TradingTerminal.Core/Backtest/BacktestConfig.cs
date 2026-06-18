@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Trading;
@@ -28,6 +29,10 @@ public enum BacktestDataSource
 /// (default), the engine reads <see cref="TickDataPath"/>. When <see cref="BacktestDataSource.LocalStore"/>,
 /// it streams quotes from the canonical store for <see cref="InstrumentId"/> in
 /// [<see cref="FromUtc"/>, <see cref="ToUtc"/>) — both bounds are required for store mode.
+///
+/// <see cref="Broker"/> scopes <see cref="BacktestDataSource.LocalStore"/> reads to a single broker's
+/// data when the store is split per broker; <c>null</c> reads every broker's data merged (the legacy
+/// behaviour, and the only sensible default for the single-file backend).
 /// </summary>
 public sealed record BacktestConfig(
     Contract Contract,
@@ -40,4 +45,5 @@ public sealed record BacktestConfig(
     double StartingCash = 100_000d,
     IFeeModel? FeeModel = null,
     BacktestDataSource Source = BacktestDataSource.ParquetFile,
-    InstrumentId InstrumentId = default);
+    InstrumentId InstrumentId = default,
+    BrokerKind? Broker = null);

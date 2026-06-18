@@ -177,25 +177,26 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
     }
 
     public override Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
-        InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default) =>
+        InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null,
+        CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<OhlcvBar>>(Array.Empty<OhlcvBar>()); // bars live in SQLite, not QuestDB
 
     public override async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
-        [EnumeratorCancellation] CancellationToken ct = default)
+        BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
         await Task.CompletedTask.ConfigureAwait(false);
         yield break;
     }
 
     public override async IAsyncEnumerable<Quote> ReadQuotesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc,
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         if (!_available) yield break;
         var sql = $"""
             SELECT ts, ingest_time, bid, ask, bid_size, ask_size, source, seq, approx_time
-            FROM quotes WHERE instrument = '{instrumentId.Value}' {RangeClause(fromUtc, toUtc)}
+            FROM quotes WHERE instrument = '{instrumentId.Value}' {RangeClause(fromUtc, toUtc)}{SourceClause(source)}
             ORDER BY ts
             """;
         await foreach (var rdr in Query(sql, ct).ConfigureAwait(false))
@@ -207,13 +208,13 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
     }
 
     public override async IAsyncEnumerable<TradePrint> ReadTradesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc,
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         if (!_available) yield break;
         var sql = $"""
             SELECT ts, ingest_time, price, size, aggressor, source, seq, approx_time
-            FROM trades WHERE instrument = '{instrumentId.Value}' {RangeClause(fromUtc, toUtc)}
+            FROM trades WHERE instrument = '{instrumentId.Value}' {RangeClause(fromUtc, toUtc)}{SourceClause(source)}
             ORDER BY ts
             """;
         await foreach (var rdr in Query(sql, ct).ConfigureAwait(false))
@@ -309,6 +310,10 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
     private static string RangeClause(DateTime fromUtc, DateTime toUtc) =>
         $"AND ts >= '{Utc(fromUtc).ToString(TsFormat, CultureInfo.InvariantCulture)}' " +
         $"AND ts < '{Utc(toUtc).ToString(TsFormat, CultureInfo.InvariantCulture)}'";
+
+    // null = all brokers merged; set = only that broker's rows. source is an int column, so the
+    // interpolated enum value is injection-safe.
+    private static string SourceClause(BrokerKind? source) => source is null ? "" : $" AND source = {(int)source.Value}";
 
     private static DateTime Utc(DateTime dt) =>
         dt.Kind == DateTimeKind.Utc ? dt

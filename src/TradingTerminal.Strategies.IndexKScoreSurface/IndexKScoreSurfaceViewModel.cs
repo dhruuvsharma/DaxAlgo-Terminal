@@ -360,7 +360,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
                     // history still get *some* context on the surface.
                     var perTarget = Math.Max(1, (int)Math.Round(targetInterval.TotalMinutes));
                     var oneMin = await _services.Store.GetRecentBarsAsync(
-                        instrumentId, BarSize.OneMinute, rawRequest * perTarget, ct);
+                        instrumentId, BarSize.OneMinute, rawRequest * perTarget, broker, ct);
                     warmup = AggregateBars(oneMin, targetInterval);
                 }
                 if (warmup.Count == 0) return (symbol, 0);

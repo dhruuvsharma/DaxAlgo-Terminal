@@ -93,6 +93,28 @@ public sealed class SqliteMarketDataStoreTests : IDisposable
         bars[2].OpenTimeUtc.Should().Be(open.AddMinutes(4));
     }
 
+    [Fact]
+    public async Task Quote_reads_filter_by_source_when_set_and_merge_when_null()
+    {
+        using var store = NewStore();
+        var id = new InstrumentId(11);
+        var t0 = new DateTime(2026, 1, 2, 14, 30, 0, DateTimeKind.Utc);
+
+        // Two brokers stream the same instrument into the single file, interleaved in time.
+        store.EnqueueQuote(new Quote(id, t0.AddSeconds(1), t0, 100, 101, 1, 1, BrokerKind.InteractiveBrokers, 1, false));
+        store.EnqueueQuote(new Quote(id, t0.AddSeconds(2), t0, 200, 201, 1, 1, BrokerKind.Binance, 1, false));
+        store.EnqueueQuote(new Quote(id, t0.AddSeconds(3), t0, 102, 103, 1, 1, BrokerKind.InteractiveBrokers, 2, false));
+        await store.FlushAsync();
+
+        var ib = await Collect(store.ReadQuotesAsync(id, t0, t0.AddMinutes(1), BrokerKind.InteractiveBrokers));
+        ib.Should().HaveCount(2);
+        ib.Should().OnlyContain(q => q.Source == BrokerKind.InteractiveBrokers);
+
+        var all = await Collect(store.ReadQuotesAsync(id, t0, t0.AddMinutes(1)));   // null source = merged
+        all.Should().HaveCount(3);
+        all.Select(q => q.EventTimeUtc).Should().BeInAscendingOrder();              // still ordered across sources
+    }
+
     private static async Task<List<T>> Collect<T>(IAsyncEnumerable<T> src)
     {
         var list = new List<T>();

@@ -125,13 +125,16 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     protected abstract void WriteBatch(IReadOnlyList<WriteOp> batch);
 
     public abstract Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
-        InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default);
+        InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null,
+        CancellationToken ct = default);
 
     public abstract IAsyncEnumerable<Quote> ReadQuotesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
+        CancellationToken ct = default);
 
     public abstract IAsyncEnumerable<TradePrint> ReadTradesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
+        CancellationToken ct = default);
 
     /// <summary>Default: no depth persistence (SQLite/Postgres). QuestDB overrides this.</summary>
     public virtual async IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(
@@ -144,7 +147,7 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
 
     public abstract IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
-        CancellationToken ct = default);
+        BrokerKind? source = null, CancellationToken ct = default);
 
     public abstract Task<long> DeleteQuotesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
     public abstract Task<long> DeleteTradesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);

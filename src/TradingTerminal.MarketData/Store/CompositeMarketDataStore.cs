@@ -44,20 +44,20 @@ internal sealed class CompositeMarketDataStore : IMarketDataStore, IReactivatabl
     }
 
     public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
-        InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default) =>
-        _barStore.GetRecentBarsAsync(instrumentId, size, count, ct);
+        InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null, CancellationToken ct = default) =>
+        _barStore.GetRecentBarsAsync(instrumentId, size, count, source, ct);
 
     public IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
-        InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        _barStore.ReadBarsAsync(instrumentId, size, fromUtc, toUtc, ct);
+        InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, CancellationToken ct = default) =>
+        _barStore.ReadBarsAsync(instrumentId, size, fromUtc, toUtc, source, ct);
 
     public IAsyncEnumerable<Quote> ReadQuotesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        _tickStore.ReadQuotesAsync(instrumentId, fromUtc, toUtc, ct);
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, CancellationToken ct = default) =>
+        _tickStore.ReadQuotesAsync(instrumentId, fromUtc, toUtc, source, ct);
 
     public IAsyncEnumerable<TradePrint> ReadTradesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        _tickStore.ReadTradesAsync(instrumentId, fromUtc, toUtc, ct);
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, CancellationToken ct = default) =>
+        _tickStore.ReadTradesAsync(instrumentId, fromUtc, toUtc, source, ct);
 
     public IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>

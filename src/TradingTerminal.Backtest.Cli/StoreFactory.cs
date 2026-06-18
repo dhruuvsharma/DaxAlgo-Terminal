@@ -28,13 +28,27 @@ internal static class StoreFactory
                 NullLogger<NpgsqlMarketDataStore>.Instance);
         }
 
-        var path = ResolveSqlitePath(sqlitePath);
-        if (!File.Exists(path))
+        // Explicit --sqlite-path override → read that one file (legacy single-file store).
+        if (!string.IsNullOrWhiteSpace(sqlitePath))
+        {
+            if (!File.Exists(sqlitePath))
+                throw new FileNotFoundException(
+                    $"SQLite store not found at {sqlitePath}.", sqlitePath);
+            var cs = new SqliteConnectionStringBuilder { DataSource = sqlitePath }.ToString();
+            return new SqliteMarketDataStore(cs, persist: false, batchSize: 1,
+                NullLogger<SqliteMarketDataStore>.Instance);
+        }
+
+        // Default location → per-broker store, matching the WPF app's default. Time-series live in
+        // marketdata-{broker}.db files; reads merge across them (null source). The registry file
+        // marketdata.db must exist (it's how the app populated identity).
+        var dir = DefaultStoreDirectory();
+        var registry = Path.Combine(dir, "marketdata.db");
+        if (!File.Exists(registry))
             throw new FileNotFoundException(
-                $"SQLite store not found at {path}. Run the WPF app first to populate it, or pass --postgres-conn.", path);
-        var cs = new SqliteConnectionStringBuilder { DataSource = path }.ToString();
-        return new SqliteMarketDataStore(cs, persist: false, batchSize: 1,
-            NullLogger<SqliteMarketDataStore>.Instance);
+                $"SQLite store not found at {registry}. Run the WPF app first to populate it, or pass --postgres-conn / --sqlite-path.", registry);
+        return new PerBrokerSqliteMarketDataStore(dir, "marketdata", persist: false, batchSize: 1,
+            depthRetentionDays: 0, NullLoggerFactory.Instance);
     }
 
     /// <summary>Look up the canonical id for a symbol by querying the <c>instruments</c> table directly.</summary>
@@ -66,8 +80,10 @@ internal static class StoreFactory
     private static string ResolveSqlitePath(string? overridePath)
     {
         if (!string.IsNullOrWhiteSpace(overridePath)) return overridePath;
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DaxAlgoTerminal", "marketdata.db");
+        return Path.Combine(DefaultStoreDirectory(), "marketdata.db");
     }
+
+    private static string DefaultStoreDirectory() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "DaxAlgoTerminal");
 }

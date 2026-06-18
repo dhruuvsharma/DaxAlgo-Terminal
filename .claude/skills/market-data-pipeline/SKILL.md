@@ -29,7 +29,8 @@ Wired via `AddMarketDataPipeline` (in `MarketData/MarketDataPipelineServiceColle
 
 ## Backends
 
-- **SQLite** (default): `%LocalAppData%/DaxAlgoTerminal/marketdata.db`, WAL mode, epoch-microseconds timestamps. Zero-config — works out of the box.
+- **Per-broker SQLite** (`SqlitePerBroker`, the **default**): one file per broker *per stream* — `%LocalAppData%/DaxAlgoTerminal/marketdata-{broker}-bars.db` / `-l1.db` (quotes) / `-trades.db` / `-l2.db` (depth), each created from its own `SqliteSchema.EnsureXCreated` and driven by its own `SqliteMarketDataStore` (a `SqliteStoreStream` value selects the table). Every (broker, stream) writes in parallel, same-instrument bars from different brokers can't collide, and a stream of a broker's history is wiped by deleting one file. **`-l2.db` persists L2 depth** (flattened one row per book level, regrouped on read) with a startup retention prune (`DepthRetentionDays`) — the single-file/Postgres SQLite backends still drop depth. Canonical identity stays in the shared `marketdata.db` registry → `InstrumentId` is broker-neutral. `PerBrokerSqliteMarketDataStore` routes writes by stream + `record.Source`; null-source reads (and all depth reads) k-way-merge ascending across files. No data migration on switch (start-fresh).
+- **SQLite** (`Sqlite`, single file): `%LocalAppData%/DaxAlgoTerminal/marketdata.db`, WAL mode, epoch-microseconds timestamps. Everything in one file; same-instrument bars from two brokers overwrite each other (shared `(instrument,size,time)` PK).
 - **PostgreSQL + TimescaleDB**: Docker via root `docker-compose.yml` (`timescale/timescaledb:latest-pg16`, db/user/pass=daxalgo, port 5432). `timestamptz` columns, hypertables, retention policy. Free/OSS.
 - **Auto-fallback**: If `MarketDataStoreOptions.Provider == Postgres` and the DB is unreachable at startup, the DI factory probes and silently falls back to SQLite. Solo dev shouldn't need Docker just to launch.
 
@@ -39,7 +40,7 @@ Choose via `appsettings.json`:
 ```json
 {
   "MarketDataStore": {
-    "Provider": "Sqlite",    // "Postgres" | "QuestDb"
+    "Provider": "SqlitePerBroker",  // default — or "Sqlite" | "Postgres" | "QuestDb"
     "WriteBatchSize": 200,
     "FlushIntervalMs": 250
   }
@@ -76,7 +77,7 @@ Historical bars (e.g. warm-up reads) DO go through the store, but they come from
 ## Hard rules
 
 - **Don't subscribe to broker streams from a view-model.** Always go through `IMarketDataIngest.Subscribe(...)`. The handle returned is ref-counted; dispose on Stop.
-- **Depth persistence is QuestDB-only.** The SQLite and Postgres stores deliberately drop depth (`EnqueueDepth` is a no-op there) — it's too high-volume for them, so depth stays live-only on those backends. The QuestDB backend (`Provider: "QuestDb"`) *does* persist depth (one row per book level, reconstructed into snapshots on read). `MarketDataIngestService.PumpDepthAsync` always calls `_store.EnqueueDepth(...)`; whether it lands is the backend's call. Don't add a depth table to the SQLite/Postgres stores.
+- **Depth persistence: QuestDB and per-broker SQLite only.** The QuestDB backend and the per-broker SQLite backend's `-l2.db` file persist depth (one row per book level, reconstructed into snapshots on read). The **single-file `Sqlite` and Postgres** stores still deliberately drop depth (`EnqueueDepth` is a no-op there) — too high-volume. `MarketDataIngestService.PumpDepthAsync` always calls `_store.EnqueueDepth(...)`; whether it lands is the backend's call. Don't add a depth table to the single-file SQLite or Postgres schema (`SqliteSchema.EnsureCreated` / `TimescaleSchema`) — only the per-broker `Depth`-stream store (`SqliteSchema.EnsureDepthCreated`) gets one.
 - **Don't await disk on the ingest hot path.** `Enqueue*` is fire-and-forget; the batched writer handles flushing.
 - **Never strip provenance fields** when projecting canonical records to legacy types. The boundary projection (e.g. `Quote → Tick`) for `OnTickAsync` is the only sanctioned lossy point.
 - **`net9.0-windows` target** — Microsoft.Data.Sqlite + Npgsql both work; don't add another ORM.

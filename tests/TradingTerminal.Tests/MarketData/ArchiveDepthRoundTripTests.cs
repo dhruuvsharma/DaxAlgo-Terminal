@@ -113,14 +113,14 @@ public sealed class ArchiveDepthRoundTripTests
             if (id == _id) Captured.Add(snapshot);
         }
         public Task FlushAsync(CancellationToken ct = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, CancellationToken ct = default) =>
+        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, BrokerKind? source = null, CancellationToken ct = default) =>
             Task.FromResult((IReadOnlyList<OhlcvBar>)Array.Empty<OhlcvBar>());
 
-        public async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         { await Task.CompletedTask; yield break; }
-        public async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         { await Task.CompletedTask; yield break; }
-        public async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId id, BarSize size, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId id, BarSize size, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         { await Task.CompletedTask; yield break; }
 
         public async IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)

@@ -90,7 +90,7 @@ internal sealed class SimulatedBrokerClient : IBrokerClient
 
         if (_options.Mode == SimulatedFeedMode.Replay && ResolveStored(contract) is { } id)
         {
-            var stored = await _store.GetRecentBarsAsync(id, barSize, count, ct).ConfigureAwait(false);
+            var stored = await _store.GetRecentBarsAsync(id, barSize, count, source: null, ct).ConfigureAwait(false);
             if (stored.Count > 0)
                 return stored.Select(b => b.ToBar()).ToList();
             _logger.LogInformation(
@@ -124,7 +124,7 @@ internal sealed class SimulatedBrokerClient : IBrokerClient
         var any = false;
         do
         {
-            await using var e = _store.ReadBarsAsync(id.Value, barSize, from, to, ct).GetAsyncEnumerator(ct);
+            await using var e = _store.ReadBarsAsync(id.Value, barSize, from, to, source: null, ct).GetAsyncEnumerator(ct);
             DateTime? prev = null;
             while (true)
             {
@@ -163,7 +163,7 @@ internal sealed class SimulatedBrokerClient : IBrokerClient
         var any = false;
         do
         {
-            await using var e = _store.ReadQuotesAsync(id.Value, from, to, ct).GetAsyncEnumerator(ct);
+            await using var e = _store.ReadQuotesAsync(id.Value, from, to, source: null, ct).GetAsyncEnumerator(ct);
             DateTime? prev = null;
             while (true)
             {
@@ -201,7 +201,7 @@ internal sealed class SimulatedBrokerClient : IBrokerClient
         var any = false;
         do
         {
-            await using var e = _store.ReadTradesAsync(id.Value, from, to, ct).GetAsyncEnumerator(ct);
+            await using var e = _store.ReadTradesAsync(id.Value, from, to, source: null, ct).GetAsyncEnumerator(ct);
             DateTime? prev = null;
             while (true)
             {

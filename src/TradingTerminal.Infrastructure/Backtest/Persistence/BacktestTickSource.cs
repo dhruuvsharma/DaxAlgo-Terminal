@@ -63,8 +63,10 @@ internal static class BacktestTickSource
         if (to <= from)
             throw new InvalidOperationException("LocalStore backtest requires ToUtc > FromUtc.");
 
-        await using var qe = store.ReadQuotesAsync(config.InstrumentId, from, to, ct).GetAsyncEnumerator(ct);
-        await using var te = store.ReadTradesAsync(config.InstrumentId, from, to, ct).GetAsyncEnumerator(ct);
+        // config.Broker scopes the read to one broker when the store is split per broker; null reads
+        // every broker's data merged (the only sensible default for the single-file backend).
+        await using var qe = store.ReadQuotesAsync(config.InstrumentId, from, to, config.Broker, ct).GetAsyncEnumerator(ct);
+        await using var te = store.ReadTradesAsync(config.InstrumentId, from, to, config.Broker, ct).GetAsyncEnumerator(ct);
 
         var hasQ = await qe.MoveNextAsync().ConfigureAwait(false);
         var hasT = await te.MoveNextAsync().ConfigureAwait(false);

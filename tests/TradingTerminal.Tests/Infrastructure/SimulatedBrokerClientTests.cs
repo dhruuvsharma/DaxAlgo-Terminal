@@ -101,7 +101,7 @@ public sealed class SimulatedBrokerClientTests
 
         public override async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
             InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
-            [EnumeratorCancellation] CancellationToken ct = default)
+            BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         {
             foreach (var b in bars)
             {
@@ -124,12 +124,12 @@ public sealed class SimulatedBrokerClientTests
         public void EnqueueDepth(InstrumentId instrumentId, DepthSnapshot snapshot, BrokerKind source) { }
         public Task FlushAsync(CancellationToken ct = default) => Task.CompletedTask;
         public virtual Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default) => Task.FromResult(StoredDataExtent.Empty);
-        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default)
+        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<OhlcvBar>>([]);
-        public virtual async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
-        public virtual async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
+        public virtual async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
+        public virtual async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
         public virtual async IAsyncEnumerable<DepthSnapshot> ReadDepthAsync(InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
-        public virtual async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
+        public virtual async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default) { yield break; }
         public Task<long> DeleteQuotesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);
         public Task<long> DeleteTradesInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);
         public Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) => Task.FromResult(0L);

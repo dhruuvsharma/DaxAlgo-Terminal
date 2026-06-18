@@ -83,7 +83,7 @@ public sealed class MarketDataRepositoryTests
         ingest.Resolve(contract, TestBroker).Returns(instrumentId);
         var hub = new MarketDataHub();
         var store = Substitute.For<IMarketDataStore>();
-        store.GetRecentBarsAsync(instrumentId, size, Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetRecentBarsAsync(instrumentId, size, Arg.Any<int>(), Arg.Any<BrokerKind?>(), Arg.Any<CancellationToken>())
              .Returns(cached);
 
         var client = Substitute.For<IBrokerClient>();
@@ -114,7 +114,7 @@ public sealed class MarketDataRepositoryTests
         ingest.Resolve(contract, TestBroker).Returns(instrumentId);
         var hub = new MarketDataHub();
         var store = Substitute.For<IMarketDataStore>();
-        store.GetRecentBarsAsync(instrumentId, size, Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetRecentBarsAsync(instrumentId, size, Arg.Any<int>(), Arg.Any<BrokerKind?>(), Arg.Any<CancellationToken>())
              .Returns(Array.Empty<OhlcvBar>());
 
         var client = Substitute.For<IBrokerClient>();
@@ -164,7 +164,7 @@ public sealed class MarketDataRepositoryTests
         ingest.Resolve(contract, TestBroker).Returns(instrumentId);
         var hub = new MarketDataHub();
         var store = Substitute.For<IMarketDataStore>();
-        store.GetRecentBarsAsync(instrumentId, size, Arg.Any<int>(), Arg.Any<CancellationToken>())
+        store.GetRecentBarsAsync(instrumentId, size, Arg.Any<int>(), Arg.Any<BrokerKind?>(), Arg.Any<CancellationToken>())
              .Returns(cached);
 
         var client = Substitute.For<IBrokerClient>();

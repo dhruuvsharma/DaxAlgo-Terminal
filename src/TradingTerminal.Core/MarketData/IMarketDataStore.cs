@@ -37,17 +37,24 @@ public interface IMarketDataStore
         Task.FromResult(StoredDataExtent.Empty);
 
     /// <summary>Most recent <paramref name="count"/> bars for an instrument/size, oldest→newest,
-    /// for strategy warm-up.</summary>
+    /// for strategy warm-up. When <paramref name="source"/> is set, only bars sourced from that
+    /// broker are considered (a strategy bound to one broker must not warm up from another's data);
+    /// <c>null</c> merges every broker's bars (the legacy, all-source behaviour).</summary>
     Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
-        InstrumentId instrumentId, BarSize size, int count, CancellationToken ct = default);
+        InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null,
+        CancellationToken ct = default);
 
-    /// <summary>Stream stored quotes in [from, to) ascending by event time (replay/research).</summary>
+    /// <summary>Stream stored quotes in [from, to) ascending by event time (replay/research).
+    /// <paramref name="source"/> set = only that broker's quotes; <c>null</c> = all brokers merged.</summary>
     IAsyncEnumerable<Quote> ReadQuotesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
+        CancellationToken ct = default);
 
-    /// <summary>Stream stored trades in [from, to) ascending by event time (replay/research).</summary>
+    /// <summary>Stream stored trades in [from, to) ascending by event time (replay/research).
+    /// <paramref name="source"/> set = only that broker's trades; <c>null</c> = all brokers merged.</summary>
     IAsyncEnumerable<TradePrint> ReadTradesAsync(
-        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
+        InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
+        CancellationToken ct = default);
 
     /// <summary>Stream reconstructed L2 depth snapshots in [from, to) ascending by event time. Backends
     /// that don't persist depth return an empty sequence.</summary>
@@ -55,10 +62,11 @@ public interface IMarketDataStore
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 
     /// <summary>Stream stored bars at <paramref name="size"/> in [from, to) ascending by open
-    /// time. Used by the archiver to export a bar table for a given period.</summary>
+    /// time. Used by the archiver to export a bar table for a given period. <paramref name="source"/>
+    /// set = only that broker's bars; <c>null</c> = all brokers merged.</summary>
     IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
-        CancellationToken ct = default);
+        BrokerKind? source = null, CancellationToken ct = default);
 
     /// <summary>Delete every quote in [from, to) across all instruments. Used by the archiver
     /// after a successful, verified upload. Returns the number of rows removed.</summary>

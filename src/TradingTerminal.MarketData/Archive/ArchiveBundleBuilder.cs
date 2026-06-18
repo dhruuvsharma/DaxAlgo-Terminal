@@ -70,7 +70,7 @@ internal sealed class ArchiveBundleBuilder
         {
             ct.ThrowIfCancellationRequested();
             var bySource = new Dictionary<int, List<QuoteParquetRow>>();
-            await foreach (var q in _store.ReadQuotesAsync(ins.Id, fromUtc, toUtc, ct))
+            await foreach (var q in _store.ReadQuotesAsync(ins.Id, fromUtc, toUtc, source: null, ct))
             {
                 Rows(bySource, q.Source).Add(new QuoteParquetRow
                 {
@@ -101,7 +101,7 @@ internal sealed class ArchiveBundleBuilder
         {
             ct.ThrowIfCancellationRequested();
             var bySource = new Dictionary<int, List<TradeParquetRow>>();
-            await foreach (var t in _store.ReadTradesAsync(ins.Id, fromUtc, toUtc, ct))
+            await foreach (var t in _store.ReadTradesAsync(ins.Id, fromUtc, toUtc, source: null, ct))
             {
                 Rows(bySource, t.Source).Add(new TradeParquetRow
                 {
@@ -134,7 +134,7 @@ internal sealed class ArchiveBundleBuilder
             {
                 ct.ThrowIfCancellationRequested();
                 var bySource = new Dictionary<int, List<BarParquetRow>>();
-                await foreach (var b in _store.ReadBarsAsync(ins.Id, size, fromUtc, toUtc, ct))
+                await foreach (var b in _store.ReadBarsAsync(ins.Id, size, fromUtc, toUtc, source: null, ct))
                 {
                     Rows(bySource, b.Source).Add(new BarParquetRow
                     {

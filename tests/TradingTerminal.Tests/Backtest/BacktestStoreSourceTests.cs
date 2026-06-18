@@ -49,6 +49,30 @@ public sealed class BacktestStoreSourceTests
     }
 
     [Fact]
+    public async Task Threads_config_broker_into_the_store_read()
+    {
+        var id = new InstrumentId(102);
+        var t0 = new DateTime(2026, 5, 25, 14, 30, 0, DateTimeKind.Utc);
+        var store = new FakeStore(id, new[]
+        {
+            new Quote(id, t0, t0, 100.00, 100.02, 1, 1, BrokerKind.InteractiveBrokers, 1, false),
+        });
+
+        var config = new BacktestConfig(
+            Contract: Contract.UsStock("FAKE"),
+            TickDataPath: string.Empty,
+            FromUtc: t0.AddMinutes(-1),
+            ToUtc: t0.AddMinutes(1),
+            Source: BacktestDataSource.LocalStore,
+            InstrumentId: id,
+            Broker: BrokerKind.InteractiveBrokers);
+
+        await new BacktestSession(store).RunAsync(config, new CountingStrategy());
+
+        store.LastReadSource.Should().Be(BrokerKind.InteractiveBrokers); // scoped to the configured broker
+    }
+
+    [Fact]
     public async Task Throws_when_LocalStore_source_lacks_InstrumentId()
     {
         var store = new FakeStore(new InstrumentId(1), Array.Empty<Quote>());
@@ -117,21 +141,27 @@ public sealed class BacktestStoreSourceTests
         public void EnqueueBar(OhlcvBar b) { }
         public void EnqueueDepth(InstrumentId id, DepthSnapshot snapshot, TradingTerminal.Core.Brokers.BrokerKind source) { }
         public Task FlushAsync(CancellationToken ct = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, CancellationToken ct = default) =>
+        /// <summary>The source passed into the most recent quote/trade read — lets a test assert that
+        /// BacktestConfig.Broker is threaded through to the store.</summary>
+        public TradingTerminal.Core.Brokers.BrokerKind? LastReadSource;
+
+        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, TradingTerminal.Core.Brokers.BrokerKind? source = null, CancellationToken ct = default) =>
             Task.FromResult((IReadOnlyList<OhlcvBar>)Array.Empty<OhlcvBar>());
-        public async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, TradingTerminal.Core.Brokers.BrokerKind? source = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
         {
+            LastReadSource = source;
             await Task.CompletedTask;
             yield break;
         }
-        public async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, TradingTerminal.Core.Brokers.BrokerKind? source = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
         {
             ReadCount++;
+            LastReadSource = source;
             foreach (var q in _quotes)
                 if (q.InstrumentId == id) yield return q;
             await Task.CompletedTask;
         }
-        public async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId id, BarSize size, DateTime fromUtc, DateTime toUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId id, BarSize size, DateTime fromUtc, DateTime toUtc, TradingTerminal.Core.Brokers.BrokerKind? source = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
         {
             await Task.CompletedTask;
             yield break;

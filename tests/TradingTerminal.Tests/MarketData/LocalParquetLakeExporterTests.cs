@@ -94,24 +94,24 @@ public sealed class LocalParquetLakeExporterTests : IDisposable
         public void EnqueueBar(OhlcvBar b) { }
         public void EnqueueDepth(InstrumentId id, DepthSnapshot snapshot, TradingTerminal.Core.Brokers.BrokerKind source) { }
         public Task FlushAsync(CancellationToken ct = default) => Task.CompletedTask;
-        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, CancellationToken ct = default) =>
+        public Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(InstrumentId id, BarSize size, int count, TradingTerminal.Core.Brokers.BrokerKind? source = null, CancellationToken ct = default) =>
             Task.FromResult((IReadOnlyList<OhlcvBar>)Array.Empty<OhlcvBar>());
 
-        public async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<Quote> ReadQuotesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, TradingTerminal.Core.Brokers.BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         {
             await Task.CompletedTask;
             foreach (var q in _quotes)
                 if (q.InstrumentId == id && q.EventTimeUtc >= fromUtc && q.EventTimeUtc < toUtc) yield return q;
         }
 
-        public async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<TradePrint> ReadTradesAsync(InstrumentId id, DateTime fromUtc, DateTime toUtc, TradingTerminal.Core.Brokers.BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         {
             await Task.CompletedTask;
             foreach (var t in _trades)
                 if (t.InstrumentId == id && t.EventTimeUtc >= fromUtc && t.EventTimeUtc < toUtc) yield return t;
         }
 
-        public async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId id, BarSize size, DateTime fromUtc, DateTime toUtc, [EnumeratorCancellation] CancellationToken ct = default)
+        public async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(InstrumentId id, BarSize size, DateTime fromUtc, DateTime toUtc, TradingTerminal.Core.Brokers.BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
         {
             await Task.CompletedTask;
             foreach (var b in _bars)
