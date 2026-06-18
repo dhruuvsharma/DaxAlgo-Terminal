@@ -56,10 +56,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Seed the shared strategy-pill converter into Application resources before any window is
-        // shown, so {StaticResource StrategyTagsConverter} resolves in the MainWindow strategy list.
-        // Mirrors InstrumentPicker's ctor-time registration (MC3074 same-assembly XAML workaround).
+        // Seed the shared strategy-pill converters into Application resources before any window is
+        // shown, so {StaticResource StrategyTagsConverter} / {StaticResource StrategyClassConverter}
+        // resolve in the MainWindow strategy list. Mirrors InstrumentPicker's ctor-time registration
+        // (MC3074 same-assembly XAML workaround).
         StrategyDataRequirementConverter.EnsureConverterRegistered();
+        StrategyClassificationConverter.EnsureConverterRegistered();
 
         var inMemoryLogSink = new InMemoryLogSink();
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;

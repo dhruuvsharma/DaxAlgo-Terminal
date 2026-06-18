@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Strategies.OrderFlowPressureMap;
@@ -24,4 +25,9 @@ public sealed class OrderFlowPressureMapStrategy : ITradingStrategy
 
     public StrategyDataRequirement DataRequirement =>
         StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth;
+
+    /// <summary>Multi-ticker monitor over the S&amp;P 100/500 equity universe.</summary>
+    public IReadOnlyList<AssetClass> AssetClasses => new[] { AssetClass.Equity };
+
+    public StrategyAssetScope AssetScope => StrategyAssetScope.MultiAsset;
 }

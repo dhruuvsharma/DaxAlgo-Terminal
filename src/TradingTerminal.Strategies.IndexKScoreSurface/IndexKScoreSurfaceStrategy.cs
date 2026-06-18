@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Strategies.IndexKScoreSurface;
@@ -14,4 +15,9 @@ public sealed class IndexKScoreSurfaceStrategy : ITradingStrategy
     /// <summary>Tick-only K-score surface: consumes L1 quotes and bars (no depth or trade tape).</summary>
     public StrategyDataRequirement DataRequirement =>
         StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    /// <summary>Aggregates an index and its equity constituents.</summary>
+    public IReadOnlyList<AssetClass> AssetClasses => new[] { AssetClass.Index, AssetClass.Equity };
+
+    public StrategyAssetScope AssetScope => StrategyAssetScope.MultiAsset;
 }

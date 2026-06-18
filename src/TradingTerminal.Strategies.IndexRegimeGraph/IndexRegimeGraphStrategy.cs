@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Strategies.IndexRegimeGraph;
@@ -16,4 +17,9 @@ public sealed class IndexRegimeGraphStrategy : ITradingStrategy
     /// no depth or trade tape required.</summary>
     public StrategyDataRequirement DataRequirement =>
         StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    /// <summary>Composite over an index and its equity constituents across all timeframes.</summary>
+    public IReadOnlyList<AssetClass> AssetClasses => new[] { AssetClass.Index, AssetClass.Equity };
+
+    public StrategyAssetScope AssetScope => StrategyAssetScope.MultiAsset;
 }
