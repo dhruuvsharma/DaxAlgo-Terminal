@@ -57,8 +57,8 @@ layer-graph + SDK-leak gate that *blocks turn-end* on violations. (Build errors 
 ## Consolidated window owners
 | Projects | Agent | Model |
 |---|---|---|
-| All 10 `Strategies.*` live windows | `strategies` | sonnet |
-| All 10 tool windows (Charts, OrderBook, VolumeFootprint, Heatmap, Correlation, MarketRegime, InstrumentRegime, MarkovRegime, Backtest tab, Recording) | `tool-windows` | sonnet |
+| All 12 `Strategies.*` live windows | `strategies` | sonnet |
+| All 10 tool windows (Charts, OrderBook, VolumeFootprint, Heatmap, Correlation, MarketRegime, InstrumentRegime, MarkovRegime, Backtest, Recording) | `tool-windows` | sonnet |
 | All 4 `Ai.*` windows (MarketAnalyst, FactorResearch, MlFeatures, BacktestAnalysis) | `ai-windows` | sonnet |
 
 Hard 3D/quant math inside a strategy window (cube/surface geometry, OU/VPIN estimators) is

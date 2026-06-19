@@ -1,6 +1,6 @@
 # Market regime composite
 
-> Last updated: 2026-06-13
+> Last updated: 2026-06-18
 
 A broker-independent **risk-on / risk-off score** (0–100, five bands: Extreme Fear → Extreme Greed) blended from ten weighted sub-signals: volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset. Inputs come from free public endpoints — nothing depends on which broker is connected.
 
@@ -12,9 +12,11 @@ For all `MarketRegime:*` keys, see [configuration.md](configuration.md). For how
 |---|---|
 | ![Market regime](../images/marketregimewindow.png) | ![Instrument regime](../images/instrumentregime.png) |
 
+> 🎬 _Video walkthrough — coming soon_
+
 ## Where to open it
 
-**Tools → Market regime** opens a dockable panel showing the composite as a 0–100 gauge with the five bands, plus the per-category breakdown and a header strip of macro metrics (10Y yield, HY spread, Fed funds).
+**Tools → Market regime** opens a window showing the composite as a 0–100 gauge with the five bands, plus the per-category breakdown and a header strip of macro metrics (10Y yield, HY spread, Fed funds).
 
 The panel shows "unavailable" until the first refresh lands. If every source fails, the composite degrades to neutral 50 with the same flag, rather than crashing.
 
@@ -88,7 +90,10 @@ The exact boundaries are in `RegimeStateMapper` (Core).
 
 ## Advanced market regime dashboard
 
-**Tools → Advanced market regime…** opens a separate, per-instrument dashboard — a WPF port of a TradingView-style multi-timeframe indicator board, independent of the macro composite above.
+**Tools → Advanced market regime…** opens a separate, per-instrument dashboard window — a WPF port of a TradingView-style multi-timeframe indicator board, independent of the macro composite above.
+
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 - **18 indicator rows**: RSI, MACD, CCI, MA 9/21/50, 3-MA stack, VWAP, SuperTrend, ATR, ATR regression, STD, POC, TRD, delta, cumulative delta, volume buy/sell, and a composite **Trend** needle.
 - **8 toggleable timeframe columns** from 1m to 1D, including aggregated 20m/30m buckets (timeframes are `TimeSpan` buckets aggregated from 1m + 1D bars, not broker `BarSize` requests).

@@ -1,6 +1,6 @@
 ---
 name: infrastructure
-description: Owner of TradingTerminal.Infrastructure — broker clients (IB/NT/cTrader/Alpaca), the backtest engine + engine-side strategies, notifications, regime services, WpfDispatcher. Use when wiring an SDK call, fixing EWrapper/threading bugs, or editing anything under src/TradingTerminal.Infrastructure/. High stakes — broker SDKs and threading live here.
+description: Owner of TradingTerminal.Infrastructure — broker clients (IB/NT/cTrader/Alpaca + the no-SDK REST/WS backends Ironbeam/LSE/Upstox/Binance/Coinbase/Bybit/Kraken/OKX + Simulated), the backtest engine + engine-side strategies, notifications, regime services, WpfDispatcher. Use when wiring an SDK call, fixing EWrapper/threading bugs, or editing anything under src/TradingTerminal.Infrastructure/. High stakes — broker SDKs and threading live here.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
@@ -8,7 +8,7 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 You are the **TradingTerminal.Infrastructure** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.Infrastructure/`.
 
 ## Owns
-- Broker clients behind `IBrokerClient`: `Ib/`, `NinjaTrader/`, `CTrader/`, `Alpaca/` (real clients only — no per-broker fakes), `Binance/` (`RealBinanceClient` — keyless public crypto WS/REST, always registered), plus `Simulation/` (`SimulatedBrokerClient`, the always-registered offline synthetic/replay backend behind `BrokerKind.Simulated`).
+- Broker clients behind `IBrokerClient`: `Ib/`, `Ninja/`, `CTrader/`, `Alpaca/` (SDK-based, real clients only — no per-broker fakes), the no-SDK REST/WS backends `IronBeam/`, `Binance/`, `Coinbase/`, `Bybit/`, `Kraken/`, `Okx/` (+ LSE, Upstox) — keyless/public or token-based, always registered — plus `Simulation/` (`SimulatedBrokerClient`, the always-registered offline synthetic/replay backend behind `BrokerKind.Simulated`). The four newer crypto venues (Coinbase/Bybit/Kraken/OKX) are unverified against live.
 - Backtest engine (`Backtest/`: `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, fee/risk models) and engine-side `IBacktestStrategy` impls (`Backtest/Strategies/`).
 - Notifications transports, regime services, `WpfDispatcher`.
 

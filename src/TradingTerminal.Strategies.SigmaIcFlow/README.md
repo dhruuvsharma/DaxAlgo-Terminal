@@ -1,12 +1,41 @@
-# APEX Microstructure Scalper v2
+# Σ⁻¹·IC Order-Flow Optimizer
 
-`TradingTerminal.Strategies.ApexScalper` — live signal window for strategy id **`apex.scalper`**.
+`TradingTerminal.Strategies.SigmaIcFlow` — live signal window for strategy id **`sigma.ic.flow`**.
 
-> A **trade-tape-primary** order-flow scalper. Eleven microstructure signals are fused with
+> Formerly "APEX Microstructure Scalper v2" (renamed 2026-06-19). The engine-side class is still
+> `ApexScalperStrategy` in `Infrastructure/Backtest/Strategies/` — internal name retained.
+
+> A **trade-tape-primary** order-flow scalper. Twelve microstructure signals are fused with
 > mean-variance optimal weights ($w \propto \Sigma^{-1}\cdot IC$), the composite is calibrated onto
 > realized forward return by isotonic regression, and a signal fires only when the calibrated edge
 > clears the full round trip (spread + fees + conditional slippage) **and** a first-passage
 > expected-value check. **Data/signals only — does not place orders.**
+
+## v2.1 upgrades (2026-06-19)
+
+A quant pass tightened the math and added a forward-looking signal:
+
+- **Kyle-λ is now 2SLS instrumental-variable**, not OLS. Current flow Δ_t is instrumented by its lag
+  Δ_{t−1} (Stage 1: Δ_t ~ Δ_{t−1}; Stage 2: r_t ~ Δ̂_t) to purge the contemporaneous
+  endogeneity/simultaneity bias that inflates a naive OLS λ̂. The first-stage R² is surfaced as an
+  instrument-strength diagnostic and folds into the signal's confidence.
+- **TAPE_SPEED is now a Hawkes self-exciting intensity** (λ(t) = μ + Σ α·e^{−β(t−tᵢ)}), z-scored —
+  a sharper, less laggy "tape speed" than a flat rolling arrival count.
+- **12th signal — PRED_NODE (predicted node migration).** A constant-velocity **Kalman filter**
+  tracks each of the buy / sell / total POC (price + velocity) and forecasts them `n` bars ahead.
+  Expanding predicted wedge ⇒ trend (follow the predicted total-POC drift); converging ⇒ fade the
+  stretch. Scaled by prediction confidence 1 − σ²_pred/σ²_bar.
+- **Dynamic exits.** When PRED_NODE is confident, the bracket targets the predicted buy POC (long) /
+  sell POC (short) and stops at the opposite predicted node, falling back to the structure/ATR logic
+  when the forecast variance is too high.
+- **First-passage gap penalty.** The continuous-path win probability is deducted by the empirical
+  frequency (last 100 bars) of bar ranges large enough to gap through the nearer barrier — jump risk
+  the Brownian model can't see.
+- **Adaptive slippage.** The cost-gate slippage is surcharged by immediate book pressure on the side
+  being traded into: `slip = condSlip·(1 + oppositeOBI)`.
+- **Constant-volume bars** are now selectable (default still 1-minute time bars); the composite is
+  hard-clipped to [−3, 3] before calibration; weights recompute every 50 bars over a 1500-bar
+  window; and the Kelly cap is session-aware (0.25 overlap, 0.10 Asian).
 
 ## Data requirements & feed quality
 
@@ -40,14 +69,14 @@ trade prints ──► footprint bars (volume-at-price, shared with the chart)
               └► tape arrival window ──► tape speed
 depth stream ──► OBI (only when fresh)
 
-11 signal scores Sᵢ ∈ [−3, 3] ──► w = Σ⁻¹·IC blend ──► composite C
+12 signal scores Sᵢ ∈ [−3, 3] ──► w = Σ⁻¹·IC blend ──► composite C
 C ──► isotonic g(C) = E[r | C] ──► cost gate ──► first-passage EV ──► ¼-Kelly size
 ```
 
 Signals recompute on each completed candle (default 15 s–1 m); between closes the dashboard
 refreshes off cached signal state with live TTL ages.
 
-## The 11 signals
+## The 12 signals
 
 Every signal returns a tuple $(S, \text{conf}, \text{dir}, \text{valid})$ with score
 $S \in [-3, 3]$ and confidence pre-multiplied by feed quality $q$.
@@ -232,10 +261,10 @@ The live window (redesigned 2026-06) is built for fast reading:
 
 | File | Role |
 |---|---|
-| `ApexScalperStrategy.cs` | `ITradingStrategy` metadata (id, display name, data-requirement tags) |
-| `ApexScalperStrategyViewModel.cs` | Live VM — subscribes to the hub, owns the engine instance, exposes snapshot state |
-| `ApexScalperStrategyWindow.xaml(.cs)` | Window — signals chart, footprint cluster, gauge, order book, dashboard |
-| `DependencyInjection.cs` | `AddApexScalperStrategy()` — registers VM, window, and `StrategyFactoryRegistration` |
+| `SigmaIcFlowStrategy.cs` | `ITradingStrategy` metadata (id, display name, data-requirement tags) |
+| `SigmaIcFlowStrategyViewModel.cs` | Live VM — subscribes to the hub, owns the engine instance, exposes snapshot state |
+| `SigmaIcFlowStrategyWindow.xaml(.cs)` | Window — signals chart, footprint cluster, gauge, order book, dashboard |
+| `DependencyInjection.cs` | `AddSigmaIcFlowStrategy()` — registers VM, window, and `StrategyFactoryRegistration` |
 
 ## Wiring
 
@@ -248,7 +277,7 @@ The live window (redesigned 2026-06) is built for fast reading:
 - **Live VM** extends `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`) and consumes
   `IMarketDataHub.Quotes/Bars/Depth/Trades(InstrumentId)`; the trade tape is broker-capability
   gated (IB wired).
-- **DI:** `services.AddApexScalperStrategy()` from `AddStrategyPlugins()`. Opened via
+- **DI:** `services.AddSigmaIcFlowStrategy()` from `AddStrategyPlugins()`. Opened via
   `IStrategyFactory` — the shell never references the concrete type.
 
 ## References

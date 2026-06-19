@@ -1,13 +1,13 @@
 ---
 name: add-broker
-description: Recipe for wiring a new broker backend into DaxAlgo Terminal behind the IBrokerClient seam, alongside the existing seven (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbeam, London Strategic Edge, Binance). Use when the user asks to add a broker (e.g. "add Tradovate", "wire up Rithmic", "implement IBrokerClient for X"). Covers project layout, DI registration, login tile, options binding, fake vs real split, and the layering rules that must not be broken.
+description: Recipe for wiring a new broker backend into DaxAlgo Terminal behind the IBrokerClient seam, alongside the existing twelve (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbeam, London Strategic Edge, Upstox, Binance, Coinbase, Bybit, Kraken, OKX). Use when the user asks to add a broker (e.g. "add Tradovate", "wire up Rithmic", "implement IBrokerClient for X"). Covers project layout, DI registration, login tile, options binding, fake vs real split, and the layering rules that must not be broken.
 ---
 
 # Add a Broker
 
 A broker is a plug-in. The shell, repository, view-models, and strategies must stay completely untouched. If you find yourself editing `MarketDataRepository`, `ConnectionManager`, or any view-model — stop.
 
-The app already has seven backends: IB / NT / cTrader / Alpaca / Ironbeam (REST+WS, no SDK) / London Strategic Edge (free multi-asset data, WS+REST, no SDK) / Binance (keyless public data), plus the always-on Simulated. Each opens a concurrent session — login no longer picks one broker. Mirror the existing patterns; for a no-SDK REST+WebSocket broker, `Infrastructure/IronBeam/` and `Infrastructure/Binance/` are the references.
+The app already has twelve backends: IB / NT / cTrader / Alpaca / Ironbeam (REST+WS, no SDK) / London Strategic Edge (free multi-asset data, WS+REST, no SDK) / Upstox (Indian markets, OAuth2) / Binance + Coinbase + Bybit + Kraken + OKX (keyless public crypto data), plus the always-on Simulated. Each opens a concurrent session — login no longer picks one broker. Mirror the existing patterns; for a no-SDK REST+WebSocket broker, `Infrastructure/IronBeam/` and `Infrastructure/Binance/` are the references (the four newer crypto venues are unverified against live).
 
 ## Recipe
 

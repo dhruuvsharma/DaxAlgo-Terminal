@@ -84,8 +84,8 @@ public static class BacktestStrategyCatalog
             DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
         },
         new BacktestStrategyOption(
-            Id: "apexScalper",
-            DisplayName: "APEX microstructure scalper v2 (tape-primary, calibrated composite)",
+            Id: "sigmaIcFlow",
+            DisplayName: "Σ⁻¹·IC Order-Flow Optimizer (tape-primary, calibrated composite)",
             Build: contract => new ApexScalperStrategy(contract))
         {
             // v2 is trade-tape primary; L1 quotes drive the synthetic fallback and spread, depth

@@ -12,7 +12,7 @@ using TradingTerminal.Core.Time;
 using TradingTerminal.UI;
 using Engine = TradingTerminal.Infrastructure.Backtest.Strategies;
 
-namespace TradingTerminal.Strategies.ApexScalper;
+namespace TradingTerminal.Strategies.SigmaIcFlow;
 
 /// <summary>
 /// A single row in the weight-vector table shown on the dashboard. Name → estimated Σ⁻¹·IC weight.
@@ -20,7 +20,7 @@ namespace TradingTerminal.Strategies.ApexScalper;
 public sealed record WeightRow(string SignalName, double Weight);
 
 /// <summary>
-/// Live signal-mode VM for the APEX v2 microstructure scalper. Instantiates the engine-side
+/// Live signal-mode VM for the Σ⁻¹·IC Order-Flow Optimizer. Instantiates the engine-side
 /// <see cref="Engine.ApexScalperStrategy"/> inside <see cref="BuildStrategy"/> and projects
 /// <see cref="Engine.ApexScalperStrategy.Latest"/> (<see cref="ApexSnapshotV2"/>) onto
 /// observable properties consumed by the dashboard.
@@ -29,7 +29,7 @@ public sealed record WeightRow(string SignalName, double Weight);
 /// formats them for display, and exposes observable collections. All business logic is in the
 /// engine.</para>
 /// </summary>
-public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyViewModelBase
+public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyViewModelBase
 {
     // ── Setup / parameter knobs ──────────────────────────────────────────────────────────────────
 
@@ -47,8 +47,7 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
 
     public ObservableCollection<CandleIntervalOption> CandleIntervals { get; } = new(new[]
     {
-        new CandleIntervalOption("15s", TimeSpan.FromSeconds(15)),
-        new CandleIntervalOption("30s", TimeSpan.FromSeconds(30)),
+        // Sub-minute candles are no longer supported — 1m is the minimum reference span.
         new CandleIntervalOption("1m",  TimeSpan.FromMinutes(1)),
         new CandleIntervalOption("2m",  TimeSpan.FromMinutes(2)),
         new CandleIntervalOption("3m",  TimeSpan.FromMinutes(3)),
@@ -99,6 +98,13 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
     [ObservableProperty] private bool _tradeLondon = true;
     [ObservableProperty] private bool _tradeNewYork = true;
     [ObservableProperty] private bool _tradeLondonNy = true;
+
+    /// <summary>Close bars on constant traded volume instead of a fixed time interval. When on, the
+    /// selected candle interval still serves as the reference span for TTLs / distance scaling.</summary>
+    [ObservableProperty] private bool _useVolumeBars;
+
+    /// <summary>Contracts/shares per bar when <see cref="UseVolumeBars"/> is set (default 2000).</summary>
+    [ObservableProperty] private int _volumeBarSize = 2_000;
 
     // ── Dashboard observables (updated in OnBarsUpdated) ────────────────────────────────────────
 
@@ -161,15 +167,15 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
 
     // ── Ctor ─────────────────────────────────────────────────────────────────────────────────────
 
-    public ApexScalperStrategyViewModel(
+    public SigmaIcFlowStrategyViewModel(
         LiveStrategyHostServices services,
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
-        ILogger<ApexScalperStrategyViewModel> logger)
+        ILogger<SigmaIcFlowStrategyViewModel> logger)
         : base(
-            strategyId: "apex.scalper",
-            strategyDisplayName: "APEX microstructure scalper v2",
+            strategyId: "sigma.ic.flow",
+            strategyDisplayName: "Σ⁻¹·IC Order-Flow Optimizer",
             services, notifications, clock, routerFactory, logger)
     {
         SelectedCandleInterval = CandleIntervals.First(i => i.Label == "1m");
@@ -194,6 +200,8 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
             TradeNewYork = TradeNewYork,
             TradeLondonNy = TradeLondonNy,
             TickSizeOverride = TickSizeOverrideParsed,
+            BarMode = UseVolumeBars ? ApexBarMode.Volume : ApexBarMode.Time,
+            VolumeBarSize = Math.Max(1, VolumeBarSize),
         };
         _engine = new Engine.ApexScalperStrategy(
             contract,
@@ -272,7 +280,7 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
         RebuildSignalStates(snap.Signals);
 
         var validCount = snap.Signals.Count(s => s.IsValid);
-        Log("APEX", $"C={snap.Composite:+0.00;-0.00} {dir} g(C)={snap.CalibratedExpectedReturn:+0.0000;-0.0000} " +
+        Log("Σ⁻¹·IC", $"C={snap.Composite:+0.00;-0.00} {dir} g(C)={snap.CalibratedExpectedReturn:+0.0000;-0.0000} " +
                     $"valid={validCount}/{snap.Signals.Count} regime={snap.Regime} " +
                     $"q={snap.FeedQuality} bootstrap={snap.BootstrapMode} " +
                     $"trade={(snap.TradeAllowed ? "ok" : "blocked")}");
@@ -333,6 +341,8 @@ public sealed partial class ApexScalperStrategyViewModel : LiveSignalStrategyVie
             return "Tick-size override must be 0 (auto) or a positive number.";
         if (!TradeAsian && !TradeLondon && !TradeNewYork && !TradeLondonNy)
             return "Enable at least one session.";
+        if (UseVolumeBars && VolumeBarSize < 100)
+            return "Volume bar size must be at least 100 contracts.";
         return null;
     }
 }

@@ -1,6 +1,6 @@
 # AI Market Analyst
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-19
 
 A multi-agent LangGraph analyst that runs an indicator → pattern → trend → decision flow on a chosen symbol/timeframe and returns a structured verdict (`Long` / `Short` / `NoCall`) with annotated candlestick + trend-channel charts. The reasoning lives in a Python sidecar (`tools/python-ml/daxalgo-ml.exe`) — the WPF build stays hermetic. Bring your own API key for OpenAI, Anthropic, Qwen, or MiniMax.
 
@@ -13,6 +13,10 @@ For the polyglot architecture rationale, see [polyglot.md](polyglot.md).
 | ![AI Market Analyst](../images/almarketanalystwindow.png) | ![ML features](../images/mlfeatureswindow.png) |
 | Backtest analysis | Factor research |
 | ![Backtest analysis](../images/backtestanalysiswindow.png) | ![Factor research](../images/factorresearchwindow.png) |
+
+> 🎬 _Video walkthroughs (Market analyst · Factor research · ML features · Backtest analysis) — coming soon_
+
+> Each of these four **AI tools** opens as its own window (`AI tools` menu): Market analyst, Factor research, ML features, Backtest analysis.
 
 ## What it does
 
@@ -66,7 +70,7 @@ The API key is stored DPAPI-encrypted under `%LOCALAPPDATA%\DaxAlgo Terminal\not
 
 ## Running an analysis
 
-**AI tools → Market analyst** opens the dock pane. Type a symbol, pick a timeframe and bar count, hit **Analyze**. The terminal pulls bars from the active broker, ships them to the sidecar, and renders the verdict:
+**AI tools → Market analyst** opens the analyst window. Type a symbol, pick a timeframe and bar count, hit **Analyze**. The terminal pulls bars from the active broker, ships them to the sidecar, and renders the verdict:
 
 - **Left column** — indicator commentary (RSI / MACD / ATR / EMA panel + plain-English summary).
 - **Middle column** — pattern verdict (one of 16 classical patterns) plus the rendered candlestick PNG the vision LLM scored against.

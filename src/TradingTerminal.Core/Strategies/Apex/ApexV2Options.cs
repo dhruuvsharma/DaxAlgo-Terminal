@@ -1,6 +1,24 @@
 namespace TradingTerminal.Core.Strategies.Apex;
 
 /// <summary>
+/// How the engine closes a bar.
+/// <list type="bullet">
+///   <item><see cref="Time"/> — fixed wall-clock candles (the classic mode). A bar rolls when the
+///   candle interval elapses. Default 1-minute.</item>
+///   <item><see cref="Volume"/> — constant-volume bars: a bar rolls once its accumulated traded
+///   volume reaches <see cref="ApexV2Options.VolumeBarSize"/>. Bars then carry roughly equal
+///   information content, which stabilises the flow estimators across quiet and busy regimes. The
+///   selected candle interval still serves as the <em>reference span</em> for TTLs and the
+///   √(span/span₀) distance scaling.</item>
+/// </list>
+/// </summary>
+public enum ApexBarMode
+{
+    Time,
+    Volume,
+}
+
+/// <summary>
 /// TTL multiplier set for the v2 signals. TTLs are expressed as a dimensionless multiple α of the
 /// reference bar span <see cref="ApexV2Options.ReferenceSpanSeconds"/>, so they scale with the bar
 /// span rather than being hard-coded millisecond magic numbers: <c>TTL = α · span₀</c> (further
@@ -41,11 +59,21 @@ public sealed record ApexV2Options
 {
     // ── Reference span (span₀) ───────────────────────────────────────────────────────
     /// <summary>
-    /// Reference bar span in seconds (span₀). Default 30s; the MES/MNQ working range is 15s–1m.
-    /// All price-distance coefficients are defined relative to a bar of this span and rescaled by
-    /// √(actualSpan/span₀).
+    /// Reference bar span in seconds (span₀). Default 60s (1-minute); the MES/MNQ working range is
+    /// 1m and up. All price-distance coefficients are defined relative to a bar of this span and
+    /// rescaled by √(actualSpan/span₀). Sub-minute spans are no longer a supported default.
     /// </summary>
-    public double ReferenceSpanSeconds { get; init; } = 30.0;
+    public double ReferenceSpanSeconds { get; init; } = 60.0;
+
+    // ── Bar mode (time vs constant-volume) ─────────────────────────────────────────────
+    /// <summary>How a bar is closed — fixed time candles (default) or constant-volume bars.</summary>
+    public ApexBarMode BarMode { get; init; } = ApexBarMode.Time;
+
+    /// <summary>
+    /// Contracts/shares per bar when <see cref="BarMode"/> is <see cref="ApexBarMode.Volume"/>. A bar
+    /// rolls once its accumulated traded volume reaches this. Ignored in time mode. Default 2000.
+    /// </summary>
+    public long VolumeBarSize { get; init; } = 2_000;
 
     // ── TTL ──────────────────────────────────────────────────────────────────────────
     /// <summary>Per-signal TTL multipliers (α): TTL = α · span₀, then regime-scaled.</summary>
@@ -61,18 +89,31 @@ public sealed record ApexV2Options
     /// </summary>
     public int? NeweyWestLag { get; init; }
 
-    /// <summary>Window (in bars) for the Ledoit-Wolf covariance and the information-coefficient estimation.</summary>
-    public int CovarianceWindow { get; init; } = 250;
+    /// <summary>
+    /// Rolling window (in bars) for the Ledoit-Wolf covariance and the information-coefficient
+    /// estimation. Default 1500 — a long window stabilises the Σ⁻¹·IC weight vector.
+    /// </summary>
+    public int CovarianceWindow { get; init; } = 1_500;
+
+    /// <summary>
+    /// Recompute the Σ⁻¹·IC weights only every N completed bars (rather than every bar). Default 50:
+    /// the weights drift slowly over the 1500-bar window, so refreshing every 50 bars keeps them
+    /// stable and saves the per-bar Ledoit-Wolf + IC + linear-solve cost.
+    /// </summary>
+    public int WeightRecalcEveryBars { get; init; } = 50;
 
     /// <summary>Forward-return horizon (in bars) used by the IC and isotonic calibration.</summary>
     public int ForwardReturnHorizon { get; init; } = 5;
 
-    /// <summary>Rolling window (in bars) for the Kyle-lambda residual regression.</summary>
+    /// <summary>Rolling window (in bars) for the Kyle-lambda 2SLS residual regression.</summary>
     public int KyleWindow { get; init; } = 50;
 
     // ── Isotonic calibration ───────────────────────────────────────────────────────────
-    /// <summary>Minimum samples per region before the isotonic map is trusted (else bootstrap mode).</summary>
-    public int IsotonicMinSamples { get; init; } = 100;
+    /// <summary>
+    /// Minimum observations before the isotonic calibration map is trusted (else bootstrap mode).
+    /// Default 500 — the calibration only earns authority once it has a robust sample.
+    /// </summary>
+    public int IsotonicMinSamples { get; init; } = 500;
 
     /// <summary>
     /// Total-sample threshold below which the calibration runs in bootstrap mode (g(C) blended
@@ -81,8 +122,17 @@ public sealed record ApexV2Options
     public int BootstrapSampleThreshold { get; init; } = 500;
 
     // ── Sizing / risk (dimensionless) ──────────────────────────────────────────────────
-    /// <summary>Fraction of the full Kelly stake to deploy (default 0.25 — quarter-Kelly).</summary>
+    /// <summary>
+    /// Default fraction of the full Kelly stake to deploy (default 0.25 — quarter-Kelly). Applies to
+    /// the London-only and NY-only sessions; the overlap and Asian sessions use their own caps below.
+    /// </summary>
     public double KellyFraction { get; init; } = 0.25;
+
+    /// <summary>Kelly cap during the London/NY overlap — the most liquid window (default 0.25).</summary>
+    public double KellyFractionOverlap { get; init; } = 0.25;
+
+    /// <summary>Kelly cap during the (thinner, gappier) Asian session — sized down (default 0.10).</summary>
+    public double KellyFractionAsian { get; init; } = 0.10;
 
     /// <summary>Risk fraction of equity per trade (e.g. 0.005 = 0.5%).</summary>
     public double RiskFraction { get; init; } = 0.005;
@@ -171,6 +221,33 @@ public sealed record ApexV2Options
     /// model). Dimensionless multiplier on the estimated impact.
     /// </summary>
     public double SlippageCoefficient { get; init; } = 1.0;
+
+    // ── Predicted node migration (Kalman POC forecaster) ───────────────────────────────
+    /// <summary>How many bars ahead the Kalman POC predictor forecasts (default 5).</summary>
+    public int PredictedNodeHorizon { get; init; } = 5;
+
+    /// <summary>
+    /// Minimum prediction confidence (1 − σ²_pred/σ²_bar) before the predicted-node levels are used
+    /// for dynamic stop/target placement. Below this the bracket falls back to the structure/ATR
+    /// logic. Default 0.3.
+    /// </summary>
+    public double PredictionExitMinConfidence { get; init; } = 0.3;
+
+    /// <summary>Kalman process (acceleration) noise q for the POC predictors. Larger ⇒ faster adapt.</summary>
+    public double KalmanProcessNoise { get; init; } = 1e-4;
+
+    /// <summary>Kalman measurement noise r for the POC observations. Larger ⇒ more smoothing.</summary>
+    public double KalmanMeasurementNoise { get; init; } = 1e-2;
+
+    // ── Hawkes tape-intensity parameters ───────────────────────────────────────────────
+    /// <summary>Hawkes baseline rate μ (default 0 — a pure self-excitation measure for the z-score).</summary>
+    public double HawkesBaselineMu { get; init; }
+
+    /// <summary>Hawkes excitation α per trade. Keep α &lt; β for stationarity (default 0.3).</summary>
+    public double HawkesAlpha { get; init; } = 0.3;
+
+    /// <summary>Hawkes decay β (per second). Excitation half-life ≈ ln2/β seconds (default 0.5).</summary>
+    public double HawkesBeta { get; init; } = 0.5;
 
     /// <summary>The v2 defaults.</summary>
     public static ApexV2Options Default => new();

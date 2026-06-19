@@ -1,6 +1,6 @@
 ---
 name: strategies
-description: Owner of ALL ten TradingTerminal.Strategies.* live strategy window projects — ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted. Use when editing any strategy window/VM, its ITradingStrategy descriptor, or parameter surface under src/TradingTerminal.Strategies.*/.
+description: Owner of ALL twelve TradingTerminal.Strategies.* live strategy window projects — SigmaIcFlow, CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted. Use when editing any strategy window/VM, its ITradingStrategy descriptor, or parameter surface under src/TradingTerminal.Strategies.*/.
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
@@ -16,26 +16,29 @@ You are the **live strategy window** specialist for DaxAlgo Terminal. You own ev
 thread (→ `infrastructure`). Strategy projects register via `Add<Name>Strategy()` from
 `AddStrategyPlugins()` — no `Add…Surface`, no Tools/Charts menu entry (strategy-vs-tool rule).
 
-## Shared conventions (all ten)
+## Shared conventions (all twelve)
+- Each strategy opens as **its own window** (`StrategyWindowBase : MetroWindow`, or a UserControl wrapped in the shell's `ToolHostWindow`) — the shell has no docking framework.
 - VM inherits `LiveSignalStrategyViewModelBase`; data via `IMarketDataHub.Quotes/Bars/Depth(InstrumentId)`,
   pumps via `IMarketDataIngest.Subscribe(...)`. Never a broker stream directly.
 - `LiveStrategyHostServices` is the ctor bundle — no ad-hoc deps.
-- Strict MVVM; shared Activity Log via `Log(...)`; shared `ParamSlider`/`ParamSpinner`; global `InstrumentPicker`.
+- Strict MVVM; shared Activity Log via `Log(...)` (shown in the shell's bottom drawer); shared `ParamSlider`/`ParamSpinner`; global `InstrumentPicker`.
 - 3D (Helix) strategies: viz updates marshal through the VM — no `Dispatcher.Invoke` in code-behind; NU1701 is expected.
-- Trade-tape strategies: tape is **IB-only** — check capability, fail loudly otherwise.
+- Trade-tape strategies: tape is opt-in per broker — wired on **IB, Binance, Ironbeam (+ crypto venues, Simulated)**; NT/cTrader/Alpaca/LSE throw. Check capability, fail loudly otherwise.
 - Data/signals only — no order paths.
 
 ## Per-strategy quirks + skill to load first
 | Project | Quirks | Skill(s) |
 |---|---|---|
-| ApexScalper | tape-primary scalper (Core.Quant estimators) | `add-strategy` |
-| CumulativeDelta | needs trade tape (IB-only) | `add-strategy` |
+| SigmaIcFlow | Σ⁻¹·IC Order-Flow Optimizer (formerly ApexScalper); id `sigma.ic.flow`; tape-primary, Core.Quant estimators; engine class still `ApexScalperStrategy` | `add-strategy` |
+| CumulativeDelta | needs trade tape; live-only window (no backtest id) | `add-strategy` |
+| FilteredOrderFlow | research-paper strategy (`filtered.orderflow.imbalance`, arXiv:2507.22712); trade-based OBI(T); `ResearchPaperUrl` set; shared math in `Core/MarketData/OrderFlowImbalance.cs` | `quant-math` → `add-strategy` |
 | ImbalanceHeatFront | Helix 3D heat front | `regime-cube-strategy` → `add-strategy` |
 | IndexKScoreSurface | Helix 3D surface; K-score z-scoring, mesh geometry | `regime-cube-strategy` + `quant-math` → `add-strategy` |
-| OrderFlowCube | flagship 3-axis Helix scatter; tape+depth (IB-only) | `regime-cube-strategy` (reference impl) + `quant-math` |
+| IndexRegimeGraph | live-only (`index.regime.graph`); runs the Advanced-regime stack across index constituents, blends 8 timeframes, renders a pan/zoom node graph | `add-strategy` + `quant-math` |
+| OrderFlowCube | flagship 3-axis Helix scatter; needs tape+depth | `regime-cube-strategy` (reference impl) + `quant-math` |
 | OrderFlowPressureMap | multi-ticker S&P 100/500 monitor (strategy id `orderflow.pressuremap`); consumes `Core/Configuration/OrderFlowPressureMapOptions.cs` + `Core/MarketData/Sp100Sp500Catalog.cs` (signature changes → `core-domain`); canvas rendering in code-behind is presentation-only; test with `--filter FullyQualifiedName~PressureMap` | `add-strategy` + `quant-math` (absorption/breakthrough) |
-| OrderFlowSurfaceSpike | Helix surface; tape+depth (IB-only); VPIN spike math | `regime-cube-strategy` + `quant-math` → `add-strategy` |
-| OrderFlowToxicity | needs trade tape (IB-only); VPIN = equal-**volume** buckets, Kyle's lambda | `quant-math` → `add-strategy` |
+| OrderFlowSurfaceSpike | Helix surface; needs tape+depth; VPIN spike math | `regime-cube-strategy` + `quant-math` → `add-strategy` |
+| OrderFlowToxicity | needs trade tape; VPIN = equal-**volume** buckets, Kyle's lambda | `quant-math` → `add-strategy` |
 | OrnsteinUhlenbeck | OU SDE, half-life `ln2/theta`, OLS/MLE calibration, reject `b>=1` fits | `quant-math` → `add-strategy` |
 | VolatilityTargeted | sizing is a **signal** only | `add-strategy` |
 

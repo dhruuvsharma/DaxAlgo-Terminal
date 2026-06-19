@@ -118,11 +118,11 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
     "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
     "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
-    "apexscalper" or "apex" => new ApexScalperStrategy(contract),
+    "sigmaicflow" or "sigmaic" or "flowopt" or "apexscalper" or "apex" => new ApexScalperStrategy(contract),
     "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
     "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, apexScalper, indexKScoreSurface, filteredOrderFlow.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, sigmaIcFlow, indexKScoreSurface, filteredOrderFlow.")
 };
 
 static void PrintSummary(BacktestResult result)

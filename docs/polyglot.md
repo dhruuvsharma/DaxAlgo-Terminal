@@ -1,6 +1,6 @@
 # DaxAlgo Terminal — Polyglot Architecture
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-19
 
 ## The rule
 
@@ -12,8 +12,9 @@ Why: the WPF build must stay hermetic (one `dotnet build`, no native toolchains,
 
 | Tool | Status |
 |---|---|
-| `tick-backtester` (C++) | **Shipped (single strategy).** C# seam: `IFastBacktestRunner` + `ProcessFastBacktestRunner`. C++ source in-tree at `tools/cpp-backtester/`, exe target `tick_backtester`. UI: Backtest tab → "Use C++ Fast engine" checkbox. Only `meanReversion` is wired on the C++ side today. |
-| `daxalgo-ml` (Python) | **Shipped (AI Market Analyst).** C# seam: `IAiAnalystClient` + `HttpAiAnalystClient` + `NullAiAnalystClient`. Python source under `tools/python-ml/` with a FastAPI app, a four-agent LangGraph (indicator → pattern → trend → decision), TA-Lib indicators, mplfinance charts, and a vision-LLM pattern matcher against a 16-pattern classical catalog. UI: AI tools → Market analyst tab plus a per-notification enricher. Providers: OpenAI / Anthropic / Qwen / MiniMax. |
+| `tick-backtester` (C++) | **Shipped (single strategy).** C# seam: `IFastBacktestRunner` + `ProcessFastBacktestRunner`. C++ source in-tree at `tools/cpp-backtester/`, exe target `tick_backtester`. UI: Backtest window → "Use C++ Fast engine" checkbox. Only `meanReversion` is wired on the C++ side today. |
+| `daxalgo-ml` (Python) | **Shipped (AI Market Analyst).** C# seam: `IAiAnalystClient` + `HttpAiAnalystClient` + `NullAiAnalystClient`. Python source under `tools/python-ml/` with a FastAPI app, a four-agent LangGraph (indicator → pattern → trend → decision), TA-Lib indicators, mplfinance charts, and a vision-LLM pattern matcher against a 16-pattern classical catalog. UI: AI tools → Market analyst window plus a per-notification enricher. Providers: OpenAI / Anthropic / Qwen / MiniMax. |
+| LEAN CLI (QuantConnect) | **Experimental / unverified.** C# seam: `LocalCliLeanClient` shelling out to the LEAN CLI with a JSON result contract. UI: the QuantConnect / LEAN menu (runner / projects / data sync / settings). CLI args + result parsing not yet verified against a live LEAN install; cloud slot planned. See [quantconnect.md](quantconnect.md). |
 
 ## The two tools (today)
 
@@ -130,4 +131,4 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
 cmake --build build --target tick_backtester --parallel
 ```
 
-The next `dotnet build` of `TradingTerminal.App` picks up the produced `tick_backtester.exe` and copies it next to the App's assemblies. From there `FastBacktestServiceCollectionExtensions.AddFastBacktestRunner` resolves it and the Backtest tab's "Use C++ Fast engine" checkbox is no longer greyed out for `meanReversion`. Without the exe, the runner falls back to `NullFastBacktestRunner` and the UI surfaces the disabled state — nothing else changes.
+The next `dotnet build` of `TradingTerminal.App` picks up the produced `tick_backtester.exe` and copies it next to the App's assemblies. From there `FastBacktestServiceCollectionExtensions.AddFastBacktestRunner` resolves it and the Backtest window's "Use C++ Fast engine" checkbox is no longer greyed out for `meanReversion`. Without the exe, the runner falls back to `NullFastBacktestRunner` and the UI surfaces the disabled state — nothing else changes.

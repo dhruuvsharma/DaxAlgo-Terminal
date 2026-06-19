@@ -1,6 +1,6 @@
 # Backtesting
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-19
 
 The terminal ships a tick-level backtest engine that runs the same strategies against historical parquet files. Strategies implement `IBacktestStrategy` and trade through an `IOrderRouter` — the same seam they would use live — so the engine measures simulated fills, P&L, equity curve, drawdown, and a broad performance suite.
 
@@ -9,8 +9,12 @@ For the strategy catalog and how to add new strategies, see [strategies.md](stra
 ## Surfaces
 
 - **CLI** (`daxalgo-backtest.exe`) — headless, scriptable. Subcommands: `synth`, `run`, `sweep`, `walkforward`, `mc`, `tca`, `features`.
-- **Tools → Backtest** in the WPF shell — strategy picker, run/cancel, ScottPlot equity curve, trades grid, stats panel.
-- **C++ Fast engine** (optional) — set via the "Use C++ Fast engine" checkbox in the Backtest tab when the C++ binary is built. Only `meanReversion` is wired on the C++ side today. See [polyglot.md](polyglot.md).
+- **Tools → Backtest** in the WPF shell — opens its own window: strategy picker, run/cancel, ScottPlot equity curve, trades grid, stats panel.
+- **C++ Fast engine** (optional) — set via the "Use C++ Fast engine" checkbox in the Backtest window when the C++ binary is built. Only `meanReversion` is wired on the C++ side today. See [polyglot.md](polyglot.md).
+
+![Tick-level backtest window](../images/backtestwindow.png)
+
+> 🎬 _Video walkthrough — coming soon_
 
 ## Generate a synthetic dataset and run
 
@@ -23,7 +27,7 @@ $exe = "src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backte
 & $exe synth --output bt-data.parquet --ticks 10000
 
 # Run a strategy with maker/taker fees
-& $exe run --strategy avellanedaStoikov --symbol TEST --data bt-data.parquet `
+& $exe run --strategy meanReversion --symbol TEST --data bt-data.parquet `
            --tick-size 0.01 --taker-fee 0.01 --maker-rebate 0.005
 
 # Grid-sweep parameters in parallel
@@ -106,7 +110,7 @@ Plus `Indicators.{SimpleMovingAverage, RollingStdev, ExponentialMovingAverage, R
 
 ### L2 / depth-of-market
 
-`Core/Domain/` has `DepthLevel(Price, Size)` and `DepthSnapshot(TimestampUtc, Bids, Asks)` records flowing through `IBrokerClient.SubscribeDepthAsync` and the repository (UI-marshalled). Wired today only in `RealCTraderClient` via `ProtoOASubscribeDepthQuotesReq` / `ProtoOADepthEvent` (incremental new / deleted quotes → reconstructed snapshots). IB and NT throw `NotSupportedException`. Alpaca exposes only L1 quotes and also throws.
+`Core/Domain/` has `DepthLevel(Price, Size)` and `DepthSnapshot(TimestampUtc, Bids, Asks)` records flowing through `IBrokerClient.SubscribeDepthAsync` and the repository (UI-marshalled). L2 depth is wired for **cTrader, Binance, Ironbeam, Upstox, the crypto venues (Coinbase / Bybit / Kraken / OKX), and the Simulated** backend; **IB (`reqMktDepth` not yet plumbed), NinjaTrader, Alpaca, and LSE** throw `NotSupportedException` on `SubscribeDepthAsync` and callers degrade to L1. The per-broker SQLite (`-l2.db`) and QuestDB store backends persist depth; see [market-data.md](market-data.md).
 
 ## Engine internals
 
@@ -121,7 +125,7 @@ Plus `Indicators.{SimpleMovingAverage, RollingStdev, ExponentialMovingAverage, R
 
 ## Recording live ticks for backtests
 
-The Tools → Record live ticks tab streams the active broker's live tick feed to a parquet file using the same `ParquetTickWriter` schema the engine reads. See [user-guide.md](user-guide.md#recording-live-ticks) for the click-through.
+The Tools → Record live ticks window streams the active broker's live tick feed to a parquet file using the same `ParquetTickWriter` schema the engine reads. See [user-guide.md](user-guide.md#recording-live-ticks) for the click-through.
 
 ## Transaction-cost analysis (`tca`)
 

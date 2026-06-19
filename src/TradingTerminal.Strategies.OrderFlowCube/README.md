@@ -12,7 +12,7 @@ First strategy in the regime-cube series (see `ideas.md`) and the canonical Heli
 |:--:|:--:|:--:|:--:|
 | ✅ | ✅ | — | ✅ |
 
-**Requires the trade tape** (`OnTradeAsync`). Trade-tape is opt-in per broker — **only IB is wired**; NT/cTrader/Alpaca throw `NotSupportedException`, so the strategy fails loudly there.
+**Requires the trade tape** (`OnTradeAsync`). Trade-tape is opt-in per broker — wired on **IB / Binance / Ironbeam** (+ crypto venues, Simulated); NT/cTrader/Alpaca/LSE throw `NotSupportedException`, so the strategy fails loudly there.
 
 ## How it works
 

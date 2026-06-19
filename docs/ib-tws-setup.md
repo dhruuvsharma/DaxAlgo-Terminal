@@ -49,7 +49,7 @@ DaxAlgo Terminal reads `InteractiveBrokers:ClientId` from `appsettings.json` (de
 - A second DaxAlgo instance on the same TWS → bump the second one's ClientId.
 
 Collisions surface as **error 326**. The first connection wins; the second is refused with a
-clear message in the Logs pane.
+clear message in the Activity log drawer.
 
 ### Auto-restart (sane default)
 
@@ -67,7 +67,7 @@ unattended operation use IB Gateway with the `ibc` wrapper script.
 After flipping the API toggle, confirm DaxAlgo can reach TWS:
 
 1. Start TWS / Gateway.
-2. Start DaxAlgo. Open the Logs pane (bottom dock).
+2. Start DaxAlgo. Open the Activity log drawer (bottom of the main window).
 3. Pick the IB tab in the login window, leave defaults, click Connect.
 
 Expected log lines (in order):

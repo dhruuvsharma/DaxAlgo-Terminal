@@ -12,7 +12,7 @@ Part of the regime-cube/surface family (see `ideas.md`), with Helix Toolkit 3D s
 |:--:|:--:|:--:|:--:|
 | ✅ | ✅ | — | ✅ |
 
-**Requires the trade tape** for true signed flow — IB only; other brokers throw `NotSupportedException`. A `QuoteDerivedTradeSynthesizer` provides a fallback where no tape is available.
+**Requires the trade tape** for true signed flow — wired on IB / Binance / Ironbeam (+ crypto venues, Simulated); NT / cTrader / Alpaca / LSE throw `NotSupportedException`. A `QuoteDerivedTradeSynthesizer` provides a fallback where no tape is available.
 
 ## How it works
 

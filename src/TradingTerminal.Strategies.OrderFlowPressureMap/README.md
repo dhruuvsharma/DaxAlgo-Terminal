@@ -6,7 +6,7 @@
 > 1-minute volume is hitting and whether price is **absorbing** it or **breaking through**
 > (Breakthrough / Breakdown), with per-cell intensity scaled by relative volume. It's a
 > multi-ticker monitor rather than a per-instrument signal generator, but it lives in the
-> Strategies pane because that's where the user drives it. **Display only — does not place orders.**
+> Strategies catalog because that's where the user drives it. **Display only — does not place orders.**
 
 ## Data requirements
 
@@ -26,5 +26,5 @@ cadence bind from `OrderFlowPressureMapOptions` (`Core/Configuration`).
 
 `AddOrderFlowPressureMapStrategy()` (called from `AddStrategyPlugins()` in the App shell)
 registers the `ITradingStrategy` metadata, the VM/window pair, and the
-`StrategyFactoryRegistration`, so it appears in the shell's Strategies pane and opens via
+`StrategyFactoryRegistration`, so it appears in the shell's Strategies catalog and opens via
 `IStrategyFactory` like every other strategy.

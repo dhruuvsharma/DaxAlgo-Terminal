@@ -1,18 +1,19 @@
 # Market data pipeline
 
-> Last updated: 2026-06-01
+> Last updated: 2026-06-18
 
 The terminal keeps a broker-neutral copy of every normalized record (`Quote` / `TradePrint` / `OhlcvBar`) it sees, so strategies can warm up on history regardless of which broker is connected, and so the same instrument has one identity across brokers.
 
-Three backends ship behind one `IMarketDataStore` seam:
+**Four backends** ship behind one `IMarketDataStore` seam:
 
-| Backend | When to use | Where it lives |
-|---|---|---|
-| **SQLite** (default) | Solo dev box, no extra services, "just works". | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` (override via `MarketDataStore:DatabasePath`). WAL mode, epoch-microsecond timestamps. |
-| **PostgreSQL + TimescaleDB** | When you want hypertables, retention policies, or to point multiple machines at one store. | The `docker-compose.yml` at the repo root spins up `timescale/timescaledb:latest-pg16` on port 5432 with `db/user/pass = daxalgo`. Free + Apache-2. |
-| **QuestDB** (split) | When you want a purpose-built time-series engine for the firehose — and to **persist L2 depth**, which the other two backends drop. | The compose `questdb` service (`questdb/questdb:latest`, ports 9000 ILP/HTTP + 8812 PG-wire). High-volume L1/L2 (quotes, trades, depth) go to QuestDB; **bars stay in SQLite** via a composite store. Free + Apache-2. |
+| Backend (`MarketDataStore:Provider`) | When to use | Where it lives | Persists L2? |
+|---|---|---|---|
+| **`SqlitePerBroker`** (default) | Solo box, parallel writers, broker isolation, no bar-key collisions. | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata-{broker}-{bars\|l1\|trades\|l2}.db`, with canonical identity in the shared `marketdata.db`. WAL, epoch-µs. | ✅ `-l2.db` |
+| **`Sqlite`** (single file) | One tidy file for everything. | `…\marketdata.db` (override via `MarketDataStore:DatabasePath`). WAL, epoch-µs. | ⬜ dropped |
+| **PostgreSQL + TimescaleDB** | Hypertables, retention policies, a store shared across machines. | `docker-compose.yml` spins up `timescale/timescaledb:latest-pg16` on port 5432 (`db/user/pass = daxalgo`). Free + Apache-2. | ⬜ dropped |
+| **QuestDB** (split) | A purpose-built time-series engine for the firehose. | The compose `questdb` service (`questdb/questdb:latest`, ports 9000 ILP/HTTP + 8812 PG-wire). High-volume L1/L2 (quotes, trades, depth) → QuestDB; **bars stay in SQLite** via a composite store. Free + Apache-2. | ✅ QuestDB side |
 
-> **Depth (L2) is only persisted on the QuestDB backend.** On SQLite/Postgres, `EnqueueDepth` is a deliberate no-op (depth is too high-volume) and depth stays live-only on the hub. Pick `Provider: "QuestDb"` if you need historical depth.
+> **Depth (L2) is persisted only by the per-broker SQLite (`-l2.db`) and QuestDB backends.** On single-file SQLite and Postgres, `EnqueueDepth` is a deliberate no-op (depth is high-volume) and depth stays live-only on the hub. Pick `SqlitePerBroker` (default) or `QuestDb` if you need historical depth.
 
 For the architectural rationale (canonical identity, ref-counted ingest, async writes, fanout via Rx), see [architecture.md](architecture.md). For all `MarketDataStore:*` keys, see [configuration.md](configuration.md).
 
@@ -23,6 +24,21 @@ For the architectural rationale (canonical identity, ref-counted ingest, async w
 | Archive settings | Archive activity |
 |---|---|
 | ![Archive settings](../images/archivesettingswindow_1.png) ![Archive settings](../images/archivesettingswindow_2.png) | ![Archive activity](../images/archiveactivitywindow.png) |
+
+> 🎬 _Video walkthrough (archive offload round-trip) — coming soon_
+
+## Pipeline at a glance
+
+```mermaid
+flowchart LR
+    SOCK[Broker socket] --> CLI[IBrokerClient]
+    CLI --> ING[IMarketDataIngest<br/>resolve · normalize · ref-count]
+    ING -->|Publish| HUB[IMarketDataHub<br/>Rx fanout by InstrumentId]
+    ING -->|Enqueue*| STORE[(IMarketDataStore)]
+    HUB --> STRAT[strategies / panels]
+    STORE --> WARM[warm-up · replay · research]
+    REG[InstrumentRegistry] -.identity.-> ING
+```
 
 ## Switching backends
 
@@ -106,12 +122,14 @@ Unlike the legacy quote-only `Tick`, every record carries provenance:
 
 `MarketDataStoreBase` owns the channel + batch + flush loop; concrete backends only spell out their schema and `INSERT` statements:
 
-- `SqliteMarketDataStore` — embedded, WAL mode, `Microsoft.Data.Sqlite`. Timestamps stored as epoch-microseconds.
-- `NpgsqlMarketDataStore` — PostgreSQL with the free TimescaleDB extension over `Npgsql`. `timestamptz` columns; quotes / trades / bars are hypertables.
+- `PerBrokerSqliteMarketDataStore` (default) — one SQLite file per broker per stream (`-bars` / `-l1` / `-trades` / `-l2`), WAL mode, `Microsoft.Data.Sqlite`, epoch-µs timestamps. Persists L2 depth.
+- `SqliteMarketDataStore` — single embedded file, WAL mode, epoch-µs timestamps. Drops L2 depth.
+- `NpgsqlMarketDataStore` — PostgreSQL with the free TimescaleDB extension over `Npgsql`. `timestamptz` columns; quotes / trades / bars are hypertables. Drops L2 depth.
+- `QuestDbMarketDataStore` (+ `CompositeMarketDataStore`) — L1/L2/trades/depth over ILP to QuestDB; bars composited to SQLite.
 
-`IInstrumentRegistry` likewise has both `SqliteInstrumentPersistence` and `NpgsqlInstrumentPersistence` behind one in-memory cached registry.
+`IInstrumentRegistry` likewise has both `SqliteInstrumentPersistence` and `NpgsqlInstrumentPersistence` behind one in-memory cached registry (the per-broker backend keeps identity in the shared `marketdata.db`).
 
-Writes are non-blocking — `EnqueueQuote` / `EnqueueTrade` / `EnqueueBar` push onto a channel that a background batch writer drains (`MarketDataStore:WriteBatchSize` records, or `MarketDataStore:FlushIntervalMs` ms, whichever fires first). Depth snapshots are live-only and never persisted (bandwidth would dwarf everything else).
+Writes are non-blocking — `EnqueueQuote` / `EnqueueTrade` / `EnqueueBar` / `EnqueueDepth` push onto a channel that a background batch writer drains (`MarketDataStore:WriteBatchSize` records, or `MarketDataStore:FlushIntervalMs` ms, whichever fires first). Depth is persisted only by the per-broker SQLite and QuestDB backends; the others treat `EnqueueDepth` as a no-op.
 
 Reads (`GetRecentBarsAsync` for warm-up, `ReadQuotesAsync` / `ReadTradesAsync` for replay / research) are async and stream.
 

@@ -12,9 +12,9 @@ The pipeline replaced the original "broker-shaped types leaking everywhere" mode
 All in `Core/MarketData/`, all implemented in `MarketData/`:
 
 1. **`IInstrumentRegistry`** — canonical identity. Maps broker symbol ↔ `InstrumentId` (auto-creates on first sight). Cached, SQLite-backed. Resolves `Contract` from any broker into the same `InstrumentId`.
-2. **`IMarketDataStore`** — durable persistence. Two interchangeable backends (`SqliteMarketDataStore` / `NpgsqlMarketDataStore`) over a shared `MarketDataStoreBase` that owns channel + batched writer + flush. **Writes are non-blocking** — `Enqueue*` returns immediately; background batch flushes on `WriteBatchSize` or `FlushIntervalMs`.
+2. **`IMarketDataStore`** — durable persistence. **Four interchangeable backends**: `PerBrokerSqliteMarketDataStore` (default — one SQLite file per broker per stream `-bars`/`-l1`/`-trades`/`-l2`, identity in the shared `marketdata.db`; persists L2), single-file `SqliteMarketDataStore`, `NpgsqlMarketDataStore` (Timescale), and `QuestDbMarketDataStore` (+`CompositeMarketDataStore`: L1/L2/trades/depth → QuestDB, bars → SQLite). All over a shared `MarketDataStoreBase` that owns channel + batched writer + flush. **Writes are non-blocking** — `Enqueue*` returns immediately; background batch flushes on `WriteBatchSize` or `FlushIntervalMs`.
 3. **`IMarketDataHub`** — Rx per-instrument fanout. Live hot path. Keyed by `InstrumentId`. Three streams: `Quotes(id)`, `Trades(id)`, `Depth(id)`, plus `Bars(id, timeframe)` aggregated downstream.
-4. **`IMarketDataIngest`** — bridges broker → hub + store. Ref-counted per-instrument broker subscriptions; normalizes raw broker payloads to canonical records; publishes to hub + persists to store (depth is live-only — not persisted).
+4. **`IMarketDataIngest`** — bridges broker → hub + store. Ref-counted per-instrument broker subscriptions; normalizes raw broker payloads to canonical records; publishes to hub + persists to store. Depth (L2) is persisted only by the per-broker SQLite (`-l2.db`) and QuestDB backends; the single-file SQLite and Postgres backends treat `EnqueueDepth` as a no-op (live-only on the hub).
 
 Wired via `AddMarketDataPipeline` (in `MarketData/MarketDataPipelineServiceCollectionExtensions.cs`), called from `App.xaml.cs`.
 

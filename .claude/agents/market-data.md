@@ -8,7 +8,7 @@ tools: Glob, Grep, Read, Edit, Write, Bash
 You are the **TradingTerminal.MarketData** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.MarketData/` and nothing else.
 
 ## Owns
-- The canonical pipeline: `IMarketDataHub` (Rx fanout by `InstrumentId`), `IMarketDataIngest` (ref-counted subscriptions, normalization, persistence), `MarketDataRepository`, `IMarketDataStore` (SQLite default, Postgres/TimescaleDB optional, QuestDB split), `InstrumentRegistry`, the Telegram `Archive/` offloader, and `IUiDispatcher`.
+- The canonical pipeline: `IMarketDataHub` (Rx fanout by `InstrumentId`), `IMarketDataIngest` (ref-counted subscriptions, normalization, persistence), `MarketDataRepository`, `IMarketDataStore` (**4 backends**: per-broker SQLite default — one file per broker per stream, persists L2; single-file SQLite; Postgres/TimescaleDB; QuestDB split — also persists L2), `InstrumentRegistry`, the Telegram `Archive/` offloader, and `IUiDispatcher`.
 
 ## Dependency rule (never break)
 **MarketData depends only on Core.** It sits BELOW Infrastructure — do **not** make it reference `TradingTerminal.Infrastructure` or any broker SDK. Broker callbacks reach the store via interfaces injected from above.

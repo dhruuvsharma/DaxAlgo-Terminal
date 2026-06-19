@@ -1,8 +1,8 @@
 # Broker setup
 
-> Last updated: 2026-06-12
+> Last updated: 2026-06-19
 
-The terminal speaks to seven account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)), **London Strategic Edge** (free multi-asset data, API key only — see [below](#london-strategic-edge-free-multi-asset-data)), and **Upstox** (Indian markets, OAuth2, REST + WebSocket API v2/v3 — see [below](#upstox-indian-markets-oauth2)). It also ships **`Binance`** — real, live crypto market data over the exchange's public WebSocket/REST with **no API key and no account** (see [below](#binance-public-market-data-no-key)) — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
+The terminal speaks to seven account-based broker backends behind one `IBrokerClient` seam: **Interactive Brokers** (TWS API), **NinjaTrader 8** (`NTDirect.dll` P/Invoke), **cTrader** (Spotware Open API 2.0 over TLS+protobuf), **Alpaca** (REST + WebSocket via `Alpaca.Markets`), **Ironbeam** (futures FCM, REST + WebSocket API v2 — see [below](#ironbeam-futures-rest--websocket)), **London Strategic Edge** (free multi-asset data, API key only — see [below](#london-strategic-edge-free-multi-asset-data)), and **Upstox** (Indian markets, OAuth2, REST + WebSocket API v2/v3 — see [below](#upstox-indian-markets-oauth2)). It also ships five **keyless public crypto feeds** — **`Binance`** (see [below](#binance-public-market-data-no-key)) plus **Coinbase**, **Bybit**, **Kraken**, and **OKX** (see [below](#additional-crypto-venues-coinbase--bybit--kraken--okx)) — all real, live crypto data over each exchange's public WebSocket/REST with **no API key and no account** — and an in-process **`Simulated`** backend for fully-offline development (see [below](#simulated-offline-development)).
 
 This doc covers how to set each one up. For the architectural rationale and per-broker quirks (callback shapes, threading, depth-of-market support), read [architecture.md](architecture.md). For symptoms / fixes when something goes wrong, see [troubleshooting.md](troubleshooting.md).
 
@@ -13,6 +13,9 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | Interactive Brokers | cTrader | Alpaca |
 |---|---|---|
 | ![IB login](../images/inteactivebrokerloginwindow.png) | ![cTrader login](../images/ctraderloginwindow.png) | ![Alpaca login](../images/alpacaloginwindow.png) |
+
+> 🖼️ _Login-tile screenshots for NinjaTrader · Ironbeam · LSE · Upstox · Binance · Coinbase · Bybit · Kraken · OKX — coming soon_
+> 🎬 _Video walkthrough (multi-broker login + Auto Connect) — coming soon_
 
 ## Capability matrix
 
@@ -25,6 +28,7 @@ This doc covers how to set each one up. For the architectural rationale and per-
 | Ironbeam | REST + WebSocket API v2 (no SDK) | Always wired (plain HTTP/WS) | Not exposed by API v2 — returns empty | Real, push (`q` stream events) | Real, push (`d` stream events) | n/a (data/signals only) |
 | London Strategic Edge | WebSocket (live) + PostgREST-style REST (history), no SDK | Always wired (plain HTTP/WS) | Real (`x_candles_{tf}` / `candles_{slug}` tables) | Real, push (`tick` messages) | Not in the feed — throws | n/a (data/signals only) |
 | Binance | Public WebSocket + REST (no SDK) | Always wired — **no key, no account** | Real (`/api/v3/klines`) | Real, push (`@bookTicker`) | Real, push (`@depth{5\|10\|20}@100ms`) | n/a (data/signals only) |
+| Coinbase / Bybit / Kraken / OKX | Public WebSocket + REST (no SDK) | Always wired — **no key, no account** (unverified against live) | Real (per-venue klines REST) | Real, push (per-venue ticker stream) | Real, push (per-venue book stream) | n/a (data/signals only) |
 | Upstox | REST + WebSocket API v2/v3 (no SDK) | Always wired (plain HTTP/WS) | Real (`/v2/historical-candle/…`) | Real, push (V3 protobuf feed, `full` mode) | Real, push (5-level book from the same feed) | n/a (data/signals only) |
 | Simulated | In-process, no SDK, no network | Always registered | Replay from local store | Synthetic random-walk **or** store replay | Supported (synthetic + replay) | n/a (data/signals only) |
 
@@ -307,6 +311,19 @@ The global `api.binance.com` / `stream.binance.com` hosts are unavailable in som
 
 - **Crypto only.** Binance is a crypto exchange — no equities/futures/FX. For real equity data use IB or Alpaca; for FX/CFD with L2 use a free cTrader demo.
 - **Data only.** No order path (the whole build is data/signals only). Live bars come from the kline stream; `RequestHistoricalBarsAsync` pulls up to 1000 klines per call.
+
+## Additional crypto venues (Coinbase / Bybit / Kraken / OKX)
+
+Alongside Binance, the terminal ships four more **keyless public crypto feeds** — **Coinbase**, **Bybit**, **Kraken**, and **OKX** — each behind its own `IBrokerClient` in `Infrastructure/{Coinbase,Bybit,Kraken,Okx}/`. Like Binance they need **no API key and no account**: each connects to the exchange's public WebSocket for live ticks / L2 depth / trade tape and its public REST endpoint for historical klines. They're registered as ordinary brokers, so everything downstream (ingest → hub → strategies/tools/store) treats them identically.
+
+> ⚠️ **Unverified against live.** These four were added quickly to broaden crypto coverage; their endpoint paths, symbol formats, and message decoding have **not yet been verified against each exchange's live feed**. Treat them as experimental until confirmed — Binance is the battle-tested keyless path.
+
+- **Crypto only**, **data/signals only** (no order path), same as Binance.
+- Per-venue symbol formats differ (e.g. `BTC-USD` on Coinbase, `BTCUSDT` on Bybit/OKX, `XBT/USD` on Kraken); the curated picker entries use each venue's native form.
+- Geo-availability and rate limits are the exchange's own; a connect simply fails if the venue is unreachable.
+
+> 🖼️ _Screenshots — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 ## Simulated (offline development)
 

@@ -1,13 +1,13 @@
 # DaxAlgo Terminal — Claude Working Guide
 
-A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Six brokers behind one `IBrokerClient` seam: Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam (futures FCM, REST + WebSocket API v2), London Strategic Edge (free multi-asset L1 + history, WebSocket + REST) — plus keyless Binance public data and the offline Simulated backend. **Data/signals only — no live order execution.**
+A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Twelve brokers behind one `IBrokerClient` seam: Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam (futures FCM, REST + WebSocket API v2), London Strategic Edge (free multi-asset L1 + history, WebSocket + REST), Upstox (Indian markets, OAuth2), and keyless public crypto feeds Binance / Coinbase / Bybit / Kraken / OKX (the latter four unverified live) — plus the offline Simulated backend. **Data/signals only — no live order execution.**
 
 This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigger) and **docs/**. Don't re-derive conventions each session — load the matching skill, or `navigator` for "where does X live".
 
 ## Stack
 
 - **TFM**: `net9.0-windows7.0` (in `Directory.Build.props`). Don't rename to `net8.0-windows` or strip the `7.0`.
-- **MVVM**: `CommunityToolkit.Mvvm` (`[ObservableProperty]`, `[RelayCommand]`). **Shell**: MahApps Metro + AvalonDock VS2013 Dark. **Charts**: ScottPlot 5. **3D**: HelixToolkit.Wpf (regime-cube windows; NU1701 is expected).
+- **MVVM**: `CommunityToolkit.Mvvm` (`[ObservableProperty]`, `[RelayCommand]`). **Shell**: MahApps Metro — **no docking framework** (AvalonDock removed 2026-06-18). Every tool/strategy/chart opens as its own `Window`; the `MainWindow` is a full-width strategy catalog with a collapsible bottom activity-log drawer, and tools exposing a `UserControl` view are wrapped in `App/Shell/ToolHostWindow`. **Charts**: ScottPlot 5. **3D**: HelixToolkit.Wpf (regime-cube windows; NU1701 is expected).
 - **DI**: `Microsoft.Extensions.DependencyInjection`. **Logging**: Serilog → in-memory sink (the universal Activity Log pane).
 - **Store**: canonical pipeline (`IMarketDataHub`/`Store`/`Ingest`/`InstrumentRegistry`) — **per-broker SQLite default** (`SqlitePerBroker`: one file per broker *per stream* — `marketdata-{broker}-bars|l1|trades|l2.db` — for parallel writers + isolation; `-l2` persists L2 depth, which the other SQLite backends drop; canonical identity stays in the shared `marketdata.db` registry), plus single-file `Sqlite`, Postgres+TimescaleDB (auto-falls-back to SQLite), or QuestDB (split: L1/L2 quotes/trades/depth → QuestDB, bars → SQLite; no silent fallback). Store reads take an optional `BrokerKind? source` (null = all brokers merged). **Archive**: Telegram offloader.
 - **AI analyst**: Python sidecar (`tools/python-ml/`) behind `IAiAnalystClient` HTTP/JSON. **C++ backtester**: `tools/cpp-backtester/` (read-only reference).
@@ -49,9 +49,9 @@ Core           → (nothing)
 | Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
-Live strategies (10): ApexScalper, CumulativeDelta, ImbalanceHeatFront, IndexKScoreSurface, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
+Live strategies (12): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class still `ApexScalperStrategy`), CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
 
-**Strategy-vs-tool rule:** anything that registers an `ITradingStrategy` / `StrategyFactoryRegistration` (including multi-ticker *monitor* strategies like OrderFlowPressureMap) is a **strategy**: project `TradingTerminal.Strategies.<Name>`, namespace to match, **Strategies** solution folder, DI via `Add<Name>Strategy()` called from `AddStrategyPlugins()`. Tool projects (`Add…Surface`, Tools/Charts menu) are only for non-strategy windows. When in doubt: if it belongs in the Strategies pane, it's a strategy project.
+**Strategy-vs-tool rule:** anything that registers an `ITradingStrategy` / `StrategyFactoryRegistration` (including multi-ticker *monitor* strategies like OrderFlowPressureMap) is a **strategy**: project `TradingTerminal.Strategies.<Name>`, namespace to match, **Strategies** solution folder, DI via `Add<Name>Strategy()` called from `AddStrategyPlugins()`. Tool projects (`Add…Surface`, Tools/Charts menu) are only for non-strategy windows. When in doubt: if it belongs in the Strategies catalog, it's a strategy project.
 
 Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Machine Learning** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap; the Machine Learning menu hosts Stationarity & Differencing / ARIMA & GARCH / Kalman Filter (`TradingTerminal.Ml.<Name>`, math in `Core/Quant/TimeSeries/`).
 
@@ -76,12 +76,12 @@ Per-tool projects: the App shell no longer hosts tool windows — each tool is i
 | `navigator` | "Where is X?" / "which project owns Y?" — load first for orientation instead of grepping. |
 | `broker-gotchas` | Editing `Infrastructure/Ib|Ninja|CTrader|Alpaca/` or diagnosing broker errors. |
 | `add-broker` / `add-strategy` / `add-notifier` | Wiring a new broker / strategy / notification transport. |
-| `backtest-engine` | Fee models, risk caps, fills, OMS stubs, `BacktestSession`, the CLI, the Backtest tab. |
+| `backtest-engine` | Fee models, risk caps, fills, OMS stubs, `BacktestSession`, the CLI, the Backtest window. |
 | `market-data-pipeline` | Touching `TradingTerminal.MarketData` (hub/store/ingest/registry/archive). |
 | `regime-cube-strategy` | Any 3D regime-cube/surface strategy from `ideas.md`. |
 | `archive-offloader` | The Telegram archive offloader. |
-| `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`); the AI dock pane lives in `TradingTerminal.Ai.MarketAnalyst`. |
-| `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML/AvalonDock. |
+| `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`); the AI market-analyst window lives in `TradingTerminal.Ai.MarketAnalyst`. |
+| `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML (the shell is plain MahApps windows — no docking framework). |
 | `software-architecture` | Planning multi-project work — decomposition, design-pattern catalog, the plan contract. The `manager` agent loads this. |
 | `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (`Strategies.*`, Correlation, MarkovRegime). |
 | `skill-author` | Adding/fixing a skill — frontmatter, "pushy" triggering, bespoke-vs-external + the licensing rule. |
@@ -99,7 +99,7 @@ Match the cheapest model tall enough for the task. Spawn a subagent only when se
 | "Where is X?", project-internal lookups (3+ rounds) | `wpf-explorer` | Haiku |
 | Broad cross-cutting "how does X work?" research | `Explore` (general-purpose) | Sonnet |
 | Single known-path lookup | Read/Grep directly | — |
-| Targeted XAML / binding / theming / AvalonDock fix | `xaml-fixer` | Sonnet |
+| Targeted XAML / binding / theming / window-layout fix | `xaml-fixer` | Sonnet |
 | Per-strategy VM / baseline authoring (2–4 files, clear template) | main thread | Opus |
 | TWS API wiring, EWrapper threading, contract/historical subtleties | `ib-api-expert` | Opus |
 | Cube/surface strategy work (load `regime-cube-strategy` first) | main thread | Opus |

@@ -74,7 +74,7 @@ The agent loads the skill so you don't have to name it.
 | `ui-shared` | `wpf-mvvm-rules` (binding/theme → `xaml-fixer`) |
 | `backtest-cli` | `backtest-engine` |
 | `strategies` | per-strategy table in its body: `add-strategy`, plus `regime-cube-strategy`/`quant-math` for cube/surface/OU/VPIN work |
-| `tool-windows` | per-project table in its body: `quant-math` (Correlation/MarkovRegime), `backtest-engine` (Backtest tab) |
+| `tool-windows` | per-project table in its body: `quant-math` (Correlation/MarkovRegime), `backtest-engine` (Backtest window) |
 | `ai-windows`, `ai-seam` | `ai-analyst` |
 | `app-shell` | `navigator` |
 | `build-runner`, `verifier` | (own instructions; `verifier` is plan-aware) |

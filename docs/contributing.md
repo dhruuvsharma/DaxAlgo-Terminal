@@ -1,6 +1,6 @@
 # Contributing
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-19
 
 How to add new features without breaking the layering rules. The constraints come from [architecture.md](architecture.md) — read that first if you haven't.
 
@@ -54,9 +54,10 @@ See [notifications.md](notifications.md#adding-a-new-transport) and the Telegram
 ## Layering rules (read before any structural change)
 
 ```
-App        → Infrastructure, UI, Strategies.*, Core
+App        → MarketData, Infrastructure, UI, Login, Ai, Strategies.*, <tool projects>, Core
 Strategies → Infrastructure, UI, Core
-Infra      → Core
+Infra      → MarketData, Core
+MarketData → Core
 UI         → Core
 Core       → (nothing)
 ```

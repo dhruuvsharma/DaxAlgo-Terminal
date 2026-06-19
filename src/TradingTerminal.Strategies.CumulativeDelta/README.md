@@ -63,7 +63,7 @@ falls back to the original bid-tick uptick/downtick proxy — the active mode sh
 ## Wiring
 
 - **Engine impl: none.** This is a **live-only** strategy — no `IBacktestStrategy`, so it does not
-  appear in the Backtest tab or CLI. All logic lives in the VM + `Indicators.cs`.
+  appear in the Backtest window or CLI. All logic lives in the VM + `Indicators.cs`.
 - **Streams:** `IMarketDataHub.Quotes/Bars/Trades(InstrumentId)` via `IMarketDataIngest`
   (`SubscribeTrades` is a no-op handle on brokers without a tape). Footprints via
   `Core.MarketData.FootprintFeatures.BuildBar` — the same extractor the Apex scalper and the

@@ -1,6 +1,6 @@
 # Notifications
 
-> Last updated: 2026-05-25
+> Last updated: 2026-06-19
 
 Strategies publish `StrategyNotification` events to `INotificationPublisher` whenever a signal fires. A hosted background worker drains a bounded `Channel<StrategyNotification>` and fans each message out to every enabled `INotificationTransport`.
 
@@ -12,6 +12,8 @@ For the optional AI-generated commentary line that prepends to every notificatio
 
 ![Notification settings](../images/notificationwindow_1.png)
 ![Notification settings](../images/notificationwindow_2.png)
+
+> 🎬 _Video walkthrough — coming soon_
 
 ## Telegram setup
 

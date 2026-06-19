@@ -12,7 +12,7 @@ You are the **TradingTerminal.Core** specialist for DaxAlgo Terminal. You own `s
 - `IOptions`-bound options records for every broker/feature.
 
 ## Dependency rule (never break)
-**Core depends on NOTHING.** No WPF, no MahApps/AvalonDock, no broker SDK (`IBApi`, `NTDirect`, `OpenClient`, `Alpaca.Markets`), no `Microsoft.Extensions.Hosting`. If you reach for any of those, the type belongs in `Infrastructure` or `UI`, not here. New abstractions start here as interfaces; implementations live downstream.
+**Core depends on NOTHING.** No WPF, no MahApps, no broker SDK (`IBApi`, `NTDirect`, `OpenClient`, `Alpaca.Markets`), no `Microsoft.Extensions.Hosting`. If you reach for any of those, the type belongs in `Infrastructure` or `UI`, not here. New abstractions start here as interfaces; implementations live downstream.
 
 ## Conventions
 - Records for data, interfaces for seams. Nullable enabled; annotate honestly.

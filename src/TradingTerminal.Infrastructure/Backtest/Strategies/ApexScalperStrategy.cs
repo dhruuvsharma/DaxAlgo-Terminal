@@ -81,13 +81,15 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     public const string SigValue = "VALUE";
     public const string SigCvd = "CVD";
     public const string SigObi = "OBI";
+    public const string SigPredNode = "PRED_NODE";
 
-    /// <summary>The canonical signal order the engine scores/logs/weights. OBI is appended last
-    /// and only participates when a real depth stream is live.</summary>
+    /// <summary>The canonical signal order the engine scores/logs/weights. OBI participates only when
+    /// a real depth stream is live; PRED_NODE is the Kalman-forecast node-migration signal appended
+    /// last.</summary>
     public static readonly string[] SignalNames =
     {
         SigDelta, SigVpin, SigFootprint, SigTapeSpeed, SigKyle,
-        SigInitiative, SigControl, SigWedge, SigValue, SigCvd, SigObi,
+        SigInitiative, SigControl, SigWedge, SigValue, SigCvd, SigObi, SigPredNode,
     };
 
     // ── Configuration ──────────────────────────────────────────────────────────────────
@@ -112,6 +114,11 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private DateTime _barEnd = DateTime.MinValue;
     private long _cumulativeDelta;
 
+    // ── Bar-mode state (time vs constant-volume) ─────────────────────────────────────────
+    private readonly ApexBarMode _barMode;
+    private readonly long _volumeBarSize;
+    private long _currentBarVolume;   // volume accumulated into the forming bar (volume mode roll)
+
     // Live price candle (mid-based OHLC), for the price chart only.
     private LiveCandleState? _liveCandle;
 
@@ -121,9 +128,16 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private readonly RingBuffer<double> _vpinTau;   // per-bucket toxicity τ
     private readonly RingBuffer<long> _barVolumes = new(50);   // median bar vol estimator
 
-    // ── Tape-speed state ─────────────────────────────────────────────────────────────────
+    // ── Tape-speed state (Hawkes self-exciting intensity) ────────────────────────────────
     private readonly TapeArrivalWindow _tape = new();
-    private readonly RingBuffer<double> _tapeRateHistory = new(120);
+    private readonly RingBuffer<double> _tapeRateHistory = new(120);   // history of Hawkes intensities
+    private readonly HawkesProcess _hawkes;
+    private DateTime _hawkesEpoch = DateTime.MinValue;   // reference for seconds conversion
+
+    // ── Predicted node migration (Kalman POC forecasters) ────────────────────────────────
+    private readonly KalmanPocPredictor _kalmanBuy;
+    private readonly KalmanPocPredictor _kalmanSell;
+    private readonly KalmanPocPredictor _kalmanTotal;
 
     // ── Completed footprint bars (Core type — single source of truth with the chart) ─────
     private const int MaxFootprintBarsExposed = 24;
@@ -152,6 +166,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private readonly RingBuffer<double> _midHistory;          // mid at each logged bar
     private double[] _weights;                                  // current Σ⁻¹·IC weights
     private readonly Dictionary<string, double> _weightMap = new();
+    private int _barsSinceWeightUpdate;                         // weight-recalc cadence counter
 
     // ── Calibration state ───────────────────────────────────────────────────────────────────
     private readonly RingBuffer<double> _calibComposites;     // logged C
@@ -248,6 +263,14 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         CandleInterval = candleInterval ?? TimeSpan.FromSeconds(Options.ReferenceSpanSeconds);
         InstrumentTick = instrumentTick > 0 ? instrumentTick : 0.25;
 
+        _barMode = Options.BarMode;
+        _volumeBarSize = Math.Max(1, Options.VolumeBarSize);
+
+        _hawkes = new HawkesProcess(Options.HawkesBaselineMu, Options.HawkesAlpha, Options.HawkesBeta);
+        _kalmanBuy = new KalmanPocPredictor(Options.KalmanProcessNoise, Options.KalmanMeasurementNoise);
+        _kalmanSell = new KalmanPocPredictor(Options.KalmanProcessNoise, Options.KalmanMeasurementNoise);
+        _kalmanTotal = new KalmanPocPredictor(Options.KalmanProcessNoise, Options.KalmanMeasurementNoise);
+
         _lineWindow = Math.Max(8, Options.ForwardReturnHorizon * 4);
         _kyleWindow = Math.Max(8, Options.KyleWindow);
         _covWindow = Math.Max(30, Options.CovarianceWindow);
@@ -313,6 +336,12 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
                 Delta: 0, CumulativeDelta: 0, Volume: b.Volume,
                 PocOrClose: typical > 0 ? typical : b.Close,
                 Synthetic: true));
+
+            // Arm the Kalman POC predictors from the same price-structure proxies so PRED_NODE and the
+            // predicted-node exits are available shortly after streaming starts.
+            _kalmanBuy.Update((b.High + b.Close) / 2.0);
+            _kalmanSell.Update((b.Low + b.Close) / 2.0);
+            _kalmanTotal.Update(typical);
         }
 
         foreach (var b in bars)
@@ -384,15 +413,19 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private async Task IngestPrintAsync(FootprintPrint print, double refPrice, FeedQuality quality, IOrderRouter router, CancellationToken ct)
     {
         var now = print.TimeUtc;
-        var bucket = new DateTime(now.Ticks - now.Ticks % CandleInterval.Ticks, DateTimeKind.Utc);
 
+        // Decide whether the current bar closes BEFORE this print is folded in. Time mode rolls on
+        // the clock boundary; volume mode rolls once the forming bar has accumulated VolumeBarSize.
         var rolled = false;
         if (_barStart == DateTime.MinValue)
         {
-            _barStart = bucket;
-            _barEnd = bucket + CandleInterval;
+            StartBar(now);
         }
-        else if (bucket >= _barEnd)
+        else if (_barMode == ApexBarMode.Volume)
+        {
+            if (_currentBarVolume >= _volumeBarSize) rolled = true;
+        }
+        else if (TimeBucket(now) >= _barEnd)
         {
             rolled = true;
         }
@@ -400,16 +433,18 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         if (rolled)
         {
             await CompleteBarAsync(quality, router, ct).ConfigureAwait(false);
-            _barStart = bucket;
-            _barEnd = bucket + CandleInterval;
+            StartBar(now);
             _barPrints.Clear();
         }
 
         // Accumulate the print into the bar and the volume-time / tape state.
         _barPrints.Add(print);
         _vpinPending.Add(print);
+        _currentBarVolume += print.Size;
+        if (_barMode == ApexBarMode.Volume) _barEnd = now;   // forming volume bar ends at the latest print
         DrainVolumeBuckets();
         _tape.Add(print);
+        FeedHawkes(now);
 
         // Live forming footprint + price candle for the UI.
         _liveFootprint = FootprintFeatures.BuildBar(
@@ -423,6 +458,37 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         // forming snapshot off the latest cached signal results so the dashboard stays live).
         Latest = BuildLiveSnapshot(now, refPrice, quality);
     }
+
+    /// <summary>Opens a fresh bar window. Time mode aligns to the clock bucket; volume mode anchors
+    /// to the current print and lets <see cref="_barEnd"/> track the latest print as it fills.</summary>
+    private void StartBar(DateTime now)
+    {
+        if (_barMode == ApexBarMode.Volume)
+        {
+            _barStart = now;
+            _barEnd = now;
+        }
+        else
+        {
+            var bucket = TimeBucket(now);
+            _barStart = bucket;
+            _barEnd = bucket + CandleInterval;
+        }
+        _currentBarVolume = 0;
+    }
+
+    private DateTime TimeBucket(DateTime now) =>
+        new(now.Ticks - now.Ticks % CandleInterval.Ticks, DateTimeKind.Utc);
+
+    /// <summary>Registers a print arrival with the Hawkes intensity process (seconds since epoch).</summary>
+    private void FeedHawkes(DateTime now)
+    {
+        if (_hawkesEpoch == DateTime.MinValue) _hawkesEpoch = now;
+        _hawkes.Add((now - _hawkesEpoch).TotalSeconds);
+    }
+
+    private double HawkesSeconds(DateTime now) =>
+        _hawkesEpoch == DateTime.MinValue ? 0 : (now - _hawkesEpoch).TotalSeconds;
 
     /// <summary>Closes the current bar: builds the footprint via Core, recomputes every signal,
     /// rebuilds weights/calibration, scores the composite, logs history, and (if warm) trades.</summary>
@@ -451,6 +517,12 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
             bar.Delta, bar.CumulativeDelta, bar.TotalVolume,
             bar.PocPrice > 0 ? bar.PocPrice : close));
 
+        // Fold the completed bar's volume nodes into the Kalman POC predictors so the next forecast
+        // (and the PRED_NODE signal) reflects this bar.
+        _kalmanBuy.Update(bar.BuyCentroid);
+        _kalmanSell.Update(bar.SellCentroid);
+        _kalmanTotal.Update(bar.PocPrice > 0 ? bar.PocPrice : close);
+
         UpdateSigmaBar();
         UpdateRegime();
 
@@ -468,10 +540,18 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         // Log score + mid for Σ / IC, then refresh weights & calibration.
         _scoreHistory.Push(scores);
         _midHistory.Push(close > 0 ? close : _lastMid);
-        UpdateWeights();
+        // Recompute the Σ⁻¹·IC weights only every WeightRecalcEveryBars bars — they drift slowly over
+        // the long covariance window, so this stabilises them and saves the per-bar solve cost.
+        if (++_barsSinceWeightUpdate >= Options.WeightRecalcEveryBars)
+        {
+            UpdateWeights();
+            _barsSinceWeightUpdate = 0;
+        }
         UpdateCalibration();
 
-        var composite = Score(sigs, now, out var compositeDir, out var agree);
+        // Hard-clip the composite to [−3, 3] before the isotonic layer so g(C) is always evaluated on
+        // the calibrated support (a defensive guard — the weighted blend is already bounded).
+        var composite = Math.Clamp(Score(sigs, now, out var compositeDir, out var agree), -3.0, 3.0);
         var gC = EvaluateCalibration(composite);
         var condSlip = ConditionalSlippage(composite);
 
@@ -518,6 +598,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         results[8] = CalcValue(now, lines, q);
         results[9] = CalcCvd(now, q);
         results[10] = CalcObi(now);   // OBI is feed-quality-independent (real depth or invalid)
+        results[11] = CalcPredictedNodeMigration(now, lines, q);
         return results;
     }
 
@@ -640,13 +721,16 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private SignalResult CalcTapeSpeed(DateTime now, double q)
     {
         var windowSec = Math.Max(1.0, CandleInterval.TotalSeconds * Options.TtlMultipliers.ObiTapeSpeed);
-        var rate = _tape.ArrivalRate(now, windowSec);
-        _tapeRateHistory.Push(rate);
+        // Hawkes self-exciting intensity at `now` — a sharper "tape speed" than a flat arrival count:
+        // a burst of trades spikes it via self-excitation, and it decays exponentially as the sweep
+        // cools, so it leads the simple rolling rate at both the onset and the fade of aggression.
+        var intensity = _hawkes.Intensity(HawkesSeconds(now));
+        _tapeRateHistory.Push(intensity);
         if (_tapeRateHistory.Count < 20) return SignalResult.Invalid(SigTapeSpeed, now);
 
         var hist = _tapeRateHistory.ToArray();
         var m = Mean(hist); var sd = Stdev(hist, m);
-        var z = ZScore(rate, m, sd);
+        var z = ZScore(intensity, m, sd);
         var upFrac = _tape.UpTickFraction(now, windowSec);
 
         double score = 0;
@@ -683,7 +767,9 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         // ε_cum ≪ 0 with positive delta → absorption (buyers absorbed) → positive bias.
         var score = ClampScore(-z);
         if (z < 0 && feats[n - 1].Delta > 0) score = ClampScore(Math.Abs(z));   // absorption long bias
-        var conf = q * Math.Clamp(fit.RSquared, 0, 1);
+        // Down-weight confidence when the 2SLS instrument is weak (lagged flow barely predicts
+        // current flow ⇒ λ̂ is poorly identified). A weak instrument halves conf rather than killing it.
+        var conf = q * Math.Clamp(fit.RSquared, 0, 1) * (0.5 + 0.5 * Math.Clamp(fit.FirstStageRSquared, 0, 1));
         return (SignalResult.From(SigKyle, score, conf, now), fit.Lambda);
     }
 
@@ -842,6 +928,66 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         return SignalResult.From(SigObi, ClampScore(obi * 3.0), Math.Abs(obi), now);
     }
 
+    // ── Signal: predicted node migration (Kalman POC forecast) ───────────────────────────────
+    /// <summary>
+    /// The 12th signal. Forecasts the buy/sell/total POC <c>n = PredictedNodeHorizon</c> bars ahead
+    /// with the Kalman predictors and reads the predicted wedge dynamics:
+    /// <list type="bullet">
+    ///   <item>expanding wedge ⇒ a developing trend → score = +3·sgn(v̂_total) (follow the predicted
+    ///   total-POC drift);</item>
+    ///   <item>converging wedge (a coil) ⇒ fade the current stretch → score = −3·sgn(z_p).</item>
+    /// </list>
+    /// Everything is scaled by the prediction confidence 1 − σ²_pred/σ²_bar, so a noisy forecast
+    /// contributes little.
+    /// </summary>
+    private SignalResult CalcPredictedNodeMigration(DateTime now, LineTriple lines, double q)
+    {
+        var pred = PredictNodes();
+        if (pred.Conf <= 0) return SignalResult.Invalid(SigPredNode, now);
+
+        // Current wedge from the live Kalman states; predicted wedge from the forecast.
+        var curWedge = Math.Abs(_kalmanBuy.Price - _kalmanSell.Price);
+        var predWedge = Math.Abs(pred.Wedge);
+        var expanding = predWedge > curWedge;
+
+        double score;
+        if (expanding)
+        {
+            // Trend developing: direction follows the predicted total-POC drift.
+            score = ClampScore(3.0 * Math.Sign(_kalmanTotal.Velocity) * pred.Conf);
+        }
+        else
+        {
+            // Coiling: fade the current deviation of price from fitted value.
+            var (zp, _) = LastValueDeviation(lines);
+            score = ClampScore(-3.0 * Math.Sign(zp) * pred.Conf);
+        }
+        return SignalResult.From(SigPredNode, score, q * pred.Conf, now);
+    }
+
+    /// <summary>
+    /// Kalman forecast of the buy/sell/total POC <c>n = PredictedNodeHorizon</c> bars ahead, plus the
+    /// predicted wedge Ŵ = P̂_buy − P̂_sell and a confidence ∈ [0, 1] = 1 − σ²_pred/σ²_bar (clamped).
+    /// Confidence is 0 until the predictors are initialised, or when the forecast variance of the
+    /// total POC exceeds the bar's diffusion variance over the same horizon.
+    /// </summary>
+    private (double Buy, double Sell, double Total, double Wedge, double Conf, int Horizon) PredictNodes()
+    {
+        var n = Math.Max(1, Options.PredictedNodeHorizon);
+        if (!_kalmanTotal.IsInitialized || !_kalmanBuy.IsInitialized || !_kalmanSell.IsInitialized)
+            return (0, 0, 0, 0, 0, n);
+
+        var (pBuy, _) = _kalmanBuy.Forecast(n);
+        var (pSell, _) = _kalmanSell.Forecast(n);
+        var (pTot, vTot) = _kalmanTotal.Forecast(n);
+
+        // σ²_bar over n bars in price² (Brownian: variance grows linearly in time).
+        var sigmaBarPrice = _lastSigmaBar * (_lastMid > 0 ? _lastMid : 1.0);
+        var barVar = sigmaBarPrice * sigmaBarPrice * n;
+        var conf = barVar > 1e-12 ? Math.Clamp(1.0 - vTot / barVar, 0.0, 1.0) : 0.0;
+        return (pBuy, pSell, pTot, pBuy - pSell, conf, n);
+    }
+
     // ── Combination ─────────────────────────────────────────────────────────────────────────
     private void UpdateWeights()
     {
@@ -978,7 +1124,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         var coil = wedge != 0 && Math.Abs(wedge) < 1.0;   // weak wedge ⇒ coiling
         var flowMult = name switch
         {
-            SigInitiative or SigControl or SigWedge or SigValue => coil ? 1.15 : 1.0,
+            SigInitiative or SigControl or SigWedge or SigValue or SigPredNode => coil ? 1.15 : 1.0,
             SigDelta or SigTapeSpeed => coil ? 0.9 : 1.1,
             _ => 1.0,
         };
@@ -999,7 +1145,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         {
             SigDelta or SigFootprint => t.DeltaFootprint,
             SigObi or SigTapeSpeed => t.ObiTapeSpeed,
-            SigInitiative or SigControl or SigWedge or SigValue or SigCvd => t.PocLines,
+            SigInitiative or SigControl or SigWedge or SigValue or SigCvd or SigPredNode => t.PocLines,
             SigVpin => t.DeltaFootprint,
             SigKyle => t.PocLines,
             _ => 1.0,
@@ -1043,29 +1189,38 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         var tick = InstrumentTick;
         var spreadCost = Math.Max(_lastAsk - _lastBid, Options.SpreadCostTicks * tick);
         var fee = Options.CommissionPerSide;
-        var requiredEdge = spreadCost + 2.0 * fee + condSlip;
+
+        // Adaptive slippage: the conditional model, surcharged by immediate book pressure on the side
+        // we are trading INTO (the depth resisting our fill). slip = condSlip · (1 + oppositeOBI).
+        var oppObi = OppositeBookPressure(direction, now);
+        var adaptiveSlip = condSlip * (1.0 + oppObi);
+
+        var requiredEdge = spreadCost + 2.0 * fee + adaptiveSlip;
         // g(C) is a return; convert to price units around entry for comparison.
         var edgePrice = Math.Abs(gC) * entry;
         if (direction > 0 && gC <= 0) return;
         if (direction < 0 && gC >= 0) return;
         if (edgePrice < requiredEdge) return;
 
-        // Structure-anchored bracket.
+        // Structure / predicted-node bracket.
         var (stop, target) = ComputeBracket(direction, entry);
         if (stop <= 0 || target <= 0) return;
         var stopDist = Math.Abs(entry - stop);
         var targetDist = Math.Abs(target - entry);
         if (stopDist <= 0 || targetDist <= 0) return;
 
-        // First-passage EV sanity: μ = g(C) drift over a bar, σ from bar vol.
+        // First-passage EV sanity: μ = g(C) drift over a bar, σ from bar vol, penalised for jump/gap
+        // risk (the empirical frequency of recent bars large enough to span the nearer barrier — a
+        // discontinuity the continuous-path formula can't see).
         var mu = gC * entry;   // expected price move per bar
         var sigma = _lastSigmaBar * entry;
-        var p = FirstPassage.WinProbability(stopDist, targetDist, direction > 0 ? mu : -mu, sigma);
-        var roundTrip = spreadCost + 2.0 * fee + condSlip;
+        var gap = GapPenalty(Math.Min(stopDist, targetDist));
+        var p = FirstPassage.WinProbability(stopDist, targetDist, direction > 0 ? mu : -mu, sigma, gap);
+        var roundTrip = spreadCost + 2.0 * fee + adaptiveSlip;
         var ev = FirstPassage.ExpectedValue(p, targetDist, stopDist, roundTrip);
         if (ev <= 0) return;
 
-        var qty = SizePosition(stopDist, gC, entry);
+        var qty = SizePosition(stopDist, gC, entry, SessionKellyCap(now));
         if (qty <= 0) return;
 
         _entryPrice = entry;
@@ -1088,6 +1243,27 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         var stopFixed = Options.StopSigmaCoefficient * sigmaPrice * scale;
         var targetFixed = Options.TargetSigmaCoefficient * sigmaPrice * scale;
         var buffer = Math.Max(InstrumentTick, 0.25 * stopFixed);
+
+        // ── Preferred: predicted-node exits when the Kalman forecast is confident enough ──────────
+        // TP = predicted buy POC (long) / sell POC (short); SL = predicted sell POC (long) / buy POC
+        // (short). Only used when both levels straddle entry on the correct sides; otherwise we fall
+        // back to the structure/ATR logic below (e.g. when the forecast variance is too high).
+        var pred = PredictNodes();
+        if (pred.Conf >= Options.PredictionExitMinConfidence)
+        {
+            double pStop = 0, pTarget = 0;
+            if (direction > 0)
+            {
+                if (pred.Buy > entry) pTarget = pred.Buy;
+                if (pred.Sell > 0 && pred.Sell < entry) pStop = pred.Sell - buffer;
+            }
+            else
+            {
+                if (pred.Sell > 0 && pred.Sell < entry) pTarget = pred.Sell;
+                if (pred.Buy > entry) pStop = pred.Buy + buffer;
+            }
+            if (pStop > 0 && pTarget > 0) return (pStop, pTarget);
+        }
 
         // Flow-structure anchors: wedge boundaries (buy/sell fitted lines) and value-area edges.
         var lines = FitLines();
@@ -1125,14 +1301,14 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         return (stop, target);
     }
 
-    private long SizePosition(double stopDist, double gC, double entry)
+    private long SizePosition(double stopDist, double gC, double entry, double kellyCap)
     {
         if (stopDist <= 0) return 0;
-        // Quarter-Kelly on the conditional edge. Kelly fraction f* ≈ edge / odds for a bracket;
-        // approximate with the calibrated expected return relative to the stop risk.
+        // Quarter-Kelly (session-capped) on the conditional edge. Kelly fraction f* ≈ edge / odds for
+        // a bracket; approximate with the calibrated expected return relative to the stop risk.
         var edge = Math.Abs(gC) * entry;        // expected gain (price units)
         var kelly = edge / Math.Max(stopDist, 1e-9);
-        var capped = Math.Clamp(kelly, 0, 1) * Options.KellyFraction;
+        var capped = Math.Clamp(kelly, 0, 1) * kellyCap;
 
         // Risk-fraction sizing: qty such that stopDist·qty ≈ riskCash, then cap at Kelly.
         var riskCash = _balance * Options.RiskFraction;
@@ -1281,6 +1457,49 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         return false;
     }
 
+    /// <summary>Session-dependent Kelly cap: 0.25 in the liquid London/NY overlap, 0.10 in the thin
+    /// (gappier) Asian session, the configured default otherwise.</summary>
+    private double SessionKellyCap(DateTime nowUtc)
+    {
+        var h = nowUtc.Hour;
+        if (h >= 13 && h < 17) return Options.KellyFractionOverlap;   // London/NY overlap
+        if (h >= 0 && h < 9) return Options.KellyFractionAsian;       // Asian
+        return Options.KellyFraction;                                 // London-only / NY-only
+    }
+
+    /// <summary>Immediate book pressure on the side we trade INTO, ∈ [0, 1]: ask share for a buy
+    /// (we lift offers), bid share for a sell. 0 when no fresh depth snapshot is available.</summary>
+    private double OppositeBookPressure(int direction, DateTime now)
+    {
+        var depth = _latestDepth;
+        if (depth is null) return 0;
+        if ((now - _latestDepthTime).TotalMilliseconds > TtlMsFor(SigObi)) return 0;   // stale
+        var bid = (double)depth.BestBidSize;
+        var ask = (double)depth.BestAskSize;
+        var tot = bid + ask;
+        if (tot <= 0) return 0;
+        return direction > 0 ? ask / tot : bid / tot;
+    }
+
+    /// <summary>Jump/gap penalty ∈ [0, 1]: the fraction of the last 100 live bars whose high-low range
+    /// is at least <paramref name="barrierDistance"/> — bars big enough to gap straight through a
+    /// barrier at that distance, a discontinuity the continuous first-passage formula cannot see.</summary>
+    private double GapPenalty(double barrierDistance)
+    {
+        if (barrierDistance <= 0) return 0;
+        var feats = LiveBarFeatures();
+        var n = feats.Length;
+        var look = Math.Min(100, n);
+        if (look < 10) return 0;
+        var hits = 0;
+        for (var i = n - look; i < n; i++)
+        {
+            var range = feats[i].High - feats[i].Low;
+            if (range >= barrierDistance) hits++;
+        }
+        return (double)hits / look;
+    }
+
     // ── Sigma / footprint geometry ─────────────────────────────────────────────────────────────
     private void UpdateSigmaBar()
     {
@@ -1350,6 +1569,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         var (zp, va) = LastValueDeviation(lines);
 
         var tradeAllowed = !_killSwitch && direction != 0 && agree >= 2 && IsSessionAllowed(now);
+        var pred = PredictNodes();
 
         return new ApexSnapshotV2(
             TimestampUtc: now,
@@ -1377,7 +1597,13 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
             SessionPnl: _sessionPnl,
             TradeAllowed: tradeAllowed,
             KillSwitch: _killSwitch,
-            Position: _position);
+            Position: _position,
+            PredictedBuyPoc: pred.Buy,
+            PredictedSellPoc: pred.Sell,
+            PredictedTotalPoc: pred.Total,
+            PredictedWedgeWidth: pred.Wedge,
+            PredictionConfidence: pred.Conf,
+            PredictionHorizonBars: pred.Horizon);
     }
 
     private double _lastControlVelocity;
@@ -1388,7 +1614,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         var sigs = new SignalResult[SignalNames.Length];
         for (var i = 0; i < SignalNames.Length; i++)
             sigs[i] = _lastSignal.TryGetValue(SignalNames[i], out var s) ? s : SignalResult.Invalid(SignalNames[i], now);
-        var composite = Score(sigs, now, out var dir, out var agree);
+        var composite = Math.Clamp(Score(sigs, now, out var dir, out var agree), -3.0, 3.0);
         var gC = EvaluateCalibration(composite);
         var condSlip = ConditionalSlippage(composite);
         return BuildSnapshot(now, mid, sigs, composite, dir, agree, gC, condSlip, quality);

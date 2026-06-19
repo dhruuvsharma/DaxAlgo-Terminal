@@ -24,7 +24,7 @@ description: MVVM patterns, threading rules, and C# code style preferences for D
 ## Observability
 
 - Connection state flows as `IObservable<ConnectionState>` from `ConnectionManager` → repository → view-models. Don't poll.
-- Logs flow through Serilog with a custom in-memory sink (the Logs pane).
+- Logs flow through Serilog with a custom in-memory sink (the universal Activity Log — rendered in the shell's bottom activity-log drawer; no per-window log panels).
 - Notifications go through `INotificationPublisher` — see [add-notifier](../add-notifier/SKILL.md).
 
 ## Code style
@@ -36,12 +36,13 @@ description: MVVM patterns, threading rules, and C# code style preferences for D
 - **Records for value types** (`Bar`, `Tick`, `Contract`). Sealed by default.
 - **Prefer `IReadOnlyList<T>`** over `List<T>` in public signatures.
 
-## XAML / AvalonDock quirks
+## XAML / window quirks
 
-- AvalonDock VS2013 Dark theme is the shell. New docked panels go through `DockingManager`.
-- **Binding errors fail silently** inside AvalonDock layouts. If a binding "isn't working", check the Output window for `BindingExpression path error` lines before assuming the data is wrong.
-- MahApps Metro chrome handles the window frame — don't override `WindowStyle` / `WindowChrome` without checking the existing Mahapps styles.
-- ScottPlot 5 candlestick chart on the right pane — auto-scrolling, last ~200 bars, configurable timeframe. Don't reach for OxyPlot / LiveCharts.
+- **No docking framework** (AvalonDock was removed 2026-06-18). Every tool/strategy/chart opens as its own `MetroWindow`; the shell `MainWindow` is a full-width strategy catalog with a collapsible bottom activity-log drawer. A tool that exposes a `UserControl` view is wrapped at open time in `App/Shell/ToolHostWindow` — there is no `DockingManager`, `DockTab`, or layout XML to maintain.
+- New single-instance tool/strategy windows are opened from `MainWindowViewModel` (`OpenHostedTool` / `OpenWindowTool`), tracked in `_openWindows`, and disposed on close. Don't add a docked panel — add a window.
+- **Binding errors fail silently.** If a binding "isn't working", check the Output window for `BindingExpression path error` lines before assuming the data is wrong.
+- MahApps Metro chrome handles the window frame — don't override `WindowStyle` / `WindowChrome` without checking the existing MahApps styles.
+- ScottPlot 5 candlestick charts in strategy windows — auto-scrolling, last ~200 bars, configurable timeframe. Don't reach for OxyPlot / LiveCharts.
 
 ## When debugging XAML or bindings
 

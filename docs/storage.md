@@ -1,6 +1,6 @@
 # Storage map — where every byte lives
 
-> Last updated: 2026-06-01
+> Last updated: 2026-06-18
 
 The terminal has **several** storage surfaces, and it's easy to mix them up. This page is the single map: what each one holds, what format, where on disk, how long it lives, and how to read it back. **Data/signals only — none of this stores orders or fills; there is no live execution path.**
 
@@ -12,7 +12,7 @@ If you remember one thing: there is **one source of truth** (the canonical store
 
 | # | Surface | Holds | Format / engine | Default location | Lifetime | On by default? |
 |---|---|---|---|---|---|---|
-| 1 | **Canonical store** (`IMarketDataStore`) | Quotes, trades, **closed** historical bars, instruments + broker aliases | SQLite (embedded) **or** PostgreSQL + TimescaleDB | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` | Until retention prunes / you delete | ✅ yes (SQLite) |
+| 1 | **Canonical store** (`IMarketDataStore`) | Quotes, trades, **closed** historical bars, L2 depth (per-broker SQLite only), instruments + broker aliases | Per-broker SQLite (default) · single-file SQLite · PostgreSQL + TimescaleDB · QuestDB | `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata-{broker}-{stream}.db` (+ shared `marketdata.db` registry) | Until retention prunes / you delete | ✅ yes (per-broker SQLite) |
 | 2 | **Archive manifest** | Index of what's been offloaded to Telegram (ranges, parts, sha256) | SQLite (separate file) | `%LOCALAPPDATA%\DaxAlgoTerminal\archive-manifest.db` | Forever (tiny) | ✅ created when archive runs |
 | 3 | **Tick recorder** | Raw L1 ticks you manually capture | Parquet (one file per session) | `%LOCALAPPDATA%\DaxAlgo Terminal\recordings\*.parquet` | Until you delete | ⬜ manual (Tools → Record live ticks) |
 | 4 | **Parquet lake** | Closed-period **copy** of store quotes/trades/bars | Parquet tree, partitioned | `%LOCALAPPDATA%\DaxAlgo Terminal\parquet-lake\…` | Forever (append-only) | ⬜ opt-in (`MarketDataParquetLake:Enabled`) |
@@ -26,29 +26,113 @@ If you remember one thing: there is **one source of truth** (the canonical store
 
 ## 1. Canonical store — the source of truth
 
-One seam, `IMarketDataStore`, two interchangeable backends:
+One seam, `IMarketDataStore`, **four interchangeable backends**:
 
-| Backend | Use it when | Timestamps |
-|---|---|---|
-| **SQLite** (default) | Solo box, zero setup, "just works" | epoch-microseconds (`INTEGER`) |
-| **PostgreSQL + TimescaleDB** | You want hypertables, retention jobs, or one store shared across machines | native `timestamptz` |
+| Backend (`MarketDataStore:Provider`) | Use it when | Timestamps | L2 depth |
+|---|---|---|---|
+| **`SqlitePerBroker`** (default) | Solo box, zero setup, parallel writers, broker isolation | epoch-microseconds (`INTEGER`) | ✅ persisted (`-l2.db`) |
+| **`Sqlite`** (single file) | One tidy `marketdata.db` for everything | epoch-microseconds | ⬜ dropped |
+| **PostgreSQL + TimescaleDB** | Hypertables, retention jobs, a store shared across machines | native `timestamptz` | ⬜ dropped |
+| **QuestDB** | High-rate L1/L2 quote/trade/depth surfaces (bars still go to SQLite) | native `timestamp` | ✅ (QuestDB side) |
 
-Switch with `MarketDataStore:Provider` = `Sqlite` | `Postgres`. If `Postgres` is set but the DB is unreachable at startup, the app **silently falls back to SQLite** so it always launches.
+If `Postgres` is set but the DB is unreachable at startup, the app **silently falls back to SQLite** so it always launches. QuestDB does **not** silently fall back (it splits: L1/L2/trades/depth → QuestDB, bars → SQLite).
 
-**Tables** (identical shape across both backends):
+### Per-broker SQLite layout (the default)
 
-| Table | Rows |
-|---|---|
-| `instruments` | One per canonical `InstrumentId` (symbol, asset class, exchange, tick size, multiplier) |
-| `instrument_aliases` | Broker symbol ↔ `InstrumentId` mapping (so `AAPL` on IB and Alpaca are the same instrument) |
-| `quotes` | L1 bid/ask with full provenance |
-| `trades` | Trade prints with aggressor side + provenance |
-| `bars` | **Closed** OHLCV bars (historical warm-up reads from the broker — *not* live aggregation) |
+To let multiple brokers write in parallel without lock contention or bar-key collisions, the default backend writes **one file per broker, per stream**, while canonical identity stays in one shared registry DB:
+
+```
+%LOCALAPPDATA%\DaxAlgoTerminal\
+  marketdata.db                       ← shared: instruments + instrument_aliases (identity)
+  marketdata-InteractiveBrokers-bars.db
+  marketdata-InteractiveBrokers-l1.db
+  marketdata-InteractiveBrokers-trades.db
+  marketdata-InteractiveBrokers-l2.db    ← L2 depth (this backend only)
+  marketdata-Binance-bars.db
+  marketdata-Binance-l1.db
+  …one set per connected broker
+```
+
+Store reads take an optional `BrokerKind? source` (null = all brokers merged). There's no migration tooling — switching backends starts fresh.
+
+### Schema (ER diagram)
+
+The canonical schema is identical in shape across the SQLite backends (timestamps are epoch microseconds UTC). The per-broker backend splits the time-series tables into separate files but keeps the same columns:
+
+```mermaid
+erDiagram
+    instruments ||--o{ instrument_aliases : "has broker aliases"
+    instruments ||--o{ quotes : "L1 ticks"
+    instruments ||--o{ trades : "tape prints"
+    instruments ||--o{ bars   : "closed OHLCV"
+    instruments ||--o{ depth  : "L2 levels (per-broker SQLite only)"
+
+    instruments {
+        int     id PK "AUTOINCREMENT"
+        text    canonical_symbol
+        int     asset_class
+        text    exchange
+        text    currency
+        real    tick_size
+        real    multiplier
+    }
+    instrument_aliases {
+        int  broker PK "BrokerKind"
+        text broker_symbol PK
+        text broker_native_id
+        int  instrument_id FK
+    }
+    quotes {
+        int  instrument_id "indexed (instrument_id, event_time)"
+        int  event_time "epoch µs UTC"
+        int  ingest_time
+        real bid
+        real ask
+        int  bid_size
+        int  ask_size
+        int  source "BrokerKind"
+        int  seq
+        int  approx_time "EventTimeApproximate"
+    }
+    trades {
+        int  instrument_id
+        int  event_time
+        int  ingest_time
+        real price
+        int  size
+        int  aggressor "buy/sell/unknown"
+        int  source
+        int  seq
+        int  approx_time
+    }
+    bars {
+        int  instrument_id PK
+        int  bar_size PK "BarSize enum"
+        int  open_time PK
+        real open
+        real high
+        real low
+        real close
+        int  volume
+        int  source
+        int  is_final
+    }
+    depth {
+        int  instrument_id "indexed (instrument_id, event_time)"
+        int  event_time
+        int  ingest_time
+        int  side "0=bid 1=ask"
+        int  level
+        real price
+        int  size
+        int  source
+    }
+```
 
 **Two rules that surprise people:**
 
-- **Tick-primary ingest** — live bars are aggregated *downstream in the hub* and are **not** written to the store. Only ticks (quotes/trades) and broker-supplied *historical* bars land here.
-- **Depth (L2) is never persisted** — it's live-only on the hub. The bandwidth would dwarf everything else, and you can't replay an order book usefully from disk anyway.
+- **Tick-primary ingest** — live bars are aggregated *downstream in the hub* and are **not** written to the store. Only ticks (quotes/trades), L2 depth (per-broker SQLite / QuestDB), and broker-supplied *historical* bars land here.
+- **L2 depth is only persisted by the per-broker SQLite (`-l2.db`) and QuestDB backends** — the single-file SQLite and Postgres backends drop it. Depth is one row per book level per snapshot (`side`, `level`), regrouped into snapshots on read.
 
 Writes are non-blocking (`Enqueue*` returns immediately; a background batch writer flushes on `WriteBatchSize` rows or `FlushIntervalMs`). Reads stream: `GetRecentBarsAsync`, `ReadQuotesAsync`, `ReadTradesAsync`, `ReadBarsAsync`.
 

@@ -48,7 +48,7 @@ A cube strategy ships as TWO things (matches [add-strategy](../add-strategy/SKIL
 
 These are project-wide rules for any strategy that consumes `IBrokerClient.SubscribeTradesAsync`:
 
-- **Capability check at Continue.** Each VM has a static `BrokerSupportsTradeTape(broker)` lookup. Fail loudly (do NOT silently fall back to quote-derived). Today only IB returns true. NT / cTrader / Alpaca throw `NotSupportedException` on `SubscribeTradesAsync`.
+- **Capability check at Continue.** Each VM has a static `BrokerSupportsTradeTape(broker)` lookup. Fail loudly (do NOT silently fall back to quote-derived). Tape is wired on IB / Binance / Ironbeam (+ crypto venues, Simulated); NT / cTrader / Alpaca / LSE throw `NotSupportedException` on `SubscribeTradesAsync`.
 - **Subscribe to BOTH** `IMarketDataIngest.Subscribe(quotes)` and `IMarketDataIngest.SubscribeTrades` — Lee-Ready needs bid/ask context for aggressor classification.
 - **Aggressor inference** uses `Core/MarketData/Microstructure.ClassifyAggressor` (Lee-Ready). Do not reimplement.
 - **Log panel** — `LogEntries : ObservableCollection<LogEntry>` bound to a right-hand panel; auto-scroll-to-end on append; cap ~200 lines. Levels: `INFO / DATA / REGIME / SPIKE / SIGNAL / ENTRY / EXIT / CONFIRM / ERROR`. Don't invent new levels per cube.

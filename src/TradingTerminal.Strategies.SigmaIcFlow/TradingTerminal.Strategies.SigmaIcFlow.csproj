@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <UseWPF>true</UseWPF>
-    <Description>APEX microstructure scalper — live signal-mode wrapper around the engine-side ApexScalperStrategy (8-signal weighted composite, regime classifier, dynamic stops).</Description>
+    <Description>Σ⁻¹·IC Order-Flow Optimizer — live signal-mode wrapper around the engine-side ApexScalperStrategy (11-signal Σ⁻¹·IC-weighted composite, regime classifier, isotonic entry gate, dynamic stops).</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -10,9 +10,9 @@ using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.UI;
 using Engine = TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy;
 
-namespace TradingTerminal.Strategies.ApexScalper;
+namespace TradingTerminal.Strategies.SigmaIcFlow;
 
-public partial class ApexScalperStrategyWindow : StrategyWindowBase
+public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
 {
     private const int LadderDepth = 10;
     private const double LadderBarMaxWidth = 90.0;
@@ -73,11 +73,12 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         new("Tape speed", "#A1887F", 1.4f, Sig(Engine.SigTapeSpeed)),
         new("CVD",        "#90CAF9", 1.4f, Sig(Engine.SigCvd)),
         new("OBI",        "#E57373", 1.4f, Sig(Engine.SigObi)),
+        new("Pred Node",  "#CE93D8", 1.4f, Sig(Engine.SigPredNode)),
     };
 
     private readonly bool[] _seriesEnabled = Enumerable.Repeat(true, SeriesDefs.Length).ToArray();
 
-    static ApexScalperStrategyWindow()
+    static SigmaIcFlowStrategyWindow()
     {
         foreach (var b in new Brush[]
         {
@@ -97,7 +98,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
     private readonly DispatcherTimer _redrawTimer;
     private bool _chartDirty;
 
-    public ApexScalperStrategyWindow()
+    public SigmaIcFlowStrategyWindow()
     {
         InitializeComponent();
         BuildLadder();
@@ -122,17 +123,17 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         if (sender is not LiveSignalStrategyViewModelBase vm) return;
         if (e.PropertyName == nameof(LiveSignalStrategyViewModelBase.LatestDepth))
             RenderOrderBook(vm.LatestDepth);
-        else if (e.PropertyName is nameof(ApexScalperStrategyViewModel.MaxChartCandles)
-                              or nameof(ApexScalperStrategyViewModel.FootprintBarsVisible)
-                              or nameof(ApexScalperStrategyViewModel.ChartXSpanMinutes)
-                              or nameof(ApexScalperStrategyViewModel.SelectedCandleInterval))
+        else if (e.PropertyName is nameof(SigmaIcFlowStrategyViewModel.MaxChartCandles)
+                              or nameof(SigmaIcFlowStrategyViewModel.FootprintBarsVisible)
+                              or nameof(SigmaIcFlowStrategyViewModel.ChartXSpanMinutes)
+                              or nameof(SigmaIcFlowStrategyViewModel.SelectedCandleInterval))
             _chartDirty = true;
     }
 
     protected override void OnRedrawCharts(LiveSignalStrategyViewModelBase baseVm)
     {
         EnsureTickSubscription(baseVm);
-        if (baseVm is not ApexScalperStrategyViewModel vm) return;
+        if (baseVm is not SigmaIcFlowStrategyViewModel vm) return;
         var engine = vm.EngineStrategy;
         var history = engine?.History;
         var maxN = Math.Max(10, vm.MaxChartCandles);
@@ -189,7 +190,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
 
     // ── Feed-quality and bootstrap badges ────────────────────────────────────────────────────────
 
-    private void UpdateBadges(ApexScalperStrategyViewModel vm)
+    private void UpdateBadges(SigmaIcFlowStrategyViewModel vm)
     {
         // Bootstrap badge
         BootstrapBadge.Visibility = vm.BootstrapMode ? Visibility.Visible : Visibility.Collapsed;
@@ -239,7 +240,7 @@ public partial class ApexScalperStrategyWindow : StrategyWindowBase
         }
     }
 
-    private void DrawSignals(ApexScalperStrategyViewModel vm, IReadOnlyList<ApexSnapshotV2> tail)
+    private void DrawSignals(SigmaIcFlowStrategyViewModel vm, IReadOnlyList<ApexSnapshotV2> tail)
     {
         var plot = SignalsPlot.Plot;
         plot.Clear();

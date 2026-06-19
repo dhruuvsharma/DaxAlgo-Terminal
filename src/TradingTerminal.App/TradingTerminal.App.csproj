@@ -33,7 +33,7 @@
     <ProjectReference Include="..\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
     <ProjectReference Include="..\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
     <!-- Charts-menu tools -->
     <ProjectReference Include="..\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
@@ -63,8 +63,6 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
-    <PackageReference Include="Dirkster.AvalonDock" Version="4.72.1" />
-    <PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.72.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />

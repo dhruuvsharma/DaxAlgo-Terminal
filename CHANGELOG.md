@@ -6,6 +6,33 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Strategy renamed — "APEX microstructure scalper v2" → "Σ⁻¹·IC Order-Flow Optimizer".** Live
+  project `TradingTerminal.Strategies.ApexScalper` → `TradingTerminal.Strategies.SigmaIcFlow`
+  (classes, namespace, DI `AddSigmaIcFlowStrategy()`); live strategy id `apex.scalper` →
+  `sigma.ic.flow`; backtest/CLI id `apexScalper` → `sigmaIcFlow` (legacy `apex`/`apexscalper`
+  aliases still resolve). The engine-side class stays `ApexScalperStrategy`
+  (`Infrastructure/Backtest/Strategies/`) — internal name retained.
+- **Main window launches maximized** (`WindowState="Maximized"`).
+- **Shell redesign — AvalonDock removed.** The docking framework is gone; every tool, strategy and
+  chart now opens as its own `Window`. The 13 tools that used to be dock document tabs (Backtest,
+  Factor research, Recorder, ML features, Backtest analysis, AI analyst, Markov regime, Stationarity,
+  ARIMA/GARCH, Kalman, Notifications, Archive settings, Archive history) open via a new generic
+  `App/Shell/ToolHostWindow`. The `MainWindow` is now a full-width strategy catalog (tiled cards) with
+  a collapsible **activity-log drawer** pinned at the bottom (closed by default). The header strip lost
+  the centre broker/mode badge and the `user · account` text; the live ticker tape and command line were
+  removed; the status bar was trimmed to connection state · live-broker count · clock.
+- **Docs overhaul** — every doc under `docs/` (plus the root README and CLAUDE.md) refreshed for the
+  windowed shell, the four store backends, and per-broker L2 persistence; added Mermaid component /
+  pipeline / sequence / database-ER diagrams; reserved per-tool/strategy/window screenshot + video
+  "coming soon" media slots.
+
+### Removed
+
+- `Shell/DockTab.cs`, `Shell/TickerTapeViewModel.cs`, `UI/DockTabStyleSelector.cs`, and the
+  `Dirkster.AvalonDock` + `Dirkster.AvalonDock.Themes.VS2013` package references.
+
 ## [1.1.0] — 2026-06-15
 
 ### Added

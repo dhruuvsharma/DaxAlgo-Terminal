@@ -1,6 +1,6 @@
 # Architecture
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-18
 
 The design rationale, key interface signatures, and constraints that the rest of the codebase honors. For installation and runtime setup, see [getting-started.md](getting-started.md). For per-broker quirks, see [brokers.md](brokers.md). For feature-level deep dives, see [market-data.md](market-data.md), [market-regime.md](market-regime.md), [backtesting.md](backtesting.md), [notifications.md](notifications.md), [ai-analyst.md](ai-analyst.md).
 
@@ -8,12 +8,54 @@ The design rationale, key interface signatures, and constraints that the rest of
 
 A modular trading terminal that:
 
-- Hosts strategies as plug-ins inside a single dockable WPF shell.
-- Talks to **multiple brokers** through a single seam — picked by the user at login, swapped without any consumer noticing.
+- Hosts strategies and tools as plug-ins inside a single WPF shell — each opens as its own window.
+- Talks to **multiple brokers** through a single seam — picked by the user at login, run concurrently, swapped without any consumer noticing.
 - Adds new strategies with one DI-registration line, no shell edits.
 - Adds new brokers with one new `IBrokerClient` implementation + one DI block, no consumer changes.
 
-The shipped brokers (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca) exercise four very different transports on purpose, to prove the abstraction holds. If it holds for all four, it holds for whatever comes next (Tradovate, Rithmic, dxTrade, etc.). The capability matrix lives in [brokers.md](brokers.md).
+The shipped brokers (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbeam, London Strategic Edge, Binance, plus additional crypto venues and Upstox) exercise very different transports on purpose — P/Invoke, protobuf-over-TLS, REST+WebSocket, keyless public feeds — to prove the abstraction holds. If it holds for all of them, it holds for whatever comes next (Tradovate, Rithmic, dxTrade, etc.). The capability matrix lives in [brokers.md](brokers.md).
+
+### Component architecture
+
+```mermaid
+flowchart TB
+    subgraph UI["Presentation — WPF (App + UI + tool/strategy projects)"]
+        SHELL[App shell<br/>MainWindow · menu · catalog · log drawer]
+        SW[Strategy windows x10]
+        TW[Tool windows]
+    end
+    subgraph LOGIC["Logic — Infrastructure"]
+        BCLIENTS[Broker clients<br/>behind IBrokerClient]
+        BSEL[BrokerSelector + ConnectionManager]
+        ENGINE[Backtest engine<br/>router · fills · fees · risk]
+        NOTIF[NotificationDispatcher]
+        REGIME[Regime services]
+    end
+    subgraph PIPE["Pipeline — MarketData"]
+        INGEST[Ingest]
+        HUB[Hub Rx fanout]
+        REPO[Repository]
+        STOREI[Store]
+        ARCH[Archive offloader]
+        REG[InstrumentRegistry]
+    end
+    subgraph CORE["Core — domain types + interfaces (no deps)"]
+        TYPES[Bar · Tick · Quote · TradePrint<br/>DepthSnapshot · InstrumentId · Contract]
+        IFACES[IBrokerClient · IMarketDataHub<br/>ITradingStrategy · IOrderRouter · ...]
+    end
+
+    SHELL --> SW & TW
+    SW --> REPO & HUB
+    TW --> REPO & HUB & STOREI
+    SW --> NOTIF
+    BCLIENTS --> BSEL --> INGEST
+    INGEST --> HUB & STOREI
+    REG -.-> INGEST
+    ENGINE --> STOREI
+    LOGIC --> CORE
+    PIPE --> CORE
+    UI --> CORE
+```
 
 ## Core principles
 
@@ -44,7 +86,7 @@ Core           → (nothing)
 
 The App shell only *references* the tool/AI-tool projects and opens them via `IServiceProvider`; it contains none of their views. Each tool project exposes one `Add…Surface` DI extension that `App.xaml.cs` calls during composition.
 
-`Core` knows nothing about WPF, MahApps, AvalonDock, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and the AI analyst seam (`Ai`) are separate projects so the App shell stays thin. Each tool window and AI tool window is now its own flat `TradingTerminal.<Name>` project (Charts, OrderBook, VolumeFootprint, Correlation, the three regime tools, Backtest, Recording, plus `Ai.MarketAnalyst` / `Ai.FactorResearch` / `Ai.MlFeatures` / `Ai.BacktestAnalysis`); each ships its own `Add…Surface` DI extension that `App.xaml.cs` calls, and `App` only references them — it hosts none of their views. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
+`Core` knows nothing about WPF, MahApps, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and the AI analyst seam (`Ai`) are separate projects so the App shell stays thin. Each tool window and AI tool window is now its own flat `TradingTerminal.<Name>` project (Charts, OrderBook, VolumeFootprint, Correlation, the three regime tools, Backtest, Recording, plus `Ai.MarketAnalyst` / `Ai.FactorResearch` / `Ai.MlFeatures` / `Ai.BacktestAnalysis`); each ships its own `Add…Surface` DI extension that `App.xaml.cs` calls, and `App` only references them — it hosts none of their views. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
 
 The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin live-UI wrappers — they hold the `MetroWindow`, view-model, and `ITradingStrategy` descriptor, but the actual signal logic (which they instantiate inside `BuildStrategy(contract)`) lives in `Infrastructure/Backtest/Strategies/`. That split keeps the same `IBacktestStrategy` reusable from both the backtest engine and the live signal mode.
 
@@ -61,7 +103,7 @@ TradingTerminal.sln
 │   ├── TradingTerminal.UI                        ViewModelBase, dark theme, universal activity-log sink, LiveSignalStrategyViewModelBase, shared param controls
 │   ├── TradingTerminal.Login                     Sign-in window, credential store, per-broker login forms
 │   ├── TradingTerminal.Ai                        AI analyst seam only (IAiAnalystClient Null/Http, enricher, AddAiAnalyst)
-│   ├── TradingTerminal.Ai.MarketAnalyst          AI dock pane (market analyst)            ┐
+│   ├── TradingTerminal.Ai.MarketAnalyst          AI market analyst window                 ┐
 │   ├── TradingTerminal.Ai.FactorResearch         Factor research window                   │ each ships its own
 │   ├── TradingTerminal.Ai.MlFeatures             ML features window                       │ Add…Surface DI ext;
 │   ├── TradingTerminal.Ai.BacktestAnalysis       Backtest analysis window                 ┘ App only references
@@ -74,9 +116,11 @@ TradingTerminal.sln
 │   ├── TradingTerminal.MarketRegime              Market regime composite window            │ one Add…Surface
 │   ├── TradingTerminal.InstrumentRegime          Per-instrument regime window              │ extension each
 │   ├── TradingTerminal.MarkovRegime              Markov regime window                      │
-│   ├── TradingTerminal.Backtest                  Tools → Backtest tab                      │
+│   ├── TradingTerminal.Backtest                  Tools → Backtest window                   │
 │   ├── TradingTerminal.Recording                 Tick recorder window                      ┘
-│   └── TradingTerminal.Strategies.*              9 per-strategy live projects
+│   ├── TradingTerminal.Ml.*                      Machine-learning windows (Stationarity / ArimaGarch / KalmanFilter)
+│   ├── TradingTerminal.QuantConnect              QuantConnect / LEAN polyglot backtest window
+│   └── TradingTerminal.Strategies.*              12 per-strategy live projects
 └── tests/
     └── TradingTerminal.Tests                     xUnit + FluentAssertions + NSubstitute
 ```
@@ -88,7 +132,10 @@ The `.sln` groups these under **Charts** (Charts/OrderBook/VolumeFootprint/Heatm
 ### Broker abstraction
 
 ```csharp
-public enum BrokerKind { InteractiveBrokers, NinjaTrader, CTrader, Alpaca }
+// The enum has grown well past the original four; the seam below is unchanged.
+public enum BrokerKind { InteractiveBrokers, NinjaTrader, CTrader, Alpaca, Ironbeam,
+                         LondonStrategicEdge, Binance, Coinbase, Bybit, Kraken, OKX,
+                         Upstox, Simulated }
 
 public interface IBrokerClient : IAsyncDisposable
 {
@@ -162,6 +209,31 @@ IBrokerClient ──► IMarketDataIngest ── normalize ──► canonical Q
                        │
                        └── batched async writes ──► IMarketDataStore ──► SQLite | Postgres/Timescale
                                                                          (warm-up, replay, research)
+```
+
+A single live tick, end to end:
+
+```mermaid
+sequenceDiagram
+    participant B as Broker socket
+    participant C as IBrokerClient
+    participant I as IMarketDataIngest
+    participant R as InstrumentRegistry
+    participant H as IMarketDataHub (Rx)
+    participant S as IMarketDataStore
+    participant V as Strategy / panel VM
+
+    B->>C: raw quote/trade/depth
+    C->>I: yield via IAsyncEnumerable
+    I->>R: Resolve(Contract) → InstrumentId
+    I->>I: normalize + stamp provenance<br/>(EventTime/IngestTime/Source/Seq/Approx)
+    par fan out (non-blocking)
+        I->>H: Publish(canonical record)
+        H-->>V: OnNext (UI thread)
+    and persist (batched)
+        I->>S: Enqueue* (returns immediately)
+        S-->>S: background batch writer → DB
+    end
 ```
 
 The four Core seams:
@@ -249,8 +321,11 @@ public interface IStrategyFactory
     StrategyHost Create(string strategyId);
 }
 
+// View/ViewModel are typed `object` so Core stays WPF-free; callers cast. Most
+// strategies ship a MetroWindow (StrategyWindowBase); a few expose a UserControl
+// that the shell wraps in a generic ToolHostWindow.
 public sealed record StrategyHost(string StrategyId, string DisplayName,
-                                  UserControl View, ViewModelBase ViewModel);
+                                  object View, object ViewModel);
 ```
 
 Each strategy assembly registers itself via `services.AddXxxStrategy()`. The shell never references concrete strategy types. See [strategies.md](strategies.md) for the catalog and the recipe.
@@ -402,28 +477,56 @@ Records, sealed by default, all in `Core`. No broker-specific fields leak in.
 
 The user's selection persists in `connection.json` under `%LOCALAPPDATA%\DaxAlgoTerminal\` so the next launch reopens to the same broker form. IB password, cTrader OAuth secrets, and the Alpaca API secret are DPAPI-encrypted under `DataProtectionScope.CurrentUser`.
 
-## Shell layout (AvalonDock)
+## Shell layout
+
+> The shell **no longer uses a docking framework.** Every tool, strategy and chart opens as its own `Window` (most ship a `MetroWindow`; the handful that expose a `UserControl` view are wrapped in a generic `ToolHostWindow`). The `MainWindow` is now a single full-width **strategy catalog** with a header strip, the top menu, an optional disconnect banner, and a collapsible **activity-log drawer** pinned at the bottom.
 
 ```
 +--------------------------------------------------------------+
-| DAXALGO TERMINAL · F-keys · BROKER · MODE · USER · clock     |
-| File   View   Tools   AI tools   Settings                    |
+| DAXALGO TERMINAL · F1 HELP · API meter · sessions · UTC clock|
+| File   View   Tools   Charts   Machine learning   ...        |
 | [Disconnect banner — only when not Connected]                |
-+----------------+---------------------------------------------+
-|  STRATEGY      |  Document pane                              |
-|  CATALOG       |   [RSI: NVDA 3m] [Cumulative Delta] [...]   |
-|  - RSI         |                                             |
-|  - CumDelta    |  (chart, parameters, controls)              |
-|  - Microprice  |                                             |
-|  - OU          |                                             |
-|  - ...         +---------------------------------------------+
-|                |  LOGS (pinned, in-memory Serilog sink)      |
-+----------------+---------------------------------------------+
-| ●Connected  BROKER cTrader  USER dhruv  TABS 2  12:34:56 UTC |
++--------------------------------------------------------------+
+|  STRATEGY CATALOG            (double-click to open)   N=14   |
+|  ┌────────────┐ ┌────────────┐ ┌────────────┐               |
+|  │ Sigma-IC   │ │ Cum. Delta │ │ OU          │  …  (cards    |
+|  │ tags/pills │ │ tags/pills │ │ tags/pills  │     tiled,    |
+|  └────────────┘ └────────────┘ └────────────┘     full width)|
+|                                                              |
++--------------------------------------------------------------+
+| ▴ ACTIVITY LOG   (collapsible drawer — closed by default)    |
++--------------------------------------------------------------+
+| ●Connected      LIVE 2 brokers                  12:34:56     |
 +--------------------------------------------------------------+
 ```
 
-The Strategies pane spans the full window height. The right column is a vertical split of documents + logs. The Bloomberg-style top header strip carries the wordmark, function-key tiles, broker + mode badge, signed-in user, and UTC clock.
+- **Header strip** — amber wordmark, an `F1 HELP` tile, the live API-call meter (per-broker rate-cap breakdown dropdown), approximate market-session badges (CRYPTO / NYSE / LSE), and UTC + local clocks.
+- **Strategy catalog** — a `WrapPanel` of strategy cards filling the whole central area. Each card shows the display name, id, description, and the data-requirement + classification pills (and a research-paper link where applicable). Double-click or right-click → Open launches the strategy window.
+- **Activity-log drawer** — the one universal log (Serilog `System` + per-strategy/window appends) in a bottom drawer that slides up from a toggle strip; **closed by default**, also toggled from View → Activity log. There are no per-window log panels.
+- **Status bar** — aggregate connection state, the count of live brokers, and the local clock.
+- **Window registry** — `MainWindowViewModel._openWindows` keeps each tool/strategy single-instance and disposes its view-model on close.
+
+### Window-opening flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Shell as MainWindowViewModel
+    participant DI as IServiceProvider / IStrategyFactory
+    participant Win as Window (MetroWindow / ToolHostWindow)
+
+    User->>Shell: Open strategy / tool
+    Shell->>Shell: _openWindows.TryGetValue(id)
+    alt already open
+        Shell->>Win: Activate()
+    else build new
+        Shell->>Shell: show BusyOverlay (loading curtain)
+        Shell->>DI: resolve ViewModel + View
+        DI-->>Shell: vm, view
+        Shell->>Win: wrap/show, Owner = MainWindow
+        Win-->>Shell: Closed → dispose vm, remove from registry
+    end
+```
 
 ## Per-broker integration notes
 

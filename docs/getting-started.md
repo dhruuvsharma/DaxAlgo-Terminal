@@ -1,6 +1,6 @@
 # Getting started
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-19
 
 The shortest path from a clean clone to a running shell. For broker-specific configuration after the first launch, see [brokers.md](brokers.md). For the daily-use walkthrough, see [user-guide.md](user-guide.md).
 
@@ -66,7 +66,7 @@ Pick one from the Visual Studio debug-target dropdown, or set the environment fr
 $env:DOTNET_ENVIRONMENT = "DevSim"; dotnet run --project src/TradingTerminal.App
 ```
 
-Then double-click any strategy in the left pane to open it and watch ticks flow. These dev files are off in the shipped build. See [configuration.md](configuration.md#dev-launch-profiles) for the `Dev` / `SimulatedBroker` keys.
+Then double-click any strategy card in the catalog to open it in its own window and watch ticks flow. These dev files are off in the shipped build. See [configuration.md](configuration.md#dev-launch-profiles) for the `Dev` / `SimulatedBroker` keys.
 
 ## Repo layout (at a glance)
 
@@ -76,9 +76,11 @@ DaxAlgo Terminal/
 │   ├── TradingTerminal.App               WPF entry, DI bootstrap, MainWindow, LoginWindow
 │   ├── TradingTerminal.Backtest.Cli      Headless backtest runner (daxalgo-backtest.exe)
 │   ├── TradingTerminal.Core              Domain models + interfaces (no UI/broker deps)
-│   ├── TradingTerminal.Infrastructure    Broker clients, repository, backtest engine, store
-│   ├── TradingTerminal.UI                Theme, base view-models, dock helpers
-│   └── TradingTerminal.Strategies.*      One project per strategy (20+ of them)
+│   ├── TradingTerminal.MarketData        Canonical pipeline (hub, ingest, store, registry, archive)
+│   ├── TradingTerminal.Infrastructure    Broker clients, backtest engine, notifications, regime
+│   ├── TradingTerminal.UI                Theme, base view-models, universal activity-log sink, shared controls
+│   ├── TradingTerminal.<Tool>            One project per tool/chart/ML/AI window (opens as its own window)
+│   └── TradingTerminal.Strategies.*      One project per strategy (12 of them)
 ├── tests/TradingTerminal.Tests           xUnit + FluentAssertions + NSubstitute
 ├── tools/
 │   ├── cpp-backtester/                   C++ tick backtester (subprocess sidecar)

@@ -1,6 +1,6 @@
 # Machine Learning tools
 
-> Last updated: 2026-06-13
+> Last updated: 2026-06-18
 
 Three time-series statistics windows under the top-level **Machine learning** menu. All of them are **offline analysis over historical bars** pulled from the canonical store via `IMarketDataRepository` — no live subscription, no broker round-trip beyond the history request, and fitting always runs off the UI thread. Each window follows the same conventions as the other tool windows: global instrument picker, timeframe dropdown, bar-count input, ScottPlot dark charts.
 
@@ -11,6 +11,9 @@ The windows are thin UI over reusable math in **`src/TradingTerminal.Core/Quant/
 **Machine learning → Stationarity & differencing…**
 
 Answers the first question of any time-series workflow: *is this series stationary, and which transform makes it so?*
+
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 1. Pick an instrument, timeframe, and bar count (default 500).
 2. Pick a **transform**: none, log, first difference, log returns, or **fractional differencing** (fixed-window, with a `d` input, default 0.4 — the "keep memory, kill the trend" option).
@@ -28,6 +31,9 @@ Implementation: `StationarityTests` (ADF with AIC lag selection and MacKinnon cr
 
 Classical forecast + volatility modelling on one instrument.
 
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
+
 1. Pick instrument / timeframe / bar count, and either set **p, d, q** by hand or leave **Auto order** ticked to AIC-search the order grid.
 2. Set the forecast **horizon** (default 20 bars).
 3. **Run.** The window shows:
@@ -42,6 +48,9 @@ Implementation: `ArimaModel` (Hannan–Rissanen two-stage OLS), `GarchModel` + `
 **Machine learning → Kalman filter…**
 
 State-space filtering in three modes (the **Mode** dropdown):
+
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 | Mode | State | Use it for |
 |---|---|---|

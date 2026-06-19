@@ -1,6 +1,6 @@
 # User guide
 
-> Last updated: 2026-06-13
+> Last updated: 2026-06-19
 
 A daily-use walkthrough for **using** the terminal. For installation and the first launch, see [getting-started.md](getting-started.md). For per-broker setup, see [brokers.md](brokers.md). For each feature in depth, follow the cross-links.
 
@@ -9,6 +9,8 @@ A daily-use walkthrough for **using** the terminal. For installation and the fir
 | Backtest | Tick recorder | Correlation matrix |
 |---|---|---|
 | ![Backtest](../images/backtestwindow.png) | ![Tick recorder](../images/recordtickswindow.png) | ![Correlation matrix](../images/correlationmatrixwindow.png) |
+
+> 🎬 _Video walkthroughs for the shell and each tool — coming soon_
 
 ## Launching
 
@@ -20,34 +22,36 @@ You see the **login window** with broker tiles: Interactive Brokers, NinjaTrader
 
 Tick **Auto Connect** (bottom of the login window) to have every broker form fire its Connect with saved credentials as soon as the window opens. The flag persists across sessions, and each broker connects independently — one dead broker never blocks the rest.
 
-After **Sign in**, the main shell opens. The status bar at the bottom shows connection state, your user/account, active broker, and tab count. If the login fails, watch the **Logs** pane — every broker error is logged there with enough detail to act on (IB error codes, cTrader `ProtoOAErrorRes`, NT `rc != 0` reasons).
+After **Sign in**, the main shell opens. The status bar at the bottom shows connection state and the count of live brokers. If the login fails, open the **Activity log** drawer (bottom) — every broker error is logged there with enough detail to act on (IB error codes, cTrader `ProtoOAErrorRes`, NT `rc != 0` reasons).
 
 ## The main shell
 
+The shell does **not** use a docking framework — every strategy, tool and chart opens as **its own window**. The `MainWindow` itself is a full-width strategy catalog with a collapsible log drawer.
+
 ```
 +--------------------------------------------------------------+
-| DAXALGO TERMINAL · F-keys · BROKER · MODE · USER · clock     |
+| DAXALGO TERMINAL · F1 HELP · API meter · sessions · UTC clock|
 | File View Tools Charts Machine-learning AI Data Settings     |
-+----------------+---------------------------------------------+
-|  STRATEGY      |  Document pane                              |
-|  CATALOG       |   (each opened strategy or tool is a tab    |
-|  - APEX        |    or window here)                          |
-|  - CumDelta    |                                             |
-|  - Toxicity    |                                             |
-|  - ...         |                                             |
-|                +---------------------------------------------+
-|                |  LOGS                                       |
-+----------------+---------------------------------------------+
-| ●Connected  BROKER cTrader  USER dhruv  TABS 2  12:34:56 UTC |
+| [Disconnect banner — only when not Connected]                |
++--------------------------------------------------------------+
+|  STRATEGY CATALOG          (double-click to open)    N=14    |
+|  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         |
+|  │ Sigma-IC │ │ CumDelta │ │ Toxicity │ │ OU       │   …     |
+|  │ pills    │ │ pills    │ │ pills    │ │ pills    │         |
+|  └──────────┘ └──────────┘ └──────────┘ └──────────┘         |
++--------------------------------------------------------------+
+| ▴ ACTIVITY LOG   (collapsible drawer — closed by default)    |
++--------------------------------------------------------------+
+| ●Connected            LIVE 2 brokers              12:34:56   |
 +--------------------------------------------------------------+
 ```
 
-- **Top header strip** — terminal wordmark, function-key tiles, active broker name + connection-mode badge (the broker's mode, e.g. *Interactive Brokers* / *Paper Alpaca* / *Simulated (synthetic)* — green when any connected broker is live, amber otherwise), signed-in user, UTC clock.
-- **Strategies pane (left, full window height)** — list of every registered strategy. Double-click to open.
-- **Document area (centre)** — tabs for tools (Backtest, Recorder, Factor Research, Market Regime, Notifications) and inline strategy panes. Strategies usually open as their own **floating window**, not as a tab.
-- **Logs pane (bottom right)** — in-memory Serilog sink. Live tail of everything happening; turn on if a strategy isn't behaving.
-- **Status bar (bottom)** — connection-state dot (green = connected), broker, signed-in user, open-tab count, UTC clock.
-- **View menu** toggles the strategies pane and the logs pane on/off if you want a cleaner workspace.
+- **Top header strip** — terminal wordmark, an F1 HELP tile, the live **API-call meter** (click for the per-broker rate-cap breakdown), approximate market-session badges (CRYPTO / NYSE / LSE), and UTC + local clocks.
+- **Strategy catalog (centre, full width)** — a tiled grid of strategy cards. Each shows the name, id, description, and data-requirement + classification pills. **Double-click** a card (or right-click → Open) to launch the strategy in its own window.
+- **Activity-log drawer (bottom)** — the one universal Serilog sink (system + per-strategy/window entries). Collapsed by default; click the **▴ ACTIVITY LOG** strip (or View → Activity log) to slide it open. Filter, copy, and tail are all here. There are no per-window log panels.
+- **Status bar (bottom)** — connection-state dot (green = connected), the count of live brokers, and the local clock.
+- **Tools / Charts / Machine learning / AI tools / etc. menus** — each item opens its tool in a dedicated window; re-selecting an already-open tool just focuses it.
+- **View menu** toggles the activity-log drawer (and theme).
 
 ## Running a strategy live (signal mode)
 
@@ -67,14 +71,14 @@ For the full strategy catalog and the recipe to add a new strategy, see [strateg
 
 ## Notifications
 
-Every signal fired by any strategy goes through a single notification pipeline. **Tools → Settings → Notifications** opens the configuration tab with blocks for **Telegram**, **Discord**, **Ollama** (local LLM commentary), and **AI Market Analyst**.
+Every signal fired by any strategy goes through a single notification pipeline. **Settings → Notifications** opens the configuration window with blocks for **Telegram**, **Discord**, **Ollama** (local LLM commentary), and **AI Market Analyst**.
 
 - For Telegram and Discord setup steps and the Ollama enricher, see [notifications.md](notifications.md).
 - For the AI Market Analyst, see [ai-analyst.md](ai-analyst.md).
 
 ## Market regime panel
 
-**Tools → Market regime** opens a dockable panel with the current **risk-on / risk-off composite** (0–100 gauge, five bands). The score blends ten weighted sub-signals (volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset) from Yahoo Finance, FRED, CNN Fear & Greed, and AAII sentiment.
+**Tools → Market regime** opens a window with the current **risk-on / risk-off composite** (0–100 gauge, five bands). The score blends ten weighted sub-signals (volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset) from Yahoo Finance, FRED, CNN Fear & Greed, and AAII sentiment.
 
 Optional behaviour:
 
@@ -115,7 +119,7 @@ See [machine-learning.md](machine-learning.md) for each window in depth and the 
 
 ## Local market-data store
 
-Every tick / quote / bar / trade the terminal sees from any broker is written to a local store, so strategies can warm up on history and you can replay later. Two backends — SQLite (default, zero-config) or PostgreSQL + TimescaleDB (via the repo-root `docker-compose.yml`).
+Every tick / quote / bar / trade (and L2 depth) the terminal sees from any broker is written to a local store, so strategies can warm up on history and you can replay later. Four backends — **per-broker SQLite** (default, zero-config, one file per broker per stream), single-file SQLite, PostgreSQL + TimescaleDB, or QuestDB (via the repo-root `docker-compose.yml`).
 
 If you set `Provider: Postgres` but the database isn't reachable at startup, the app falls back to SQLite automatically — logged at warning level. Nothing else changes; the in-memory live hub keeps working either way.
 
@@ -139,8 +143,8 @@ Build a proprietary tick archive on your account that you can replay through the
 1. **Tools → Record live ticks.**
 2. Pick an instrument.
 3. Click **Browse** to pick an output `.parquet` path (default lives in `%LOCALAPPDATA%\DaxAlgo Terminal\recordings\`).
-4. Hit **Start.** The tab streams the live tick feed from the active broker into the parquet writer. The grid shows the most recent 30 ticks; the stats row shows elapsed time, total ticks written, current bid/ask.
-5. **Stop** flushes the writer and closes the file. The resulting parquet is directly usable as `--data` for `daxalgo-backtest run` or the Backtest tab.
+4. Hit **Start.** The window streams the live tick feed from the active broker into the parquet writer. The grid shows the most recent 30 ticks; the stats row shows elapsed time, total ticks written, current bid/ask.
+5. **Stop** flushes the writer and closes the file. The resulting parquet is directly usable as `--data` for `daxalgo-backtest run` or the Backtest window.
 
 L1 only today — depth recording (cTrader's L2) needs a separate columnar format and isn't wired yet. Tickers like ES (CME), spot FX through cTrader, stocks through IB all work.
 
@@ -159,7 +163,7 @@ Inspect microstructure features and gauge their predictive shape — the day-to-
 
 A multi-agent LangGraph analyst that runs an indicator → pattern → trend → decision flow and returns a structured verdict (Long / Short / NoCall) with annotated charts. Requires a Python sidecar and an API key for OpenAI / Anthropic / Qwen / MiniMax.
 
-**AI tools → Market analyst** opens the pane. Type a symbol, pick a timeframe and bar count, hit **Analyze**.
+**AI tools → Market analyst** opens the analyst window. Type a symbol, pick a timeframe and bar count, hit **Analyze**.
 
 For setup, per-notification enrichment, and graceful-degradation behaviour, see [ai-analyst.md](ai-analyst.md).
 
@@ -195,4 +199,4 @@ For symptom → fix tables across every subsystem, see [troubleshooting.md](trou
 - NT 8 isn't running, or **Tools → Options → AT Interface → AT Interface enabled** isn't ticked.
 - cTrader access token has expired (~30 days). Re-run the OAuth refresh.
 - Alpaca key was minted for a different environment (paper key against live, or vice versa). Re-check the live toggle.
-- Postgres set as the store provider but Docker isn't running. The app falls back to SQLite — check the Logs pane.
+- Postgres set as the store provider but Docker isn't running. The app falls back to SQLite — check the Activity log drawer.

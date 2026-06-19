@@ -1,6 +1,6 @@
 ---
 name: ai-analyst
-description: Python sidecar (LangGraph indicator/pattern/trend/decision agents + TA-Lib + vision LLM) reached over HTTP/JSON via IAiAnalystClient; hot-swappable Null↔Http via IOptionsMonitor. Use when touching tools/python-ml/, the IAiAnalystClient seam in Core/Infrastructure, the AiAnalystEnricher in the notification pipeline, the AI Market Analyst dock pane, or debugging "AI Analyst unavailable" / HTTP 504 / 500 errors.
+description: Python sidecar (LangGraph indicator/pattern/trend/decision agents + TA-Lib + vision LLM) reached over HTTP/JSON via IAiAnalystClient; hot-swappable Null↔Http via IOptionsMonitor. Use when touching tools/python-ml/, the IAiAnalystClient seam in Core/Infrastructure, the AiAnalystEnricher in the notification pipeline, the AI Market Analyst window, or debugging "AI Analyst unavailable" / HTTP 504 / 500 errors.
 ---
 
 # AI Analyst

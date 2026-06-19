@@ -58,6 +58,6 @@ live order execution.**
 ## Where it lives
 
 - Engine signal logic: `Infrastructure/Backtest/Strategies/FilteredOrderFlowStrategy.cs`
-  (also registered in the Backtest tab catalog and the `daxalgo-backtest` CLI as `filteredOrderFlow`).
+  (also registered in the Backtest window catalog and the `daxalgo-backtest` CLI as `filteredOrderFlow`).
 - OBI math: `Core/MarketData/OrderFlowImbalance.cs`.
 - This project: live window + view-model wrapping the engine via `LiveSignalStrategyViewModelBase`.

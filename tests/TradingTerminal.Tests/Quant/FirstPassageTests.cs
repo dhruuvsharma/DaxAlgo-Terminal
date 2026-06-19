@@ -88,6 +88,22 @@ public sealed class FirstPassageTests
     }
 
     [Fact]
+    public void GapPenalty_DeductsFromWinProbability_AndClamps()
+    {
+        // Driftless symmetric barriers ⇒ base P = 0.5. A 0.2 gap penalty ⇒ 0.3.
+        var penalised = FirstPassage.WinProbability(stop: 1, target: 1, mu: 0, sigma: 1, gapPenalty: 0.2);
+        penalised.Should().BeApproximately(0.3, 1e-12);
+
+        // The 4-arg call (no penalty) is unaffected.
+        var basep = FirstPassage.WinProbability(stop: 1, target: 1, mu: 0, sigma: 1);
+        basep.Should().BeApproximately(0.5, 1e-12);
+
+        // A penalty larger than the base probability clamps at 0, never negative.
+        var floored = FirstPassage.WinProbability(stop: 1, target: 1, mu: 0, sigma: 1, gapPenalty: 0.9);
+        floored.Should().Be(0.0);
+    }
+
+    [Fact]
     public void ExpectedValue_SubtractsRoundTripCosts()
     {
         // P=0.6, b=2, a=1: gross EV = 0.6*2 - 0.4*1 = 1.2 - 0.4 = 0.8. With costs 0.3 ⇒ 0.5.

@@ -1,6 +1,6 @@
 # Charts & order-flow windows
 
-> Last updated: 2026-06-13
+> Last updated: 2026-06-18
 
 Reference for every window under the **Charts** menu: what it shows, what it needs, and every input/parameter it exposes. Each opens as its own window, streams through the canonical pipeline (`IMarketDataHub` / `IMarketDataIngest` — never a broker SDK directly), and uses the shared instrument picker (one global catalog; see [user-guide.md](user-guide.md#add-an-instrument-to-the-catalog)).
 
@@ -9,18 +9,21 @@ Reference for every window under the **Charts** menu: what it shows, what it nee
 | Window | Needs | Served by |
 |---|---|---|
 | Charts | historical bars + L1 | all brokers |
-| Order book | L2 depth | IB, cTrader, Binance, Ironbeam, Simulated |
-| Volume footprint | trade tape (synthetic L1 fallback) | tape: IB, Binance, Ironbeam, Simulated; fallback: everything else |
-| Bookmap + VolBook — heatmap / DOM | L2 depth | IB, cTrader, Binance, Ironbeam, Simulated |
-| Bookmap + VolBook — volume profile / VWAP / CVD / dots | trade tape | IB, Binance, Ironbeam, Simulated |
+| Order book | L2 depth | cTrader, Binance, Ironbeam, Upstox, crypto venues (Coinbase/Bybit/Kraken/OKX), Simulated |
+| Volume footprint | trade tape (synthetic L1 fallback) | tape: IB, Binance, Ironbeam, crypto venues, Simulated; fallback: everything else |
+| Bookmap + VolBook — heatmap / DOM | L2 depth | cTrader, Binance, Ironbeam, Upstox, crypto venues, Simulated |
+| Bookmap + VolBook — volume profile / VWAP / CVD / dots | trade tape | IB, Binance, Ironbeam, crypto venues, Simulated |
 
-A window opened against a broker that can't serve its feed reports it in the status line (footprint falls back to a synthetic tape; Bookmap's volume features stay empty until a tape is present).
+A window opened against a broker that can't serve its feed reports it in the status line (footprint falls back to a synthetic tape; Bookmap's volume features stay empty until a tape is present). **Note:** IB depth (`reqMktDepth`) is not yet wired — IB serves L1 + tape but not the L2 order book.
 
 ## Charts (TradingView-style)
 
 **Charts → Charts…** — candlestick charting rendered by Lightweight Charts inside a WebView2; all numbers are computed in C# (`Core` indicators), so chart, backtest, and live values agree.
 
 Loads history from `IMarketDataRepository`, then streams the forming candle live from the hub.
+
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 | Input | Values | Notes |
 |---|---|---|
@@ -37,6 +40,9 @@ History lookback is fixed per timeframe: 1m → 2 days, 5m → 5 days, 15m → 1
 
 **Charts → Order book…** — the full live L2 ladder for one instrument: asks stacked above, bids below, per-level size bars normalized to the largest level on either side, plus cumulative size per level.
 
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
+
 | Input | Values |
 |---|---|
 | Instrument | searchable picker (depth-capable broker required) |
@@ -48,6 +54,9 @@ Read-outs: **best bid / best ask / spread / mid**, bid & ask **level counts**, a
 **Charts → Volume footprint…** — bid/ask cluster chart built from the trade tape. Each column is one time-bucketed bar; each row is a price level; each cell splits into **sell volume (left, red)** and **buy volume (right, green)** with background intensity scaled by size. The total-volume POC row gets a yellow outline; orange / green / red connector lines track the total / buy / sell POC across bars.
 
 Brokers without a native tape get a **synthetic L1-derived fallback** (mid ticks up ⇒ buy print at the ask, down ⇒ sell print at the bid) — flagged `WARN` in the Activity Log and in the status line, so you always know which feed quality you're reading.
+
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 | Input | Values | Notes |
 |---|---|---|
@@ -96,6 +105,9 @@ This is curve extrapolation, not a forecast model. Robust kinds (linear / Theil�
 One window under **Charts → Bookmap + VolBook**, a custom `WriteableBitmap` + overlay-canvas surface (not ScottPlot) that fuses everything the Bookmap and VolBook® platforms show. One searchable instrument picker + a feature toolbar; selecting an instrument auto-(re)starts the stream; redraws throttled to ~5 fps (200 ms). Price is bucketed into **120 rows**; time scrolls across **320 time-uniform 250 ms columns**, with ~**1600 columns** retained behind the view for playback.
 
 Needs **L2** for the heatmap/DOM; the volume features need the **trade tape**.
+
+> 🖼️ _Screenshot — coming soon_
+> 🎬 _Video walkthrough — coming soon_
 
 | Overlay | What it shows |
 |---|---|

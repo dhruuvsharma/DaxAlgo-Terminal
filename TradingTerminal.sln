@@ -135,7 +135,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowToxicity", "src\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj", "{E574803E-6E73-45BE-B666-7D89F8BA4042}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ApexScalper", "src\TradingTerminal.Strategies.ApexScalper\TradingTerminal.Strategies.ApexScalper.csproj", "{93EE4CEE-E67A-4418-A822-9048A9FBA3C9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.SigmaIcFlow", "src\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj", "{93EE4CEE-E67A-4418-A822-9048A9FBA3C9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowCube", "src\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj", "{D1DD928A-96D0-4B7B-8596-21B001CE1133}"
 EndProject

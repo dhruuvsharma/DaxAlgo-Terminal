@@ -1,6 +1,6 @@
 ---
 name: broker-gotchas
-description: Per-broker quirks for DaxAlgo Terminal's four IBrokerClient backends — Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0 protobuf), and Alpaca (REST + WebSocket via Alpaca.Markets NuGet). Use BEFORE editing anything under src/TradingTerminal.Infrastructure/Ib/, /Ninja/, /CTrader/, or /Alpaca/, or when diagnosing connection/threading/error-code issues against a specific broker. Skip for broker-neutral code (Core, UI, repository layer).
+description: Per-broker quirks for DaxAlgo Terminal's four SDK-based IBrokerClient backends — Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0 protobuf), and Alpaca (REST + WebSocket via Alpaca.Markets NuGet). (The no-SDK REST/WS backends — Ironbeam, LSE, Upstox, Binance, Coinbase, Bybit, Kraken, OKX — aren't covered here; mirror Infrastructure/Binance or /IronBeam.) Use BEFORE editing anything under src/TradingTerminal.Infrastructure/Ib/, /Ninja/, /CTrader/, or /Alpaca/, or when diagnosing connection/threading/error-code issues against a specific broker. Skip for broker-neutral code (Core, UI, repository layer).
 ---
 
 # Broker Gotchas
@@ -54,7 +54,7 @@ When in doubt, escalate to the `ib-api-expert` subagent.
 - **Eager auth on both streams.** `ConnectAndAuthenticateAsync` is called for stock + crypto streams during `ConnectAsync` so first-subscribe doesn't pay the auth round-trip. If auth fails (`AuthStatus != Authorized`), throw — don't silently leave a half-connected client.
 - **No L2 depth.** `SubscribeDepthAsync` throws `NotSupportedException`. Strategies that need depth must route through IB or cTrader.
 - **No OMS yet.** `PlaceOrderAsync` / `CancelOrderAsync` throw `NotSupportedException` like the other brokers. The trading client is constructed but not wired for orders.
-- **Trade tape is wireable.** Alpaca's WebSocket has a native trade channel with `taker_side`. It's the highest-leverage next broker to add trade-tape support to (cf. IB which is the only one wired today).
+- **Trade tape is wireable.** Alpaca's WebSocket has a native trade channel with `taker_side`. It's the highest-leverage next SDK broker to add trade-tape support to (tape is already wired on IB, Binance, and Ironbeam; Alpaca/NT/cTrader still throw).
 - **Instrument discovery** pins data feed to IEX in `Infrastructure/Alpaca/` (commit `805462b`).
 
 ## Cross-broker rules

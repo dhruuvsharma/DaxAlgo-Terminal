@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Last updated: 2026-06-08
+> Last updated: 2026-06-19
 
 Consolidated symptom → likely cause / fix table across every subsystem. For deeper context, follow the cross-links.
 
@@ -37,7 +37,7 @@ Consolidated symptom → likely cause / fix table across every subsystem. For de
 
 | Symptom | Cause / fix |
 |---|---|
-| Connect fails immediately | One of `ClientId` / `ClientSecret` / `AccessToken` / `CtidTraderAccountId` is missing or wrong. Check the Logs pane for the exact `ProtoOAErrorRes` description. |
+| Connect fails immediately | One of `ClientId` / `ClientSecret` / `AccessToken` / `CtidTraderAccountId` is missing or wrong. Check the Activity log drawer for the exact `ProtoOAErrorRes` description. |
 | Was working, now fails | Access token expired (~30 days). Re-run the OAuth refresh and paste the new token into the login form. |
 | Depth events never fire | The symbol may not have L2 enabled in your broker's account. Try a major FX pair or a CFD with known depth. Check Logs for `ProtoOASubscribeDepthQuotesReq` errors. |
 
@@ -62,7 +62,7 @@ Consolidated symptom → likely cause / fix table across every subsystem. For de
 
 | Symptom | Cause / fix |
 |---|---|
-| Notifications not arriving | Open the Logs pane — Telegram / Discord transports log failures there. Common: invalid bot token (Telegram), expired or malformed webhook URL (Discord). Hit **Send test** in the Settings tab to bypass strategy logic. |
+| Notifications not arriving | Open the Activity log drawer — Telegram / Discord transports log failures there. Common: invalid bot token (Telegram), expired or malformed webhook URL (Discord). Hit **Send test** in the Settings window to bypass strategy logic. |
 | Discord webhook returns 401 | Webhook was deleted on the Discord side. Recreate via *Edit Channel → Integrations → Webhooks*. |
 | Ollama enricher silently doing nothing | The model isn't pulled, or Ollama isn't running. `ollama list` to confirm; `ollama serve` to start. The enricher always times out silently — deliberate, so a slow LLM never backlogs the dispatcher. |
 
@@ -88,11 +88,11 @@ Consolidated symptom → likely cause / fix table across every subsystem. For de
 
 | Symptom | Cause / fix |
 |---|---|
-| Strategy window shows `AvalonDock.Layout.LayoutDocument` text | Stale build before the DockTab fix. `dotnet build` again. |
-| Strategy doesn't fire signals on synth data | Many strategies are regime-specific (session-aware, gap-aware, sticky-touch, etc.). Synth random-walk doesn't reproduce those regimes. Use real recorded data via the Recorder tab. |
+| A tool/strategy window doesn't reopen after closing | Each window is single-instance — if it's already open, re-selecting the menu item just focuses it. Check it isn't behind the main window. |
+| Strategy doesn't fire signals on synth data | Many strategies are regime-specific (session-aware, gap-aware, sticky-touch, etc.). Synth random-walk doesn't reproduce those regimes. Use real recorded data via the Recorder window. |
 | Backtest CLI: `Unknown strategy 'foo'` | Run with `--strategy` set to one of the canonical IDs. Run `daxalgo-backtest` with no args to list them. |
 | Backtest equity curve flat after first trade | Most strategies need a warm-up window before they fire. Check `summary.json` for `TickCount`; if the run was too short, none of the indicators are armed yet. |
 
 ## Where to escalate
 
-If a symptom isn't here, the Logs pane is the next place to look — every subsystem logs to it via the in-memory Serilog sink. The file sink at `logs/terminal-YYYY-MM-DD.log` has the same content if you've already closed the app.
+If a symptom isn't here, the Activity log drawer is the next place to look — every subsystem logs to it via the in-memory Serilog sink. The file sink at `logs/terminal-YYYY-MM-DD.log` has the same content if you've already closed the app.

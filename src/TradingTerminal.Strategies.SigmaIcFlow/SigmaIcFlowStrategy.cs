@@ -1,11 +1,11 @@
 using TradingTerminal.Core.Strategies;
 
-namespace TradingTerminal.Strategies.ApexScalper;
+namespace TradingTerminal.Strategies.SigmaIcFlow;
 
-public sealed class ApexScalperStrategy : ITradingStrategy
+public sealed class SigmaIcFlowStrategy : ITradingStrategy
 {
-    public string Id => "apex.scalper";
-    public string DisplayName => "APEX microstructure scalper v2 (tape-primary composite)";
+    public string Id => "sigma.ic.flow";
+    public string DisplayName => "Σ⁻¹·IC Order-Flow Optimizer (tape-primary composite)";
     public string Description =>
         "Tape-primary composite of 11 order-flow signals: Delta (bar Δ + acceleration z), VPIN (constant-volume buckets), Footprint stacked imbalance, Tape Speed (arrival-rate z with up-tick gate), Kyle-λ residual (ε_cum z-score, λ̂ as thinness feature), triple regression lines over buy/sell centroid + POC (initiative contrast, control coordinate ρ + dρ/dt, wedge w + dw/dt, value deviation z_p), CVD divergence, and OBI (live depth only). Weights: Ledoit-Wolf Σ⁻¹·IC; entry gate: isotonic g(C) ≥ spread + 2·fee + E[slip|C]; quarter-Kelly sizing, λ̂-scaled. Bootstrap mode active until calibration threshold is met. Degrades gracefully to synthetic L1 (q ≈ 0.4) when real trade tape is unavailable.";
 

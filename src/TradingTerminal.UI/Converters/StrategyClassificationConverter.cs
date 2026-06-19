@@ -34,6 +34,13 @@ public sealed class StrategyClassificationConverter : IValueConverter
     /// </summary>
     public const string ConverterKey = "StrategyClassConverter";
 
+    // ── Brush helpers (frozen for reuse across many rows) ────────────────────────────────────
+    // NOTE: White/Black must be declared BEFORE the static pill fields below — static field
+    // initializers run in textual order, so pills that reference White (MULTI-ASSET / ANY BROKER /
+    // ANY ASSET) would otherwise capture a null Foreground and render invisible text.
+    private static readonly Brush White = Brush("#FFFFFF");
+    private static readonly Brush Black = Brush("#1B1B1B");
+
     // ── Scope pills ──────────────────────────────────────────────────────────────────────────
     private static readonly InstrumentTag PillSingle = new("SINGLE-ASSET", Brush("#37474F"), Brush("#CFD8DC"));
     private static readonly InstrumentTag PillMulti  = new("MULTI-ASSET",  Brush("#00838F"), White);
@@ -124,10 +131,6 @@ public sealed class StrategyClassificationConverter : IValueConverter
         if (!app.Resources.Contains(ConverterKey))
             app.Resources[ConverterKey] = new StrategyClassificationConverter();
     }
-
-    // ── Brush helpers (frozen for reuse across many rows) ────────────────────────────────────
-    private static readonly Brush White = Brush("#FFFFFF");
-    private static readonly Brush Black = Brush("#1B1B1B");
 
     private static Brush Brush(string hex)
     {

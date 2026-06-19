@@ -64,6 +64,12 @@ public sealed record ApexSignalState(
 /// <param name="TradeAllowed">Whether the confirmation gate currently permits a trade.</param>
 /// <param name="KillSwitch">Whether the kill-switch has tripped.</param>
 /// <param name="Position">Signed position (+ long / − short / 0 flat).</param>
+/// <param name="PredictedBuyPoc">Kalman-forecast buy-POC price <see cref="PredictionHorizonBars"/> bars ahead (0 if not yet predictable).</param>
+/// <param name="PredictedSellPoc">Kalman-forecast sell-POC price ahead.</param>
+/// <param name="PredictedTotalPoc">Kalman-forecast total-POC price ahead.</param>
+/// <param name="PredictedWedgeWidth">Forecast wedge width Ŵ = P̂_buy − P̂_sell (expanding &gt; current ⇒ trend; converging ⇒ coil).</param>
+/// <param name="PredictionConfidence">Prediction confidence ∈ [0, 1] = 1 − σ²_pred/σ²_bar, 0 when the forecast variance is too high.</param>
+/// <param name="PredictionHorizonBars">Forecast horizon n (bars) used for the predicted POCs.</param>
 public sealed record ApexSnapshotV2(
     DateTime TimestampUtc,
     double Mid,
@@ -90,4 +96,10 @@ public sealed record ApexSnapshotV2(
     double SessionPnl,
     bool TradeAllowed,
     bool KillSwitch,
-    long Position);
+    long Position,
+    double PredictedBuyPoc = 0,
+    double PredictedSellPoc = 0,
+    double PredictedTotalPoc = 0,
+    double PredictedWedgeWidth = 0,
+    double PredictionConfidence = 0,
+    int PredictionHorizonBars = 0);

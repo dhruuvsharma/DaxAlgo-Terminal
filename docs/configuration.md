@@ -1,6 +1,6 @@
 # Configuration reference
 
-> Last updated: 2026-06-13
+> Last updated: 2026-06-19
 
 Full reference for every key under `appsettings.json` plus the persistence locations for runtime state. For per-broker setup, see [brokers.md](brokers.md). For feature deep-dives that explain *why* a setting exists, follow the cross-links.
 
@@ -122,9 +122,9 @@ Bound from the `SimulatedBroker` section (`SimulatedBrokerOptions`). Drives the 
 | Key | Default | Notes |
 |---|---|---|
 | `MarketDataStore:Enabled` | `true` | Master switch for the persistence + ingest pipeline. The in-memory hub still works when this is false; only the disk writes stop. |
-| `MarketDataStore:Provider` | `QuestDb` | `Sqlite` (embedded, zero-config), `Postgres` (PostgreSQL + TimescaleDB), or `QuestDb` (L1/L2 → QuestDB, bars → SQLite). The shipped `appsettings.json` defaults to `QuestDb`; the dev `DevSim` profile pins `Sqlite` for a no-Docker offline run. Postgres falls back to SQLite at startup if unreachable; QuestDb does **not** (tick/depth persistence is disabled instead). |
+| `MarketDataStore:Provider` | `SqlitePerBroker` | `SqlitePerBroker` (default — one SQLite file per broker per stream, persists L2 depth), `Sqlite` (single embedded file, no depth), `Postgres` (PostgreSQL + TimescaleDB, no depth), or `QuestDb` (L1/L2/trades/depth → QuestDB, bars → SQLite). The dev `DevSim` profile pins `Sqlite` for a no-Docker offline run. Postgres falls back to SQLite at startup if unreachable; QuestDb does **not** (tick/depth persistence is disabled instead). |
 | `MarketDataStore:PostgresConnectionString` | `Host=localhost;Port=5432;Database=daxalgo;Username=daxalgo;Password=daxalgo;Timeout=5;Command Timeout=10` | Matches the `docker-compose.yml` service. Only used when `Provider=Postgres`. |
-| `MarketDataStore:DatabasePath` | (empty) | SQLite file path. Empty = `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db`. |
+| `MarketDataStore:DatabasePath` | (empty) | SQLite file path / directory. Empty = `%LOCALAPPDATA%\DaxAlgoTerminal\` — single-file backend writes `marketdata.db`; the per-broker backend writes `marketdata-{broker}-{stream}.db` alongside the shared `marketdata.db` identity registry. |
 | `MarketDataStore:PersistLiveData` | `true` | When false the hub still fans out in-memory but nothing is written to disk. |
 | `MarketDataStore:WriteBatchSize` | `500` | Records buffered before the background writer flushes. |
 | `MarketDataStore:FlushIntervalMs` | `1000` | Max wait before a flush even if the batch isn't full. |
@@ -185,14 +185,14 @@ See [notifications.md](notifications.md) for the dispatcher architecture and the
 | Key | Default | Notes |
 |---|---|---|
 | `Logging:MinimumLevel` | `Information` | `Verbose` / `Debug` / `Information` / `Warning` / `Error`. |
-| `Logging:FilePath` | `logs/terminal-.log` | Daily rolling, relative to the app's working directory. The in-memory sink that powers the Logs pane is always wired regardless of this. |
+| `Logging:FilePath` | `logs/terminal-.log` | Daily rolling, relative to the app's working directory. The in-memory sink that powers the Activity log drawer is always wired regardless of this. |
 
 ## Persistence locations
 
 | Location | What it holds |
 |---|---|
 | `%LOCALAPPDATA%\DaxAlgoTerminal\connection.json` | DPAPI-encrypted broker creds: IB password, cTrader OAuth secret + access token, Alpaca API secret. Also holds the login window's **Auto Connect** flag (load-modify-save, so per-broker form saves never clobber it). |
-| `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` | Default SQLite market-data store. Override via `MarketDataStore:DatabasePath`. |
+| `%LOCALAPPDATA%\DaxAlgoTerminal\marketdata.db` (+ `marketdata-{broker}-{stream}.db`) | Default SQLite market-data store. The per-broker backend keeps identity in `marketdata.db` and time-series in `marketdata-{broker}-{bars\|l1\|trades\|l2}.db`. Override the directory via `MarketDataStore:DatabasePath`. |
 | `%LOCALAPPDATA%\DaxAlgo Terminal\notifications.json` | Telegram + Discord settings (plain text); AI Analyst provider API keys (DPAPI-encrypted at the field level). |
 | `%LOCALAPPDATA%\DaxAlgoTerminal\archive-manifest.db` | Archive offloader's manifest (what's been shipped to Telegram, with sha256s). Override via `MarketDataArchive:ManifestDatabasePath`. |
 | `%LOCALAPPDATA%\DaxAlgo Terminal\recordings\` | Default output folder for the Tools → Record live ticks parquet files. |

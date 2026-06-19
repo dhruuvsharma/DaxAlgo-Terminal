@@ -1,6 +1,6 @@
 ---
 name: backtest-engine
-description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBacktestStrategy seam, IOrderRouter, SimulatedOrderBook, L1FillModel, IFeeModel (Zero/MakerTaker/Bps), IRiskManager, ParquetTickReader/Writer, StatisticsCalculator, and the live/backtest router split. Use when touching fee models, risk caps, fill simulation, OMS stubs, the Backtest CLI (daxalgo-backtest.exe), or the Tools → Backtest tab. Skip for pure UI work or for adding strategies (use add-strategy instead).
+description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBacktestStrategy seam, IOrderRouter, SimulatedOrderBook, L1FillModel, IFeeModel (Zero/MakerTaker/Bps), IRiskManager, ParquetTickReader/Writer, StatisticsCalculator, and the live/backtest router split. Use when touching fee models, risk caps, fill simulation, OMS stubs, the Backtest CLI (daxalgo-backtest.exe), or the Tools → Backtest window. Skip for pure UI work or for adding strategies (use add-strategy instead).
 ---
 
 # Backtest Engine
@@ -12,7 +12,7 @@ description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBac
 - `Infrastructure/Backtest/` — `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, `TradeLedger`, `StatisticsCalculator`, `Fast/` (parallel sweeps).
 - `Infrastructure/Backtest/Persistence/` — `BacktestTickSource` (k-way merge over the store), `ParquetTickReader` / `ParquetTickWriter` (row-group buffered; epoch-microsecond timestamps; **read-path being migrated off — prefer `IMarketDataStore` for new code**).
 - `Infrastructure/Backtest/Strategies/` — engine-side strategy impls.
-- `src/TradingTerminal.Backtest/` — Tools → Backtest tab (own project; `AddBacktestSurface` DI extension, called from `App.xaml.cs`).
+- `src/TradingTerminal.Backtest/` — Tools → Backtest window (own project; `AddBacktestSurface` DI extension, called from `App.xaml.cs`).
 - `src/TradingTerminal.Backtest.Cli/` — headless `daxalgo-backtest.exe` (`run` / `synth` / `sweep` subcommands; data source = parquet OR store via `--symbol --from --to`).
 
 ## Order routing
