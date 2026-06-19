@@ -39,11 +39,60 @@ internal static class BacktestTickSource
         };
     }
 
-    private static async IAsyncEnumerable<BacktestEvent> ReadFromParquet(
+    private static IAsyncEnumerable<BacktestEvent> ReadFromParquet(
+        BacktestConfig config, CancellationToken ct)
+    {
+        // Quote-only (legacy) unless an optional trade tape is supplied alongside; then merge both by
+        // event time so trade-tape-primary strategies replay genuine prints (not synthetic L1).
+        return string.IsNullOrWhiteSpace(config.TradeDataPath)
+            ? ReadQuotesOnly(config, ct)
+            : ReadQuotesAndTrades(config, ct);
+    }
+
+    private static async IAsyncEnumerable<BacktestEvent> ReadQuotesOnly(
         BacktestConfig config, [EnumeratorCancellation] CancellationToken ct)
     {
-        await foreach (var t in ParquetTickReader.ReadAsync(config.TickDataPath, config.FromUtc, config.ToUtc, ct))
+        await foreach (var t in ReadQuotes(config.TickDataPath, config.FromUtc, config.ToUtc, ct))
             yield return BacktestEvent.FromQuote(t);
+    }
+
+    // Route by extension: .csv → the portable CSV readers (external/Python-sourced data), else the
+    // native parquet readers (recorder / synth / C#-written tape).
+    private static bool IsCsv(string? path) =>
+        path is not null && path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+
+    private static IAsyncEnumerable<Tick> ReadQuotes(string path, DateTime? from, DateTime? to, CancellationToken ct) =>
+        IsCsv(path) ? CsvTickReader.ReadAsync(path, from, to, ct) : ParquetTickReader.ReadAsync(path, from, to, ct);
+
+    private static IAsyncEnumerable<TradePrint> ReadTrades(string path, DateTime? from, DateTime? to, CancellationToken ct) =>
+        IsCsv(path) ? CsvTradeReader.ReadAsync(path, from, to, ct) : ParquetTradeReader.ReadAsync(path, from, to, ct);
+
+    /// <summary>
+    /// Merges the quote parquet and an optional trade parquet by event time, mirroring the store
+    /// merge (<see cref="ReadFromStore"/>). On a tie the quote is yielded first so the strategy's
+    /// view of the spread is current when it sees the trade.
+    /// </summary>
+    private static async IAsyncEnumerable<BacktestEvent> ReadQuotesAndTrades(
+        BacktestConfig config, [EnumeratorCancellation] CancellationToken ct)
+    {
+        await using var qe = ReadQuotes(config.TickDataPath, config.FromUtc, config.ToUtc, ct).GetAsyncEnumerator(ct);
+        await using var te = ReadTrades(config.TradeDataPath!, config.FromUtc, config.ToUtc, ct).GetAsyncEnumerator(ct);
+
+        var hasQ = await qe.MoveNextAsync().ConfigureAwait(false);
+        var hasT = await te.MoveNextAsync().ConfigureAwait(false);
+        while (hasQ || hasT)
+        {
+            if (hasQ && (!hasT || qe.Current.TimestampUtc <= te.Current.EventTimeUtc))
+            {
+                yield return BacktestEvent.FromQuote(qe.Current);
+                hasQ = await qe.MoveNextAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                yield return BacktestEvent.FromTrade(te.Current);
+                hasT = await te.MoveNextAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>

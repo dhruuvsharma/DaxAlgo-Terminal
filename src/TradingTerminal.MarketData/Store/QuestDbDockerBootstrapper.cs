@@ -15,7 +15,8 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 ///
 /// <para>These helpers back the asynchronous QuestDB warm-up — the login-screen auto-start and the
 /// manual <c>File → Start QuestDB</c> command, both in <c>QuestDbDockerService</c> (which can also
-/// launch Docker Desktop itself). They're never called on the UI thread synchronously; the store
+/// start the Docker engine itself — headless via <c>docker desktop start</c>, GUI app as a fallback).
+/// They're never called on the UI thread synchronously; the store
 /// factory only probes reachability. Everything is defensive: anything missing is logged and skipped
 /// so the app always launches.</para>
 /// </summary>
@@ -29,6 +30,24 @@ internal static class QuestDbDockerBootstrapper
 
     /// <summary>True when the Docker daemon answers — <c>docker info</c> fails fast if it's down.</summary>
     public static bool DockerDaemonReady() => TryRunDocker("info", TimeSpan.FromSeconds(20), out _, log: null);
+
+    /// <summary>
+    /// Starts the Docker engine <b>headlessly via the CLI</b> — <c>docker desktop start</c> (the Docker
+    /// Desktop CLI plugin, Docker Desktop 4.37+). No GUI window pops up; the command returns once the
+    /// engine is up. Returns false when the <c>desktop</c> plugin is unavailable (older Docker Desktop)
+    /// or the command fails, so the caller can fall back to launching the Docker Desktop app.
+    /// </summary>
+    public static bool TryStartDockerEngineCli(ILogger log)
+    {
+        if (TryRunDocker("desktop start", TimeSpan.FromSeconds(180), out var output, log: null))
+        {
+            log.LogInformation("Started the Docker engine headlessly via `docker desktop start` (no GUI).");
+            return true;
+        }
+        if (!string.IsNullOrWhiteSpace(output))
+            log.LogDebug("`docker desktop start` unavailable/failed: {Out}", output.Trim());
+        return false;
+    }
 
     /// <summary>Best-effort PG-wire probe — opens and closes a connection to decide availability.</summary>
     public static bool IsReachable(string conn)

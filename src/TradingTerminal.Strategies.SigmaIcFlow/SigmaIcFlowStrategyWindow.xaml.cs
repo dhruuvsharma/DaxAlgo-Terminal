@@ -46,6 +46,12 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
     private static readonly SolidColorBrush FpBidImbPen = new(Color.FromRgb(0xFF, 0x52, 0x52));
     private static readonly SolidColorBrush FpLiveHeader = new(Color.FromRgb(0x29, 0xB6, 0xF6));
 
+    // ── Footprint overlay (buy/sell/POC regression lines + Kalman predicted nodes) ──────────────────
+    private static readonly SolidColorBrush OvlBuyBrush = new(Color.FromRgb(0x00, 0xE6, 0x76));
+    private static readonly SolidColorBrush OvlSellBrush = new(Color.FromRgb(0xFF, 0x52, 0x52));
+    private static readonly SolidColorBrush OvlPocBrush = new(Color.FromRgb(0xFF, 0xD5, 0x4F));
+    private static readonly SolidColorBrush PredWashBrush = new(Color.FromArgb(0x16, 0x29, 0xB6, 0xF6));
+
     // ── Badge colours ─────────────────────────────────────────────────────────────────────────────
     private static readonly SolidColorBrush BadgeBootstrap = new(Color.FromRgb(0xFF, 0xA0, 0x00));
     private static readonly SolidColorBrush BadgeRealTape = new(Color.FromRgb(0x00, 0xC8, 0x53));
@@ -85,6 +91,7 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
             AskFull, AskDim, BidFull, BidDim, BullCandleFill, BearCandleFill,
             FpBuyBrush, FpSellBrush, FpPocPen, FpGridPen, FpTextBrush, FpDimText,
             FpAskImbPen, FpBidImbPen, FpLiveHeader,
+            OvlBuyBrush, OvlSellBrush, OvlPocBrush, PredWashBrush,
             BadgeBootstrap, BadgeRealTape, BadgeSynthetic,
         })
             b.Freeze();
@@ -126,7 +133,9 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
         else if (e.PropertyName is nameof(SigmaIcFlowStrategyViewModel.MaxChartCandles)
                               or nameof(SigmaIcFlowStrategyViewModel.FootprintBarsVisible)
                               or nameof(SigmaIcFlowStrategyViewModel.ChartXSpanMinutes)
-                              or nameof(SigmaIcFlowStrategyViewModel.SelectedCandleInterval))
+                              or nameof(SigmaIcFlowStrategyViewModel.SelectedCandleInterval)
+                              or nameof(SigmaIcFlowStrategyViewModel.ShowRegressionLines)
+                              or nameof(SigmaIcFlowStrategyViewModel.ShowPredictedNodes))
             _chartDirty = true;
     }
 
@@ -166,7 +175,7 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
         RenderOrderBook(baseVm.LatestDepth);
         RenderGauge(engine?.Latest?.Composite, vm.BootstrapThreshold);
         UpdateBadges(vm);
-        RenderFootprint(engine, vm.FootprintBarsVisible, vm.BootstrapThreshold);
+        RenderFootprint(vm, engine, vm.FootprintBarsVisible, vm.BootstrapThreshold);
     }
 
     private LiveSignalStrategyViewModelBase? _tickVm;
@@ -348,6 +357,7 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
     // Core type directly (TotalVolume, BuyVolume, SellVolume, BidImbalance, AskImbalance).
 
     private void RenderFootprint(
+        SigmaIcFlowStrategyViewModel vm,
         TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy? engine,
         int visibleBars,
         double threshold)
@@ -395,12 +405,113 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
         for (var b = 0; b < bars.Count; b++)
             DrawFootprintBar(bars[b], b, rowIndex, rowsDesc.Count, maxCellVol, isLive: b == bars.Count - 1 && all[^1].StartUtc == bars[b].StartUtc, latest, lastSnap);
 
+        // Overlay: buy/sell/POC regression lines + Kalman predicted nodes (drawn last, on top).
+        DrawFootprintOverlay(vm, engine, bars.Count, rowsDesc, decimals);
+
         var lastCompleted = bars.Count > 1 ? bars[^2] : bars.Count == 1 ? bars[0] : null;
         FootprintStatus.Text = lastCompleted is null
             ? $"{bars.Count} bars"
             : $"{bars.Count} bars · stack ↑{lastCompleted.StackedBuy} ↓{lastCompleted.StackedSell} · gate ±{threshold:0.00}";
 
         FootprintScroll.ScrollToRightEnd();
+    }
+
+    /// <summary>Draws the buy/sell/POC regression lines across the footprint columns and the Kalman
+    /// predicted-node forecast region to the right — mirroring the VolumeFootprint tool's POC/fit
+    /// overlay. Reads the engine's latest snapshot (line fits + predicted POCs); gated by the VM
+    /// toggles. Prices are mapped to canvas Y by <see cref="FpPriceToY"/> (interpolates the rows).</summary>
+    private void DrawFootprintOverlay(
+        SigmaIcFlowStrategyViewModel vm,
+        TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy? engine,
+        int columns, List<double> rowsDesc, int decimals)
+    {
+        var snap = engine?.Latest;
+        if (snap is null || columns <= 0 || rowsDesc.Count == 0) return;
+
+        // Regression lines: anchor each at the last column (= fitted endpoint) and extend left by the
+        // per-bar slope.
+        if (vm.ShowRegressionLines)
+        {
+            DrawRegressionLine(snap.BuyLine, columns, rowsDesc, OvlBuyBrush);
+            DrawRegressionLine(snap.SellLine, columns, rowsDesc, OvlSellBrush);
+            DrawRegressionLine(snap.PocLine, columns, rowsDesc, OvlPocBrush);
+        }
+
+        // Predicted nodes: a forecast region with dashed connectors from the current fitted line
+        // endpoints to the Kalman-forecast buy/sell/total POC n bars ahead.
+        if (vm.ShowPredictedNodes && snap.PredictionConfidence > 0)
+        {
+            var n = Math.Max(1, snap.PredictionHorizonBars);
+            var predCols = Math.Min(n, 6);
+            var x0 = FpAxisWidth + columns * FpColWidth;
+            var canvasH = FpHeaderHeight + rowsDesc.Count * FpRowHeight + FpFooterHeight;
+            ApexFootprintCanvas.Width = x0 + predCols * FpColWidth;   // widen to show the forecast region
+
+            ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle
+            { Width = predCols * FpColWidth, Height = canvasH, Fill = PredWashBrush }, x0, 0));
+            ApexFootprintCanvas.Children.Add(new Line
+            {
+                X1 = x0, Y1 = 0, X2 = x0, Y2 = canvasH,
+                Stroke = FpDimText, StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 4, 4 },
+            });
+
+            var lastCenter = FpAxisWidth + (columns - 1) * FpColWidth + FpColWidth / 2.0;
+            var predX = x0 + (predCols - 0.5) * FpColWidth;
+            DrawPredictedNode(snap.PocLine.FittedEndpoint, snap.PredictedTotalPoc, lastCenter, predX, rowsDesc, OvlPocBrush, decimals);
+            DrawPredictedNode(snap.BuyLine.FittedEndpoint, snap.PredictedBuyPoc, lastCenter, predX, rowsDesc, OvlBuyBrush, decimals);
+            DrawPredictedNode(snap.SellLine.FittedEndpoint, snap.PredictedSellPoc, lastCenter, predX, rowsDesc, OvlSellBrush, decimals);
+
+            AddFpText($"pred +{n}  conf {snap.PredictionConfidence:P0}",
+                x0, 2, predCols * FpColWidth, 14, FpLiveHeader, 9.5, TextAlignment.Center);
+        }
+    }
+
+    private void DrawRegressionLine(ApexLineFit line, int columns, List<double> rowsDesc, Brush brush)
+    {
+        if (line.FittedEndpoint <= 0 || columns < 2) return;
+        var pts = new PointCollection(columns);
+        for (var c = 0; c < columns; c++)
+        {
+            var price = line.FittedEndpoint - line.Slope * ((columns - 1) - c);
+            pts.Add(new Point(FpAxisWidth + c * FpColWidth + FpColWidth / 2.0, FpPriceToY(price, rowsDesc)));
+        }
+        ApexFootprintCanvas.Children.Add(new Polyline
+        {
+            Points = pts, Stroke = brush, StrokeThickness = 1.6,
+            StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = new DoubleCollection { 5, 3 },
+        });
+    }
+
+    private void DrawPredictedNode(double fromPrice, double toPrice, double fromX, double toX,
+        List<double> rowsDesc, Brush brush, int decimals)
+    {
+        if (toPrice <= 0) return;
+        var y0 = FpPriceToY(fromPrice > 0 ? fromPrice : toPrice, rowsDesc);
+        var y1 = FpPriceToY(toPrice, rowsDesc);
+        ApexFootprintCanvas.Children.Add(new Line
+        {
+            X1 = fromX, Y1 = y0, X2 = toX, Y2 = y1,
+            Stroke = brush, StrokeThickness = 1.4, StrokeDashArray = new DoubleCollection { 3, 2 },
+        });
+        ApexFootprintCanvas.Children.Add(FpPlace(new Ellipse { Width = 7, Height = 7, Fill = brush }, toX - 3.5, y1 - 3.5));
+        AddFpText(toPrice.ToString("N" + decimals, System.Globalization.CultureInfo.InvariantCulture),
+            toX + 5, y1 - 7, 56, 14, brush, 9.5, TextAlignment.Left);
+    }
+
+    /// <summary>Maps a continuous price to a canvas Y by interpolating between the discrete price rows
+    /// (high → low). Clamps to the traded range. Mirrors the VolumeFootprint tool's PriceToY.</summary>
+    private static double FpPriceToY(double price, List<double> rows)
+    {
+        if (rows.Count == 0) return FpHeaderHeight;
+        if (price >= rows[0]) return FpHeaderHeight + FpRowHeight / 2.0;
+        if (price <= rows[^1]) return FpHeaderHeight + (rows.Count - 1) * FpRowHeight + FpRowHeight / 2.0;
+        for (var r = 0; r < rows.Count - 1; r++)
+            if (rows[r] >= price && price >= rows[r + 1])
+            {
+                var frac = (rows[r] - price) / (rows[r] - rows[r + 1]);
+                return FpHeaderHeight + (r + frac) * FpRowHeight + FpRowHeight / 2.0;
+            }
+        return FpHeaderHeight + FpRowHeight / 2.0;
     }
 
     private void DrawFootprintBar(

@@ -46,4 +46,5 @@ public sealed record BacktestConfig(
     IFeeModel? FeeModel = null,
     BacktestDataSource Source = BacktestDataSource.ParquetFile,
     InstrumentId InstrumentId = default,
-    BrokerKind? Broker = null);
+    BrokerKind? Broker = null,
+    string? TradeDataPath = null);

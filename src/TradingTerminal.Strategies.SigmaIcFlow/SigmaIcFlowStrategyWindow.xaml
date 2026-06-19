@@ -288,9 +288,16 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="FOOTPRINT CLUSTER" />
-                                    <TextBlock Grid.Column="1" x:Name="FootprintStatus" Style="{StaticResource CardStatus}" Text="awaiting ticks" />
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CardTitle}" Text="FOOTPRINT CLUSTER" Margin="0,0,12,0" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <CheckBox Content="Reg lines" IsChecked="{Binding ShowRegressionLines}" Style="{StaticResource SeriesChip}"
+                                                  ToolTip="Overlay the buy/sell/POC regression lines on the cluster." />
+                                        <CheckBox Content="Pred nodes" IsChecked="{Binding ShowPredictedNodes}" Style="{StaticResource SeriesChip}"
+                                                  ToolTip="Overlay the Kalman-forecast predicted POC nodes (forecast region)." />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" x:Name="FootprintStatus" Style="{StaticResource CardStatus}" Text="awaiting ticks" />
                                 </Grid>
                             </Border>
                             <ScrollViewer Grid.Row="1" x:Name="FootprintScroll"
@@ -571,6 +578,78 @@
                                     <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Net qty" />
                                     <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding LatestSnapshot.Position, FallbackValue=—}" />
                                 </Grid>
+
+                                <!-- Predicted nodes (Kalman forecast) -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="PREDICTED NODES" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Buy POC ⊕n" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding LatestSnapshot.PredictedBuyPoc, StringFormat=F2, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Sell POC ⊕n" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding LatestSnapshot.PredictedSellPoc, StringFormat=F2, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Total POC ⊕n" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding LatestSnapshot.PredictedTotalPoc, StringFormat=F2, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="Confidence" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding LatestSnapshot.PredictionConfidence, StringFormat=P0, FallbackValue=—}" />
+                                </Grid>
+
+                                <!-- Paper trading -->
+                                <TextBlock Style="{StaticResource DashSection}" Text="PAPER TRADING" />
+                                <TextBlock FontSize="9.5" TextWrapping="Wrap" Margin="0,0,0,4"
+                                           Foreground="{DynamicResource Text.Secondary}"
+                                           Text="Simulated fills — no live orders. Arm with ▶ Run to accrue trades." />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DashKey}" Text="Armed" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DashValue}" Text="{Binding PaperArmed}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DashKey}" Text="Realized P&amp;L" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding PaperPnlText, FallbackValue=—}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DashKey}" Text="Trades / Win%" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoValue}">
+                                        <Run Text="{Binding PaperTradeCountText}" /><Run Text="   " /><Run Text="{Binding PaperWinRateText}" />
+                                    </TextBlock>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource DashKey}" Text="Open" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MonoValue}" Text="{Binding PaperOpenText}" TextWrapping="Wrap" />
+                                </Grid>
+                                <!-- Blotter -->
+                                <Grid Margin="0,4,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="54" /><ColumnDefinition Width="42" />
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource DashKey}" Text="Time" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource DashKey}" Text="Side" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource DashKey}" Text="P&amp;L" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Column="3" Style="{StaticResource DashKey}" Text="Why" Margin="6,0,0,0" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding PaperTrades}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,1,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="54" /><ColumnDefinition Width="42" />
+                                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" FontSize="10" FontFamily="Consolas"
+                                                           Text="{Binding ExitTimeText}" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Grid.Column="1" FontSize="10" FontFamily="Consolas"
+                                                           Text="{Binding SideText}" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Grid.Column="2" FontSize="10" FontFamily="Consolas" HorizontalAlignment="Right"
+                                                           Text="{Binding PnlText}" Foreground="{DynamicResource Text.Primary}" />
+                                                <TextBlock Grid.Column="3" FontSize="10" FontFamily="Consolas" Margin="6,0,0,0"
+                                                           Text="{Binding ExitReason}" Foreground="{DynamicResource Text.Secondary}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
 
                             </StackPanel>
                         </ScrollViewer>

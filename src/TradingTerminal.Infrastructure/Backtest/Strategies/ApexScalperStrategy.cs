@@ -204,6 +204,25 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     private double _lastKyleLambda;
     private double _lastSigmaBar = 1e-9;
 
+    // ── Paper trading (simulated OMS — no real orders; this build is data/signals only) ──────
+    /// <summary>When false the engine still computes signals/composite but opens no NEW positions;
+    /// an existing position keeps managing to its stop/target. Backtests leave this true; the live
+    /// host ties it to the Run/arm toggle so paper trades only accrue when armed.</summary>
+    public bool PaperTradingEnabled { get; set; } = true;
+
+    private const int MaxTrades = 1_000;
+    private readonly List<ApexTradeRecord> _trades = new();
+
+    /// <summary>Completed paper trades in completion order (oldest first), capped at the last
+    /// <see cref="MaxTrades"/>.</summary>
+    public IReadOnlyList<ApexTradeRecord> Trades => _trades;
+
+    /// <summary>Open-position bracket accessors for the live blotter (stale/0 when flat).</summary>
+    public double OpenEntryPrice => _entryPrice;
+    public double OpenStopPrice => _stopPrice;
+    public double OpenTargetPrice => _targetPrice;
+    public double Balance => _balance;
+
     // ── Snapshot history (UI binding) ───────────────────────────────────────────────────────
     private const int MaxHistory = 500;
     private readonly LinkedList<ApexSnapshotV2> _history = new();
@@ -574,9 +593,8 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
     public async Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
     {
         if (_position == 0) return;
-        var side = _position > 0 ? OrderSide.Sell : OrderSide.Buy;
-        await Submit(router, side, Math.Abs(_position), ct).ConfigureAwait(false);
-        _position = 0;
+        var exit = ClosePosition(clock.UtcNow, _lastMid > 0 ? _lastMid : _entryPrice, "SessionEnd");
+        if (exit is { } e) await Submit(router, e.Side, e.Qty, ct).ConfigureAwait(false);
     }
 
     // ── Signal computation ─────────────────────────────────────────────────────────────────
@@ -1158,6 +1176,7 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         double gC, double condSlip, DateTime now, IOrderRouter router, CancellationToken ct)
     {
         if (_killSwitch) return;
+        if (!PaperTradingEnabled) return;   // disarmed: compute signals, open no new positions
         if (direction == 0) return;
         if (!_sawRealTape && Options.AbsorptionVolumeFraction >= 0)
         {
@@ -1345,29 +1364,42 @@ public sealed class ApexScalperStrategy : IBacktestStrategy
         var hitTarget = (_position > 0 && price >= _targetPrice) || (_position < 0 && price <= _targetPrice);
         if (!hitStop && !hitTarget && !timeStop) return;
 
+        var reason = hitTarget ? "Target" : hitStop ? "Stop" : "Time";
+        var exit = ClosePosition(now, price, reason);
+        if (exit is { } e) _ = Submit(router, e.Side, e.Qty, ct);
+    }
+
+    /// <summary>Closes the open position at <paramref name="price"/>: books cost-inclusive realized
+    /// P&amp;L (spread + 2·commission + modeled slippage), records the paper trade, flattens, and
+    /// returns the exit order to submit (null if already flat). Caller submits so the session-end
+    /// close can be awaited while the per-tick close stays fire-and-forget.</summary>
+    private (OrderSide Side, long Qty)? ClosePosition(DateTime now, double price, string reason)
+    {
+        if (_position == 0 || price <= 0) return null;
         var qty = Math.Abs(_position);
+        var dir = _position > 0 ? 1 : -1;
         var grossRealised = _position > 0 ? (price - _entryPrice) * qty : (_entryPrice - price) * qty;
 
-        // Cost-inclusive accounting: spread + 2·commission + modeled slippage on the round trip.
         var spread = Math.Max(_lastAsk - _lastBid, Options.SpreadCostTicks * InstrumentTick);
         var slip = ConditionalSlippage(_entryComposite);
         var costs = (spread + 2.0 * Options.CommissionPerSide + slip) * qty;
         var realised = grossRealised - costs;
 
-        // Record the observed slippage by |C| bin for the conditional model.
-        RecordSlippage(_entryComposite, slip);
-
+        RecordSlippage(_entryComposite, slip);   // observed slippage by |C| bin for the conditional model
         _balance += realised;
         _dailyPnl += realised;
         _sessionPnl += realised;
         if (_balance > _peakEquity) _peakEquity = _balance;
         _lastTradeCloseUtc = now;
 
+        _trades.Add(new ApexTradeRecord(_entryTimeUtc, now, dir, qty, _entryPrice, price, realised, reason));
+        while (_trades.Count > MaxTrades) _trades.RemoveAt(0);
+
         var exitSide = _position > 0 ? OrderSide.Sell : OrderSide.Buy;
         _position = 0;
         _pendingFillQty = qty;
         _entryTimeUtc = DateTime.MinValue;
-        _ = Submit(router, exitSide, qty, ct);
+        return (exitSide, qty);
     }
 
     // ── Conditional slippage model ─────────────────────────────────────────────────────────────

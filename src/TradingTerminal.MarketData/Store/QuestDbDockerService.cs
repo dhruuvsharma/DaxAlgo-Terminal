@@ -7,9 +7,11 @@ using TradingTerminal.Core.MarketData;
 namespace TradingTerminal.Infrastructure.MarketData.Store;
 
 /// <summary>
-/// Backs the manual <c>File → Start QuestDB</c> command. Unlike the lightweight startup path, this
-/// will launch Docker Desktop if the daemon is down, wait for it, start the QuestDB container, then
-/// re-arm the store live (no app restart) so tick/depth persistence engages immediately. Every step
+/// Backs the manual <c>File → Start QuestDB</c> command and the login-screen auto-start. Unlike the
+/// lightweight store-factory path, this will start the Docker engine if the daemon is down — headlessly
+/// via the CLI (<c>docker desktop start</c>), falling back to launching the Docker Desktop app — wait
+/// for it, start the QuestDB container, then re-arm the store live (no app restart) so tick/depth
+/// persistence engages immediately. Every step
 /// reports to the universal activity log. Safe to call when QuestDB isn't the configured backend — it
 /// just says so.
 /// </summary>
@@ -62,19 +64,29 @@ public sealed class QuestDbDockerService : IQuestDbLauncher
 
         if (!QuestDbDockerBootstrapper.DockerDaemonReady())
         {
-            _log.LogInformation("Docker daemon isn't responding — launching Docker Desktop…");
-            if (!QuestDbDockerBootstrapper.TryLaunchDockerDesktop(_opts, _log))
+            _log.LogInformation("Docker daemon isn't responding — starting the Docker engine…");
+
+            // Prefer a headless CLI engine start (`docker desktop start`) so no Docker Desktop window
+            // pops up. Only fall back to launching the GUI app when the CLI plugin is unavailable.
+            var ready = QuestDbDockerBootstrapper.TryStartDockerEngineCli(_log)
+                        && QuestDbDockerBootstrapper.WaitForDaemon(TimeSpan.FromSeconds(120), ct);
+
+            if (!ready)
             {
-                _log.LogWarning(
-                    "Couldn't find/launch Docker Desktop automatically. Start it manually (or set " +
-                    "MarketDataStore:DockerDesktopPath), then retry File → Start QuestDB.");
-                return false;
-            }
-            if (!QuestDbDockerBootstrapper.WaitForDaemon(TimeSpan.FromSeconds(120), ct))
-            {
-                _log.LogWarning(
-                    "Docker Desktop didn't become ready in time. Once its whale icon is steady, retry File → Start QuestDB.");
-                return false;
+                _log.LogInformation("Headless start unavailable — launching Docker Desktop…");
+                if (!QuestDbDockerBootstrapper.TryLaunchDockerDesktop(_opts, _log))
+                {
+                    _log.LogWarning(
+                        "Couldn't start Docker automatically. Start Docker Desktop manually (or set " +
+                        "MarketDataStore:DockerDesktopPath), then retry File → Start QuestDB.");
+                    return false;
+                }
+                if (!QuestDbDockerBootstrapper.WaitForDaemon(TimeSpan.FromSeconds(120), ct))
+                {
+                    _log.LogWarning(
+                        "Docker didn't become ready in time. Once its whale icon is steady, retry File → Start QuestDB.");
+                    return false;
+                }
             }
             _log.LogInformation("Docker daemon is ready.");
         }

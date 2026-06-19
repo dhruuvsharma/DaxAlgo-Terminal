@@ -1,0 +1,5 @@
+# SigmaIcFlow backtest harness dependencies.
+# The crypto path (BTC/ETH) uses only the Python standard library (urllib for Binance, csv output) —
+# no third-party packages required.
+# The futures path (MES/MNQ/ES/NQ) additionally needs Yahoo Finance 1-minute bars:
+yfinance>=0.2.40

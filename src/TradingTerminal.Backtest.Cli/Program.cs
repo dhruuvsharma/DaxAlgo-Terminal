@@ -81,6 +81,7 @@ static async Task<int> RunBacktestAsync(string[] argv)
     else
     {
         var dataPath = a.Required("data");
+        var tradesPath = a.Optional("trades");   // optional real trade tape merged with the quotes
         config = new BacktestConfig(
             Contract: Contract.UsStock(symbol),
             TickDataPath: dataPath,
@@ -90,9 +91,12 @@ static async Task<int> RunBacktestAsync(string[] argv)
             SlippageTicks: a.Int("slippage-ticks", 0),
             ContractMultiplier: a.Double("multiplier", 1.0),
             StartingCash: a.Double("starting-cash", 100_000),
-            FeeModel: ResolveFeeModel(a));
+            FeeModel: ResolveFeeModel(a),
+            TradeDataPath: tradesPath);
         session = new BacktestSession();
-        Console.WriteLine($"Running {strategyId} on {symbol} from {dataPath}");
+        Console.WriteLine(tradesPath is null
+            ? $"Running {strategyId} on {symbol} from {dataPath} (quotes only — synthetic L1 for tape strategies)"
+            : $"Running {strategyId} on {symbol} from {dataPath} + trade tape {tradesPath} (real prints)");
     }
 
     var strategy = ResolveStrategy(strategyId, config.Contract);
@@ -677,7 +681,8 @@ static void PrintHelp()
     Console.WriteLine("    --strategy <id>          Strategy id (buyAndHold | meanReversion)");
     Console.WriteLine("    --symbol <ticker>        Instrument symbol");
     Console.WriteLine("    [--source parquet|store] Tick source (default parquet)");
-    Console.WriteLine("    --data <path.parquet>    Tick file (required when --source parquet)");
+    Console.WriteLine("    --data <path.parquet>    Quote tick file (required when --source parquet)");
+    Console.WriteLine("    [--trades <path.parquet>] Optional real trade tape merged with the quotes (q=1.0 for tape strategies)");
     Console.WriteLine("    [--from <UTC date>]      Required when --source store");
     Console.WriteLine("    [--to <UTC date>]        Required when --source store");
     Console.WriteLine("    [--sqlite-path <path>]   Override SQLite store path (default: %LOCALAPPDATA%\\DaxAlgoTerminal\\marketdata.db)");

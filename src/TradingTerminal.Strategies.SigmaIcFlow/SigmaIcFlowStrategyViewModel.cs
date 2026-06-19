@@ -158,6 +158,30 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
 
     public ObservableCollection<ApexSignalState> SignalStates { get; } = new();
 
+    // ── Footprint overlay toggles (predicted nodes + regression lines on the cluster) ─────────────
+
+    /// <summary>Draw the buy/sell/POC regression lines over the footprint cluster.</summary>
+    [ObservableProperty] private bool _showRegressionLines = true;
+
+    /// <summary>Draw the Kalman-forecast predicted POC nodes (forecast region) over the cluster.</summary>
+    [ObservableProperty] private bool _showPredictedNodes = true;
+
+    // ── Paper trading (blotter + summary; engine simulates the OMS, armed via Run) ─────────────────
+
+    /// <summary>One formatted row in the paper-trade blotter.</summary>
+    public sealed record PaperTradeRow(
+        string ExitTimeText, string SideText, long Quantity,
+        string EntryText, string ExitText, double Pnl, string PnlText, string ExitReason);
+
+    /// <summary>Completed paper trades, newest first.</summary>
+    public ObservableCollection<PaperTradeRow> PaperTrades { get; } = new();
+
+    [ObservableProperty] private string _paperPnlText = "0.00";
+    [ObservableProperty] private string _paperTradeCountText = "0";
+    [ObservableProperty] private string _paperWinRateText = "—";
+    [ObservableProperty] private string _paperOpenText = "flat";
+    [ObservableProperty] private bool _paperArmed;
+
     // ── Engine reference ─────────────────────────────────────────────────────────────────────────
 
     private Engine.ApexScalperStrategy? _engine;
@@ -179,6 +203,16 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
             services, notifications, clock, routerFactory, logger)
     {
         SelectedCandleInterval = CandleIntervals.First(i => i.Label == "1m");
+
+        // Arm/disarm paper trading the instant the Run toggle flips (not just on the next bar close).
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(IsAlgoRunning) && _engine is not null)
+            {
+                _engine.PaperTradingEnabled = IsAlgoRunning;
+                PaperArmed = IsAlgoRunning;
+            }
+        };
     }
 
     // ── DataRequirement override — includes TradeTape so the base starts the trade pump ─────────
@@ -208,6 +242,8 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
             options: options,
             candleInterval: SelectedCandleInterval?.Span,
             instrumentTick: FootprintTickSizeParsed);
+        // Start disarmed in live mode — paper trades only accrue once the user presses Run.
+        _engine.PaperTradingEnabled = IsAlgoRunning;
         return _engine;
     }
 
@@ -284,6 +320,55 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
                     $"valid={validCount}/{snap.Signals.Count} regime={snap.Regime} " +
                     $"q={snap.FeedQuality} bootstrap={snap.BootstrapMode} " +
                     $"trade={(snap.TradeAllowed ? "ok" : "blocked")}");
+
+        SyncPaperTrades(snap);
+    }
+
+    /// <summary>Mirrors the engine's simulated trade log + open position into the blotter and summary.
+    /// Paper trading is armed by the Run toggle (<see cref="LiveSignalStrategyViewModelBase.IsAlgoRunning"/>):
+    /// when disarmed the engine opens no new positions, so the blotter only fills once Run is on.</summary>
+    private void SyncPaperTrades(ApexSnapshotV2 snap)
+    {
+        var engine = _engine;
+        if (engine is null) return;
+
+        // Tie paper-trade arming to the Run toggle (default-on engine flag for headless backtests).
+        engine.PaperTradingEnabled = IsAlgoRunning;
+        PaperArmed = IsAlgoRunning;
+
+        var trades = engine.Trades;
+        if (trades.Count != PaperTrades.Count)
+        {
+            PaperTrades.Clear();
+            for (var i = trades.Count - 1; i >= 0; i--) PaperTrades.Add(ToRow(trades[i]));   // newest first
+        }
+
+        double total = 0; var wins = 0;
+        foreach (var t in trades) { total += t.Pnl; if (t.Pnl > 0) wins++; }
+        var inv = CultureInfo.InvariantCulture;
+        PaperPnlText = total.ToString("+0.00;-0.00;0.00", inv);
+        PaperTradeCountText = trades.Count.ToString(inv);
+        PaperWinRateText = trades.Count > 0 ? ((double)wins / trades.Count).ToString("P0", inv) : "—";
+
+        var pos = snap.Position;
+        PaperOpenText = pos == 0
+            ? "flat"
+            : $"{(pos > 0 ? "LONG" : "SHORT")} {Math.Abs(pos)} @ {engine.OpenEntryPrice.ToString("F2", inv)} " +
+              $"(stop {engine.OpenStopPrice.ToString("F2", inv)} / tgt {engine.OpenTargetPrice.ToString("F2", inv)})";
+    }
+
+    private static PaperTradeRow ToRow(ApexTradeRecord t)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        return new PaperTradeRow(
+            t.ExitUtc.ToLocalTime().ToString("HH:mm:ss"),
+            t.Direction > 0 ? "LONG" : "SHORT",
+            t.Quantity,
+            t.EntryPrice.ToString("F2", inv),
+            t.ExitPrice.ToString("F2", inv),
+            t.Pnl,
+            t.Pnl.ToString("+0.00;-0.00;0.00", inv),
+            t.ExitReason);
     }
 
     private void RebuildWeights(IReadOnlyDictionary<string, double> weights)
