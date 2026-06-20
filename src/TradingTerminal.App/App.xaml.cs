@@ -30,6 +30,7 @@ using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
+using TradingTerminal.LseBacktest;
 using TradingTerminal.Recording;
 using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
@@ -149,6 +150,8 @@ public partial class App : Application
                 services.AddLogin();
                 services.AddShell();
                 services.AddBacktestSurface();
+                // LSE Tools menu — backtester that pulls historical bars straight from the LSE broker.
+                services.AddLseBacktestSurface();
                 services.AddSettingsSurface();
                 services.AddSupport();
                 services.AddRecordingSurface();

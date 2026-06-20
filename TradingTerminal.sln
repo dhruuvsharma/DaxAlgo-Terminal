@@ -163,6 +163,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.FilteredOrderFlow", "src\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj", "{80FCB382-1524-4D6E-A50F-82A36FA4F45D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.LseBacktest", "src\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj", "{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -617,6 +619,18 @@ Global
 		{80FCB382-1524-4D6E-A50F-82A36FA4F45D}.Release|x64.Build.0 = Release|Any CPU
 		{80FCB382-1524-4D6E-A50F-82A36FA4F45D}.Release|x86.ActiveCfg = Release|Any CPU
 		{80FCB382-1524-4D6E-A50F-82A36FA4F45D}.Release|x86.Build.0 = Release|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Debug|x64.Build.0 = Debug|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Debug|x86.Build.0 = Debug|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Release|x64.ActiveCfg = Release|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Release|x64.Build.0 = Release|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Release|x86.ActiveCfg = Release|Any CPU
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -666,5 +680,6 @@ Global
 		{841F2633-458F-422A-B5C4-DD8F32D8CF52} = {451E63CA-CAD5-C77B-2841-8BBF9F0BA752}
 		{AD1ED054-91F4-46A5-A534-463E93E19890} = {BCC6587D-76CC-E7EA-55F7-F7E84A0BA0BE}
 		{80FCB382-1524-4D6E-A50F-82A36FA4F45D} = {BCC6587D-76CC-E7EA-55F7-F7E84A0BA0BE}
+		{1F542528-EBDC-46B5-B3A3-2B97DEF2A5F0} = {C7A11000-AA01-4B02-8C03-00D04E05F060}
 	EndGlobalSection
 EndGlobal

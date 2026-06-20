@@ -19,6 +19,7 @@ using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
+using TradingTerminal.LseBacktest;
 using TradingTerminal.Recording;
 using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
@@ -48,6 +49,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     // Stable per-window keys for the single-instance window registry (_openWindows).
     private const string NotificationsWindowId = "settings.notifications";
     private const string BacktestWindowId = "tools.backtest";
+    private const string LseBacktestWindowId = "lse.backtest";
     private const string RecorderWindowId = "tools.recorder";
     private const string ResearchWindowId = "tools.research";
     private const string MlFeaturesWindowId = "ai.mlfeatures";
@@ -495,6 +497,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void OpenBacktest() =>
         OpenHostedTool<BacktestViewModel, BacktestView>(BacktestWindowId, "Backtest", "Loading the backtest workspace…");
+
+    [RelayCommand]
+    public void OpenLseBacktest() =>
+        OpenHostedTool<LseBacktestViewModel, LseBacktestView>(LseBacktestWindowId, "LSE backtester", "Loading the LSE backtester…");
 
     [RelayCommand]
     public void OpenResearch() =>

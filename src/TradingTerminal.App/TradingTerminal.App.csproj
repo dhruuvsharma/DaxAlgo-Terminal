@@ -46,6 +46,7 @@
     <ProjectReference Include="..\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
     <ProjectReference Include="..\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
+    <ProjectReference Include="..\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj" />
     <ProjectReference Include="..\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
     <!-- Machine Learning-menu tools -->
     <ProjectReference Include="..\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj" />

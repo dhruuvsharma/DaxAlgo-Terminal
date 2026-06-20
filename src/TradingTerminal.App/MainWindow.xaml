@@ -349,6 +349,11 @@
                           Command="{Binding OpenLiveCorrelationCommand}" />
             </MenuItem>
 
+            <MenuItem Header="_LSE Tools">
+                <MenuItem Header="LSE _backtester…"
+                          Command="{Binding OpenLseBacktestCommand}" />
+            </MenuItem>
+
             <MenuItem Header="_Charts">
                 <MenuItem Header="C_harts…"
                           Command="{Binding OpenChartsCommand}" />
