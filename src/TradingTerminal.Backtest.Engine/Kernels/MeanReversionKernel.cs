@@ -18,6 +18,20 @@ public sealed class MeanReversionKernel : IStrategyKernel
     private double _exitZ;
     private long _qty;
 
+    /// <summary>Catalog descriptor — its tunable surface for the Studio, the optimizer, and the CLI/Python.</summary>
+    public static StrategyKernelDescriptor Descriptor { get; } = new(
+        Id: "meanReversion",
+        Name: "Mean Reversion (z-score)",
+        Description: "Rolling-window z-score mean reversion: enter on extreme deviations, exit back near the mean.",
+        Schema: new StrategyParameterSchema(new[]
+        {
+            new ParameterDescriptor("lookback", "Lookback (ticks)", Default: 50, Min: 5, Max: 500, Step: 5, Kind: ParameterKind.Integer),
+            new ParameterDescriptor("entryZ", "Entry Z", Default: 2.0, Min: 0.5, Max: 5.0, Step: 0.1),
+            new ParameterDescriptor("exitZ", "Exit Z", Default: 0.5, Min: 0.0, Max: 3.0, Step: 0.1),
+            new ParameterDescriptor("qty", "Quantity", Default: 1, Min: 1, Max: 1000, Step: 1, Kind: ParameterKind.Integer),
+        }),
+        Create: () => new MeanReversionKernel());
+
     public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
     {
         _lookback = Math.Max(2, ctx.Parameters.GetInt("lookback", 50));
