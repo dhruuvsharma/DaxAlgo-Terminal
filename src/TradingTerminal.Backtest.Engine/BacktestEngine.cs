@@ -42,6 +42,9 @@ public sealed class BacktestEngine
         var ctx = new StrategyContext(clock, router, new PortfolioView(portfolio), spec.Universe, spec.ParametersOrEmpty);
 
         var equity = new List<EquitySample>();
+        var visual = spec.Visual == VisualRecording.On
+            ? new VisualRecorder(spec.Universe.Primary.Id, TimeSpan.FromMinutes(1))
+            : null;
         DateTime? firstUtc = null, lastUtc = null, lastSample = null;
         double peak = spec.StartingCash;
         long eventsProcessed = 0;
@@ -76,6 +79,7 @@ public sealed class BacktestEngine
                     book.OnQuote(ev.Instrument, tick);                 // may fill → portfolio + queued callback
                     var mid = (tick.Bid + tick.Ask) * 0.5;
                     portfolio.OnMark(ev.Instrument, mid);
+                    visual?.OnMid(ev.Instrument, ev.TimestampUtc, mid);
                     await kernel.OnQuoteAsync(ev.Instrument, tick, ctx, ct).ConfigureAwait(false);
 
                     var eq = portfolio.Equity();
@@ -120,6 +124,7 @@ public sealed class BacktestEngine
             EventsProcessed: eventsProcessed,
             EngineMilliseconds: sw.Elapsed.TotalMilliseconds);
 
-        return ReportBuilder.Build(summary, equity, portfolio.Trades, spec.Universe);
+        var report = ReportBuilder.Build(summary, equity, portfolio.Trades, spec.Universe);
+        return visual is null ? report : report with { Visual = visual.Build(report.Trades) };
     }
 }

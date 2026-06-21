@@ -98,13 +98,14 @@ public sealed class MetricSet
 
 /// <summary>
 /// The complete result of a run: headline summary, the extensible metric set, the round-trip ledger,
-/// the equity timeline, and per-instrument attribution for portfolio runs. The optional visual
-/// timeline (chart bars + per-event markers for replay) is attached separately by the engine when
-/// <see cref="RunSpec.Visual"/> is on, to keep sweep results lean.
+/// the equity timeline, and per-instrument attribution for portfolio runs. The optional
+/// <see cref="Visual"/> timeline (chart bars + trade markers for replay) is attached by the engine
+/// only when <see cref="RunSpec.Visual"/> is on, so sweep results stay lean.
 /// </summary>
 public sealed record BacktestReport(
     RunSummary Summary,
     MetricSet Metrics,
     IReadOnlyList<RoundTripTrade> Trades,
     IReadOnlyList<EquitySample> Equity,
-    IReadOnlyList<InstrumentReport> PerInstrument);
+    IReadOnlyList<InstrumentReport> PerInstrument,
+    VisualTimeline? Visual = null);
