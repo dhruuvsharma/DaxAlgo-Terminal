@@ -335,9 +335,7 @@
             </MenuItem>
 
             <MenuItem Header="_Tools">
-                <MenuItem Header="_Backtest…"
-                          Command="{Binding OpenBacktestCommand}" />
-                <MenuItem Header="Backtest _Studio…"
+                <MenuItem Header="_Backtest Studio…"
                           Command="{Binding OpenBacktestStudioCommand}" />
                 <MenuItem Header="_Record live ticks…"
                           Command="{Binding OpenRecorderCommand}" />
