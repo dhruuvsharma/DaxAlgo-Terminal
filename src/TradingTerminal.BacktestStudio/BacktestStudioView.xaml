@@ -136,6 +136,92 @@
                 </Grid>
             </TabItem>
 
+            <!-- Optimization -->
+            <TabItem Header="Optimization">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Axis editor + controls -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
+                        <StackPanel>
+                            <TextBlock Text="Sweep axes" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding Axes}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="0,4">
+                                            <StackPanel>
+                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding Enabled}" FontWeight="SemiBold" />
+                                                <Grid Margin="18,2,0,0" IsEnabled="{Binding Enabled}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                                        <TextBlock Text="Min" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                        <TextBox Text="{Binding Min}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="0,0,4,0">
+                                                        <TextBlock Text="Max" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                        <TextBox Text="{Binding Max}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Step" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                        <TextBox Text="{Binding Step}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Rank by" Margin="0,8,0,2" />
+                            <ComboBox ItemsSource="{Binding Criteria}" SelectedItem="{Binding SelectedCriterion}"
+                                      IsEnabled="{Binding IsNotOptimizing}" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Optimize" Command="{Binding OptimizeCommand}"
+                                        IsEnabled="{Binding IsNotOptimizing}" Padding="12,4" />
+                                <Button Content="Cancel" Command="{Binding CancelOptimizeCommand}"
+                                        IsEnabled="{Binding IsOptimizing}" Padding="10,4" Margin="6,0,0,0" />
+                                <Button Content="Apply best" Command="{Binding ApplyBestCommand}"
+                                        Padding="10,4" Margin="6,0,0,0" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding OptimizeStatus}" Foreground="{DynamicResource Text.Secondary}"
+                                       TextWrapping="Wrap" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Surface + results -->
+                    <Grid Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="240" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                            <sp:WpfPlot x:Name="SurfacePlot" />
+                        </Border>
+
+                        <DataGrid Grid.Row="1" Margin="0,6,0,0"
+                                  ItemsSource="{Binding OptimizationTrials}" AutoGenerateColumns="False"
+                                  IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F4}" />
+                                <DataGridTextColumn Header="Net P&amp;L" Binding="{Binding NetProfit, StringFormat=C2}" />
+                                <DataGridTextColumn Header="Trades" Binding="{Binding TradeCount}" />
+                                <DataGridTextColumn Header="Parameters" Binding="{Binding Parameters}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
             <!-- Visual replay -->
             <TabItem Header="Visual replay">
                 <Grid>

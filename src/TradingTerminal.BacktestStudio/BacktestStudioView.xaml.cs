@@ -29,6 +29,7 @@ public partial class BacktestStudioView : UserControl
         if (_vm is null) return;
         _vm.ReportReady += OnReportReady;
         _vm.ReplayFrameChanged += OnReplayFrameChanged;
+        _vm.OptimizationReady += OnOptimizationReady;
     }
 
     private void Detach()
@@ -36,12 +37,36 @@ public partial class BacktestStudioView : UserControl
         if (_vm is null) return;
         _vm.ReportReady -= OnReportReady;
         _vm.ReplayFrameChanged -= OnReplayFrameChanged;
+        _vm.OptimizationReady -= OnOptimizationReady;
         _vm = null;
     }
 
     private void OnReportReady(object? sender, EventArgs e) => DrawEquity();
 
     private void OnReplayFrameChanged(object? sender, EventArgs e) => DrawReplay();
+
+    private void OnOptimizationReady(object? sender, EventArgs e) => DrawSurface();
+
+    private void DrawSurface()
+    {
+        SurfacePlot.Plot.Clear();
+        var scores = _vm?.SurfaceScores;
+        if (scores is not null && _vm?.SurfaceXAxis is { } xAxis && _vm.SurfaceYAxis is { } yAxis)
+        {
+            var heatmap = SurfacePlot.Plot.Add.Heatmap(scores);
+            heatmap.Colormap = new ScottPlot.Colormaps.Viridis();
+            SurfacePlot.Plot.Add.ColorBar(heatmap);
+            SurfacePlot.Plot.XLabel(xAxis.Label);
+            SurfacePlot.Plot.YLabel(yAxis.Label);
+        }
+        else
+        {
+            // 1 axis or >2 axes: no 2D surface — the results grid tells the story.
+            SurfacePlot.Plot.Title("Enable exactly two axes for a 2D score surface");
+        }
+        SurfacePlot.Plot.Axes.AutoScale();
+        SurfacePlot.Refresh();
+    }
 
     private void DrawEquity()
     {
