@@ -30,6 +30,10 @@
                            Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
                            FontSize="11" Margin="0,0,0,8" />
 
+                <TextBlock Text="Data source" />
+                <ComboBox ItemsSource="{Binding DataSources}" SelectedItem="{Binding SelectedDataSource}"
+                          IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,8" />
+
                 <TextBlock Text="Parameters" FontWeight="SemiBold" Margin="0,4,0,2" />
                 <ItemsControl ItemsSource="{Binding Parameters}">
                     <ItemsControl.ItemTemplate>
@@ -56,6 +60,38 @@
 
                 <TextBlock Text="Seed" />
                 <TextBox Text="{Binding Seed}" IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,8" />
+
+                <TextBlock Text="Parquet file (Parquet source)" />
+                <Grid Margin="0,2,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding ParquetPath, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsNotRunning}" />
+                    <Button Grid.Column="1" Content="…" MinWidth="28" Margin="4,0,0,0"
+                            Command="{Binding BrowseParquetCommand}" IsEnabled="{Binding IsNotRunning}" />
+                </Grid>
+
+                <TextBlock Text="Symbol / broker (Store source)" />
+                <TextBox Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,4" />
+                <ComboBox ItemsSource="{Binding Brokers}" SelectedItem="{Binding SelectedBroker}"
+                          IsEnabled="{Binding IsNotRunning}" Margin="0,0,0,4" />
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                        <TextBlock Text="From (UTC)" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                        <DatePicker SelectedDate="{Binding FromDate}" IsEnabled="{Binding IsNotRunning}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="To (UTC)" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                        <DatePicker SelectedDate="{Binding ToDate}" IsEnabled="{Binding IsNotRunning}" />
+                    </StackPanel>
+                </Grid>
 
                 <CheckBox Content="Record visual replay" IsChecked="{Binding RecordVisual}"
                           IsEnabled="{Binding IsNotRunning}" Margin="0,0,0,12" />

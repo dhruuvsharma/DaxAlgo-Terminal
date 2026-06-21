@@ -4,12 +4,15 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Engine.Feeds;
 using TradingTerminal.Backtest.Engine.Optimization;
 using TradingTerminal.Backtest.Engine.Optimization.Gpu;
 using TradingTerminal.Core.Backtesting;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.BacktestStudio;
@@ -24,6 +27,8 @@ namespace TradingTerminal.BacktestStudio;
 public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 {
     private readonly IStrategyKernelRegistry _registry;
+    private readonly IMarketDataStore _store;
+    private readonly IInstrumentRegistry _instruments;
     private readonly ILogger<BacktestStudioViewModel> _logger;
     private readonly DispatcherTimer _playback;
     private static readonly InstrumentId SynthInstrument = new(1);
@@ -31,9 +36,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _runCts;
     private CancellationTokenSource? _optCts;
 
-    public BacktestStudioViewModel(IStrategyKernelRegistry registry, ILogger<BacktestStudioViewModel> logger)
+    public BacktestStudioViewModel(
+        IStrategyKernelRegistry registry, IMarketDataStore store, IInstrumentRegistry instruments,
+        ILogger<BacktestStudioViewModel> logger)
     {
         _registry = registry;
+        _store = store;
+        _instruments = instruments;
         _logger = logger;
 
         Strategies = new ObservableCollection<StrategyKernelDescriptor>(registry.All);
@@ -60,8 +69,18 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     public ObservableCollection<WalkForwardRowViewModel> WalkForwardRows { get; }
     public IReadOnlyList<OptimizationCriterion> Criteria { get; }
     public IReadOnlyList<OptimizationMethod> Methods { get; }
+    public IReadOnlyList<DataSourceKind> DataSources { get; } = Enum.GetValues<DataSourceKind>();
+    public IReadOnlyList<BrokerKind> Brokers { get; } = Enum.GetValues<BrokerKind>();
 
     private static string GpuExePath => Path.Combine(AppContext.BaseDirectory, "gpu_optimizer.exe");
+
+    // Data source.
+    [ObservableProperty] private DataSourceKind _selectedDataSource = DataSourceKind.Synthetic;
+    [ObservableProperty] private string _parquetPath = "";
+    [ObservableProperty] private string _symbol = "ES";
+    [ObservableProperty] private BrokerKind _selectedBroker = BrokerKind.Simulated;
+    [ObservableProperty] private DateTime? _fromDate;
+    [ObservableProperty] private DateTime? _toDate;
 
     /// <summary>The last completed report — read by the view to draw the equity curve.</summary>
     public BacktestReport? Report { get; private set; }
@@ -148,6 +167,73 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     partial void OnCurrentBarChanged(int value) => ReplayFrameChanged?.Invoke(this, EventArgs.Empty);
 
     [RelayCommand]
+    private void BrowseParquet()
+    {
+        var dlg = new OpenFileDialog { Filter = "Parquet (*.parquet)|*.parquet|All files (*.*)|*.*" };
+        if (dlg.ShowDialog() == true) ParquetPath = dlg.FileName;
+    }
+
+    /// <summary>Builds the feed factory + base run spec for the selected data source. Returns false with
+    /// a user-facing <paramref name="error"/> when inputs are incomplete or an instrument can't resolve.</summary>
+    private bool TryBuildContext(
+        string strategyId, StrategyParameters parameters,
+        out Func<IMarketDataFeed> feedFactory, out RunSpec baseSpec, out string? error)
+    {
+        error = null;
+        feedFactory = null!;
+        baseSpec = null!;
+        var from = FromDate?.ToUniversalTime();
+        var to = ToDate?.ToUniversalTime();
+
+        switch (SelectedDataSource)
+        {
+            case DataSourceKind.Synthetic:
+            {
+                var ticks = SyntheticTicks;
+                var seed = Seed;
+                feedFactory = () => new SyntheticMarketDataFeed(SynthInstrument, ticks, seed);
+                baseSpec = new RunSpec(
+                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
+                    new DataSpec(), strategyId, parameters, StartingCash: StartingCash);
+                return true;
+            }
+            case DataSourceKind.Parquet:
+            {
+                if (string.IsNullOrWhiteSpace(ParquetPath) || !File.Exists(ParquetPath))
+                {
+                    error = "Pick a valid parquet file.";
+                    return false;
+                }
+                var path = ParquetPath;
+                feedFactory = () => new ParquetMarketDataFeed(SynthInstrument, path, from, to);
+                baseSpec = new RunSpec(
+                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("FILE"), 0.01, 1.0)),
+                    new DataSpec(BacktestDataSource.ParquetFile, from, to, ParquetPath: path),
+                    strategyId, parameters, StartingCash: StartingCash);
+                return true;
+            }
+            case DataSourceKind.Store:
+            {
+                if (from is null || to is null) { error = "Store mode needs both From and To dates."; return false; }
+                if (_instruments.Resolve(SelectedBroker, Symbol) is not { } iid)
+                {
+                    error = $"'{Symbol}' is not in the store for {SelectedBroker}.";
+                    return false;
+                }
+                feedFactory = () => new StoreMarketDataFeed(_store);
+                baseSpec = new RunSpec(
+                    Universe.Single(new InstrumentSpec(iid, Contract.UsStock(Symbol), 0.01, 1.0, SelectedBroker)),
+                    new DataSpec(BacktestDataSource.LocalStore, from, to),
+                    strategyId, parameters, StartingCash: StartingCash);
+                return true;
+            }
+            default:
+                error = "Unknown data source.";
+                return false;
+        }
+    }
+
+    [RelayCommand]
     private async Task RunAsync()
     {
         if (IsRunning || SelectedStrategy is null) return;
@@ -165,17 +251,15 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         {
             var overrides = Parameters.ToDictionary(p => p.Name, p => p.Resolved);
             var descriptor = SelectedStrategy;
-            var spec = new RunSpec(
-                Universe: Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
-                Data: new DataSpec(),
-                StrategyId: descriptor.Id,
-                Parameters: descriptor.Schema.Resolve(overrides),
-                StartingCash: StartingCash,
-                Visual: RecordVisual ? VisualRecording.On : VisualRecording.Off);
-
-            var feed = new SyntheticMarketDataFeed(SynthInstrument, SyntheticTicks, Seed);
+            var parameters = descriptor.Schema.Resolve(overrides);
+            if (!TryBuildContext(descriptor.Id, parameters, out var feedFactory, out var baseSpec, out var error))
+            {
+                Status = error;
+                return;
+            }
+            var spec = baseSpec with { Visual = RecordVisual ? VisualRecording.On : VisualRecording.Off };
             var report = await Task.Run(() =>
-                new BacktestEngine(feed).RunAsync(spec, descriptor.Create(), ct), ct);
+                new BacktestEngine(feedFactory()).RunAsync(spec, descriptor.Create(), ct), ct);
 
             Report = report;
             foreach (var t in report.Trades) Trades.Add(t);
@@ -274,15 +358,14 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             var axes = axisRows.Select(a => a.ToAxis()).ToList();
             var total = axes.Aggregate(1L, (acc, ax) => acc * Math.Max(1, ax.Values.Count));
 
-            var baseParams = Parameters.ToDictionary(p => p.Name, p => p.Resolved);
-            var baseSpec = new RunSpec(
-                Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
-                new DataSpec(), descriptor.Id, new StrategyParameters(baseParams), StartingCash: StartingCash);
+            var baseParams = new StrategyParameters(Parameters.ToDictionary(p => p.Name, p => p.Resolved));
+            if (!TryBuildContext(descriptor.Id, baseParams, out var feedFactory, out var baseSpec, out var error))
+            {
+                OptimizeStatus = error;
+                return;
+            }
             var optSpec = new OptimizationSpec(baseSpec, axes, SelectedCriterion, SelectedMethod);
 
-            var ticks = SyntheticTicks;
-            var seed = Seed;
-            IMarketDataFeed FeedFactory() => new SyntheticMarketDataFeed(SynthInstrument, ticks, seed);
             IStrategyKernel KernelFactory() => descriptor.Create();
             var progress = new Progress<int>(done => OptimizeStatus = $"Evaluating {done:N0} / {total:N0}…");
 
@@ -291,16 +374,16 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             if (SelectedMethod == OptimizationMethod.Genetic)
             {
                 var options = new GeneticOptions(PopulationSize: GeneticPopulation, Generations: GeneticGenerations, Seed: Seed);
-                result = await Task.Run(() => new GeneticOptimizer(FeedFactory, KernelFactory).RunAsync(optSpec, options, progress, ct), ct);
+                result = await Task.Run(() => new GeneticOptimizer(feedFactory, KernelFactory).RunAsync(optSpec, options, progress, ct), ct);
             }
             else if (UseGpu)
             {
-                var hybrid = new HybridGridOptimizer(new ProcessGpuOptimizer(GpuExePath), FeedFactory, KernelFactory);
+                var hybrid = new HybridGridOptimizer(new ProcessGpuOptimizer(GpuExePath), feedFactory, KernelFactory);
                 (result, usedGpu) = await Task.Run(() => hybrid.RunAsync(optSpec, progress, ct), ct);
             }
             else
             {
-                result = await Task.Run(() => new GridOptimizer(FeedFactory, KernelFactory).RunAsync(optSpec, progress, ct), ct);
+                result = await Task.Run(() => new GridOptimizer(feedFactory, KernelFactory).RunAsync(optSpec, progress, ct), ct);
             }
 
             GpuStatus = usedGpu ? "Ran on GPU" : (UseGpu ? "GPU unavailable — ran on CPU" : "CPU");
@@ -346,19 +429,19 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         {
             var descriptor = SelectedStrategy;
             var axes = axisRows.Select(a => a.ToAxis()).ToList();
-            var baseParams = Parameters.ToDictionary(p => p.Name, p => p.Resolved);
-            var baseSpec = new RunSpec(
-                Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
-                new DataSpec(), descriptor.Id, new StrategyParameters(baseParams), StartingCash: StartingCash);
+            var baseParams = new StrategyParameters(Parameters.ToDictionary(p => p.Name, p => p.Resolved));
+            if (!TryBuildContext(descriptor.Id, baseParams, out var feedFactory, out var baseSpec, out var error))
+            {
+                OptimizeStatus = error;
+                return;
+            }
             var optSpec = new OptimizationSpec(baseSpec, axes, SelectedCriterion);
 
-            var ticks = SyntheticTicks;
-            var seed = Seed;
             var folds = WalkForwardFolds;
             var result = await Task.Run(async () =>
             {
-                var events = new List<MarketEvent>(ticks);
-                await foreach (var ev in new SyntheticMarketDataFeed(SynthInstrument, ticks, seed).StreamAsync(baseSpec, ct))
+                var events = new List<MarketEvent>();
+                await foreach (var ev in feedFactory().StreamAsync(baseSpec, ct))
                     events.Add(ev);
                 return await new WalkForwardOptimizer(events, () => descriptor.Create()).RunAsync(optSpec, folds, ct);
             }, ct);
