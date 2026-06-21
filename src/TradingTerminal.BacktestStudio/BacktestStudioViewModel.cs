@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Engine.Feeds;
 using TradingTerminal.Backtest.Engine.Optimization;
+using TradingTerminal.Backtest.Engine.Optimization.Gpu;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.UI;
@@ -39,7 +41,9 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         Trades = new ObservableCollection<RoundTripTrade>();
         Axes = new ObservableCollection<AxisRowViewModel>();
         OptimizationTrials = new ObservableCollection<TrialRowViewModel>();
+        WalkForwardRows = new ObservableCollection<WalkForwardRowViewModel>();
         Criteria = Enum.GetValues<OptimizationCriterion>();
+        Methods = Enum.GetValues<OptimizationMethod>();
 
         _playback = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _playback.Tick += OnPlaybackTick;
@@ -53,7 +57,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     public ObservableCollection<RoundTripTrade> Trades { get; }
     public ObservableCollection<AxisRowViewModel> Axes { get; }
     public ObservableCollection<TrialRowViewModel> OptimizationTrials { get; }
+    public ObservableCollection<WalkForwardRowViewModel> WalkForwardRows { get; }
     public IReadOnlyList<OptimizationCriterion> Criteria { get; }
+    public IReadOnlyList<OptimizationMethod> Methods { get; }
+
+    private static string GpuExePath => Path.Combine(AppContext.BaseDirectory, "gpu_optimizer.exe");
 
     /// <summary>The last completed report — read by the view to draw the equity curve.</summary>
     public BacktestReport? Report { get; private set; }
@@ -92,6 +100,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     // Optimization.
     [ObservableProperty] private OptimizationCriterion _selectedCriterion;
+    [ObservableProperty] private OptimizationMethod _selectedMethod = OptimizationMethod.Exhaustive;
+    [ObservableProperty] private int _geneticPopulation = 24;
+    [ObservableProperty] private int _geneticGenerations = 10;
+    [ObservableProperty] private bool _useGpu;
+    [ObservableProperty] private string? _gpuStatus;
+    [ObservableProperty] private int _walkForwardFolds = 4;
+    [ObservableProperty] private string? _walkForwardSummary;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotOptimizing))]
@@ -263,16 +278,32 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             var baseSpec = new RunSpec(
                 Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
                 new DataSpec(), descriptor.Id, new StrategyParameters(baseParams), StartingCash: StartingCash);
-            var optSpec = new OptimizationSpec(baseSpec, axes, SelectedCriterion);
+            var optSpec = new OptimizationSpec(baseSpec, axes, SelectedCriterion, SelectedMethod);
 
             var ticks = SyntheticTicks;
             var seed = Seed;
-            var optimizer = new GridOptimizer(
-                () => new SyntheticMarketDataFeed(SynthInstrument, ticks, seed),
-                () => descriptor.Create());
-
+            IMarketDataFeed FeedFactory() => new SyntheticMarketDataFeed(SynthInstrument, ticks, seed);
+            IStrategyKernel KernelFactory() => descriptor.Create();
             var progress = new Progress<int>(done => OptimizeStatus = $"Evaluating {done:N0} / {total:N0}…");
-            var result = await Task.Run(() => optimizer.RunAsync(optSpec, progress, ct), ct);
+
+            OptimizationResult result;
+            var usedGpu = false;
+            if (SelectedMethod == OptimizationMethod.Genetic)
+            {
+                var options = new GeneticOptions(PopulationSize: GeneticPopulation, Generations: GeneticGenerations, Seed: Seed);
+                result = await Task.Run(() => new GeneticOptimizer(FeedFactory, KernelFactory).RunAsync(optSpec, options, progress, ct), ct);
+            }
+            else if (UseGpu)
+            {
+                var hybrid = new HybridGridOptimizer(new ProcessGpuOptimizer(GpuExePath), FeedFactory, KernelFactory);
+                (result, usedGpu) = await Task.Run(() => hybrid.RunAsync(optSpec, progress, ct), ct);
+            }
+            else
+            {
+                result = await Task.Run(() => new GridOptimizer(FeedFactory, KernelFactory).RunAsync(optSpec, progress, ct), ct);
+            }
+
+            GpuStatus = usedGpu ? "Ran on GPU" : (UseGpu ? "GPU unavailable — ran on CPU" : "CPU");
 
             foreach (var trial in result.Trials.Take(1000)) OptimizationTrials.Add(new TrialRowViewModel(trial));
             BestTrial = result.Best;
@@ -287,6 +318,62 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Optimization failed");
+            OptimizeStatus = $"Failed: {ex.Message}";
+        }
+        finally
+        {
+            IsOptimizing = false;
+            _optCts?.Dispose();
+            _optCts = null;
+        }
+    }
+
+    [RelayCommand]
+    private async Task WalkForwardAsync()
+    {
+        if (IsOptimizing || SelectedStrategy is null) return;
+
+        var axisRows = Axes.Where(a => a.Enabled).ToList();
+        if (axisRows.Count == 0) { OptimizeStatus = "Enable at least one axis for walk-forward."; return; }
+
+        IsOptimizing = true;
+        WalkForwardRows.Clear();
+        WalkForwardSummary = null;
+        _optCts = new CancellationTokenSource();
+        var ct = _optCts.Token;
+
+        try
+        {
+            var descriptor = SelectedStrategy;
+            var axes = axisRows.Select(a => a.ToAxis()).ToList();
+            var baseParams = Parameters.ToDictionary(p => p.Name, p => p.Resolved);
+            var baseSpec = new RunSpec(
+                Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
+                new DataSpec(), descriptor.Id, new StrategyParameters(baseParams), StartingCash: StartingCash);
+            var optSpec = new OptimizationSpec(baseSpec, axes, SelectedCriterion);
+
+            var ticks = SyntheticTicks;
+            var seed = Seed;
+            var folds = WalkForwardFolds;
+            var result = await Task.Run(async () =>
+            {
+                var events = new List<MarketEvent>(ticks);
+                await foreach (var ev in new SyntheticMarketDataFeed(SynthInstrument, ticks, seed).StreamAsync(baseSpec, ct))
+                    events.Add(ev);
+                return await new WalkForwardOptimizer(events, () => descriptor.Create()).RunAsync(optSpec, folds, ct);
+            }, ct);
+
+            foreach (var fold in result.Folds) WalkForwardRows.Add(new WalkForwardRowViewModel(fold));
+            WalkForwardSummary = $"{result.Folds.Count} folds · efficiency {result.Efficiency:P0} · OOS net {result.TotalOutOfSampleNetProfit:C0}";
+            OptimizeStatus = "Walk-forward complete.";
+        }
+        catch (OperationCanceledException)
+        {
+            OptimizeStatus = "Cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Walk-forward failed");
             OptimizeStatus = $"Failed: {ex.Message}";
         }
         finally
