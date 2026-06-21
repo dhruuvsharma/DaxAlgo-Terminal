@@ -66,3 +66,6 @@ lib/IBApi.pdb
 *.parquet
 bt-results/
 bt-data*/
+
+# Local demo/screenshot assets (not tracked)
+test/
