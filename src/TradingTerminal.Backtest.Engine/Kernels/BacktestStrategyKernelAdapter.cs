@@ -15,25 +15,36 @@ namespace TradingTerminal.Backtest.Engine.Kernels;
 /// </summary>
 public sealed class BacktestStrategyKernelAdapter : IStrategyKernel
 {
-    private readonly IBacktestStrategy _inner;
+    private readonly Func<Contract, IBacktestStrategy>? _build;
+    private IBacktestStrategy? _inner;
 
+    /// <summary>Wrap an already-built legacy strategy (used by the parity test).</summary>
     public BacktestStrategyKernelAdapter(IBacktestStrategy inner) => _inner = inner;
 
-    public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct) =>
-        _inner.OnStartAsync(ctx.Clock, ctx.Router, ct);
+    /// <summary>Defer construction until the run's instrument is known — the legacy strategies take a
+    /// <see cref="Contract"/> in their constructor, supplied here from the universe's primary.</summary>
+    public BacktestStrategyKernelAdapter(Func<Contract, IBacktestStrategy> build) => _build = build;
+
+    private IBacktestStrategy Inner => _inner ?? throw new InvalidOperationException("Strategy not started.");
+
+    public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
+    {
+        _inner ??= _build!(ctx.Universe.Primary.Contract);
+        return _inner.OnStartAsync(ctx.Clock, ctx.Router, ct);
+    }
 
     public Task OnQuoteAsync(InstrumentId instrument, Tick quote, IStrategyContext ctx, CancellationToken ct) =>
-        _inner.OnTickAsync(quote, ctx.Clock, ctx.Router, ct);
+        Inner.OnTickAsync(quote, ctx.Clock, ctx.Router, ct);
 
     public Task OnTradeAsync(InstrumentId instrument, TradePrint trade, IStrategyContext ctx, CancellationToken ct) =>
-        _inner.OnTradeAsync(trade, ctx.Clock, ctx.Router, ct);
+        Inner.OnTradeAsync(trade, ctx.Clock, ctx.Router, ct);
 
     public Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyContext ctx, CancellationToken ct) =>
-        _inner.OnDepthAsync(depth, ctx.Clock, ctx.Router, ct);
+        Inner.OnDepthAsync(depth, ctx.Clock, ctx.Router, ct);
 
     public Task OnOrderEventAsync(OrderEvent evt, IStrategyContext ctx, CancellationToken ct) =>
-        _inner.OnOrderEventAsync(evt, ct);
+        Inner.OnOrderEventAsync(evt, ct);
 
     public Task OnEndAsync(IStrategyContext ctx, CancellationToken ct) =>
-        _inner.OnEndAsync(ctx.Clock, ctx.Router, ct);
+        Inner.OnEndAsync(ctx.Clock, ctx.Router, ct);
 }
