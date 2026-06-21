@@ -24,6 +24,7 @@ flowchart LR
     Feat --> BT[backtesting]
     Feat --> MR[market-regime]
     Feat --> MLD[machine-learning]
+    Feat --> MATH[math-reference]
     Feat --> NOT[notifications]
     Feat --> AID[ai-analyst]
 
@@ -55,6 +56,7 @@ flowchart LR
 | [QuantConnect / LEAN](quantconnect.md) | The optional LEAN backtest seam (subprocess + JSON) — runner / projects / data sync / settings. Experimental. |
 | [Market regime](market-regime.md) | The 0–100 risk-on / risk-off composite — sources, weights, optional signal gate — plus the multi-timeframe Advanced regime dashboard. |
 | [Machine Learning tools](machine-learning.md) | The Machine learning menu: Stationarity & differencing (ADF/KPSS/ACF), ARIMA & GARCH forecasting, Kalman filters (incl. pairs hedge-beta). |
+| [Methods & math reference](math-reference.md) | **The actual math** behind every strategy, tool, and chart — formula, variables, source pointer. Start here to understand *what is computed*. |
 | [Notifications](notifications.md) | Telegram and Discord transports, Ollama commentary enricher, adding a new transport. |
 | [AI Market Analyst](ai-analyst.md) | Python sidecar setup, four-agent flow, provider/model selection, per-signal enrichment. |
 

@@ -4,6 +4,8 @@
 
 A broker-independent **risk-on / risk-off score** (0–100, five bands: Extreme Fear → Extreme Greed) blended from ten weighted sub-signals: volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset. Inputs come from free public endpoints — nothing depends on which broker is connected.
 
+> 📐 The scoring/weighting math for this composite, the Markov-regime transition matrix, and the Advanced-regime indicator stack is in the [Methods & math reference](math-reference.md#3-tool-math).
+
 For all `MarketRegime:*` keys, see [configuration.md](configuration.md). For how the gate interacts with the notification pipeline, see [notifications.md](notifications.md).
 
 ## Screenshots

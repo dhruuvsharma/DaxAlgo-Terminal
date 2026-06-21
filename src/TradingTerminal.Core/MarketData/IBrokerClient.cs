@@ -83,4 +83,22 @@ public interface IBrokerClient : IAsyncDisposable
     IAsyncEnumerable<TradeTick> SubscribeTradesAsync(
         Contract contract,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Historical trade prints (the real tape) for <paramref name="contract"/> over
+    /// [<paramref name="fromUtc"/>, <paramref name="toUtc"/>), oldest first, bounded by
+    /// <paramref name="maxTrades"/>. This is the backtest counterpart of
+    /// <see cref="SubscribeTradesAsync"/> and is opt-in the same way: only feeds that expose a
+    /// historical-trades REST endpoint implement it (Binance via <c>/api/v3/aggTrades</c>, which
+    /// carries the maker flag → aggressor). The default throws <see cref="NotSupportedException"/>,
+    /// so callers that want a tape-primary backtest must check capability and fall back (to a
+    /// bar-synthesized tick path) when it isn't supported.
+    /// </summary>
+    Task<IReadOnlyList<TradeTick>> RequestHistoricalTradesAsync(
+        Contract contract,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int maxTrades,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException($"{Kind} does not provide historical trades.");
 }

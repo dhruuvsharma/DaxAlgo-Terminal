@@ -4,6 +4,8 @@
 
 Reference for every window under the **Charts** menu: what it shows, what it needs, and every input/parameter it exposes. Each opens as its own window, streams through the canonical pipeline (`IMarketDataHub` / `IMarketDataIngest` — never a broker SDK directly), and uses the shared instrument picker (one global catalog; see [user-guide.md](user-guide.md#add-an-instrument-to-the-catalog)).
 
+> 📐 **The math** behind the footprint imbalance rule, regression fits, heatmap √-compression, VWAP, CVD, and value area is collected in the [Methods & math reference](math-reference.md#4-chart-math).
+
 ## Data requirements at a glance
 
 | Window | Needs | Served by |

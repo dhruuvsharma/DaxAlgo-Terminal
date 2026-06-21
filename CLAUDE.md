@@ -82,6 +82,7 @@ Per-tool projects: the App shell no longer hosts tool windows — each tool is i
 | `archive-offloader` | The Telegram archive offloader. |
 | `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`); the AI market-analyst window lives in `TradingTerminal.Ai.MarketAnalyst`. |
 | `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML (the shell is plain MahApps windows — no docking framework). |
+| `memory-safety` | Adding/editing any tool/chart/strategy/AI window or streaming VM — bounded channels, batch-drain, coalesced redraw, IDisposable teardown so a feed can't pile up RAM. The `leakcheck-on-stop` hook enforces a subset. |
 | `software-architecture` | Planning multi-project work — decomposition, design-pattern catalog, the plan contract. The `manager` agent loads this. |
 | `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (`Strategies.*`, Correlation, MarkovRegime). |
 | `skill-author` | Adding/fixing a skill — frontmatter, "pushy" triggering, bespoke-vs-external + the licensing rule. |

@@ -143,6 +143,60 @@ internal sealed class RealBinanceClient : IBrokerClient
             el => ParseTrade(el, _options.SizeScale),
             ct);
 
+    /// <summary>
+    /// Pulls the real historical tape from Binance's public <c>/api/v3/aggTrades</c> (no key). Anchors
+    /// on a sub-1h start/end window (the endpoint's constraint), then pages forward by <c>fromId</c>
+    /// until it reaches <paramref name="toUtc"/> or the <paramref name="maxTrades"/> cap. Each aggTrade
+    /// carries the maker flag, so the aggressor side is exact — this is what lets a tape-primary
+    /// strategy (SigmaIcFlow) backtest at full quality instead of the synthetic-L1 fallback.
+    /// </summary>
+    public async Task<IReadOnlyList<TradeTick>> RequestHistoricalTradesAsync(
+        Contract contract, DateTime fromUtc, DateTime toUtc, int maxTrades, CancellationToken ct = default)
+    {
+        var symbol = contract.Symbol.Trim().ToUpperInvariant();
+        var endMs = ToUnixMs(toUtc);
+        var windowStart = ToUnixMs(fromUtc);
+        var cap = Math.Clamp(maxTrades, 1, 2_000_000);
+        var trades = new List<TradeTick>(Math.Min(cap, 200_000));
+
+        long? fromId = null;
+        while (!ct.IsCancellationRequested && trades.Count < cap)
+        {
+            string url;
+            if (fromId is null)
+            {
+                // start+end must span < 1h; walk forward an hour at a time until trades appear.
+                var windowEnd = Math.Min(windowStart + 59 * 60 * 1000, endMs);
+                url = $"{_options.RestBaseUrl}/api/v3/aggTrades?symbol={symbol}&startTime={windowStart}&endTime={windowEnd}&limit=1000";
+            }
+            else
+            {
+                url = $"{_options.RestBaseUrl}/api/v3/aggTrades?symbol={symbol}&fromId={fromId.Value}&limit=1000";
+            }
+
+            using var resp = await _http.GetAsync(url, ct).ConfigureAwait(false);
+            resp.EnsureSuccessStatusCode();
+            var bytes = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(bytes);
+            var (batch, lastId, lastTimeMs) = ParseAggTrades(doc.RootElement, _options.SizeScale, endMs);
+
+            if (lastId < 0) // empty response
+            {
+                if (fromId is not null) break;                 // paged past the end of available data
+                windowStart += 60 * 60 * 1000;                 // empty hour — advance the anchor window
+                if (windowStart >= endMs) break;
+                continue;
+            }
+
+            trades.AddRange(batch);
+            fromId = lastId + 1;
+            if (lastTimeMs >= endMs) break;
+        }
+
+        if (trades.Count > cap) trades.RemoveRange(cap, trades.Count - cap);
+        return trades;
+    }
+
     public async ValueTask DisposeAsync()
     {
         try { await DisconnectAsync().ConfigureAwait(false); } catch { /* swallow */ }
@@ -319,6 +373,38 @@ internal sealed class RealBinanceClient : IBrokerClient
             ToSize(ParseDouble(k.GetProperty("v")), sizeScale));
     }
 
+    /// <summary>
+    /// REST <c>/api/v3/aggTrades</c> response (array of objects) → trade prints, oldest first. Returns
+    /// the batch plus the last aggTrade id and event-time so the caller can page (<c>fromId</c>) and
+    /// know when it has reached the window end. <c>lastId &lt; 0</c> signals an empty response. Trades
+    /// past <paramref name="endMs"/> are dropped from the batch but still advance the cursor so
+    /// pagination terminates. <c>m</c> = "buyer is maker" ⇒ the seller is the aggressor.
+    /// </summary>
+    internal static (List<TradeTick> Trades, long LastId, long LastTimeMs) ParseAggTrades(
+        JsonElement root, double sizeScale, long endMs)
+    {
+        var trades = new List<TradeTick>();
+        long lastId = -1, lastTime = 0;
+        if (root.ValueKind != JsonValueKind.Array) return (trades, lastId, lastTime);
+
+        foreach (var row in root.EnumerateArray())
+        {
+            if (row.ValueKind != JsonValueKind.Object) continue;
+            if (!row.TryGetProperty("T", out var t) || !t.TryGetInt64(out var ms)) continue;
+            lastTime = ms;
+            if (row.TryGetProperty("a", out var a) && a.TryGetInt64(out var id)) lastId = id;
+            if (ms > endMs) continue;
+            if (!row.TryGetProperty("p", out var price) || !row.TryGetProperty("q", out var qty)) continue;
+
+            var aggressor = row.TryGetProperty("m", out var maker) && maker.ValueKind == JsonValueKind.True
+                ? AggressorSide.Sell
+                : AggressorSide.Buy;
+            var time = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
+            trades.Add(new TradeTick(time, ParseDouble(price), ToSize(ParseDouble(qty), sizeScale), aggressor));
+        }
+        return (trades, lastId, lastTime);
+    }
+
     /// <summary>REST <c>/api/v3/klines</c> response (array of arrays) → bars, oldest first.</summary>
     internal static IReadOnlyList<Bar> ParseHistoricalKlines(JsonElement root, double sizeScale)
     {
@@ -371,6 +457,17 @@ internal sealed class RealBinanceClient : IBrokerClient
     };
 
     private static long ToSize(double qty, double sizeScale) => (long)Math.Round(qty * sizeScale);
+
+    private static long ToUnixMs(DateTime dt)
+    {
+        var utc = dt.Kind switch
+        {
+            DateTimeKind.Utc => dt,
+            DateTimeKind.Unspecified => DateTime.SpecifyKind(dt, DateTimeKind.Utc),
+            _ => dt.ToUniversalTime(),
+        };
+        return new DateTimeOffset(utc).ToUnixTimeMilliseconds();
+    }
 
     private static double ParseDouble(JsonElement el) =>
         el.ValueKind switch

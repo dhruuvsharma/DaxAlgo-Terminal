@@ -9,6 +9,8 @@ The terminal ships **12 live strategies** behind one `IBacktestStrategy` plug-in
 
 The split means the same logic powers backtest sweeps and live signal mode without duplication. In the shell, every strategy opens as **its own window** from the full-width strategy catalog (double-click a card).
 
+> 📐 **Looking for the math?** Every strategy's formula — entry/exit rule, estimators, signal definitions — is written out in the [Methods & math reference](math-reference.md#2-strategy-math), grounded in the engine source. This page is the catalog; that one is the derivation.
+
 ## How a live strategy is wired
 
 ```mermaid

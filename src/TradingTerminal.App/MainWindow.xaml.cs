@@ -39,6 +39,12 @@ public partial class MainWindow : MetroWindow
             vm.OpenStrategyCommand.Execute(vm.SelectedStrategy.Id);
     }
 
+    private void QuickBacktest_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm && vm.SelectedStrategy is not null)
+            vm.QuickBacktestCommand.Execute(vm.SelectedStrategy.Id);
+    }
+
     // Opens a research-paper-derived strategy's source paper in the default browser (the "ⓘ" link
     // on the RESEARCH PAPER pill in the Strategies pane).
     private void ResearchPaper_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)

@@ -71,11 +71,11 @@ The agent loads the skill so you don't have to name it.
 | `manager` | `software-architecture` (+ `navigator`; skim `quant-math` for quant routing) |
 | `infrastructure` | `broker-gotchas` (+ `backtest-engine`); IB → defer to `ib-api-expert` |
 | `market-data` | `market-data-pipeline` (+ `archive-offloader`) |
-| `ui-shared` | `wpf-mvvm-rules` (binding/theme → `xaml-fixer`) |
+| `ui-shared` | `wpf-mvvm-rules` (binding/theme → `xaml-fixer`); `memory-safety` for the streaming bases |
 | `backtest-cli` | `backtest-engine` |
-| `strategies` | per-strategy table in its body: `add-strategy`, plus `regime-cube-strategy`/`quant-math` for cube/surface/OU/VPIN work |
-| `tool-windows` | per-project table in its body: `quant-math` (Correlation/MarkovRegime), `backtest-engine` (Backtest window) |
-| `ai-windows`, `ai-seam` | `ai-analyst` |
+| `strategies` | `memory-safety` (every live window), plus per-strategy table in its body: `add-strategy`, plus `regime-cube-strategy`/`quant-math` for cube/surface/OU/VPIN work |
+| `tool-windows` | `memory-safety` (every streaming/render window), plus per-project table in its body: `quant-math` (Correlation/MarkovRegime), `backtest-engine` (Backtest window) |
+| `ai-windows`, `ai-seam` | `ai-analyst`; `memory-safety` for streaming/polling windows |
 | `app-shell` | `navigator` |
 | `build-runner`, `verifier` | (own instructions; `verifier` is plan-aware) |
 | `core-domain` | inline conventions (no single skill) |

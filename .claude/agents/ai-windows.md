@@ -25,6 +25,8 @@ App opens windows via `IServiceProvider`. Seam/enricher work belongs to `ai-seam
 
 ## Load first
 Skill: `ai-analyst` (plus `backtest-engine` for BacktestAnalysis result/statistics shapes).
+Load `memory-safety` for any window that streams/polls or owns a timer/subscription — these windows
+must batch-drain, coalesce redraws, and dispose their resources on close.
 
 ## When done
 `dotnet build` + `dotnet test`; report.

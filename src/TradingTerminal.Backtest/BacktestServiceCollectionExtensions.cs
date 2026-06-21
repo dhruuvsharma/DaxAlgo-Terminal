@@ -13,6 +13,10 @@ public static class BacktestServiceCollectionExtensions
         services.AddTransient<IBacktestSession, BacktestSession>();
         services.AddTransient<BacktestViewModel>();
         services.AddTransient<BacktestView>();
+        // Quick backtest: one-click run from the Strategy-catalog context menu. Transient so each
+        // strategy's window gets its own fresh VM/view.
+        services.AddTransient<QuickBacktestViewModel>();
+        services.AddTransient<QuickBacktestView>();
         return services;
     }
 }

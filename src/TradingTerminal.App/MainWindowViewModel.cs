@@ -420,6 +420,52 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         });
     }
 
+    /// <summary>
+    /// Strategy-catalog "Quick backtest": opens a single-instance-per-strategy results window that
+    /// auto-runs a 1-year backtest of the chosen strategy over historical bars (real broker when one
+    /// is connected, Simulated synthetic otherwise) and shows P&amp;L + headline statistics. Strategies
+    /// that declare no engine-side counterpart (<see cref="ITradingStrategy.BacktestStrategyId"/> is
+    /// null) get a message instead of a run.
+    /// </summary>
+    [RelayCommand]
+    public void QuickBacktest(string? strategyId)
+    {
+        if (string.IsNullOrWhiteSpace(strategyId))
+        {
+            if (SelectedStrategy is null) return;
+            strategyId = SelectedStrategy.Id;
+        }
+
+        var strategy = Strategies.FirstOrDefault(s => s.Id == strategyId);
+        if (strategy is null) return;
+
+        var windowId = "quickbacktest." + strategyId;
+        if (_openWindows.TryGetValue(windowId, out var existing)) { existing.Activate(); return; }
+
+        OpenWithOverlay($"Quick backtest — {strategy.DisplayName}…", "Fetching history and replaying through the engine…", () =>
+        {
+            var vm = _services.GetRequiredService<QuickBacktestViewModel>();
+            var view = _services.GetRequiredService<QuickBacktestView>();
+            view.DataContext = vm;
+
+            var window = ToolHostWindow.Create($"Quick backtest — {strategy.DisplayName}", view);
+            window.Owner = Application.Current.MainWindow;
+            window.Closed += (_, _) =>
+            {
+                _openWindows.Remove(windowId);
+                if (vm is IDisposable d) d.Dispose();
+            };
+            _openWindows[windowId] = window;
+            window.Show();
+
+            // Bind the VM to the strategy and kick off the first run after the window is up.
+            // Tape-primary strategies (SigmaIcFlow) default to Binance + real-tape mode for a full backtest.
+            var preferFullTape = strategy.DataRequirement.HasFlag(Core.Strategies.StrategyDataRequirement.TradeTape);
+            vm.Initialize(strategy.BacktestStrategyId, strategy.DisplayName, preferFullTape);
+            _logger.LogInformation("Opened quick backtest for {Id} ({Name})", strategy.Id, strategy.DisplayName);
+        });
+    }
+
     [RelayCommand]
     public async Task ReconnectAsync()
     {

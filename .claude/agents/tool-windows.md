@@ -23,6 +23,11 @@ with an `ITradingStrategy` belongs to the `strategies` agent instead (strategy-v
 - Feeds arrive on the hub publish thread → marshal via `UiThread.RunAsync`; throttle redraws with a `DispatcherTimer` so a fast feed can't drive render rate.
 
 ## Per-project notes + skill to load first
+**Always load `memory-safety` for any window that streams a feed or renders** (Charts, OrderBook,
+VolumeFootprint, Heatmap, live Correlation, regime windows) — bounded channels, batch-drain, coalesced
+redraw via a render timer, cached brushes, IDisposable teardown (the `leakcheck-on-stop` hook blocks on
+violations). Then load the per-project skill below.
+
 | Project | Notes | Skill |
 |---|---|---|
 | Charts | WebView2 + lightweight-charts.js; thin C#↔JS bridge; bundle `Assets/` as content, never fetch JS at runtime; smoke-test bridge changes via `dotnet run` | — |

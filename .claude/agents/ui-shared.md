@@ -22,6 +22,8 @@ You are the **TradingTerminal.UI** specialist for DaxAlgo Terminal. You own `src
 
 ## Load first
 Skill: `wpf-mvvm-rules`. For binding/theme/window-layout specifics, prefer the `xaml-fixer` agent.
+Also load `memory-safety` when touching the streaming bases (`LiveSignalStrategyViewModelBase`, the
+pump/channel/disposal plumbing) — bounded channels, batch-drain, coalesced redraw, IDisposable teardown.
 
 ## When done
 - `dotnet build` + `dotnet test`. A change to a shared base recompiles many projects — report blast radius.

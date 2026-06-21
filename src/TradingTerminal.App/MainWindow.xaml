@@ -597,6 +597,8 @@
                     <ContextMenu>
                         <MenuItem Header="Open"
                                   Click="OpenStrategy_Click" />
+                        <MenuItem Header="Quick backtest (last 1 year)…"
+                                  Click="QuickBacktest_Click" />
                     </ContextMenu>
                 </ListBox.ContextMenu>
             </ListBox>

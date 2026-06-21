@@ -151,4 +151,57 @@ public sealed class BinanceParsingTests
     {
         RealBinanceClient.MapInterval(size).Should().Be(expected);
     }
+
+    // ── aggTrades (historical tape for the full-tape quick backtest) ────────────────────────────
+
+    [Fact]
+    public void ParseAggTrades_maps_prints_aggressor_and_cursor()
+    {
+        // Two aggTrades: first buyer-is-maker (seller aggressor), second buyer-is-taker (buyer aggressor).
+        var el = Json("""
+            [
+              {"a":101,"p":"42010.5","q":"0.012","f":201,"l":201,"T":1700000000100,"m":true},
+              {"a":102,"p":"42011.0","q":"3","f":202,"l":205,"T":1700000000200,"m":false}
+            ]
+            """);
+
+        var (trades, lastId, lastTime) = RealBinanceClient.ParseAggTrades(el, Scale, endMs: long.MaxValue);
+
+        trades.Should().HaveCount(2);
+        trades[0].Price.Should().Be(42010.5);
+        trades[0].Size.Should().Be(12);                 // round(0.012 * 1000) — survives the Size>0 filter
+        trades[0].Aggressor.Should().Be(AggressorSide.Sell);
+        trades[1].Aggressor.Should().Be(AggressorSide.Buy);
+        trades[1].Size.Should().Be(3000);
+        lastId.Should().Be(102);                         // pagination cursor = last aggTrade id
+        lastTime.Should().Be(1700000000200);
+    }
+
+    [Fact]
+    public void ParseAggTrades_drops_prints_past_end_but_still_advances_cursor()
+    {
+        // The second print is past the window end: it must NOT be returned, but lastId/lastTime must
+        // still advance so the caller's fromId pagination terminates instead of looping forever.
+        var el = Json("""
+            [
+              {"a":10,"p":"100","q":"1","T":1700000000100,"m":false},
+              {"a":11,"p":"101","q":"1","T":1700000000500,"m":false}
+            ]
+            """);
+
+        var (trades, lastId, lastTime) = RealBinanceClient.ParseAggTrades(el, Scale, endMs: 1700000000300);
+
+        trades.Should().HaveCount(1);
+        trades[0].Price.Should().Be(100);
+        lastId.Should().Be(11);
+        lastTime.Should().Be(1700000000500);
+    }
+
+    [Fact]
+    public void ParseAggTrades_signals_empty_response_with_negative_id()
+    {
+        var (trades, lastId, _) = RealBinanceClient.ParseAggTrades(Json("[]"), Scale, endMs: long.MaxValue);
+        trades.Should().BeEmpty();
+        lastId.Should().Be(-1);   // the caller uses lastId < 0 to detect "no data"
+    }
 }

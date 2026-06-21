@@ -27,6 +27,10 @@ thread (→ `infrastructure`). Strategy projects register via `Add<Name>Strategy
 - Data/signals only — no order paths.
 
 ## Per-strategy quirks + skill to load first
+**Always load `memory-safety` for any live window** — every strategy here consumes a hub feed, so the
+bounded-channel / batch-drain / coalesced-redraw / IDisposable-teardown rules apply (the `leakcheck-on-stop`
+hook will block on violations). Then load the per-project skill below.
+
 | Project | Quirks | Skill(s) |
 |---|---|---|
 | SigmaIcFlow | Σ⁻¹·IC Order-Flow Optimizer (formerly ApexScalper); id `sigma.ic.flow`; tape-primary, Core.Quant estimators; engine class still `ApexScalperStrategy` | `add-strategy` |
