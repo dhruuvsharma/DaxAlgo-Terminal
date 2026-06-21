@@ -36,24 +36,10 @@ public sealed class GridOptimizer
             new ParallelOptions { MaxDegreeOfParallelism = dop, CancellationToken = ct },
             async (combo, token) =>
             {
-                var merged = new Dictionary<string, double>(spec.BaseRun.ParametersOrEmpty.Values);
-                foreach (var (k, v) in combo) merged[k] = v;
-
-                var runSpec = spec.BaseRun with
-                {
-                    Parameters = new StrategyParameters(merged),
-                    Visual = VisualRecording.Off,
-                };
-
-                var report = await new BacktestEngine(_feedFactory())
-                    .RunAsync(runSpec, _kernelFactory(), token).ConfigureAwait(false);
-
-                trials.Add(new OptimizationTrial(
-                    Parameters: combo,
-                    Score: Criteria.Score(spec.Criterion, report),
-                    NetProfit: report.Summary.NetProfit,
-                    TradeCount: report.Trades.Count));
-
+                var trial = await TrialRunner
+                    .EvaluateAsync(_feedFactory, _kernelFactory, spec.BaseRun, spec.Criterion, combo, token)
+                    .ConfigureAwait(false);
+                trials.Add(trial);
                 progress?.Report(Interlocked.Increment(ref done));
             }).ConfigureAwait(false);
 

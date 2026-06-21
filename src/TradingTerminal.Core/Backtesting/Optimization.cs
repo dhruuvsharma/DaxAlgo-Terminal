@@ -72,3 +72,40 @@ public sealed record OptimizationResult(
 {
     public int Evaluations => Trials.Count;
 }
+
+/// <summary>Knobs for the genetic optimizer. Defaults are a small, fast search suitable for the
+/// interactive Studio; widen for headless runs.</summary>
+public sealed record GeneticOptions(
+    int PopulationSize = 24,
+    int Generations = 10,
+    double MutationRate = 0.2,
+    int Elites = 2,
+    int TournamentSize = 3,
+    int Seed = 1);
+
+/// <summary>
+/// One fold of a walk-forward analysis: parameters chosen by optimizing on the in-sample window, and
+/// how they performed on the immediately-following out-of-sample window. The IS→OOS score gap is the
+/// honest test of whether an optimization generalizes or just overfit the training slice.
+/// </summary>
+public sealed record WalkForwardFold(
+    DateTime InSampleFromUtc,
+    DateTime InSampleToUtc,
+    DateTime OutOfSampleFromUtc,
+    DateTime OutOfSampleToUtc,
+    IReadOnlyDictionary<string, double> BestParameters,
+    double InSampleScore,
+    double OutOfSampleScore,
+    double OutOfSampleNetProfit,
+    int OutOfSampleTradeCount);
+
+/// <summary>The result of a walk-forward run: every fold plus headline aggregates. <see cref="Efficiency"/>
+/// (avg OOS score / avg IS score) near 1 means the optimization held up out of sample; near 0 means it
+/// didn't.</summary>
+public sealed record WalkForwardResult(IReadOnlyList<WalkForwardFold> Folds)
+{
+    public double AvgInSampleScore => Folds.Count == 0 ? 0 : Folds.Average(f => f.InSampleScore);
+    public double AvgOutOfSampleScore => Folds.Count == 0 ? 0 : Folds.Average(f => f.OutOfSampleScore);
+    public double TotalOutOfSampleNetProfit => Folds.Sum(f => f.OutOfSampleNetProfit);
+    public double Efficiency => AvgInSampleScore == 0 ? 0 : AvgOutOfSampleScore / AvgInSampleScore;
+}
