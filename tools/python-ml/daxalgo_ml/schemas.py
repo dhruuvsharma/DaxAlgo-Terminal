@@ -116,6 +116,72 @@ class AnalystReport(BaseModel):
         )
 
 
+# ── Paper Lab reproduction (Phase 2) ──────────────────────────────────────────────────────
+#
+# The sidecar does STATIC analysis only: it resolves a paper to its repo(s) and produces a
+# reproduction *plan*. It NEVER executes untrusted repo code — running the repo happens only
+# inside the C# Docker sandbox. These wire types mirror the C# Core/Research records; the C#
+# side serialises snake_case, so the field names already match (no aliases needed).
+
+
+class ResolveRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    url: str
+
+
+class ResolvedRepo(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    git_url: str
+    commit: str
+
+
+class ResolvedPaper(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    arxiv_id: str
+    title: str
+    url: str
+
+
+class ResolveResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    resolved: bool
+    paper: ResolvedPaper | None = None
+    repos: list[ResolvedRepo] = Field(default_factory=list)
+    error: str | None = None
+
+    @classmethod
+    def empty(cls, reason: str) -> "ResolveResponse":
+        return cls(resolved=False, paper=None, repos=[], error=reason)
+
+
+class PlanRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    git_url: str
+    commit: str
+
+
+class PlanResponse(BaseModel):
+    """The statically-resolved minimal-reproduction plan. ``error`` set → resolution failed."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    image: str = ""
+    setup_commands: list[str] = Field(default_factory=list)
+    entrypoint: str = ""
+    declared_data_deps: list[str] = Field(default_factory=list)
+    env_hash: str = ""
+    error: str | None = None
+
+    @classmethod
+    def empty(cls, reason: str) -> "PlanResponse":
+        return cls(error=reason)
+
+
 __all__ = [
     "AnalystBar",
     "AnalystRequest",
@@ -124,4 +190,10 @@ __all__ = [
     "PatternReport",
     "TrendReport",
     "Decision",
+    "ResolveRequest",
+    "ResolveResponse",
+    "ResolvedPaper",
+    "ResolvedRepo",
+    "PlanRequest",
+    "PlanResponse",
 ]

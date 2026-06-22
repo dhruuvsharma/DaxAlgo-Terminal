@@ -125,11 +125,15 @@ public static class AppDependencyInjection
         return services;
     }
 
-    /// <summary>Settings dialogs (today: notifications). Add new settings tabs here.</summary>
+    /// <summary>Settings dialogs (notifications + the Theme Studio). Add new settings tabs here.</summary>
     public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
     {
         services.AddTransient<NotificationsSettingsViewModel>();
         services.AddTransient<NotificationsSettingsView>();
+        services.AddTransient<TradingTerminal.App.Theming.ThemeStudioViewModel>();
+        services.AddTransient<TradingTerminal.App.Theming.ThemeStudioView>();
+        services.AddTransient<TradingTerminal.App.Research.ResearchSettingsViewModel>();
+        services.AddTransient<TradingTerminal.App.Research.ResearchSettingsView>();
         return services;
     }
 

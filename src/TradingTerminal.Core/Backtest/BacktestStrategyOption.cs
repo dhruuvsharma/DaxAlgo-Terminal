@@ -23,6 +23,19 @@ public sealed record BacktestStrategyOption(
     /// <summary>Factory that honours runtime parameters. When set, preferred over <see cref="Build"/>.</summary>
     public Func<Contract, StrategyParameters, IBacktestStrategy>? ParameterizedBuild { get; init; }
 
+    /// <summary>
+    /// Optional backtest-tuned factory. When set, the backtest engine/Studio builds the strategy
+    /// through this instead of <see cref="Build"/>, letting a strategy ship a warmup/threshold preset
+    /// that is appropriate for a finite backtest without relaxing its conservative <em>live</em>
+    /// defaults. The live signal host always uses <see cref="Build"/>; only backtest call sites opt in.
+    /// </summary>
+    public Func<Contract, IBacktestStrategy>? BacktestBuild { get; init; }
+
+    /// <summary>Builds a fresh strategy for a backtest, preferring <see cref="BacktestBuild"/> when the
+    /// option ships a backtest preset, otherwise falling back to the standard <see cref="Create"/>.</summary>
+    public IBacktestStrategy CreateForBacktest(Contract contract) =>
+        BacktestBuild is { } build ? build(contract) : Create(contract);
+
     /// <summary>True when this strategy advertises at least one tunable.</summary>
     public bool HasParameters => !Schema.IsEmpty;
 
@@ -34,6 +47,14 @@ public sealed record BacktestStrategyOption(
     /// </summary>
     public StrategyDataRequirement DataRequirement { get; init; } =
         StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    /// <summary>
+    /// Optional canonical URL of the source research paper, mirroring
+    /// <c>ITradingStrategy.ResearchPaperUrl</c>. Set by strategies bridged from a Paper Lab
+    /// reproduction so the provenance (and the clickable paper pill) survives into the backtest
+    /// catalog. Defaults to <c>null</c> for non-paper-derived strategies.
+    /// </summary>
+    public string? ResearchPaperUrl { get; init; }
 
     /// <summary>
     /// Builds a fresh strategy, applying <paramref name="parameters"/> when this option is

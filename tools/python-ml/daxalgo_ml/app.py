@@ -23,8 +23,15 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
-from .analyst import run_graph
-from .schemas import AnalystRequest, AnalystReport
+from .research import plan_repro, resolve_paper
+from .schemas import (
+    AnalystReport,
+    AnalystRequest,
+    PlanRequest,
+    PlanResponse,
+    ResolveRequest,
+    ResolveResponse,
+)
 
 logger = logging.getLogger("daxalgo_ml")
 
@@ -55,6 +62,10 @@ async def analyst_run(req: AnalystRequest) -> AnalystReport:
     if not req.api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
 
+    # Imported lazily so the lightweight research endpoints (/research/*) don't drag in the heavy
+    # LangGraph/LLM stack at module import time. The analyst path requires it; research does not.
+    from .analyst import run_graph
+
     try:
         return await asyncio.wait_for(
             run_in_threadpool(
@@ -73,6 +84,53 @@ async def analyst_run(req: AnalystRequest) -> AnalystReport:
     except Exception as exc:  # noqa: BLE001
         logger.exception("analyst/run failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── Paper Lab reproduction (Phase 2) ──────────────────────────────────────────────────────
+#
+# STATIC analysis only: resolve a paper → repo(s), and resolve a repo → a reproduction PLAN.
+# These endpoints NEVER execute untrusted repo code (cloning + reading files is OK; running the
+# repo happens only inside the C# Docker sandbox). No api_key required — same loopback-only trust
+# boundary as the rest of the sidecar. Both fold failures into an empty response, never 500.
+
+# Resolution/planning can clone over the network; give them a generous outer ceiling.
+RESEARCH_TIMEOUT_SECONDS = 180
+
+
+@app.post("/research/resolve", response_model=ResolveResponse)
+async def research_resolve(req: ResolveRequest) -> ResolveResponse:
+    if not req.url:
+        return ResolveResponse.empty("Paper URL is empty.")
+    try:
+        return await asyncio.wait_for(
+            run_in_threadpool(resolve_paper, req.url),
+            timeout=RESEARCH_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("research/resolve timed out")
+        return ResolveResponse.empty("Paper resolution timed out.")
+    except Exception as exc:  # noqa: BLE001 — never throw across the seam.
+        logger.exception("research/resolve failed")
+        return ResolveResponse.empty(f"Paper resolution failed: {exc}")
+
+
+@app.post("/research/plan", response_model=PlanResponse)
+async def research_plan(req: PlanRequest) -> PlanResponse:
+    if not req.git_url:
+        return PlanResponse.empty("Repo git URL is empty.")
+    if not req.commit:
+        return PlanResponse.empty("Repo commit pin is empty (required for determinism).")
+    try:
+        return await asyncio.wait_for(
+            run_in_threadpool(plan_repro, req.git_url, req.commit),
+            timeout=RESEARCH_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("research/plan timed out")
+        return PlanResponse.empty("Environment resolution timed out.")
+    except Exception as exc:  # noqa: BLE001 — never throw across the seam.
+        logger.exception("research/plan failed")
+        return PlanResponse.empty(f"Environment resolution failed: {exc}")
 
 
 def _pick_free_port() -> int:

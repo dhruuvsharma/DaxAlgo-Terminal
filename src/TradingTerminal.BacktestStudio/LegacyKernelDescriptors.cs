@@ -24,7 +24,9 @@ public static class LegacyKernelDescriptors
                 Name: captured.DisplayName,
                 Description: $"Engine strategy (default parameters). Data: {captured.DataRequirement}.",
                 Schema: StrategyParameterSchema.Empty,
-                Create: () => new BacktestStrategyKernelAdapter(contract => captured.Create(contract, null)));
+                // CreateForBacktest applies a strategy's backtest preset (e.g. SigmaIcFlow's shorter
+                // calibration warmup) when it ships one, else the standard default-parameter build.
+                Create: () => new BacktestStrategyKernelAdapter(captured.CreateForBacktest));
         }
     }
 }

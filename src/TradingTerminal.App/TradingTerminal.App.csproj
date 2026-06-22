@@ -58,6 +58,7 @@
     <ProjectReference Include="..\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
     <ProjectReference Include="..\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
     <ProjectReference Include="..\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
     <!-- QuantConnect / LEAN integration -->
     <ProjectReference Include="..\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
   </ItemGroup>

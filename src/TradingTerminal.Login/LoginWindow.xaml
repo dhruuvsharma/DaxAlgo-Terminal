@@ -9,7 +9,7 @@
                  xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="Trading Terminal — Sign in"
-                 Height="780" Width="640"
+                 Height="820" Width="660"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
                  ShowMinButton="True"
@@ -151,6 +151,7 @@
             <RowDefinition Height="Auto" />  <!-- Summary banner -->
             <RowDefinition Height="Auto" />  <!-- Search box -->
             <RowDefinition Height="*" />     <!-- Grouped broker accordion -->
+            <RowDefinition Height="Auto" />  <!-- Services & dependencies -->
             <RowDefinition Height="Auto" />  <!-- Launch bar -->
             <RowDefinition Height="Auto" />  <!-- Footer -->
         </Grid.RowDefinitions>
@@ -165,11 +166,14 @@
                        FontSize="18"
                        FontWeight="SemiBold"
                        Margin="0,6,0,0" />
-            <TextBlock Text="Connect one or more brokers — each provides its own data feeds."
-                       HorizontalAlignment="Center"
+            <TextBlock HorizontalAlignment="Center"
                        Foreground="{DynamicResource Text.Secondary}"
                        FontSize="11"
-                       Margin="0,2,0,0" />
+                       TextAlignment="Center"
+                       MaxWidth="460"
+                       TextWrapping="Wrap"
+                       Margin="0,2,0,0"
+                       Text="Connect one or more brokers below — each provides its own data feeds. Optional sidecars and services are listed lower down. Connect at least one broker, then launch." />
         </StackPanel>
 
         <!-- Aggregate summary banner (+ QuestDB warm-up when applicable) -->
@@ -251,8 +255,107 @@
             </ItemsControl>
         </ScrollViewer>
 
+        <!-- Services & external dependencies (collapsed by default — informational) -->
+        <Expander Grid.Row="4" Margin="0,10,0,0" IsExpanded="False"
+                  Background="{DynamicResource Background.Surface}"
+                  BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+            <Expander.Header>
+                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold">
+                    <Run Text="Services &amp; external dependencies" />
+                    <Run Text="— what to launch outside the app"
+                         Foreground="{DynamicResource Text.Secondary}" FontWeight="Normal" />
+                </TextBlock>
+            </Expander.Header>
+
+            <StackPanel Margin="10,4,10,10">
+                <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="420"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                               Text="The terminal runs without any of these. Start the ones you need — brokers connect above; everything below powers an optional feature." />
+                    <Button DockPanel.Dock="Right" Content="Re-check"
+                            Command="{Binding RecheckServicesCommand}"
+                            IsEnabled="{Binding IsCheckingServices, Converter={StaticResource InverseBooleanConverter}}"
+                            MinWidth="84" Padding="8,2" VerticalAlignment="Center" />
+                </DockPanel>
+
+                <ItemsControl ItemsSource="{Binding Services}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,6" Padding="10,8" CornerRadius="4"
+                                    BorderThickness="1" BorderBrush="{DynamicResource Border.Brush}"
+                                    Background="{DynamicResource Background.Primary}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Status dot -->
+                                    <Ellipse Grid.Column="0" Width="9" Height="9" Margin="0,5,10,0"
+                                             VerticalAlignment="Top">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding State}" Value="Running">
+                                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Stopped">
+                                                        <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Checking">
+                                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+
+                                    <!-- Name + purpose + how-to -->
+                                    <StackPanel Grid.Column="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                                            <Border CornerRadius="7" Padding="6,0" Margin="8,1,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Background="{DynamicResource Background.Surface}"
+                                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                                                <TextBlock Text="{Binding Requirement}" FontSize="9"
+                                                           Foreground="{DynamicResource Text.Secondary}" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Purpose}" FontSize="11" Margin="0,2,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource Text.Primary}" />
+                                        <TextBlock Text="{Binding HowTo}" FontSize="10" Margin="0,3,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource Text.Secondary}" />
+                                    </StackPanel>
+
+                                    <!-- Status text + copy-command -->
+                                    <StackPanel Grid.Column="2" Margin="12,0,0,0"
+                                                HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding StatusText}" FontSize="11"
+                                                   HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource Text.Secondary}" />
+                                        <Button Content="Copy start command"
+                                                FontSize="10" Padding="8,2" Margin="0,6,0,0" MinWidth="0"
+                                                Command="{Binding DataContext.CopyStartCommandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Visibility="{Binding HasStartCommand, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="{Binding StartCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Expander>
+
         <!-- Launch bar -->
-        <Grid Grid.Row="4" Margin="0,12,0,0">
+        <Grid Grid.Row="5" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -284,7 +387,7 @@
         </Grid>
 
         <!-- Footer -->
-        <TextBlock Grid.Row="5"
+        <TextBlock Grid.Row="6"
                    Text="DaxAlgo Terminal · MIT licensed"
                    Foreground="{DynamicResource Text.Secondary}"
                    FontSize="10"

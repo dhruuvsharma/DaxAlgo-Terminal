@@ -251,4 +251,20 @@ public sealed record ApexV2Options
 
     /// <summary>The v2 defaults.</summary>
     public static ApexV2Options Default => new();
+
+    /// <summary>
+    /// Backtest-friendly preset. The live defaults need ~500 in-session bars (~8.5h) before the
+    /// isotonic calibration earns authority, and trade only when <c>|C| ≥ 1.0</c> until then — so on a
+    /// modest synthetic/replay run the strategy stays in bootstrap mode and never fires. This preset
+    /// shortens the calibration warmup and lowers the bootstrap composite gate so SigmaIcFlow produces
+    /// trades on a few hundred bars in the Backtest Studio, while leaving the conservative live
+    /// defaults untouched. Everything else (cost gate, EV check, risk caps) is unchanged.
+    /// </summary>
+    public static ApexV2Options Backtest => Default with
+    {
+        IsotonicMinSamples = 40,
+        BootstrapSampleThreshold = 40,
+        CompositeThreshold = 0.5,
+        CovarianceWindow = 300,
+    };
 }

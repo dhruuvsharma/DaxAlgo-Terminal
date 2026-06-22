@@ -31,6 +31,7 @@ using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
 using TradingTerminal.Ai.BacktestAnalysis;
+using TradingTerminal.Ai.PaperLab;
 using TradingTerminal.QuantConnect;
 using TradingTerminal.Infrastructure.MarketData.Store;
 using TradingTerminal.Core.Brokers;
@@ -56,6 +57,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string MlFeaturesWindowId = "ai.mlfeatures";
     private const string BacktestAnalysisWindowId = "ai.backtestanalysis";
     private const string AiAnalystWindowId = "ai.marketanalyst";
+    private const string PaperLabWindowId = "ai.paperlab";
     private const string MarkovRegimeWindowId = "tools.regime.markov";
     private const string AdvancedRegimeWindowId = "tools.regime.advanced";
     private const string StationarityWindowId = "ml.stationarity";
@@ -70,6 +72,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string BookmapWindowId = "tools.heatmap.bookmap";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
+    private const string ThemeStudioWindowId = "settings.themestudio";
+    private const string ResearchSettingsWindowId = "settings.research";
 
     private readonly IStrategyFactory _factory;
     private readonly IEventBus _eventBus;
@@ -108,6 +112,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Themes = new ObservableCollection<ThemeMenuOption>(
             _themeManager.Themes.Select(t => new ThemeMenuOption(t.Id, t.Name)));
         SyncThemeChecks();
+        // The Theme Studio can save/import custom themes — rebuild the menu when the set changes.
+        _themeManager.ThemesChanged += (_, _) =>
+        {
+            if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess())
+                d.BeginInvoke(new Action(RefreshThemeMenu));
+            else
+                RefreshThemeMenu();
+        };
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) => UpdateClocks();
@@ -514,6 +526,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             option.IsCurrent = string.Equals(option.Id, _themeManager.CurrentThemeId, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Rebuilds the View → Theme menu from the manager's registry (after a custom theme is
+    /// saved or imported in the Theme Studio).</summary>
+    private void RefreshThemeMenu()
+    {
+        Themes.Clear();
+        foreach (var t in _themeManager.Themes)
+            Themes.Add(new ThemeMenuOption(t.Id, t.Name));
+        SyncThemeChecks();
+    }
+
+    [RelayCommand]
+    public void OpenThemeStudio() =>
+        OpenHostedTool<TradingTerminal.App.Theming.ThemeStudioViewModel, TradingTerminal.App.Theming.ThemeStudioView>(
+            ThemeStudioWindowId, "Theme Studio", "Loading the theme editor…");
+
     /// <summary>Copies the selected activity-log rows to the clipboard (tab-aligned text). Falls back
     /// to copying every currently-visible row when nothing is selected, so Ctrl+C / "Copy" always
     /// yields something useful.</summary>
@@ -568,6 +595,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void OpenAiAnalyst() =>
         OpenHostedTool<AiAnalystViewModel, AiAnalystView>(AiAnalystWindowId, "AI market analyst", "Connecting to the AI analyst…");
+
+    [RelayCommand]
+    public void OpenPaperLab() =>
+        OpenHostedTool<PaperLabViewModel, PaperLabView>(PaperLabWindowId, "Paper Lab", "Loading Paper Lab…");
 
     [RelayCommand]
     public void OpenCorrelation() =>
@@ -661,6 +692,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void OpenNotificationsSettings() =>
         OpenHostedTool<NotificationsSettingsViewModel, NotificationsSettingsView>(NotificationsWindowId, "Notifications", "Loading settings…");
+
+    [RelayCommand]
+    public void OpenResearchSettings() =>
+        OpenHostedTool<TradingTerminal.App.Research.ResearchSettingsViewModel, TradingTerminal.App.Research.ResearchSettingsView>(
+            ResearchSettingsWindowId, "Research", "Loading settings…");
 
     [RelayCommand]
     public void OpenArchiveSettings() =>

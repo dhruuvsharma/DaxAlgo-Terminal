@@ -86,6 +86,9 @@ Per-tool projects: the App shell no longer hosts tool windows — each tool is i
 | `software-architecture` | Planning multi-project work — decomposition, design-pattern catalog, the plan contract. The `manager` agent loads this. |
 | `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (`Strategies.*`, Correlation, MarkovRegime). |
 | `skill-author` | Adding/fixing a skill — frontmatter, "pushy" triggering, bespoke-vs-external + the licensing rule. |
+| `paper-reproduction` | The Paper Lab pipeline — paper → sandboxed repro → bridge into the backtest engine as a paper-tagged strategy (`Core/Research/`, `Infrastructure/Research/`, `Ai.PaperLab`). The `paper-repro` agent loads this. |
+| `untrusted-execution` | Running untrusted third-party/paper code safely — deny-by-default Docker/WSL2/VM sandbox, egress allowlist, quotas, kill-tree, never in-process. Load before touching `Infrastructure/Research/Sandbox/` or `ISandboxRunner`. |
+| `paper-ingestion` | The arXiv paper→repo ingestion seam (`IPaperIngestClient` Null/Http) + the SQLite repro job/cache store (cloned from the archive manifest store). |
 
 ## Subagents & model routing
 
@@ -104,6 +107,7 @@ Match the cheapest model tall enough for the task. Spawn a subagent only when se
 | Per-strategy VM / baseline authoring (2–4 files, clear template) | main thread | Opus |
 | TWS API wiring, EWrapper threading, contract/historical subtleties | `ib-api-expert` | Opus |
 | Cube/surface strategy work (load `regime-cube-strategy` first) | main thread | Opus |
+| Paper Lab reproduction subsystem (Core/Research + Infrastructure/Research + untrusted-code sandbox + sidecar repro) | `paper-repro` | Opus |
 | Pre-commit review of a staged diff | `dotnet-reviewer` | Sonnet |
 | Plan an implementation before coding | `Plan` agent | — |
 

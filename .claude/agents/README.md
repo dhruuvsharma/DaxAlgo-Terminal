@@ -1,8 +1,8 @@
 # Project agents — routing index
 
-A lean fleet of **18 agents**: 3 orchestration, 8 foundational (one per load-bearing
+A lean fleet of **19 agents**: 3 orchestration, 8 foundational (one per load-bearing
 project), 3 consolidated window owners (strategies / tool windows / AI windows), and
-4 specialists. Each agent knows its projects' ownership, dependency constraints (the
+5 specialists. Each agent knows its projects' ownership, dependency constraints (the
 solution graph it must not break), conventions, and which skill to load first.
 
 > **History:** this used to be a 39-agent per-project fleet (one agent per window).
@@ -66,7 +66,9 @@ main-thread Opus work per CLAUDE.md routing — the `strategies` agent handles t
 template and escalates the math.
 
 ## Specialists (not project-scoped)
-`ib-api-expert` (opus) · `xaml-fixer` (sonnet) · `wpf-explorer` (haiku) · `dotnet-reviewer` (sonnet)
+`ib-api-expert` (opus) · `xaml-fixer` (sonnet) · `wpf-explorer` (haiku) · `dotnet-reviewer` (sonnet) ·
+`paper-repro` (opus — the Paper Lab reproduction subsystem: `Core/Research/` + `Infrastructure/Research/`
++ the untrusted-code sandbox + sidecar repro endpoints; loads `paper-reproduction` + `untrusted-execution`)
 
 ## Orchestration & live monitoring
 

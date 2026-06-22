@@ -21,6 +21,7 @@ using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Regime;
+using TradingTerminal.Infrastructure.Research;
 using TradingTerminal.UI.Converters;
 using TradingTerminal.UI.Logging;
 // Per-tool projects (Charts menu + Tools menu + AI tools), each shipping its own Add*Surface extension.
@@ -42,6 +43,7 @@ using TradingTerminal.Ai.MarketAnalyst;
 using TradingTerminal.Ai.FactorResearch;
 using TradingTerminal.Ai.MlFeatures;
 using TradingTerminal.Ai.BacktestAnalysis;
+using TradingTerminal.Ai.PaperLab;
 using TradingTerminal.QuantConnect;
 
 namespace TradingTerminal.App;
@@ -85,6 +87,7 @@ public partial class App : Application
                 // UI's writes win over what's shipped in appsettings.json.
                 cfg.AddJsonFile(NotificationsUserFile.Path, optional: true, reloadOnChange: true);
                 cfg.AddJsonFile(TradingTerminal.App.Archive.ArchiveUserFile.Path, optional: true, reloadOnChange: true);
+                cfg.AddJsonFile(TradingTerminal.App.Research.ResearchUserFile.Path, optional: true, reloadOnChange: true);
             })
             .UseSerilog((ctx, services, lc) =>
             {
@@ -169,6 +172,10 @@ public partial class App : Application
                 services.AddFactorResearch();
                 services.AddMlFeatures();
                 services.AddBacktestAnalysis();
+                // Paper Lab — paper-research repro seam (Null ingest + Docker runner by default,
+                // degrades gracefully with no sidecar/Docker) plus its UI panel.
+                services.AddPaperResearch(ctx.Configuration);
+                services.AddPaperLab();
                 // Regime tools — Markov + Advanced market regime panels.
                 services.AddMarkovRegimeSurface();
                 services.AddAdvancedMarketRegimeSurface();

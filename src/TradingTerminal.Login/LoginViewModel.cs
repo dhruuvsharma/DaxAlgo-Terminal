@@ -1,10 +1,15 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Threading;
+using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.UI;
@@ -30,6 +35,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly SessionContext _session;
     private readonly IQuestDbLauncher _questDb;
     private readonly CredentialStore _credentialStore;
+    private readonly IOptionsMonitor<ResearchReproOptions> _research;
     private readonly ILogger<LoginViewModel> _logger;
 
     /// <summary>The forms as their concrete base type, pre-sorted Keyless → Credentialed → Local,
@@ -45,12 +51,14 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         SessionContext session,
         IQuestDbLauncher questDb,
         CredentialStore credentialStore,
+        IOptionsMonitor<ResearchReproOptions> research,
         ILogger<LoginViewModel> logger)
     {
         _brokerSelector = brokerSelector;
         _session = session;
         _questDb = questDb;
         _credentialStore = credentialStore;
+        _research = research;
         _logger = logger;
 
         AvailableForms = forms.All;
@@ -82,6 +90,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
         RefreshConnectedSummary();
         InitializeQuestDb();
+        BuildServices();
 
         var stored = _credentialStore.Load();
         PreExpandLastBroker(stored.SelectedBroker);
@@ -341,6 +350,100 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         BrokerKind.Upstox => "Upstox",
         _ => kind.ToString(),
     };
+
+    // ── Services & external dependencies ─────────────────────────────────────────────────────────
+
+    /// <summary>External processes the terminal talks to but never launches itself — surfaced on the
+    /// login screen so users know what to start (and can see live status) before signing in.</summary>
+    public ObservableCollection<ServiceDependencyViewModel> Services { get; } = new();
+
+    /// <summary>True while a re-check sweep is running (drives the panel's spinner / button state).</summary>
+    [ObservableProperty]
+    private bool _isCheckingServices;
+
+    private void BuildServices()
+    {
+        var sidecarBase = _research.CurrentValue.SidecarBaseUrl is { Length: > 0 } u
+            ? u.TrimEnd('/')
+            : "http://127.0.0.1:8765";
+        var healthz = sidecarBase + "/healthz";
+
+        Services.Add(new ServiceDependencyViewModel(
+            name: "AI / Research sidecar (daxalgo-ml)",
+            purpose: "Powers the AI Market Analyst and Paper Lab paper-resolution.",
+            requirement: "Optional",
+            howTo: $"Run the local Python sidecar on {sidecarBase}, then enable it under Settings → " +
+                   "Notifications (AI Analyst) and Settings → Research (Paper Lab). Loopback only.",
+            startCommand: "cd tools\\python-ml; .\\.venv\\Scripts\\Activate.ps1; " +
+                          "$env:DAXALGO_ML_PORT='8765'; python -m daxalgo_ml.app",
+            probe: ct => ServiceDependencyViewModel.HttpOkAsync(healthz, ct)));
+
+        Services.Add(new ServiceDependencyViewModel(
+            name: "Docker Desktop",
+            purpose: "Runs the Paper Lab sandbox container and the optional QuestDB tick store.",
+            requirement: "Optional",
+            howTo: "Start Docker Desktop and wait for the engine to report Running before using Paper Lab " +
+                   "or QuestDB.",
+            startCommand: null,
+            probe: ServiceDependencyViewModel.DockerRunningAsync));
+
+        Services.Add(new ServiceDependencyViewModel(
+            name: "Interactive Brokers — TWS / IB Gateway",
+            purpose: "Required to connect the Interactive Brokers data feed.",
+            requirement: "Only if using Interactive Brokers",
+            howTo: "Launch TWS or IB Gateway, log in, then enable API access: Config → API → Settings → " +
+                   "“Enable ActiveX and Socket Clients” (paper 7497 / live 7496).",
+            startCommand: null,
+            probe: ct => ServiceDependencyViewModel.TcpOpenAsync("127.0.0.1", new[] { 7497, 7496 }, ct)));
+
+        Services.Add(new ServiceDependencyViewModel(
+            name: "NinjaTrader 8",
+            purpose: "Required to connect the NinjaTrader feed (NTDirect).",
+            requirement: "Only if using NinjaTrader",
+            howTo: "Start NinjaTrader 8 and leave it running before connecting the NinjaTrader broker.",
+            startCommand: null,
+            probe: null));
+
+        Services.Add(new ServiceDependencyViewModel(
+            name: "Ollama (local LLM)",
+            purpose: "Optional local model that adds a one-line commentary to signal notifications.",
+            requirement: "Optional",
+            howTo: "Install from ollama.ai, run the server, then enable it under Settings → Notifications.",
+            startCommand: "ollama serve",
+            probe: ct => ServiceDependencyViewModel.HttpOkAsync("http://localhost:11434", ct)));
+
+        _ = RecheckServicesAsync();
+    }
+
+    /// <summary>Re-probes every service that supports a live status check (parallel, defensive).</summary>
+    [RelayCommand]
+    private async Task RecheckServicesAsync()
+    {
+        if (IsCheckingServices) return;
+        IsCheckingServices = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            await Task.WhenAll(Services.Where(s => s.CanProbe).Select(s => s.CheckAsync(cts.Token)));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Service status sweep failed");
+        }
+        finally
+        {
+            IsCheckingServices = false;
+        }
+    }
+
+    /// <summary>Copies a service's start command to the clipboard so the user can paste it into a terminal.</summary>
+    [RelayCommand]
+    private void CopyStartCommand(ServiceDependencyViewModel? service)
+    {
+        if (service?.StartCommand is not { Length: > 0 } cmd) return;
+        try { Clipboard.SetText(cmd); }
+        catch { /* clipboard can be transiently locked — ignore */ }
+    }
 
     public void Dispose()
     {

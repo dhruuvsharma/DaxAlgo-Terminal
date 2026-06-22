@@ -9,7 +9,7 @@ out to agents only when the work genuinely warrants it (see "Token discipline" i
 This is already wired. Nothing to "turn on" in the repo. What this doc covers:
 how the fleet is organized, and how to **watch agents work live**.
 
-## The fleet (18 agents)
+## The fleet (19 agents)
 
 Routing index lives in [`agents/README.md`](agents/README.md). Summary:
 
@@ -20,7 +20,9 @@ Routing index lives in [`agents/README.md`](agents/README.md). Summary:
 - **3 consolidated window owners** — `strategies` (all 10 `Strategies.*` live windows),
   `tool-windows` (all 10 tool/chart windows), `ai-windows` (all 4 `Ai.*` windows).
   Per-project quirks live in tables inside each agent body.
-- **4 specialists** — `ib-api-expert`, `xaml-fixer`, `wpf-explorer`, `dotnet-reviewer`.
+- **5 specialists** — `ib-api-expert`, `xaml-fixer`, `wpf-explorer`, `dotnet-reviewer`, and
+  `paper-repro` (the Paper Lab research-reproduction subsystem — `Core/Research/` +
+  `Infrastructure/Research/` + the untrusted-code sandbox + sidecar repro endpoints).
 
 > This was previously a 39-agent per-project fleet. All descriptions load into the system
 > prompt on every request, and per-window agents pulled routine one-file edits onto the
@@ -75,8 +77,9 @@ The agent loads the skill so you don't have to name it.
 | `backtest-cli` | `backtest-engine` |
 | `strategies` | `memory-safety` (every live window), plus per-strategy table in its body: `add-strategy`, plus `regime-cube-strategy`/`quant-math` for cube/surface/OU/VPIN work |
 | `tool-windows` | `memory-safety` (every streaming/render window), plus per-project table in its body: `quant-math` (Correlation/MarkovRegime), `backtest-engine` (Backtest window) |
-| `ai-windows`, `ai-seam` | `ai-analyst`; `memory-safety` for streaming/polling windows |
+| `ai-windows`, `ai-seam` | `ai-analyst`; `memory-safety` for streaming/polling windows; `paper-reproduction` for the Paper Lab window |
 | `app-shell` | `navigator` |
+| `paper-repro` | `paper-reproduction` + `untrusted-execution` (+ `paper-ingestion`); `backtest-engine` for the bridge, `quant-math` for signal semantics |
 | `build-runner`, `verifier` | (own instructions; `verifier` is plan-aware) |
 | `core-domain` | inline conventions (no single skill) |
 
@@ -134,7 +137,7 @@ gate. This is the common case and the cheap path.
 ## Token note
 
 Every agent description loads into the system prompt on every request — that's why the fleet
-is 18 agents, not 39. Keep descriptions tight, keep per-project detail in agent **bodies**
+is 19 agents, not 39. Keep descriptions tight, keep per-project detail in agent **bodies**
 (loaded only on spawn), and don't add a new agent when a row in an existing consolidated
 agent's table will do. The full spawn-vs-inline rules live in
 [`agents/README.md`](agents/README.md) ("Token discipline").

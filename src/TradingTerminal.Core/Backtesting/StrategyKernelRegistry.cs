@@ -12,7 +12,16 @@ public sealed record StrategyKernelDescriptor(
     string Name,
     string Description,
     StrategyParameterSchema Schema,
-    Func<IStrategyKernel> Create);
+    Func<IStrategyKernel> Create)
+{
+    /// <summary>
+    /// Optional canonical URL of the source research paper, mirroring
+    /// <c>ITradingStrategy.ResearchPaperUrl</c>. Set on a descriptor bridged from a Paper Lab
+    /// reproduction so the Studio can show the paper pill and the provenance survives. Defaults to
+    /// <c>null</c> for non-paper-derived kernels.
+    /// </summary>
+    public string? ResearchPaperUrl { get; init; }
+}
 
 /// <summary>Discovers strategy kernels by id and builds instances. The Studio catalog, the optimizer,
 /// and the headless CLI all resolve kernels through this rather than referencing concretes.</summary>

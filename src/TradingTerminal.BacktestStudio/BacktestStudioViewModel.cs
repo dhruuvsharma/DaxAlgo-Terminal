@@ -89,7 +89,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private StrategyKernelDescriptor? _selectedStrategy;
 
     [ObservableProperty] private double _startingCash = 100_000;
-    [ObservableProperty] private int _syntheticTicks = 5_000;
+    [ObservableProperty] private int _syntheticTicks = 20_000;
     [ObservableProperty] private int _seed = 1;
     [ObservableProperty] private bool _recordVisual = true;
 
@@ -191,9 +191,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             {
                 var ticks = SyntheticTicks;
                 var seed = Seed;
-                feedFactory = () => new SyntheticMarketDataFeed(SynthInstrument, ticks, seed);
+                // Tape-capable synthetic feed: emits quotes + an aggressor-tagged trade tape in an
+                // active (London/NY) session with momentum bursts, so tape-primary, session-gated
+                // strategies (e.g. SigmaIcFlow) actually arm and trade. Quote-only kernels ignore the
+                // extra trade events.
+                feedFactory = () => new SyntheticTapeFeed(SynthInstrument, ticks, seed);
                 baseSpec = new RunSpec(
-                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.01, 1.0)),
+                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.25, 1.0)),
                     new DataSpec(), strategyId, parameters, StartingCash: StartingCash);
                 return true;
             }

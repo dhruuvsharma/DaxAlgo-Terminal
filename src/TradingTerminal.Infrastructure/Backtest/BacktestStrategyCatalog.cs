@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 
@@ -91,6 +92,9 @@ public static class BacktestStrategyCatalog
             // v2 is trade-tape primary; L1 quotes drive the synthetic fallback and spread, depth
             // is optional (OBI participates only when a genuine depth stream is live and fresh).
             DataRequirement = StrategyDataRequirement.TradeTape | StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
+            // Backtests get the shorter-warmup preset so the calibration leaves bootstrap on a few
+            // hundred bars; the live host keeps the conservative default warmup via Build.
+            BacktestBuild = contract => new ApexScalperStrategy(contract, ApexV2Options.Backtest),
         },
         new BacktestStrategyOption(
             Id: "indexKScoreSurface",

@@ -26,7 +26,9 @@ App opens windows via `IServiceProvider`. Seam/enricher work belongs to `ai-seam
 ## Load first
 Skill: `ai-analyst` (plus `backtest-engine` for BacktestAnalysis result/statistics shapes).
 Load `memory-safety` for any window that streams/polls or owns a timer/subscription — these windows
-must batch-drain, coalesce redraws, and dispose their resources on close.
+must batch-drain, coalesce redraws, and dispose their resources on close. For the **Paper Lab**
+window (`TradingTerminal.Ai.PaperLab`, the autoarxiv-style repro UI) load `paper-reproduction` — its
+backend/seams/sandbox are the `paper-repro` agent's; you own only the window/VM.
 
 ## When done
 `dotnet build` + `dotnet test`; report.
