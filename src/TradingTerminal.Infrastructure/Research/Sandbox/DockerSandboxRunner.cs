@@ -73,7 +73,20 @@ internal sealed class DockerSandboxRunner : ISandboxRunner
         var commit = spec.Repo.Commit;
 
         if (!IsAvailable)
-            return ReproResult.Failed("Docker CLI is not available on this machine.", arxiv, commit);
+        {
+            // The daemon may just be down. Start the engine ourselves (headless `docker desktop start`)
+            // when enabled, so Paper Lab never asks the user to launch Docker by hand — then re-probe.
+            if (_options.CurrentValue.AutoStartDocker && await TryStartDockerEngineAsync(log, ct).ConfigureAwait(false))
+            {
+                log.Report("[docker] engine started.");
+            }
+            else if (!ProbeDocker())
+            {
+                return ReproResult.Failed(
+                    "Docker isn't available. Install/start Docker Desktop (or set Sandbox:AutoStartDocker), then retry.",
+                    arxiv, commit);
+            }
+        }
 
         // Private host-side staging root. The repo is cloned here, then copied INTO the container with
         // `docker cp`. It is NEVER bind-mounted — the container cannot see it.
@@ -253,6 +266,31 @@ internal sealed class DockerSandboxRunner : ISandboxRunner
         lines.AddRange(plan.SetupCommands.Where(c => !string.IsNullOrWhiteSpace(c)));
         lines.Add(plan.Entrypoint);
         return string.Join("\n", lines);
+    }
+
+    /// <summary>Starts the Docker engine headlessly (<c>docker desktop start</c>, Docker Desktop 4.37+)
+    /// and re-probes. Best-effort: returns false when the desktop plugin is unavailable or the daemon
+    /// still isn't reachable, so the caller can fail cleanly.</summary>
+    private async Task<bool> TryStartDockerEngineAsync(IProgress<string> log, CancellationToken ct)
+    {
+        try
+        {
+            log.Report("[docker] daemon down — starting the engine (docker desktop start)…");
+            var outcome = await SandboxProcess
+                .RunAsync("docker", new[] { "desktop", "start" }, null, null, TimeSpan.FromSeconds(180), ct)
+                .ConfigureAwait(false);
+            if (outcome.NotFound)
+            {
+                _logger.LogWarning("`docker` CLI not found — install Docker Desktop to use Paper Lab.");
+                return false;
+            }
+            return ProbeDocker();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Docker engine auto-start failed.");
+            return false;
+        }
     }
 
     private static bool ProbeDocker()

@@ -14,6 +14,11 @@ public sealed class SandboxOptions
     /// <summary>Which runner implementation <c>AddPaperResearch</c> registers.</summary>
     public SandboxKind Kind { get; set; } = SandboxKind.Docker;
 
+    /// <summary>When true, the Docker sandbox runner starts the Docker engine itself
+    /// (<c>docker desktop start</c>) before a reproduction run if the daemon is down — so Paper Lab
+    /// doesn't ask the user to launch Docker manually.</summary>
+    public bool AutoStartDocker { get; set; } = true;
+
     /// <summary>Max concurrent sandbox runs (the orchestrator's <c>SemaphoreSlim</c> bound).</summary>
     public int MaxConcurrent { get; set; } = 1;
 

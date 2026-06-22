@@ -33,7 +33,12 @@
 
                     <CheckBox Content="Enabled"
                               IsChecked="{Binding Enabled, Mode=TwoWay}"
-                              Margin="0,0,0,12" />
+                              Margin="0,0,0,8" />
+
+                    <CheckBox Content="Auto-launch the sidecar on startup (no manual command)"
+                              IsChecked="{Binding AutoLaunchSidecar, Mode=TwoWay}"
+                              Margin="0,0,0,12"
+                              ToolTip="When on, the app starts the local daxalgo-ml sidecar itself when AI/Research is enabled, and stops it on exit. Turn off to manage it yourself." />
 
                     <TextBlock Text="Sidecar base URL  (loopback only — e.g. http://127.0.0.1:8765)" Margin="0,0,0,4" />
                     <TextBox Text="{Binding SidecarBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

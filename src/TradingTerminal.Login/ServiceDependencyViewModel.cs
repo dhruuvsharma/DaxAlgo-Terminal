@@ -32,6 +32,7 @@ public enum ServiceState
 public sealed partial class ServiceDependencyViewModel : ObservableObject
 {
     private readonly Func<CancellationToken, Task<bool>>? _probe;
+    private readonly Func<CancellationToken, Task>? _startAction;
 
     public ServiceDependencyViewModel(
         string name,
@@ -39,7 +40,9 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
         string requirement,
         string howTo,
         string? startCommand = null,
-        Func<CancellationToken, Task<bool>>? probe = null)
+        Func<CancellationToken, Task<bool>>? probe = null,
+        Func<CancellationToken, Task>? startAction = null,
+        string? startActionLabel = null)
     {
         Name = name;
         Purpose = purpose;
@@ -47,6 +50,8 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
         HowTo = howTo;
         StartCommand = startCommand;
         _probe = probe;
+        _startAction = startAction;
+        StartActionLabel = startActionLabel ?? "Start now";
         StatusText = probe is null ? "Manual — see below" : "Not checked";
     }
 
@@ -58,6 +63,20 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
 
     public bool HasStartCommand => !string.IsNullOrWhiteSpace(StartCommand);
     public bool CanProbe => _probe is not null;
+
+    public string StartActionLabel { get; }
+    public bool HasStartAction => _startAction is not null;
+
+    /// <summary>Runs the one-click start action (if any), then re-probes status. Never throws.</summary>
+    public async Task RunStartAsync(CancellationToken ct = default)
+    {
+        if (_startAction is null) return;
+        State = ServiceState.Checking;
+        StatusText = "Starting…";
+        try { await _startAction(ct).ConfigureAwait(true); }
+        catch { /* surfaced via the re-check below */ }
+        await CheckAsync(ct).ConfigureAwait(true);
+    }
 
     [ObservableProperty] private ServiceState _state = ServiceState.Unknown;
     [ObservableProperty] private string _statusText;

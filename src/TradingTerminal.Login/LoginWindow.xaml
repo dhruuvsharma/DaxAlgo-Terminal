@@ -339,6 +339,12 @@
                                         <TextBlock Text="{Binding StatusText}" FontSize="11"
                                                    HorizontalAlignment="Right"
                                                    Foreground="{DynamicResource Text.Secondary}" />
+                                        <Button Content="{Binding StartActionLabel}"
+                                                FontSize="10" Padding="8,2" Margin="0,6,0,0" MinWidth="0"
+                                                Command="{Binding DataContext.StartServiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Visibility="{Binding HasStartAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="Launch this service now (managed by the app)." />
                                         <Button Content="Copy start command"
                                                 FontSize="10" Padding="8,2" Margin="0,6,0,0" MinWidth="0"
                                                 Command="{Binding DataContext.CopyStartCommandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"

@@ -20,8 +20,9 @@ internal static class ResearchUserFile
         "DaxAlgo Terminal",
         "research.json");
 
-    /// <summary>Writes the <c>ResearchRepro</c> section, preserving any other keys in the file.</summary>
-    public static void Save(ResearchReproOptions options)
+    /// <summary>Writes the <c>ResearchRepro</c> section (and the managed-sidecar auto-launch toggle under
+    /// <c>Sidecar</c>), preserving any other keys in the file.</summary>
+    public static void Save(ResearchReproOptions options, bool autoLaunchSidecar, int sidecarPort)
     {
         var dir = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -45,6 +46,14 @@ internal static class ResearchUserFile
             ["SidecarBaseUrl"] = options.SidecarBaseUrl,
             ["SidecarTimeoutSeconds"] = options.SidecarTimeoutSeconds,
             ["RetentionDays"] = options.RetentionDays,
+        };
+
+        // The managed-sidecar launcher reads the "Sidecar" section; keep it in the same per-user file so
+        // toggling auto-launch here takes effect via reloadOnChange.
+        root[SidecarOptions.SectionName] = new JsonObject
+        {
+            ["AutoStart"] = autoLaunchSidecar,
+            ["Port"] = sidecarPort,
         };
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

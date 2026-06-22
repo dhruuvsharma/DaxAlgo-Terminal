@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Hosting;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.UI;
@@ -36,6 +37,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly IQuestDbLauncher _questDb;
     private readonly CredentialStore _credentialStore;
     private readonly IOptionsMonitor<ResearchReproOptions> _research;
+    private readonly ISidecarController _sidecar;
     private readonly ILogger<LoginViewModel> _logger;
 
     /// <summary>The forms as their concrete base type, pre-sorted Keyless → Credentialed → Local,
@@ -52,6 +54,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         IQuestDbLauncher questDb,
         CredentialStore credentialStore,
         IOptionsMonitor<ResearchReproOptions> research,
+        ISidecarController sidecar,
         ILogger<LoginViewModel> logger)
     {
         _brokerSelector = brokerSelector;
@@ -59,6 +62,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         _questDb = questDb;
         _credentialStore = credentialStore;
         _research = research;
+        _sidecar = sidecar;
         _logger = logger;
 
         AvailableForms = forms.All;
@@ -376,7 +380,9 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
                    "Notifications (AI Analyst) and Settings → Research (Paper Lab). Loopback only.",
             startCommand: "cd tools\\python-ml; .\\.venv\\Scripts\\Activate.ps1; " +
                           "$env:DAXALGO_ML_PORT='8765'; python -m daxalgo_ml.app",
-            probe: ct => ServiceDependencyViewModel.HttpOkAsync(healthz, ct)));
+            probe: ct => ServiceDependencyViewModel.HttpOkAsync(healthz, ct),
+            startAction: ct => _sidecar.EnsureRunningAsync(ct),
+            startActionLabel: "Start sidecar"));
 
         Services.Add(new ServiceDependencyViewModel(
             name: "Docker Desktop",
@@ -434,6 +440,16 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         {
             IsCheckingServices = false;
         }
+    }
+
+    /// <summary>One-click start for a service that supports it (e.g. launches the managed sidecar), then
+    /// re-probes its status.</summary>
+    [RelayCommand]
+    private async Task StartServiceAsync(ServiceDependencyViewModel? service)
+    {
+        if (service is null) return;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        await service.RunStartAsync(cts.Token);
     }
 
     /// <summary>Copies a service's start command to the clipboard so the user can paste it into a terminal.</summary>

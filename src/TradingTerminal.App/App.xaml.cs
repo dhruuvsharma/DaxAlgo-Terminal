@@ -22,6 +22,7 @@ using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.Infrastructure.Research;
+using TradingTerminal.Infrastructure.Sidecar;
 using TradingTerminal.UI.Converters;
 using TradingTerminal.UI.Logging;
 // Per-tool projects (Charts menu + Tools menu + AI tools), each shipping its own Add*Surface extension.
@@ -176,6 +177,9 @@ public partial class App : Application
                 // degrades gracefully with no sidecar/Docker) plus its UI panel.
                 services.AddPaperResearch(ctx.Configuration);
                 services.AddPaperLab();
+                // Managed local Python sidecar (daxalgo-ml): auto-launch on startup when AI/research is
+                // enabled, kill on exit, on-demand start from the login screen — no manual command.
+                services.AddSidecar(ctx.Configuration);
                 // Regime tools — Markov + Advanced market regime panels.
                 services.AddMarkovRegimeSurface();
                 services.AddAdvancedMarketRegimeSurface();

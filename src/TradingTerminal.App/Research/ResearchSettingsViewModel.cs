@@ -17,13 +17,16 @@ namespace TradingTerminal.App.Research;
 public sealed partial class ResearchSettingsViewModel : ViewModelBase
 {
     private readonly IOptionsMonitor<ResearchReproOptions> _options;
+    private readonly IOptionsMonitor<SidecarOptions> _sidecar;
     private readonly ILogger<ResearchSettingsViewModel> _logger;
 
     public ResearchSettingsViewModel(
         IOptionsMonitor<ResearchReproOptions> options,
+        IOptionsMonitor<SidecarOptions> sidecar,
         ILogger<ResearchSettingsViewModel> logger)
     {
         _options = options;
+        _sidecar = sidecar;
         _logger = logger;
         LoadFromOptions(options.CurrentValue);
     }
@@ -33,6 +36,9 @@ public sealed partial class ResearchSettingsViewModel : ViewModelBase
     [ObservableProperty] private int _sidecarTimeoutSeconds = 60;
     [ObservableProperty] private int _retentionDays = 90;
 
+    /// <summary>When on, the app launches the Python sidecar itself on startup (no manual command).</summary>
+    [ObservableProperty] private bool _autoLaunchSidecar = true;
+
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _hasUnsavedChanges;
 
@@ -40,6 +46,7 @@ public sealed partial class ResearchSettingsViewModel : ViewModelBase
     partial void OnSidecarBaseUrlChanged(string value) => HasUnsavedChanges = true;
     partial void OnSidecarTimeoutSecondsChanged(int value) => HasUnsavedChanges = true;
     partial void OnRetentionDaysChanged(int value) => HasUnsavedChanges = true;
+    partial void OnAutoLaunchSidecarChanged(bool value) => HasUnsavedChanges = true;
 
     private void LoadFromOptions(ResearchReproOptions o)
     {
@@ -47,8 +54,13 @@ public sealed partial class ResearchSettingsViewModel : ViewModelBase
         SidecarBaseUrl = string.IsNullOrWhiteSpace(o.SidecarBaseUrl) ? "http://127.0.0.1:8765" : o.SidecarBaseUrl;
         SidecarTimeoutSeconds = o.SidecarTimeoutSeconds;
         RetentionDays = o.RetentionDays;
+        AutoLaunchSidecar = _sidecar.CurrentValue.AutoStart;
         HasUnsavedChanges = false;
     }
+
+    /// <summary>Loopback port parsed from the sidecar URL (so the managed launcher binds the same port).</summary>
+    private int SidecarPort =>
+        Uri.TryCreate(SidecarBaseUrl?.Trim(), UriKind.Absolute, out var uri) && uri.Port > 0 ? uri.Port : 8765;
 
     [RelayCommand]
     private void Save()
@@ -75,7 +87,7 @@ public sealed partial class ResearchSettingsViewModel : ViewModelBase
 
         try
         {
-            ResearchUserFile.Save(next);
+            ResearchUserFile.Save(next, AutoLaunchSidecar, SidecarPort);
             HasUnsavedChanges = false;
             StatusMessage = Enabled
                 ? $"Saved to {ResearchUserFile.Path}. Reopen Paper Lab to use the sidecar."
