@@ -4,12 +4,11 @@
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
-                 xmlns:local="clr-namespace:TradingTerminal.App.Login"
                  xmlns:conv="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
                  xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
-                 Title="Trading Terminal — Sign in"
-                 Height="820" Width="660"
+                 Title="DaxAlgo Terminal — Sign in"
+                 Height="700" Width="960"
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
                  ShowMinButton="True"
@@ -18,83 +17,123 @@
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
-        <conv:StringToBrushConverter x:Key="StringToBrush" />
-
-        <!-- Status-pill colours follow the connection state. Default = neutral; green = Connected;
-             amber = Connecting/Reconnecting. -->
+        <!-- ── Status pill: a quiet pill around the connection-state text ─────────────────────── -->
         <Style x:Key="StatusPill" TargetType="Border">
-            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="8,2" />
-            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
-        <!-- ── Group header: one per category, with a "Connect all" action ─────────────────────── -->
-        <DataTemplate x:Key="CategoryGroupHeader">
-            <DockPanel Margin="2,10,2,4" LastChildFill="False">
-                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
-                           Foreground="{DynamicResource Text.Secondary}"
-                           FontSize="10" FontWeight="SemiBold">
-                    <Run Text="{Binding Name, Mode=OneWay}" />
-                    <Run Text="{Binding ItemCount, Mode=OneWay, StringFormat=({0})}"
-                         Foreground="{DynamicResource Text.Secondary}" />
-                </TextBlock>
-                <Button DockPanel.Dock="Right" Content="Connect all"
-                        FontSize="10" Padding="8,1" MinWidth="0"
-                        Command="{Binding DataContext.ConnectGroupCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding Name}"
-                        ToolTip="Connect every broker in this group that has saved settings." />
-            </DockPanel>
-        </DataTemplate>
+        <!-- ── Left-pane hero gradient: slightly lighter than pure black to separate from right ─ -->
+        <LinearGradientBrush x:Key="HeroPane.Background" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#121212" Offset="0" />
+            <GradientStop Color="#0C0C0C" Offset="1" />
+        </LinearGradientBrush>
 
-        <!-- ── One broker row (item = BrokerLoginFormBase) ─────────────────────────────────────── -->
+        <!-- ── Divider between hero and working pane ──────────────────────────────────────────── -->
+        <SolidColorBrush x:Key="HeroPane.Border" Color="#1E1E1E" />
+
+        <!-- ── Thin accent line used as a top rule on the working pane header ─────────────────── -->
+        <LinearGradientBrush x:Key="Accent.Rule" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#60FF8C00" Offset="0" />
+            <GradientStop Color="#00FF8C00" Offset="1" />
+        </LinearGradientBrush>
+
+        <!-- ── One broker row (DataContext = BrokerLoginFormBase) ──────────────────────────────── -->
         <DataTemplate x:Key="BrokerRowTemplate">
-            <Border Margin="0,0,0,6" CornerRadius="4" BorderThickness="1"
-                    BorderBrush="{DynamicResource Border.Brush}">
+            <Border Margin="0,0,0,4" CornerRadius="5" BorderThickness="1">
                 <Border.Style>
                     <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
                         <Style.Triggers>
-                            <!-- Keyless rows get a subtle teal accent so the zero-credential path stands out. -->
+                            <!-- Connected rows get a very faint green left-accent rule. -->
+                            <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                <Setter Property="BorderBrush" Value="#3000C853" />
+                            </DataTrigger>
+                            <!-- Keyless rows: quiet teal accent so the zero-credential path stands out. -->
                             <DataTrigger Binding="{Binding IsKeyless}" Value="True">
-                                <Setter Property="BorderBrush" Value="#5526A69A" />
+                                <Setter Property="BorderBrush" Value="#2826A69A" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
 
-                <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Background="Transparent">
-                    <Expander.Header>
-                        <DockPanel LastChildFill="False" MinWidth="500">
-                            <!-- Coloured square badge -->
-                            <Border DockPanel.Dock="Left" Width="32" Height="32" CornerRadius="4"
-                                    Margin="0,0,10,0"
-                                    Background="{Binding BadgeColor, Converter={StaticResource StringToBrush}}">
-                                <TextBlock Text="{Binding Badge}" FontWeight="Bold" FontSize="12"
-                                           Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"
+                <StackPanel>
+                    <!-- Header: a flat, neutral toggle. (A MahApps Expander header would paint the
+                         whole strip amber — that was the "too bright" rows.) -->
+                    <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                  HorizontalContentAlignment="Stretch"
+                                  Background="Transparent" BorderThickness="0" Focusable="False">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="hdr" Background="Transparent" Padding="10,7" Cursor="Hand">
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="hdr" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+
+                        <DockPanel LastChildFill="False" MinWidth="480">
+                            <!-- Expand/collapse chevron (rightmost) -->
+                            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0,2,0"
+                                       FontSize="10" Foreground="{DynamicResource Text.Secondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="&#x25B8;" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                <Setter Property="Text" Value="&#x25BE;" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!-- Badge: soft tint, neutral initials — no bright blocks on the dark canvas -->
+                            <Border DockPanel.Dock="Left"
+                                    Width="32" Height="32" CornerRadius="6"
+                                    Margin="0,0,10,0" BorderThickness="1"
+                                    Background="{Binding BadgeColor, Converter={StaticResource HexToSoftBrushConverter}, ConverterParameter=0.16}"
+                                    BorderBrush="{Binding BadgeColor, Converter={StaticResource HexToSoftBrushConverter}, ConverterParameter=0.45}">
+                                <TextBlock Text="{Binding Badge}"
+                                           FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{DynamicResource Text.Primary}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
 
-                            <!-- Name + subtitle -->
-                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                            <!-- Name + subtitle + "no key" pill -->
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,12,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                    <!-- "no key" pill for the keyless brokers -->
-                                    <Border CornerRadius="7" Padding="6,0" Margin="8,0,0,0"
-                                            Background="#2226A69A" VerticalAlignment="Center"
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontWeight="SemiBold" FontSize="13"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                    <!-- "no key" pill — only for keyless exchanges -->
+                                    <Border CornerRadius="6" Padding="6,1" Margin="8,1,0,0"
+                                            Background="#1A26A69A" VerticalAlignment="Center"
                                             Visibility="{Binding IsKeyless, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="no key" FontSize="9" Foreground="#26A69A" VerticalAlignment="Center" />
+                                        <TextBlock Text="no key" FontSize="9"
+                                                   Foreground="#26A69A" VerticalAlignment="Center" />
                                     </Border>
                                 </StackPanel>
-                                <TextBlock Text="{Binding Subtitle}" FontSize="10"
+                                <TextBlock Text="{Binding Subtitle}"
+                                           FontSize="10" Margin="0,1,0,0"
                                            Foreground="{DynamicResource Text.Secondary}" />
                             </StackPanel>
 
-                            <!-- Status pill -->
-                            <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
-                                    VerticalAlignment="Center" Margin="8,0,8,0">
+                            <!-- Status pill (right-docked) -->
+                            <Border DockPanel.Dock="Right"
+                                    Style="{StaticResource StatusPill}"
+                                    VerticalAlignment="Center" Margin="0,0,6,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                                    <Ellipse Width="7" Height="7"
+                                             Margin="0,0,5,0" VerticalAlignment="Center">
                                         <Ellipse.Style>
                                             <Style TargetType="Ellipse">
                                                 <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
@@ -109,295 +148,416 @@
                                             </Style>
                                         </Ellipse.Style>
                                     </Ellipse>
-                                    <TextBlock Text="{Binding StatusText}" FontSize="11"
-                                               VerticalAlignment="Center"
-                                               Foreground="{DynamicResource Text.Primary}" />
+                                    <TextBlock Text="{Binding StatusText}"
+                                               FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Secondary}" />
                                 </StackPanel>
                             </Border>
                         </DockPanel>
-                    </Expander.Header>
+                    </ToggleButton>
 
-                    <!-- Expanded body: the broker's credential form + connect controls -->
-                    <StackPanel Margin="10,8,10,10">
-                        <ContentControl uic:InjectedFormHost.Form="{Binding}" />
-                        <DockPanel Margin="0,8,0,0" LastChildFill="False">
-                            <Button DockPanel.Dock="Right" Content="Connect"
-                                    Command="{Binding ConnectCommand}"
-                                    MinWidth="100"
-                                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-                            <Button DockPanel.Dock="Right" Content="Disconnect"
-                                    Command="{Binding DisconnectCommand}"
-                                    MinWidth="100" Margin="0,0,8,0" />
-                            <ProgressBar DockPanel.Dock="Left"
-                                         IsIndeterminate="{Binding IsConnecting}"
-                                         Visibility="{Binding IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                         Width="120" Height="4" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        </DockPanel>
-                        <Border Background="{DynamicResource Danger.Brush}"
-                                Padding="8,4" Margin="0,6,0,0"
-                                Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
-                            <TextBlock Text="{Binding ErrorMessage}" Foreground="White"
-                                       TextWrapping="Wrap" FontSize="11" />
-                        </Border>
-                    </StackPanel>
-                </Expander>
+                    <!-- ── Expanded body: shown only when this row is expanded ─────────────────── -->
+                    <Border Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Brush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="12,10,12,12"
+                            Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <ContentControl uic:InjectedFormHost.Form="{Binding}" />
+
+                            <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                                <!-- Progress bar during connection attempt -->
+                                <ProgressBar DockPanel.Dock="Left"
+                                             IsIndeterminate="{Binding IsConnecting}"
+                                             Visibility="{Binding IsConnecting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                             Width="100" Height="3"
+                                             VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <!-- Disconnect -->
+                                <Button DockPanel.Dock="Right"
+                                        Content="Disconnect"
+                                        Command="{Binding DisconnectCommand}"
+                                        MinWidth="88" Padding="0,5" Margin="0,0,0,0" />
+                                <!-- Connect -->
+                                <Button DockPanel.Dock="Right"
+                                        Content="Connect"
+                                        Command="{Binding ConnectCommand}"
+                                        MinWidth="88" Padding="0,5" Margin="0,0,8,0"
+                                        Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            </DockPanel>
+
+                            <!-- Error banner — shown only when ErrorMessage is non-empty -->
+                            <Border Padding="10,5" Margin="0,8,0,0"
+                                    CornerRadius="4"
+                                    Background="#33FF1744"
+                                    BorderBrush="{DynamicResource Danger.Brush}"
+                                    BorderThickness="0,0,0,0"
+                                    Visibility="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}">
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           Foreground="{DynamicResource Danger.Brush}"
+                                           TextWrapping="Wrap" FontSize="11" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </Border>
         </DataTemplate>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="28,16,28,20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />  <!-- Brand -->
-            <RowDefinition Height="Auto" />  <!-- Summary banner -->
-            <RowDefinition Height="Auto" />  <!-- Search box -->
-            <RowDefinition Height="*" />     <!-- Grouped broker accordion -->
-            <RowDefinition Height="Auto" />  <!-- Services & dependencies -->
-            <RowDefinition Height="Auto" />  <!-- Launch bar -->
-            <RowDefinition Height="Auto" />  <!-- Footer -->
-        </Grid.RowDefinitions>
+    <!-- ══════════════════════════════════════════════════════════════════════════════════════════
+         Root: two columns — left hero pane (fixed 280 px) | right working pane (fills remaining)
+         ══════════════════════════════════════════════════════════════════════════════════════════ -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <!-- Logo + brand -->
-        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,8">
-            <Image Source="pack://application:,,,/Icon/DaxAlgoLogo.png"
-                   Width="52" Height="52"
-                   RenderOptions.BitmapScalingMode="HighQuality" />
-            <TextBlock Text="DaxAlgo Terminal"
-                       HorizontalAlignment="Center"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Margin="0,6,0,0" />
-            <TextBlock HorizontalAlignment="Center"
-                       Foreground="{DynamicResource Text.Secondary}"
-                       FontSize="11"
-                       TextAlignment="Center"
-                       MaxWidth="460"
-                       TextWrapping="Wrap"
-                       Margin="0,2,0,0"
-                       Text="Connect one or more brokers below — each provides its own data feeds. Optional sidecars and services are listed lower down. Connect at least one broker, then launch." />
-        </StackPanel>
+        <!-- ──────────────────────────────────────────────────────────────────────────────────────
+             LEFT HERO PANE
+             Brand mark, product name, tagline. Subtle gradient background; right-edge rule.
+             ────────────────────────────────────────────────────────────────────────────────────── -->
+        <Border Grid.Column="0"
+                Background="{StaticResource HeroPane.Background}"
+                BorderBrush="{StaticResource HeroPane.Border}"
+                BorderThickness="0,0,1,0">
 
-        <!-- Aggregate summary banner (+ QuestDB warm-up when applicable) -->
-        <Border Grid.Row="1"
-                Margin="0,8,0,8"
-                Padding="12,8"
-                CornerRadius="3"
-                BorderThickness="1"
-                BorderBrush="{DynamicResource Border.Brush}"
-                Background="{DynamicResource Background.Surface}">
-            <DockPanel LastChildFill="False">
-                <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
-                    <Ellipse.Style>
-                        <Style TargetType="Ellipse">
-                            <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding CanLaunch}" Value="True">
-                                    <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Ellipse.Style>
+            <Grid>
+                <!-- Ambient amber glow at top-right edge to bleed into the right pane -->
+                <Ellipse Width="220" Height="220"
+                         HorizontalAlignment="Right" VerticalAlignment="Top"
+                         Margin="0,-110,-110,0"
+                         Opacity="0.04">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#FF8C00" Offset="0" />
+                            <GradientStop Color="Transparent" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
                 </Ellipse>
-                <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding ConnectedSummary}"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource Text.Primary}" />
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
-                            Visibility="{Binding ShowQuestDb, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Border Style="{StaticResource StatusPill}" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                <!-- Logo + title + tagline — centered vertically in upper ~55 % -->
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Margin="32,0,32,60">
+
+                    <!-- Logo as a rounded app-tile. The artwork is a dark mark, so we sit it on a
+                         light tile — visible on the dark canvas and reads as the app's icon. -->
+                    <Border Width="76" Height="76" CornerRadius="16"
+                            HorizontalAlignment="Center"
+                            Background="#ECECEC">
+                        <Image Source="pack://application:,,,/Icon/DaxAlgoLogo.png"
+                               Width="54" Height="54"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+
+                    <!-- Thin amber accent rule under the logo -->
+                    <Rectangle Height="1" Width="40"
+                               HorizontalAlignment="Center"
+                               Margin="0,18,0,0"
+                               Fill="{DynamicResource Accent.Brush}"
+                               Opacity="0.55" />
+
+                    <TextBlock Text="DaxAlgo Terminal"
+                               HorizontalAlignment="Center"
+                               FontSize="20" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Primary}"
+                               Margin="0,14,0,0" />
+
+                    <TextBlock Text="Data &amp; signals · multi-broker"
+                               HorizontalAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Margin="0,5,0,0" />
+                </StackPanel>
+
+                <!-- Footer note at the bottom of the hero pane -->
+                <TextBlock Text="MIT licensed · open source"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Bottom"
+                           FontSize="10"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Opacity="0.55"
+                           Margin="0,0,0,20" />
+            </Grid>
+        </Border>
+
+        <!-- ──────────────────────────────────────────────────────────────────────────────────────
+             RIGHT WORKING PANE
+             Title bar, connection summary, search, flat broker list, services expander, launch bar.
+             ────────────────────────────────────────────────────────────────────────────────────── -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- Pane title + summary banner -->
+                <RowDefinition Height="Auto" />  <!-- Search box -->
+                <RowDefinition Height="*" />     <!-- Flat broker list (scrollable) -->
+                <RowDefinition Height="Auto" />  <!-- Services & dependencies (collapsed expander) -->
+                <RowDefinition Height="Auto" />  <!-- Launch bar -->
+            </Grid.RowDefinitions>
+
+            <!-- ── Title + connection summary ──────────────────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource Background.Elevated}"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,18,24,14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- "Sign in" heading -->
+                    <TextBlock Grid.Row="0"
+                               Text="Sign in"
+                               FontSize="22" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Primary}" />
+
+                    <!-- Connection summary row + QuestDB cluster -->
+                    <Grid Grid.Row="1" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <!-- Status dot + summary text (trims to fit its column) -->
+                        <DockPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <Ellipse DockPanel.Dock="Left" Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center">
                                 <Ellipse.Style>
                                     <Style TargetType="Ellipse">
                                         <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding QuestDbReady}" Value="True">
+                                            <DataTrigger Binding="{Binding CanLaunch}" Value="True">
                                                 <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsQuestDbBusy}" Value="True">
-                                                <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Ellipse.Style>
                             </Ellipse>
-                            <TextBlock Text="{Binding QuestDbStatus}" FontSize="11"
+                            <TextBlock Text="{Binding ConnectedSummary}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource Text.Secondary}"
                                        VerticalAlignment="Center"
-                                       Foreground="{DynamicResource Text.Primary}" />
-                        </StackPanel>
-                    </Border>
-                    <ProgressBar IsIndeterminate="{Binding IsQuestDbBusy}"
-                                 Visibility="{Binding IsQuestDbBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                 Width="80" Height="4" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <Button Content="Start QuestDB"
-                            Command="{Binding StartQuestDbCommand}"
-                            MinWidth="100" Padding="8,2" />
-                </StackPanel>
-            </DockPanel>
-        </Border>
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding ConnectedSummary}" />
+                        </DockPanel>
 
-        <!-- Search / filter -->
-        <TextBox Grid.Row="2" Margin="0,0,0,4"
-                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                 mah:TextBoxHelper.Watermark="Search brokers…"
-                 mah:TextBoxHelper.ClearTextButton="True" />
-
-        <!-- Grouped, accordion broker list -->
-        <ScrollViewer Grid.Row="3"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="0,4,4,0">
-            <ItemsControl ItemsSource="{Binding FormsView}"
-                          ItemTemplate="{StaticResource BrokerRowTemplate}">
-                <ItemsControl.GroupStyle>
-                    <GroupStyle HeaderTemplate="{StaticResource CategoryGroupHeader}" />
-                </ItemsControl.GroupStyle>
-            </ItemsControl>
-        </ScrollViewer>
-
-        <!-- Services & external dependencies (collapsed by default — informational) -->
-        <Expander Grid.Row="4" Margin="0,10,0,0" IsExpanded="False"
-                  Background="{DynamicResource Background.Surface}"
-                  BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-            <Expander.Header>
-                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold">
-                    <Run Text="Services &amp; external dependencies" />
-                    <Run Text="— what to launch outside the app"
-                         Foreground="{DynamicResource Text.Secondary}" FontWeight="Normal" />
-                </TextBlock>
-            </Expander.Header>
-
-            <StackPanel Margin="10,4,10,10">
-                <DockPanel LastChildFill="False" Margin="0,0,0,8">
-                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
-                               TextWrapping="Wrap" MaxWidth="420"
-                               Foreground="{DynamicResource Text.Secondary}" FontSize="11"
-                               Text="The terminal runs without any of these. Start the ones you need — brokers connect above; everything below powers an optional feature." />
-                    <Button DockPanel.Dock="Right" Content="Re-check"
-                            Command="{Binding RecheckServicesCommand}"
-                            IsEnabled="{Binding IsCheckingServices, Converter={StaticResource InverseBooleanConverter}}"
-                            MinWidth="84" Padding="8,2" VerticalAlignment="Center" />
-                </DockPanel>
-
-                <ItemsControl ItemsSource="{Binding Services}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Margin="0,0,0,6" Padding="10,8" CornerRadius="4"
-                                    BorderThickness="1" BorderBrush="{DynamicResource Border.Brush}"
-                                    Background="{DynamicResource Background.Primary}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- Status dot -->
-                                    <Ellipse Grid.Column="0" Width="9" Height="9" Margin="0,5,10,0"
-                                             VerticalAlignment="Top">
+                        <!-- QuestDB cluster (only when QuestDB is the configured backend) -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding ShowQuestDb, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Border Style="{StaticResource StatusPill}" Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center">
                                         <Ellipse.Style>
                                             <Style TargetType="Ellipse">
                                                 <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding State}" Value="Running">
+                                                    <DataTrigger Binding="{Binding QuestDbReady}" Value="True">
                                                         <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
                                                     </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="Stopped">
-                                                        <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="Checking">
+                                                    <DataTrigger Binding="{Binding IsQuestDbBusy}" Value="True">
                                                         <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Ellipse.Style>
                                     </Ellipse>
-
-                                    <!-- Name + purpose + how-to -->
-                                    <StackPanel Grid.Column="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
-                                            <Border CornerRadius="7" Padding="6,0" Margin="8,1,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource Background.Surface}"
-                                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                                                <TextBlock Text="{Binding Requirement}" FontSize="9"
-                                                           Foreground="{DynamicResource Text.Secondary}" />
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding Purpose}" FontSize="11" Margin="0,2,0,0"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource Text.Primary}" />
-                                        <TextBlock Text="{Binding HowTo}" FontSize="10" Margin="0,3,0,0"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource Text.Secondary}" />
-                                    </StackPanel>
-
-                                    <!-- Status text + copy-command -->
-                                    <StackPanel Grid.Column="2" Margin="12,0,0,0"
-                                                HorizontalAlignment="Right">
-                                        <TextBlock Text="{Binding StatusText}" FontSize="11"
-                                                   HorizontalAlignment="Right"
-                                                   Foreground="{DynamicResource Text.Secondary}" />
-                                        <Button Content="{Binding StartActionLabel}"
-                                                FontSize="10" Padding="8,2" Margin="0,6,0,0" MinWidth="0"
-                                                Command="{Binding DataContext.StartServiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"
-                                                Visibility="{Binding HasStartAction, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                ToolTip="Launch this service now (managed by the app)." />
-                                        <Button Content="Copy start command"
-                                                FontSize="10" Padding="8,2" Margin="0,6,0,0" MinWidth="0"
-                                                Command="{Binding DataContext.CopyStartCommandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"
-                                                Visibility="{Binding HasStartCommand, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                ToolTip="{Binding StartCommand}" />
-                                    </StackPanel>
-                                </Grid>
+                                    <TextBlock Text="{Binding QuestDbStatus}"
+                                               FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                </StackPanel>
                             </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </Expander>
+                            <ProgressBar IsIndeterminate="{Binding IsQuestDbBusy}"
+                                         Visibility="{Binding IsQuestDbBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         Width="60" Height="3" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <Button Content="Start QuestDB"
+                                    Command="{Binding StartQuestDbCommand}"
+                                    FontSize="11" Padding="8,3" MinWidth="0" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
 
-        <!-- Launch bar -->
-        <Grid Grid.Row="5" Margin="0,12,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <!-- ── Search / filter ────────────────────────────────────────────────────────────── -->
+            <Border Grid.Row="1"
+                    Padding="24,12,24,10"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="0,0,0,1"
+                    Background="{DynamicResource Background.Primary}">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                         mah:TextBoxHelper.Watermark="Search brokers…"
+                         mah:TextBoxHelper.ClearTextButton="True" />
+            </Border>
 
-            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
-                <TextBlock Text="Connect at least one broker, then launch the terminal."
-                           Foreground="{DynamicResource Text.Secondary}"
-                           FontSize="11" />
-                <CheckBox Content="Auto Connect — connect all brokers on startup"
-                          IsChecked="{Binding AutoConnect}"
-                          FontSize="11"
-                          Margin="0,6,0,0"
-                          ToolTip="On the next launch, every broker with saved settings connects automatically — no clicking each Connect button." />
-            </StackPanel>
+            <!-- ── Flat broker list (scrollable, one row per broker, accordion expands inline) ── -->
+            <ScrollViewer Grid.Row="2"
+                          Padding="24,12,24,0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding FormsView}"
+                              ItemTemplate="{StaticResource BrokerRowTemplate}" />
+            </ScrollViewer>
 
-            <Button Grid.Column="1" Content="Cancel"
-                    Command="{Binding CancelCommand}"
-                    IsCancel="True"
-                    MinWidth="80" Margin="0,0,8,0" />
+            <!-- ── Services & external dependencies (collapsed expander, low prominence) ──────── -->
+            <Expander Grid.Row="3"
+                      Margin="24,8,24,0"
+                      IsExpanded="False"
+                      Background="Transparent"
+                      BorderBrush="{DynamicResource Border.Brush}"
+                      BorderThickness="0,1,0,0"
+                      mah:HeaderedControlHelper.HeaderBackground="Transparent"
+                      mah:HeaderedControlHelper.HeaderForeground="{DynamicResource Text.Secondary}">
+                <Expander.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Services &amp; dependencies"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="— what to start outside the app"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Opacity="0.55"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Expander.Header>
 
-            <Button Grid.Column="2" Content="Launch terminal"
-                    Command="{Binding LaunchCommand}"
-                    IsEnabled="{Binding CanLaunch}"
-                    IsDefault="True"
-                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
-                    MinWidth="140" />
+                <StackPanel Margin="0,6,0,0">
+                    <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                        <TextBlock DockPanel.Dock="Left"
+                                   TextWrapping="Wrap" MaxWidth="380"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="The terminal runs without any of these. Start the ones that power features you need." />
+                        <Button DockPanel.Dock="Right"
+                                Content="Re-check"
+                                Command="{Binding RecheckServicesCommand}"
+                                IsEnabled="{Binding IsCheckingServices, Converter={StaticResource InverseBooleanConverter}}"
+                                MinWidth="72" Padding="8,2" VerticalAlignment="Center"
+                                FontSize="11" />
+                    </DockPanel>
+
+                    <ItemsControl ItemsSource="{Binding Services}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,5" Padding="10,8" CornerRadius="4"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource Border.Brush}"
+                                        Background="{DynamicResource Background.Surface}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Status dot -->
+                                        <Ellipse Grid.Column="0"
+                                                 Width="8" Height="8"
+                                                 Margin="0,4,10,0" VerticalAlignment="Top">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding State}" Value="Running">
+                                                            <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding State}" Value="Stopped">
+                                                            <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding State}" Value="Checking">
+                                                            <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+
+                                        <!-- Name, requirement pill, purpose, how-to -->
+                                        <StackPanel Grid.Column="1">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold" FontSize="12" />
+                                                <Border CornerRadius="6" Padding="5,1" Margin="7,1,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource Background.Elevated}"
+                                                        BorderBrush="{DynamicResource Border.Brush}"
+                                                        BorderThickness="1">
+                                                    <TextBlock Text="{Binding Requirement}"
+                                                               FontSize="9"
+                                                               Foreground="{DynamicResource Text.Secondary}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Purpose}"
+                                                       FontSize="11" Margin="0,2,0,0"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource Text.Primary}" />
+                                            <TextBlock Text="{Binding HowTo}"
+                                                       FontSize="10" Margin="0,3,0,0"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource Text.Secondary}" />
+                                        </StackPanel>
+
+                                        <!-- Status text + start/copy-command buttons -->
+                                        <StackPanel Grid.Column="2"
+                                                    Margin="12,0,0,0"
+                                                    HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding StatusText}"
+                                                       FontSize="11" HorizontalAlignment="Right"
+                                                       Foreground="{DynamicResource Text.Secondary}" />
+                                            <Button Content="{Binding StartActionLabel}"
+                                                    FontSize="10" Padding="7,2" Margin="0,5,0,0" MinWidth="0"
+                                                    Command="{Binding DataContext.StartServiceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding HasStartAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    ToolTip="Launch this service now (managed by the app)." />
+                                            <Button Content="Copy command"
+                                                    FontSize="10" Padding="7,2" Margin="0,5,0,0" MinWidth="0"
+                                                    Command="{Binding DataContext.CopyStartCommandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding HasStartCommand, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    ToolTip="{Binding StartCommand}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Expander>
+
+            <!-- ── Launch bar ──────────────────────────────────────────────────────────────────── -->
+            <Border Grid.Row="4"
+                    Background="{DynamicResource Background.Elevated}"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="24,14,24,16">
+                <DockPanel LastChildFill="True">
+                    <!-- Cancel + Launch buttons (right-docked, Launch is the visual anchor) -->
+                    <Button DockPanel.Dock="Right"
+                            Content="Launch terminal"
+                            Command="{Binding LaunchCommand}"
+                            IsEnabled="{Binding CanLaunch}"
+                            IsDefault="True"
+                            Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
+                            MinWidth="148" Padding="0,7" />
+                    <Button DockPanel.Dock="Right"
+                            Content="Cancel"
+                            Command="{Binding CancelCommand}"
+                            IsCancel="True"
+                            MinWidth="80" Padding="0,7" Margin="0,0,8,0" />
+
+                    <!-- Hint + auto-connect checkbox -->
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Connect at least one broker, then launch."
+                                   FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <CheckBox Content="Auto-connect all brokers on next launch"
+                                  IsChecked="{Binding AutoConnect}"
+                                  FontSize="11" Margin="0,6,0,0"
+                                  ToolTip="On the next launch, every broker with saved settings connects automatically." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
         </Grid>
-
-        <!-- Footer -->
-        <TextBlock Grid.Row="6"
-                   Text="DaxAlgo Terminal · MIT licensed"
-                   Foreground="{DynamicResource Text.Secondary}"
-                   FontSize="10"
-                   HorizontalAlignment="Center"
-                   Margin="0,12,0,0" />
     </Grid>
 </mah:MetroWindow>

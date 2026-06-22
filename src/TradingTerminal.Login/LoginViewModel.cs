@@ -82,10 +82,9 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             .ThenBy(f => f.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Grouped, filterable view. Source order (above) determines both the within-group order and
-        // the group order (Keyless first), so no SortDescriptions are needed alongside the grouping.
+        // Flat filterable view. Source order (above) gives Keyless → Credentialed → Local bridge,
+        // then alphabetical within each tier. No GroupDescriptions — the redesigned UI is a flat list.
         var view = new ListCollectionView(_formItems) { Filter = FilterForm };
-        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BrokerLoginFormBase.CategoryName)));
         FormsView = view;
 
         // Aggregate state changes from the selector so the Launch button enable-state updates

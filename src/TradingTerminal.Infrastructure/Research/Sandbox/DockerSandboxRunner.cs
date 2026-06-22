@@ -268,9 +268,10 @@ internal sealed class DockerSandboxRunner : ISandboxRunner
         return string.Join("\n", lines);
     }
 
-    /// <summary>Starts the Docker engine headlessly (<c>docker desktop start</c>, Docker Desktop 4.37+)
-    /// and re-probes. Best-effort: returns false when the desktop plugin is unavailable or the daemon
-    /// still isn't reachable, so the caller can fail cleanly.</summary>
+    /// <summary>Brings the Docker engine up without the user touching a terminal: first headlessly via
+    /// <c>docker desktop start</c> (Docker Desktop 4.37+), then — if that plugin is unavailable (older
+    /// Docker) — by launching the Docker Desktop app and polling until the daemon answers. Best-effort:
+    /// returns false only when Docker isn't installed or never becomes ready, so the caller fails cleanly.</summary>
     private async Task<bool> TryStartDockerEngineAsync(IProgress<string> log, CancellationToken ct)
     {
         try
@@ -279,18 +280,65 @@ internal sealed class DockerSandboxRunner : ISandboxRunner
             var outcome = await SandboxProcess
                 .RunAsync("docker", new[] { "desktop", "start" }, null, null, TimeSpan.FromSeconds(180), ct)
                 .ConfigureAwait(false);
-            if (outcome.NotFound)
+
+            if (!outcome.NotFound && ProbeDocker()) return true;
+
+            // Headless start unavailable/failed (older Docker Desktop, or `docker` not on PATH) — fall
+            // back to launching the Docker Desktop app and waiting for the engine. Still no terminal.
+            if (TryLaunchDockerDesktopApp(log))
             {
-                _logger.LogWarning("`docker` CLI not found — install Docker Desktop to use Paper Lab.");
-                return false;
+                log.Report("[docker] launched Docker Desktop — waiting for the engine…");
+                return await WaitForDaemonAsync(TimeSpan.FromSeconds(150), ct).ConfigureAwait(false);
             }
-            return ProbeDocker();
+
+            _logger.LogWarning("Docker not available — install/start Docker Desktop to use Paper Lab.");
+            return false;
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Docker engine auto-start failed.");
             return false;
         }
+    }
+
+    /// <summary>Launches the Docker Desktop GUI from a known install location. Returns false if none found.</summary>
+    private bool TryLaunchDockerDesktopApp(IProgress<string> log)
+    {
+        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var pfx86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var lad = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        foreach (var path in new[]
+                 {
+                     Path.Combine(pf, "Docker", "Docker", "Docker Desktop.exe"),
+                     Path.Combine(pfx86, "Docker", "Docker", "Docker Desktop.exe"),
+                     Path.Combine(lad, "Docker", "Docker", "Docker Desktop.exe"),
+                 })
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to launch Docker Desktop at {Path}", path);
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Polls <see cref="ProbeDocker"/> until the daemon answers or the timeout elapses.</summary>
+    private static async Task<bool> WaitForDaemonAsync(TimeSpan timeout, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (ProbeDocker()) return true;
+            try { await Task.Delay(2000, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return false; }
+        }
+        return false;
     }
 
     private static bool ProbeDocker()
