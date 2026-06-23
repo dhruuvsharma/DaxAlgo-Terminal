@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Avalonia.ViewModels;
 using TradingTerminal.App.Avalonia.Views.Strategies;
+using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.OrderFlowToxicity;
@@ -39,6 +40,10 @@ public partial class MainWindow : Window
             "filtered.orderflow.imbalance" => Generic(services.GetRequiredService<FilteredOrderFlowViewModel>()),
             "imbalance.heatfront" => Generic(services.GetRequiredService<ImbalanceHeatFrontViewModel>()),
             "sigma.ic.flow" => Generic(services.GetRequiredService<SigmaIcFlowStrategyViewModel>()),
+            "cumulative.delta.scalper" => new CumulativeDeltaWindow
+            {
+                DataContext = services.GetRequiredService<CumulativeDeltaViewModel>(),
+            },
             _ => null,
         };
 
