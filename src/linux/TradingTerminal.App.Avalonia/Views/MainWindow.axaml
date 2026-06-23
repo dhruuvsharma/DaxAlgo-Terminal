@@ -51,6 +51,9 @@
           <TextBlock Text="Details" FontWeight="SemiBold"/>
           <TextBlock Text="{Binding Catalog.Details}"
                      FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+          <Button Name="OpenStrategyButton" Content="Open strategy window" Click="OnOpenStrategy" Margin="0,8,0,0"/>
+          <TextBlock Text="(Ornstein-Uhlenbeck is the first ported per-strategy window.)"
+                     Opacity="0.6" FontSize="11" TextWrapping="Wrap"/>
         </StackPanel>
       </Border>
     </Grid>

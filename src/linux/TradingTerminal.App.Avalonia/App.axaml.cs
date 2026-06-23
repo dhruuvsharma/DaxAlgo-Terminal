@@ -13,6 +13,9 @@ namespace TradingTerminal.App.Avalonia;
 
 public partial class App : Application
 {
+    /// <summary>The composed DI graph; views resolve ported per-strategy VMs from here.</summary>
+    public IServiceProvider? Services { get; private set; }
+
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     public override void OnFrameworkInitializationCompleted()
@@ -24,13 +27,13 @@ public partial class App : Application
         UiThread.Marshal = MarshalToUiThread;
 
         // Compose the headless DI graph and resolve the root VM from it (mirrors the WPF App).
-        var services = ServiceConfiguration.Build();
+        Services = ServiceConfiguration.Build();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow
             {
-                DataContext = services.GetRequiredService<MainWindowViewModel>(),
+                DataContext = Services.GetRequiredService<MainWindowViewModel>(),
             };
         }
 

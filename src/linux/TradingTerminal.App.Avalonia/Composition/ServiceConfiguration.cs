@@ -1,6 +1,15 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Avalonia.ViewModels;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.MarketData;
+using TradingTerminal.Infrastructure.Notifications;
+using TradingTerminal.Strategies.OrnsteinUhlenbeck;
+using TradingTerminal.UI;
 using TradingTerminal.UI.Catalog;
 using TradingTerminal.UI.Logging;
 
@@ -18,11 +27,33 @@ public static class ServiceConfiguration
     {
         var services = new ServiceCollection();
 
+        // Empty configuration — the headless services fall back to their defaults (SQLite store at
+        // the default path, simulated broker, etc.). Real config files arrive when the shell grows up.
+        IConfiguration configuration = new ConfigurationBuilder().Build();
+        services.AddSingleton(configuration);
+        services.AddLogging();
+
         // Universal Activity Log — one shared sink for the whole shell.
         services.AddSingleton<InMemoryLogSink>();
 
-        // Headless backtest strategy catalog (the runtime source of strategies).
+        // Headless pipeline + broker layer (WPF-free on net9.0) and the backtest strategy catalog.
+        services.AddTradingTerminalInfrastructure();
+        services.AddMarketDataPipeline(configuration);
+        services.AddNotifications(configuration);
         services.AddBacktestStrategyCatalog();
+
+        // Shared live-strategy plumbing (same bundle the WPF shell injects into every per-strategy VM).
+        services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
+        services.AddSingleton(sp => new LiveStrategyHostServices(
+            sp.GetRequiredService<IMarketDataRepository>(),
+            sp.GetRequiredService<IMarketDataHub>(),
+            sp.GetRequiredService<IMarketDataIngest>(),
+            sp.GetRequiredService<IMarketDataStore>(),
+            sp.GetRequiredService<IBrokerSelector>(),
+            sp.GetRequiredService<InMemoryLogSink>()));
+
+        // First ported per-strategy VM (descriptor + portable VM; the WPF window is #if'd out on net9.0).
+        services.AddOrnsteinUhlenbeckStrategy();
 
         // Portable view-models (shared with the WPF shell).
         services.AddSingleton<StrategyCatalogViewModel>(sp =>

@@ -15,6 +15,9 @@
     <ProjectReference Include="..\..\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <!-- The headless stack (brokers, backtest engine + strategy catalog) — WPF-free on net9.0. -->
     <ProjectReference Include="..\..\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\shared\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <!-- First per-strategy window ported: reuse its portable VM (net9.0 leg, no WPF). -->
+    <ProjectReference Include="..\..\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,8 +26,10 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
     <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <!-- DI container for the shell composition root (mirrors the WPF App's MS.DI host). -->
+    <!-- DI container + config/logging for the shell composition root (mirrors the WPF App's MS.DI host). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
   </ItemGroup>
 
 </Project>

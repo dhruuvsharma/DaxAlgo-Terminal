@@ -17,6 +17,8 @@
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <!-- First ported per-strategy project (net9.0 leg) — verifies its portable VM resolves headless. -->
+    <ProjectReference Include="..\..\src\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
   </ItemGroup>
 
   <ItemGroup>
