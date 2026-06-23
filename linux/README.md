@@ -36,43 +36,68 @@ the exact same source minus the Windows bits, guarded by `#if WINDOWS`:
 - NinjaTrader (`NTDirect.dll`) and IB (`CSharpAPI.dll`) are path-gated (`HAS_NTAPI` /
   `HAS_IBAPI`) and simply compile out on Linux.
 
-## Build / test / run on Linux
+## Two UI versions — what runs where
 
-From the repo root:
+There are **two UI heads** on one shared core. The Avalonia app is **cross-platform — it runs on
+Windows too**, not just Linux.
+
+| What | Windows | Linux / Raspberry Pi |
+|---|---|---|
+| **WPF app** (`src/TradingTerminal.App`) — the rich Windows shell | ✅ runs | ❌ not supported (WPF) |
+| **Avalonia app** (`src/linux/TradingTerminal.App.Avalonia`) — cross-platform shell | ✅ runs | ✅ runs |
+| **Backtest CLI** (`src/shared/TradingTerminal.Backtest.Cli`) | ✅ | ✅ |
+| **Headless tests** (`tests/TradingTerminal.Tests.Headless`) | ✅ | ✅ |
+| **Windows-only tests** (`tests/TradingTerminal.Tests`, WPF/DuckDB/AI) | ✅ | ❌ |
+| Full solution build (`dotnet build`) | ✅ everything | ⚠️ WPF projects don't build on Linux — build the `src/shared` + `src/linux` projects individually |
+
+## Run / build / test
+
+**Run an app** (from the repo root):
 
 ```bash
-# Build the headless layer
+dotnet run --project src/TradingTerminal.App                  # WPF shell      (Windows only)
+dotnet run --project src/linux/TradingTerminal.App.Avalonia   # Avalonia shell (Windows, Linux, Pi)
+dotnet run --project src/shared/TradingTerminal.Backtest.Cli -- --help   # headless CLI (both)
+```
+
+In Visual Studio, set either app as the **startup project** (Solution Explorer → right-click →
+Set as Startup Project) and pick a profile from the run dropdown — WPF profiles: *App (Login) /
+Dev: Simulated / Dev: Replay / Dev: Live*; Avalonia profiles: *Avalonia Shell (Desktop) /
+(Dev: Simulated)*.
+
+**Build + test, one shot:**
+
+```bash
+# Windows  — full solution (both UIs) + both test suites
+pwsh ./build-and-test.ps1
+
+# Linux/Pi — headless + Avalonia build, headless tests, CLI smoke, arm64 restore probe
+linux/build-and-test.sh
+```
+
+**Linux build, project-by-project** (the WPF projects are skipped on Linux):
+
+```bash
 dotnet build src/shared/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj -f net9.0
-dotnet build src/shared/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj   -f net9.0
-
-# Run the headless test suite
-dotnet test tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj -f net9.0
-
-# Run a backtest on Linux
-dotnet run --project src/shared/TradingTerminal.Backtest.Cli -f net9.0 -- synth --output /tmp/ticks.parquet --ticks 3000
-dotnet run --project src/shared/TradingTerminal.Backtest.Cli -f net9.0 -- run --strategy meanReversion --symbol TEST --source parquet --data /tmp/ticks.parquet --output /tmp/bt
+dotnet build src/linux/TradingTerminal.App.Avalonia/TradingTerminal.App.Avalonia.csproj
+dotnet test  tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj -f net9.0
 ```
 
-Or use the helper scripts in this folder (run from anywhere):
+### Docker (reproducible Linux build, no local SDK needed)
 
 ```bash
-linux/build-and-test.sh      # clean build + headless tests + CLI smoke + arm64 restore probe
+docker build -f linux/Dockerfile -t daxalgo-linux .   # build + test + arm64 probe in one image
 ```
 
-### Docker (reproducible, no local SDK needed)
-
-```bash
-# One-shot CI-style build+test image
-docker build -f linux/Dockerfile -t daxalgo-linux .
-
-# Or bind-mount the repo into the SDK image for a dev loop
-docker run --rm -v "$PWD":/work -w /work mcr.microsoft.com/dotnet/sdk:9.0 linux/build-and-test.sh
-```
+> ⚠️ On **Docker Desktop for Windows**, do **not** bind-mount the repo (`-v`) for builds — NuGet
+> restore over the filesystem bridge is pathologically slow and hangs. Use `docker build` (it
+> `COPY`s the source onto the fast container fs). Bind-mounts are fine on a native Linux host.
 
 ### Raspberry Pi (ARM64)
 
-The packages restore for `linux-arm64` (verified). On the Pi, install the .NET 9 SDK/runtime
-and run the same commands above. Chart-heavy/real-time work will be marginal on Pi hardware.
+Packages restore for `linux-arm64` (verified). On the Pi, install the .NET 9 SDK/runtime and run
+the commands above; the Avalonia shell renders via Skia. Chart-heavy/real-time windows will be
+marginal on Pi hardware.
 
 ## Phase 1 — Avalonia UI (IN PROGRESS)
 
