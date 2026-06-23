@@ -74,11 +74,23 @@ docker run --rm -v "$PWD":/work -w /work mcr.microsoft.com/dotnet/sdk:9.0 linux/
 The packages restore for `linux-arm64` (verified). On the Pi, install the .NET 9 SDK/runtime
 and run the same commands above. Chart-heavy/real-time work will be marginal on Pi hardware.
 
-## Roadmap — Phase 1+ (Avalonia UI)
+## Phase 1 — Avalonia UI (IN PROGRESS)
 
 The WPF shell + 66 XAML views are Windows-only. Phase 1 ports them to **Avalonia** (Skia,
-runs on Pi). Cross-platform UI projects derived from the WPF originals will live under `src/`
-with an `.Avalonia` suffix (or a dedicated grouping) — copy the WPF view/VM, swap the XAML
-namespaces + controls, and reuse the `CommunityToolkit.Mvvm` view-models unchanged. Hard
-blockers to rework or feature-flag on Linux: WebView2 (Charts), HelixToolkit (3D regime
-cubes), NinjaTrader broker.
+runs on Pi). Cross-platform UI projects live under `src/…Avalonia`.
+
+**Foundation done:** `src/TradingTerminal.App.Avalonia` — a cross-platform Avalonia desktop
+shell (`net9.0`) on top of the portable core. **Builds on Windows and Linux** (verified in the
+Docker image). It proves the stack: `ViewModelBase` is plain `CommunityToolkit.Mvvm`
+`ObservableObject` (portable), and only the WPF *views* (`*.xaml.cs`) are Windows-coupled — so
+the porting pattern is **copy the WPF view → Avalonia AXAML, reuse the VM unchanged**.
+
+**Next:** extract/share the portable VM layer (so the Strategies.* / tool VMs are reused as-is),
+then port views window-by-window (catalog + Activity Log first). Hard blockers to rework or
+feature-flag on Linux: WebView2 (Charts), HelixToolkit (3D regime cubes), NinjaTrader broker.
+
+Run the shell locally (needs a display; on Linux use X11/Wayland, on Pi the desktop):
+
+```bash
+dotnet run --project src/TradingTerminal.App.Avalonia
+```

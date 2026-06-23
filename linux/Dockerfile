@@ -11,6 +11,9 @@ RUN dotnet build src/TradingTerminal.Infrastructure/TradingTerminal.Infrastructu
  && dotnet build src/TradingTerminal.Backtest.Engine/TradingTerminal.Backtest.Engine.csproj -f net9.0 -c Release \
  && dotnet build src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj -f net9.0 -c Release
 
+# Cross-platform Avalonia shell (Phase 1) — proves the UI stack builds on Linux atop the portable core.
+RUN dotnet build src/TradingTerminal.App.Avalonia/TradingTerminal.App.Avalonia.csproj -c Release
+
 RUN dotnet test tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj -f net9.0 -c Release
 
 # Raspberry Pi (ARM64) restore probe — proves the headless packages resolve for linux-arm64.

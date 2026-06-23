@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Cross-platform Avalonia shell (Phase 1 of the Linux port). net9.0 runs on Windows, Linux,
+         and Raspberry Pi (ARM64) — Avalonia needs no WPF. Overrides the net9.0-windows7.0 default
+         from Directory.Build.props. The WPF TradingTerminal.App stays the Windows shell. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Cross-platform (Avalonia) desktop shell on the portable headless core — Phase 1 of the Linux/ARM64 port.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
+    <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+</Project>
