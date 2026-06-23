@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\shared\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
   </ItemGroup>
 

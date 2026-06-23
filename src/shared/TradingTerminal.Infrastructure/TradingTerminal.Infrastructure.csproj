@@ -23,8 +23,8 @@
     If none exist, RealIbClient is excluded from compilation and the runtime falls back to FakeIbClient.
   -->
   <PropertyGroup>
-    <_LocalCSharpApiDll>$(MSBuildThisFileDirectory)..\..\lib\CSharpAPI.dll</_LocalCSharpApiDll>
-    <_LocalLegacyIbApiDll>$(MSBuildThisFileDirectory)..\..\lib\IBApi.dll</_LocalLegacyIbApiDll>
+    <_LocalCSharpApiDll>$(MSBuildThisFileDirectory)..\..\..\lib\CSharpAPI.dll</_LocalCSharpApiDll>
+    <_LocalLegacyIbApiDll>$(MSBuildThisFileDirectory)..\..\..\lib\IBApi.dll</_LocalLegacyIbApiDll>
     <_DefaultTwsInstallDll>C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll</_DefaultTwsInstallDll>
   </PropertyGroup>
 
@@ -66,7 +66,7 @@
     next to the assembly so P/Invoke resolves it without touching PATH.
   -->
   <PropertyGroup>
-    <_LocalNTDirectDll>$(MSBuildThisFileDirectory)..\..\lib\NTDirect.dll</_LocalNTDirectDll>
+    <_LocalNTDirectDll>$(MSBuildThisFileDirectory)..\..\..\lib\NTDirect.dll</_LocalNTDirectDll>
     <_DefaultNTDirectDll>$(USERPROFILE)\Documents\NinjaTrader 8\bin64\NTDirect.dll</_DefaultNTDirectDll>
   </PropertyGroup>
 

@@ -42,15 +42,15 @@ From the repo root:
 
 ```bash
 # Build the headless layer
-dotnet build src/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj -f net9.0
-dotnet build src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj   -f net9.0
+dotnet build src/shared/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj -f net9.0
+dotnet build src/shared/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj   -f net9.0
 
 # Run the headless test suite
 dotnet test tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj -f net9.0
 
 # Run a backtest on Linux
-dotnet run --project src/TradingTerminal.Backtest.Cli -f net9.0 -- synth --output /tmp/ticks.parquet --ticks 3000
-dotnet run --project src/TradingTerminal.Backtest.Cli -f net9.0 -- run --strategy meanReversion --symbol TEST --source parquet --data /tmp/ticks.parquet --output /tmp/bt
+dotnet run --project src/shared/TradingTerminal.Backtest.Cli -f net9.0 -- synth --output /tmp/ticks.parquet --ticks 3000
+dotnet run --project src/shared/TradingTerminal.Backtest.Cli -f net9.0 -- run --strategy meanReversion --symbol TEST --source parquet --data /tmp/ticks.parquet --output /tmp/bt
 ```
 
 Or use the helper scripts in this folder (run from anywhere):
@@ -77,9 +77,15 @@ and run the same commands above. Chart-heavy/real-time work will be marginal on 
 ## Phase 1 — Avalonia UI (IN PROGRESS)
 
 The WPF shell + 66 XAML views are Windows-only. Phase 1 ports them to **Avalonia** (Skia,
-runs on Pi). Cross-platform UI projects live under `src/…Avalonia`.
+runs on Pi). Cross-platform UI projects live under `src/linux/`.
 
-**Foundation done:** `src/TradingTerminal.App.Avalonia` — a cross-platform Avalonia desktop
+**Repo layout (platform split):** `src/shared/` = portable, cross-platform projects (Core,
+MarketData, Infrastructure, Backtest.Engine, Backtest.Cli — and the future portable VM layer);
+`src/linux/` = Avalonia UI head; `src/web/` = future web head; the WPF projects stay flat under
+`src/` for now (grouped under the **Windows** solution folder), relocating to `src/windows/` as
+they're touched.
+
+**Foundation done:** `src/linux/TradingTerminal.App.Avalonia` — a cross-platform Avalonia desktop
 shell (`net9.0`) on top of the portable core. **Builds on Windows and Linux** (verified in the
 Docker image). It proves the stack: `ViewModelBase` is plain `CommunityToolkit.Mvvm`
 `ObservableObject` (portable), and only the WPF *views* (`*.xaml.cs`) are Windows-coupled — so
@@ -92,5 +98,5 @@ feature-flag on Linux: WebView2 (Charts), HelixToolkit (3D regime cubes), NinjaT
 Run the shell locally (needs a display; on Linux use X11/Wayland, on Pi the desktop):
 
 ```bash
-dotnet run --project src/TradingTerminal.App.Avalonia
+dotnet run --project src/linux/TradingTerminal.App.Avalonia
 ```
