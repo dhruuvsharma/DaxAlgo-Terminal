@@ -16,8 +16,11 @@
     <!-- The headless stack (brokers, backtest engine + strategy catalog) — WPF-free on net9.0. -->
     <ProjectReference Include="..\..\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\shared\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <!-- First per-strategy window ported: reuse its portable VM (net9.0 leg, no WPF). -->
+    <!-- Ported per-strategy projects: reuse their portable VMs (net9.0 leg, no WPF). -->
     <ProjectReference Include="..\..\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
+    <ProjectReference Include="..\..\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
+    <ProjectReference Include="..\..\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
+    <ProjectReference Include="..\..\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

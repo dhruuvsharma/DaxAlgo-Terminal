@@ -7,7 +7,10 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
+using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
+using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 using Xunit;
@@ -15,14 +18,13 @@ using Xunit;
 namespace TradingTerminal.Tests.Ui;
 
 /// <summary>
-/// Proves the first ported per-strategy view-model resolves from the same headless DI graph the
-/// Avalonia shell composes — i.e. the portable VM + its LiveStrategyHostServices bundle wire up
-/// with no WPF. Runs headless on Windows and Linux.
+/// Proves the ported per-strategy view-models resolve from the same headless DI graph the Avalonia
+/// shell composes — i.e. each portable VM + its LiveStrategyHostServices bundle wire up with no WPF.
+/// Runs headless on Windows and Linux.
 /// </summary>
 public sealed class PortedStrategyResolutionTests
 {
-    [Fact]
-    public void OrnsteinUhlenbeck_view_model_resolves_from_the_headless_graph()
+    private static IServiceProvider BuildHeadlessGraph()
     {
         var services = new ServiceCollection();
         IConfiguration config = new ConfigurationBuilder().Build();
@@ -44,15 +46,32 @@ public sealed class PortedStrategyResolutionTests
             sp.GetRequiredService<InMemoryLogSink>()));
 
         services.AddOrnsteinUhlenbeckStrategy();
+        services.AddCumulativeDeltaStrategy();
+        services.AddVolatilityTargetedStrategy();
+        services.AddOrderFlowToxicityStrategy();
 
         // Not disposed on purpose: the headless graph's Rx-backed singletons (simulated broker /
-        // selector) throw on synchronous teardown, which is irrelevant to this resolution check.
-        var provider = services.BuildServiceProvider();
+        // selector) throw on synchronous teardown, which is irrelevant to these resolution checks.
+        return services.BuildServiceProvider();
+    }
 
-        var vm = provider.GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>();
+    [Fact]
+    public void OrnsteinUhlenbeck_view_model_resolves_with_seeded_instruments()
+    {
+        var vm = BuildHeadlessGraph().GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>();
 
-        vm.Should().NotBeNull();
         vm.StrategyId.Should().Be("ornstein.uhlenbeck");
         vm.AllInstruments.Should().NotBeEmpty("the VM seeds the shared instrument catalog");
+    }
+
+    [Fact]
+    public void All_ported_strategy_view_models_resolve_from_the_headless_graph()
+    {
+        var provider = BuildHeadlessGraph();
+
+        provider.GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>().Should().NotBeNull();
+        provider.GetRequiredService<CumulativeDeltaViewModel>().Should().NotBeNull();
+        provider.GetRequiredService<VolatilityTargetedStrategyViewModel>().Should().NotBeNull();
+        provider.GetRequiredService<OrderFlowToxicityStrategyViewModel>().Should().NotBeNull();
     }
 }

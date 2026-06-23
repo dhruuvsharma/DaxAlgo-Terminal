@@ -8,7 +8,10 @@ using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
+using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
+using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Catalog;
 using TradingTerminal.UI.Logging;
@@ -52,8 +55,11 @@ public static class ServiceConfiguration
             sp.GetRequiredService<IBrokerSelector>(),
             sp.GetRequiredService<InMemoryLogSink>()));
 
-        // First ported per-strategy VM (descriptor + portable VM; the WPF window is #if'd out on net9.0).
+        // Ported per-strategy VMs (descriptor + portable VM; the WPF windows are #if'd out on net9.0).
         services.AddOrnsteinUhlenbeckStrategy();
+        services.AddCumulativeDeltaStrategy();
+        services.AddVolatilityTargetedStrategy();
+        services.AddOrderFlowToxicityStrategy();
 
         // Portable view-models (shared with the WPF shell).
         services.AddSingleton<StrategyCatalogViewModel>(sp =>

@@ -9,11 +9,13 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, VolatilityTargetedStrategy>();
         services.AddTransient<VolatilityTargetedStrategyViewModel>();
+#if WINDOWS
         services.AddTransient<VolatilityTargetedStrategyWindow>();
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "vol.targeted",
             ViewFactory: sp => sp.GetRequiredService<VolatilityTargetedStrategyWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<VolatilityTargetedStrategyViewModel>()));
+#endif
         return services;
     }
 }
