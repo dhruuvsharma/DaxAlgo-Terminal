@@ -8,8 +8,11 @@ using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.FilteredOrderFlow;
+using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
+using TradingTerminal.Strategies.SigmaIcFlow;
 using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -49,6 +52,9 @@ public sealed class PortedStrategyResolutionTests
         services.AddCumulativeDeltaStrategy();
         services.AddVolatilityTargetedStrategy();
         services.AddOrderFlowToxicityStrategy();
+        services.AddFilteredOrderFlowStrategy();
+        services.AddImbalanceHeatFrontStrategy();
+        services.AddSigmaIcFlowStrategy();
 
         // Not disposed on purpose: the headless graph's Rx-backed singletons (simulated broker /
         // selector) throw on synchronous teardown, which is irrelevant to these resolution checks.
@@ -73,5 +79,8 @@ public sealed class PortedStrategyResolutionTests
         provider.GetRequiredService<CumulativeDeltaViewModel>().Should().NotBeNull();
         provider.GetRequiredService<VolatilityTargetedStrategyViewModel>().Should().NotBeNull();
         provider.GetRequiredService<OrderFlowToxicityStrategyViewModel>().Should().NotBeNull();
+        provider.GetRequiredService<FilteredOrderFlowViewModel>().Should().NotBeNull();
+        provider.GetRequiredService<ImbalanceHeatFrontViewModel>().Should().NotBeNull();
+        provider.GetRequiredService<SigmaIcFlowStrategyViewModel>().Should().NotBeNull();
     }
 }

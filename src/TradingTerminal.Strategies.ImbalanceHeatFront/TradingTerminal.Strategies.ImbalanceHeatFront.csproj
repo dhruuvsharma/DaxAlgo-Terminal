@@ -1,20 +1,37 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Multi-target: portable VM + descriptor on net9.0; the WPF window (HelixToolkit 3D surface)
+         stays on the windows leg. See Strategies.OrnsteinUhlenbeck for the template. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <Description>Imbalance Heat Front - 3D bid/ask pressure surface over [distance-from-touch x time] with ridge-driven entries (momentum or mean-reversion). Requires L2 depth.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <UseWPF>true</UseWPF>
-    <Description>Imbalance Heat Front — 3D bid/ask pressure surface over [distance-from-touch × time] with ridge-driven entries (momentum or mean-reversion). Requires L2 depth.</Description>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\shared\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+  </ItemGroup>
+
+  <!-- HelixToolkit 3D surface + MahApps window only on the Windows leg. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <PackageReference Include="HelixToolkit.Wpf" Version="2.27.0" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <Compile Remove="ImbalanceHeatFrontWindow.xaml.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="HelixToolkit.Wpf" Version="2.27.0" />
-    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
   </ItemGroup>

@@ -9,12 +9,14 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, ImbalanceHeatFrontStrategy>();
         services.AddTransient<ImbalanceHeatFrontViewModel>();
+#if WINDOWS
         services.AddTransient<ImbalanceHeatFrontWindow>();
 
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "imbalance.heatfront",
             ViewFactory: sp => sp.GetRequiredService<ImbalanceHeatFrontWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<ImbalanceHeatFrontViewModel>()));
+#endif
 
         return services;
     }

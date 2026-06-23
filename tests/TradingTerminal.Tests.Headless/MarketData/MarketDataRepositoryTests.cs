@@ -47,13 +47,25 @@ public sealed class MarketDataRepositoryTests
             catch (OperationCanceledException) { /* expected */ }
         });
 
+        // Deterministically wait until the background iterator has wired its hub subscription, then
+        // publish exactly once. Polling on ingest.Subscribe (called during setup, before the hub
+        // subscription) plus a brief settle avoids the fixed-delay race that was flaky under load/Linux.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < 2000 &&
+               ingest.ReceivedCalls().All(c => c.GetMethodInfo().Name != nameof(IMarketDataIngest.Subscribe)))
+            await Task.Delay(10);
         await Task.Delay(20);
+
         hub.PublishQuote(new Quote(
             instrumentId, DateTime.UtcNow, DateTime.UtcNow,
             Bid: 100.0, Ask: 100.02, BidSize: 5, AskSize: 7,
             Source: BrokerKind.InteractiveBrokers, Sequence: 1, EventTimeApproximate: false));
 
-        await Task.Delay(20);
+        // Poll until the quote is observed (deterministic up to the timeout), rather than a fixed wait.
+        sw.Restart();
+        while (received.Count == 0 && sw.ElapsedMilliseconds < 2000)
+            await Task.Delay(10);
+
         cts.Cancel();
         await loop;
 

@@ -22,6 +22,9 @@
     <ProjectReference Include="..\..\src\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
     <ProjectReference Include="..\..\src\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
     <ProjectReference Include="..\..\src\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
+    <ProjectReference Include="..\..\src\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
+    <ProjectReference Include="..\..\src\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
+    <ProjectReference Include="..\..\src\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
   </ItemGroup>
 
   <ItemGroup>

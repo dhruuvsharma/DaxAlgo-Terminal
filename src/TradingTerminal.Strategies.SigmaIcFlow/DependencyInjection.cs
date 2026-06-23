@@ -9,11 +9,13 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, SigmaIcFlowStrategy>();
         services.AddTransient<SigmaIcFlowStrategyViewModel>();
+#if WINDOWS
         services.AddTransient<SigmaIcFlowStrategyWindow>();
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "sigma.ic.flow",
             ViewFactory: sp => sp.GetRequiredService<SigmaIcFlowStrategyWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<SigmaIcFlowStrategyViewModel>()));
+#endif
         return services;
     }
 }

@@ -9,8 +9,11 @@ using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Strategies.CumulativeDelta;
+using TradingTerminal.Strategies.FilteredOrderFlow;
+using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
+using TradingTerminal.Strategies.SigmaIcFlow;
 using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Catalog;
@@ -60,6 +63,9 @@ public static class ServiceConfiguration
         services.AddCumulativeDeltaStrategy();
         services.AddVolatilityTargetedStrategy();
         services.AddOrderFlowToxicityStrategy();
+        services.AddFilteredOrderFlowStrategy();
+        services.AddImbalanceHeatFrontStrategy();
+        services.AddSigmaIcFlowStrategy();
 
         // Portable view-models (shared with the WPF shell).
         services.AddSingleton<StrategyCatalogViewModel>(sp =>
