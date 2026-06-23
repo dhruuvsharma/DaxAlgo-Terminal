@@ -23,6 +23,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
     <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- DI container for the shell composition root (mirrors the WPF App's MS.DI host). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
   </ItemGroup>
 
 </Project>

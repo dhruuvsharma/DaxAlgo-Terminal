@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.App.Avalonia.Composition;
 using TradingTerminal.App.Avalonia.ViewModels;
 using TradingTerminal.App.Avalonia.Views;
 using TradingTerminal.UI;
@@ -21,9 +23,15 @@ public partial class App : Application
         InMemoryLogSink.UiPost = action => Dispatcher.UIThread.Post(action);
         UiThread.Marshal = MarshalToUiThread;
 
+        // Compose the headless DI graph and resolve the root VM from it (mirrors the WPF App).
+        var services = ServiceConfiguration.Build();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow { DataContext = new MainWindowViewModel() };
+            desktop.MainWindow = new MainWindow
+            {
+                DataContext = services.GetRequiredService<MainWindowViewModel>(),
+            };
         }
 
         base.OnFrameworkInitializationCompleted();
