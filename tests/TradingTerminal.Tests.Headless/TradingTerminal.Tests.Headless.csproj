@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\shared\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

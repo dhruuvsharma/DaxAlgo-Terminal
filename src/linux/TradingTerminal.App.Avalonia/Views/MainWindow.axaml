@@ -1,19 +1,22 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:TradingTerminal.App.Avalonia.ViewModels"
+        xmlns:cat="using:TradingTerminal.UI.Catalog"
         x:Class="TradingTerminal.App.Avalonia.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Width="820" Height="620"
+        Width="900" Height="680"
         Title="DaxAlgo Terminal (Avalonia)">
-  <DockPanel Margin="20">
-    <StackPanel DockPanel.Dock="Top" Spacing="6">
-      <TextBlock Text="{Binding Greeting}" FontSize="22" FontWeight="Bold"/>
+  <DockPanel Margin="16">
+
+    <!-- Header -->
+    <StackPanel DockPanel.Dock="Top" Spacing="4">
+      <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold"/>
       <TextBlock Text="{Binding RuntimeInfo}" Opacity="0.7" TextWrapping="Wrap"/>
-      <TextBlock Text="{Binding CoreStatus}" Foreground="#4FC3F7" Margin="0,8,0,0"/>
+      <TextBlock Text="{Binding CoreStatus}" Foreground="#4FC3F7"/>
     </StackPanel>
 
-    <!-- Activity Log: bound to the SAME InMemoryLogSink type the WPF shell uses (now WPF-free). -->
-    <Grid DockPanel.Dock="Bottom" RowDefinitions="Auto,140" Margin="0,12,0,0">
+    <!-- Activity Log (shared InMemoryLogSink) -->
+    <Grid DockPanel.Dock="Bottom" RowDefinitions="Auto,130" Margin="0,12,0,0">
       <TextBlock Grid.Row="0" Text="Activity Log (shared InMemoryLogSink)" FontWeight="SemiBold" Margin="0,0,0,4"/>
       <Border Grid.Row="1" BorderBrush="#333" BorderThickness="1" CornerRadius="3">
         <ListBox ItemsSource="{Binding ActivityLog.Entries}" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12">
@@ -26,9 +29,30 @@
       </Border>
     </Grid>
 
-    <DockPanel>
-      <TextBlock DockPanel.Dock="Top" Text="Brokers wired in the portable core:" Margin="0,12,0,4" FontWeight="SemiBold"/>
-      <ListBox ItemsSource="{Binding Brokers}"/>
-    </DockPanel>
+    <!-- Strategy catalog: master list + details (bound to the shared StrategyCatalogViewModel) -->
+    <Grid ColumnDefinitions="2*,3*" Margin="0,14,0,0">
+      <DockPanel Grid.Column="0" Margin="0,0,12,0">
+        <TextBlock DockPanel.Dock="Top" Text="Strategy catalog" FontWeight="SemiBold" Margin="0,0,0,6"/>
+        <ListBox ItemsSource="{Binding Catalog.Items}"
+                 SelectedItem="{Binding Catalog.SelectedItem}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="cat:StrategyCatalogItem">
+              <StackPanel Spacing="1" Margin="2">
+                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Id}" Opacity="0.6" FontSize="11"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <Border Grid.Column="1" BorderBrush="#333" BorderThickness="1" CornerRadius="3" Padding="12">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Details" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding Catalog.Details}"
+                     FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+    </Grid>
   </DockPanel>
 </Window>

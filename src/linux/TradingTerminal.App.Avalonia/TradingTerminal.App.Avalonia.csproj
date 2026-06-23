@@ -13,6 +13,8 @@
     <ProjectReference Include="..\..\shared\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <!-- Portable VM layer shared with the WPF shell — proves view-models port across unchanged. -->
     <ProjectReference Include="..\..\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <!-- The headless stack (brokers, backtest engine + strategy catalog) — WPF-free on net9.0. -->
+    <ProjectReference Include="..\..\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
