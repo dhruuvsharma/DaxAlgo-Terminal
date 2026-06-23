@@ -1,8 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using TradingTerminal.App.Avalonia.ViewModels;
 using TradingTerminal.App.Avalonia.Views;
+using TradingTerminal.UI;
+using TradingTerminal.UI.Logging;
 
 namespace TradingTerminal.App.Avalonia;
 
@@ -12,11 +15,31 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Point the shared (WPF-free) UI-thread marshallers at Avalonia's dispatcher — the same
+        // hooks the WPF shell sets to its Dispatcher. This is what lets the portable view-models
+        // and the universal Activity Log run unchanged on Avalonia.
+        InMemoryLogSink.UiPost = action => Dispatcher.UIThread.Post(action);
+        UiThread.Marshal = MarshalToUiThread;
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow { DataContext = new MainWindowViewModel() };
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    // Runs the work on Avalonia's UI thread and surfaces its completion/exception back to the caller.
+    private static Task MarshalToUiThread(Func<Task> work)
+    {
+        if (Dispatcher.UIThread.CheckAccess()) return work();
+
+        var tcs = new TaskCompletionSource();
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try { await work().ConfigureAwait(true); tcs.SetResult(); }
+            catch (Exception ex) { tcs.SetException(ex); }
+        });
+        return tcs.Task;
     }
 }

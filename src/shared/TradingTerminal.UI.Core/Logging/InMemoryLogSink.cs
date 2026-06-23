@@ -1,7 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Windows;
-using System.Windows.Threading;
 
 namespace TradingTerminal.UI.Logging;
 
@@ -13,10 +11,21 @@ namespace TradingTerminal.UI.Logging;
 ///
 /// The collection is bounded (oldest entries drop off) and every append is marshalled to the UI
 /// thread, so callers on any thread can log without ceremony.
+///
+/// UI-thread marshalling is pluggable so this type stays WPF-free and is shared by both UI heads:
+/// set <see cref="UiPost"/> once at startup — the WPF shell points it at the WPF Dispatcher, the
+/// Avalonia shell at <c>Dispatcher.UIThread.Post</c>. The default runs inline (headless/tests).
 /// </summary>
 public sealed class InMemoryLogSink : INotifyPropertyChanged
 {
     private const int CapacityDefault = 2000;
+
+    /// <summary>
+    /// Marshals an append onto the UI thread. Assigned once during app startup by whichever UI head
+    /// is hosting (WPF / Avalonia). Defaults to inline execution so headless callers and tests work
+    /// without a UI thread.
+    /// </summary>
+    public static Action<Action> UiPost { get; set; } = static action => action();
 
     public InMemoryLogSink(int capacity = CapacityDefault)
     {
@@ -29,14 +38,7 @@ public sealed class InMemoryLogSink : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public void Append(LogEntry entry)
-    {
-        var dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
-        if (dispatcher.CheckAccess())
-            DoAppend(entry);
-        else
-            dispatcher.BeginInvoke(() => DoAppend(entry));
-    }
+    public void Append(LogEntry entry) => UiPost(() => DoAppend(entry));
 
     /// <summary>Convenience append used by strategy/tab view-models — stamps the entry with the
     /// caller's <paramref name="source"/> (its display name) so the universal pane can group and

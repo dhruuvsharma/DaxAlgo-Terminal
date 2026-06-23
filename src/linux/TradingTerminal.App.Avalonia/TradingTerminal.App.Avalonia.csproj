@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\shared\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- Portable VM layer shared with the WPF shell — proves view-models port across unchanged. -->
+    <ProjectReference Include="..\..\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

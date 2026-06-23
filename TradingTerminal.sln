@@ -171,6 +171,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI", "src\T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.VolumeFootprint", "src\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj", "{47BF1760-D7DD-4034-8951-61D9375DB7F7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI.Core", "src\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj", "{F9361FEF-916A-4820-9A96-309430B44F6F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -709,6 +711,18 @@ Global
 		{47BF1760-D7DD-4034-8951-61D9375DB7F7}.Release|x64.Build.0 = Release|Any CPU
 		{47BF1760-D7DD-4034-8951-61D9375DB7F7}.Release|x86.ActiveCfg = Release|Any CPU
 		{47BF1760-D7DD-4034-8951-61D9375DB7F7}.Release|x86.Build.0 = Release|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Debug|x64.Build.0 = Debug|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Debug|x86.Build.0 = Debug|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Release|x64.ActiveCfg = Release|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Release|x64.Build.0 = Release|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Release|x86.ActiveCfg = Release|Any CPU
+		{F9361FEF-916A-4820-9A96-309430B44F6F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -767,5 +781,6 @@ Global
 		{2D330589-A9D4-4D56-BFC7-DFCD888C990E} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
 		{F368685D-3C4D-4188-A285-A9C1F1E66C19} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
 		{47BF1760-D7DD-4034-8951-61D9375DB7F7} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
+		{F9361FEF-916A-4820-9A96-309430B44F6F} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
 	EndGlobalSection
 EndGlobal
