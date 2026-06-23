@@ -1,3 +1,4 @@
+#if WINDOWS
 using System.Windows;
 using System.Windows.Threading;
 
@@ -22,3 +23,4 @@ public sealed class WpfDispatcher : IUiDispatcher
     public Task InvokeAsync(Action action) =>
         _dispatcher.InvokeAsync(action).Task;
 }
+#endif

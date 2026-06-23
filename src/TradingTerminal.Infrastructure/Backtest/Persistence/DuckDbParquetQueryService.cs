@@ -1,3 +1,4 @@
+#if WINDOWS
 using System.Data;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -150,3 +151,4 @@ public sealed class DuckDbParquetQueryService : IParquetQueryService
 
     private static DateTime FromEpochMicros(long micros) => DateTime.UnixEpoch.AddTicks(micros * 10L);
 }
+#endif

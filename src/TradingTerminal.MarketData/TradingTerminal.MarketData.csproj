@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Multi-target for the Linux/ARM64 headless build (see Core.csproj). -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
     <Description>Canonical market-data pipeline: hub, ingest, repository, instrument registry, SQLite/Postgres store, and the Telegram-backed archive offloader. Sits between Core and Infrastructure.</Description>
   </PropertyGroup>
 
@@ -10,6 +13,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TradingTerminal.Tests" />
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>daxalgo-backtest</_Parameter1>
     </AssemblyAttribute>

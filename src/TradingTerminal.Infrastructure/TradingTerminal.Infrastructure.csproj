@@ -1,8 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <UseWPF>true</UseWPF>
+    <!-- Multi-target for the Linux/ARM64 headless build (see Core.csproj). The net9.0 leg is
+         WPF-free; the Windows leg keeps WPF (WpfDispatcher) exactly as before. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
     <Description>Broker client wrappers (IB, NinjaTrader), market-data repository, connection manager.</Description>
+  </PropertyGroup>
+
+  <!-- WPF + the WINDOWS compile constant only on the Windows TFM. On net9.0 the WpfDispatcher
+       is #if'd out and ImmediateUiDispatcher is registered instead. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
   <!--
@@ -92,6 +102,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TradingTerminal.Tests" />
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>daxalgo-backtest</_Parameter1>
     </AssemblyAttribute>
@@ -118,8 +129,11 @@
     <!-- Columnar tick/bar storage for the backtest engine. -->
     <PackageReference Include="Parquet.Net" Version="5.0.2" />
     <!-- Embedded DuckDB engine (bundled native binaries) for read-only analytical queries over
-         the Parquet tick archive — predicate pushdown + SQL resampling for the research/backtest path. -->
-    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" />
+         the Parquet tick archive — predicate pushdown + SQL resampling for the research/backtest path.
+         Windows-only for now: the bundled DuckDB native crashes the test host on Linux/ARM, so off-Windows
+         IParquetQueryService falls back to UnsupportedParquetQueryService. (Re-enable on Linux once the
+         native is verified on Pi/x64.) -->
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" Condition="'$(TargetFramework)' == 'net9.0-windows7.0'" />
     <!-- Embedded SQLite hot store for the canonical market-data pipeline (ADO.NET only, no EF). -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <!-- PostgreSQL/TimescaleDB driver for the containerized canonical store (open-source, PostgreSQL License). -->

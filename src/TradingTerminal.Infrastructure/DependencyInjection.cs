@@ -49,7 +49,12 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddTradingTerminalInfrastructure(this IServiceCollection services)
     {
+#if WINDOWS
         services.TryAddSingleton<IUiDispatcher, WpfDispatcher>();
+#else
+        // Headless (Linux/ARM64, backtest CLI): no WPF dispatcher — run UI marshals inline.
+        services.TryAddSingleton<IUiDispatcher, ImmediateUiDispatcher>();
+#endif
         services.TryAddSingleton<IEventBus, EventBus>();
         services.TryAddSingleton<SessionContext>();
 
@@ -256,7 +261,12 @@ public static class DependencyInjection
         services.TryAddSingleton<IClock, SystemClock>();
 
         // Read-only analytical query layer over the Parquet tick archive (DuckDB, embedded).
+        // DuckDB native is Windows-only in this build; off-Windows we register a stub that fails loudly.
+#if WINDOWS
         services.TryAddSingleton<IParquetQueryService, DuckDbParquetQueryService>();
+#else
+        services.TryAddSingleton<IParquetQueryService, UnsupportedParquetQueryService>();
+#endif
 
         return services;
     }

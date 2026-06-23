@@ -63,8 +63,14 @@ public sealed class AiAnalystOptions
         try
         {
             var bytes = Convert.FromBase64String(encryptedBase64);
+#if WINDOWS
             var plain = ProtectedData.Unprotect(bytes, optionalEntropy: null, DataProtectionScope.CurrentUser);
             return Encoding.UTF8.GetString(plain);
+#else
+            // No DPAPI on Linux/macOS — the key is base64-only (NOT encrypted at rest).
+            // Phase-1 follow-up: back this with the OS keyring (libsecret / Keychain).
+            return Encoding.UTF8.GetString(bytes);
+#endif
         }
         catch (CryptographicException) { return null; }
         catch (FormatException) { return null; }
@@ -73,8 +79,13 @@ public sealed class AiAnalystOptions
     private static string? EncryptDpapi(string? value)
     {
         if (string.IsNullOrEmpty(value)) return null;
+#if WINDOWS
         var encrypted = ProtectedData.Protect(
             Encoding.UTF8.GetBytes(value), optionalEntropy: null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
+#else
+        // No DPAPI on Linux/macOS — store UTF-8 bytes base64-encoded (see DecryptDpapi note).
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
+#endif
     }
 }
