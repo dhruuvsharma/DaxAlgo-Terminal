@@ -104,11 +104,17 @@ marginal on Pi hardware.
 The WPF shell + 66 XAML views are Windows-only. Phase 1 ports them to **Avalonia** (Skia,
 runs on Pi). Cross-platform UI projects live under `src/linux/`.
 
-**Repo layout (platform split):** the source tree is split by platform —
-`src/shared/` = portable, cross-platform projects (Core, MarketData, Infrastructure,
-Backtest.Engine, Backtest.Cli, UI.Core); `src/linux/` = Avalonia UI head; `src/windows/` = all
-the WPF projects (App, UI, Login, Ai*, Ml*, Strategies.*, tool windows, QuantConnect); `src/web/`
-= future web head.
+**Repo layout (platform split, with per-tab subfolders mirroring the app menu):**
+- `src/shared/` — portable, cross-platform: `Core/`, `Pipeline/` (MarketData + Infrastructure),
+  `Backtest/` (Backtest.Engine + Backtest.Cli), `UI/` (UI.Core).
+- `src/windows/` — WPF, grouped by menu tab: `Shell/` (App, UI, Login), `AI/`, `Charts/`,
+  `MachineLearning/`, `Strategies/`, `Tools/`.
+- `src/linux/` — Avalonia head: `Shell/` (App.Avalonia), and per-tab subfolders as ported.
+- `src/web/` — future web head.
+
+The `.sln` solution folders mirror this tree exactly (shared/{Core,Pipeline,Backtest,UI},
+windows/{Shell,AI,Charts,MachineLearning,Strategies,Tools}, linux/Shell), alongside the
+preserved `native/cpp-backtester` and `tests` folders.
 
 **Visual Studio — testing the Linux side on Windows:** open **`TradingTerminal.Linux.slnf`**
 (a Solution Filter) instead of the full `.sln`. It loads only the cross-platform projects —

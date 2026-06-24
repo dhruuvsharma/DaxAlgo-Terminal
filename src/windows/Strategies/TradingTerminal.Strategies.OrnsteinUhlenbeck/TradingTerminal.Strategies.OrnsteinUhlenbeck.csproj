@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target so the (portable) strategy VM + descriptor compile for Linux/Avalonia on the
+         net9.0 leg, while the WPF window stays on the net9.0-windows7.0 leg. Template for porting
+         the other 11 Strategies.* projects. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <Description>Ornstein-Uhlenbeck mean reversion - live signal-mode wrapper around the OrnsteinUhlenbeckStrategy backtest implementation.</Description>
+  </PropertyGroup>
+
+  <!-- WPF (window + MahApps) only on the Windows leg. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <!-- Portable VM layer (ViewModelBase, LiveSignalStrategyViewModelBase, router factory). -->
+    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The WPF shell primitives (StrategyWindowBase, ScottPlot helpers) only on the Windows leg. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+  </ItemGroup>
+
+  <!-- The WPF window compiles only on the Windows leg. -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <Compile Remove="OrnsteinUhlenbeckStrategyWindow.xaml.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

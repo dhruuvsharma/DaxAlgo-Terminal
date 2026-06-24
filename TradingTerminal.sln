@@ -81,98 +81,120 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{CB00000A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Tests.Headless", "tests\TradingTerminal.Tests.Headless\TradingTerminal.Tests.Headless.csproj", "{294A0017-1773-4A91-8674-FE88A48FE6CF}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{4F52FD11-658E-A102-6CD3-7D7C16FFA15B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Core", "src\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj", "{3E06214E-EAC4-49FD-A4B9-78062A0C3519}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Core", "src\shared\TradingTerminal.Core\TradingTerminal.Core.csproj", "{3E06214E-EAC4-49FD-A4B9-78062A0C3519}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.MarketData", "src\shared\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj", "{F4FB7BFD-648B-42A3-AAE3-366BC95352CA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.MarketData", "src\shared\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj", "{F4FB7BFD-648B-42A3-AAE3-366BC95352CA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Infrastructure", "src\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj", "{577A459D-4405-42C2-AEFD-AF970A79F740}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Infrastructure", "src\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj", "{577A459D-4405-42C2-AEFD-AF970A79F740}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest.Engine", "src\shared\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj", "{A1E8D1C8-9441-42EA-95A0-9D805E21E22F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest.Engine", "src\shared\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj", "{A1E8D1C8-9441-42EA-95A0-9D805E21E22F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest.Cli", "src\shared\Backtest\TradingTerminal.Backtest.Cli\TradingTerminal.Backtest.Cli.csproj", "{B45DC00C-3B37-485B-8303-79DCF341E649}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest.Cli", "src\shared\TradingTerminal.Backtest.Cli\TradingTerminal.Backtest.Cli.csproj", "{B45DC00C-3B37-485B-8303-79DCF341E649}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App.Avalonia", "src\linux\Shell\TradingTerminal.App.Avalonia\TradingTerminal.App.Avalonia.csproj", "{66F3E99C-609F-4040-BB4F-61BD0CCDD6CE}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Linux", "Linux", "{8E443371-16C4-AB83-8FD5-84A79F0DB75D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.AdvancedMarketRegime", "src\windows\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj", "{73EAABFD-A243-4F67-9E05-5E4F4D07B61F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App.Avalonia", "src\linux\TradingTerminal.App.Avalonia\TradingTerminal.App.Avalonia.csproj", "{66F3E99C-609F-4040-BB4F-61BD0CCDD6CE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.BacktestAnalysis", "src\windows\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj", "{C3F0BAF0-7585-4862-AD5A-811A83479739}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Windows", "Windows", "{AF50D07C-CBCD-524F-DB50-1B7C7AC32620}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.FactorResearch", "src\windows\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj", "{F2C3AE50-23CC-44A5-A1C4-DD47064453D1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.AdvancedMarketRegime", "src\windows\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj", "{73EAABFD-A243-4F67-9E05-5E4F4D07B61F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MarketAnalyst", "src\windows\AI\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj", "{4A011B54-7C6E-44BC-8598-8A1C30683E57}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.BacktestAnalysis", "src\windows\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj", "{C3F0BAF0-7585-4862-AD5A-811A83479739}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MlFeatures", "src\windows\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj", "{18FCBEAF-535D-49E3-BA21-EFF0B999C3AD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.FactorResearch", "src\windows\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj", "{F2C3AE50-23CC-44A5-A1C4-DD47064453D1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.PaperLab", "src\windows\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj", "{59E78CF3-B133-46D4-B796-2F66D245E8E5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MarketAnalyst", "src\windows\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj", "{4A011B54-7C6E-44BC-8598-8A1C30683E57}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai", "src\windows\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj", "{803A2C7F-2530-4C51-86C2-6076FB383131}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MlFeatures", "src\windows\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj", "{18FCBEAF-535D-49E3-BA21-EFF0B999C3AD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App", "src\windows\Shell\TradingTerminal.App\TradingTerminal.App.csproj", "{8DF91C0B-D676-4D42-B94B-377DA85B2DD7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.PaperLab", "src\windows\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj", "{59E78CF3-B133-46D4-B796-2F66D245E8E5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest", "src\windows\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj", "{20B7EE3F-2DE9-4996-A703-79AF29BFB392}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai", "src\windows\TradingTerminal.Ai\TradingTerminal.Ai.csproj", "{803A2C7F-2530-4C51-86C2-6076FB383131}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.BacktestStudio", "src\windows\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj", "{E327125A-6500-49D3-BE99-00105C663F78}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App", "src\windows\TradingTerminal.App\TradingTerminal.App.csproj", "{8DF91C0B-D676-4D42-B94B-377DA85B2DD7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Charts", "src\windows\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj", "{BC7B27CA-730E-4A4D-8A81-79007A6F2ECC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest", "src\windows\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj", "{20B7EE3F-2DE9-4996-A703-79AF29BFB392}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Correlation", "src\windows\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj", "{D21D0A59-96E0-4F02-B9C1-798DBD30D198}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.BacktestStudio", "src\windows\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj", "{E327125A-6500-49D3-BE99-00105C663F78}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Heatmap", "src\windows\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj", "{E674236A-5BC6-43D8-AE0B-5A8A2DD256DE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Charts", "src\windows\TradingTerminal.Charts\TradingTerminal.Charts.csproj", "{BC7B27CA-730E-4A4D-8A81-79007A6F2ECC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Login", "src\windows\Shell\TradingTerminal.Login\TradingTerminal.Login.csproj", "{3150FC3A-6FD0-499D-BB8E-87B161492D23}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Correlation", "src\windows\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj", "{D21D0A59-96E0-4F02-B9C1-798DBD30D198}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.LseBacktest", "src\windows\Tools\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj", "{3CDF97DC-7F97-4B6B-8469-25A0D19A1BCF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Heatmap", "src\windows\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj", "{E674236A-5BC6-43D8-AE0B-5A8A2DD256DE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.MarkovRegime", "src\windows\Tools\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj", "{DF677F7A-C581-482C-BB8E-5B2200444BC0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Login", "src\windows\TradingTerminal.Login\TradingTerminal.Login.csproj", "{3150FC3A-6FD0-499D-BB8E-87B161492D23}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.ArimaGarch", "src\windows\MachineLearning\TradingTerminal.Ml.ArimaGarch\TradingTerminal.Ml.ArimaGarch.csproj", "{16D7CCC2-B72C-44F8-BDDE-76E3E12D34CC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.LseBacktest", "src\windows\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj", "{3CDF97DC-7F97-4B6B-8469-25A0D19A1BCF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.KalmanFilter", "src\windows\MachineLearning\TradingTerminal.Ml.KalmanFilter\TradingTerminal.Ml.KalmanFilter.csproj", "{E0F1CCCB-55DC-411A-93A2-B33B562E4605}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.MarkovRegime", "src\windows\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj", "{DF677F7A-C581-482C-BB8E-5B2200444BC0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.Stationarity", "src\windows\MachineLearning\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj", "{6D593A04-1B57-470B-BE67-F9F3CDDD0B80}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.ArimaGarch", "src\windows\TradingTerminal.Ml.ArimaGarch\TradingTerminal.Ml.ArimaGarch.csproj", "{16D7CCC2-B72C-44F8-BDDE-76E3E12D34CC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.OrderBook", "src\windows\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj", "{CBC3383D-2BB1-4BE4-88B4-D26B6CA7D8A4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.KalmanFilter", "src\windows\TradingTerminal.Ml.KalmanFilter\TradingTerminal.Ml.KalmanFilter.csproj", "{E0F1CCCB-55DC-411A-93A2-B33B562E4605}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.QuantConnect", "src\windows\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj", "{DA6ED6FF-D80E-4D01-8DA8-6B2FA03DA917}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.Stationarity", "src\windows\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj", "{6D593A04-1B57-470B-BE67-F9F3CDDD0B80}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Recording", "src\windows\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj", "{854EDB99-6D7A-41B3-99AA-83982CCC5701}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.OrderBook", "src\windows\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj", "{CBC3383D-2BB1-4BE4-88B4-D26B6CA7D8A4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.CumulativeDelta", "src\windows\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj", "{A2B43F6A-1E45-492F-8320-10EF52CC0553}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.QuantConnect", "src\windows\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj", "{DA6ED6FF-D80E-4D01-8DA8-6B2FA03DA917}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.FilteredOrderFlow", "src\windows\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj", "{042F7094-14D6-4867-BBEA-99E0C05EE1E7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Recording", "src\windows\TradingTerminal.Recording\TradingTerminal.Recording.csproj", "{854EDB99-6D7A-41B3-99AA-83982CCC5701}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ImbalanceHeatFront", "src\windows\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj", "{86A1A9A8-0F48-414F-9322-62B8F844080F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.CumulativeDelta", "src\windows\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj", "{A2B43F6A-1E45-492F-8320-10EF52CC0553}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexKScoreSurface", "src\windows\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj", "{C7D32164-21D6-4564-8595-397301526FED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.FilteredOrderFlow", "src\windows\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj", "{042F7094-14D6-4867-BBEA-99E0C05EE1E7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexRegimeGraph", "src\windows\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj", "{B599B458-3FB0-4A55-B99C-E23984E98A7D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ImbalanceHeatFront", "src\windows\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj", "{86A1A9A8-0F48-414F-9322-62B8F844080F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowCube", "src\windows\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj", "{CB15B0D2-30BD-4008-BB60-32F9A8FBD150}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexKScoreSurface", "src\windows\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj", "{C7D32164-21D6-4564-8595-397301526FED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowPressureMap", "src\windows\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj", "{B7E183D5-68D9-4914-A3C9-F5F584DC3B7C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexRegimeGraph", "src\windows\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj", "{B599B458-3FB0-4A55-B99C-E23984E98A7D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowSurfaceSpike", "src\windows\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj", "{DCC78A67-7090-47A1-B141-BBAE99C239AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowCube", "src\windows\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj", "{CB15B0D2-30BD-4008-BB60-32F9A8FBD150}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowToxicity", "src\windows\Strategies\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj", "{CEFD1718-B2D8-4B8C-8B07-01FFD3C1E22C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowPressureMap", "src\windows\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj", "{B7E183D5-68D9-4914-A3C9-F5F584DC3B7C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrnsteinUhlenbeck", "src\windows\Strategies\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj", "{F0F6E13D-B20C-48D5-9DAD-4A3BCBC8F7BA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowSurfaceSpike", "src\windows\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj", "{DCC78A67-7090-47A1-B141-BBAE99C239AC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.SigmaIcFlow", "src\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj", "{712B2C96-3998-455D-B9FC-4C6698026746}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowToxicity", "src\windows\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj", "{CEFD1718-B2D8-4B8C-8B07-01FFD3C1E22C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.VolatilityTargeted", "src\windows\Strategies\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj", "{2D330589-A9D4-4D56-BFC7-DFCD888C990E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrnsteinUhlenbeck", "src\windows\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj", "{F0F6E13D-B20C-48D5-9DAD-4A3BCBC8F7BA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI", "src\windows\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj", "{F368685D-3C4D-4188-A285-A9C1F1E66C19}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.SigmaIcFlow", "src\windows\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj", "{712B2C96-3998-455D-B9FC-4C6698026746}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.VolumeFootprint", "src\windows\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj", "{47BF1760-D7DD-4034-8951-61D9375DB7F7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.VolatilityTargeted", "src\windows\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj", "{2D330589-A9D4-4D56-BFC7-DFCD888C990E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI.Core", "src\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj", "{F9361FEF-916A-4820-9A96-309430B44F6F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI", "src\windows\TradingTerminal.UI\TradingTerminal.UI.csproj", "{F368685D-3C4D-4188-A285-A9C1F1E66C19}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.VolumeFootprint", "src\windows\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj", "{47BF1760-D7DD-4034-8951-61D9375DB7F7}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI.Core", "src\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj", "{F9361FEF-916A-4820-9A96-309430B44F6F}"
-EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "shared", "shared", "{4DF9FEFF-F4E7-5EC7-B7C0-5D846D7E8674}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "windows", "windows", "{41DC3D1A-BEF0-52D5-BF08-70125C48B782}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "linux", "linux", "{3FAED5B6-118E-59CF-B5AF-84434BA53226}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shell", "Shell", "{08238530-3B36-5341-A3A8-2B27D0FD2D12}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Backtest", "Backtest", "{481FF252-B63C-5C32-9076-290E476C0BDB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{49C1647D-AC6C-5018-A4DC-471E9032F7C5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Pipeline", "Pipeline", "{90474A9F-EEEA-50BD-B1D1-FFD4A02E5E4E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "UI", "UI", "{3DBD9479-6F1B-5682-A351-6D7753CB9764}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AI", "AI", "{7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Charts", "Charts", "{016295AC-E784-502C-88E6-4C51BDF52D82}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MachineLearning", "MachineLearning", "{09C114CB-4622-55AA-9B16-6E0701963DB6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shell", "Shell", "{97360FFA-7E23-5179-BCFD-5A6113230AE1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Strategies", "Strategies", "{8721805D-4765-5689-986E-C412FC2F73C7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -728,59 +750,70 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{15438033-2B80-4BDE-8288-3E390410191C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
-		{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91} = {CB000001-2B5E-4A9C-8E3B-7D2F6A9B5C90}
-		{CB000003-2B5E-4A9C-8E3B-7D2F6A9B5C92} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB000004-2B5E-4A9C-8E3B-7D2F6A9B5C93} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB000005-2B5E-4A9C-8E3B-7D2F6A9B5C94} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB000006-2B5E-4A9C-8E3B-7D2F6A9B5C95} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB000007-2B5E-4A9C-8E3B-7D2F6A9B5C96} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB000008-2B5E-4A9C-8E3B-7D2F6A9B5C97} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB000009-2B5E-4A9C-8E3B-7D2F6A9B5C98} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{CB00000A-2B5E-4A9C-8E3B-7D2F6A9B5C99} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
-		{294A0017-1773-4A91-8674-FE88A48FE6CF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
-		{3E06214E-EAC4-49FD-A4B9-78062A0C3519} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
-		{F4FB7BFD-648B-42A3-AAE3-366BC95352CA} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
-		{577A459D-4405-42C2-AEFD-AF970A79F740} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
-		{A1E8D1C8-9441-42EA-95A0-9D805E21E22F} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
-		{B45DC00C-3B37-485B-8303-79DCF341E649} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
-		{66F3E99C-609F-4040-BB4F-61BD0CCDD6CE} = {8E443371-16C4-AB83-8FD5-84A79F0DB75D}
-		{73EAABFD-A243-4F67-9E05-5E4F4D07B61F} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{C3F0BAF0-7585-4862-AD5A-811A83479739} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{F2C3AE50-23CC-44A5-A1C4-DD47064453D1} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{4A011B54-7C6E-44BC-8598-8A1C30683E57} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{18FCBEAF-535D-49E3-BA21-EFF0B999C3AD} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{59E78CF3-B133-46D4-B796-2F66D245E8E5} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{803A2C7F-2530-4C51-86C2-6076FB383131} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{8DF91C0B-D676-4D42-B94B-377DA85B2DD7} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{20B7EE3F-2DE9-4996-A703-79AF29BFB392} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{E327125A-6500-49D3-BE99-00105C663F78} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{BC7B27CA-730E-4A4D-8A81-79007A6F2ECC} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{D21D0A59-96E0-4F02-B9C1-798DBD30D198} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{E674236A-5BC6-43D8-AE0B-5A8A2DD256DE} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{3150FC3A-6FD0-499D-BB8E-87B161492D23} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{3CDF97DC-7F97-4B6B-8469-25A0D19A1BCF} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{DF677F7A-C581-482C-BB8E-5B2200444BC0} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{16D7CCC2-B72C-44F8-BDDE-76E3E12D34CC} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{E0F1CCCB-55DC-411A-93A2-B33B562E4605} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{6D593A04-1B57-470B-BE67-F9F3CDDD0B80} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{CBC3383D-2BB1-4BE4-88B4-D26B6CA7D8A4} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{DA6ED6FF-D80E-4D01-8DA8-6B2FA03DA917} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{854EDB99-6D7A-41B3-99AA-83982CCC5701} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{A2B43F6A-1E45-492F-8320-10EF52CC0553} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{042F7094-14D6-4867-BBEA-99E0C05EE1E7} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{86A1A9A8-0F48-414F-9322-62B8F844080F} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{C7D32164-21D6-4564-8595-397301526FED} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{B599B458-3FB0-4A55-B99C-E23984E98A7D} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{CB15B0D2-30BD-4008-BB60-32F9A8FBD150} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{B7E183D5-68D9-4914-A3C9-F5F584DC3B7C} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{DCC78A67-7090-47A1-B141-BBAE99C239AC} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{CEFD1718-B2D8-4B8C-8B07-01FFD3C1E22C} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{F0F6E13D-B20C-48D5-9DAD-4A3BCBC8F7BA} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{712B2C96-3998-455D-B9FC-4C6698026746} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{2D330589-A9D4-4D56-BFC7-DFCD888C990E} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{F368685D-3C4D-4188-A285-A9C1F1E66C19} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{47BF1760-D7DD-4034-8951-61D9375DB7F7} = {AF50D07C-CBCD-524F-DB50-1B7C7AC32620}
-		{F9361FEF-916A-4820-9A96-309430B44F6F} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
+		{15438033-2B80-4BDE-8288-3E390410191C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91} = {CB000001-2B5E-4A9C-8E3B-7D2F6A9B5C90}
+		{CB000003-2B5E-4A9C-8E3B-7D2F6A9B5C92} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000004-2B5E-4A9C-8E3B-7D2F6A9B5C93} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000005-2B5E-4A9C-8E3B-7D2F6A9B5C94} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000006-2B5E-4A9C-8E3B-7D2F6A9B5C95} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000007-2B5E-4A9C-8E3B-7D2F6A9B5C96} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000008-2B5E-4A9C-8E3B-7D2F6A9B5C97} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB000009-2B5E-4A9C-8E3B-7D2F6A9B5C98} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{CB00000A-2B5E-4A9C-8E3B-7D2F6A9B5C99} = {CB000002-2B5E-4A9C-8E3B-7D2F6A9B5C91}
+		{294A0017-1773-4A91-8674-FE88A48FE6CF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{3E06214E-EAC4-49FD-A4B9-78062A0C3519} = {49C1647D-AC6C-5018-A4DC-471E9032F7C5}
+		{F4FB7BFD-648B-42A3-AAE3-366BC95352CA} = {90474A9F-EEEA-50BD-B1D1-FFD4A02E5E4E}
+		{577A459D-4405-42C2-AEFD-AF970A79F740} = {90474A9F-EEEA-50BD-B1D1-FFD4A02E5E4E}
+		{A1E8D1C8-9441-42EA-95A0-9D805E21E22F} = {481FF252-B63C-5C32-9076-290E476C0BDB}
+		{B45DC00C-3B37-485B-8303-79DCF341E649} = {481FF252-B63C-5C32-9076-290E476C0BDB}
+		{66F3E99C-609F-4040-BB4F-61BD0CCDD6CE} = {08238530-3B36-5341-A3A8-2B27D0FD2D12}
+		{73EAABFD-A243-4F67-9E05-5E4F4D07B61F} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{C3F0BAF0-7585-4862-AD5A-811A83479739} = {7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}
+		{F2C3AE50-23CC-44A5-A1C4-DD47064453D1} = {7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}
+		{4A011B54-7C6E-44BC-8598-8A1C30683E57} = {7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}
+		{18FCBEAF-535D-49E3-BA21-EFF0B999C3AD} = {7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}
+		{59E78CF3-B133-46D4-B796-2F66D245E8E5} = {7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}
+		{803A2C7F-2530-4C51-86C2-6076FB383131} = {7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36}
+		{8DF91C0B-D676-4D42-B94B-377DA85B2DD7} = {97360FFA-7E23-5179-BCFD-5A6113230AE1}
+		{20B7EE3F-2DE9-4996-A703-79AF29BFB392} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{E327125A-6500-49D3-BE99-00105C663F78} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{BC7B27CA-730E-4A4D-8A81-79007A6F2ECC} = {016295AC-E784-502C-88E6-4C51BDF52D82}
+		{D21D0A59-96E0-4F02-B9C1-798DBD30D198} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{E674236A-5BC6-43D8-AE0B-5A8A2DD256DE} = {016295AC-E784-502C-88E6-4C51BDF52D82}
+		{3150FC3A-6FD0-499D-BB8E-87B161492D23} = {97360FFA-7E23-5179-BCFD-5A6113230AE1}
+		{3CDF97DC-7F97-4B6B-8469-25A0D19A1BCF} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{DF677F7A-C581-482C-BB8E-5B2200444BC0} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{16D7CCC2-B72C-44F8-BDDE-76E3E12D34CC} = {09C114CB-4622-55AA-9B16-6E0701963DB6}
+		{E0F1CCCB-55DC-411A-93A2-B33B562E4605} = {09C114CB-4622-55AA-9B16-6E0701963DB6}
+		{6D593A04-1B57-470B-BE67-F9F3CDDD0B80} = {09C114CB-4622-55AA-9B16-6E0701963DB6}
+		{CBC3383D-2BB1-4BE4-88B4-D26B6CA7D8A4} = {016295AC-E784-502C-88E6-4C51BDF52D82}
+		{DA6ED6FF-D80E-4D01-8DA8-6B2FA03DA917} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{854EDB99-6D7A-41B3-99AA-83982CCC5701} = {3BC1D7E5-CF70-5C52-846F-FB4285B2B11E}
+		{A2B43F6A-1E45-492F-8320-10EF52CC0553} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{042F7094-14D6-4867-BBEA-99E0C05EE1E7} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{86A1A9A8-0F48-414F-9322-62B8F844080F} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{C7D32164-21D6-4564-8595-397301526FED} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{B599B458-3FB0-4A55-B99C-E23984E98A7D} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{CB15B0D2-30BD-4008-BB60-32F9A8FBD150} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{B7E183D5-68D9-4914-A3C9-F5F584DC3B7C} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{DCC78A67-7090-47A1-B141-BBAE99C239AC} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{CEFD1718-B2D8-4B8C-8B07-01FFD3C1E22C} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{F0F6E13D-B20C-48D5-9DAD-4A3BCBC8F7BA} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{712B2C96-3998-455D-B9FC-4C6698026746} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{2D330589-A9D4-4D56-BFC7-DFCD888C990E} = {8721805D-4765-5689-986E-C412FC2F73C7}
+		{F368685D-3C4D-4188-A285-A9C1F1E66C19} = {97360FFA-7E23-5179-BCFD-5A6113230AE1}
+		{47BF1760-D7DD-4034-8951-61D9375DB7F7} = {016295AC-E784-502C-88E6-4C51BDF52D82}
+		{F9361FEF-916A-4820-9A96-309430B44F6F} = {3DBD9479-6F1B-5682-A351-6D7753CB9764}
+		{08238530-3B36-5341-A3A8-2B27D0FD2D12} = {3FAED5B6-118E-59CF-B5AF-84434BA53226}
+		{481FF252-B63C-5C32-9076-290E476C0BDB} = {4DF9FEFF-F4E7-5EC7-B7C0-5D846D7E8674}
+		{49C1647D-AC6C-5018-A4DC-471E9032F7C5} = {4DF9FEFF-F4E7-5EC7-B7C0-5D846D7E8674}
+		{90474A9F-EEEA-50BD-B1D1-FFD4A02E5E4E} = {4DF9FEFF-F4E7-5EC7-B7C0-5D846D7E8674}
+		{3DBD9479-6F1B-5682-A351-6D7753CB9764} = {4DF9FEFF-F4E7-5EC7-B7C0-5D846D7E8674}
+		{7DB1EE06-CCC7-59F2-B5EC-28BCFA26DE36} = {41DC3D1A-BEF0-52D5-BF08-70125C48B782}
+		{016295AC-E784-502C-88E6-4C51BDF52D82} = {41DC3D1A-BEF0-52D5-BF08-70125C48B782}
+		{09C114CB-4622-55AA-9B16-6E0701963DB6} = {41DC3D1A-BEF0-52D5-BF08-70125C48B782}
+		{97360FFA-7E23-5179-BCFD-5A6113230AE1} = {41DC3D1A-BEF0-52D5-BF08-70125C48B782}
+		{8721805D-4765-5689-986E-C412FC2F73C7} = {41DC3D1A-BEF0-52D5-BF08-70125C48B782}
+		{3BC1D7E5-CF70-5C52-846F-FB4285B2B11E} = {41DC3D1A-BEF0-52D5-BF08-70125C48B782}
 	EndGlobalSection
 EndGlobal
