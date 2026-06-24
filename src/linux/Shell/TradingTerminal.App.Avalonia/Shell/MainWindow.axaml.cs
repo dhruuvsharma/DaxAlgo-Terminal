@@ -39,6 +39,12 @@ public partial class MainWindow : Window
         (DataContext as MainWindowViewModel)?.ActivityLog.Append("Charts", "INFO", "Opened Liquidity Heatmap.");
     }
 
+    private void OnStationarity(object? sender, RoutedEventArgs e)
+    {
+        new MachineLearning.StationarityWindow { DataContext = new MachineLearning.StationarityViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("ML", "INFO", "Opened Stationarity & Differencing.");
+    }
+
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<Border>("ActivityDrawer") is { } drawer)

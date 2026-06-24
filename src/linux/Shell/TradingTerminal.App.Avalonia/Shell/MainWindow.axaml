@@ -38,6 +38,9 @@
         <MenuItem Header="_Order Book (DOM)" Click="OnOrderBook" />
         <MenuItem Header="Liquidity _Heatmap" Click="OnHeatmap" />
       </MenuItem>
+      <MenuItem Header="_Machine Learning">
+        <MenuItem Header="_Stationarity &amp; Differencing" Click="OnStationarity" />
+      </MenuItem>
       <MenuItem Header="Open _Strategy" Click="OnOpenStrategy" />
     </Menu>
 
