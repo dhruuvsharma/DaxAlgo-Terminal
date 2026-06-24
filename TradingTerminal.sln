@@ -99,77 +99,77 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App.Avaloni
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Windows", "Windows", "{AF50D07C-CBCD-524F-DB50-1B7C7AC32620}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.AdvancedMarketRegime", "src\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj", "{73EAABFD-A243-4F67-9E05-5E4F4D07B61F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.AdvancedMarketRegime", "src\windows\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj", "{73EAABFD-A243-4F67-9E05-5E4F4D07B61F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.BacktestAnalysis", "src\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj", "{C3F0BAF0-7585-4862-AD5A-811A83479739}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.BacktestAnalysis", "src\windows\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj", "{C3F0BAF0-7585-4862-AD5A-811A83479739}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.FactorResearch", "src\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj", "{F2C3AE50-23CC-44A5-A1C4-DD47064453D1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.FactorResearch", "src\windows\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj", "{F2C3AE50-23CC-44A5-A1C4-DD47064453D1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MarketAnalyst", "src\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj", "{4A011B54-7C6E-44BC-8598-8A1C30683E57}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MarketAnalyst", "src\windows\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj", "{4A011B54-7C6E-44BC-8598-8A1C30683E57}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MlFeatures", "src\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj", "{18FCBEAF-535D-49E3-BA21-EFF0B999C3AD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.MlFeatures", "src\windows\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj", "{18FCBEAF-535D-49E3-BA21-EFF0B999C3AD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.PaperLab", "src\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj", "{59E78CF3-B133-46D4-B796-2F66D245E8E5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai.PaperLab", "src\windows\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj", "{59E78CF3-B133-46D4-B796-2F66D245E8E5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai", "src\TradingTerminal.Ai\TradingTerminal.Ai.csproj", "{803A2C7F-2530-4C51-86C2-6076FB383131}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ai", "src\windows\TradingTerminal.Ai\TradingTerminal.Ai.csproj", "{803A2C7F-2530-4C51-86C2-6076FB383131}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App", "src\TradingTerminal.App\TradingTerminal.App.csproj", "{8DF91C0B-D676-4D42-B94B-377DA85B2DD7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.App", "src\windows\TradingTerminal.App\TradingTerminal.App.csproj", "{8DF91C0B-D676-4D42-B94B-377DA85B2DD7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest", "src\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj", "{20B7EE3F-2DE9-4996-A703-79AF29BFB392}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Backtest", "src\windows\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj", "{20B7EE3F-2DE9-4996-A703-79AF29BFB392}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.BacktestStudio", "src\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj", "{E327125A-6500-49D3-BE99-00105C663F78}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.BacktestStudio", "src\windows\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj", "{E327125A-6500-49D3-BE99-00105C663F78}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Charts", "src\TradingTerminal.Charts\TradingTerminal.Charts.csproj", "{BC7B27CA-730E-4A4D-8A81-79007A6F2ECC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Charts", "src\windows\TradingTerminal.Charts\TradingTerminal.Charts.csproj", "{BC7B27CA-730E-4A4D-8A81-79007A6F2ECC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Correlation", "src\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj", "{D21D0A59-96E0-4F02-B9C1-798DBD30D198}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Correlation", "src\windows\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj", "{D21D0A59-96E0-4F02-B9C1-798DBD30D198}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Heatmap", "src\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj", "{E674236A-5BC6-43D8-AE0B-5A8A2DD256DE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Heatmap", "src\windows\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj", "{E674236A-5BC6-43D8-AE0B-5A8A2DD256DE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Login", "src\TradingTerminal.Login\TradingTerminal.Login.csproj", "{3150FC3A-6FD0-499D-BB8E-87B161492D23}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Login", "src\windows\TradingTerminal.Login\TradingTerminal.Login.csproj", "{3150FC3A-6FD0-499D-BB8E-87B161492D23}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.LseBacktest", "src\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj", "{3CDF97DC-7F97-4B6B-8469-25A0D19A1BCF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.LseBacktest", "src\windows\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj", "{3CDF97DC-7F97-4B6B-8469-25A0D19A1BCF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.MarkovRegime", "src\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj", "{DF677F7A-C581-482C-BB8E-5B2200444BC0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.MarkovRegime", "src\windows\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj", "{DF677F7A-C581-482C-BB8E-5B2200444BC0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.ArimaGarch", "src\TradingTerminal.Ml.ArimaGarch\TradingTerminal.Ml.ArimaGarch.csproj", "{16D7CCC2-B72C-44F8-BDDE-76E3E12D34CC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.ArimaGarch", "src\windows\TradingTerminal.Ml.ArimaGarch\TradingTerminal.Ml.ArimaGarch.csproj", "{16D7CCC2-B72C-44F8-BDDE-76E3E12D34CC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.KalmanFilter", "src\TradingTerminal.Ml.KalmanFilter\TradingTerminal.Ml.KalmanFilter.csproj", "{E0F1CCCB-55DC-411A-93A2-B33B562E4605}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.KalmanFilter", "src\windows\TradingTerminal.Ml.KalmanFilter\TradingTerminal.Ml.KalmanFilter.csproj", "{E0F1CCCB-55DC-411A-93A2-B33B562E4605}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.Stationarity", "src\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj", "{6D593A04-1B57-470B-BE67-F9F3CDDD0B80}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Ml.Stationarity", "src\windows\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj", "{6D593A04-1B57-470B-BE67-F9F3CDDD0B80}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.OrderBook", "src\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj", "{CBC3383D-2BB1-4BE4-88B4-D26B6CA7D8A4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.OrderBook", "src\windows\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj", "{CBC3383D-2BB1-4BE4-88B4-D26B6CA7D8A4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.QuantConnect", "src\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj", "{DA6ED6FF-D80E-4D01-8DA8-6B2FA03DA917}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.QuantConnect", "src\windows\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj", "{DA6ED6FF-D80E-4D01-8DA8-6B2FA03DA917}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Recording", "src\TradingTerminal.Recording\TradingTerminal.Recording.csproj", "{854EDB99-6D7A-41B3-99AA-83982CCC5701}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Recording", "src\windows\TradingTerminal.Recording\TradingTerminal.Recording.csproj", "{854EDB99-6D7A-41B3-99AA-83982CCC5701}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.CumulativeDelta", "src\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj", "{A2B43F6A-1E45-492F-8320-10EF52CC0553}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.CumulativeDelta", "src\windows\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj", "{A2B43F6A-1E45-492F-8320-10EF52CC0553}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.FilteredOrderFlow", "src\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj", "{042F7094-14D6-4867-BBEA-99E0C05EE1E7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.FilteredOrderFlow", "src\windows\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj", "{042F7094-14D6-4867-BBEA-99E0C05EE1E7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ImbalanceHeatFront", "src\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj", "{86A1A9A8-0F48-414F-9322-62B8F844080F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.ImbalanceHeatFront", "src\windows\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj", "{86A1A9A8-0F48-414F-9322-62B8F844080F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexKScoreSurface", "src\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj", "{C7D32164-21D6-4564-8595-397301526FED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexKScoreSurface", "src\windows\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj", "{C7D32164-21D6-4564-8595-397301526FED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexRegimeGraph", "src\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj", "{B599B458-3FB0-4A55-B99C-E23984E98A7D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.IndexRegimeGraph", "src\windows\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj", "{B599B458-3FB0-4A55-B99C-E23984E98A7D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowCube", "src\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj", "{CB15B0D2-30BD-4008-BB60-32F9A8FBD150}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowCube", "src\windows\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj", "{CB15B0D2-30BD-4008-BB60-32F9A8FBD150}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowPressureMap", "src\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj", "{B7E183D5-68D9-4914-A3C9-F5F584DC3B7C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowPressureMap", "src\windows\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj", "{B7E183D5-68D9-4914-A3C9-F5F584DC3B7C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowSurfaceSpike", "src\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj", "{DCC78A67-7090-47A1-B141-BBAE99C239AC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowSurfaceSpike", "src\windows\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj", "{DCC78A67-7090-47A1-B141-BBAE99C239AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowToxicity", "src\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj", "{CEFD1718-B2D8-4B8C-8B07-01FFD3C1E22C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrderFlowToxicity", "src\windows\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj", "{CEFD1718-B2D8-4B8C-8B07-01FFD3C1E22C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrnsteinUhlenbeck", "src\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj", "{F0F6E13D-B20C-48D5-9DAD-4A3BCBC8F7BA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.OrnsteinUhlenbeck", "src\windows\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj", "{F0F6E13D-B20C-48D5-9DAD-4A3BCBC8F7BA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.SigmaIcFlow", "src\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj", "{712B2C96-3998-455D-B9FC-4C6698026746}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.SigmaIcFlow", "src\windows\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj", "{712B2C96-3998-455D-B9FC-4C6698026746}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.VolatilityTargeted", "src\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj", "{2D330589-A9D4-4D56-BFC7-DFCD888C990E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.Strategies.VolatilityTargeted", "src\windows\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj", "{2D330589-A9D4-4D56-BFC7-DFCD888C990E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI", "src\TradingTerminal.UI\TradingTerminal.UI.csproj", "{F368685D-3C4D-4188-A285-A9C1F1E66C19}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI", "src\windows\TradingTerminal.UI\TradingTerminal.UI.csproj", "{F368685D-3C4D-4188-A285-A9C1F1E66C19}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.VolumeFootprint", "src\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj", "{47BF1760-D7DD-4034-8951-61D9375DB7F7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.VolumeFootprint", "src\windows\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj", "{47BF1760-D7DD-4034-8951-61D9375DB7F7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TradingTerminal.UI.Core", "src\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj", "{F9361FEF-916A-4820-9A96-309430B44F6F}"
 EndProject

@@ -11,8 +11,8 @@
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
     <ProjectReference Include="..\..\src\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\TradingTerminal.App\TradingTerminal.App.csproj" />
-    <ProjectReference Include="..\..\src\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
+    <ProjectReference Include="..\..\src\windows\TradingTerminal.App\TradingTerminal.App.csproj" />
+    <ProjectReference Include="..\..\src\windows\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
   </ItemGroup>
 
   <ItemGroup>

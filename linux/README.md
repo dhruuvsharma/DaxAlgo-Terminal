@@ -104,11 +104,17 @@ marginal on Pi hardware.
 The WPF shell + 66 XAML views are Windows-only. Phase 1 ports them to **Avalonia** (Skia,
 runs on Pi). Cross-platform UI projects live under `src/linux/`.
 
-**Repo layout (platform split):** `src/shared/` = portable, cross-platform projects (Core,
-MarketData, Infrastructure, Backtest.Engine, Backtest.Cli — and the future portable VM layer);
-`src/linux/` = Avalonia UI head; `src/web/` = future web head; the WPF projects stay flat under
-`src/` for now (grouped under the **Windows** solution folder), relocating to `src/windows/` as
-they're touched.
+**Repo layout (platform split):** the source tree is split by platform —
+`src/shared/` = portable, cross-platform projects (Core, MarketData, Infrastructure,
+Backtest.Engine, Backtest.Cli, UI.Core); `src/linux/` = Avalonia UI head; `src/windows/` = all
+the WPF projects (App, UI, Login, Ai*, Ml*, Strategies.*, tool windows, QuantConnect); `src/web/`
+= future web head.
+
+**Visual Studio — testing the Linux side on Windows:** open **`TradingTerminal.Linux.slnf`**
+(a Solution Filter) instead of the full `.sln`. It loads only the cross-platform projects —
+`src/shared/*`, the Avalonia app, the multi-targeted strategy projects, and the headless test
+project — so you can build them and run the headless tests (which include the `net9.0` / Linux
+target) without loading the 36 WPF projects. From the CLI: `dotnet build TradingTerminal.Linux.slnf`.
 
 **Foundation done:** `src/linux/TradingTerminal.App.Avalonia` — a cross-platform Avalonia desktop
 shell (`net9.0`) on top of the portable core. **Builds on Windows and Linux** (verified in the
