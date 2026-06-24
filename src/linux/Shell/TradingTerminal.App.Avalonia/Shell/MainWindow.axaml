@@ -36,6 +36,7 @@
       <MenuItem Header="_Charts">
         <MenuItem Header="_Volume Footprint" Click="OnVolumeFootprint" />
         <MenuItem Header="_Order Book (DOM)" Click="OnOrderBook" />
+        <MenuItem Header="Liquidity _Heatmap" Click="OnHeatmap" />
       </MenuItem>
       <MenuItem Header="Open _Strategy" Click="OnOpenStrategy" />
     </Menu>

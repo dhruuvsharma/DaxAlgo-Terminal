@@ -33,6 +33,12 @@ public partial class MainWindow : Window
         (DataContext as MainWindowViewModel)?.ActivityLog.Append("Charts", "INFO", "Opened Order Book.");
     }
 
+    private void OnHeatmap(object? sender, RoutedEventArgs e)
+    {
+        new HeatmapWindow { DataContext = new HeatmapViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("Charts", "INFO", "Opened Liquidity Heatmap.");
+    }
+
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<Border>("ActivityDrawer") is { } drawer)
