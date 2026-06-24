@@ -45,6 +45,18 @@ public partial class MainWindow : Window
         (DataContext as MainWindowViewModel)?.ActivityLog.Append("ML", "INFO", "Opened Stationarity & Differencing.");
     }
 
+    private void OnArimaGarch(object? sender, RoutedEventArgs e)
+    {
+        new MachineLearning.ArimaGarchWindow { DataContext = new MachineLearning.ArimaGarchViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("ML", "INFO", "Opened ARIMA & GARCH.");
+    }
+
+    private void OnKalman(object? sender, RoutedEventArgs e)
+    {
+        new MachineLearning.KalmanWindow { DataContext = new MachineLearning.KalmanViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("ML", "INFO", "Opened Kalman Filter.");
+    }
+
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<Border>("ActivityDrawer") is { } drawer)

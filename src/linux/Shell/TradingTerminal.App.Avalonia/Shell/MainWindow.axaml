@@ -40,6 +40,8 @@
       </MenuItem>
       <MenuItem Header="_Machine Learning">
         <MenuItem Header="_Stationarity &amp; Differencing" Click="OnStationarity" />
+        <MenuItem Header="_ARIMA &amp; GARCH" Click="OnArimaGarch" />
+        <MenuItem Header="_Kalman Filter" Click="OnKalman" />
       </MenuItem>
       <MenuItem Header="Open _Strategy" Click="OnOpenStrategy" />
     </Menu>
