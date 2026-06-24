@@ -57,6 +57,12 @@ public partial class MainWindow : Window
         (DataContext as MainWindowViewModel)?.ActivityLog.Append("ML", "INFO", "Opened Kalman Filter.");
     }
 
+    private void OnCorrelation(object? sender, RoutedEventArgs e)
+    {
+        new Tools.CorrelationWindow { DataContext = new Tools.CorrelationViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
+    }
+
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<Border>("ActivityDrawer") is { } drawer)
