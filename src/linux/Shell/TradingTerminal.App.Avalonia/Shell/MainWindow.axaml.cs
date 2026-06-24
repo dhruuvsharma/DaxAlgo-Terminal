@@ -23,8 +23,14 @@ public partial class MainWindow : Window
 
     private void OnVolumeFootprint(object? sender, RoutedEventArgs e)
     {
-        new Charts.VolumeFootprintWindow { DataContext = new VolumeFootprintViewModel() }.Show();
+        new VolumeFootprintWindow { DataContext = new VolumeFootprintViewModel() }.Show();
         (DataContext as MainWindowViewModel)?.ActivityLog.Append("Charts", "INFO", "Opened Volume Footprint.");
+    }
+
+    private void OnOrderBook(object? sender, RoutedEventArgs e)
+    {
+        new OrderBookWindow { DataContext = new OrderBookViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("Charts", "INFO", "Opened Order Book.");
     }
 
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
