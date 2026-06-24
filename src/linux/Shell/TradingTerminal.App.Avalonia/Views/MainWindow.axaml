@@ -33,6 +33,9 @@
       <MenuItem Header="_View">
         <MenuItem Header="Toggle _Activity Log" Click="OnToggleActivityLog" />
       </MenuItem>
+      <MenuItem Header="_Charts">
+        <MenuItem Header="_Volume Footprint" Click="OnVolumeFootprint" />
+      </MenuItem>
       <MenuItem Header="Open _Strategy" Click="OnOpenStrategy" />
     </Menu>
 

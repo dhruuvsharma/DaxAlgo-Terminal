@@ -21,6 +21,12 @@ public partial class MainWindow : Window
 
     private void OnExit(object? sender, RoutedEventArgs e) => Close();
 
+    private void OnVolumeFootprint(object? sender, RoutedEventArgs e)
+    {
+        new Charts.VolumeFootprintWindow { DataContext = new VolumeFootprintViewModel() }.Show();
+        (DataContext as MainWindowViewModel)?.ActivityLog.Append("Charts", "INFO", "Opened Volume Footprint.");
+    }
+
     private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<Border>("ActivityDrawer") is { } drawer)
