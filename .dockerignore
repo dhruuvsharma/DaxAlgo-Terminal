@@ -1,0 +1,12 @@
+# Keep the Docker build context small + clean (Linux headless image builds from source only).
+**/bin
+**/obj
+.git
+.vs
+.vscode
+.idea
+.claude
+test
+**/*.user
+artifacts
+linux-verify.sh

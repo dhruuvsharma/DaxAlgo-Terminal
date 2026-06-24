@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Cross-platform Avalonia shell (Phase 1 of the Linux port). net9.0 runs on Windows, Linux,
+         and Raspberry Pi (ARM64) — Avalonia needs no WPF. Overrides the net9.0-windows7.0 default
+         from Directory.Build.props. The WPF TradingTerminal.App stays the Windows shell. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Cross-platform (Avalonia) desktop shell on the portable headless core — Phase 1 of the Linux/ARM64 port.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\shared\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- Portable VM layer shared with the WPF shell — proves view-models port across unchanged. -->
+    <ProjectReference Include="..\..\shared\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <!-- The headless stack (brokers, backtest engine + strategy catalog) — WPF-free on net9.0. -->
+    <ProjectReference Include="..\..\shared\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\shared\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <!-- Ported per-strategy projects: reuse their portable VMs (net9.0 leg, no WPF). -->
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
+    <ProjectReference Include="..\..\windows\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
+    <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- DI container + config/logging for the shell composition root (mirrors the WPF App's MS.DI host). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

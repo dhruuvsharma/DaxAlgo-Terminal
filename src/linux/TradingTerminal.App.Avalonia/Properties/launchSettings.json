@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "Avalonia Shell (Desktop)": {
+      "commandName": "Project"
+    },
+    "Avalonia Shell (Dev: Simulated)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSim"
+      }
+    }
+  }
+}
