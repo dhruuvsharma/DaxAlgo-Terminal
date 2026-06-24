@@ -12,6 +12,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Hosting;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.MarketData.Archive;
 using TradingTerminal.Core.Session;
 using TradingTerminal.UI;
 
@@ -38,6 +39,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly CredentialStore _credentialStore;
     private readonly IOptionsMonitor<ResearchReproOptions> _research;
     private readonly ISidecarController _sidecar;
+    private readonly ITelegramArchiveLogin _telegramLogin;
     private readonly ILogger<LoginViewModel> _logger;
 
     /// <summary>The forms as their concrete base type, pre-sorted Keyless → Credentialed → Local,
@@ -55,6 +57,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         CredentialStore credentialStore,
         IOptionsMonitor<ResearchReproOptions> research,
         ISidecarController sidecar,
+        ITelegramArchiveLogin telegramLogin,
         ILogger<LoginViewModel> logger)
     {
         _brokerSelector = brokerSelector;
@@ -63,6 +66,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         _credentialStore = credentialStore;
         _research = research;
         _sidecar = sidecar;
+        _telegramLogin = telegramLogin;
         _logger = logger;
 
         AvailableForms = forms.All;
@@ -93,6 +97,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
         RefreshConnectedSummary();
         InitializeQuestDb();
+        InitializeTelegramArchive();
         BuildServices();
 
         var stored = _credentialStore.Load();
@@ -354,6 +359,66 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         _ => kind.ToString(),
     };
 
+    // ── Telegram market-data archive login ───────────────────────────────────────────────────────
+
+    /// <summary>api_id from my.telegram.org/apps.</summary>
+    [ObservableProperty] private int _telegramApiId;
+
+    /// <summary>api_hash from my.telegram.org/apps.</summary>
+    [ObservableProperty] private string _telegramApiHash = "";
+
+    /// <summary>Phone number in international format (e.g. +91XXXXXXXXXX).</summary>
+    [ObservableProperty] private string _telegramPhone = "";
+
+    /// <summary>Human-readable status shown on the Telegram tile.</summary>
+    [ObservableProperty] private string _telegramStatus = "Not connected";
+
+    /// <summary>True once a signed-in Telegram session is available.</summary>
+    [ObservableProperty] private bool _isTelegramConnected;
+
+    /// <summary>A connect attempt is in flight (drives the spinner + disables the button).</summary>
+    [ObservableProperty] private bool _isTelegramBusy;
+
+    /// <summary>Hydrate the Telegram tile from the persisted archive credentials (shared with the
+    /// in-app Archive Settings tab via archive.json), so returning users see their saved details.</summary>
+    private void InitializeTelegramArchive()
+    {
+        var creds = _telegramLogin.Load();
+        TelegramApiId = creds.ApiId;
+        TelegramApiHash = creds.ApiHash;
+        TelegramPhone = creds.PhoneNumber;
+        IsTelegramConnected = _telegramLogin.IsConnected;
+        TelegramStatus = IsTelegramConnected ? "Connected" : "Not connected";
+    }
+
+    /// <summary>Persists the entered Telegram credentials and signs in (the verification-code / 2FA
+    /// dialog pops automatically). Runs the blocking transport work off the UI thread.</summary>
+    [RelayCommand]
+    private async Task ConnectTelegramAsync()
+    {
+        if (IsTelegramBusy) return;
+        IsTelegramBusy = true;
+        TelegramStatus = "Connecting to Telegram…";
+        try
+        {
+            var creds = new TelegramArchiveCredentials(TelegramApiId, TelegramApiHash, TelegramPhone);
+            var result = await _telegramLogin.ConnectAsync(creds).ConfigureAwait(true);
+            IsTelegramConnected = _telegramLogin.IsConnected;
+            TelegramStatus = result.Message;
+            if (!result.Success)
+                _logger.LogInformation("Telegram archive login from login screen did not complete: {Reason}", result.Message);
+        }
+        catch (Exception ex)
+        {
+            TelegramStatus = $"Login failed: {ex.Message}";
+            _logger.LogError(ex, "Telegram archive login from login screen failed");
+        }
+        finally
+        {
+            IsTelegramBusy = false;
+        }
+    }
+
     // ── Services & external dependencies ─────────────────────────────────────────────────────────
 
     /// <summary>External processes the terminal talks to but never launches itself — surfaced on the
@@ -376,7 +441,10 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             purpose: "Powers the AI Market Analyst and Paper Lab paper-resolution.",
             requirement: "Optional",
             howTo: $"Run the local Python sidecar on {sidecarBase}, then enable it under Settings → " +
-                   "Notifications (AI Analyst) and Settings → Research (Paper Lab). Loopback only.",
+                   "Notifications (AI Analyst) and Settings → Research (Paper Lab). Loopback only. " +
+                   "No local model? Pick a cloud provider (OpenAI / Anthropic / Gemini / Groq / OpenRouter) " +
+                   "and paste your own API key under Settings → Notifications (AI Analyst) — " +
+                   "Gemini, Groq and OpenRouter all have free tiers.",
             startCommand: "cd tools\\python-ml; .\\.venv\\Scripts\\Activate.ps1; " +
                           "$env:DAXALGO_ML_PORT='8765'; python -m daxalgo_ml.app",
             probe: ct => ServiceDependencyViewModel.HttpOkAsync(healthz, ct),

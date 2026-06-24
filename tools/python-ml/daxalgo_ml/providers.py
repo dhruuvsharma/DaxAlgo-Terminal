@@ -1,8 +1,11 @@
 """LLM provider factory.
 
-QuantAgent supports four backends — OpenAI, Anthropic, Qwen (DashScope OpenAI-compatible),
-and MiniMax. Each returns a LangChain BaseChatModel so the agent code stays
-provider-agnostic; the agents only know about ``model.invoke([HumanMessage(...)])``.
+QuantAgent supports several backends — OpenAI, Anthropic, Qwen (DashScope OpenAI-compatible),
+MiniMax, plus the OpenAI-compatible cloud endpoints Google Gemini, Groq, and OpenRouter (the
+latter three all expose genuine free tiers, so users without a paid plan or a local model can
+still drive the AI features with their own API key). Each returns a LangChain BaseChatModel so
+the agent code stays provider-agnostic; the agents only know about
+``model.invoke([HumanMessage(...)])``.
 
 The vision-capable models for pattern/trend agents are passed separately because some
 providers ship vision and text on different model ids (OpenAI: gpt-4o vs gpt-4; Anthropic:
@@ -69,7 +72,44 @@ def _build(provider: str, api_key: str, model: str) -> Any:
             temperature=0,
         )
 
-    raise ValueError(f"Unknown provider '{provider}'. Expected one of: openai, anthropic, qwen, minimax.")
+    if provider == "gemini":
+        # Google Gemini via its OpenAI-compatible endpoint (free tier at aistudio.google.com).
+        from langchain_openai import ChatOpenAI
+
+        return ChatOpenAI(
+            model=model,
+            api_key=api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            temperature=0,
+        )
+
+    if provider == "groq":
+        # Groq exposes an OpenAI-compatible endpoint (free tier at console.groq.com).
+        from langchain_openai import ChatOpenAI
+
+        return ChatOpenAI(
+            model=model,
+            api_key=api_key,
+            base_url="https://api.groq.com/openai/v1",
+            temperature=0,
+        )
+
+    if provider == "openrouter":
+        # OpenRouter aggregates many models behind one OpenAI-compatible endpoint, including
+        # several free ones (openrouter.ai).
+        from langchain_openai import ChatOpenAI
+
+        return ChatOpenAI(
+            model=model,
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+            temperature=0,
+        )
+
+    raise ValueError(
+        f"Unknown provider '{provider}'. Expected one of: openai, anthropic, qwen, "
+        "minimax, gemini, groq, openrouter."
+    )
 
 
 __all__ = ["ProviderConfig", "build_text_model", "build_vision_model"]

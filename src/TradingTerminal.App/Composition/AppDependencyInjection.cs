@@ -145,6 +145,10 @@ public static class AppDependencyInjection
     {
         services.AddSingleton<TradingTerminal.Infrastructure.MarketData.Archive.Telegram.ITelegramAuthPrompt,
             WpfTelegramAuthPrompt>();
+        // Login-window seam for the Telegram archive credentials — implemented here (App owns the
+        // persistence + transport + auth prompt) so the Login project stays Core+UI only.
+        services.AddSingleton<TradingTerminal.Core.MarketData.Archive.ITelegramArchiveLogin,
+            TelegramArchiveLogin>();
         services.AddTransient<ArchiveSettingsViewModel>();
         services.AddTransient<ArchiveSettingsView>();
         services.AddTransient<ArchiveActivityViewModel>();

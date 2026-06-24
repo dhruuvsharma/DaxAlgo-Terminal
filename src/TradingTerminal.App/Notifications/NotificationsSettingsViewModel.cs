@@ -58,7 +58,27 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     [ObservableProperty] private int _aiAnalystTimeoutSeconds = 60;
     [ObservableProperty] private bool _aiAnalystIncludeInEnricher;
 
-    public IReadOnlyList<string> AiAnalystProviders { get; } = new[] { "openai", "anthropic", "qwen", "minimax" };
+    public IReadOnlyList<string> AiAnalystProviders { get; } =
+        new[] { "openai", "anthropic", "qwen", "minimax", "gemini", "groq", "openrouter" };
+
+    /// <summary>Per-provider default text/vision model ids, pre-filled when the user picks a provider so
+    /// they don't have to know each backend's model naming. Gemini/Groq/OpenRouter default to free-tier
+    /// ids. The user can still override either field afterwards.</summary>
+    private static readonly IReadOnlyDictionary<string, (string Model, string VisionModel)> ProviderDefaults =
+        new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["openai"] = ("gpt-4o", "gpt-4o"),
+            ["anthropic"] = ("claude-opus-4-8", "claude-opus-4-8"),
+            ["qwen"] = ("qwen-plus", "qwen-vl-plus"),
+            ["minimax"] = ("abab6.5s-chat", "abab6.5s-chat"),
+            ["gemini"] = ("gemini-2.0-flash", "gemini-2.0-flash"),
+            ["groq"] = ("llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct"),
+            ["openrouter"] = ("google/gemini-2.0-flash-exp:free", "google/gemini-2.0-flash-exp:free"),
+        };
+
+    /// <summary>Suppresses <see cref="ProviderDefaults"/> pre-fill while hydrating from saved options,
+    /// so loading a saved provider doesn't clobber the user's saved model ids.</summary>
+    private bool _suppressProviderDefaults;
 
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _hasUnsavedChanges;
@@ -78,7 +98,16 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
     partial void OnOllamaSystemPromptChanged(string value) => HasUnsavedChanges = true;
     partial void OnAiAnalystEnabledChanged(bool value) => HasUnsavedChanges = true;
     partial void OnAiAnalystEndpointChanged(string value) => HasUnsavedChanges = true;
-    partial void OnAiAnalystProviderChanged(string value) => HasUnsavedChanges = true;
+    partial void OnAiAnalystProviderChanged(string value)
+    {
+        HasUnsavedChanges = true;
+        if (_suppressProviderDefaults) return;
+        if (!string.IsNullOrWhiteSpace(value) && ProviderDefaults.TryGetValue(value.Trim(), out var d))
+        {
+            AiAnalystModel = d.Model;
+            AiAnalystVisionModel = d.VisionModel;
+        }
+    }
     partial void OnAiAnalystApiKeyChanged(string value) => HasUnsavedChanges = true;
     partial void OnAiAnalystModelChanged(string value) => HasUnsavedChanges = true;
     partial void OnAiAnalystVisionModelChanged(string value) => HasUnsavedChanges = true;
@@ -88,6 +117,7 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
 
     private void LoadFromOptions(NotificationsOptions o)
     {
+        _suppressProviderDefaults = true;
         TelegramEnabled = o.Telegram.Enabled;
         TelegramBotToken = o.Telegram.BotToken;
         TelegramChatId = o.Telegram.ChatId;
@@ -111,6 +141,7 @@ public sealed partial class NotificationsSettingsViewModel : ViewModelBase
         AiAnalystTimeoutSeconds = o.AiAnalyst.TimeoutSeconds;
         AiAnalystIncludeInEnricher = o.AiAnalyst.IncludeInEnricher;
         HasUnsavedChanges = false;
+        _suppressProviderDefaults = false;
     }
 
     [RelayCommand]

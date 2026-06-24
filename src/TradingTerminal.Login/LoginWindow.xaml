@@ -522,6 +522,89 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- ── Market-data archive (Telegram) login — optional database offload target ── -->
+                    <Border Margin="0,8,0,0" Padding="10,8" CornerRadius="4"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource Border.Brush}"
+                            Background="{DynamicResource Background.Surface}">
+                        <StackPanel>
+                            <DockPanel LastChildFill="False">
+                                <TextBlock DockPanel.Dock="Left"
+                                           Text="Market-data archive (Telegram)"
+                                           FontWeight="SemiBold" FontSize="12"
+                                           VerticalAlignment="Center" />
+                                <Border DockPanel.Dock="Right" Style="{StaticResource StatusPill}"
+                                        VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTelegramConnected}" Value="True">
+                                                            <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsTelegramBusy}" Value="True">
+                                                            <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                        <TextBlock Text="{Binding TelegramStatus}"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Text.Secondary}" />
+                                    </StackPanel>
+                                </Border>
+                            </DockPanel>
+
+                            <TextBlock Margin="0,3,0,0" FontSize="10" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       Text="Offload the local market-data store to your own Telegram (Saved Messages) so it can be pruned safely. Get api_id / api_hash at my.telegram.org/apps." />
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="api_id"
+                                           VerticalAlignment="Center" Margin="0,0,10,6"
+                                           FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
+                                         Text="{Binding TelegramApiId, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="api_hash"
+                                           VerticalAlignment="Center" Margin="0,0,10,6"
+                                           FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"
+                                         Text="{Binding TelegramApiHash, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="phone"
+                                           VerticalAlignment="Center" Margin="0,0,10,0"
+                                           FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                                <TextBox Grid.Row="2" Grid.Column="1"
+                                         mah:TextBoxHelper.Watermark="+91XXXXXXXXXX"
+                                         Text="{Binding TelegramPhone, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <DockPanel Margin="0,8,0,0" LastChildFill="False">
+                                <ProgressBar DockPanel.Dock="Left"
+                                             IsIndeterminate="{Binding IsTelegramBusy}"
+                                             Visibility="{Binding IsTelegramBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                             Width="100" Height="3" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <Button DockPanel.Dock="Right"
+                                        Content="Connect Telegram"
+                                        Command="{Binding ConnectTelegramCommand}"
+                                        IsEnabled="{Binding IsTelegramBusy, Converter={StaticResource InverseBooleanConverter}}"
+                                        MinWidth="120" Padding="0,5"
+                                        Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Expander>
 
