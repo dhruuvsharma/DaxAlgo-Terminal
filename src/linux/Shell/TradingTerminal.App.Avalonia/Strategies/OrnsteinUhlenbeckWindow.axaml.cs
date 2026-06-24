@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace TradingTerminal.App.Avalonia.Views.Strategies;
+namespace TradingTerminal.App.Avalonia.Strategies;
 
 public partial class OrnsteinUhlenbeckWindow : Window
 {

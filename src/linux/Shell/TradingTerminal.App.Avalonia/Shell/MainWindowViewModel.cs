@@ -4,7 +4,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.UI.Catalog;
 using TradingTerminal.UI.Logging;
 
-namespace TradingTerminal.App.Avalonia.ViewModels;
+namespace TradingTerminal.App.Avalonia.Shell;
 
 /// <summary>
 /// Root VM for the cross-platform shell. Plain <see cref="ObservableObject"/> (same MVVM toolkit as

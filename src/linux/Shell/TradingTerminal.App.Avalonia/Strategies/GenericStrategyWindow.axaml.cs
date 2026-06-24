@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace TradingTerminal.App.Avalonia.Views.Strategies;
+namespace TradingTerminal.App.Avalonia.Strategies;
 
 /// <summary>
 /// Generic Avalonia window for any <c>LiveSignalStrategyViewModelBase</c>: binds the common surface

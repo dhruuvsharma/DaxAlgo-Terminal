@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="using:TradingTerminal.UI"
-        x:Class="TradingTerminal.App.Avalonia.Views.Strategies.GenericStrategyWindow"
+        x:Class="TradingTerminal.App.Avalonia.Strategies.GenericStrategyWindow"
         x:DataType="ui:LiveSignalStrategyViewModelBase"
         Width="760" Height="560"
         Title="{Binding StrategyDisplayName}">

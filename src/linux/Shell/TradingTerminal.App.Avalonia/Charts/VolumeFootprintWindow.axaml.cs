@@ -1,7 +1,6 @@
 using Avalonia.Controls;
-using TradingTerminal.App.Avalonia.ViewModels;
 
-namespace TradingTerminal.App.Avalonia.Views.Charts;
+namespace TradingTerminal.App.Avalonia.Charts;
 
 public partial class VolumeFootprintWindow : Window
 {

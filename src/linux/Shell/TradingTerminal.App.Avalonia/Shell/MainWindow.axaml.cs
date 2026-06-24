@@ -2,8 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.App.Avalonia.ViewModels;
-using TradingTerminal.App.Avalonia.Views.Strategies;
+using TradingTerminal.App.Avalonia.Charts;
+using TradingTerminal.App.Avalonia.Strategies;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
@@ -13,7 +13,7 @@ using TradingTerminal.Strategies.SigmaIcFlow;
 using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.UI;
 
-namespace TradingTerminal.App.Avalonia.Views;
+namespace TradingTerminal.App.Avalonia.Shell;
 
 public partial class MainWindow : Window
 {

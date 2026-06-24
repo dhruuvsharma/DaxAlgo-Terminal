@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
-namespace TradingTerminal.App.Avalonia.ViewModels;
+namespace TradingTerminal.App.Avalonia.Charts;
 
 /// <summary>
 /// Drives the Avalonia Volume Footprint window. Reuses the broker-neutral

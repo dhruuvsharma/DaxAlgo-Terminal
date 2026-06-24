@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace TradingTerminal.App.Avalonia.Views.Strategies;
+namespace TradingTerminal.App.Avalonia.Strategies;
 
 /// <summary>
 /// Bespoke Avalonia window for the cumulative-delta scalper. Its VM derives from ViewModelBase (a

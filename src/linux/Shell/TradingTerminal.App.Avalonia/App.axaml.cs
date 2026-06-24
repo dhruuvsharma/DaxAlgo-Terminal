@@ -4,8 +4,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Avalonia.Composition;
-using TradingTerminal.App.Avalonia.ViewModels;
-using TradingTerminal.App.Avalonia.Views;
+using TradingTerminal.App.Avalonia.Shell;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 

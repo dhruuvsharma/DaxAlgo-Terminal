@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TradingTerminal.App.Avalonia.ViewModels;
+using TradingTerminal.App.Avalonia.Shell;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure;
