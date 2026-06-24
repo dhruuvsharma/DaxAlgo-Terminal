@@ -9,11 +9,13 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, OrderFlowToxicityStrategy>();
         services.AddTransient<OrderFlowToxicityStrategyViewModel>();
+#if WINDOWS
         services.AddTransient<OrderFlowToxicityStrategyWindow>();
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "order.flow.toxicity",
             ViewFactory: sp => sp.GetRequiredService<OrderFlowToxicityStrategyWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<OrderFlowToxicityStrategyViewModel>()));
+#endif
         return services;
     }
 }

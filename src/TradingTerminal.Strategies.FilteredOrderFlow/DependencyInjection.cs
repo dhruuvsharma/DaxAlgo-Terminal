@@ -9,12 +9,14 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, FilteredOrderFlowStrategy>();
         services.AddTransient<FilteredOrderFlowViewModel>();
+#if WINDOWS
         services.AddTransient<FilteredOrderFlowWindow>();
 
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "filtered.orderflow.imbalance",
             ViewFactory: sp => sp.GetRequiredService<FilteredOrderFlowWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<FilteredOrderFlowViewModel>()));
+#endif
 
         return services;
     }

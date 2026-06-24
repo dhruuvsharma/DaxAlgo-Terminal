@@ -9,12 +9,14 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, CumulativeDeltaStrategy>();
         services.AddTransient<CumulativeDeltaViewModel>();
+#if WINDOWS
         services.AddTransient<CumulativeDeltaWindow>();
 
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "cumulative.delta.scalper",
             ViewFactory: sp => sp.GetRequiredService<CumulativeDeltaWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<CumulativeDeltaViewModel>()));
+#endif
 
         return services;
     }

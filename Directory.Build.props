@@ -3,6 +3,11 @@
   <PropertyGroup>
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <UseWPF>false</UseWPF>
+    <!-- Allow Linux/macOS to restore & evaluate the net9.0-windows7.0 leg of the multi-targeted
+         headless projects (Core/MarketData/Infrastructure/Backtest.Engine/Backtest.Cli) so a plain
+         `dotnet build -f net9.0` works on the Pi. Only the net9.0 leg compiles off-Windows; the WPF
+         projects are simply never built there. No-op on Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

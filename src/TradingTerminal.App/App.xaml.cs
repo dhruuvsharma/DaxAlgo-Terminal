@@ -68,6 +68,21 @@ public partial class App : Application
         StrategyDataRequirementConverter.EnsureConverterRegistered();
         StrategyClassificationConverter.EnsureConverterRegistered();
 
+        // The Activity Log sink is now WPF-free (shared with the Avalonia head); point its UI-thread
+        // marshaller at the WPF Dispatcher so background-thread appends (Serilog, strategies) are safe.
+        InMemoryLogSink.UiPost = action =>
+        {
+            var dispatcher = Current?.Dispatcher ?? System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            if (dispatcher.CheckAccess()) action();
+            else dispatcher.BeginInvoke(action);
+        };
+        // Same for the VM marshaling helper (UiThread) now that it's WPF-free in UI.Core.
+        TradingTerminal.UI.UiThread.Marshal = action =>
+        {
+            var d = Current?.Dispatcher;
+            if (d is null || d.CheckAccess()) return action();
+            return d.InvokeAsync(action).Task.Unwrap();
+        };
         var inMemoryLogSink = new InMemoryLogSink();
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
 
