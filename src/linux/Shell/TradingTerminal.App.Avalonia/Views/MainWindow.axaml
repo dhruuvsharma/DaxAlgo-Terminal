@@ -4,57 +4,102 @@
         xmlns:cat="using:TradingTerminal.UI.Catalog"
         x:Class="TradingTerminal.App.Avalonia.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Width="900" Height="680"
-        Title="DaxAlgo Terminal (Avalonia)">
-  <DockPanel Margin="16">
+        Width="1180" Height="780"
+        Background="{StaticResource Background.Primary}"
+        Title="DaxAlgo Terminal">
+  <DockPanel>
 
-    <!-- Header -->
-    <StackPanel DockPanel.Dock="Top" Spacing="4">
-      <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold"/>
-      <TextBlock Text="{Binding RuntimeInfo}" Opacity="0.7" TextWrapping="Wrap"/>
-      <TextBlock Text="{Binding CoreStatus}" Foreground="#4FC3F7"/>
-    </StackPanel>
+    <!-- Header strip (chrome gradient, amber wordmark) -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="14,8">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="DAXALGO" FontSize="18" FontWeight="Bold"
+                   Foreground="{StaticResource Text.Header}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="TERMINAL" FontSize="18" FontWeight="Bold"
+                   Foreground="{StaticResource Text.Primary}" Margin="6,0,0,0" VerticalAlignment="Center" />
+        <Border Grid.Column="3" Classes="card" Background="{StaticResource Bullish.Soft}"
+                BorderBrush="{StaticResource Bullish.Brush}" Padding="7,2" VerticalAlignment="Center">
+          <TextBlock Text="LINUX · AVALONIA" Foreground="{StaticResource Bullish.Brush}"
+                     FontSize="10" FontWeight="Bold" />
+        </Border>
+      </Grid>
+    </Border>
 
-    <!-- Activity Log (shared InMemoryLogSink) -->
-    <Grid DockPanel.Dock="Bottom" RowDefinitions="Auto,130" Margin="0,12,0,0">
-      <TextBlock Grid.Row="0" Text="Activity Log (shared InMemoryLogSink)" FontWeight="SemiBold" Margin="0,0,0,4"/>
-      <Border Grid.Row="1" BorderBrush="#333" BorderThickness="1" CornerRadius="3">
-        <ListBox ItemsSource="{Binding ActivityLog.Entries}" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12">
+    <!-- Menu bar -->
+    <Menu DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}">
+      <MenuItem Header="_File">
+        <MenuItem Header="E_xit" Click="OnExit" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="Toggle _Activity Log" Click="OnToggleActivityLog" />
+      </MenuItem>
+      <MenuItem Header="Open _Strategy" Click="OnOpenStrategy" />
+    </Menu>
+
+    <!-- Status bar -->
+    <Border DockPanel.Dock="Bottom" Background="{StaticResource Gradient.Chrome}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0" Padding="12,4">
+      <TextBlock Classes="muted mono" FontSize="11" Text="{Binding RuntimeInfo}" />
+    </Border>
+
+    <!-- Activity-log drawer -->
+    <Border x:Name="ActivityDrawer" DockPanel.Dock="Bottom" Classes="panel" Height="150"
+            BorderThickness="0,1,0,0">
+      <DockPanel Margin="10,6">
+        <TextBlock DockPanel.Dock="Top" Classes="section" Text="ACTIVITY LOG" Margin="0,0,0,4" />
+        <ListBox ItemsSource="{Binding ActivityLog.Entries}" Background="Transparent" BorderThickness="0">
           <ListBox.ItemTemplate>
             <DataTemplate>
-              <TextBlock Text="{Binding Message}"/>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </Border>
-    </Grid>
-
-    <!-- Strategy catalog: master list + details (bound to the shared StrategyCatalogViewModel) -->
-    <Grid ColumnDefinitions="2*,3*" Margin="0,14,0,0">
-      <DockPanel Grid.Column="0" Margin="0,0,12,0">
-        <TextBlock DockPanel.Dock="Top" Text="Strategy catalog" FontWeight="SemiBold" Margin="0,0,0,6"/>
-        <ListBox ItemsSource="{Binding Catalog.Items}"
-                 SelectedItem="{Binding Catalog.SelectedItem}">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="cat:StrategyCatalogItem">
-              <StackPanel Spacing="1" Margin="2">
-                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding Id}" Opacity="0.6" FontSize="11"/>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Classes="mono muted" FontSize="11" Text="{Binding Source}" Width="80" />
+                <TextBlock Classes="mono" FontSize="11" Text="{Binding Message}" />
               </StackPanel>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
       </DockPanel>
+    </Border>
 
-      <Border Grid.Column="1" BorderBrush="#333" BorderThickness="1" CornerRadius="3" Padding="12">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Details" FontWeight="SemiBold"/>
-          <TextBlock Text="{Binding Catalog.Details}"
-                     FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
-          <Button Name="OpenStrategyButton" Content="Open strategy window" Click="OnOpenStrategy" Margin="0,8,0,0"/>
-          <TextBlock Text="(Ornstein-Uhlenbeck is the first ported per-strategy window.)"
-                     Opacity="0.6" FontSize="11" TextWrapping="Wrap"/>
-        </StackPanel>
+    <!-- Strategy catalog (fills) -->
+    <Grid ColumnDefinitions="*,320" Margin="12">
+      <DockPanel Grid.Column="0" Margin="0,0,12,0">
+        <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14" Text="STRATEGY CATALOG"
+                   Margin="2,0,0,8" />
+        <ListBox ItemsSource="{Binding Catalog.Items}" SelectedItem="{Binding Catalog.SelectedItem}"
+                 Background="Transparent" BorderThickness="0" DoubleTapped="OnOpenStrategy">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="cat:StrategyCatalogItem">
+              <Border Classes="card" Width="240" Height="92" Margin="5" Padding="12,10">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding DisplayName}" Classes="header" FontSize="13" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Id}" Classes="mono muted" FontSize="11" />
+                  <Border Background="{StaticResource Accent.Soft}" CornerRadius="2" Padding="5,1"
+                          HorizontalAlignment="Left" Margin="0,4,0,0">
+                    <TextBlock Text="{Binding ParameterCount, StringFormat='{}{0} params'}"
+                               Foreground="{StaticResource Accent.Brush}" FontSize="10" />
+                  </Border>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <!-- Details + open -->
+      <Border Grid.Column="1" Classes="card" Padding="14">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Classes="section" Text="DETAILS" Margin="0,0,0,8" />
+          <Button DockPanel.Dock="Bottom" Classes="accent" Content="OPEN STRATEGY WINDOW"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  Click="OnOpenStrategy" Margin="0,8,0,0" />
+          <TextBlock Classes="mono" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
+                     Text="{Binding Catalog.Details}" />
+        </DockPanel>
       </Border>
     </Grid>
   </DockPanel>

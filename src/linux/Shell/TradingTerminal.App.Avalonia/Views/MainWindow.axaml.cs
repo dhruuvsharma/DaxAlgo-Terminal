@@ -19,6 +19,14 @@ public partial class MainWindow : Window
 {
     public MainWindow() => InitializeComponent();
 
+    private void OnExit(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnToggleActivityLog(object? sender, RoutedEventArgs e)
+    {
+        if (this.FindControl<Border>("ActivityDrawer") is { } drawer)
+            drawer.IsVisible = !drawer.IsVisible;
+    }
+
     // Opens the Avalonia window for the selected strategy. Ported strategies resolve their portable
     // VM from DI; Ornstein-Uhlenbeck has a bespoke window (with param editors), the others use the
     // GenericStrategyWindow (common base surface). Unported strategies log a note to the Activity Log.

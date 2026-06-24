@@ -1,0 +1,65 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Bloomberg-inspired palette ported 1:1 from the WPF theme (TradingTerminal.UI/Themes/Brushes.xaml):
+       pure-black canvas, amber/orange chrome, saturated green/red P&L, cyan secondary highlights. -->
+
+  <!-- Backgrounds -->
+  <Color x:Key="Background.Primary.Color">#000000</Color>
+  <Color x:Key="Background.Surface.Color">#0A0A0A</Color>
+  <Color x:Key="Background.Elevated.Color">#141414</Color>
+  <Color x:Key="Border.Color">#2A2A2A</Color>
+  <Color x:Key="Surface.Hover.Color">#1C1C1C</Color>
+  <Color x:Key="Border.Strong.Color">#3A3A3A</Color>
+
+  <!-- Text -->
+  <Color x:Key="Text.Primary.Color">#E8E8E8</Color>
+  <Color x:Key="Text.Secondary.Color">#8A8A8A</Color>
+  <Color x:Key="Text.Header.Color">#FFB000</Color>
+  <Color x:Key="Text.Highlight.Color">#00BFFF</Color>
+
+  <!-- Semantic -->
+  <Color x:Key="Accent.Color">#FF8C00</Color>
+  <Color x:Key="Accent.Dim.Color">#A65A00</Color>
+  <Color x:Key="Accent.Hover.Color">#FFA733</Color>
+  <Color x:Key="Bullish.Color">#00C853</Color>
+  <Color x:Key="Bearish.Color">#FF1744</Color>
+  <Color x:Key="Danger.Color">#FF1744</Color>
+  <Color x:Key="Warning.Color">#FFD600</Color>
+
+  <!-- Brushes -->
+  <SolidColorBrush x:Key="Background.Primary"  Color="#000000" />
+  <SolidColorBrush x:Key="Background.Surface"  Color="#0A0A0A" />
+  <SolidColorBrush x:Key="Background.Elevated" Color="#141414" />
+  <SolidColorBrush x:Key="Border.Brush"        Color="#2A2A2A" />
+  <SolidColorBrush x:Key="Surface.Hover"       Color="#1C1C1C" />
+  <SolidColorBrush x:Key="Border.Strong"       Color="#3A3A3A" />
+  <SolidColorBrush x:Key="Text.Primary"        Color="#E8E8E8" />
+  <SolidColorBrush x:Key="Text.Secondary"      Color="#8A8A8A" />
+  <SolidColorBrush x:Key="Text.Header"         Color="#FFB000" />
+  <SolidColorBrush x:Key="Text.Highlight"      Color="#00BFFF" />
+  <SolidColorBrush x:Key="Accent.Brush"        Color="#FF8C00" />
+  <SolidColorBrush x:Key="Accent.Dim.Brush"    Color="#A65A00" />
+  <SolidColorBrush x:Key="Accent.Hover.Brush"  Color="#FFA733" />
+  <SolidColorBrush x:Key="Bullish.Brush"       Color="#00C853" />
+  <SolidColorBrush x:Key="Bearish.Brush"       Color="#FF1744" />
+  <SolidColorBrush x:Key="Danger.Brush"        Color="#FF1744" />
+  <SolidColorBrush x:Key="Warning.Brush"       Color="#FFD600" />
+  <SolidColorBrush x:Key="Accent.Soft"   Color="#26FF8C00" />
+  <SolidColorBrush x:Key="Bullish.Soft"  Color="#2600C853" />
+  <SolidColorBrush x:Key="Bearish.Soft"  Color="#26FF1744" />
+  <SolidColorBrush x:Key="Highlight.Soft" Color="#2600BFFF" />
+
+  <!-- Gradients (chrome bars, panels, headers) -->
+  <LinearGradientBrush x:Key="Gradient.Chrome" StartPoint="0%,0%" EndPoint="0%,100%">
+    <GradientStop Color="#1A1A1A" Offset="0" />
+    <GradientStop Color="#0C0C0C" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Gradient.Elevated" StartPoint="0%,0%" EndPoint="0%,100%">
+    <GradientStop Color="#1E1E1E" Offset="0" />
+    <GradientStop Color="#121212" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Gradient.Header" StartPoint="0%,0%" EndPoint="100%,0%">
+    <GradientStop Color="#2A1E07" Offset="0" />
+    <GradientStop Color="#0C0C0C" Offset="1" />
+  </LinearGradientBrush>
+</ResourceDictionary>
