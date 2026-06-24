@@ -75,6 +75,7 @@ public static class ServiceConfiguration
             return new StrategyCatalogViewModel(registry.All, msg => log.Append("Catalog", "INFO", msg));
         });
         services.AddSingleton<MainWindowViewModel>();
+        services.AddTransient<Login.LoginViewModel>();
 
         return services.BuildServiceProvider();
     }

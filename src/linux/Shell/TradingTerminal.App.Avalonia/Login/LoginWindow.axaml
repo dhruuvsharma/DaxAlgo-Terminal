@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:login="using:TradingTerminal.App.Avalonia.Login"
+        x:Class="TradingTerminal.App.Avalonia.Login.LoginWindow"
+        x:DataType="login:LoginViewModel"
+        Width="560" Height="560"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False"
+        Background="{StaticResource Background.Primary}"
+        Title="DaxAlgo Terminal — Sign in">
+  <DockPanel Margin="0">
+    <!-- Brand header -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="24,18">
+      <StackPanel Spacing="2">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="DAXALGO" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Text.Header}" />
+          <TextBlock Text="TERMINAL" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Text.Primary}" />
+        </StackPanel>
+        <TextBlock Text="Multi-broker market data &amp; signals · Linux build" Classes="muted" FontSize="12" />
+      </StackPanel>
+    </Border>
+
+    <!-- Connect bar -->
+    <Border DockPanel.Dock="Bottom" Padding="24,16" Background="{StaticResource Background.Surface}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Classes="accent" Content="CONNECT"
+                Command="{Binding ConnectCommand}" IsEnabled="{Binding !IsConnecting}"
+                MinWidth="120" HorizontalContentAlignment="Center" />
+        <TextBlock Text="{Binding Status}" Classes="muted mono" FontSize="11"
+                   VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+      </DockPanel>
+    </Border>
+
+    <!-- Broker list -->
+    <StackPanel Margin="24,16" Spacing="8">
+      <TextBlock Text="DATA SOURCE" Classes="section" />
+      <ListBox ItemsSource="{Binding Brokers}" SelectedItem="{Binding SelectedBroker}" MaxHeight="320">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="login:BrokerOption">
+            <StackPanel Spacing="2" Margin="2,4">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding DisplayName}" Classes="header" FontSize="13" />
+                <Border Background="{StaticResource Bullish.Soft}" CornerRadius="2" Padding="5,0"
+                        IsVisible="{Binding !IsLive}">
+                  <TextBlock Text="OFFLINE / SIM" Foreground="{StaticResource Bullish.Brush}" FontSize="9" />
+                </Border>
+              </StackPanel>
+              <TextBlock Text="{Binding Description}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </StackPanel>
+  </DockPanel>
+</Window>

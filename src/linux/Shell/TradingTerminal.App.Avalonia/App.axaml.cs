@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Avalonia.Composition;
+using TradingTerminal.App.Avalonia.Login;
 using TradingTerminal.App.Avalonia.Shell;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -30,10 +31,18 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            // Show the login screen first; hand off to the main shell once a broker connects
+            // (mirrors the WPF ILoginShellFactory/IMainShellFactory handoff).
+            var loginVm = Services.GetRequiredService<LoginViewModel>();
+            var login = new LoginWindow { DataContext = loginVm };
+            loginVm.Connected += _ => Dispatcher.UIThread.Post(() =>
             {
-                DataContext = Services.GetRequiredService<MainWindowViewModel>(),
-            };
+                var main = new MainWindow { DataContext = Services!.GetRequiredService<MainWindowViewModel>() };
+                desktop.MainWindow = main;
+                main.Show();
+                login.Close();
+            });
+            desktop.MainWindow = login;
         }
 
         base.OnFrameworkInitializationCompleted();
