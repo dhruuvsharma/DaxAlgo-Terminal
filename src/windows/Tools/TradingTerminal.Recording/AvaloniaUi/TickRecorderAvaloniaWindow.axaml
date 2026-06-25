@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.Recording.AvaloniaUi.TickRecorderAvaloniaWindow"
+        Width="720" Height="560"
+        Background="{DynamicResource Background.Primary}"
+        Title="Record live ticks">
+  <DockPanel Margin="14">
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <TextBlock Text="Record live ticks" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Text.Header}"/>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <ComboBox MinWidth="180" ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}">
+          <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}"/></DataTemplate></ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBox Width="220" Watermark="Output parquet…" Text="{Binding OutputPath}"/>
+        <Button Content="Browse…" Command="{Binding BrowseOutputCommand}"/>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Classes="accent" Content="Start" Command="{Binding StartCommand}"/>
+        <Button Content="Stop" Command="{Binding StopCommand}"/>
+        <TextBlock Text="{Binding Elapsed, StringFormat='Elapsed: {0}'}" VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}"/>
+        <TextBlock Text="{Binding TicksWritten, StringFormat='Ticks: {0}'}" VerticalAlignment="Center" Foreground="{DynamicResource Accent.Brush}"/>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <TextBlock Text="{Binding LastBid, StringFormat='Bid: {0}'}"/>
+        <TextBlock Text="{Binding LastAsk, StringFormat='Ask: {0}'}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ValidationError}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <DockPanel Margin="0,10,0,0">
+      <TextBlock DockPanel.Dock="Top" Text="Recent ticks" FontWeight="SemiBold" Margin="0,0,0,4"/>
+      <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+        <ListBox ItemsSource="{Binding RecentTicks}" Background="{DynamicResource Background.Surface}" FontSize="11"/>
+      </Border>
+    </DockPanel>
+  </DockPanel>
+</Window>

@@ -8,7 +8,9 @@ public static class RecordingServiceCollectionExtensions
     public static IServiceCollection AddRecordingSurface(this IServiceCollection services)
     {
         services.AddTransient<TickRecorderViewModel>();
+#if WINDOWS
         services.AddTransient<TickRecorderView>();
+#endif
         return services;
     }
 }

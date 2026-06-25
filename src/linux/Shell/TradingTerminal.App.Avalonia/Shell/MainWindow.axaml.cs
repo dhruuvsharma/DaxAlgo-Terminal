@@ -93,6 +93,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
     }
 
+    private void OnRecorder(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.Recording.TickRecorderViewModel>();
+        ShowDisposing(new TradingTerminal.Recording.AvaloniaUi.TickRecorderAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Tools", "INFO", "Opened Record live ticks.");
+    }
+
     private void OnBacktestStudio(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;

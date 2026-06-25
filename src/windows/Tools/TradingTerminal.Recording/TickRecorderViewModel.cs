@@ -3,7 +3,6 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -62,16 +61,11 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string? _validationError;
 
     [RelayCommand]
-    private void BrowseOutput()
+    private async Task BrowseOutput()
     {
-        var dlg = new SaveFileDialog
-        {
-            Filter = "Parquet files (*.parquet)|*.parquet|All files (*.*)|*.*",
-            DefaultExt = ".parquet",
-            FileName = Path.GetFileName(OutputPath),
-            InitialDirectory = Path.GetDirectoryName(OutputPath),
-        };
-        if (dlg.ShowDialog() == true) OutputPath = dlg.FileName;
+        var path = await UiFile.SaveAsync("Parquet files", new[] { "parquet" },
+            string.IsNullOrEmpty(OutputPath) ? "ticks.parquet" : Path.GetFileName(OutputPath));
+        if (path is not null) OutputPath = path;
     }
 
     [RelayCommand]

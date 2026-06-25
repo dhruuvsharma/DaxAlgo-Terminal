@@ -103,6 +103,7 @@ public static class ServiceConfiguration
         services.AddTransient<TradingTerminal.AdvancedMarketRegime.AdvancedMarketRegimeViewModel>();
         services.AddTransient<TradingTerminal.MarkovRegime.MarkovRegimeViewModel>();
         services.AddBacktestStudioSurface();
+        services.AddTransient<TradingTerminal.Recording.TickRecorderViewModel>();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();
