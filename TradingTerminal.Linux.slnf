@@ -31,6 +31,7 @@
       "src\\windows\\Tools\\TradingTerminal.MarkovRegime\\TradingTerminal.MarkovRegime.csproj",
       "src\\windows\\Tools\\TradingTerminal.BacktestStudio\\TradingTerminal.BacktestStudio.csproj",
       "src\\windows\\Tools\\TradingTerminal.Recording\\TradingTerminal.Recording.csproj",
+      "src\\windows\\Tools\\TradingTerminal.LseBacktest\\TradingTerminal.LseBacktest.csproj",
       "tests\\TradingTerminal.Tests.Headless\\TradingTerminal.Tests.Headless.csproj"
     ]
   }

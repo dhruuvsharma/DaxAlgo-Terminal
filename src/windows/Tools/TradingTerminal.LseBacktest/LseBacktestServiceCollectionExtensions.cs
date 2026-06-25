@@ -14,7 +14,9 @@ public static class LseBacktestServiceCollectionExtensions
     {
         services.AddTransient<IBacktestSession, BacktestSession>();
         services.AddTransient<LseBacktestViewModel>();
+#if WINDOWS
         services.AddTransient<LseBacktestView>();
+#endif
         return services;
     }
 }

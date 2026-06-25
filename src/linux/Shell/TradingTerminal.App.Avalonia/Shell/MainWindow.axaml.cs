@@ -93,6 +93,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
     }
 
+    private void OnLseBacktest(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.LseBacktest.LseBacktestViewModel>();
+        ShowDisposing(new TradingTerminal.LseBacktest.AvaloniaUi.LseBacktestAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("LSE", "INFO", "Opened LSE backtester.");
+    }
+
     private void OnRecorder(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;

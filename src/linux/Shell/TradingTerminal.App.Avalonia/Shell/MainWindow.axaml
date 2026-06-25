@@ -165,7 +165,7 @@
         <MenuItem Header="_Live correlation matrix…" Click="OnNotPorted" />
       </MenuItem>
       <MenuItem Header="_LSE Tools">
-        <MenuItem Header="LSE _backtester…" Click="OnNotPorted" />
+        <MenuItem Header="LSE _backtester…" Click="OnLseBacktest" />
       </MenuItem>
       <MenuItem Header="_Charts">
         <MenuItem Header="C_harts…" Click="OnCharts" />
