@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.App.Avalonia.Settings.ArchiveSettingsWindow"
+        Width="620" Height="640"
+        Background="{StaticResource Background.Primary}"
+        Title="Market-data archive">
+  <ScrollViewer Margin="16">
+    <StackPanel Spacing="8">
+      <TextBlock Text="Market-data archive (Telegram)" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text.Header}"/>
+
+      <TextBlock Text="Telegram account" FontWeight="SemiBold" Margin="0,6,0,0"/>
+      <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" >
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="API id" VerticalAlignment="Center" Margin="0,0,8,4"/>
+        <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding ApiId}" Minimum="0" Margin="0,0,0,4"/>
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="API hash" VerticalAlignment="Center" Margin="0,0,8,4"/>
+        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ApiHash}" Margin="0,0,0,4"/>
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Phone" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding PhoneNumber}"/>
+      </Grid>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="Log in to Telegram" Command="{Binding LoginToTelegramCommand}"/>
+        <TextBlock Text="{Binding TelegramStatus}" VerticalAlignment="Center" Foreground="{StaticResource Text.Secondary}"/>
+      </StackPanel>
+
+      <TextBlock Text="Schedule" FontWeight="SemiBold" Margin="0,10,0,0"/>
+      <CheckBox Content="Enabled" IsChecked="{Binding Enabled}"/>
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <CheckBox Content="Quotes" IsChecked="{Binding IncludeQuotes}"/>
+        <CheckBox Content="Bars" IsChecked="{Binding IncludeBars}"/>
+        <CheckBox Content="Trades" IsChecked="{Binding IncludeTrades}"/>
+        <CheckBox Content="Depth" IsChecked="{Binding IncludeDepth}"/>
+      </StackPanel>
+      <CheckBox Content="Verify after upload" IsChecked="{Binding VerifyAfterUpload}"/>
+      <CheckBox Content="Delete local data after archive" IsChecked="{Binding DeleteLocalAfterArchive}"/>
+
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+        <Button Classes="accent" Content="Save" Command="{Binding SaveCommand}"/>
+        <Button Content="Offload now" Command="{Binding OffloadNowCommand}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

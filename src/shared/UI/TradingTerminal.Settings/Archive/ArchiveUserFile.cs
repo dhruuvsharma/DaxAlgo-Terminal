@@ -11,7 +11,7 @@ namespace TradingTerminal.App.Archive;
 /// reloadOnChange so IOptionsMonitor sees edits without an app restart. Mirrors
 /// <see cref="Notifications.NotificationsUserFile"/>.
 /// </summary>
-internal static class ArchiveUserFile
+public static class ArchiveUserFile
 {
     public static string Path { get; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

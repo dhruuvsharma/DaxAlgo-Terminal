@@ -9,6 +9,7 @@ using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.MarketData;
+using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Research;
 using TradingTerminal.Strategies.CumulativeDelta;
@@ -65,6 +66,10 @@ public static class ServiceConfiguration
         services.AddAiAnalyst(configuration);
         // Paper Lab research/repro seams (IPaperIngestClient/IReproOrchestrator Null defaults).
         services.AddPaperResearch(configuration);
+        // Market-data archive (offloader + manifest store + Telegram transport). Uses the headless
+        // NullTelegramAuthPrompt — the archive UI works; the Telegram verification-code modal is a
+        // later Avalonia piece.
+        services.AddMarketDataArchive(configuration);
         services.AddBacktestStrategyCatalog();
 
         // Strategy plug-in seam — the SAME factory the WPF shell uses. Every strategy resolves and
@@ -115,6 +120,8 @@ public static class ServiceConfiguration
         // Roslyn strategy compiler backs the authoring window.
         services.TryAddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler,
             TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
+        services.AddTransient<TradingTerminal.App.Archive.ArchiveSettingsViewModel>();
+        services.AddTransient<TradingTerminal.App.Archive.ArchiveActivityViewModel>();
         services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
         services.AddTransient<TradingTerminal.Ai.MlFeatures.MlFeaturesViewModel>();
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();

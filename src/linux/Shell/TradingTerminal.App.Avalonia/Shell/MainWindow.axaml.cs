@@ -195,6 +195,22 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("AI", "INFO", "Opened Backtest analysis.");
     }
 
+    private void OnArchiveSettings(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Archive.ArchiveSettingsViewModel>();
+        ShowDisposing(new Settings.ArchiveSettingsWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Data", "INFO", "Opened Market-data archive.");
+    }
+
+    private void OnArchiveHistory(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Archive.ArchiveActivityViewModel>();
+        ShowDisposing(new Settings.ArchiveActivityWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Data", "INFO", "Opened Archive history.");
+    }
+
     private void OnNotifications(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;
