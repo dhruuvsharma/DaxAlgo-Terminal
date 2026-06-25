@@ -157,7 +157,7 @@
         <MenuItem Header="_Theme (Dark)" IsEnabled="False" />
       </MenuItem>
       <MenuItem Header="_Tools">
-        <MenuItem Header="_Backtest Studio…" Click="OnNotPorted" />
+        <MenuItem Header="_Backtest Studio…" Click="OnBacktestStudio" />
         <MenuItem Header="_Record live ticks…" Click="OnNotPorted" />
         <MenuItem Header="Mar_kov regime…" Click="OnMarkovRegime" />
         <MenuItem Header="_Advanced market regime…" Click="OnAdvancedRegime" />

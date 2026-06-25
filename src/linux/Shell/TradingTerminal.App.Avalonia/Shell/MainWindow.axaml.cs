@@ -93,6 +93,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
     }
 
+    private void OnBacktestStudio(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.BacktestStudio.BacktestStudioViewModel>();
+        ShowDisposing(new TradingTerminal.BacktestStudio.AvaloniaUi.BacktestStudioAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Tools", "INFO", "Opened Backtest Studio.");
+    }
+
     private void OnMarkovRegime(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;

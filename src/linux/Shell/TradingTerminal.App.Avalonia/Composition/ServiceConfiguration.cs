@@ -18,6 +18,7 @@ using TradingTerminal.Strategies.IndexRegimeGraph;
 using TradingTerminal.Strategies.OrderFlowCube;
 using TradingTerminal.Strategies.OrderFlowPressureMap;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
+using TradingTerminal.BacktestStudio;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.SigmaIcFlow;
@@ -101,6 +102,7 @@ public static class ServiceConfiguration
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();
         services.AddTransient<TradingTerminal.AdvancedMarketRegime.AdvancedMarketRegimeViewModel>();
         services.AddTransient<TradingTerminal.MarkovRegime.MarkovRegimeViewModel>();
+        services.AddBacktestStudioSurface();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();

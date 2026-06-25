@@ -32,7 +32,9 @@ public static class BacktestStudioServiceCollectionExtensions
             return new StrategyKernelRegistry(descriptors);
         });
         services.AddTransient<BacktestStudioViewModel>();
+#if WINDOWS
         services.AddTransient<BacktestStudioView>();
+#endif
         return services;
     }
 }

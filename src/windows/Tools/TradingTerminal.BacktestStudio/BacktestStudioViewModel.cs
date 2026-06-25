@@ -1,10 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Engine.Feeds;
 using TradingTerminal.Backtest.Engine.Optimization;
@@ -30,7 +28,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private readonly IMarketDataStore _store;
     private readonly IInstrumentRegistry _instruments;
     private readonly ILogger<BacktestStudioViewModel> _logger;
-    private readonly DispatcherTimer _playback;
+    private IDisposable? _playback;
     private static readonly InstrumentId SynthInstrument = new(1);
 
     private CancellationTokenSource? _runCts;
@@ -53,9 +51,6 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         WalkForwardRows = new ObservableCollection<WalkForwardRowViewModel>();
         Criteria = Enum.GetValues<OptimizationCriterion>();
         Methods = Enum.GetValues<OptimizationMethod>();
-
-        _playback = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
-        _playback.Tick += OnPlaybackTick;
 
         SelectedCriterion = OptimizationCriterion.Sharpe;
         SelectedStrategy = Strategies.FirstOrDefault();
@@ -167,10 +162,10 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     partial void OnCurrentBarChanged(int value) => ReplayFrameChanged?.Invoke(this, EventArgs.Empty);
 
     [RelayCommand]
-    private void BrowseParquet()
+    private async Task BrowseParquet()
     {
-        var dlg = new OpenFileDialog { Filter = "Parquet (*.parquet)|*.parquet|All files (*.*)|*.*" };
-        if (dlg.ShowDialog() == true) ParquetPath = dlg.FileName;
+        var path = await UiFile.OpenAsync("Parquet files", new[] { "parquet" });
+        if (path is not null) ParquetPath = path;
     }
 
     /// <summary>Builds the feed factory + base run spec for the selected data source. Returns false with
@@ -311,7 +306,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         if (IsPlaying) { StopPlayback(); return; }
         if (CurrentBar >= BarCount) CurrentBar = 0; // restart if parked at the end
         IsPlaying = true;
-        _playback.Start();
+        // Portable playback timer — UI-thread ticks via the UiThread hook (was a WPF DispatcherTimer).
+        _playback = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(33), OnPlaybackTick);
     }
 
     [RelayCommand]
@@ -321,7 +317,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         CurrentBar = 0;
     }
 
-    private void OnPlaybackTick(object? sender, EventArgs e)
+    private void OnPlaybackTick()
     {
         var next = CurrentBar + Math.Max(1, (int)PlaybackSpeed);
         if (next >= BarCount)
@@ -337,7 +333,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     private void StopPlayback()
     {
-        _playback.Stop();
+        _playback?.Dispose();
+        _playback = null;
         IsPlaying = false;
     }
 
@@ -524,8 +521,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _playback.Tick -= OnPlaybackTick;
-        _playback.Stop();
+        _playback?.Dispose();
+        _playback = null;
         _runCts?.Cancel();
         _runCts?.Dispose();
         _runCts = null;
