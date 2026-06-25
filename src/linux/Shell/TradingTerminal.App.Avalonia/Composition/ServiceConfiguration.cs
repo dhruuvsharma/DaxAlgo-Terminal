@@ -10,6 +10,7 @@ using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
+using TradingTerminal.Infrastructure.Research;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
@@ -56,9 +57,14 @@ public static class ServiceConfiguration
         // Headless pipeline + broker layer (WPF-free on net9.0) and the backtest strategy catalog.
         services.AddTradingTerminalInfrastructure();
         services.AddMarketDataPipeline(configuration);
+        // Marshal repository/Paper-Lab UI work onto Avalonia's UI thread (overrides the headless
+        // ImmediateUiDispatcher default registered by the pipeline; last registration wins).
+        services.AddSingleton<TradingTerminal.Infrastructure.Threading.IUiDispatcher, AvaloniaUiDispatcher>();
         services.AddNotifications(configuration);
         // AI analyst seam (IAiAnalystClient Null/Http, hot-swappable via NotificationsOptions).
         services.AddAiAnalyst(configuration);
+        // Paper Lab research/repro seams (IPaperIngestClient/IReproOrchestrator Null defaults).
+        services.AddPaperResearch(configuration);
         services.AddBacktestStrategyCatalog();
 
         // Strategy plug-in seam — the SAME factory the WPF shell uses. Every strategy resolves and
@@ -99,6 +105,7 @@ public static class ServiceConfiguration
 
         // AI tool VMs (portable — ILogger-only ctors; file I/O via the UiFile seam).
         services.AddTransient<TradingTerminal.Ai.MarketAnalyst.AiAnalystViewModel>();
+        services.AddTransient<TradingTerminal.Ai.PaperLab.PaperLabViewModel>();
         services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
         services.AddTransient<TradingTerminal.Ai.MlFeatures.MlFeaturesViewModel>();
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();

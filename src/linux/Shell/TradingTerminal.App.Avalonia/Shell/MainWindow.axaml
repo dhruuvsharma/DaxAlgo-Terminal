@@ -191,7 +191,7 @@
         <MenuItem Header="_Backtest analysis…" Click="OnBacktestAnalysis" />
         <Separator />
         <MenuItem Header="_Market analyst…" Click="OnMarketAnalyst" />
-        <MenuItem Header="_Paper Lab…" Click="OnNotPorted" />
+        <MenuItem Header="_Paper Lab…" Click="OnPaperLab" />
       </MenuItem>
       <MenuItem Header="_Data">
         <MenuItem Header="_Market data archive…" Click="OnNotPorted" />

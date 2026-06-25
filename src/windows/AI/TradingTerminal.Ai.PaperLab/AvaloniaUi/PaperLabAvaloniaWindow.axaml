@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.Ai.PaperLab.AvaloniaUi.PaperLabAvaloniaWindow"
+        Width="820" Height="620"
+        Background="{DynamicResource Background.Primary}"
+        Title="Paper Lab">
+  <DockPanel Margin="14">
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <TextBlock Text="Paper Lab — reproduce a research paper" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Text.Header}"/>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Width="420" Watermark="arXiv URL or id…" Text="{Binding PaperUrl}"/>
+        <Button Classes="accent" Content="Resolve" Command="{Binding ResolveCommand}"/>
+        <Button Content="Cancel" Command="{Binding CancelResolveCommand}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding ResolvedPaperTitle}" FontWeight="SemiBold" IsVisible="{Binding PaperResolved}"/>
+      <TextBlock Text="{Binding ResolvedPaperArxivId, StringFormat='arXiv: {0}'}" Foreground="{DynamicResource Text.Secondary}" IsVisible="{Binding PaperResolved}"/>
+      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding PaperResolved}">
+        <TextBlock Text="Repo" VerticalAlignment="Center"/>
+        <ComboBox MinWidth="320" ItemsSource="{Binding CandidateRepos}" SelectedItem="{Binding SelectedRepo}">
+          <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Url}"/></DataTemplate></ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Classes="accent" Content="Reproduce" Command="{Binding SubmitCommand}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ConfidenceLabel}" Foreground="{DynamicResource Accent.Brush}" FontWeight="SemiBold"/>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="*,*" Margin="0,10,0,0">
+      <DockPanel Grid.Column="0" Margin="0,0,8,0">
+        <TextBlock DockPanel.Dock="Top" Text="Reproduction jobs" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+          <ListBox ItemsSource="{Binding Jobs}" Background="{DynamicResource Background.Surface}" FontSize="11"/>
+        </Border>
+      </DockPanel>
+      <DockPanel Grid.Column="1" Margin="8,0,0,0">
+        <TextBlock DockPanel.Dock="Top" Text="Confidence" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+          <ListBox ItemsSource="{Binding ConfidenceComponents}" Background="{DynamicResource Background.Surface}" FontSize="11">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Text="{Binding Name}" Width="160"/>
+                  <TextBlock Text="{Binding Score, StringFormat='{}{0:P0}'}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>

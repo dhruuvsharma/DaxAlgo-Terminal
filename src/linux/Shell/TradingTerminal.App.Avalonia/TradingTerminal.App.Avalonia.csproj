@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
+    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
     <!-- Tools windows. -->
     <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
     <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />

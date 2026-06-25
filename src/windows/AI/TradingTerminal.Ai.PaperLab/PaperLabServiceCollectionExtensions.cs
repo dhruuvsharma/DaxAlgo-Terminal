@@ -16,7 +16,9 @@ public static class PaperLabServiceCollectionExtensions
     public static IServiceCollection AddPaperLab(this IServiceCollection services)
     {
         services.AddTransient<PaperLabViewModel>();
+#if WINDOWS
         services.AddTransient<PaperLabView>();
+#endif
         return services;
     }
 }
