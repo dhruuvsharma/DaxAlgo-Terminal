@@ -4,7 +4,6 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Infrastructure.Backtest;
@@ -62,17 +61,17 @@ public sealed partial class BacktestAnalysisViewModel : ViewModelBase
     [ObservableProperty] private string _monteCarloSummary = "";
 
     [RelayCommand]
-    private void BrowseData()
+    private async Task BrowseData()
     {
-        var dlg = new OpenFileDialog { Filter = "Parquet files (*.parquet)|*.parquet|All files (*.*)|*.*" };
-        if (dlg.ShowDialog() == true) DataPath = dlg.FileName;
+        var path = await UiFile.OpenAsync("Parquet files", new[] { "parquet" });
+        if (path is not null) DataPath = path;
     }
 
     [RelayCommand]
-    private void BrowseTradesCsv()
+    private async Task BrowseTradesCsv()
     {
-        var dlg = new OpenFileDialog { Filter = "CSV (*.csv)|*.csv|All files (*.*)|*.*" };
-        if (dlg.ShowDialog() == true) TradesCsvPath = dlg.FileName;
+        var path = await UiFile.OpenAsync("CSV", new[] { "csv" });
+        if (path is not null) TradesCsvPath = path;
     }
 
     [RelayCommand]

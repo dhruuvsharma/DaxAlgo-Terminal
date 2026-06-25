@@ -9,11 +9,19 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, OrderFlowPressureMapStrategy>();
         services.AddTransient<OrderFlowPressureMapViewModel>();
+#if WINDOWS
         services.AddTransient<OrderFlowPressureMapWindow>();
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "orderflow.pressuremap",
             ViewFactory: sp => sp.GetRequiredService<OrderFlowPressureMapWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<OrderFlowPressureMapViewModel>()));
+#else
+        services.AddTransient<AvaloniaUi.OrderFlowPressureMapAvaloniaWindow>();
+        services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "orderflow.pressuremap",
+            ViewFactory: sp => sp.GetRequiredService<AvaloniaUi.OrderFlowPressureMapAvaloniaWindow>(),
+            ViewModelFactory: sp => sp.GetRequiredService<OrderFlowPressureMapViewModel>()));
+#endif
         return services;
     }
 }

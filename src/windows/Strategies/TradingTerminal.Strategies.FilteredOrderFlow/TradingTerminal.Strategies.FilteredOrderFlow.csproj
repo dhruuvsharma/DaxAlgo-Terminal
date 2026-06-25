@@ -26,6 +26,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
     <Compile Remove="FilteredOrderFlowWindow.xaml.cs" />
+    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

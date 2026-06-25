@@ -24,12 +24,24 @@
     <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
     <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
     <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
+    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
+    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
+    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
+    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
+    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
+    <!-- AI tool windows (portable VMs; file dialogs via the UiFile seam). -->
+    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
+    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
+    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.1" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
+    <!-- Cross-platform charting (the ScottPlot 5 Avalonia control) — replaces the WPF ScottPlot/WebView2
+         charts. Runs on Windows + Linux + ARM64 via SkiaSharp. -->
+    <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
     <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!-- DI container + config/logging for the shell composition root (mirrors the WPF App's MS.DI host). -->

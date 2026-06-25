@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.Ai.FactorResearch.AvaloniaUi.FactorResearchAvaloniaWindow"
+        Width="720" Height="560"
+        Background="{DynamicResource Background.Primary}"
+        Title="Factor research">
+  <DockPanel Margin="14">
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <TextBlock Text="Factor research" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Text.Header}"/>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Width="380" Watermark="Parquet tick file…" Text="{Binding DataPath}"/>
+        <Button Content="Browse…" Command="{Binding BrowseDataCommand}"/>
+        <Button Content="Compute" Command="{Binding ComputeCommand}"/>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <TextBlock Text="Bar ticks" VerticalAlignment="Center"/>
+        <NumericUpDown Width="110" Value="{Binding BarTicks}" Minimum="2"/>
+        <TextBlock Text="Vol window" VerticalAlignment="Center"/>
+        <NumericUpDown Width="110" Value="{Binding VolWindow}" Minimum="2"/>
+        <TextBlock Text="Feature" VerticalAlignment="Center"/>
+        <ComboBox ItemsSource="{Binding FeatureChoices}" SelectedItem="{Binding SelectedFeature}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ValidationError}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <DockPanel Margin="0,10,0,0">
+      <TextBlock DockPanel.Dock="Top" Text="Forward-return decile sort" FontWeight="SemiBold" Margin="0,0,0,4"/>
+      <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+        <ListBox ItemsSource="{Binding Deciles}" Background="{DynamicResource Background.Surface}"/>
+      </Border>
+    </DockPanel>
+  </DockPanel>
+</Window>

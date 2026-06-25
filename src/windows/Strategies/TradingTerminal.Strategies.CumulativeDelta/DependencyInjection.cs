@@ -16,6 +16,12 @@ public static class DependencyInjection
             StrategyId: "cumulative.delta.scalper",
             ViewFactory: sp => sp.GetRequiredService<CumulativeDeltaWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<CumulativeDeltaViewModel>()));
+#else
+        services.AddTransient<AvaloniaUi.CumulativeDeltaAvaloniaWindow>();
+        services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "cumulative.delta.scalper",
+            ViewFactory: sp => sp.GetRequiredService<AvaloniaUi.CumulativeDeltaAvaloniaWindow>(),
+            ViewModelFactory: sp => sp.GetRequiredService<CumulativeDeltaViewModel>()));
 #endif
 
         return services;

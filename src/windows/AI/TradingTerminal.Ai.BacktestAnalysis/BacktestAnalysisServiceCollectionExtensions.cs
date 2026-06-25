@@ -8,7 +8,9 @@ public static class BacktestAnalysisServiceCollectionExtensions
     public static IServiceCollection AddBacktestAnalysis(this IServiceCollection services)
     {
         services.AddTransient<BacktestAnalysisViewModel>();
+#if WINDOWS
         services.AddTransient<BacktestAnalysisView>();
+#endif
         return services;
     }
 }

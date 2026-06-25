@@ -3,13 +3,17 @@
   <!-- Global control styling so the Avalonia shell matches the Windows (WPF) terminal look:
        black canvas, amber headers/accents, monospace data, thin grey borders. -->
 
+  <!-- The whole terminal is monospace (Consolas) in WPF — match it app-wide so the Avalonia head
+       reads identically. FontSize 12 default, like the WPF Window/UserControl styles. -->
   <Style Selector="Window">
     <Setter Property="Background" Value="{StaticResource Background.Primary}" />
-    <Setter Property="FontFamily" Value="Segoe UI, Inter, sans-serif" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    <Setter Property="FontSize" Value="12" />
   </Style>
 
   <Style Selector="TextBlock">
     <Setter Property="Foreground" Value="{StaticResource Text.Primary}" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
   </Style>
   <!-- Convention classes used in the views -->
   <Style Selector="TextBlock.header">
@@ -17,35 +21,53 @@
     <Setter Property="FontWeight" Value="Bold" />
   </Style>
   <Style Selector="TextBlock.section">
-    <Setter Property="Foreground" Value="{StaticResource Accent.Brush}" />
-    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource Text.Header}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontSize" Value="11" />
   </Style>
   <Style Selector="TextBlock.muted">
     <Setter Property="Foreground" Value="{StaticResource Text.Secondary}" />
   </Style>
   <Style Selector="TextBlock.mono">
-    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
   </Style>
 
+  <!-- Default button: amber text on a gradient-elevated fill, rounded, strong border — matches the
+       WPF Button style (Foreground = Accent.Brush, Gradient.Elevated bg, CornerRadius 5). -->
   <Style Selector="Button">
-    <Setter Property="Background" Value="{StaticResource Background.Elevated}" />
-    <Setter Property="Foreground" Value="{StaticResource Text.Primary}" />
+    <Setter Property="Background" Value="{StaticResource Gradient.Elevated}" />
+    <Setter Property="Foreground" Value="{StaticResource Accent.Brush}" />
     <Setter Property="BorderBrush" Value="{StaticResource Border.Strong}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="2" />
-    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="MinHeight" Value="26" />
+    <Setter Property="Cursor" Value="Hand" />
   </Style>
   <Style Selector="Button:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{StaticResource Surface.Hover}" />
     <Setter Property="BorderBrush" Value="{StaticResource Accent.Brush}" />
     <Setter Property="TextBlock.Foreground" Value="{StaticResource Accent.Hover.Brush}" />
   </Style>
-  <!-- Primary action button: amber-filled -->
+  <!-- Primary action button: amber-filled, black text. -->
   <Style Selector="Button.accent">
-    <Setter Property="Background" Value="{StaticResource Accent.Brush}" />
+    <Setter Property="Background" Value="{StaticResource Gradient.Accent}" />
     <Setter Property="Foreground" Value="#000000" />
     <Setter Property="BorderBrush" Value="{StaticResource Accent.Brush}" />
     <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.accent:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Gradient.AccentHover}" />
+    <Setter Property="TextBlock.Foreground" Value="#000000" />
+  </Style>
+
+  <!-- Bloomberg "function-key" tile: amber gradient, small mono label (WPF BB.FnKey). -->
+  <Style Selector="Border.fnkey">
+    <Setter Property="Background" Value="{StaticResource Gradient.Accent}" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="5,1" />
+    <Setter Property="Margin" Value="0,0,4,0" />
   </Style>
 
   <Style Selector="Border.card">

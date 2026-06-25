@@ -1,16 +1,18 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ou="using:TradingTerminal.Strategies.OrnsteinUhlenbeck"
-        x:Class="TradingTerminal.App.Avalonia.Strategies.OrnsteinUhlenbeckWindow"
+        x:Class="TradingTerminal.Strategies.OrnsteinUhlenbeck.AvaloniaUi.OrnsteinUhlenbeckAvaloniaWindow"
         x:DataType="ou:OrnsteinUhlenbeckStrategyViewModel"
         Width="780" Height="600"
-        Title="Ornstein-Uhlenbeck mean reversion (Avalonia)">
+        Background="{DynamicResource Background.Primary}"
+        Title="Ornstein-Uhlenbeck mean reversion">
   <DockPanel Margin="14">
 
     <StackPanel DockPanel.Dock="Top" Spacing="4">
-      <TextBlock Text="{Binding StrategyDisplayName}" FontSize="18" FontWeight="Bold"/>
-      <TextBlock Text="{Binding Status}" Opacity="0.8" TextWrapping="Wrap"/>
-      <TextBlock Text="{Binding ValidationError}" Foreground="#E57373" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding StrategyDisplayName}" FontSize="18" FontWeight="Bold"
+                 Foreground="{DynamicResource Text.Header}"/>
+      <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ValidationError}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"/>
     </StackPanel>
 
     <!-- Action bar -->
@@ -57,8 +59,8 @@
       <!-- Right: live signals -->
       <DockPanel Grid.Column="1">
         <TextBlock DockPanel.Dock="Top" Text="Signals" FontWeight="SemiBold" Margin="0,0,0,4"/>
-        <Border BorderBrush="#333" BorderThickness="1" CornerRadius="3">
-          <ListBox ItemsSource="{Binding Signals}" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12">
+        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+          <ListBox ItemsSource="{Binding Signals}" FontSize="12">
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <TextBlock Text="{Binding}"/>

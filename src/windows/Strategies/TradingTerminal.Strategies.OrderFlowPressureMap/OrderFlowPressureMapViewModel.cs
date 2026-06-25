@@ -1,4 +1,3 @@
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -38,7 +37,7 @@ public sealed partial class OrderFlowPressureMapViewModel : ViewModelBase, IDisp
     private readonly List<IDisposable> _hubHandles = new();
     private readonly List<IDisposable> _ingestHandles = new();
     private CancellationTokenSource? _cts;
-    private DispatcherTimer? _renderTimer;
+    private IDisposable? _renderTimer;
     private volatile bool _dirty;
     private bool _ready;
     private bool _disposed;
@@ -323,25 +322,22 @@ public sealed partial class OrderFlowPressureMapViewModel : ViewModelBase, IDisp
 
     private void StartRenderTimer()
     {
+        // Portable coalescing render timer — ticks are marshalled to the UI thread (see UiThread).
         if (_renderTimer is not null) return;
-        _renderTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(Math.Max(250, _opt.GuiRefreshMs)),
-        };
-        _renderTimer.Tick += OnRenderTick;
-        _renderTimer.Start();
+        var interval = TimeSpan.FromMilliseconds(Math.Max(250, _opt.GuiRefreshMs));
+        _renderTimer = UiThread.CreateRenderTimer(interval, OnRenderTick);
     }
 
     private void StopRenderTimer()
     {
+        // Dispose stops the timer; a late in-flight tick is a harmless no-op (the _dirty guard
+        // in OnRenderTick short-circuits it).
         var timer = _renderTimer;
         _renderTimer = null;
-        if (timer is null) return;
-        timer.Stop();
-        timer.Tick -= OnRenderTick;
+        timer?.Dispose();
     }
 
-    private void OnRenderTick(object? sender, EventArgs e)
+    private void OnRenderTick()
     {
         UpdatePinnedLive();
         if (!_dirty) return;

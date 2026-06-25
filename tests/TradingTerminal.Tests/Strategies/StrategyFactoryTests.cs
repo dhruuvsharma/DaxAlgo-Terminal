@@ -3,10 +3,10 @@ using System.Windows.Controls;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using TradingTerminal.App.Strategies;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Strategies;
 using Xunit;
 
 namespace TradingTerminal.Tests.Strategies;

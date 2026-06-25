@@ -8,7 +8,9 @@ public static class FactorResearchServiceCollectionExtensions
     public static IServiceCollection AddFactorResearch(this IServiceCollection services)
     {
         services.AddTransient<FactorResearchViewModel>();
+#if WINDOWS
         services.AddTransient<FactorResearchView>();
+#endif
         return services;
     }
 }

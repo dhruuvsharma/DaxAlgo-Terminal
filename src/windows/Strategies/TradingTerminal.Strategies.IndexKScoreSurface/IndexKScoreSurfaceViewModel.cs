@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -58,7 +57,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     /// <summary>Coalesces intra-bar surface repaints across all N components down to a bounded
     /// render rate (~8 Hz) so a burst of quotes across the index family doesn't trigger a redraw
     /// storm. Set <see cref="_surfaceDirty"/> on each quote; the timer flushes one repaint.</summary>
-    private DispatcherTimer? _renderTimer;
+    private IDisposable? _renderTimer;
     private volatile bool _surfaceDirty;
     private static readonly TimeSpan RenderInterval = TimeSpan.FromMilliseconds(125);
 
@@ -295,21 +294,17 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     /// on the UI dispatcher; must be created on the UI thread.</summary>
     private void StartRenderTimer()
     {
-        // Guard against double-start: a rapid Stop→Start could otherwise leave two live timers
-        // (StopRenderTimer nulls the field on the UI thread, but if we re-create here before that
-        // action runs we'd orphan the old one). Caller is already on the UI thread.
+        // Guard against double-start (a rapid Stop→Start could otherwise orphan a live timer).
+        // Portable coalescing render timer — ticks are marshalled to the UI thread (see UiThread).
         if (_renderTimer is not null) return;
-        var timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = RenderInterval };
-        timer.Tick += OnRenderTick;
-        _renderTimer = timer;
-        timer.Start();
+        _renderTimer = UiThread.CreateRenderTimer(RenderInterval, OnRenderTick);
     }
 
     /// <summary>Coalesced repaint. Render-only: rebuilds the surface matrix (overlaying each
     /// component's provisional intra-bar K on the newest column) and fires <see cref="SurfaceChanged"/>.
     /// Does NOT touch the calculator, K-history, or aggregator — those stay bar-close-driven, so
     /// signal/entry semantics are unchanged.</summary>
-    private void OnRenderTick(object? sender, EventArgs e)
+    private void OnRenderTick()
     {
         if (!_surfaceDirty) return;
         _surfaceDirty = false;
@@ -696,15 +691,11 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     /// so a rapid Stop→Start cannot leave two live timers.</summary>
     private void StopRenderTimer()
     {
-        if (_renderTimer is null) return;
-        UiThread.RunAsync(() =>
-        {
-            var timer = _renderTimer;
-            if (timer is null) return;
-            _renderTimer = null;
-            timer.Stop();
-            timer.Tick -= OnRenderTick;
-        });
+        // Dispose stops the timer; a late in-flight tick is a harmless no-op (the dirty-flag guard
+        // in OnRenderTick short-circuits it).
+        var timer = _renderTimer;
+        _renderTimer = null;
+        timer?.Dispose();
     }
 
     private sealed class ComponentRuntime(IndexComponent component, IndexKScoreCalculator calc, TimeSpan barInterval)

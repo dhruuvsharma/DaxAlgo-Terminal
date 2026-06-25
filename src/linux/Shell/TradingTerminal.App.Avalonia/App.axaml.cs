@@ -1,6 +1,9 @@
+using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Avalonia.Composition;
@@ -25,6 +28,7 @@ public partial class App : Application
         // and the universal Activity Log run unchanged on Avalonia.
         InMemoryLogSink.UiPost = action => Dispatcher.UIThread.Post(action);
         UiThread.Marshal = MarshalToUiThread;
+        WireFilePicker();
 
         // Compose the headless DI graph and resolve the root VM from it (mirrors the WPF App).
         Services = ServiceConfiguration.Build();
@@ -46,6 +50,40 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    // Points the portable UiFile seam at Avalonia's StorageProvider (the cross-platform file picker),
+    // so tool VMs that load/save files work on the Avalonia head as they do on WPF.
+    private static void WireFilePicker()
+    {
+        UiFile.OpenAsync = async (desc, exts) =>
+        {
+            if (ActiveTopLevel()?.StorageProvider is not { } sp) return null;
+            var files = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType(desc) { Patterns = exts.Select(e => "*." + e).ToArray() } },
+            });
+            return files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        };
+        UiFile.SaveAsync = async (desc, exts, name) =>
+        {
+            if (ActiveTopLevel()?.StorageProvider is not { } sp) return null;
+            var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                SuggestedFileName = name,
+                FileTypeChoices = new[] { new FilePickerFileType(desc) { Patterns = exts.Select(e => "*." + e).ToArray() } },
+            });
+            return file?.TryGetLocalPath();
+        };
+    }
+
+    /// <summary>The active (or main) window to parent file dialogs to.</summary>
+    private static TopLevel? ActiveTopLevel()
+    {
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            return desktop.Windows.FirstOrDefault(w => w.IsActive) ?? desktop.MainWindow;
+        return null;
     }
 
     // Runs the work on Avalonia's UI thread and surfaces its completion/exception back to the caller.

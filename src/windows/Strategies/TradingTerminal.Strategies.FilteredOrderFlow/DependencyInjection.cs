@@ -16,6 +16,11 @@ public static class DependencyInjection
             StrategyId: "filtered.orderflow.imbalance",
             ViewFactory: sp => sp.GetRequiredService<FilteredOrderFlowWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<FilteredOrderFlowViewModel>()));
+#else
+        services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "filtered.orderflow.imbalance",
+            ViewFactory: _ => new global::TradingTerminal.UI.Avalonia.GenericStrategyWindow(),
+            ViewModelFactory: sp => sp.GetRequiredService<FilteredOrderFlowViewModel>()));
 #endif
 
         return services;

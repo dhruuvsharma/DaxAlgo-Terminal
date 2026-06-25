@@ -28,6 +28,14 @@
     <Compile Remove="CumulativeDeltaWindow.xaml.cs" />
   </ItemGroup>
 
+  <!-- Cross-platform (Avalonia) view on the net9.0 leg only (see Strategies.OrnsteinUhlenbeck). -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <Compile Remove="AvaloniaUi\**\*.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />

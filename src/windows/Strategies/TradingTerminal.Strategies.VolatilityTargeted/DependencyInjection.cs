@@ -15,6 +15,11 @@ public static class DependencyInjection
             StrategyId: "vol.targeted",
             ViewFactory: sp => sp.GetRequiredService<VolatilityTargetedStrategyWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<VolatilityTargetedStrategyViewModel>()));
+#else
+        services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "vol.targeted",
+            ViewFactory: _ => new global::TradingTerminal.UI.Avalonia.GenericStrategyWindow(),
+            ViewModelFactory: sp => sp.GetRequiredService<VolatilityTargetedStrategyViewModel>()));
 #endif
         return services;
     }

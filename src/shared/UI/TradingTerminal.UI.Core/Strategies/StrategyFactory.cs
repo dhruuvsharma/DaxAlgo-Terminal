@@ -1,17 +1,26 @@
-using System.Windows;
 using TradingTerminal.Core.Strategies;
-using TradingTerminal.UI;
 
-namespace TradingTerminal.App.Strategies;
+namespace TradingTerminal.UI.Strategies;
 
 /// <summary>
 /// DI-backed factory. Each registered strategy must also register a
 /// <see cref="StrategyFactoryRegistration"/> describing how to build its (view, vm) pair.
-/// The view may be a <see cref="System.Windows.Controls.UserControl"/> (rendered in a tab)
-/// or a <see cref="Window"/> (shown as a separate window).
+/// <para>
+/// Portable (WPF-free) so both the WPF shell and the Avalonia head open strategies through the
+/// same seam — the shell never names a concrete strategy type. The view may be a UserControl
+/// (rendered in a tab/host) or a Window (shown standalone); each UI head decides how to host it.
+/// </para>
 /// </summary>
 public sealed class StrategyFactory : IStrategyFactory
 {
+    /// <summary>
+    /// Assigns the resolved view-model to the resolved view's <c>DataContext</c>. Defaults to a
+    /// reflection-based assignment that works for both WPF (<c>FrameworkElement.DataContext</c>) and
+    /// Avalonia (<c>StyledElement.DataContext</c>), keeping this factory free of any UI framework
+    /// reference. A UI head may replace it with a typed binder if desired.
+    /// </summary>
+    public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
+
     private readonly IServiceProvider _provider;
     private readonly IReadOnlyDictionary<string, StrategyFactoryRegistration> _registrationsById;
 
@@ -33,9 +42,12 @@ public sealed class StrategyFactory : IStrategyFactory
             throw new KeyNotFoundException($"Strategy '{strategyId}' is not registered.");
 
         var meta = All.First(s => s.Id == strategyId);
-        var vm = (ViewModelBase)reg.ViewModelFactory(_provider);
-        var view = (FrameworkElement)reg.ViewFactory(_provider);
-        view.DataContext = vm;
+        var vm = reg.ViewModelFactory(_provider);
+        var view = reg.ViewFactory(_provider);
+        BindViewModel(view, vm);
         return new StrategyHost(strategyId, meta.DisplayName, view, vm);
     }
+
+    private static void DefaultBind(object view, object viewModel) =>
+        view.GetType().GetProperty("DataContext")?.SetValue(view, viewModel);
 }

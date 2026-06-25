@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Avalonia.Shell;
 using TradingTerminal.Core.Brokers;
@@ -11,13 +12,19 @@ using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
+using TradingTerminal.Strategies.IndexKScoreSurface;
+using TradingTerminal.Strategies.IndexRegimeGraph;
+using TradingTerminal.Strategies.OrderFlowCube;
+using TradingTerminal.Strategies.OrderFlowPressureMap;
+using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.SigmaIcFlow;
 using TradingTerminal.Strategies.VolatilityTargeted;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
-using TradingTerminal.UI.Catalog;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Strategies;
 
 namespace TradingTerminal.App.Avalonia.Composition;
 
@@ -48,6 +55,11 @@ public static class ServiceConfiguration
         services.AddNotifications(configuration);
         services.AddBacktestStrategyCatalog();
 
+        // Strategy plug-in seam — the SAME factory the WPF shell uses. Every strategy resolves and
+        // opens through IStrategyFactory.Create(id); the shell never names a concrete strategy. Each
+        // strategy project registers a StrategyFactoryRegistration (Avalonia view) on its net9.0 leg.
+        services.AddSingleton<IStrategyFactory, StrategyFactory>();
+
         // Shared live-strategy plumbing (same bundle the WPF shell injects into every per-strategy VM).
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
         services.AddSingleton(sp => new LiveStrategyHostServices(
@@ -66,14 +78,24 @@ public static class ServiceConfiguration
         services.AddFilteredOrderFlowStrategy();
         services.AddImbalanceHeatFrontStrategy();
         services.AddSigmaIcFlowStrategy();
+        // Index Regime Graph consumes the Advanced Market Regime engine (Infrastructure, net9.0).
+        services.TryAddSingleton<TradingTerminal.Core.MarketData.AdvancedRegime.IAdvancedRegimeProvider,
+            TradingTerminal.Infrastructure.Regime.AdvancedRegime.AdvancedRegimeService>();
+        services.AddIndexRegimeGraphStrategy();
+        services.AddOrderFlowPressureMapStrategy();
+        services.AddIndexKScoreSurfaceStrategy();
+        services.AddOrderFlowCubeStrategy();
+        services.AddOrderFlowSurfaceSpikeStrategy();
 
-        // Portable view-models (shared with the WPF shell).
-        services.AddSingleton<StrategyCatalogViewModel>(sp =>
-        {
-            var registry = sp.GetRequiredService<IBacktestStrategyRegistry>();
-            var log = sp.GetRequiredService<InMemoryLogSink>();
-            return new StrategyCatalogViewModel(registry.All, msg => log.Append("Catalog", "INFO", msg));
-        });
+        // Shell view-models. The header API meter polls IBrokerApiMeter (registered by the
+        // Infrastructure layer); MainWindowViewModel binds the catalog to IStrategyFactory.All.
+        services.AddSingleton<BrokerApiMeterViewModel>();
+
+        // AI tool VMs (portable — ILogger-only ctors; file I/O via the UiFile seam).
+        services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
+        services.AddTransient<TradingTerminal.Ai.MlFeatures.MlFeaturesViewModel>();
+        services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();
+
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();
 

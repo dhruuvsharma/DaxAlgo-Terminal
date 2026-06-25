@@ -8,7 +8,9 @@ public static class MlFeaturesServiceCollectionExtensions
     public static IServiceCollection AddMlFeatures(this IServiceCollection services)
     {
         services.AddTransient<MlFeaturesViewModel>();
+#if WINDOWS
         services.AddTransient<MlFeaturesView>();
+#endif
         return services;
     }
 }

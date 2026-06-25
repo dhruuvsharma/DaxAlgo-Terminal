@@ -16,6 +16,11 @@ public static class DependencyInjection
             StrategyId: "imbalance.heatfront",
             ViewFactory: sp => sp.GetRequiredService<ImbalanceHeatFrontWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<ImbalanceHeatFrontViewModel>()));
+#else
+        services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "imbalance.heatfront",
+            ViewFactory: _ => new global::TradingTerminal.UI.Avalonia.GenericStrategyWindow(),
+            ViewModelFactory: sp => sp.GetRequiredService<ImbalanceHeatFrontViewModel>()));
 #endif
 
         return services;

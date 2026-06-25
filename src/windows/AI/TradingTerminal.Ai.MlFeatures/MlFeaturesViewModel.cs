@@ -4,7 +4,6 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
@@ -46,13 +45,10 @@ public sealed partial class MlFeaturesViewModel : ViewModelBase
     [ObservableProperty] private string? _validationError;
 
     [RelayCommand]
-    private void BrowseData()
+    private async Task BrowseData()
     {
-        var dlg = new OpenFileDialog
-        {
-            Filter = "Parquet files (*.parquet)|*.parquet|All files (*.*)|*.*",
-        };
-        if (dlg.ShowDialog() == true) DataPath = dlg.FileName;
+        var path = await UiFile.OpenAsync("Parquet files", new[] { "parquet" });
+        if (path is not null) DataPath = path;
     }
 
     [RelayCommand]
@@ -146,12 +142,8 @@ public sealed partial class MlFeaturesViewModel : ViewModelBase
             ValidationError = "Compute first.";
             return;
         }
-        var dlg = new SaveFileDialog
-        {
-            Filter = "CSV (*.csv)|*.csv",
-            FileName = "features.csv",
-        };
-        if (dlg.ShowDialog() != true) return;
+        var savePath = await UiFile.SaveAsync("CSV", new[] { "csv" }, "features.csv");
+        if (savePath is null) return;
 
         try
         {
@@ -176,8 +168,8 @@ public sealed partial class MlFeaturesViewModel : ViewModelBase
                     lb.BarsToOutcome.ToString(ic),
                 }));
             }
-            await File.WriteAllLinesAsync(dlg.FileName, lines);
-            Status = $"Wrote {_labelled.Count} rows to {dlg.FileName}.";
+            await File.WriteAllLinesAsync(savePath, lines);
+            Status = $"Wrote {_labelled.Count} rows to {savePath}.";
         }
         catch (Exception ex)
         {

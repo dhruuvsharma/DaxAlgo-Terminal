@@ -8,6 +8,10 @@
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "DevSim"
       }
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
     }
   }
 }

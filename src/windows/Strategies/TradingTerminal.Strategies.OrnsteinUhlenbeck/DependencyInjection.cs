@@ -20,6 +20,14 @@ public static class DependencyInjection
             StrategyId: "ornstein.uhlenbeck",
             ViewFactory: sp => sp.GetRequiredService<OrnsteinUhlenbeckStrategyWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>()));
+#else
+        // Cross-platform (Avalonia) leg: register the Avalonia window against the same VM, so the
+        // Avalonia shell opens it through IStrategyFactory.Create("ornstein.uhlenbeck").
+        services.AddTransient<AvaloniaUi.OrnsteinUhlenbeckAvaloniaWindow>();
+        services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "ornstein.uhlenbeck",
+            ViewFactory: sp => sp.GetRequiredService<AvaloniaUi.OrnsteinUhlenbeckAvaloniaWindow>(),
+            ViewModelFactory: sp => sp.GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>()));
 #endif
         return services;
     }

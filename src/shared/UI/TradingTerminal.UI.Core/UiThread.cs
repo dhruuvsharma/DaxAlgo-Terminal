@@ -21,4 +21,30 @@ public static class UiThread
 
     /// <summary>Runs <paramref name="action"/> on the UI thread.</summary>
     public static Task RunAsync(Action action) => Marshal(() => { action(); return Task.CompletedTask; });
+
+    /// <summary>
+    /// Creates and starts a coalescing render timer firing <paramref name="tick"/> every
+    /// <paramref name="interval"/>; the returned <see cref="IDisposable"/> stops and releases it.
+    /// WPF-free so both UI heads share the VMs: the default uses a <see cref="System.Threading.Timer"/>
+    /// whose ticks are marshalled onto the UI thread via <see cref="Marshal"/>, so the tick body runs
+    /// where it can safely touch bound state (and inline under tests). A head may override this with
+    /// its native dispatcher timer if precise UI-thread cadence matters.
+    /// </summary>
+    public static Func<TimeSpan, Action, IDisposable> CreateRenderTimer { get; set; } = DefaultRenderTimer;
+
+    // Ownership: the timer is RETURNED as the IDisposable — the caller (the VM) owns it and stops it
+    // by disposing the handle in its own Dispose()/teardown (see the consuming VMs' StopRenderTimer:
+    // `_renderTimer?.Dispose()`). The factory cannot dispose it here (it would never fire), so the
+    // teardown lives in the returned handle.
+    private static IDisposable DefaultRenderTimer(TimeSpan interval, Action tick)
+    {
+        var timer = new System.Threading.Timer(_ => Marshal(() => { tick(); return Task.CompletedTask; }), null, interval, interval);
+        return new TimerHandle(timer);
+    }
+
+    /// <summary>Owns the render timer; disposing the handle stops + releases it.</summary>
+    private sealed class TimerHandle(System.Threading.Timer timer) : IDisposable
+    {
+        public void Dispose() => timer.Dispose();
+    }
 }

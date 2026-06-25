@@ -1,119 +1,375 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:TradingTerminal.App.Avalonia.Shell"
-        xmlns:cat="using:TradingTerminal.UI.Catalog"
+        xmlns:strat="using:TradingTerminal.Core.Strategies"
+        xmlns:log="using:TradingTerminal.UI.Logging"
         x:Class="TradingTerminal.App.Avalonia.Shell.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Width="1180" Height="780"
+        Width="1440" Height="860"
+        WindowStartupLocation="CenterScreen"
         Background="{StaticResource Background.Primary}"
         Title="DaxAlgo Terminal">
+
+  <Window.Resources>
+    <vm:StrategyDataRequirementConverter x:Key="DataReqPills" />
+    <vm:StrategyClassificationConverter x:Key="ClassPills" />
+    <vm:StringNotEmptyConverter x:Key="NotEmpty" />
+    <vm:ConnectionStateToBrushConverter x:Key="StateBrush" />
+    <vm:ApiStatusToBrushConverter x:Key="ApiBrush" />
+    <vm:SessionFlagToBrushConverter x:Key="SessionBrush" />
+    <vm:LogLevelToBrushConverter x:Key="LevelBrush" />
+  </Window.Resources>
+
   <DockPanel>
 
-    <!-- Header strip (chrome gradient, amber wordmark) -->
+    <!-- ───────── Header strip: wordmark · API meter · session badges · clocks ───────── -->
     <Border DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}"
-            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="14,8">
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-        <TextBlock Grid.Column="0" Text="DAXALGO" FontSize="18" FontWeight="Bold"
-                   Foreground="{StaticResource Text.Header}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1" Text="TERMINAL" FontSize="18" FontWeight="Bold"
-                   Foreground="{StaticResource Text.Primary}" Margin="6,0,0,0" VerticalAlignment="Center" />
-        <Border Grid.Column="3" Classes="card" Background="{StaticResource Bullish.Soft}"
-                BorderBrush="{StaticResource Bullish.Brush}" Padding="7,2" VerticalAlignment="Center">
-          <TextBlock Text="LINUX · AVALONIA" Foreground="{StaticResource Bullish.Brush}"
-                     FontSize="10" FontWeight="Bold" />
-        </Border>
+            BorderBrush="{StaticResource Accent.Brush}" BorderThickness="0,0,0,1" Padding="10,5">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <!-- Wordmark -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="DAXALGO" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" FontSize="13" />
+          <TextBlock Text=" TERMINAL" Foreground="{StaticResource Text.Primary}" FontWeight="Bold"
+                     FontSize="13" Margin="0,0,16,0" />
+          <Border Classes="fnkey" VerticalAlignment="Center">
+            <TextBlock Text="F1 HELP" Foreground="#000000" FontSize="10" FontWeight="Bold" />
+          </Border>
+        </StackPanel>
+
+        <!-- Right cluster -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+
+          <!-- API tracker: signal bars + count + status dot + ▾, with a per-broker dropdown -->
+          <Button Padding="9,3" Margin="0,0,16,0" VerticalAlignment="Center" CornerRadius="9"
+                  Background="{StaticResource Gradient.Elevated}" BorderBrush="{StaticResource Border.Strong}"
+                  ToolTip.Tip="API tracker — calls vs rate limits. Click for the per-broker breakdown.">
+            <StackPanel Orientation="Horizontal">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="13" Margin="0,0,7,0">
+                <Rectangle Width="3" Height="4"  Margin="0,0,1.5,0" VerticalAlignment="Bottom"
+                           Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
+                <Rectangle Width="3" Height="7"  Margin="0,0,1.5,0" VerticalAlignment="Bottom"
+                           Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
+                <Rectangle Width="3" Height="10" Margin="0,0,1.5,0" VerticalAlignment="Bottom"
+                           Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
+                <Rectangle Width="3" Height="13" VerticalAlignment="Bottom"
+                           Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
+              </StackPanel>
+              <TextBlock Text="API" FontWeight="Bold" FontSize="10" Foreground="{StaticResource Text.Header}"
+                         VerticalAlignment="Center" Margin="0,0,6,0" />
+              <TextBlock Text="{Binding ApiMeter.TotalCalls}" FontSize="10" Foreground="{StaticResource Text.Secondary}"
+                         VerticalAlignment="Center" Margin="0,0,6,0" />
+              <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"
+                       Fill="{Binding ApiMeter.OverallStatus, Converter={StaticResource ApiBrush}}" />
+              <TextBlock Text="▾" FontSize="10" Foreground="{StaticResource Text.Secondary}" VerticalAlignment="Center" />
+            </StackPanel>
+            <Button.Flyout>
+              <Flyout Placement="Bottom">
+                <Border Width="330" Background="{StaticResource Background.Elevated}"
+                        BorderBrush="{StaticResource Border.Strong}" BorderThickness="1" CornerRadius="8">
+                  <StackPanel>
+                    <Border CornerRadius="8,8,0,0" Padding="12,9" Background="{StaticResource Gradient.Header}">
+                      <StackPanel>
+                        <TextBlock Text="API Tracker" FontWeight="Bold" FontSize="12" Foreground="{StaticResource Text.Header}" />
+                        <TextBlock Text="calls vs soft rate limits · per broker" FontSize="10"
+                                   Foreground="{StaticResource Text.Secondary}" />
+                      </StackPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding ApiMeter.Chips}" Margin="4,4,4,2">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:BrokerApiChipViewModel">
+                          <Grid Margin="8,5" ColumnDefinitions="Auto,42,*,Auto" ToolTip.Tip="{Binding TooltipText}">
+                            <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0"
+                                     Fill="{Binding Status, Converter={StaticResource ApiBrush}}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Label}" FontWeight="Bold" FontSize="11"
+                                       Foreground="{StaticResource Text.Primary}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{Binding UsageDisplay}" FontSize="11"
+                                       Foreground="{StaticResource Text.Primary}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="{Binding TotalCalls}" FontSize="10"
+                                       Foreground="{StaticResource Text.Secondary}" VerticalAlignment="Center" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border CornerRadius="0,0,8,8" Padding="12,7" BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0">
+                      <TextBlock Text="{Binding ApiMeter.SummaryText}" FontSize="10" Foreground="{StaticResource Text.Secondary}" />
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+
+          <!-- Market-session badges -->
+          <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1"
+                  Background="{StaticResource Bullish.Soft}" BorderBrush="{StaticResource Bullish.Brush}">
+            <TextBlock Text="CRYPTO 24/7" Foreground="{StaticResource Bullish.Brush}" FontSize="9" FontWeight="Bold" />
+          </Border>
+          <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1"
+                  Background="{Binding NyseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=bg}"
+                  BorderBrush="{Binding NyseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=border}">
+            <TextBlock FontSize="9" FontWeight="Bold"
+                       Foreground="{Binding NyseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=fg}">
+              <TextBlock.Text>
+                <Binding Path="NyseOpen">
+                  <Binding.Converter>
+                    <vm:BoolToTextConverter TrueText="NYSE OPEN" FalseText="NYSE CLOSED" />
+                  </Binding.Converter>
+                </Binding>
+              </TextBlock.Text>
+            </TextBlock>
+          </Border>
+          <Border CornerRadius="3" Padding="5,1" Margin="0,0,12,0" VerticalAlignment="Center" BorderThickness="1"
+                  Background="{Binding LseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=bg}"
+                  BorderBrush="{Binding LseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=border}">
+            <TextBlock FontSize="9" FontWeight="Bold"
+                       Foreground="{Binding LseOpen, Converter={StaticResource SessionBrush}, ConverterParameter=fg}">
+              <TextBlock.Text>
+                <Binding Path="LseOpen">
+                  <Binding.Converter>
+                    <vm:BoolToTextConverter TrueText="LSE OPEN" FalseText="LSE CLOSED" />
+                  </Binding.Converter>
+                </Binding>
+              </TextBlock.Text>
+            </TextBlock>
+          </Border>
+
+          <!-- Clocks -->
+          <StackPanel VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding CurrentTimeUtc}" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" FontSize="13" />
+              <TextBlock Text="UTC" Foreground="{StaticResource Text.Secondary}" FontSize="9" VerticalAlignment="Bottom" Margin="3,0,0,1" />
+            </StackPanel>
+            <TextBlock Text="{Binding CurrentTime}" Foreground="{StaticResource Text.Secondary}" FontSize="10" HorizontalAlignment="Right" />
+          </StackPanel>
+        </StackPanel>
       </Grid>
     </Border>
 
-    <!-- Menu bar -->
+    <!-- ───────── Menu bar (full WPF structure; unported items log a note) ───────── -->
     <Menu DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}">
       <MenuItem Header="_File">
+        <MenuItem Header="_Reconnect to broker" Click="OnReconnect" />
+        <Separator />
         <MenuItem Header="E_xit" Click="OnExit" />
       </MenuItem>
       <MenuItem Header="_View">
-        <MenuItem Header="Toggle _Activity Log" Click="OnToggleActivityLog" />
-      </MenuItem>
-      <MenuItem Header="_Charts">
-        <MenuItem Header="_Volume Footprint" Click="OnVolumeFootprint" />
-        <MenuItem Header="_Order Book (DOM)" Click="OnOrderBook" />
-        <MenuItem Header="Liquidity _Heatmap" Click="OnHeatmap" />
-      </MenuItem>
-      <MenuItem Header="_Machine Learning">
-        <MenuItem Header="_Stationarity &amp; Differencing" Click="OnStationarity" />
-        <MenuItem Header="_ARIMA &amp; GARCH" Click="OnArimaGarch" />
-        <MenuItem Header="_Kalman Filter" Click="OnKalman" />
+        <MenuItem Header="Activity _log" Click="OnToggleActivityLog" />
+        <MenuItem Header="_Theme (Dark)" IsEnabled="False" />
       </MenuItem>
       <MenuItem Header="_Tools">
-        <MenuItem Header="_Correlation Matrix" Click="OnCorrelation" />
+        <MenuItem Header="_Backtest Studio…" Click="OnNotPorted" />
+        <MenuItem Header="_Record live ticks…" Click="OnNotPorted" />
+        <MenuItem Header="Mar_kov regime…" Click="OnNotPorted" />
+        <MenuItem Header="_Advanced market regime…" Click="OnNotPorted" />
+        <MenuItem Header="_Correlation matrix…" Click="OnCorrelation" />
+        <MenuItem Header="_Live correlation matrix…" Click="OnNotPorted" />
       </MenuItem>
-      <MenuItem Header="Open _Strategy" Click="OnOpenStrategy" />
+      <MenuItem Header="_LSE Tools">
+        <MenuItem Header="LSE _backtester…" Click="OnNotPorted" />
+      </MenuItem>
+      <MenuItem Header="_Charts">
+        <MenuItem Header="C_harts…" Click="OnCharts" />
+        <MenuItem Header="_Order book…" Click="OnOrderBook" />
+        <MenuItem Header="_Volume footprint…" Click="OnVolumeFootprint" />
+        <MenuItem Header="_Bookmap + VolBook…" Click="OnHeatmap" />
+      </MenuItem>
+      <MenuItem Header="_Machine learning">
+        <MenuItem Header="_Stationarity &amp; differencing…" Click="OnStationarity" />
+        <MenuItem Header="_ARIMA &amp; GARCH…" Click="OnArimaGarch" />
+        <MenuItem Header="_Kalman filter…" Click="OnKalman" />
+      </MenuItem>
+      <MenuItem Header="_QuantConnect / LEAN">
+        <MenuItem Header="_Backtest runner…" Click="OnNotPorted" />
+        <MenuItem Header="_Projects…" Click="OnNotPorted" />
+        <MenuItem Header="_Data sync…" Click="OnNotPorted" />
+        <Separator />
+        <MenuItem Header="_Settings &amp; status…" Click="OnNotPorted" />
+      </MenuItem>
+      <MenuItem Header="_AI tools">
+        <MenuItem Header="_Factor research…" Click="OnFactorResearch" />
+        <MenuItem Header="_ML features…" Click="OnMlFeatures" />
+        <MenuItem Header="_Backtest analysis…" Click="OnBacktestAnalysis" />
+        <Separator />
+        <MenuItem Header="_Market analyst…" Click="OnNotPorted" />
+        <MenuItem Header="_Paper Lab…" Click="OnNotPorted" />
+      </MenuItem>
+      <MenuItem Header="_Data">
+        <MenuItem Header="_Market data archive…" Click="OnNotPorted" />
+        <MenuItem Header="Archive _history…" Click="OnNotPorted" />
+      </MenuItem>
+      <MenuItem Header="_Settings">
+        <MenuItem Header="_Notifications…" Click="OnNotPorted" />
+        <MenuItem Header="_Research (Paper Lab)…" Click="OnNotPorted" />
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="_About DaxAlgo Terminal…" Click="OnNotPorted" />
+      </MenuItem>
     </Menu>
 
-    <!-- Status bar -->
+    <!-- ───────── Disconnect banner ───────── -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource Danger.Brush}" Padding="12,6"
+            IsVisible="{Binding IsDisconnected}">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="{Binding DisconnectBannerText}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Content="Reconnect" Margin="16,0,0,0" Click="OnReconnect" />
+      </StackPanel>
+    </Border>
+
+    <!-- ───────── Status bar ───────── -->
     <Border DockPanel.Dock="Bottom" Background="{StaticResource Gradient.Chrome}"
-            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0" Padding="12,4">
-      <TextBlock Classes="muted mono" FontSize="11" Text="{Binding RuntimeInfo}" />
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0" Padding="10,4">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,16,0">
+          <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"
+                   Fill="{Binding ConnectionState, Converter={StaticResource StateBrush}}" />
+          <TextBlock Text="{Binding ConnectionState}" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <TextBlock Text="LIVE " Foreground="{StaticResource Text.Secondary}" />
+          <TextBlock Text="{Binding ConnectedBrokerCount}" Foreground="{StaticResource Bullish.Brush}" />
+          <TextBlock Text=" brokers" Foreground="{StaticResource Text.Secondary}" />
+        </StackPanel>
+        <TextBlock Grid.Column="3" Text="{Binding CurrentTime}" Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" />
+      </Grid>
     </Border>
 
-    <!-- Activity-log drawer -->
-    <Border x:Name="ActivityDrawer" DockPanel.Dock="Bottom" Classes="panel" Height="150"
-            BorderThickness="0,1,0,0">
-      <DockPanel Margin="10,6">
-        <TextBlock DockPanel.Dock="Top" Classes="section" Text="ACTIVITY LOG" Margin="0,0,0,4" />
-        <ListBox ItemsSource="{Binding ActivityLog.Entries}" Background="Transparent" BorderThickness="0">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Classes="mono muted" FontSize="11" Text="{Binding Source}" Width="80" />
-                <TextBlock Classes="mono" FontSize="11" Text="{Binding Message}" />
-              </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </DockPanel>
-    </Border>
+    <!-- ───────── Activity-log drawer (collapsible, pinned bottom, closed by default) ───────── -->
+    <Grid DockPanel.Dock="Bottom" RowDefinitions="Auto,Auto">
+      <Border Grid.Row="0" Height="240" Background="{StaticResource Background.Surface}"
+              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0"
+              IsVisible="{Binding IsLogVisible}">
+        <Grid RowDefinitions="Auto,*">
+          <!-- Filter strip -->
+          <Border Grid.Row="0" Background="{StaticResource Gradient.Elevated}"
+                  BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="6,5">
+            <Grid ColumnDefinitions="Auto,*">
+              <TextBlock Grid.Column="0" Text="Filter" VerticalAlignment="Center" Margin="2,0,8,0"
+                         Foreground="{StaticResource Text.Secondary}" FontSize="11" />
+              <TextBox Grid.Column="1" Text="{Binding LogFilter, Mode=TwoWay}" FontSize="11"
+                       Watermark="Filter by source, level, or message" />
+            </Grid>
+          </Border>
+          <ListBox Grid.Row="1" ItemsSource="{Binding VisibleLog}" Background="{StaticResource Background.Surface}"
+                   BorderThickness="0" FontSize="11">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="log:LogEntry">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding TimestampUtc, StringFormat='{}{0:HH:mm:ss}'}" Foreground="{StaticResource Text.Secondary}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                  <Border CornerRadius="3" Padding="5,0" Margin="0,0,8,0" MinWidth="46" VerticalAlignment="Center"
+                          Background="{Binding Level, Converter={StaticResource LevelBrush}, ConverterParameter=bg}">
+                    <TextBlock Text="{Binding Level}" FontSize="9.5" FontWeight="Bold" TextAlignment="Center"
+                               Foreground="{Binding Level, Converter={StaticResource LevelBrush}}" />
+                  </Border>
+                  <TextBlock Text="{Binding Source}" Width="140" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" Foreground="{StaticResource Text.Header}" />
+                  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center"
+                             Foreground="{StaticResource Text.Primary}" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
 
-    <!-- Strategy catalog (fills) -->
-    <Grid ColumnDefinitions="*,320" Margin="12">
-      <DockPanel Grid.Column="0" Margin="0,0,12,0">
-        <TextBlock DockPanel.Dock="Top" Classes="header" FontSize="14" Text="STRATEGY CATALOG"
-                   Margin="2,0,0,8" />
-        <ListBox ItemsSource="{Binding Catalog.Items}" SelectedItem="{Binding Catalog.SelectedItem}"
-                 Background="Transparent" BorderThickness="0" DoubleTapped="OnOpenStrategy">
+      <!-- Always-visible toggle strip -->
+      <Button Grid.Row="1" Click="OnToggleActivityLog" HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Left" CornerRadius="0" Background="{StaticResource Gradient.Chrome}"
+              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,1,0,0" Padding="10,4">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="▴" FontSize="11" Foreground="{StaticResource Accent.Brush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <TextBlock Text="ACTIVITY LOG" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Header}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
+
+    <!-- ───────── Strategy catalog (fills) ───────── -->
+    <Grid RowDefinitions="Auto,*" Background="{StaticResource Background.Surface}">
+      <!-- Section header -->
+      <Border Grid.Row="0" Background="{StaticResource Gradient.Elevated}"
+              BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="10,8">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+            <Border Width="3" Height="13" Background="{StaticResource Accent.Brush}" Margin="0,0,8,0" />
+            <TextBlock Text="STRATEGY CATALOG" Foreground="{StaticResource Text.Header}" FontWeight="Bold"
+                       FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Text="double-click to open" Foreground="{StaticResource Text.Secondary}" FontSize="10"
+                       Margin="12,0,0,0" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="N=" Foreground="{StaticResource Text.Secondary}" FontSize="10" />
+            <TextBlock Text="{Binding Strategies.Count}" Foreground="{StaticResource Text.Secondary}" FontSize="10" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+        <ListBox ItemsSource="{Binding Strategies}" SelectedItem="{Binding SelectedStrategy, Mode=TwoWay}"
+                 Background="{StaticResource Background.Surface}" BorderThickness="0"
+                 DoubleTapped="OnOpenStrategy">
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
-              <WrapPanel />
+              <WrapPanel Orientation="Horizontal" />
             </ItemsPanelTemplate>
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="cat:StrategyCatalogItem">
-              <Border Classes="card" Width="240" Height="92" Margin="5" Padding="12,10">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="{Binding DisplayName}" Classes="header" FontSize="13" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding Id}" Classes="mono muted" FontSize="11" />
-                  <Border Background="{StaticResource Accent.Soft}" CornerRadius="2" Padding="5,1"
-                          HorizontalAlignment="Left" Margin="0,4,0,0">
-                    <TextBlock Text="{Binding ParameterCount, StringFormat='{}{0} params'}"
-                               Foreground="{StaticResource Accent.Brush}" FontSize="10" />
+            <DataTemplate x:DataType="strat:ITradingStrategy">
+              <Border Width="360" Margin="6" Background="{StaticResource Gradient.Elevated}"
+                      BorderBrush="{StaticResource Border.Brush}" BorderThickness="1" CornerRadius="4" Padding="10,8">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="▸ " Foreground="{StaticResource Accent.Brush}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text.Header}" FontWeight="Bold" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Id}" Foreground="{StaticResource Text.Highlight}" FontSize="10" Margin="12,0,0,2" />
+                  <TextBlock Text="{Binding Description}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                             FontSize="11" Margin="12,0,0,0" />
+                  <!-- Data-requirement pills -->
+                  <ItemsControl ItemsSource="{Binding Converter={StaticResource DataReqPills}}" Margin="12,4,0,0">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:StrategyPill">
+                        <Border Background="{Binding Background}" CornerRadius="3" Padding="5,1" Margin="0,0,3,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}" FontSize="10" FontWeight="SemiBold" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <!-- Classification pills -->
+                  <ItemsControl ItemsSource="{Binding Converter={StaticResource ClassPills}}" Margin="12,3,0,0">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:StrategyPill">
+                        <Border Background="{Binding Background}" CornerRadius="3" Padding="5,1" Margin="0,0,3,3" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}" FontSize="10" FontWeight="SemiBold" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <!-- Research-paper pill -->
+                  <Border Margin="12,4,0,0" HorizontalAlignment="Left" Background="#4527A0" CornerRadius="3" Padding="5,1"
+                          IsVisible="{Binding ResearchPaperUrl, Converter={StaticResource NotEmpty}}">
+                    <Button Padding="0" Background="Transparent" BorderThickness="0" Cursor="Hand"
+                            Tag="{Binding ResearchPaperUrl}" Click="OnOpenResearchPaper"
+                            ToolTip.Tip="{Binding ResearchPaperUrl}">
+                      <TextBlock Text="📄 RESEARCH PAPER ⓘ" Foreground="#E8DEFF" FontSize="10" FontWeight="SemiBold" />
+                    </Button>
                   </Border>
                 </StackPanel>
               </Border>
             </DataTemplate>
           </ListBox.ItemTemplate>
+          <ListBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Open" Click="OnOpenStrategy" />
+              <MenuItem Header="Quick backtest (last 1 year)…" Click="OnNotPorted" />
+            </ContextMenu>
+          </ListBox.ContextMenu>
         </ListBox>
-      </DockPanel>
-
-      <!-- Details + open -->
-      <Border Grid.Column="1" Classes="card" Padding="14">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Classes="section" Text="DETAILS" Margin="0,0,0,8" />
-          <Button DockPanel.Dock="Bottom" Classes="accent" Content="OPEN STRATEGY WINDOW"
-                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                  Click="OnOpenStrategy" Margin="0,8,0,0" />
-          <TextBlock Classes="mono" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
-                     Text="{Binding Catalog.Details}" />
-        </DockPanel>
-      </Border>
+      </ScrollViewer>
     </Grid>
   </DockPanel>
 </Window>

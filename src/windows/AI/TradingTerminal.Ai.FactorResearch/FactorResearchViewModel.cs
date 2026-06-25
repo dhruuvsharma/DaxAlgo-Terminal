@@ -3,7 +3,6 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure.Backtest.Persistence;
@@ -45,13 +44,10 @@ public sealed partial class FactorResearchViewModel : ViewModelBase
     [ObservableProperty] private string? _validationError;
 
     [RelayCommand]
-    private void BrowseData()
+    private async Task BrowseData()
     {
-        var dlg = new OpenFileDialog
-        {
-            Filter = "Parquet files (*.parquet)|*.parquet|All files (*.*)|*.*",
-        };
-        if (dlg.ShowDialog() == true) DataPath = dlg.FileName;
+        var path = await UiFile.OpenAsync("Parquet files", new[] { "parquet" });
+        if (path is not null) DataPath = path;
     }
 
     [RelayCommand]

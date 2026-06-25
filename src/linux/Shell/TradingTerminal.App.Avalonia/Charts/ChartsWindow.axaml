@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sp="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
+        x:Class="TradingTerminal.App.Avalonia.Charts.ChartsWindow"
+        Width="980" Height="620"
+        Background="{StaticResource Background.Primary}"
+        Title="Charts">
+  <DockPanel Margin="8">
+    <Border DockPanel.Dock="Top" Background="{StaticResource Gradient.Chrome}"
+            BorderBrush="{StaticResource Border.Brush}" BorderThickness="0,0,0,1" Padding="10,6" Margin="0,0,0,8">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="CHARTS" Classes="header" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding Symbol}" Foreground="{StaticResource Text.Highlight}" VerticalAlignment="Center" />
+        <TextBlock Text="ScottPlot.Avalonia · candlestick" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+    <sp:AvaPlot x:Name="Plot" />
+  </DockPanel>
+</Window>

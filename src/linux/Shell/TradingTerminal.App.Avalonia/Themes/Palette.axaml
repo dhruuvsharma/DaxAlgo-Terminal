@@ -47,9 +47,10 @@
   <SolidColorBrush x:Key="Accent.Soft"   Color="#26FF8C00" />
   <SolidColorBrush x:Key="Bullish.Soft"  Color="#2600C853" />
   <SolidColorBrush x:Key="Bearish.Soft"  Color="#26FF1744" />
+  <SolidColorBrush x:Key="Warning.Soft"  Color="#26FFD600" />
   <SolidColorBrush x:Key="Highlight.Soft" Color="#2600BFFF" />
 
-  <!-- Gradients (chrome bars, panels, headers) -->
+  <!-- Gradients (chrome bars, panels, headers) — values 1:1 with WPF Brushes.xaml -->
   <LinearGradientBrush x:Key="Gradient.Chrome" StartPoint="0%,0%" EndPoint="0%,100%">
     <GradientStop Color="#1A1A1A" Offset="0" />
     <GradientStop Color="#0C0C0C" Offset="1" />
@@ -58,8 +59,24 @@
     <GradientStop Color="#1E1E1E" Offset="0" />
     <GradientStop Color="#121212" Offset="1" />
   </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Gradient.Surface" StartPoint="0%,0%" EndPoint="0%,100%">
+    <GradientStop Color="#121212" Offset="0" />
+    <GradientStop Color="#080808" Offset="1" />
+  </LinearGradientBrush>
   <LinearGradientBrush x:Key="Gradient.Header" StartPoint="0%,0%" EndPoint="100%,0%">
     <GradientStop Color="#2A1E07" Offset="0" />
-    <GradientStop Color="#0C0C0C" Offset="1" />
+    <GradientStop Color="#130D03" Offset="1" />
   </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0%,0%" EndPoint="0%,100%">
+    <GradientStop Color="#FFA733" Offset="0" />
+    <GradientStop Color="#FF8C00" Offset="1" />
+  </LinearGradientBrush>
+  <LinearGradientBrush x:Key="Gradient.AccentHover" StartPoint="0%,0%" EndPoint="0%,100%">
+    <GradientStop Color="#FFBB55" Offset="0" />
+    <GradientStop Color="#FF9A1A" Offset="1" />
+  </LinearGradientBrush>
+
+  <!-- Typographic constant. Bloomberg-terminal monospace; the WPF theme sets this app-wide and so
+       do we. Consolas (Windows) → DejaVu/Liberation Mono (Linux) → generic mono fallbacks. -->
+  <FontFamily x:Key="Font.Mono">Consolas, DejaVu Sans Mono, Liberation Mono, Cascadia Mono, Menlo, monospace</FontFamily>
 </ResourceDictionary>

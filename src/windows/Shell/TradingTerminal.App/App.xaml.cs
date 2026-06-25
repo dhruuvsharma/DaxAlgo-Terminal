@@ -83,6 +83,20 @@ public partial class App : Application
             if (d is null || d.CheckAccess()) return action();
             return d.InvokeAsync(action).Task.Unwrap();
         };
+        // File-picker seam (WPF-free in UI.Core; shared with the Avalonia head) — point it at the
+        // WPF dialogs so tool VMs that load/save files keep working on the WPF shell.
+        TradingTerminal.UI.UiFile.OpenAsync = (desc, exts) =>
+        {
+            var filter = $"{desc}|{string.Join(";", exts.Select(e => "*." + e))}|All files (*.*)|*.*";
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = filter };
+            return Task.FromResult(dlg.ShowDialog() == true ? dlg.FileName : (string?)null);
+        };
+        TradingTerminal.UI.UiFile.SaveAsync = (desc, exts, name) =>
+        {
+            var filter = $"{desc}|{string.Join(";", exts.Select(e => "*." + e))}";
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = name };
+            return Task.FromResult(dlg.ShowDialog() == true ? dlg.FileName : (string?)null);
+        };
         var inMemoryLogSink = new InMemoryLogSink();
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
 

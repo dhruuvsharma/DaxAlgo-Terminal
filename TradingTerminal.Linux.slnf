@@ -8,6 +8,7 @@
       "src\\shared\\Backtest\\TradingTerminal.Backtest.Engine\\TradingTerminal.Backtest.Engine.csproj",
       "src\\shared\\Backtest\\TradingTerminal.Backtest.Cli\\TradingTerminal.Backtest.Cli.csproj",
       "src\\shared\\UI\\TradingTerminal.UI.Core\\TradingTerminal.UI.Core.csproj",
+      "src\\shared\\UI\\TradingTerminal.UI.Avalonia\\TradingTerminal.UI.Avalonia.csproj",
       "src\\linux\\Shell\\TradingTerminal.App.Avalonia\\TradingTerminal.App.Avalonia.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.OrnsteinUhlenbeck\\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.CumulativeDelta\\TradingTerminal.Strategies.CumulativeDelta.csproj",
@@ -16,6 +17,11 @@
       "src\\windows\\Strategies\\TradingTerminal.Strategies.FilteredOrderFlow\\TradingTerminal.Strategies.FilteredOrderFlow.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.ImbalanceHeatFront\\TradingTerminal.Strategies.ImbalanceHeatFront.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.SigmaIcFlow\\TradingTerminal.Strategies.SigmaIcFlow.csproj",
+      "src\\windows\\Strategies\\TradingTerminal.Strategies.IndexRegimeGraph\\TradingTerminal.Strategies.IndexRegimeGraph.csproj",
+      "src\\windows\\Strategies\\TradingTerminal.Strategies.OrderFlowPressureMap\\TradingTerminal.Strategies.OrderFlowPressureMap.csproj",
+      "src\\windows\\Strategies\\TradingTerminal.Strategies.IndexKScoreSurface\\TradingTerminal.Strategies.IndexKScoreSurface.csproj",
+      "src\\windows\\Strategies\\TradingTerminal.Strategies.OrderFlowCube\\TradingTerminal.Strategies.OrderFlowCube.csproj",
+      "src\\windows\\Strategies\\TradingTerminal.Strategies.OrderFlowSurfaceSpike\\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj",
       "tests\\TradingTerminal.Tests.Headless\\TradingTerminal.Tests.Headless.csproj"
     ]
   }
