@@ -9,7 +9,9 @@ public static class VolumeFootprintServiceCollectionExtensions
     public static IServiceCollection AddFootprintSurface(this IServiceCollection services)
     {
         services.AddTransient<VolumeFootprintViewModel>();
+#if WINDOWS
         services.AddTransient<VolumeFootprintWindow>();
+#endif
         return services;
     }
 }

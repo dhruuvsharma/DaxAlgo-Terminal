@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Threading.Channels;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -82,7 +81,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     /// <summary>Drives both the ticks/sec decay and the coalesced canvas redraw (~12 fps). Trade
     /// ingest only marks the chart dirty; this timer does the (expensive) rebuild + redraw.</summary>
-    private readonly DispatcherTimer _renderTimer;
+    private readonly IDisposable _renderTimer;
 
     /// <summary>False until the constructor has built every collection. Suppresses the
     /// <c>[ObservableProperty]</c> setters' On*Changed callbacks from running <see cref="Restart"/>
@@ -128,12 +127,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
                              ?? Instruments.FirstOrDefault();
         SelectedInterval = Intervals.First(i => i.Label == "1m");
 
-        _renderTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(80),
-        };
-        _renderTimer.Tick += (_, _) => OnRenderTick();
-        _renderTimer.Start();
+        // Coalesced render tick (~12 fps) via the portable timer seam. IDisposable, owned by this VM.
+        _renderTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(80), OnRenderTick);
 
         _ready = true;
         _ = LoadInstrumentsAsync();
@@ -713,7 +708,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     public void Dispose()
     {
-        _renderTimer.Stop();
+        _renderTimer.Dispose();
         StopStream();
     }
 }

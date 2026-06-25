@@ -46,8 +46,10 @@ public partial class MainWindow : Window
 
     private void OnVolumeFootprint(object? sender, RoutedEventArgs e)
     {
-        var vm = new VolumeFootprintViewModel();
-        ShowDisposing(new VolumeFootprintWindow { DataContext = vm }, vm);
+        // Real ported window — the portable VolumeFootprintViewModel streams the trade tape off the hub.
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.VolumeFootprint.VolumeFootprintViewModel>();
+        ShowDisposing(new TradingTerminal.VolumeFootprint.AvaloniaUi.VolumeFootprintAvaloniaWindow { DataContext = vm }, vm);
         Vm?.ActivityLog.Append("Charts", "INFO", "Opened Volume Footprint.");
     }
 

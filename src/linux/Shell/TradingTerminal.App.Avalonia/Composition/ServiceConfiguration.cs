@@ -24,6 +24,7 @@ using TradingTerminal.BacktestStudio;
 using TradingTerminal.LseBacktest;
 using TradingTerminal.QuantConnect;
 using TradingTerminal.OrderBook;
+using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Strategies.OrderFlowToxicity;
 using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.SigmaIcFlow;
@@ -134,6 +135,7 @@ public static class ServiceConfiguration
         services.AddTransient<TradingTerminal.Correlation.LiveCorrelationMatrixViewModel>();
         services.AddQuantConnectSurface(configuration);
         services.AddOrderBookSurface();
+        services.AddFootprintSurface();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();
