@@ -22,6 +22,10 @@
       "src\\windows\\Strategies\\TradingTerminal.Strategies.IndexKScoreSurface\\TradingTerminal.Strategies.IndexKScoreSurface.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.OrderFlowCube\\TradingTerminal.Strategies.OrderFlowCube.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.OrderFlowSurfaceSpike\\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj",
+      "src\\windows\\AI\\TradingTerminal.Ai.FactorResearch\\TradingTerminal.Ai.FactorResearch.csproj",
+      "src\\windows\\AI\\TradingTerminal.Ai.MlFeatures\\TradingTerminal.Ai.MlFeatures.csproj",
+      "src\\windows\\AI\\TradingTerminal.Ai.BacktestAnalysis\\TradingTerminal.Ai.BacktestAnalysis.csproj",
+      "src\\windows\\Tools\\TradingTerminal.AdvancedMarketRegime\\TradingTerminal.AdvancedMarketRegime.csproj",
       "tests\\TradingTerminal.Tests.Headless\\TradingTerminal.Tests.Headless.csproj"
     ]
   }

@@ -95,6 +95,7 @@ public static class ServiceConfiguration
         services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
         services.AddTransient<TradingTerminal.Ai.MlFeatures.MlFeaturesViewModel>();
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();
+        services.AddTransient<TradingTerminal.AdvancedMarketRegime.AdvancedMarketRegimeViewModel>();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();

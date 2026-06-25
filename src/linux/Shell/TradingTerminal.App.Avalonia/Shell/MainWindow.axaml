@@ -160,7 +160,7 @@
         <MenuItem Header="_Backtest Studio…" Click="OnNotPorted" />
         <MenuItem Header="_Record live ticks…" Click="OnNotPorted" />
         <MenuItem Header="Mar_kov regime…" Click="OnNotPorted" />
-        <MenuItem Header="_Advanced market regime…" Click="OnNotPorted" />
+        <MenuItem Header="_Advanced market regime…" Click="OnAdvancedRegime" />
         <MenuItem Header="_Correlation matrix…" Click="OnCorrelation" />
         <MenuItem Header="_Live correlation matrix…" Click="OnNotPorted" />
       </MenuItem>

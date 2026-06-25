@@ -13,7 +13,9 @@ public static class AdvancedMarketRegimeServiceCollectionExtensions
     {
         services.AddSingleton<IAdvancedRegimeProvider, AdvancedRegimeService>();
         services.AddTransient<AdvancedMarketRegimeViewModel>();
+#if WINDOWS
         services.AddTransient<AdvancedMarketRegimeView>();
+#endif
         return services;
     }
 }

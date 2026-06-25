@@ -93,6 +93,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
     }
 
+    private void OnAdvancedRegime(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.AdvancedMarketRegime.AdvancedMarketRegimeViewModel>();
+        ShowDisposing(new TradingTerminal.AdvancedMarketRegime.AvaloniaUi.AdvancedMarketRegimeAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Tools", "INFO", "Opened Advanced market regime.");
+    }
+
     private void OnFactorResearch(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;
