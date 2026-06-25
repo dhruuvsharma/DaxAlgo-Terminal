@@ -20,6 +20,7 @@ public sealed class CorrelationHeatmapControl : Control
     private static readonly IBrush Bg = new SolidColorBrush(Color.Parse("#000000"));
     private static readonly IBrush TextDim = new SolidColorBrush(Color.Parse("#8A8A8A"));
     private static readonly IBrush TextHdr = new SolidColorBrush(Color.Parse("#FFB000"));
+    private static readonly IBrush CellText = new SolidColorBrush(Color.Parse("#E8E8E8"));
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.Parse("#2A2A2A")), 1);
     private static readonly Typeface Mono = new("Cascadia Mono, Consolas, monospace");
 
@@ -61,21 +62,43 @@ public sealed class CorrelationHeatmapControl : Control
                 ctx.FillRectangle(Heat(v), new Rect(x, y, CellW, CellH));
                 ctx.DrawRectangle(null, GridPen, new Rect(x, y, CellW, CellH));
                 DrawText(ctx, v.ToString("0.00"), new Point(x + 10, y + 6),
-                    Math.Abs(v) > 0.55 ? Bg : new SolidColorBrush(Color.Parse("#E8E8E8")), 11);
+                    Math.Abs(v) > 0.55 ? Bg : CellText, 11);
             }
         }
     }
 
     private static string Trim(string s) => s.Length <= 10 ? s : s[..10];
 
+    // Cached, quantized heat palette (−1..+1 in 0.05 steps → 41 brushes) so a redraw allocates no
+    // brushes — the per-cell colour just indexes this static table (memory-safety pattern 4).
+    private static readonly IBrush[] HeatPalette = BuildHeatPalette();
+
+    private static IBrush[] BuildHeatPalette()
+    {
+        var arr = new IBrush[41];
+        for (int k = 0; k < arr.Length; k++)
+        {
+            double v = -1.0 + k * 0.05;
+            // 0 → near-black; +1 → green #00C853; −1 → red #FF1744.
+            Color c;
+            if (v >= 0)
+                c = Color.FromRgb((byte)(0x14 * (1 - v)), (byte)(0x14 + (0xC8 - 0x14) * v), (byte)(0x14 + (0x53 - 0x14) * v));
+            else
+            {
+                double a = -v;
+                c = Color.FromRgb((byte)(0x14 + (0xFF - 0x14) * a), (byte)(0x14 * (1 - a)), (byte)(0x14 + (0x44 - 0x14) * a));
+            }
+            // Cache: built once into the static HeatPalette table, never per-frame.
+            arr[k] = new SolidColorBrush(c);
+        }
+        return arr;
+    }
+
     private static IBrush Heat(double v)
     {
         v = Math.Clamp(v, -1, 1);
-        // 0 → near-black; +1 → green #00C853; −1 → red #FF1744.
-        if (v >= 0)
-            return new SolidColorBrush(Color.FromRgb((byte)(0x14 * (1 - v)), (byte)(0x14 + (0xC8 - 0x14) * v), (byte)(0x14 + (0x53 - 0x14) * v)));
-        double a = -v;
-        return new SolidColorBrush(Color.FromRgb((byte)(0x14 + (0xFF - 0x14) * a), (byte)(0x14 * (1 - a)), (byte)(0x14 + (0x44 - 0x14) * a)));
+        int idx = (int)Math.Round((v + 1.0) / 0.05);
+        return HeatPalette[Math.Clamp(idx, 0, HeatPalette.Length - 1)];
     }
 
     private static void DrawText(DrawingContext ctx, string text, Point at, IBrush brush, double size)
