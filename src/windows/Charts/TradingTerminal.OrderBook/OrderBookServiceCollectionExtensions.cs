@@ -9,7 +9,9 @@ public static class OrderBookServiceCollectionExtensions
     public static IServiceCollection AddOrderBookSurface(this IServiceCollection services)
     {
         services.AddTransient<OrderBookViewModel>();
+#if WINDOWS
         services.AddTransient<OrderBookWindow>();
+#endif
         return services;
     }
 }

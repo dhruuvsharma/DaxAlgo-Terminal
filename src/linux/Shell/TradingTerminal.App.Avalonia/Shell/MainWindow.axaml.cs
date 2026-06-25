@@ -53,8 +53,10 @@ public partial class MainWindow : Window
 
     private void OnOrderBook(object? sender, RoutedEventArgs e)
     {
-        var vm = new OrderBookViewModel();
-        ShowDisposing(new OrderBookWindow { DataContext = vm }, vm);
+        // Real ported window — the portable OrderBookViewModel streams live L2 depth off the hub.
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.OrderBook.OrderBookViewModel>();
+        ShowDisposing(new TradingTerminal.OrderBook.AvaloniaUi.OrderBookAvaloniaWindow { DataContext = vm }, vm);
         Vm?.ActivityLog.Append("Charts", "INFO", "Opened Order Book.");
     }
 

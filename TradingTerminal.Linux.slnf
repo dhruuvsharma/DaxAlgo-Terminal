@@ -36,6 +36,7 @@
       "src\\windows\\Tools\\TradingTerminal.LseBacktest\\TradingTerminal.LseBacktest.csproj",
       "src\\windows\\Tools\\TradingTerminal.Correlation\\TradingTerminal.Correlation.csproj",
       "src\\windows\\Tools\\TradingTerminal.QuantConnect\\TradingTerminal.QuantConnect.csproj",
+      "src\\windows\\Charts\\TradingTerminal.OrderBook\\TradingTerminal.OrderBook.csproj",
       "tests\\TradingTerminal.Tests.Headless\\TradingTerminal.Tests.Headless.csproj"
     ]
   }

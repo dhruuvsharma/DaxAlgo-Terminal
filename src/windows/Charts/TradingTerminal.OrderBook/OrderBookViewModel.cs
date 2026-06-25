@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Threading.Channels;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
@@ -90,7 +89,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private double? _priorMid; // synthetic-tape mid-tick detector
 
     private bool _useSyntheticTape;
-    private readonly DispatcherTimer _captureTimer;
+    private readonly IDisposable _captureTimer;
     private bool _ready;
 
     public OrderBookViewModel(
@@ -115,12 +114,9 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
 
-        _captureTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(CaptureIntervalMs),
-        };
-        _captureTimer.Tick += (_, _) => OnCaptureTick();
-        _captureTimer.Start();
+        // Coalesced capture/render tick via the portable timer seam (WPF Dispatcher / Avalonia
+        // Dispatcher under the hood). Returns an IDisposable owned by this VM.
+        _captureTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(CaptureIntervalMs), OnCaptureTick);
 
         _ready = true;
         _ = LoadInstrumentsAsync();
@@ -634,7 +630,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _captureTimer.Stop();
+        _captureTimer.Dispose();
         StopStream();
     }
 }
