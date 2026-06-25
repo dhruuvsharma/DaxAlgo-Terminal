@@ -9,7 +9,9 @@ public static class MarkovRegimeServiceCollectionExtensions
     public static IServiceCollection AddMarkovRegimeSurface(this IServiceCollection services)
     {
         services.AddTransient<MarkovRegimeViewModel>();
+#if WINDOWS
         services.AddTransient<MarkovRegimeView>();
+#endif
         return services;
     }
 }

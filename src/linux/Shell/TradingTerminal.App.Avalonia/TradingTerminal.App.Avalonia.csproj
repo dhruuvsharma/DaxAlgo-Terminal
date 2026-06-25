@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
     <!-- Tools windows. -->
     <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
+    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
   </ItemGroup>
 
   <ItemGroup>

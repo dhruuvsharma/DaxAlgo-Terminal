@@ -93,6 +93,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
     }
 
+    private void OnMarkovRegime(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.MarkovRegime.MarkovRegimeViewModel>();
+        ShowDisposing(new TradingTerminal.MarkovRegime.AvaloniaUi.MarkovRegimeAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Tools", "INFO", "Opened Markov regime.");
+    }
+
     private void OnAdvancedRegime(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;

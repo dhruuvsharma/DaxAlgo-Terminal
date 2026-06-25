@@ -26,6 +26,7 @@
       "src\\windows\\AI\\TradingTerminal.Ai.MlFeatures\\TradingTerminal.Ai.MlFeatures.csproj",
       "src\\windows\\AI\\TradingTerminal.Ai.BacktestAnalysis\\TradingTerminal.Ai.BacktestAnalysis.csproj",
       "src\\windows\\Tools\\TradingTerminal.AdvancedMarketRegime\\TradingTerminal.AdvancedMarketRegime.csproj",
+      "src\\windows\\Tools\\TradingTerminal.MarkovRegime\\TradingTerminal.MarkovRegime.csproj",
       "tests\\TradingTerminal.Tests.Headless\\TradingTerminal.Tests.Headless.csproj"
     ]
   }
