@@ -93,6 +93,20 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Correlation Matrix.");
     }
 
+    private void OnQuantConnectBacktest(object? sender, RoutedEventArgs e) => OpenQuantConnect(0);
+    private void OnQuantConnectProjects(object? sender, RoutedEventArgs e) => OpenQuantConnect(1);
+    private void OnQuantConnectData(object? sender, RoutedEventArgs e) => OpenQuantConnect(2);
+    private void OnQuantConnectSettings(object? sender, RoutedEventArgs e) => OpenQuantConnect(3);
+
+    private void OpenQuantConnect(int tab)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.QuantConnect.QuantConnectViewModel>();
+        vm.SelectedTabIndex = tab;
+        ShowDisposing(new TradingTerminal.QuantConnect.AvaloniaUi.QuantConnectAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("QuantConnect", "INFO", "Opened QuantConnect / LEAN.");
+    }
+
     private void OnLiveCorrelation(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;

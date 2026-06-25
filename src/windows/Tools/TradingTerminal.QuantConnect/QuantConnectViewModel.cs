@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+#if WINDOWS
 using System.Windows.Media;
+#endif
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -46,7 +48,9 @@ public sealed partial class QuantConnectViewModel : ViewModelBase, IDisposable
 
         Projects = new ObservableCollection<LeanProject>();
         Statistics = new ObservableCollection<LeanStatistic>();
+#if WINDOWS
         EquityCurve = new PointCollection();
+#endif
 
         _ = InitializeAsync();
     }
@@ -78,7 +82,11 @@ public sealed partial class QuantConnectViewModel : ViewModelBase, IDisposable
     private bool _isRunning;
     [ObservableProperty] private string _runLog = "";
     [ObservableProperty] private string _backtestStatus = "Idle — pick a project and Run.";
+#if WINDOWS
     [ObservableProperty] private PointCollection _equityCurve;
+#endif
+    /// <summary>Portable equity samples (raw values) for the cross-platform head's ScottPlot line.</summary>
+    [ObservableProperty] private double[] _equityValues = Array.Empty<double>();
     [ObservableProperty] private bool _hasEquity;
 
     // ── Data download ─────────────────────────────────────────────────────────────────────────
@@ -215,6 +223,11 @@ public sealed partial class QuantConnectViewModel : ViewModelBase, IDisposable
 
     private void SetEquity(IReadOnlyList<LeanEquityPoint> points)
     {
+        // Portable raw samples for the Avalonia head's ScottPlot line.
+        EquityValues = points.Select(p => p.Equity).ToArray();
+        HasEquity = EquityValues.Length >= 2;
+#if WINDOWS
+        // WPF: pre-project into a normalized PointCollection for the Polyline.
         var pc = new PointCollection();
         if (points.Count >= 2)
         {
@@ -230,7 +243,7 @@ public sealed partial class QuantConnectViewModel : ViewModelBase, IDisposable
             }
         }
         EquityCurve = pc;
-        HasEquity = pc.Count >= 2;
+#endif
     }
 
     public void Dispose()

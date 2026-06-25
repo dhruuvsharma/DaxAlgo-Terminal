@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sp="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
+        x:Class="TradingTerminal.QuantConnect.AvaloniaUi.QuantConnectAvaloniaWindow"
+        Width="900" Height="640"
+        Background="{DynamicResource Background.Primary}"
+        Title="QuantConnect / LEAN">
+  <DockPanel Margin="12">
+    <Border DockPanel.Dock="Top" Padding="0,0,0,8">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <TextBlock Text="QuantConnect / LEAN" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Text.Header}"/>
+        <TextBlock Text="{Binding AvailabilityStatus}" VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}"/>
+        <TextBlock Text="{Binding LeanVersion, StringFormat='v{0}'}" VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}"/>
+      </StackPanel>
+    </Border>
+
+    <TabControl SelectedIndex="{Binding SelectedTabIndex}">
+      <!-- Backtest runner -->
+      <TabItem Header="Backtest">
+        <DockPanel Margin="8">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
+            <ComboBox MinWidth="200" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}">
+              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Classes="accent" Content="Run" Command="{Binding RunBacktestCommand}"/>
+            <Button Content="Cancel" Command="{Binding CancelRunCommand}"/>
+            <TextBlock Text="{Binding BacktestStatus}" VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}"/>
+          </StackPanel>
+          <Grid RowDefinitions="*,Auto" Margin="0,8,0,0">
+            <Border Grid.Row="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+              <sp:AvaPlot x:Name="EquityPlot"/>
+            </Border>
+            <Border Grid.Row="1" Height="120" Margin="0,8,0,0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+              <ListBox ItemsSource="{Binding Statistics}" Background="{DynamicResource Background.Surface}" FontSize="11"/>
+            </Border>
+          </Grid>
+        </DockPanel>
+      </TabItem>
+
+      <!-- Projects -->
+      <TabItem Header="Projects">
+        <DockPanel Margin="8">
+          <Button DockPanel.Dock="Top" Content="Refresh" Command="{Binding RefreshProjectsCommand}" HorizontalAlignment="Left"/>
+          <Border Margin="0,8,0,0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+            <ListBox ItemsSource="{Binding Projects}" Background="{DynamicResource Background.Surface}" FontSize="11">
+              <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+          </Border>
+        </DockPanel>
+      </TabItem>
+
+      <!-- Data sync -->
+      <TabItem Header="Data sync">
+        <DockPanel Margin="8">
+          <StackPanel DockPanel.Dock="Top" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Width="160" Watermark="Dataset" Text="{Binding DataDataset}"/>
+              <TextBox Width="200" Watermark="Tickers (comma-sep)" Text="{Binding DataTickers}"/>
+              <TextBox Width="120" Watermark="Resolution" Text="{Binding DataResolution}"/>
+              <Button Content="Download" Command="{Binding DownloadDataCommand}"/>
+            </StackPanel>
+          </StackPanel>
+          <Border Margin="0,8,0,0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+            <TextBox Text="{Binding DataLog}" IsReadOnly="True" AcceptsReturn="True" FontFamily="{DynamicResource Font.Mono}" FontSize="11"/>
+          </Border>
+        </DockPanel>
+      </TabItem>
+
+      <!-- Settings -->
+      <TabItem Header="Settings &amp; status">
+        <StackPanel Margin="8" Spacing="8" MaxWidth="520" HorizontalAlignment="Left">
+          <TextBlock Text="LEAN CLI path"/>
+          <TextBox Text="{Binding CliPath}"/>
+          <TextBlock Text="Projects folder"/>
+          <TextBox Text="{Binding ProjectsFolder}"/>
+          <TextBlock Text="Data folder"/>
+          <TextBox Text="{Binding DataFolder}"/>
+          <TextBlock Text="Engine mode"/>
+          <TextBox Text="{Binding EngineMode}"/>
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <Button Classes="accent" Content="Apply" Command="{Binding ApplySettingsCommand}"/>
+            <Button Content="Check availability" Command="{Binding CheckAvailabilityCommand}"/>
+          </StackPanel>
+          <TextBlock Text="{Binding AvailabilityStatus}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

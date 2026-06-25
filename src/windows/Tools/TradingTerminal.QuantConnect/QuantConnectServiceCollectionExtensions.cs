@@ -42,7 +42,9 @@ public static class QuantConnectServiceCollectionExtensions
         });
 
         services.AddTransient<QuantConnectViewModel>();
+#if WINDOWS
         services.AddTransient<QuantConnectWindow>();
+#endif
         return services;
     }
 }

@@ -179,11 +179,11 @@
         <MenuItem Header="_Kalman filter…" Click="OnKalman" />
       </MenuItem>
       <MenuItem Header="_QuantConnect / LEAN">
-        <MenuItem Header="_Backtest runner…" Click="OnNotPorted" />
-        <MenuItem Header="_Projects…" Click="OnNotPorted" />
-        <MenuItem Header="_Data sync…" Click="OnNotPorted" />
+        <MenuItem Header="_Backtest runner…" Click="OnQuantConnectBacktest" />
+        <MenuItem Header="_Projects…" Click="OnQuantConnectProjects" />
+        <MenuItem Header="_Data sync…" Click="OnQuantConnectData" />
         <Separator />
-        <MenuItem Header="_Settings &amp; status…" Click="OnNotPorted" />
+        <MenuItem Header="_Settings &amp; status…" Click="OnQuantConnectSettings" />
       </MenuItem>
       <MenuItem Header="_AI tools">
         <MenuItem Header="_Factor research…" Click="OnFactorResearch" />
