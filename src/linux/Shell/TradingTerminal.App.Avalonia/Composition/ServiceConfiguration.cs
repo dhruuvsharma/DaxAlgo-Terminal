@@ -106,6 +106,15 @@ public static class ServiceConfiguration
         // AI tool VMs (portable — ILogger-only ctors; file I/O via the UiFile seam).
         services.AddTransient<TradingTerminal.Ai.MarketAnalyst.AiAnalystViewModel>();
         services.AddTransient<TradingTerminal.Ai.PaperLab.PaperLabViewModel>();
+
+        // Settings/aux VMs (extracted to the shared TradingTerminal.Settings project — portable).
+        services.AddTransient<TradingTerminal.App.Notifications.NotificationsSettingsViewModel>();
+        services.AddTransient<TradingTerminal.App.Research.ResearchSettingsViewModel>();
+        services.AddTransient<TradingTerminal.App.Support.SupportViewModel>();
+        services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        // Roslyn strategy compiler backs the authoring window.
+        services.TryAddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler,
+            TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
         services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
         services.AddTransient<TradingTerminal.Ai.MlFeatures.MlFeaturesViewModel>();
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();

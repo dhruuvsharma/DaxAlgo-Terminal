@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.App.Avalonia.Settings.ResearchSettingsWindow"
+        Width="560" Height="420"
+        Background="{StaticResource Background.Primary}"
+        Title="Research (Paper Lab)">
+  <StackPanel Margin="16" Spacing="8">
+    <TextBlock Text="Research — Paper Lab sidecar" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text.Header}"/>
+    <CheckBox Content="Enable Paper Lab reproduction" IsChecked="{Binding Enabled}"/>
+    <CheckBox Content="Auto-launch the Python sidecar on startup" IsChecked="{Binding AutoLaunchSidecar}"/>
+    <TextBlock Text="Sidecar base URL (loopback only)"/>
+    <TextBox Text="{Binding SidecarBaseUrl}"/>
+    <Grid ColumnDefinitions="Auto,*,Auto,*">
+      <TextBlock Grid.Column="0" Text="Timeout (s)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <NumericUpDown Grid.Column="1" Value="{Binding SidecarTimeoutSeconds}" Minimum="1"/>
+      <TextBlock Grid.Column="2" Text="Retention (d)" VerticalAlignment="Center" Margin="12,0,8,0"/>
+      <NumericUpDown Grid.Column="3" Value="{Binding RetentionDays}" Minimum="0"/>
+    </Grid>
+    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+      <Button Classes="accent" Content="Save" Command="{Binding SaveCommand}"/>
+    </StackPanel>
+    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+  </StackPanel>
+</Window>

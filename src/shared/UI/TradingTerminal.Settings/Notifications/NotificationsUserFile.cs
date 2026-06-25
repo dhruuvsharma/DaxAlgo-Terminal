@@ -10,7 +10,7 @@ namespace TradingTerminal.App.Notifications;
 /// is layered into the host configuration with reloadOnChange, so IOptionsMonitor surfaces
 /// edits to running transports without a restart.
 /// </summary>
-internal static class NotificationsUserFile
+public static class NotificationsUserFile
 {
     /// <summary>
     /// Absolute path to <c>%LocalAppData%\DaxAlgo Terminal\notifications.json</c>.

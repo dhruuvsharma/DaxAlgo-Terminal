@@ -195,6 +195,38 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("AI", "INFO", "Opened Backtest analysis.");
     }
 
+    private void OnNotifications(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Notifications.NotificationsSettingsViewModel>();
+        ShowDisposing(new Settings.NotificationsSettingsWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Settings", "INFO", "Opened Notifications.");
+    }
+
+    private void OnResearchSettings(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Research.ResearchSettingsViewModel>();
+        ShowDisposing(new Settings.ResearchSettingsWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Settings", "INFO", "Opened Research settings.");
+    }
+
+    private void OnSupport(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Support.SupportViewModel>();
+        ShowDisposing(new Settings.SupportWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Help", "INFO", "Opened Support.");
+    }
+
+    private void OnAuthoring(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        ShowDisposing(new Settings.StrategyAuthoringWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Tools", "INFO", "Opened Strategy authoring.");
+    }
+
     // Menu items whose target window is ported in a later step — log a note rather than no-op silently.
     private void OnNotPorted(object? sender, RoutedEventArgs e)
     {

@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.App.Avalonia.Settings.SupportWindow"
+        Width="560" Height="480"
+        Background="{StaticResource Background.Primary}"
+        Title="Support the developer">
+  <StackPanel Margin="16" Spacing="10">
+    <TextBlock Text="{Binding ProductName}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text.Header}"/>
+    <TextBlock Text="{Binding Version}" Foreground="{StaticResource Text.Secondary}"/>
+    <TextBlock Text="{Binding ThankYouMessage}" TextWrapping="Wrap"/>
+    <TextBlock Text="Feedback to the developer:" Margin="0,8,0,0"/>
+    <TextBox Text="{Binding FeedbackText}" AcceptsReturn="True" Height="140" Watermark="Your note…"/>
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Button Classes="accent" Content="Send feedback" Command="{Binding SendFeedbackCommand}"/>
+      <Button Content="GitHub" Command="{Binding OpenGitHubCommand}"/>
+      <Button Content="Close" Command="{Binding CloseCommand}"/>
+    </StackPanel>
+    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+  </StackPanel>
+</Window>

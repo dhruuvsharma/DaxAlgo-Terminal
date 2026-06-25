@@ -11,7 +11,7 @@ namespace TradingTerminal.App.Research;
 /// <c>IOptionsMonitor&lt;ResearchReproOptions&gt;</c> surfaces edits to the running ingest/resolver
 /// clients without a restart. Mirrors <c>NotificationsUserFile</c>.
 /// </summary>
-internal static class ResearchUserFile
+public static class ResearchUserFile
 {
     /// <summary>Absolute path to <c>%LocalAppData%\DaxAlgo Terminal\research.json</c>. The directory is
     /// created on first write.</summary>

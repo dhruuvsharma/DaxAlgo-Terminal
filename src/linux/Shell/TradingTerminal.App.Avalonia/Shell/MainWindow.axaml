@@ -154,6 +154,7 @@
       </MenuItem>
       <MenuItem Header="_View">
         <MenuItem Header="Activity _log" Click="OnToggleActivityLog" />
+        <MenuItem Header="Strategy _authoring…" Click="OnAuthoring" />
         <MenuItem Header="_Theme (Dark)" IsEnabled="False" />
       </MenuItem>
       <MenuItem Header="_Tools">
@@ -198,11 +199,11 @@
         <MenuItem Header="Archive _history…" Click="OnNotPorted" />
       </MenuItem>
       <MenuItem Header="_Settings">
-        <MenuItem Header="_Notifications…" Click="OnNotPorted" />
-        <MenuItem Header="_Research (Paper Lab)…" Click="OnNotPorted" />
+        <MenuItem Header="_Notifications…" Click="OnNotifications" />
+        <MenuItem Header="_Research (Paper Lab)…" Click="OnResearchSettings" />
       </MenuItem>
       <MenuItem Header="_Help">
-        <MenuItem Header="_About DaxAlgo Terminal…" Click="OnNotPorted" />
+        <MenuItem Header="_About DaxAlgo Terminal…" Click="OnSupport" />
       </MenuItem>
     </Menu>
 

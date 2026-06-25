@@ -9,6 +9,7 @@
       "src\\shared\\Backtest\\TradingTerminal.Backtest.Cli\\TradingTerminal.Backtest.Cli.csproj",
       "src\\shared\\UI\\TradingTerminal.UI.Core\\TradingTerminal.UI.Core.csproj",
       "src\\shared\\UI\\TradingTerminal.UI.Avalonia\\TradingTerminal.UI.Avalonia.csproj",
+      "src\\shared\\UI\\TradingTerminal.Settings\\TradingTerminal.Settings.csproj",
       "src\\linux\\Shell\\TradingTerminal.App.Avalonia\\TradingTerminal.App.Avalonia.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.OrnsteinUhlenbeck\\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj",
       "src\\windows\\Strategies\\TradingTerminal.Strategies.CumulativeDelta\\TradingTerminal.Strategies.CumulativeDelta.csproj",

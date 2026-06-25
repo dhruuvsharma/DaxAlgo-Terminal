@@ -44,6 +44,7 @@
     <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj" />
     <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
+    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
   </ItemGroup>
 
   <ItemGroup>
