@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+#if WINDOWS
 using System.Windows.Data;
+#endif
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -50,19 +52,24 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
         Instruments = new ObservableCollection<SelectableInstrument>();
         Categories = new ObservableCollection<string> { AllCategories };
 
-        // Group the picker by canonical category, ordered category-then-symbol so the headers
-        // (Crypto, FX, Commodities, Indices, ETFs, Stocks, …) come out in a predictable order.
+#if WINDOWS
+        // WPF: group the picker by canonical category, ordered category-then-symbol so the headers
+        // (Crypto, FX, Commodities, Indices, ETFs, Stocks, …) come out in a predictable order. On the
+        // Avalonia head the flat Instruments list is pre-sorted in ApplyFilter instead.
         InstrumentsView = CollectionViewSource.GetDefaultView(Instruments);
         InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.CategoryOrder), ListSortDirection.Ascending));
         InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.CanonicalCategory), ListSortDirection.Ascending));
         InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.Symbol), ListSortDirection.Ascending));
         InstrumentsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SelectableInstrument.CanonicalCategory)));
+#endif
 
         _ = LoadInstrumentsAsync();
     }
 
     public ObservableCollection<SelectableInstrument> Instruments { get; }
+#if WINDOWS
     public ICollectionView InstrumentsView { get; }
+#endif
     public ObservableCollection<string> Categories { get; }
 
     [ObservableProperty] private string _selectedCategory = AllCategories;
@@ -156,6 +163,14 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
         // Ticked rows must stay visible even if they fall outside the cap/filter, so selection survives.
         foreach (var sel in AllInstruments.Where(i => i.IsSelected))
             if (!shown.Contains(sel)) shown.Add(sel);
+
+        // Pre-sort category-then-symbol so the flat Avalonia list matches the WPF grouped view's order
+        // (on WPF, InstrumentsView re-sorts/groups on top — harmless).
+        shown = shown
+            .OrderBy(i => i.CategoryOrder)
+            .ThenBy(i => i.CanonicalCategory, StringComparer.Ordinal)
+            .ThenBy(i => i.Symbol, StringComparer.Ordinal)
+            .ToList();
 
         // Repopulate the (now capped) visible set. We deliberately do NOT wrap this in
         // InstrumentsView.DeferRefresh(): that defers the *view's* refresh while the source

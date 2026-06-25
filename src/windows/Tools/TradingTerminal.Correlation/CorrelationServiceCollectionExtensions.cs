@@ -9,9 +9,11 @@ public static class CorrelationServiceCollectionExtensions
     public static IServiceCollection AddCorrelationSurface(this IServiceCollection services)
     {
         services.AddTransient<CorrelationMatrixViewModel>();
-        services.AddTransient<CorrelationMatrixWindow>();
         services.AddTransient<LiveCorrelationMatrixViewModel>();
+#if WINDOWS
+        services.AddTransient<CorrelationMatrixWindow>();
         services.AddTransient<LiveCorrelationMatrixWindow>();
+#endif
         return services;
     }
 }

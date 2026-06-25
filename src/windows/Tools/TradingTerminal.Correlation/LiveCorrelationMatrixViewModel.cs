@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -8,6 +7,7 @@ using TradingTerminal.Core.Analytics;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.UI;
 
 namespace TradingTerminal.Correlation;
 
@@ -37,7 +37,7 @@ public sealed partial class LiveCorrelationMatrixViewModel : CorrelationPickerVi
     // thread (Start/Stop commands and the sampler tick), so plain collections are fine here.
     private readonly List<ActiveSeries> _active = new();
     private readonly List<IDisposable> _subscriptions = new();
-    private DispatcherTimer? _sampler;
+    private IDisposable? _sampler;
 
     private static readonly IReadOnlyList<SampleIntervalOption> AllSampleIntervals = new SampleIntervalOption[]
     {
@@ -84,8 +84,13 @@ public sealed partial class LiveCorrelationMatrixViewModel : CorrelationPickerVi
     /// kept (the samples are still valid, they'll simply age out at the new rate).</summary>
     partial void OnSelectedSampleIntervalChanged(SampleIntervalOption? value)
     {
+        // Re-pace the running sampler by recreating it at the new interval (the portable timer hook
+        // has no live Interval setter; recreating is cheap and the rolling window is preserved).
         if (_sampler is not null && value is not null)
-            _sampler.Interval = value.Interval;
+        {
+            _sampler.Dispose();
+            _sampler = UiThread.CreateRenderTimer(value.Interval, OnSampleTick);
+        }
     }
 
     [RelayCommand]
@@ -133,9 +138,7 @@ public sealed partial class LiveCorrelationMatrixViewModel : CorrelationPickerVi
             return;
         }
 
-        _sampler = new DispatcherTimer { Interval = SelectedSampleInterval.Interval };
-        _sampler.Tick += OnSampleTick;
-        _sampler.Start();
+        _sampler = UiThread.CreateRenderTimer(SelectedSampleInterval.Interval, OnSampleTick);
 
         IsStreaming = true;
         StatusMessage = $"Live — sampling {_active.Count} instruments every {SelectedSampleInterval.Label}, rolling {SelectedWindow.Label}."
@@ -155,7 +158,7 @@ public sealed partial class LiveCorrelationMatrixViewModel : CorrelationPickerVi
 
     /// <summary>One sample step: snapshot every active instrument's latest mid onto the shared grid,
     /// age out anything beyond the window, then recompute the matrix from the rolling buffers.</summary>
-    private void OnSampleTick(object? sender, EventArgs e)
+    private void OnSampleTick()
     {
         int window = SelectedWindow?.Count ?? 120;
 
@@ -201,12 +204,8 @@ public sealed partial class LiveCorrelationMatrixViewModel : CorrelationPickerVi
 
     private void TeardownStreams()
     {
-        if (_sampler is not null)
-        {
-            _sampler.Stop();
-            _sampler.Tick -= OnSampleTick;
-            _sampler = null;
-        }
+        _sampler?.Dispose();
+        _sampler = null;
 
         foreach (var sub in _subscriptions)
         {

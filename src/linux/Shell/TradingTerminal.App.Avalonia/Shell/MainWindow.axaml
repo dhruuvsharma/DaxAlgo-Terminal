@@ -162,7 +162,7 @@
         <MenuItem Header="Mar_kov regime…" Click="OnMarkovRegime" />
         <MenuItem Header="_Advanced market regime…" Click="OnAdvancedRegime" />
         <MenuItem Header="_Correlation matrix…" Click="OnCorrelation" />
-        <MenuItem Header="_Live correlation matrix…" Click="OnNotPorted" />
+        <MenuItem Header="_Live correlation matrix…" Click="OnLiveCorrelation" />
       </MenuItem>
       <MenuItem Header="_LSE Tools">
         <MenuItem Header="LSE _backtester…" Click="OnLseBacktest" />

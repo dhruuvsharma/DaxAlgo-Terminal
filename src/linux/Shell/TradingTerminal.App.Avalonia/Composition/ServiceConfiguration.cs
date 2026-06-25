@@ -106,6 +106,7 @@ public static class ServiceConfiguration
         services.AddBacktestStudioSurface();
         services.AddTransient<TradingTerminal.Recording.TickRecorderViewModel>();
         services.AddLseBacktestSurface();
+        services.AddTransient<TradingTerminal.Correlation.LiveCorrelationMatrixViewModel>();
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();
