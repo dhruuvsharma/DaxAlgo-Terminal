@@ -9,7 +9,9 @@ public static class HeatmapServiceCollectionExtensions
     public static IServiceCollection AddHeatmapSurface(this IServiceCollection services)
     {
         services.AddTransient<BookmapHeatmapViewModel>();
+#if WINDOWS
         services.AddTransient<BookmapHeatmapWindow>();
+#endif
         return services;
     }
 }

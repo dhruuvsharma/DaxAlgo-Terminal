@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Threading.Channels;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
@@ -37,7 +36,7 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
     private IReadOnlyList<SignalInstrument> _allInstruments;
     private CancellationTokenSource? _streamCts;
     private readonly List<IDisposable> _streamHandles = new();
-    private readonly DispatcherTimer _renderTimer;
+    private readonly IDisposable _renderTimer;
     private bool _dirty;
 
     protected SingleInstrumentHeatmapViewModelBase(
@@ -58,9 +57,8 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
 
-        _renderTimer = new DispatcherTimer { Interval = RenderInterval };
-        _renderTimer.Tick += OnRenderTick;
-        _renderTimer.Start();
+        // Coalesced render tick via the portable timer seam (WPF/Avalonia dispatcher). IDisposable.
+        _renderTimer = UiThread.CreateRenderTimer(RenderInterval, () => OnRenderTick(this, EventArgs.Empty));
 
         _ = LoadInstrumentsAsync();
     }
@@ -246,8 +244,7 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
 
     public virtual void Dispose()
     {
-        _renderTimer.Stop();
-        _renderTimer.Tick -= OnRenderTick;
+        _renderTimer.Dispose();
         StopStream();
     }
 }

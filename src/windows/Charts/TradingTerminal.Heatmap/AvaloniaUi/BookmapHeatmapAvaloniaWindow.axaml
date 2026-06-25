@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.Heatmap.AvaloniaUi.BookmapHeatmapAvaloniaWindow"
+        Width="660" Height="600"
+        Background="{StaticResource Background.Primary}"
+        Title="Bookmap + VolBook">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <TextBlock Text="Bookmap + VolBook (liquidity heatmap)" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text.Header}"/>
+      <ComboBox MinWidth="240" ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}">
+        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}"/></DataTemplate></ComboBox.ItemTemplate>
+      </ComboBox>
+      <TextBlock Text="{Binding Status}" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+      <UniformGrid Columns="3">
+        <TextBlock Text="{Binding BestBid, StringFormat='Bid {0:0.##}'}" Foreground="#40D060"/>
+        <TextBlock Text="{Binding BestAsk, StringFormat='Ask {0:0.##}'}" Foreground="#FF4D4D"/>
+        <TextBlock Text="{Binding Mid, StringFormat='Mid {0:0.##}'}" Foreground="{StaticResource Text.Primary}"/>
+        <TextBlock Text="{Binding LastPrice, StringFormat='Last {0:0.##}'}" Foreground="{StaticResource Text.Primary}"/>
+        <TextBlock Text="{Binding VwapDisplay, StringFormat='VWAP {0:0.##}'}" Foreground="{StaticResource Text.Secondary}"/>
+        <TextBlock Text="{Binding CvdDisplay, StringFormat='CVD {0:0}'}" Foreground="{StaticResource Text.Secondary}"/>
+        <TextBlock Text="{Binding TotalVolumeDisplay, StringFormat='Vol {0}'}" Foreground="{StaticResource Text.Secondary}"/>
+        <TextBlock Text="{Binding TradeCount, StringFormat='Trades {0}'}" Foreground="{StaticResource Text.Secondary}"/>
+        <TextBlock Text="{Binding ColumnsFilled, StringFormat='Cols {0}'}" Foreground="{StaticResource Text.Secondary}"/>
+      </UniformGrid>
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <CheckBox Content="Vol profile" IsChecked="{Binding ShowVolumeProfile}"/>
+        <CheckBox Content="VWAP" IsChecked="{Binding ShowVwap}"/>
+        <CheckBox Content="Value area" IsChecked="{Binding ShowValueArea}"/>
+        <CheckBox Content="CVD" IsChecked="{Binding ShowCvdPanel}"/>
+        <CheckBox Content="Trade dots" IsChecked="{Binding ShowTradeDots}"/>
+        <CheckBox Content="DOM" IsChecked="{Binding ShowOrderBook}"/>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <CheckBox Content="Paused (playback)" IsChecked="{Binding IsPaused}"/>
+        <Slider Width="280" Minimum="0" Maximum="1" Value="{Binding ScrubPosition}" VerticalAlignment="Center"/>
+      </StackPanel>
+    </StackPanel>
+
+    <Border Margin="0,8,0,0" BorderBrush="{StaticResource Border.Brush}" BorderThickness="1" CornerRadius="3"
+            Background="{StaticResource Background.Surface}">
+      <TextBlock Text="Live liquidity heatmap streaming off the hub. The faithful WriteableBitmap bookmap render is a WPF-parity polish pass; the metrics + controls above are live."
+                 Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24" TextAlignment="Center"/>
+    </Border>
+  </DockPanel>
+</Window>

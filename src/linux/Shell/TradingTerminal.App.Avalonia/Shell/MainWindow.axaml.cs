@@ -64,9 +64,11 @@ public partial class MainWindow : Window
 
     private void OnHeatmap(object? sender, RoutedEventArgs e)
     {
-        var vm = new HeatmapViewModel();
-        ShowDisposing(new HeatmapWindow { DataContext = vm }, vm);
-        Vm?.ActivityLog.Append("Charts", "INFO", "Opened Liquidity Heatmap.");
+        // Real ported window — the portable BookmapHeatmapViewModel streams depth + trades off the hub.
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.Heatmap.BookmapHeatmapViewModel>();
+        ShowDisposing(new TradingTerminal.Heatmap.AvaloniaUi.BookmapHeatmapAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Charts", "INFO", "Opened Bookmap + VolBook.");
     }
 
     private void OnStationarity(object? sender, RoutedEventArgs e)
