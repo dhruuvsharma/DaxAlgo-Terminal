@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.Ai.MarketAnalyst.AvaloniaUi.AiAnalystAvaloniaWindow"
+        Width="720" Height="560"
+        Background="{DynamicResource Background.Primary}"
+        Title="AI market analyst">
+  <DockPanel Margin="14">
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <TextBlock Text="AI market analyst" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource Text.Header}"/>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Width="120" Watermark="Symbol" Text="{Binding SelectedSymbol}"/>
+        <ComboBox ItemsSource="{Binding Timeframes}" SelectedItem="{Binding SelectedTimeframe}"/>
+        <TextBlock Text="Bars" VerticalAlignment="Center"/>
+        <NumericUpDown Width="110" Value="{Binding BarCount}" Minimum="10"/>
+        <Button Content="Analyze" Command="{Binding AnalyzeCommand}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <Grid RowDefinitions="Auto,*" Margin="0,12,0,0">
+      <!-- Latest verdict -->
+      <Border Grid.Row="0" Background="{DynamicResource Background.Surface}" BorderBrush="{DynamicResource Border.Brush}"
+              BorderThickness="1" CornerRadius="3" Padding="12">
+        <StackPanel Spacing="4">
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Text="{Binding LatestReport.Decision, StringFormat='Decision: {0}'}" FontWeight="Bold" Foreground="{DynamicResource Accent.Brush}"/>
+            <TextBlock Text="{Binding LatestReport.Confidence, StringFormat='Confidence: {0:P0}'}"/>
+            <TextBlock Text="{Binding LatestReport.ForecastHorizon, StringFormat='Horizon: {0}'}"/>
+            <TextBlock Text="{Binding LatestReport.RiskRewardRatio, StringFormat='R:R {0:0.00}'}"/>
+          </StackPanel>
+          <TextBlock Text="{Binding LatestReport.Justification}" TextWrapping="Wrap" Foreground="{DynamicResource Text.Primary}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- History -->
+      <DockPanel Grid.Row="1" Margin="0,10,0,0">
+        <TextBlock DockPanel.Dock="Top" Text="History" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+          <ListBox ItemsSource="{Binding History}" Background="{DynamicResource Background.Surface}" FontSize="11">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Text="{Binding Decision}" Width="80"/>
+                  <TextBlock Text="{Binding Justification}" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>

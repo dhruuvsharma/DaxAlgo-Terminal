@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -60,13 +59,9 @@ public sealed partial class AiAnalystViewModel : ViewModelBase
         // The Settings tab writes notifications.json with reloadOnChange:true, so when the user
         // ticks Enabled, IOptionsMonitor fires. Marshal back to the UI thread and re-notify
         // IsAvailable so the Analyze button binding re-evaluates without a tab reopen.
-        _optionsSubscription = _options.OnChange(_ =>
-        {
-            if (Application.Current?.Dispatcher is { } d && !d.CheckAccess())
-                d.BeginInvoke(new Action(NotifyAvailabilityChanged));
-            else
-                NotifyAvailabilityChanged();
-        });
+        // Marshal the IOptionsMonitor change callback to the UI thread via the portable hook
+        // (was Application.Current.Dispatcher; now WPF-free so it runs on both heads).
+        _optionsSubscription = _options.OnChange(_ => UiThread.RunAsync(NotifyAvailabilityChanged));
     }
 
     private void NotifyAvailabilityChanged()

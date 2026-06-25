@@ -9,7 +9,9 @@ public static class MarketAnalystServiceCollectionExtensions
     public static IServiceCollection AddMarketAnalyst(this IServiceCollection services)
     {
         services.AddTransient<AiAnalystViewModel>();
+#if WINDOWS
         services.AddTransient<AiAnalystView>();
+#endif
         return services;
     }
 }

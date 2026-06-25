@@ -6,6 +6,7 @@ using TradingTerminal.App.Avalonia.Shell;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Infrastructure;
+using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Notifications;
@@ -53,6 +54,8 @@ public static class ServiceConfiguration
         services.AddTradingTerminalInfrastructure();
         services.AddMarketDataPipeline(configuration);
         services.AddNotifications(configuration);
+        // AI analyst seam (IAiAnalystClient Null/Http, hot-swappable via NotificationsOptions).
+        services.AddAiAnalyst(configuration);
         services.AddBacktestStrategyCatalog();
 
         // Strategy plug-in seam — the SAME factory the WPF shell uses. Every strategy resolves and
@@ -92,6 +95,7 @@ public static class ServiceConfiguration
         services.AddSingleton<BrokerApiMeterViewModel>();
 
         // AI tool VMs (portable — ILogger-only ctors; file I/O via the UiFile seam).
+        services.AddTransient<TradingTerminal.Ai.MarketAnalyst.AiAnalystViewModel>();
         services.AddTransient<TradingTerminal.Ai.FactorResearch.FactorResearchViewModel>();
         services.AddTransient<TradingTerminal.Ai.MlFeatures.MlFeaturesViewModel>();
         services.AddTransient<TradingTerminal.Ai.BacktestAnalysis.BacktestAnalysisViewModel>();

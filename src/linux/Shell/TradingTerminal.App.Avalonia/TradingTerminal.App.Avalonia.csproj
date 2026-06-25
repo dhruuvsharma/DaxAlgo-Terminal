@@ -29,7 +29,9 @@
     <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
     <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
     <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
-    <!-- AI tool windows (portable VMs; file dialogs via the UiFile seam). -->
+    <!-- AI tool windows (portable VMs; file dialogs via the UiFile seam) + the shared analyst seam. -->
+    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
+    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
     <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />

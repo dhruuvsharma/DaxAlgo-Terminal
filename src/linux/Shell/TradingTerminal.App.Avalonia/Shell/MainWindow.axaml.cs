@@ -109,6 +109,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("Tools", "INFO", "Opened Advanced market regime.");
     }
 
+    private void OnMarketAnalyst(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.Ai.MarketAnalyst.AiAnalystViewModel>();
+        ShowDisposing(new TradingTerminal.Ai.MarketAnalyst.AvaloniaUi.AiAnalystAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("AI", "INFO", "Opened AI market analyst.");
+    }
+
     private void OnFactorResearch(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;
