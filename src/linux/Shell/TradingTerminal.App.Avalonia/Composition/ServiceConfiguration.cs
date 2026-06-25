@@ -138,6 +138,7 @@ public static class ServiceConfiguration
         services.AddOrderBookSurface();
         services.AddFootprintSurface();
         services.AddHeatmapSurface();
+        TradingTerminal.Backtest.BacktestServiceCollectionExtensions.AddBacktestSurface(services);
 
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<Login.LoginViewModel>();

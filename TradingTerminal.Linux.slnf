@@ -39,6 +39,7 @@
       "src\\windows\\Charts\\TradingTerminal.OrderBook\\TradingTerminal.OrderBook.csproj",
       "src\\windows\\Charts\\TradingTerminal.VolumeFootprint\\TradingTerminal.VolumeFootprint.csproj",
       "src\\windows\\Charts\\TradingTerminal.Heatmap\\TradingTerminal.Heatmap.csproj",
+      "src\\windows\\Tools\\TradingTerminal.Backtest\\TradingTerminal.Backtest.csproj",
       "tests\\TradingTerminal.Tests.Headless\\TradingTerminal.Tests.Headless.csproj"
     ]
   }

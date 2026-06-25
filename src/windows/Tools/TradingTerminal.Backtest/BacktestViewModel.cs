@@ -1,11 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+#if WINDOWS
 using System.Windows;
+#endif
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Win32;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Backtest.Fast;
 using TradingTerminal.Core.Domain;
@@ -78,14 +79,11 @@ public sealed partial class BacktestViewModel : ViewModelBase
     public event EventHandler? EquityCurveUpdated;
 
     [RelayCommand]
-    public void BrowseDataPath()
+    public async Task BrowseDataPath()
     {
-        var dlg = new OpenFileDialog
-        {
-            Title = "Choose tick parquet file",
-            Filter = "Parquet files (*.parquet)|*.parquet|All files (*.*)|*.*",
-        };
-        if (dlg.ShowDialog() == true) DataPath = dlg.FileName;
+        // Portable file picker (WPF Win32 dialog / Avalonia StorageProvider) via the UiFile seam.
+        var path = await UiFile.OpenAsync("Parquet files", new[] { "parquet" });
+        if (!string.IsNullOrEmpty(path)) DataPath = path;
     }
 
     [RelayCommand]
@@ -163,7 +161,9 @@ public sealed partial class BacktestViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Backtest run failed");
             Status = $"Failed: {ex.Message}";
+#if WINDOWS
             MessageBox.Show(ex.Message, "Backtest failed", MessageBoxButton.OK, MessageBoxImage.Error);
+#endif
         }
         finally
         {

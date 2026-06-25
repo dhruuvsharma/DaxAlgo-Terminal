@@ -158,6 +158,7 @@
         <MenuItem Header="_Theme (Dark)" IsEnabled="False" />
       </MenuItem>
       <MenuItem Header="_Tools">
+        <MenuItem Header="_Backtest…" Click="OnBacktest" />
         <MenuItem Header="_Backtest Studio…" Click="OnBacktestStudio" />
         <MenuItem Header="_Record live ticks…" Click="OnRecorder" />
         <MenuItem Header="Mar_kov regime…" Click="OnMarkovRegime" />

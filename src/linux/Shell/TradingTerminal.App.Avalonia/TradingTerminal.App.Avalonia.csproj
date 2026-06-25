@@ -48,6 +48,7 @@
     <ProjectReference Include="..\..\..\windows\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
     <ProjectReference Include="..\..\..\windows\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
     <ProjectReference Include="..\..\..\windows\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
   </ItemGroup>
 
   <ItemGroup>

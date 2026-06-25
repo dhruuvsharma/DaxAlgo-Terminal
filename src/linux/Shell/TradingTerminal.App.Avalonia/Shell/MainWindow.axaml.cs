@@ -113,6 +113,14 @@ public partial class MainWindow : Window
         Vm?.ActivityLog.Append("QuantConnect", "INFO", "Opened QuantConnect / LEAN.");
     }
 
+    private void OnBacktest(object? sender, RoutedEventArgs e)
+    {
+        if ((Application.Current as App)?.Services is not { } sp) return;
+        var vm = sp.GetRequiredService<TradingTerminal.Backtest.BacktestViewModel>();
+        ShowDisposing(new TradingTerminal.Backtest.AvaloniaUi.BacktestAvaloniaWindow { DataContext = vm }, vm);
+        Vm?.ActivityLog.Append("Tools", "INFO", "Opened Backtest.");
+    }
+
     private void OnLiveCorrelation(object? sender, RoutedEventArgs e)
     {
         if ((Application.Current as App)?.Services is not { } sp) return;

@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+#if WINDOWS
 using System.Windows;
+#endif
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -322,7 +324,9 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
         {
             _logger.LogError(ex, "Quick backtest run failed");
             Status = $"Failed: {ex.Message}";
+#if WINDOWS
             MessageBox.Show(ex.Message, "Quick backtest failed", MessageBoxButton.OK, MessageBoxImage.Error);
+#endif
         }
         finally
         {
