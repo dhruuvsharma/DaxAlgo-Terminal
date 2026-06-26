@@ -224,6 +224,14 @@ public partial class App : Application
 
         await _host.StartAsync();
 
+        // Point every instrument picker (strategies, tools, charts) at the canonical registry instead
+        // of the hardcoded fallback. The registry is loaded by the pipeline at startup and keeps
+        // filling as brokers connect, so all dropdowns show the real discovered universe. Mirrors the
+        // UiThread.Marshal / InMemoryLogSink.UiPost startup hooks above.
+        var registry = _host.Services.GetRequiredService<Core.MarketData.IInstrumentRegistry>();
+        TradingTerminal.UI.SignalInstrumentCatalog.Source = () =>
+            TradingTerminal.UI.SignalInstrumentCatalog.FromRegistry(registry);
+
         // Apply the persisted theme before any window is shown, so the login window already wears it.
         _host.Services.GetRequiredService<TradingTerminal.UI.Theming.IThemeManager>().ApplySaved();
 

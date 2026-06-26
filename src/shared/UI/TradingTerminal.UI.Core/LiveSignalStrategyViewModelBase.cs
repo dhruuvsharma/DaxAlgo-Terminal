@@ -285,27 +285,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
     }
 
-    /// <summary>Builds picker rows from the canonical instrument registry (broker-agnostic). Each row
-    /// carries a reconstructed <see cref="Contract"/> and a null <c>Broker</c> — the host resolves the
-    /// actual broker at Start to whichever connected broker offers the symbol.</summary>
+    /// <summary>Picker rows from the canonical instrument registry (broker-agnostic; the host resolves
+    /// each row's broker at Start). Reuses the shared converter so every picker builds rows identically.</summary>
     private IReadOnlyList<SignalInstrument> RegistryRows() =>
-        _services.Registry.All()
-            .Select(i => new SignalInstrument(
-                $"{i.CanonicalSymbol}  ·  {i.AssetClass}",
-                i.AssetClass.ToString(),
-                new Contract(i.CanonicalSymbol, SecTypeFor(i.AssetClass), i.Exchange, i.Currency, i.Exchange),
-                Broker: null))
-            .ToList();
-
-    private static string SecTypeFor(Core.Domain.AssetClass assetClass) => assetClass switch
-    {
-        Core.Domain.AssetClass.Future => "FUT",
-        Core.Domain.AssetClass.Forex => "CASH",
-        Core.Domain.AssetClass.Crypto => "CRYPTO",
-        Core.Domain.AssetClass.Option => "OPT",
-        Core.Domain.AssetClass.Index => "IND",
-        _ => "STK",
-    };
+        SignalInstrumentCatalog.FromRegistry(_services.Registry);
 
     /// <summary>Short broker label appended to instrument rows so users can disambiguate the
     /// same ticker exposed by multiple connected brokers (e.g. "ES — IB" vs "ES — cTrader").</summary>

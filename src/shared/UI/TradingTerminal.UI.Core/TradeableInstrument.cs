@@ -1,5 +1,6 @@
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
 
 namespace TradingTerminal.UI;
 
@@ -14,13 +15,52 @@ namespace TradingTerminal.UI;
 public sealed record SignalInstrument(string DisplayName, string Category, Contract Contract, BrokerKind? Broker = null);
 
 /// <summary>
-/// Curated catalog of instruments the live signal generator can stream. Trimmed to one
-/// representative ticker per asset class — users edit this file to add their own. (The
-/// RSI strategy has a wider catalog of its own; intentionally not shared so each
-/// strategy assembly stays self-contained.)
+/// The single global instrument universe shared by every picker (strategies, tools, charts).
+///
+/// <para><see cref="All"/> resolves through <see cref="Source"/> — the app wires that once at
+/// startup (after the canonical <see cref="IInstrumentRegistry"/> is loaded) to
+/// <see cref="FromRegistry"/>, so every dropdown shows the real discovered universe (persisted +
+/// per-broker discovery) rather than a hardcoded list. The curated <see cref="Fallback"/> below is
+/// used only when no source is wired or the registry is genuinely empty (e.g. a fresh install with
+/// no persisted instruments and no broker connected), so the app is never instrument-less.</para>
+///
+/// <para>This mirrors the <c>UiThread.Marshal</c> / <c>InMemoryLogSink.UiPost</c> startup-hook
+/// pattern: UI.Core stays WPF-/host-free and the composition root injects the live behaviour.</para>
 /// </summary>
 public static class SignalInstrumentCatalog
 {
+    /// <summary>App sets this once at startup to a registry-backed provider. When null or empty the
+    /// curated <see cref="Fallback"/> is used. Read on every <see cref="All"/> access so the picker
+    /// reflects instruments discovered after launch (as brokers connect).</summary>
+    public static Func<IReadOnlyList<SignalInstrument>>? Source { get; set; }
+
+    /// <summary>The live instrument universe: the wired <see cref="Source"/> when it yields anything,
+    /// otherwise the curated <see cref="Fallback"/>.</summary>
+    public static IReadOnlyList<SignalInstrument> All =>
+        Source?.Invoke() is { Count: > 0 } live ? live : Fallback;
+
+    /// <summary>Builds picker rows from the canonical instrument registry (broker-agnostic: each row's
+    /// <c>Broker</c> is null and the host resolves it at Start to a connected broker). Used to wire
+    /// <see cref="Source"/> at startup, and by the live-strategy base directly.</summary>
+    public static IReadOnlyList<SignalInstrument> FromRegistry(IInstrumentRegistry registry) =>
+        registry.All()
+            .Select(i => new SignalInstrument(
+                i.CanonicalSymbol,
+                i.AssetClass.ToString(),
+                new Contract(i.CanonicalSymbol, SecTypeFor(i.AssetClass), i.Exchange, i.Currency, i.Exchange),
+                Broker: null))
+            .ToList();
+
+    private static string SecTypeFor(AssetClass assetClass) => assetClass switch
+    {
+        AssetClass.Future => "FUT",
+        AssetClass.Forex => "CASH",
+        AssetClass.Crypto => "CRYPTO",
+        AssetClass.Option => "OPT",
+        AssetClass.Index => "IND",
+        _ => "STK",
+    };
+
     private const string CatForex = "Spot Forex";
     private const string CatFutEquity = "Equity Index Futures";
     private const string CatFutEnergy = "Energy Futures";
@@ -33,9 +73,9 @@ public static class SignalInstrumentCatalog
     private const string CatStockBlue = "US Stocks";
     private const string CatIndex = "Cash Indices";
 
-    // The single global instrument universe, shared by every strategy window and the App tools
-    // (regime / Markov / recorder) via SignalInstrument. Users edit this one list to add symbols.
-    public static IReadOnlyList<SignalInstrument> All { get; } = new SignalInstrument[]
+    // Curated last-resort fallback — used only when no registry source is wired or the registry is
+    // empty (fresh install, no broker). One representative ticker per asset class.
+    private static readonly IReadOnlyList<SignalInstrument> Fallback = new SignalInstrument[]
     {
         // Spot Forex
         new("EUR.USD —  Euro / US Dollar",       CatForex, Cash("EUR", "USD")),

@@ -33,6 +33,12 @@ public partial class App : Application
         // Compose the headless DI graph and resolve the root VM from it (mirrors the WPF App).
         Services = ServiceConfiguration.Build();
 
+        // Point every instrument picker at the canonical registry instead of the hardcoded fallback
+        // (mirrors the WPF shell). The registry fills at startup + as brokers connect.
+        var registry = Services.GetRequiredService<TradingTerminal.Core.MarketData.IInstrumentRegistry>();
+        TradingTerminal.UI.SignalInstrumentCatalog.Source = () =>
+            TradingTerminal.UI.SignalInstrumentCatalog.FromRegistry(registry);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // Show the login screen first; hand off to the main shell once a broker connects
