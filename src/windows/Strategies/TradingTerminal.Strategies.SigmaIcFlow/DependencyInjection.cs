@@ -16,9 +16,10 @@ public static class DependencyInjection
             ViewFactory: sp => sp.GetRequiredService<SigmaIcFlowStrategyWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<SigmaIcFlowStrategyViewModel>()));
 #else
+        services.AddTransient<AvaloniaUi.SigmaIcFlowStrategyAvaloniaWindow>();
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: "sigma.ic.flow",
-            ViewFactory: _ => new global::TradingTerminal.UI.Avalonia.GenericStrategyWindow(),
+            ViewFactory: sp => sp.GetRequiredService<AvaloniaUi.SigmaIcFlowStrategyAvaloniaWindow>(),
             ViewModelFactory: sp => sp.GetRequiredService<SigmaIcFlowStrategyViewModel>()));
 #endif
         return services;
