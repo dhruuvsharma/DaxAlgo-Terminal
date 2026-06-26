@@ -108,6 +108,23 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         // Replace the static fallback with the connected broker's tradable universe.
         // Fire-and-forget: the continuation resumes on the UI context (VM is built there).
         _ = LoadInstrumentsAsync();
+
+        // Reload the picker whenever a broker reaches Connected. The window often opens *before*
+        // a broker has finished connecting (e.g. IB + 2FA, or a broker connected from the shell
+        // after entry), and the static-catalog fallback would otherwise be pinned for the VM's
+        // life — the user would never see their broker's instruments without reopening. This
+        // refreshes the list the moment a broker comes up. Unsubscribed in Dispose.
+        _services.Selector.StateChanged += OnBrokerStateChanged;
+    }
+
+    /// <summary>Refreshes the instrument picker when any broker reaches
+    /// <see cref="ConnectionState.Connected"/>, so a broker that connects after the window opened
+    /// populates the dropdown without a reopen. No-op once the user has configured the strategy
+    /// (the picker is locked past that point).</summary>
+    private void OnBrokerStateChanged(object? sender, BrokerStateChangedEventArgs e)
+    {
+        if (e.State != ConnectionState.Connected || IsConfigured) return;
+        _ = UiThread.RunAsync(() => LoadInstrumentsAsync());
     }
 
     public string StrategyId { get; }
@@ -215,8 +232,19 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         try
         {
+            var connected = _services.Selector.Connected;
             var list = await _services.Repository.ListInstrumentsAsync();
-            if (list is null || list.Count == 0) return;
+            if (list is null || list.Count == 0)
+            {
+                // Make the static fallback visible rather than silent — the #1 "I can't see my
+                // broker's instruments" cause is simply that no connected broker returned any
+                // (none connected, or the broker's ListInstrumentsAsync yielded an empty universe).
+                var brokers = connected.Count == 0 ? "none connected" : string.Join(", ", connected);
+                _services.ActivityLog.Append(StrategyDisplayName, "INFO",
+                    $"No broker instruments available ({brokers}); showing the static catalog " +
+                    $"({AllInstruments.Count} symbols).");
+                return;
+            }
 
             AllInstruments = list
                 .Select(i => new SignalInstrument(
@@ -226,15 +254,26 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     i.Broker))
                 .ToList();
 
-            // Prefer a familiar default if any broker offers it; otherwise the first symbol.
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
-                                 ?? AllInstruments.FirstOrDefault();
+            _services.ActivityLog.Append(StrategyDisplayName, "INFO",
+                $"Loaded {AllInstruments.Count} instruments from {string.Join(", ", connected)}.");
+
+            // Preserve the user's current pick across a reload (this method also runs when a broker
+            // connects after the window opened — see OnBrokerStateChanged). Match by symbol since the
+            // broker-tagged DisplayName differs from the static-catalog row the user may have selected.
+            // Otherwise prefer a familiar default; finally the first symbol.
+            var prevSymbol = SelectedInstrument?.Contract.Symbol;
+            SelectedInstrument =
+                (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                ?? AllInstruments.FirstOrDefault();
             ApplyInstrumentFilter();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "{Strategy} instrument list load failed; using static catalog", StrategyId);
+            _services.ActivityLog.Append(StrategyDisplayName, "WARN",
+                $"Instrument list load failed ({ex.GetType().Name}: {ex.Message}); showing the static catalog.");
         }
     }
 
@@ -714,6 +753,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     public void Dispose()
     {
+        _services.Selector.StateChanged -= OnBrokerStateChanged;
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _ingestHandle?.Dispose();
