@@ -65,7 +65,8 @@ public static class AppDependencyInjection
             sp.GetRequiredService<Core.MarketData.IMarketDataIngest>(),
             sp.GetRequiredService<Core.MarketData.IMarketDataStore>(),
             sp.GetRequiredService<Core.Brokers.IBrokerSelector>(),
-            sp.GetRequiredService<TradingTerminal.UI.Logging.InMemoryLogSink>()));
+            sp.GetRequiredService<TradingTerminal.UI.Logging.InMemoryLogSink>(),
+            sp.GetRequiredService<Core.MarketData.IInstrumentRegistry>()));
 
         // Dedicated live strategies — each in its own project, opens as a MetroWindow.
         services.AddCumulativeDeltaStrategy();

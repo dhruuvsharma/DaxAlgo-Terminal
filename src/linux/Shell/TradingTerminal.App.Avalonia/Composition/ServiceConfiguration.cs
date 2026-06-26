@@ -88,7 +88,8 @@ public static class ServiceConfiguration
             sp.GetRequiredService<IMarketDataIngest>(),
             sp.GetRequiredService<IMarketDataStore>(),
             sp.GetRequiredService<IBrokerSelector>(),
-            sp.GetRequiredService<InMemoryLogSink>()));
+            sp.GetRequiredService<InMemoryLogSink>(),
+            sp.GetRequiredService<IInstrumentRegistry>()));
 
         // Ported per-strategy VMs (descriptor + portable VM; the WPF windows are #if'd out on net9.0).
         services.AddOrnsteinUhlenbeckStrategy();

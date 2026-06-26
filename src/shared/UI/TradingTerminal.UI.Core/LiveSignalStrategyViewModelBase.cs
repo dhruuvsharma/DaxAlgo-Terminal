@@ -97,7 +97,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _routerFactory = routerFactory;
         _logger = logger;
 
-        AllInstruments = SignalInstrumentCatalog.All;
+        // Seed from the canonical instrument registry (no hardcoded catalog). Instrument-discovery
+        // fills the registry the moment a broker connects, so if any broker is already up this is the
+        // real, discovered universe; if none is up yet it's empty and the picker fills on connect.
+        AllInstruments = RegistryRows();
         Instruments = new ObservableCollection<SignalInstrument>(
             AllInstruments.Take(MaxInstrumentsDisplayed));
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
@@ -105,7 +108,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
 
-        // Replace the static fallback with the connected broker's tradable universe.
+        // Refine with the connected brokers' own (broker-tagged) lists where available.
         // Fire-and-forget: the continuation resumes on the UI context (VM is built there).
         _ = LoadInstrumentsAsync();
 
@@ -224,9 +227,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
 
     /// <summary>
-    /// Loads the connected broker's tradable instruments and swaps them in for the static
-    /// fallback. cTrader yields FX pairs, Alpaca yields stocks + crypto, IB/NinjaTrader yield
-    /// curated catalogs. On failure or an empty list we keep the static catalog already shown.
+    /// Populates the picker from real instruments only — no hardcoded catalog. Prefers each connected
+    /// broker's own (broker-tagged) list where available; otherwise falls back to the canonical
+    /// instrument registry, which instrument-discovery fills on connect and is broker-agnostic — so a
+    /// broker that returns a cold/curated list (LSE, IronBeam) or a momentary state mismatch can't
+    /// blank the picker. Re-runs when a broker connects (see <see cref="OnBrokerStateChanged"/>).
     /// </summary>
     private async Task LoadInstrumentsAsync()
     {
@@ -234,19 +239,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         {
             var connected = _services.Selector.Connected;
             var list = await _services.Repository.ListInstrumentsAsync();
-            if (list is null || list.Count == 0)
-            {
-                // Make the static fallback visible rather than silent — the #1 "I can't see my
-                // broker's instruments" cause is simply that no connected broker returned any
-                // (none connected, or the broker's ListInstrumentsAsync yielded an empty universe).
-                var brokers = connected.Count == 0 ? "none connected" : string.Join(", ", connected);
-                _services.ActivityLog.Append(StrategyDisplayName, "INFO",
-                    $"No broker instruments available ({brokers}); showing the static catalog " +
-                    $"({AllInstruments.Count} symbols).");
-                return;
-            }
 
-            AllInstruments = list
+            var brokerRows = (list ?? Array.Empty<TradableInstrument>())
                 .Select(i => new SignalInstrument(
                     $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
                     i.Category,
@@ -254,13 +248,27 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     i.Broker))
                 .ToList();
 
+            // Broker-tagged rows are richer (pills show the source broker); fall back to the registry
+            // when a broker contributed nothing so the picker reflects the discovered universe.
+            IReadOnlyList<SignalInstrument> rows = brokerRows.Count > 0 ? brokerRows : RegistryRows();
+
+            if (rows.Count == 0)
+            {
+                var brokers = connected.Count == 0 ? "none connected" : string.Join(", ", connected);
+                Status = $"No instruments available yet ({brokers}). Connect a broker to load its universe.";
+                _services.ActivityLog.Append(StrategyDisplayName, "INFO",
+                    $"No instruments available ({brokers}); registry empty.");
+                return;
+            }
+
+            AllInstruments = rows;
+            var source = brokerRows.Count > 0 ? string.Join(", ", connected) : "instrument registry";
             _services.ActivityLog.Append(StrategyDisplayName, "INFO",
-                $"Loaded {AllInstruments.Count} instruments from {string.Join(", ", connected)}.");
+                $"Loaded {AllInstruments.Count} instruments from {source}.");
 
             // Preserve the user's current pick across a reload (this method also runs when a broker
             // connects after the window opened — see OnBrokerStateChanged). Match by symbol since the
-            // broker-tagged DisplayName differs from the static-catalog row the user may have selected.
-            // Otherwise prefer a familiar default; finally the first symbol.
+            // broker-tagged DisplayName differs from any registry row the user may have selected.
             var prevSymbol = SelectedInstrument?.Contract.Symbol;
             SelectedInstrument =
                 (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
@@ -271,11 +279,33 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "{Strategy} instrument list load failed; using static catalog", StrategyId);
+            _logger.LogWarning(ex, "{Strategy} instrument list load failed", StrategyId);
             _services.ActivityLog.Append(StrategyDisplayName, "WARN",
-                $"Instrument list load failed ({ex.GetType().Name}: {ex.Message}); showing the static catalog.");
+                $"Instrument list load failed ({ex.GetType().Name}: {ex.Message}).");
         }
     }
+
+    /// <summary>Builds picker rows from the canonical instrument registry (broker-agnostic). Each row
+    /// carries a reconstructed <see cref="Contract"/> and a null <c>Broker</c> — the host resolves the
+    /// actual broker at Start to whichever connected broker offers the symbol.</summary>
+    private IReadOnlyList<SignalInstrument> RegistryRows() =>
+        _services.Registry.All()
+            .Select(i => new SignalInstrument(
+                $"{i.CanonicalSymbol}  ·  {i.AssetClass}",
+                i.AssetClass.ToString(),
+                new Contract(i.CanonicalSymbol, SecTypeFor(i.AssetClass), i.Exchange, i.Currency, i.Exchange),
+                Broker: null))
+            .ToList();
+
+    private static string SecTypeFor(Core.Domain.AssetClass assetClass) => assetClass switch
+    {
+        Core.Domain.AssetClass.Future => "FUT",
+        Core.Domain.AssetClass.Forex => "CASH",
+        Core.Domain.AssetClass.Crypto => "CRYPTO",
+        Core.Domain.AssetClass.Option => "OPT",
+        Core.Domain.AssetClass.Index => "IND",
+        _ => "STK",
+    };
 
     /// <summary>Short broker label appended to instrument rows so users can disambiguate the
     /// same ticker exposed by multiple connected brokers (e.g. "ES — IB" vs "ES — cTrader").</summary>

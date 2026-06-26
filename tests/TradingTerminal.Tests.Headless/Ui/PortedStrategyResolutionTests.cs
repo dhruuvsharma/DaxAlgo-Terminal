@@ -46,7 +46,8 @@ public sealed class PortedStrategyResolutionTests
             sp.GetRequiredService<IMarketDataIngest>(),
             sp.GetRequiredService<IMarketDataStore>(),
             sp.GetRequiredService<IBrokerSelector>(),
-            sp.GetRequiredService<InMemoryLogSink>()));
+            sp.GetRequiredService<InMemoryLogSink>(),
+            sp.GetRequiredService<IInstrumentRegistry>()));
 
         services.AddOrnsteinUhlenbeckStrategy();
         services.AddCumulativeDeltaStrategy();

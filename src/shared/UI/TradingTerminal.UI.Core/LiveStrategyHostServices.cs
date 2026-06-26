@@ -25,6 +25,10 @@ namespace TradingTerminal.UI;
 /// <item><see cref="ActivityLog"/> — the app-wide activity log. VMs append their activity here
 /// (tagged with their display name) instead of owning a per-window log panel; the universal
 /// Activity Log dock renders all sources together.</item>
+/// <item><see cref="Registry"/> — the canonical instrument registry. Instrument-discovery fills it
+/// the moment a broker connects, so it's the broker-agnostic source of truth for the picker —
+/// independent of whatever a single broker's <c>ListInstrumentsAsync</c> returns (cold/curated
+/// catalogs, timing). VMs read <see cref="IInstrumentRegistry.All"/> to populate the picker.</item>
 /// </list>
 /// </summary>
 public sealed record LiveStrategyHostServices(
@@ -33,4 +37,5 @@ public sealed record LiveStrategyHostServices(
     IMarketDataIngest Ingest,
     IMarketDataStore Store,
     IBrokerSelector Selector,
-    InMemoryLogSink ActivityLog);
+    InMemoryLogSink ActivityLog,
+    IInstrumentRegistry Registry);
