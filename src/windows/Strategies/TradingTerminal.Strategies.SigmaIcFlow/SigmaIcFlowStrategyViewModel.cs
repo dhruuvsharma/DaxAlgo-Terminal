@@ -7,10 +7,10 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Strategies;
-using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.Core.Time;
 using TradingTerminal.UI;
-using Engine = TradingTerminal.Infrastructure.Backtest.Strategies;
+using TradingTerminal.Strategies.SigmaIcFlow.Engine;
+using Engine = TradingTerminal.Strategies.SigmaIcFlow.Engine;
 
 namespace TradingTerminal.Strategies.SigmaIcFlow;
 

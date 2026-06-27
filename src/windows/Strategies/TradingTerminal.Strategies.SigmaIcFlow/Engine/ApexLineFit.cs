@@ -1,4 +1,4 @@
-namespace TradingTerminal.Core.Strategies.Apex;
+namespace TradingTerminal.Strategies.SigmaIcFlow.Engine;
 
 /// <summary>
 /// A fitted line over a footprint feature series (buy centroid, sell centroid, or POC across

@@ -12,9 +12,12 @@
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
+  <!-- Self-contained plugin: references only the host's stable CONTRACT assemblies (Core + the UI
+       bases), NOT Infrastructure. Its engine (ApexScalperStrategy, in Engine/) depends only on
+       TradingTerminal.Core.*. This plugin-isolation invariant is what the marketplace needs; in
+       Phase B these project refs become the DaxAlgo.Sdk / DaxAlgo.Sdk.Wpf NuGet packages. -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 

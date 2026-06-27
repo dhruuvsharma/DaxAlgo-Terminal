@@ -2,11 +2,10 @@ using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Quant;
-using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Infrastructure.Backtest.Strategies;
+namespace TradingTerminal.Strategies.SigmaIcFlow.Engine;
 
 /// <summary>
 /// Snapshot of the strategy's in-progress price candle for the live UI. Updated on every tick;

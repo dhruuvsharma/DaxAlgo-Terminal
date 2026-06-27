@@ -1,4 +1,4 @@
-namespace TradingTerminal.Core.Strategies.Apex;
+namespace TradingTerminal.Strategies.SigmaIcFlow.Engine;
 
 /// <summary>
 /// How the engine closes a bar.

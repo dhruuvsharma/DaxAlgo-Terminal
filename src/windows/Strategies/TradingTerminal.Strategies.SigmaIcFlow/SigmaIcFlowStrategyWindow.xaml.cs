@@ -6,9 +6,9 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using ScottPlot.WPF;
 using TradingTerminal.Core.MarketData;
-using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.UI;
-using Engine = TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy;
+using TradingTerminal.Strategies.SigmaIcFlow.Engine;
+using ApexEngine = TradingTerminal.Strategies.SigmaIcFlow.Engine.ApexScalperStrategy;
 
 namespace TradingTerminal.Strategies.SigmaIcFlow;
 
@@ -68,18 +68,18 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
     private static readonly SeriesDef[] SeriesDefs =
     {
         new("Composite", "#FFFFFF", 2.2f, s => s.Composite),
-        new("Delta",      "#4FC3F7", 1.4f, Sig(Engine.SigDelta)),
-        new("VPIN",       "#FFB74D", 1.4f, Sig(Engine.SigVpin)),
-        new("Initiative", "#81C784", 1.4f, Sig(Engine.SigInitiative)),
-        new("Control",    "#BA68C8", 1.4f, Sig(Engine.SigControl)),
-        new("Footprint",  "#F06292", 1.4f, Sig(Engine.SigFootprint)),
-        new("Kyle λ",     "#FFD54F", 1.4f, Sig(Engine.SigKyle)),
-        new("Wedge",      "#4DB6AC", 1.4f, Sig(Engine.SigWedge)),
-        new("Value",      "#B0BEC5", 1.4f, Sig(Engine.SigValue)),
-        new("Tape speed", "#A1887F", 1.4f, Sig(Engine.SigTapeSpeed)),
-        new("CVD",        "#90CAF9", 1.4f, Sig(Engine.SigCvd)),
-        new("OBI",        "#E57373", 1.4f, Sig(Engine.SigObi)),
-        new("Pred Node",  "#CE93D8", 1.4f, Sig(Engine.SigPredNode)),
+        new("Delta",      "#4FC3F7", 1.4f, Sig(ApexEngine.SigDelta)),
+        new("VPIN",       "#FFB74D", 1.4f, Sig(ApexEngine.SigVpin)),
+        new("Initiative", "#81C784", 1.4f, Sig(ApexEngine.SigInitiative)),
+        new("Control",    "#BA68C8", 1.4f, Sig(ApexEngine.SigControl)),
+        new("Footprint",  "#F06292", 1.4f, Sig(ApexEngine.SigFootprint)),
+        new("Kyle λ",     "#FFD54F", 1.4f, Sig(ApexEngine.SigKyle)),
+        new("Wedge",      "#4DB6AC", 1.4f, Sig(ApexEngine.SigWedge)),
+        new("Value",      "#B0BEC5", 1.4f, Sig(ApexEngine.SigValue)),
+        new("Tape speed", "#A1887F", 1.4f, Sig(ApexEngine.SigTapeSpeed)),
+        new("CVD",        "#90CAF9", 1.4f, Sig(ApexEngine.SigCvd)),
+        new("OBI",        "#E57373", 1.4f, Sig(ApexEngine.SigObi)),
+        new("Pred Node",  "#CE93D8", 1.4f, Sig(ApexEngine.SigPredNode)),
     };
 
     private readonly bool[] _seriesEnabled = Enumerable.Repeat(true, SeriesDefs.Length).ToArray();
@@ -358,7 +358,7 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
 
     private void RenderFootprint(
         SigmaIcFlowStrategyViewModel vm,
-        TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy? engine,
+        ApexScalperStrategy? engine,
         int visibleBars,
         double threshold)
     {
@@ -422,7 +422,7 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
     /// toggles. Prices are mapped to canvas Y by <see cref="FpPriceToY"/> (interpolates the rows).</summary>
     private void DrawFootprintOverlay(
         SigmaIcFlowStrategyViewModel vm,
-        TradingTerminal.Infrastructure.Backtest.Strategies.ApexScalperStrategy? engine,
+        ApexScalperStrategy? engine,
         int columns, List<double> rowsDesc, int decimals)
     {
         var snap = engine?.Latest;

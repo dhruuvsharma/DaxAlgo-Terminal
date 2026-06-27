@@ -1,4 +1,4 @@
-namespace TradingTerminal.Core.Strategies.Apex;
+namespace TradingTerminal.Strategies.SigmaIcFlow.Engine;
 
 /// <summary>
 /// One completed <b>paper (simulated) trade</b> from the engine's internal OMS — entry → exit with

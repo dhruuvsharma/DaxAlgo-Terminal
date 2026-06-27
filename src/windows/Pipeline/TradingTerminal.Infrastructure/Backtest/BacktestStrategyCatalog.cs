@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Strategies;
-using TradingTerminal.Core.Strategies.Apex;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 
@@ -84,18 +83,10 @@ public static class BacktestStrategyCatalog
         {
             DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
         },
-        new BacktestStrategyOption(
-            Id: "sigmaIcFlow",
-            DisplayName: "Σ⁻¹·IC Order-Flow Optimizer (tape-primary, calibrated composite)",
-            Build: contract => new ApexScalperStrategy(contract))
-        {
-            // v2 is trade-tape primary; L1 quotes drive the synthetic fallback and spread, depth
-            // is optional (OBI participates only when a genuine depth stream is live and fresh).
-            DataRequirement = StrategyDataRequirement.TradeTape | StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
-            // Backtests get the shorter-warmup preset so the calibration leaves bootstrap on a few
-            // hundred bars; the live host keeps the conservative default warmup via Build.
-            BacktestBuild = contract => new ApexScalperStrategy(contract, ApexV2Options.Backtest),
-        },
+        // NOTE: "sigmaIcFlow" is no longer registered here. Its engine (ApexScalperStrategy) now
+        // lives in the TradingTerminal.Strategies.SigmaIcFlow plugin and registers its own
+        // BacktestStrategyOption at runtime via IBacktestStrategyRegistry in AddSigmaIcFlowStrategy().
+        // This is the plugin model: the host catalog names no plugin-owned strategy.
         new BacktestStrategyOption(
             Id: "indexKScoreSurface",
             DisplayName: "Index K-Score Surface (single-instrument backtest variant)",

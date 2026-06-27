@@ -4,7 +4,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
-using TradingTerminal.Infrastructure.Backtest.Strategies;
+using TradingTerminal.Strategies.SigmaIcFlow.Engine;
 using Xunit;
 
 namespace TradingTerminal.Tests.Strategies;
@@ -127,7 +127,7 @@ public sealed class ApexScalperWarmupTests
         // Regression: ApexV2Options.TtlMultipliers must not default to a zero-initialised
         // record-struct (a bare new() skips the primary-ctor defaults). Zero TTLs mark every signal
         // stale the instant it is computed, pinning the composite at 0 forever.
-        var ttl = Core.Strategies.Apex.ApexV2Options.Default.TtlMultipliers;
+        var ttl = ApexV2Options.Default.TtlMultipliers;
         ttl.DeltaFootprint.Should().BeGreaterThan(0);
         ttl.ObiTapeSpeed.Should().BeGreaterThan(0);
         ttl.PocLines.Should().BeGreaterThan(0);

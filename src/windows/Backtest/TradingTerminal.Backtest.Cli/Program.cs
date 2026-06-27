@@ -122,11 +122,15 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
     "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
     "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
-    "sigmaicflow" or "sigmaic" or "flowopt" or "apexscalper" or "apex" => new ApexScalperStrategy(contract),
+    // sigmaIcFlow's engine (ApexScalperStrategy) now lives in the self-contained SigmaIcFlow plugin
+    // (a WPF assembly), so this headless CLI can no longer construct it directly. It will return via
+    // the runtime plugin loader in Phase B (the CLI resolving strategies from IBacktestStrategyRegistry).
+    "sigmaicflow" or "sigmaic" or "flowopt" or "apexscalper" or "apex" => throw new NotSupportedException(
+        "sigmaIcFlow is now a plugin (TradingTerminal.Strategies.SigmaIcFlow) and isn't available in the standalone CLI yet — run it from the app, or via the plugin loader once Phase B lands."),
     "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
     "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, sigmaIcFlow, indexKScoreSurface, filteredOrderFlow.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, indexKScoreSurface, filteredOrderFlow.")
 };
 
 static void PrintSummary(BacktestResult result)

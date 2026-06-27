@@ -1,6 +1,6 @@
 using TradingTerminal.Core.MarketData;
 
-namespace TradingTerminal.Core.Strategies.Apex;
+namespace TradingTerminal.Strategies.SigmaIcFlow.Engine;
 
 /// <summary>
 /// Per-signal score line for the v2 Apex dashboard. Carries the score, its confidence, the
