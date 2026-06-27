@@ -1,16 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Shared AI analyst seam (IAiAnalystClient Null/Http + AddAiAnalyst + the enricher). No WPF in
          this project (UseWPF was vestigial), so it multi-targets cleanly for the Avalonia head. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>AI Market Analyst seam: IAiAnalystClient (Null/Http) + AddAiAnalyst + the notification enricher.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

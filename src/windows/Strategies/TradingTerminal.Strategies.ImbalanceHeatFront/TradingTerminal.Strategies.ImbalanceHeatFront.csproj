@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0; the WPF window (HelixToolkit 3D surface)
          stays on the windows leg. See Strategies.OrnsteinUhlenbeck for the template. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Imbalance Heat Front - 3D bid/ask pressure surface over [distance-from-touch x time] with ridge-driven entries (momentum or mean-reversion). Requires L2 depth.</Description>
   </PropertyGroup>
 
@@ -14,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <!-- HelixToolkit 3D surface + MahApps window only on the Windows leg. -->
@@ -28,7 +27,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
     <Compile Remove="ImbalanceHeatFrontWindow.xaml.cs" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

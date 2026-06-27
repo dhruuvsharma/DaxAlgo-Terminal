@@ -1,11 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VMs on net9.0 (live sampler via UiThread; picker base #if-guards its
          WPF grouped view). The WPF windows + custom CorrelationMatrixControl stay on the windows leg.
          (The Avalonia head already has a native static Correlation window; here we add the LIVE one.) -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Correlation Matrix tool: rolling return correlations across the instrument universe, rendered as a heat-map grid.</Description>
   </PropertyGroup>
 
@@ -15,9 +14,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">

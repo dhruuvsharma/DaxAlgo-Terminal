@@ -1,14 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <UseWPF>true</UseWPF>
-    <Description>Machine Learning tool: Kalman filtering over historical bars — local-level / local-linear-trend price smoothing and the dynamic (time-varying) pairs hedge ratio, with innovation diagnostics.</Description>
+    <Description>Machine Learning tool: Kalman filtering over historical bars â€” local-level / local-linear-trend price smoothing and the dynamic (time-varying) pairs hedge ratio, with innovation diagnostics.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

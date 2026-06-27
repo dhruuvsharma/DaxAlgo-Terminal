@@ -1,0 +1,636 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Threading.Channels;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Quant.TimeSeries;
+using TradingTerminal.UI;
+using TradingTerminal.UI.Logging;
+
+namespace TradingTerminal.OrderBook;
+
+/// <summary>
+/// Drives the standalone Order Book window. Mirrors <c>ChartsViewModel</c> in shape — it owns the
+/// instrument picker universe and resolves the source broker — but instead of bars it subscribes to
+/// <see cref="IMarketDataHub.Depth"/> and renders the full L2 ladder for the selected instrument.
+///
+/// <para>On top of the classic depth-of-market ladder it adds four analytics layers, all reusing the
+/// pure helpers in <see cref="Microstructure"/> (Core):</para>
+/// <list type="bullet">
+/// <item><b>Microstructure strip</b> — microprice, weighted mid, L1 + cumulative queue imbalance,
+/// book skew, sweep cost ("cost to fill" a chosen size on each side).</item>
+/// <item><b>Liquidity heatmap</b> — a rolling ring buffer of <see cref="HeatColumn"/>s gives the book a
+/// time axis: x = time, y = price, intensity = resting size, with best-bid/ask + microprice lines.</item>
+/// <item><b>Imbalance / microprice trend</b> — an OLS slope (<see cref="Ols"/>) of cumulative imbalance
+/// over the visible columns, drawn as a bottom lane on the heatmap and surfaced as a slope read-out.</item>
+/// <item><b>Order flow</b> — opt-in trade tape (capability-gated, with a synthetic depth-mid fallback),
+/// Lee-Ready aggressor classification, cumulative delta, and trade dots on the heatmap.</item>
+/// </list>
+///
+/// <para>The streaming path is the canonical one: a single <see cref="IMarketDataIngest.Subscribe"/>
+/// handle starts (or joins) the ref-counted broker L1/L2 pump, and this VM observes the hub's
+/// <see cref="DepthSnapshot"/> stream keyed by <see cref="InstrumentId"/>. The heatmap is rendered in
+/// code-behind off the <see cref="BookChanged"/> event — the same render-in-code-behind convention the
+/// Volume Footprint / Order Flow Cube windows use. No view code lives here (MVVM rule).</para>
+/// </summary>
+public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
+{
+    /// <summary>Cap on how many instruments the picker shows at once (the broker universe can be
+    /// thousands of symbols; the search box narrows it).</summary>
+    public const int MaxInstrumentsDisplayed = 500;
+
+    private const string LogSource = "Order Book";
+
+    /// <summary>Top-N levels used for cumulative imbalance / weighted mid / book skew.</summary>
+    private const int DepthLevelsForStats = 10;
+
+    /// <summary>How many heatmap columns the ring buffer keeps (the visible time window). At the
+    /// <see cref="CaptureIntervalMs"/> cadence this is the wall-clock span shown.</summary>
+    private const int MaxHeatColumns = 600;
+
+    /// <summary>Capture/redraw cadence for the heatmap (ms). Decoupled from the depth update rate so a
+    /// fast book can't pin the UI thread — each tick snapshots the latest book into one column.</summary>
+    private const int CaptureIntervalMs = 250;
+
+    /// <summary>Which brokers wire a native trade tape today (mirrors the footprint / cube VMs). The
+    /// rest fall back to synthetic depth-mid-derived prints so the flow overlays aren't permanently empty.</summary>
+    private static bool BrokerSupportsTradeTape(BrokerKind broker) => broker switch
+    {
+        BrokerKind.InteractiveBrokers => true,
+        BrokerKind.Binance => true,
+        BrokerKind.IronBeam => true,
+        _ => false,
+    };
+
+    private readonly IMarketDataRepository _repository;
+    private readonly IMarketDataHub _hub;
+    private readonly IMarketDataIngest _ingest;
+    private readonly IBrokerSelector _selector;
+    private readonly InMemoryLogSink _log;
+    private readonly ILogger<OrderBookViewModel> _logger;
+
+    private IReadOnlyList<SignalInstrument> _allInstruments;
+    private CancellationTokenSource? _streamCts;
+    private IDisposable? _ingestHandle;
+    private IDisposable? _tradeHandle;
+
+    /// <summary>Latest whole-book snapshot, set by the depth drain and sampled by the capture timer.</summary>
+    private DepthSnapshot? _latest;
+
+    /// <summary>Trades that have printed since the last heatmap capture, drained into the next column.</summary>
+    private readonly List<TradeMark> _pendingTrades = new();
+
+    /// <summary>Lee-Ready carry state (prior trade price + prior classification) for inside-spread prints.</summary>
+    private double _priorTradePrice;
+    private AggressorSide _priorAggressor = AggressorSide.Unknown;
+    private double? _priorMid; // synthetic-tape mid-tick detector
+
+    private bool _useSyntheticTape;
+    private readonly IDisposable _captureTimer;
+    private bool _ready;
+
+    public OrderBookViewModel(
+        IMarketDataRepository repository,
+        IMarketDataHub hub,
+        IMarketDataIngest ingest,
+        IBrokerSelector selector,
+        InMemoryLogSink log,
+        ILogger<OrderBookViewModel> logger)
+    {
+        _repository = repository;
+        _hub = hub;
+        _ingest = ingest;
+        _selector = selector;
+        _log = log;
+        _logger = logger;
+
+        _allInstruments = SignalInstrumentCatalog.All;
+        Instruments = new ObservableCollection<SignalInstrument>(_allInstruments.Take(MaxInstrumentsDisplayed));
+        SweepSizes = new ObservableCollection<int> { 100, 500, 1_000, 5_000, 10_000 };
+        _selectedSweepSize = 1_000;
+        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                             ?? Instruments.FirstOrDefault();
+
+        // Coalesced capture/render tick via the portable timer seam (WPF Dispatcher / Avalonia
+        // Dispatcher under the hood). Returns an IDisposable owned by this VM.
+        _captureTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(CaptureIntervalMs), OnCaptureTick);
+
+        _ready = true;
+        _ = LoadInstrumentsAsync();
+        Restart();
+    }
+
+    public ObservableCollection<SignalInstrument> Instruments { get; }
+    public ObservableCollection<int> SweepSizes { get; }
+
+    /// <summary>Heatmap ring buffer (oldest first, left → right). Read by the code-behind renderer.</summary>
+    public IReadOnlyList<HeatColumn> HeatColumns => _heatColumns;
+    private readonly List<HeatColumn> _heatColumns = new();
+
+    /// <summary>OLS fit of cumulative imbalance against column index over the visible columns
+    /// (slope in imbalance-units per column, intercept at column 0). Drawn as the lane trend line and
+    /// surfaced as <see cref="ImbalanceSlopeText"/>. Valid only when <see cref="HasImbalanceTrend"/>.</summary>
+    public double ImbalanceSlope { get; private set; }
+    public double ImbalanceIntercept { get; private set; }
+    public bool HasImbalanceTrend { get; private set; }
+
+    /// <summary>Ask side, displayed best-ask-at-the-bottom (highest price first) so the spread sits
+    /// between the two ladders like a classic depth-of-market.</summary>
+    [ObservableProperty] private ObservableCollection<OrderBookLevel> _asks = new();
+
+    /// <summary>Bid side, best-bid first (descending price).</summary>
+    [ObservableProperty] private ObservableCollection<OrderBookLevel> _bids = new();
+
+    [ObservableProperty] private SignalInstrument? _selectedInstrument;
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
+    [ObservableProperty] private string _status = "Pick an instrument to stream its order book.";
+    [ObservableProperty] private double? _bestBid;
+    [ObservableProperty] private double? _bestAsk;
+    [ObservableProperty] private double? _spread;
+    [ObservableProperty] private double? _mid;
+    [ObservableProperty] private int _bidLevels;
+    [ObservableProperty] private int _askLevels;
+    [ObservableProperty] private DateTime? _lastUpdateUtc;
+
+    // ── Tier 2: microstructure analytics strip ──────────────────────────────────────────────────
+    [ObservableProperty] private double? _microprice;
+    [ObservableProperty] private double? _weightedMid;
+    /// <summary>L1 queue imbalance in [-1, 1] (top-of-book sizes only).</summary>
+    [ObservableProperty] private double _imbalanceL1;
+    /// <summary>Cumulative top-N queue imbalance in [-1, 1].</summary>
+    [ObservableProperty] private double _imbalanceCum;
+    [ObservableProperty] private string _imbalanceCumText = "—";
+    /// <summary>Sign of cumulative imbalance: +1 bid-heavy, -1 ask-heavy, 0 balanced (drives colour).</summary>
+    [ObservableProperty] private int _imbalanceDirection;
+    /// <summary>Book skew = total bid depth ÷ total ask depth across the top-N (1 = balanced).</summary>
+    [ObservableProperty] private string _bookSkewText = "—";
+    /// <summary>Price cost to fill <see cref="SelectedSweepSize"/> sweeping the asks (a market buy).</summary>
+    [ObservableProperty] private double? _sweepCostBuy;
+    /// <summary>Price cost to fill <see cref="SelectedSweepSize"/> sweeping the bids (a market sell).</summary>
+    [ObservableProperty] private double? _sweepCostSell;
+    [ObservableProperty] private bool _sweepBuyShort;  // book too thin to fully fill the buy sweep
+    [ObservableProperty] private bool _sweepSellShort;
+    [ObservableProperty] private int _selectedSweepSize;
+
+    // ── Tier 3: imbalance / microprice trend ────────────────────────────────────────────────────
+    [ObservableProperty] private string _imbalanceSlopeText = "—";
+    [ObservableProperty] private int _imbalanceSlopeDirection;
+
+    // ── Tier 4: order flow ──────────────────────────────────────────────────────────────────────
+    [ObservableProperty] private long _cumulativeDelta;
+    [ObservableProperty] private int _cvdDirection;
+    [ObservableProperty] private bool _tradeTapeLive;        // true when a native tape is wired
+    [ObservableProperty] private string _tradeTapeText = "—";
+
+    // ── View toggles (presentation only — redraw, never restart the stream) ─────────────────────
+    [ObservableProperty] private bool _showHeatmap = true;
+    [ObservableProperty] private bool _showTrades = true;
+    [ObservableProperty] private bool _showMicropriceLine = true;
+    [ObservableProperty] private bool _showImbalanceLane = true;
+
+    /// <summary>Raised on the UI thread whenever the heatmap ring buffer changes and the canvas should
+    /// redraw. The ladder + strip are plain bindings and update themselves.</summary>
+    public event EventHandler? BookChanged;
+
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
+    partial void OnSelectedInstrumentChanged(SignalInstrument? value) { if (_ready) Restart(); }
+    partial void OnSelectedSweepSizeChanged(int value) { if (_latest is { } s) UpdateSweepCost(s); }
+
+    partial void OnShowHeatmapChanged(bool value) => RaiseRedraw();
+    partial void OnShowTradesChanged(bool value) => RaiseRedraw();
+    partial void OnShowMicropriceLineChanged(bool value) => RaiseRedraw();
+    partial void OnShowImbalanceLaneChanged(bool value) => RaiseRedraw();
+
+    private void RaiseRedraw()
+    {
+        if (_ready) BookChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Swaps the static fallback catalog for the connected broker's tradable universe,
+    /// mapped to <see cref="SignalInstrument"/>. Keeps the static catalog on failure / empty list.</summary>
+    private async Task LoadInstrumentsAsync()
+    {
+        try
+        {
+            var list = await _repository.ListInstrumentsAsync();
+            if (list is null || list.Count == 0) return;
+
+            _allInstruments = list
+                .Select(i => new SignalInstrument($"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}", i.Category, i.Contract, i.Broker))
+                .ToList();
+
+            var keep = SelectedInstrument;
+            ApplyFilter();
+            SelectedInstrument = keep is not null && Instruments.Contains(keep)
+                ? keep
+                : _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Order book: instrument list load failed; using static catalog");
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        var term = InstrumentSearchText?.Trim() ?? string.Empty;
+        IEnumerable<SignalInstrument> query = _allInstruments;
+        if (term.Length > 0)
+            query = _allInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
+        var keep = SelectedInstrument;
+        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
+
+        Instruments.Clear();
+        foreach (var inst in shown) Instruments.Add(inst);
+    }
+
+    private void Restart()
+    {
+        StopStream();
+        ResetState();
+        var instrument = SelectedInstrument;
+        if (instrument is null) return;
+
+        BrokerKind broker;
+        try { broker = ResolveBroker(instrument); }
+        catch (InvalidOperationException ex) { Status = ex.Message; ClearBook(); return; }
+
+        _useSyntheticTape = !BrokerSupportsTradeTape(broker);
+        TradeTapeLive = !_useSyntheticTape;
+        TradeTapeText = _useSyntheticTape ? "synthetic (depth-mid)" : "live tape";
+
+        try
+        {
+            var id = _ingest.Resolve(instrument.Contract, broker);
+            _streamCts = new CancellationTokenSource();
+            // Single ref-counted handle powers both L1 and depth on the ingest side.
+            _ingestHandle = _ingest.Subscribe(instrument.Contract, broker);
+            if (!_useSyntheticTape)
+                _tradeHandle = _ingest.SubscribeTrades(instrument.Contract, broker);
+
+            Status = $"Streaming order book — {instrument.DisplayName} ({BrokerLabel(broker)})…";
+            _log.Append(LogSource, "INFO",
+                $"Order book on {instrument.DisplayName} [{BrokerLabel(broker)}] — depth + {TradeTapeText}");
+
+            _ = RunDepthStreamAsync(id, _streamCts.Token);
+            if (!_useSyntheticTape)
+                _ = RunTradeStreamAsync(id, _streamCts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Order book: subscribe failed for {Symbol}", instrument.Contract.Symbol);
+            Status = $"Subscribe failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Pumps depth snapshots off the hub through a bounded channel (so the publish thread is
+    /// never blocked by the UI) and rebuilds the ladders on the UI thread for the freshest one.</summary>
+    private const int DepthChannelCapacity = 2_048;
+
+    private async Task RunDepthStreamAsync(InstrumentId instrumentId, CancellationToken ct)
+    {
+        // Bounded + DropOldest so a fast book the UI can't keep up with is capped in memory (newest
+        // snapshot wins) instead of piling an unbounded backlog into GBs. We render only the freshest
+        // snapshot per drain — intermediate books are already stale, so coalescing is lossless here.
+        var channel = Channel.CreateBounded<DepthSnapshot>(new BoundedChannelOptions(DepthChannelCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+
+        using var subscription = _hub.Depth(instrumentId).Subscribe(s => channel.Writer.TryWrite(s));
+
+        try
+        {
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                DepthSnapshot? latest = null;
+                while (channel.Reader.TryRead(out var s)) latest = s;
+                if (latest is { } snap) await UiThread.RunAsync(() => OnSnapshot(snap));
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Order book: depth stream ended");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+        }
+    }
+
+    private const int TradeChannelCapacity = 100_000;
+    private const int MaxDrainBatch = 8_192;
+
+    /// <summary>Pumps the native trade tape: classifies each print (Lee-Ready when the broker doesn't
+    /// report a side), folds it into the cumulative delta, and queues a <see cref="TradeMark"/> for the
+    /// next heatmap column. Bounded + DropOldest mirrors the footprint VM's anti-pile-up backstop.</summary>
+    private async Task RunTradeStreamAsync(InstrumentId instrumentId, CancellationToken ct)
+    {
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+
+        using var sub = _hub.Trades(instrumentId).Subscribe(t => channel.Writer.TryWrite(t));
+
+        var batch = new List<TradePrint>(MaxDrainBatch);
+        try
+        {
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                await UiThread.RunAsync(() => IngestTrades(batch));
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Order book: trade stream ended");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+        }
+    }
+
+    /// <summary>Classifies a batch of real prints and accumulates them (UI thread). The heavy redraw is
+    /// left to the capture tick; this only updates the running delta + the pending-trade buffer.</summary>
+    private void IngestTrades(List<TradePrint> batch)
+    {
+        var bid = _latest?.BestBid ?? 0;
+        var ask = _latest?.BestAsk ?? 0;
+        long delta = 0;
+        foreach (var t in batch)
+        {
+            var side = t.Aggressor != AggressorSide.Unknown
+                ? t.Aggressor
+                : Microstructure.ClassifyAggressor(t.Price, bid, ask, _priorTradePrice, _priorAggressor);
+            if (side != AggressorSide.Unknown) _priorAggressor = side;
+            _priorTradePrice = t.Price;
+
+            if (side == AggressorSide.Buy) delta += t.Size;
+            else if (side == AggressorSide.Sell) delta -= t.Size;
+
+            _pendingTrades.Add(new TradeMark(t.Price, t.Size, side));
+        }
+        CumulativeDelta += delta;
+        CvdDirection = Math.Sign(CumulativeDelta);
+    }
+
+    /// <summary>Projects a whole-book snapshot into the two display ladders and recomputes the
+    /// microstructure strip. Stores the snapshot for the capture timer (heatmap + synthetic tape).</summary>
+    private void OnSnapshot(DepthSnapshot snapshot)
+    {
+        _latest = snapshot;
+
+        long maxSize = 1;
+        foreach (var l in snapshot.Bids) if (l.Size > maxSize) maxSize = l.Size;
+        foreach (var l in snapshot.Asks) if (l.Size > maxSize) maxSize = l.Size;
+
+        // Bids: best-first (already descending). Cumulative from the top of book down.
+        var bids = new ObservableCollection<OrderBookLevel>();
+        long cum = 0;
+        foreach (var l in snapshot.Bids)
+        {
+            cum += l.Size;
+            bids.Add(new OrderBookLevel(l.Price, l.Size, cum, (double)l.Size / maxSize));
+        }
+
+        // Asks: cumulative is computed best-first (ascending), but displayed highest-price-first so
+        // the best ask sits just above the spread. Reverse after accumulating.
+        var asksBestFirst = new List<OrderBookLevel>();
+        cum = 0;
+        foreach (var l in snapshot.Asks)
+        {
+            cum += l.Size;
+            asksBestFirst.Add(new OrderBookLevel(l.Price, l.Size, cum, (double)l.Size / maxSize));
+        }
+        asksBestFirst.Reverse();
+
+        Bids = bids;
+        Asks = new ObservableCollection<OrderBookLevel>(asksBestFirst);
+        BidLevels = snapshot.Bids.Count;
+        AskLevels = snapshot.Asks.Count;
+        BestBid = snapshot.BestBid > 0 ? snapshot.BestBid : null;
+        BestAsk = snapshot.BestAsk > 0 ? snapshot.BestAsk : null;
+        Spread = BestBid is { } b && BestAsk is { } a ? a - b : null;
+        Mid = BestBid is { } bb && BestAsk is { } aa ? (aa + bb) * 0.5 : null;
+        LastUpdateUtc = snapshot.TimestampUtc;
+
+        UpdateAnalytics(snapshot);
+
+        Status = $"{SelectedInstrument?.DisplayName} · {snapshot.Bids.Count} bid / {snapshot.Asks.Count} ask levels · {snapshot.TimestampUtc:HH:mm:ss}";
+    }
+
+    /// <summary>Tier 2 strip: microprice / weighted mid / imbalance / skew, all from <see cref="Microstructure"/>.</summary>
+    private void UpdateAnalytics(DepthSnapshot snapshot)
+    {
+        if (snapshot.Bids.Count == 0 || snapshot.Asks.Count == 0)
+        {
+            Microprice = WeightedMid = null;
+            ImbalanceL1 = ImbalanceCum = 0;
+            ImbalanceCumText = "—"; ImbalanceDirection = 0;
+            BookSkewText = "—";
+            SweepCostBuy = SweepCostSell = null;
+            return;
+        }
+
+        var topBidSize = snapshot.Bids[0].Size;
+        var topAskSize = snapshot.Asks[0].Size;
+        Microprice = Microstructure.Microprice(snapshot.BestBid, snapshot.BestAsk, topBidSize, topAskSize);
+        WeightedMid = Microstructure.WeightedMidPrice(snapshot, DepthLevelsForStats);
+        ImbalanceL1 = Microstructure.QueueImbalance(topBidSize, topAskSize);
+        ImbalanceCum = Microstructure.CumulativeImbalance(snapshot, DepthLevelsForStats);
+        ImbalanceCumText = ImbalanceCum.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture);
+        ImbalanceDirection = ImbalanceCum > 0.02 ? 1 : ImbalanceCum < -0.02 ? -1 : 0;
+
+        var bidDepth = Microstructure.SideDepth(snapshot.Bids, DepthLevelsForStats);
+        var askDepth = Microstructure.SideDepth(snapshot.Asks, DepthLevelsForStats);
+        BookSkewText = askDepth > 0
+            ? ((double)bidDepth / askDepth).ToString("0.00×", CultureInfo.InvariantCulture)
+            : "—";
+
+        UpdateSweepCost(snapshot);
+    }
+
+    private void UpdateSweepCost(DepthSnapshot snapshot)
+    {
+        if (snapshot.Asks.Count == 0 || snapshot.Bids.Count == 0) { SweepCostBuy = SweepCostSell = null; return; }
+        SweepCostBuy = Microstructure.EstimatedSlippage(snapshot.Asks, SelectedSweepSize, out var buyFull);
+        SweepCostSell = Microstructure.EstimatedSlippage(snapshot.Bids, SelectedSweepSize, out var sellFull);
+        SweepBuyShort = !buyFull;
+        SweepSellShort = !sellFull;
+    }
+
+    /// <summary>Capture tick (~4 fps): snapshots the latest book into one heatmap column, attaches the
+    /// trades that printed since the last tick (real or synthesized), recomputes the imbalance trend,
+    /// trims the ring, and asks the canvas to redraw. Decoupled from the depth rate by design.</summary>
+    private void OnCaptureTick()
+    {
+        if (!_ready) return;
+        var snap = _latest;
+        if (snap is null || snap.Bids.Count == 0 || snap.Asks.Count == 0) return;
+
+        // Synthetic tape: emit a mid-tick-derived print when no native tape is wired, so the flow
+        // overlays still show something against the fake client / cTrader / Alpaca.
+        if (_useSyntheticTape) SynthesizeTrade(snap);
+
+        List<TradeMark>? trades = null;
+        if (_pendingTrades.Count > 0)
+        {
+            trades = new List<TradeMark>(_pendingTrades);
+            _pendingTrades.Clear();
+        }
+
+        var column = new HeatColumn
+        {
+            TimeUtc = snap.TimestampUtc == default ? DateTime.UtcNow : snap.TimestampUtc,
+            Bids = snap.Bids,
+            Asks = snap.Asks,
+            BestBid = snap.BestBid,
+            BestAsk = snap.BestAsk,
+            Microprice = Microprice ?? (snap.BestBid + snap.BestAsk) * 0.5,
+            Imbalance = ImbalanceCum,
+            Trades = trades,
+        };
+        _heatColumns.Add(column);
+        while (_heatColumns.Count > MaxHeatColumns) _heatColumns.RemoveAt(0);
+
+        UpdateImbalanceTrend();
+        BookChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>L1 tick-rule synthesizer over the depth mid: mid ticks up ⇒ buy print at the ask
+    /// (size = ask size), down ⇒ sell at the bid. Keeps the flow overlays alive on tape-less brokers.</summary>
+    private void SynthesizeTrade(DepthSnapshot snap)
+    {
+        var mid = (snap.BestBid + snap.BestAsk) * 0.5;
+        if (_priorMid is { } prev && mid != prev)
+        {
+            var isBuy = mid > prev;
+            var price = isBuy ? snap.BestAsk : snap.BestBid;
+            var size = Math.Max(1L, isBuy ? snap.Asks[0].Size : snap.Bids[0].Size);
+            var side = isBuy ? AggressorSide.Buy : AggressorSide.Sell;
+            _pendingTrades.Add(new TradeMark(price, size, side));
+            CumulativeDelta += isBuy ? size : -size;
+            CvdDirection = Math.Sign(CumulativeDelta);
+        }
+        _priorMid = mid;
+    }
+
+    /// <summary>Tier 3: OLS fit of cumulative imbalance vs column index over the ring buffer. Slope is
+    /// the directional pressure trend (imbalance-units per column); feeds the lane line + read-out.</summary>
+    private void UpdateImbalanceTrend()
+    {
+        var n = _heatColumns.Count;
+        if (n < 4)
+        {
+            HasImbalanceTrend = false;
+            ImbalanceSlope = ImbalanceIntercept = 0;
+            ImbalanceSlopeText = "—"; ImbalanceSlopeDirection = 0;
+            return;
+        }
+
+        var x = new double[n][];
+        var y = new double[n];
+        for (var i = 0; i < n; i++)
+        {
+            x[i] = new[] { 1.0, i };       // intercept + column index
+            y[i] = _heatColumns[i].Imbalance;
+        }
+
+        var fit = Ols.Fit(x, y);
+        if (fit is null)
+        {
+            HasImbalanceTrend = false;
+            ImbalanceSlopeText = "—"; ImbalanceSlopeDirection = 0;
+            return;
+        }
+
+        ImbalanceIntercept = fit.Beta[0];
+        ImbalanceSlope = fit.Beta[1];
+        HasImbalanceTrend = true;
+        ImbalanceSlopeText = $"{ImbalanceSlope * 100:+0.00;-0.00;0.00}/col";
+        ImbalanceSlopeDirection = ImbalanceSlope > 1e-5 ? 1 : ImbalanceSlope < -1e-5 ? -1 : 0;
+    }
+
+    private void ResetState()
+    {
+        _latest = null;
+        _pendingTrades.Clear();
+        _heatColumns.Clear();
+        _priorTradePrice = 0;
+        _priorAggressor = AggressorSide.Unknown;
+        _priorMid = null;
+        CumulativeDelta = 0;
+        CvdDirection = 0;
+        HasImbalanceTrend = false;
+        ImbalanceSlope = ImbalanceIntercept = 0;
+        ImbalanceSlopeText = "—"; ImbalanceSlopeDirection = 0;
+        BookChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ClearBook()
+    {
+        Bids = new ObservableCollection<OrderBookLevel>();
+        Asks = new ObservableCollection<OrderBookLevel>();
+        BidLevels = AskLevels = 0;
+        BestBid = BestAsk = Spread = Mid = null;
+        Microprice = WeightedMid = null;
+        ImbalanceL1 = ImbalanceCum = 0;
+        ImbalanceCumText = "—"; ImbalanceDirection = 0;
+        BookSkewText = "—";
+        SweepCostBuy = SweepCostSell = null;
+        LastUpdateUtc = null;
+        _heatColumns.Clear();
+        BookChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private BrokerKind ResolveBroker(SignalInstrument instrument)
+    {
+        if (instrument.Broker is { } explicitBroker && _selector.IsConnected(explicitBroker))
+            return explicitBroker;
+        var connected = _selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        return connected[0];
+    }
+
+    private static string BrokerLabel(BrokerKind broker) => broker switch
+    {
+        BrokerKind.InteractiveBrokers => "IB",
+        BrokerKind.NinjaTrader => "NinjaTrader",
+        BrokerKind.CTrader => "cTrader",
+        BrokerKind.Alpaca => "Alpaca",
+        _ => broker.ToString(),
+    };
+
+    private void StopStream()
+    {
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+        _streamCts = null;
+        _ingestHandle?.Dispose();
+        _ingestHandle = null;
+        _tradeHandle?.Dispose();
+        _tradeHandle = null;
+    }
+
+    public void Dispose()
+    {
+        _captureTimer.Dispose();
+        StopStream();
+    }
+}

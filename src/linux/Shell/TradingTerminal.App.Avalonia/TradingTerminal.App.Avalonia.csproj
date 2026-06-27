@@ -1,61 +1,61 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- Cross-platform Avalonia shell (Phase 1 of the Linux port). net9.0 runs on Windows, Linux,
-         and Raspberry Pi (ARM64) — Avalonia needs no WPF. Overrides the net9.0-windows7.0 default
+         and Raspberry Pi (ARM64) â€” Avalonia needs no WPF. Overrides the net9.0-windows7.0 default
          from Directory.Build.props. The WPF TradingTerminal.App stays the Windows shell. -->
     <TargetFramework>net9.0</TargetFramework>
-    <Description>Cross-platform (Avalonia) desktop shell on the portable headless core — Phase 1 of the Linux/ARM64 port.</Description>
+    <Description>Cross-platform (Avalonia) desktop shell on the portable headless core â€” Phase 1 of the Linux/ARM64 port.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <!-- Portable VM layer shared with the WPF shell — proves view-models port across unchanged. -->
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <!-- The headless stack (brokers, backtest engine + strategy catalog) — WPF-free on net9.0. -->
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- Portable VM layer shared with the WPF shell â€” proves view-models port across unchanged. -->
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <!-- The headless stack (brokers, backtest engine + strategy catalog) â€” WPF-free on net9.0. -->
+    <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <!-- Ported per-strategy projects: reuse their portable VMs (net9.0 leg, no WPF). -->
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
-    <ProjectReference Include="..\..\..\windows\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
+    <ProjectReference Include="..\..\..\linux\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
     <!-- AI tool windows (portable VMs; file dialogs via the UiFile seam) + the shared analyst seam. -->
-    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
-    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
-    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
-    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
-    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
-    <ProjectReference Include="..\..\..\windows\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
+    <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
     <!-- Tools windows. -->
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
-    <ProjectReference Include="..\..\..\windows\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
-    <ProjectReference Include="..\..\..\windows\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
-    <ProjectReference Include="..\..\..\windows\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
-    <ProjectReference Include="..\..\..\windows\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
+    <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
+    <ProjectReference Include="..\..\..\linux\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.1" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.1" />
-    <!-- Cross-platform charting (the ScottPlot 5 Avalonia control) — replaces the WPF ScottPlot/WebView2
+    <!-- Cross-platform charting (the ScottPlot 5 Avalonia control) â€” replaces the WPF ScottPlot/WebView2
          charts. Runs on Windows + Linux + ARM64 via SkiaSharp. -->
     <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
     <!-- Same MVVM toolkit the WPF VMs use, so view-models port across unchanged. -->

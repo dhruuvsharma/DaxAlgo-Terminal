@@ -4,6 +4,21 @@ A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Twelve brokers be
 
 This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigger) and **docs/**. Don't re-derive conventions each session — load the matching skill, or `navigator` for "where does X live".
 
+## ⚠️ Two independent trees — NO shared code (2026-06-27)
+
+The repo is **forked into two fully independent codebases with zero shared projects** (done so Linux/Avalonia work can never destabilize the Windows/WPF build):
+
+| Tree | Root | Solution | TFM | UI |
+|---|---|---|---|---|
+| **Windows** | `src/windows/` | `TradingTerminal.Windows.slnx` | `net9.0-windows7.0` | WPF (MahApps) |
+| **Linux** | `src/linux/` | `TradingTerminal.Linux.slnx` | `net9.0` | Avalonia |
+
+- Each tree owns its **own copy** of the backend (Core, MarketData, Infrastructure, Backtest.Engine/Cli, UI.Core, Settings) and of every strategy/tool/AI/chart project. `src/shared/` is gone; **no multi-targeting** remains.
+- Type **namespaces are intentionally identical** across trees (`TradingTerminal.Core`, etc.) — the two never compile together, so there's no clash. A change in one tree does **not** propagate; **a fix that should apply to both must be made twice** (once per tree).
+- Windows-only projects (e.g. `TradingTerminal.Charts` WebView2 charts, the `Ml.*` windows) exist only under `src/windows/`. The Avalonia shell is `src/linux/Shell/TradingTerminal.App.Avalonia`.
+- Tests: `tests/TradingTerminal.Tests` (WPF) + `tests/TradingTerminal.Tests.Headless` → Windows tree; `tests/linux/TradingTerminal.Tests.Headless` → Linux tree.
+- Project-map/skill descriptions below still name projects correctly; just prepend `src/windows/<group>/` (or `src/linux/<group>/`) to the old `src/` paths.
+
 ## Stack
 
 - **TFM**: `net9.0-windows7.0` (in `Directory.Build.props`). Don't rename to `net8.0-windows` or strip the `7.0`.
@@ -116,10 +131,16 @@ Match the cheapest model tall enough for the task. Spawn a subagent only when se
 ## Build & run
 
 ```powershell
-dotnet build
-dotnet test
-dotnet run --project src/TradingTerminal.App
+# Windows/WPF tree
+dotnet build TradingTerminal.Windows.slnx
+dotnet test  TradingTerminal.Windows.slnx
+dotnet run --project src/windows/Shell/TradingTerminal.App
+
+# Linux/Avalonia tree (also builds on Windows; net9.0)
+dotnet build TradingTerminal.Linux.slnx
+dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
 ```
+There is no top-level `dotnet build` with no argument anymore — two solutions exist, so always name one. `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` / `linux/Dockerfile` (Linux) wrap each tree.
 
 Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` from `C:\TWS API\`; `HAS_NTAPI` from `NTDirect.dll`) — there's no `UseRealClient` switch and no per-broker synthetic fallback; cTrader needs OAuth at login; Alpaca needs ApiKey+Secret (`IsLive` toggles paper/live; live stock stream pinned to IEX). No broker required to build/run — the `Simulated` broker (`BrokerKind.Simulated`, `SimulatedBrokerClient` in `Infrastructure/Simulation/`) is always registered and serves a synthetic random-walk feed or local-store replay.
 
@@ -134,7 +155,7 @@ Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` f
 | `Dev: Replay (local DB)` | `DevReplay` | No login; `Simulated` broker, **Replay** of the local store (10× clock), synthetic fallback where no data. |
 | `Dev: Live (no login)` | `DevLive` | No login; auto-connects a real broker (default IB) using saved credentials. |
 
-Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/TradingTerminal.App`. These dev files are off in the shipped build.
+Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/windows/Shell/TradingTerminal.App`. These dev files are off in the shipped build.
 
 ## What NOT to do
 

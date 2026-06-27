@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM on net9.0 (Avalonia view); the WPF dock-pane UserControl stays on
          the windows leg. The dispatcher marshal in the VM goes through the portable UiThread hook. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>AI Market Analyst dock pane. Consumes the IAiAnalystClient seam (hot-swappable Null/Http) and renders the analyst report.</Description>
   </PropertyGroup>
 
@@ -14,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

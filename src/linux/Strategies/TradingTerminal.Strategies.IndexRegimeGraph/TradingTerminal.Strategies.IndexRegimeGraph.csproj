@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target: portable VM + descriptor on net9.0 (Avalonia view); WPF node-graph window on
+         the windows leg. See Strategies.OrnsteinUhlenbeck for the template. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Index Regime Graph â€” runs the Advanced Market Regime indicator stack across every constituent of an index, blends each stock's eight timeframes for a chosen horizon, weights by index membership, and sums to a composite up/down direction.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <Compile Remove="IndexRegimeGraphWindow.xaml.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <Compile Remove="AvaloniaUi\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM on net9.0 (Avalonia view); the WPF UserControl stays on the windows
          leg. File dialogs go through the portable UiFile seam. See Strategies.OrnsteinUhlenbeck. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Factor research notebook tab: cross-sectional factor exploration over the instrument universe.</Description>
   </PropertyGroup>
 
@@ -14,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">

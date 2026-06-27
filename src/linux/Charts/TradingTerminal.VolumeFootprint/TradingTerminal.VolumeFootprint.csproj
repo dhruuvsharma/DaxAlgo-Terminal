@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target: the footprint VM is portable (cells + microstructure metrics off the hub;
+         render tick via the UiThread timer seam). The WPF window + its custom-drawn footprint grid
+         stay on the windows leg; the Avalonia view exposes the controls + live metrics (the faithful
+         cell-grid render is a later polish pass). -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Volume Footprint tool: per-price bid/ask volume cells + VWAP/value-area/CVD off the canonical hub.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <Compile Remove="VolumeFootprintWindow.xaml.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <Compile Remove="AvaloniaUi\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

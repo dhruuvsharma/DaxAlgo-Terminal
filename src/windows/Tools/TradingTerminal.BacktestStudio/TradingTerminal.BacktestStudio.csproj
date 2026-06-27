@@ -1,11 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM on net9.0 (Avalonia view; playback timer via UiThread, file dialog
          via UiFile); the WPF ScottPlot visual-replay view stays on the windows leg. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
-    <Description>Backtest Studio: MT5-style window over the Backtest.Engine — strategy/param setup, detailed report, and visual replay.</Description>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Description>Backtest Studio: MT5-style window over the Backtest.Engine â€” strategy/param setup, detailed report, and visual replay.</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
@@ -14,11 +13,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\..\shared\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">

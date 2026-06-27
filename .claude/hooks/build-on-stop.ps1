@@ -25,9 +25,17 @@ if (-not $gitChanged) { exit 0 }
 $relevant = ($gitChanged | Where-Object { $_ -match '\.(cs|xaml|csproj|props)\b' })
 if (-not $relevant) { exit 0 }
 
-# Build silently. dotnet writes errors to stdout, so we don't redirect stderr.
-$buildOutput = & dotnet build --nologo -v quiet | Out-String
-$buildExit = $LASTEXITCODE
+# Two independent trees (2026-06-27 fork): build each solution explicitly — a bare
+# `dotnet build` is ambiguous now that the repo has more than one solution file.
+$solutions = @('TradingTerminal.Windows.slnx', 'TradingTerminal.Linux.slnx')
+$buildOutput = ''
+$buildExit = 0
+foreach ($sln in $solutions) {
+    if (-not (Test-Path $sln)) { continue }
+    # dotnet writes errors to stdout, so we don't redirect stderr.
+    $buildOutput += (& dotnet build $sln --nologo -v quiet | Out-String)
+    if ($LASTEXITCODE -ne 0) { $buildExit = $LASTEXITCODE }
+}
 
 if ($buildExit -eq 0) { exit 0 }
 

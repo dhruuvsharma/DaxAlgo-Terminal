@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <UseWPF>true</UseWPF>
@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\src\shared\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
-    <ProjectReference Include="..\..\src\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.App\TradingTerminal.App.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
   </ItemGroup>

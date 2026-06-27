@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -18,9 +18,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
@@ -61,7 +61,7 @@
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
     <!-- QuantConnect / LEAN integration -->
     <ProjectReference Include="..\..\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -126,7 +126,7 @@
     </None>
     <!--
       GPU parameter-sweep accelerator. Built by tools/cpp-backtester/gpu/build.bat (nvcc); when
-      present it's copied next to the app where ProcessGpuOptimizer resolves it. Missing ⇒ the
+      present it's copied next to the app where ProcessGpuOptimizer resolves it. Missing â‡’ the
       Studio transparently falls back to the CPU optimizer.
     -->
     <None Include="..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe')" Link="gpu_optimizer.exe">

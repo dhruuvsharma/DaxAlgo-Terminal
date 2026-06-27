@@ -1,23 +1,22 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Headless test assembly: runs on Linux/ARM64 (net9.0) and Windows. Holds every test that
          does NOT touch WPF/App/UI. The 3 WPF-coupled tests stay in TradingTerminal.Tests
          (Windows-only). No UseWPF, no Xunit.StaFact, no App/UI/Strategies references. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\src\shared\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <ProjectReference Include="..\..\src\shared\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
-    <ProjectReference Include="..\..\src\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <!-- Ported per-strategy projects (net9.0 leg) — verify their portable VMs resolve headless. -->
+    <ProjectReference Include="..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <!-- Ported per-strategy projects (net9.0 leg) â€” verify their portable VMs resolve headless. -->
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />

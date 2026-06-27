@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0; WPF window on the windows leg. See
          Strategies.OrnsteinUhlenbeck for the template. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Filtered order-flow imbalance (arXiv:2507.22712) - live signal-mode wrapper around the FilteredOrderFlowStrategy backtest implementation. Trade-based OBI(T) over a rolling window, regime-classified, filtered vs unfiltered, directional signal on strong same-sign regimes.</Description>
   </PropertyGroup>
 
@@ -14,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
@@ -26,7 +25,7 @@
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
     <Compile Remove="FilteredOrderFlowWindow.xaml.cs" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Portable settings/aux view-models extracted from the WPF App shell so both the WPF and
+         Avalonia heads reuse them. WPF-free (no System.Windows): notifications/research config,
+         strategy authoring, support. Multi-targets like the rest of src/shared/. Namespaces are
+         preserved (TradingTerminal.App.*) so the WPF App's existing Views + DI need no changes. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Portable settings/aux view-models (Notifications, Research, Authoring, Support, Archive) shared by the WPF + Avalonia heads.</Description>
+  </PropertyGroup>
+
+  <!-- DPAPI credential protection (Telegram archive creds) compiles only on the Windows leg; the
+       net9.0 leg falls back to base64 (Phase 0 precedent). -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

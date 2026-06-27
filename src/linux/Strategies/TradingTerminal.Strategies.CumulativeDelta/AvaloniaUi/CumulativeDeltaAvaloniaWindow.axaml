@@ -1,0 +1,69 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:cd="using:TradingTerminal.Strategies.CumulativeDelta"
+        x:Class="TradingTerminal.Strategies.CumulativeDelta.AvaloniaUi.CumulativeDeltaAvaloniaWindow"
+        x:DataType="cd:CumulativeDeltaViewModel"
+        Width="800" Height="600"
+        Background="{DynamicResource Background.Primary}"
+        Title="Cumulative-delta scalper">
+  <DockPanel Margin="14">
+
+    <StackPanel DockPanel.Dock="Top" Spacing="4">
+      <TextBlock Text="Cumulative-delta scalper" FontSize="18" FontWeight="Bold"
+                 Foreground="{DynamicResource Text.Header}"/>
+      <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ValidationError}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+      <Button Content="Continue" Command="{Binding ContinueCommand}"/>
+      <Button Content="Arm / disarm" Command="{Binding ToggleAlgoCommand}"/>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="*,*" Margin="0,12,0,0">
+
+      <!-- Left: instrument + core parameters -->
+      <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,10,0">
+        <TextBlock Text="Instrument" FontWeight="SemiBold"/>
+        <TextBox Watermark="Search…" Text="{Binding InstrumentSearchText}"/>
+        <ComboBox ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding DisplayName}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Text="Parameters" FontWeight="SemiBold" Margin="0,10,0,0"/>
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Window size" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Value="{Binding WindowSize}" Minimum="1"/>
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Delta threshold" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" Value="{Binding DeltaThreshold}" Minimum="1"/>
+          <CheckBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,4" Content="Auto threshold" IsChecked="{Binding AutoThreshold}"/>
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Threshold σ" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="3" Grid.Column="1" Margin="0,0,0,4" Value="{Binding ThresholdSigma}" Increment="0.1"/>
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="Min confirmations" VerticalAlignment="Center" Margin="0,0,8,0"/>
+          <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding MinConfirmations}" Minimum="1"/>
+        </Grid>
+
+        <TextBlock Text="Live" FontWeight="SemiBold" Margin="0,10,0,0"/>
+        <TextBlock Text="{Binding LiveDelta, StringFormat='Live delta: {0}'}"/>
+        <TextBlock Text="{Binding CumulativeDelta, StringFormat='Cumulative delta: {0}'}"/>
+        <TextBlock Text="{Binding EffectiveThreshold, StringFormat='Effective threshold: {0}'}" Foreground="{DynamicResource Text.Secondary}"/>
+        <TextBlock Text="{Binding GuardReason}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      </StackPanel>
+
+      <!-- Right: recent signals -->
+      <DockPanel Grid.Column="1">
+        <TextBlock DockPanel.Dock="Top" Text="Recent signals" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3">
+          <ListBox ItemsSource="{Binding RecentSignals}" FontSize="12">
+            <ListBox.ItemTemplate>
+              <DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>

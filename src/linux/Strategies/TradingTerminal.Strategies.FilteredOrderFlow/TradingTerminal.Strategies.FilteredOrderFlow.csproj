@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target: portable VM + descriptor on net9.0; WPF window on the windows leg. See
+         Strategies.OrnsteinUhlenbeck for the template. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Filtered order-flow imbalance (arXiv:2507.22712) - live signal-mode wrapper around the FilteredOrderFlowStrategy backtest implementation. Trade-based OBI(T) over a rolling window, regime-classified, filtered vs unfiltered, directional signal on strong same-sign regimes.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\linux\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <Compile Remove="FilteredOrderFlowWindow.xaml.cs" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

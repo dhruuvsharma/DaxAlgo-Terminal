@@ -69,3 +69,10 @@ bt-data*/
 
 # Local demo/screenshot assets (not tracked)
 test/
+
+# Python compiled
+__pycache__/
+*.pyc
+
+# Claude agent worktrees (temporary)
+.claude/worktrees/

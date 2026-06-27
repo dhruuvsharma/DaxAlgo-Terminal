@@ -1,0 +1,256 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TradingTerminal.Strategies.SigmaIcFlow.AvaloniaUi.SigmaIcFlowStrategyAvaloniaWindow"
+        Width="980" Height="720"
+        Background="{DynamicResource Background.Primary}"
+        Title="Σ⁻¹·IC Order-Flow Optimizer">
+
+  <DockPanel Margin="14">
+
+    <!-- ── Header ────────────────────────────────────────────────────────────────────────────── -->
+    <StackPanel DockPanel.Dock="Top" Spacing="3">
+      <TextBlock Text="Σ⁻¹·IC Order-Flow Optimizer" FontSize="18" FontWeight="Bold"
+                 Foreground="{DynamicResource Text.Header}"/>
+      <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ValidationError}" Foreground="{DynamicResource Danger.Brush}" TextWrapping="Wrap"
+                 IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+    </StackPanel>
+
+    <!-- ════════════════ CONFIGURE PHASE (before Continue) ════════════════ -->
+    <ScrollViewer DockPanel.Dock="Top" IsVisible="{Binding !IsConfigured}">
+      <StackPanel Spacing="8" Margin="0,12,0,0" MaxWidth="640" HorizontalAlignment="Left">
+
+        <TextBlock Text="Instrument" FontWeight="SemiBold"/>
+        <TextBox Watermark="Search…" Text="{Binding InstrumentSearchText}"/>
+        <ComboBox ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate><TextBlock Text="{Binding DisplayName}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Text="Optimizer parameters" FontWeight="SemiBold" Margin="0,8,0,0"/>
+        <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Kelly fraction" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="0" Grid.Column="1" Margin="0,0,12,4" Value="{Binding KellyFraction}"
+                         Minimum="0.01" Maximum="1" Increment="0.05" FormatString="0.00"/>
+          <TextBlock Grid.Row="0" Grid.Column="2" Text="Bootstrap threshold" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="0" Grid.Column="3" Margin="0,0,0,4" Value="{Binding BootstrapThreshold}"
+                         Minimum="0.1" Maximum="3" Increment="0.1" FormatString="0.00"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Max chart candles" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="1" Grid.Column="1" Margin="0,0,12,4" Value="{Binding MaxChartCandles}"
+                         Minimum="10" Maximum="500" Increment="10"/>
+          <TextBlock Grid.Row="1" Grid.Column="2" Text="Footprint bars" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <NumericUpDown Grid.Row="1" Grid.Column="3" Margin="0,0,0,4" Value="{Binding FootprintBarsVisible}"
+                         Minimum="4" Maximum="24"/>
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Candle interval" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,0,12,4" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding CandleIntervals}" SelectedItem="{Binding SelectedCandleInterval}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate><TextBlock Text="{Binding Label}"/></DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBlock Grid.Row="2" Grid.Column="2" Text="Footprint tick" VerticalAlignment="Center" Margin="0,0,8,4"/>
+          <TextBox Grid.Row="2" Grid.Column="3" Margin="0,0,0,4" Text="{Binding FootprintTickSizeText}"/>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Tick-size override" VerticalAlignment="Center" Margin="0,0,8,0"/>
+          <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,12,0" Text="{Binding TickSizeOverrideText}"/>
+        </Grid>
+
+        <TextBlock Text="Sessions" FontWeight="SemiBold" Margin="0,8,0,0"/>
+        <WrapPanel>
+          <CheckBox Content="Asian" IsChecked="{Binding TradeAsian}" Margin="0,0,16,0"/>
+          <CheckBox Content="London" IsChecked="{Binding TradeLondon}" Margin="0,0,16,0"/>
+          <CheckBox Content="New York" IsChecked="{Binding TradeNewYork}" Margin="0,0,16,0"/>
+          <CheckBox Content="London/NY overlap" IsChecked="{Binding TradeLondonNy}"/>
+        </WrapPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+          <CheckBox Content="Volume bars" IsChecked="{Binding UseVolumeBars}" VerticalAlignment="Center"/>
+          <TextBlock Text="Bar size" VerticalAlignment="Center"/>
+          <NumericUpDown Width="140" Value="{Binding VolumeBarSize}" Minimum="100" Increment="100"
+                         IsEnabled="{Binding UseVolumeBars}"/>
+        </StackPanel>
+
+        <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right"
+                Margin="0,10,0,0" Padding="18,6"/>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ════════════════ DASHBOARD PHASE (after Continue) ════════════════ -->
+    <Grid IsVisible="{Binding IsConfigured}">
+      <DockPanel>
+
+        <!-- Control strip -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                Padding="0,0,0,8" Margin="0,10,0,8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="▶ Start" Command="{Binding StartCommand}" Padding="12,4"
+                    IsVisible="{Binding !IsStreaming}"/>
+            <Button Content="■ Stop" Command="{Binding StopCommand}" Padding="12,4"
+                    IsVisible="{Binding IsStreaming}"/>
+            <Button Content="Arm / disarm" Command="{Binding ToggleAlgoCommand}" Padding="12,4"/>
+            <TextBlock Text="{Binding SelectedInstrument.DisplayName}" FontWeight="SemiBold"
+                       VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <Border Background="{DynamicResource Border.Brush}" CornerRadius="3" Padding="6,2"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding IsSyntheticFeed}">
+              <TextBlock Text="{Binding FeedQualityText}" FontSize="11" Foreground="{DynamicResource Text.Secondary}"/>
+            </Border>
+            <Border Background="{DynamicResource Border.Brush}" CornerRadius="3" Padding="6,2"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding BootstrapMode}">
+              <TextBlock Text="BOOTSTRAP" FontSize="11" Foreground="{DynamicResource Text.Secondary}"/>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <ScrollViewer>
+          <StackPanel Spacing="12">
+
+            <!-- Composite / regime cards -->
+            <WrapPanel>
+              <Border Classes="card"><StackPanel>
+                <TextBlock Text="COMPOSITE" Classes="cardHead"/>
+                <TextBlock Text="{Binding CompositeText}" Classes="cardValBig"/>
+                <TextBlock Text="{Binding CompositeDirectionText}" Classes="cardSub"/>
+              </StackPanel></Border>
+              <Border Classes="card"><StackPanel>
+                <TextBlock Text="g(C) / COST HURDLE" Classes="cardHead"/>
+                <TextBlock Text="{Binding GcText}" Classes="cardVal"/>
+                <TextBlock Text="{Binding CostHurdleText}" Classes="cardSub"/>
+              </StackPanel></Border>
+              <Border Classes="card"><StackPanel>
+                <TextBlock Text="REGIME" Classes="cardHead"/>
+                <TextBlock Text="{Binding RegimeText}" Classes="cardVal"/>
+                <TextBlock Text="{Binding SessionPnlText, StringFormat='session P&amp;L {0}'}" Classes="cardSub"/>
+              </StackPanel></Border>
+              <Border Classes="card"><StackPanel>
+                <TextBlock Text="KYLE λ / ε_cum" Classes="cardHead"/>
+                <TextBlock Text="{Binding KyleLambdaText}" Classes="cardVal"/>
+                <TextBlock Text="{Binding EpsilonCumZText, StringFormat='ε z {0}'}" Classes="cardSub"/>
+              </StackPanel></Border>
+              <Border Classes="card"><StackPanel>
+                <TextBlock Text="CONTROL ρ / WEDGE" Classes="cardHead"/>
+                <TextBlock Text="{Binding ControlRhoText}" Classes="cardVal"/>
+                <TextBlock Text="{Binding WedgeWidthText, StringFormat='wedge {0}'}" Classes="cardSub"/>
+              </StackPanel></Border>
+              <Border Classes="card"><StackPanel>
+                <TextBlock Text="VALUE DEVIATION z" Classes="cardHead"/>
+                <TextBlock Text="{Binding ValueDeviationZText}" Classes="cardVal"/>
+                <TextBlock Text="{Binding EpsilonCumText, StringFormat='ε_cum {0}'}" Classes="cardSub"/>
+              </StackPanel></Border>
+            </WrapPanel>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
+
+              <!-- Weight vector -->
+              <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock DockPanel.Dock="Top" Text="Σ⁻¹·IC weight vector" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3" Height="220">
+                  <ListBox ItemsSource="{Binding SignalWeights}" FontSize="12">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Grid.Column="0" Text="{Binding SignalName}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Weight, StringFormat='{}{0:+0.000;-0.000;0.000}'}"
+                                     FontFamily="monospace"/>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Border>
+              </DockPanel>
+
+              <!-- Per-signal states -->
+              <DockPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock DockPanel.Dock="Top" Text="Signals" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3" Height="220">
+                  <ListBox ItemsSource="{Binding SignalStates}" FontSize="12">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                          <TextBlock Grid.Column="0" Text="{Binding Name}"/>
+                          <TextBlock Grid.Column="1" Width="64" TextAlignment="Right" FontFamily="monospace"
+                                     Text="{Binding Score, StringFormat='{}{0:+0.00;-0.00;0.00}'}"/>
+                          <TextBlock Grid.Column="2" Width="56" TextAlignment="Right" FontFamily="monospace"
+                                     Text="{Binding Confidence, StringFormat='{}{0:0.00}'}"/>
+                          <TextBlock Grid.Column="3" Width="48" TextAlignment="Right"
+                                     Text="{Binding IsValid, StringFormat='{}{0}'}"
+                                     Foreground="{DynamicResource Text.Secondary}"/>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Border>
+              </DockPanel>
+            </Grid>
+
+            <!-- Paper trading -->
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="20" Margin="0,0,0,4">
+                <TextBlock Text="Paper trading" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding PaperPnlText, StringFormat='P&amp;L {0}'}" FontFamily="monospace"/>
+                <TextBlock Text="{Binding PaperTradeCountText, StringFormat='trades {0}'}"/>
+                <TextBlock Text="{Binding PaperWinRateText, StringFormat='win {0}'}"/>
+                <TextBlock Text="{Binding PaperOpenText}" Foreground="{DynamicResource Text.Secondary}"/>
+              </StackPanel>
+              <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="3" Height="180">
+                <ListBox ItemsSource="{Binding PaperTrades}" FontSize="12">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*">
+                        <TextBlock Grid.Column="0" Width="72" Text="{Binding ExitTimeText}" FontFamily="monospace"/>
+                        <TextBlock Grid.Column="1" Width="56" Text="{Binding SideText}"/>
+                        <TextBlock Grid.Column="2" Width="48" TextAlignment="Right" Text="{Binding Quantity}"/>
+                        <TextBlock Grid.Column="3" Width="96" TextAlignment="Right" FontFamily="monospace"
+                                   Text="{Binding EntryText, StringFormat='{}{0}→'}"/>
+                        <TextBlock Grid.Column="4" Width="80" TextAlignment="Right" FontFamily="monospace"
+                                   Text="{Binding PnlText}"/>
+                        <TextBlock Grid.Column="5" Margin="10,0,0,0" Text="{Binding ExitReason}"
+                                   Foreground="{DynamicResource Text.Secondary}"/>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Border>
+            </DockPanel>
+
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+
+  <Window.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="Margin" Value="0,0,8,8"/>
+      <Setter Property="MinWidth" Value="150"/>
+    </Style>
+    <Style Selector="TextBlock.cardHead">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}"/>
+    </Style>
+    <Style Selector="TextBlock.cardVal">
+      <Setter Property="FontSize" Value="16"/>
+      <Setter Property="FontFamily" Value="monospace"/>
+      <Setter Property="Margin" Value="0,2,0,0"/>
+    </Style>
+    <Style Selector="TextBlock.cardValBig">
+      <Setter Property="FontSize" Value="22"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="FontFamily" Value="monospace"/>
+      <Setter Property="Margin" Value="0,2,0,0"/>
+    </Style>
+    <Style Selector="TextBlock.cardSub">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}"/>
+    </Style>
+  </Window.Styles>
+</Window>

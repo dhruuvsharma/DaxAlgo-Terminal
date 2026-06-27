@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0; WPF window on the windows leg. See
          Strategies.OrnsteinUhlenbeck for the template. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Sigma^-1.IC Order-Flow Optimizer - live signal-mode wrapper around the engine-side ApexScalperStrategy (11-signal weighted composite, regime classifier, isotonic entry gate, dynamic stops).</Description>
   </PropertyGroup>
 
@@ -14,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
@@ -28,7 +27,7 @@
     <Compile Remove="SigmaIcFlowStrategyWindow.xaml.cs" />
   </ItemGroup>
 
-  <!-- ── Cross-platform (Avalonia) view: net9.0 leg only ──────────────────────────────────────
+  <!-- â”€â”€ Cross-platform (Avalonia) view: net9.0 leg only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
        The strategy ships its own Avalonia window (counterpart to the WPF MetroWindow) so the Avalonia
        shell opens it through IStrategyFactory. The Avalonia package (referenced only on the net9.0
        leg) provides the .axaml compiler, which globs **/*.axaml and never the WPF .xaml. See

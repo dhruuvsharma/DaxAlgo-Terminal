@@ -1,0 +1,146 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target for the Linux/ARM64 headless build (see Core.csproj). The net9.0 leg is
+         WPF-free; the Windows leg keeps WPF (WpfDispatcher) exactly as before. -->
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Description>Broker client wrappers (IB, NinjaTrader), market-data repository, connection manager.</Description>
+  </PropertyGroup>
+
+  <!-- WPF + the WINDOWS compile constant only on the Windows TFM. On net9.0 the WpfDispatcher
+       is #if'd out and ImmediateUiDispatcher is registered instead. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    Resolve the IB CSharpAPI.dll. Search order:
+      1. lib/CSharpAPI.dll  (or lib/IBApi.dll for older copies â€” both supported)
+      2. $(TwsApiClientDll) MSBuild property if set externally
+      3. The default TWS API install path: C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll
+    If none exist, RealIbClient is excluded from compilation and the runtime falls back to FakeIbClient.
+  -->
+  <PropertyGroup>
+    <_LocalCSharpApiDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\CSharpAPI.dll</_LocalCSharpApiDll>
+    <_LocalLegacyIbApiDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\IBApi.dll</_LocalLegacyIbApiDll>
+    <_DefaultTwsInstallDll>C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll</_DefaultTwsInstallDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalCSharpApiDll)')">
+    <_ResolvedTwsApiDll>$(_LocalCSharpApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalLegacyIbApiDll)')">
+    <_ResolvedTwsApiDll>$(_LocalLegacyIbApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND '$(TwsApiClientDll)' != '' AND Exists('$(TwsApiClientDll)')">
+    <_ResolvedTwsApiDll>$(TwsApiClientDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_DefaultTwsInstallDll)')">
+    <_ResolvedTwsApiDll>$(_DefaultTwsInstallDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <DefineConstants>$(DefineConstants);HAS_IBAPI</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <Reference Include="CSharpAPI">
+      <HintPath>$(_ResolvedTwsApiDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <PackageReference Include="Google.Protobuf" Version="3.29.5" />
+  </ItemGroup>
+
+  <Target Name="ReportIbApiResolution" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <Message Importance="high" Text="IB CSharpAPI resolved from: $(_ResolvedTwsApiDll)" />
+  </Target>
+
+  <!--
+    Resolve NTDirect.dll for the NinjaTrader backend. Search order:
+      1. lib/NTDirect.dll (vendored copy)
+      2. $(NinjaTraderApiDll) MSBuild property
+      3. %USERPROFILE%\Documents\NinjaTrader 8\bin64\NTDirect.dll (standard install)
+    When found we (a) define HAS_NTAPI so RealNinjaClient compiles, and (b) copy the DLL
+    next to the assembly so P/Invoke resolves it without touching PATH.
+  -->
+  <PropertyGroup>
+    <_LocalNTDirectDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\NTDirect.dll</_LocalNTDirectDll>
+    <_DefaultNTDirectDll>$(USERPROFILE)\Documents\NinjaTrader 8\bin64\NTDirect.dll</_DefaultNTDirectDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND Exists('$(_LocalNTDirectDll)')">
+    <_ResolvedNTDirectDll>$(_LocalNTDirectDll)</_ResolvedNTDirectDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND '$(NinjaTraderApiDll)' != '' AND Exists('$(NinjaTraderApiDll)')">
+    <_ResolvedNTDirectDll>$(NinjaTraderApiDll)</_ResolvedNTDirectDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' == '' AND Exists('$(_DefaultNTDirectDll)')">
+    <_ResolvedNTDirectDll>$(_DefaultNTDirectDll)</_ResolvedNTDirectDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedNTDirectDll)' != ''">
+    <DefineConstants>$(DefineConstants);HAS_NTAPI</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_ResolvedNTDirectDll)' != ''">
+    <None Include="$(_ResolvedNTDirectDll)">
+      <Link>NTDirect.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="ReportNTDirectResolution" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedNTDirectDll)' != ''">
+    <Message Importance="high" Text="NTDirect resolved from: $(_ResolvedNTDirectDll)" />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.Tests" />
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>daxalgo-backtest</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
+    <!-- Roslyn â€” powers the runtime strategy-authoring compiler (RoslynStrategyCompiler, always
+         compiled). Must be unconditional: it has nothing to do with the IB TWS API and was
+         previously (wrongly) gated behind it, which broke clean builds without TWS installed. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+    <!-- Spotware-published cTrader Open API 2.0 client (TLS + protobuf framing). Always restored;
+         the RealCTraderClient compiles unconditionally. -->
+    <PackageReference Include="cTrader.OpenAPI.Net" Version="1.4.4" />
+    <!-- Alpaca.Markets â€” REST + WebSocket SDK for stocks, crypto, and options. Always restored
+         (NuGet package, no compile-time gate). -->
+    <PackageReference Include="Alpaca.Markets" Version="7.2.0" />
+    <!-- Columnar tick/bar storage for the backtest engine. -->
+    <PackageReference Include="Parquet.Net" Version="5.0.2" />
+    <!-- Embedded DuckDB engine (bundled native binaries) for read-only analytical queries over
+         the Parquet tick archive â€” predicate pushdown + SQL resampling for the research/backtest path.
+         Windows-only for now: the bundled DuckDB native crashes the test host on Linux/ARM, so off-Windows
+         IParquetQueryService falls back to UnsupportedParquetQueryService. (Re-enable on Linux once the
+         native is verified on Pi/x64.) -->
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.3" Condition="'$(TargetFramework)' == 'net9.0-windows7.0'" />
+    <!-- Embedded SQLite hot store for the canonical market-data pipeline (ADO.NET only, no EF). -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <!-- PostgreSQL/TimescaleDB driver for the containerized canonical store (open-source, PostgreSQL License). -->
+    <PackageReference Include="Npgsql" Version="9.0.2" />
+    <!-- Telegram MTProto user-account client. Used by the archive offloader to ship multi-GB
+         parquet bundles to Saved Messages / a user-owned channel (Bot API caps at 50 MB; MTProto
+         allows 2 GB). Session file lives in %LocalAppData% by default. -->
+    <PackageReference Include="WTelegramClient" Version="4.4.4" />
+  </ItemGroup>
+
+</Project>

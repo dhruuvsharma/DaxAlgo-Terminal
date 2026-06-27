@@ -1,12 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0 (Avalonia view); the WPF HelixToolkit 3D
          surface window stays on the windows leg. The faithful cross-platform 3D surface lands with
          the Step-5 GPU control. See Strategies.OrnsteinUhlenbeck for the template. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
-    <Description>Index K-Score Surface — multi-stock K-score aggregator with 3D surface visualization. Computes 15 directional indicators per component, derives a weighted K, and emits index-level entries when enough components pierce the per-weight threshold surface.</Description>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Description>Index K-Score Surface â€” multi-stock K-score aggregator with 3D surface visualization. Computes 15 directional indicators per component, derives a weighted K, and emits index-level entries when enough components pierce the per-weight threshold surface.</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
@@ -15,8 +14,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <!-- HelixToolkit 3D surface + MahApps window only on the Windows leg. -->

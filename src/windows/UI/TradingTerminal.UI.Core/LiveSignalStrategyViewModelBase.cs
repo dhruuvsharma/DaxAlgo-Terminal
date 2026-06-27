@@ -1,0 +1,776 @@
+using System.Collections.ObjectModel;
+using System.Threading.Channels;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Notifications;
+using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Time;
+using TradingTerminal.Core.Trading;
+
+namespace TradingTerminal.UI;
+
+/// <summary>
+/// Base view-model for "live signal mode" hosts. Each per-strategy project subclasses
+/// this and overrides <see cref="BuildStrategy"/> to instantiate its underlying
+/// <see cref="IBacktestStrategy"/> with strategy-specific parameters. The base owns the
+/// quote + depth subscriptions, the synthetic order router, the price-bar aggregation used for
+/// chart visualisation, and notification publishing.
+///
+/// Streaming routes through the canonical market-data pipeline: a single
+/// <see cref="IMarketDataIngest.Subscribe"/> handle starts (or joins) the ref-counted broker
+/// L1 pump for the selected instrument, and this VM observes <see cref="IMarketDataHub.Quotes"/>
+/// / <see cref="IMarketDataHub.Depth"/> keyed by canonical <see cref="InstrumentId"/>. Quote
+/// records are projected to the legacy <see cref="Tick"/> shape at the boundary so the
+/// engine-side <see cref="IBacktestStrategy"/> contract stays unchanged. On start, the chart is
+/// warmed from the local <see cref="IMarketDataStore"/> so users see context immediately even
+/// before the first live tick lands.
+///
+/// The host flow mirrors RSI / Cumulative Delta: user fills the setup form → presses
+/// Continue (<see cref="IsConfigured"/> flips) → tick stream starts and price bars render
+/// → optional Run/Stop arms the algo (<see cref="IsAlgoRunning"/>); notifications are
+/// suppressed when not armed.
+/// </summary>
+public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, IDisposable
+{
+    public const int MaxSignalsRetained = 200;
+    public const int MaxBarsRetained = 300;
+
+    /// <summary>Cap on how many instruments the picker shows at once. The broker universe can be
+    /// ~11k symbols (Alpaca); the search box narrows it, so we never bind the whole list.</summary>
+    public const int MaxInstrumentsDisplayed = 500;
+
+    /// <summary>Bar size pulled from the store to pre-populate the chart at start. Mismatches the
+    /// 15-second live aggregation by design — the store doesn't carry sub-minute bars, and a
+    /// minute of recent context is more useful than no context at all.</summary>
+    private const BarSize WarmupBarSize = BarSize.OneMinute;
+
+    /// <summary>How many warm-up bars to pull from the store on Start. Subclasses override to
+    /// scale the warm-up to their analysis window (e.g. the APEX scalper pulls
+    /// <c>max(WindowSize, MaxChartCandles)</c> so the per-indicator charts have immediate context).</summary>
+    protected virtual int WarmupBarCount => 120;
+
+    private readonly LiveStrategyHostServices _services;
+    private readonly INotificationPublisher _notifications;
+    private readonly ILogger _logger;
+    private readonly IClock _clock;
+    private readonly ISignalGeneratorRouterFactory _routerFactory;
+
+    private CancellationTokenSource? _streamCts;
+    private SignalGeneratorRouter? _router;
+    private IBacktestStrategy? _strategy;
+    private IDisposable? _eventSubscription;
+    private IDisposable? _ingestHandle;
+    private IDisposable? _tradeIngestHandle;
+    private DateTime _currentBarStart = DateTime.MinValue;
+    private double _barOpen, _barHigh, _barLow, _barClose;
+    private long _barVolume;
+    private static readonly TimeSpan BarInterval = TimeSpan.FromSeconds(15);
+
+    // Hub pumps use bounded, DropOldest channels (not unbounded) so a fast feed the UI can't drain
+    // is capped in memory — the newest event always wins — instead of piling the backlog into GBs
+    // over a long session. Each pump batch-drains: one UI-thread marshal per drained batch rather
+    // than one per event, so the consumer keeps pace and the channel rarely has to shed.
+    private const int QuoteChannelCapacity = 16_384;
+    private const int DepthChannelCapacity = 2_048;
+    private const int TradeChannelCapacity = 65_536;
+    private const int MaxStreamDrainBatch = 4_096;
+
+    protected LiveSignalStrategyViewModelBase(
+        string strategyId,
+        string strategyDisplayName,
+        LiveStrategyHostServices services,
+        INotificationPublisher notifications,
+        IClock clock,
+        ISignalGeneratorRouterFactory routerFactory,
+        ILogger logger)
+    {
+        StrategyId = strategyId;
+        StrategyDisplayName = strategyDisplayName;
+        _services = services;
+        _notifications = notifications;
+        _clock = clock;
+        _routerFactory = routerFactory;
+        _logger = logger;
+
+        // Seed from the canonical instrument registry (no hardcoded catalog). Instrument-discovery
+        // fills the registry the moment a broker connects, so if any broker is already up this is the
+        // real, discovered universe; if none is up yet it's empty and the picker fills on connect.
+        AllInstruments = RegistryRows();
+        Instruments = new ObservableCollection<SignalInstrument>(
+            AllInstruments.Take(MaxInstrumentsDisplayed));
+        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                             ?? Instruments.FirstOrDefault();
+        Signals = new ObservableCollection<SignalEntry>();
+        Bars = new ObservableCollection<Bar>();
+
+        // Refine with the connected brokers' own (broker-tagged) lists where available.
+        // Fire-and-forget: the continuation resumes on the UI context (VM is built there).
+        _ = LoadInstrumentsAsync();
+
+        // Reload the picker whenever a broker reaches Connected. The window often opens *before*
+        // a broker has finished connecting (e.g. IB + 2FA, or a broker connected from the shell
+        // after entry), and the static-catalog fallback would otherwise be pinned for the VM's
+        // life — the user would never see their broker's instruments without reopening. This
+        // refreshes the list the moment a broker comes up. Unsubscribed in Dispose.
+        _services.Selector.StateChanged += OnBrokerStateChanged;
+    }
+
+    /// <summary>Refreshes the instrument picker when any broker reaches
+    /// <see cref="ConnectionState.Connected"/>, so a broker that connects after the window opened
+    /// populates the dropdown without a reopen. No-op once the user has configured the strategy
+    /// (the picker is locked past that point).</summary>
+    private void OnBrokerStateChanged(object? sender, BrokerStateChangedEventArgs e)
+    {
+        if (e.State != ConnectionState.Connected || IsConfigured) return;
+        _ = UiThread.RunAsync(() => LoadInstrumentsAsync());
+    }
+
+    public string StrategyId { get; }
+    public string StrategyDisplayName { get; }
+
+    /// <summary>Full tradable universe from the connected broker (or the static fallback);
+    /// <see cref="InstrumentSearchText"/> filters this into <see cref="Instruments"/>.</summary>
+    public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+
+    public ObservableCollection<SignalEntry> Signals { get; }
+
+    /// <summary>15-second price bars derived from the live tick stream. Used for chart drawing.</summary>
+    public ObservableCollection<Bar> Bars { get; }
+
+    public event EventHandler? BarsChanged;
+
+    /// <summary>Fires after every live quote tick has been pushed through the strategy. Charts
+    /// that need per-tick refresh (rather than per-bar) subscribe here and coalesce their
+    /// redraws — see the Apex window's DispatcherTimer-throttled redraw loop. Fired on the UI
+    /// thread.</summary>
+    public event EventHandler? TickProcessed;
+
+    /// <summary>Most recent depth-of-market snapshot for the active instrument, or null when
+    /// the broker doesn't expose L2 (NinjaTrader, Alpaca, IB-not-yet-wired). Set from the
+    /// depth pump on the UI thread; raised via <see cref="ObservablePropertyAttribute"/> so the
+    /// order-book pane re-renders automatically when it changes.</summary>
+    [ObservableProperty] private DepthSnapshot? _latestDepth;
+
+    /// <summary>
+    /// True when the active broker is known to support the trade tape for the selected
+    /// instrument, false when it threw <see cref="NotSupportedException"/> during the
+    /// trade-pump probe. Only meaningful when <see cref="DataRequirement"/> includes
+    /// <see cref="StrategyDataRequirement.TradeTape"/>. Derived windows bind this to a
+    /// feed-quality badge. Set on the UI thread; defaults to false until the pump starts.
+    /// </summary>
+    [ObservableProperty] private bool _tradeTapeAvailable;
+
+    /// <summary>
+    /// The market data feeds this hosted strategy needs. The base default is
+    /// <see cref="StrategyDataRequirement.L1"/> | <see cref="StrategyDataRequirement.Bars"/>;
+    /// subclasses that consume depth or trade tape override this to include
+    /// <see cref="StrategyDataRequirement.Depth"/> and/or
+    /// <see cref="StrategyDataRequirement.TradeTape"/> respectively. The base
+    /// <see cref="StartAsync"/> reads this once at the moment Continue is pressed
+    /// to decide which pumps to start — changing it after streaming begins has no effect.
+    /// </summary>
+    protected virtual StrategyDataRequirement DataRequirement =>
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    /// <summary>Instruments shown in the picker — a capped, search-filtered view of
+    /// <see cref="AllInstruments"/>.</summary>
+    [ObservableProperty] private ObservableCollection<SignalInstrument> _instruments = new();
+
+    /// <summary>Free-text filter applied over <see cref="AllInstruments"/> (see the picker's search box).</summary>
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
+
+    [ObservableProperty] private SignalInstrument? _selectedInstrument;
+    [ObservableProperty] private string _status = "Configure the strategy to begin.";
+    [ObservableProperty] private double? _lastBid;
+    [ObservableProperty] private double? _lastAsk;
+    [ObservableProperty] private double? _lastMid;
+    [ObservableProperty] private long _ticksSeen;
+    [ObservableProperty] private bool _isStreaming;
+    [ObservableProperty] private string? _validationError;
+
+    /// <summary>True once the user clicks Continue on the setup form.</summary>
+    [ObservableProperty] private bool _isConfigured;
+
+    /// <summary>True while Continue/Start is building the strategy and warming up history — drives the
+    /// loading overlay so the user sees that data is being fetched rather than a frozen/blank chart.</summary>
+    [ObservableProperty] private bool _isStarting;
+
+    /// <summary>Headline shown on the loading overlay while <see cref="IsStarting"/> is true.</summary>
+    [ObservableProperty] private string _loadingTitle = "Loading…";
+
+    /// <summary>True only while the user has armed the algo via Run. Display-only otherwise.</summary>
+    [ObservableProperty] private bool _isAlgoRunning;
+
+    // ---------- Chart axis controls (live, render-only) ----------
+    // Shared by every base-backed strategy's price chart. These only affect how the chart is
+    // drawn — never strategy state — so they're live-editable while streaming. Windows read them
+    // in their redraw; a change re-raises BarsChanged so the chart refreshes immediately.
+
+    /// <summary>How many trailing bars the price chart draws (X-axis zoom / window).</summary>
+    [ObservableProperty] private int _chartBarsShown = 150;
+
+    /// <summary>When true the price chart Y range auto-fits; otherwise it's pinned to
+    /// [<see cref="YAxisMin"/>, <see cref="YAxisMax"/>].</summary>
+    [ObservableProperty] private bool _yAutoScale = true;
+
+    [ObservableProperty] private double _yAxisMin;
+    [ObservableProperty] private double _yAxisMax;
+
+    partial void OnChartBarsShownChanged(int value) => BarsChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnYAutoScaleChanged(bool value) => BarsChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnYAxisMinChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+
+    /// <summary>
+    /// Populates the picker from real instruments only — no hardcoded catalog. Prefers each connected
+    /// broker's own (broker-tagged) list where available; otherwise falls back to the canonical
+    /// instrument registry, which instrument-discovery fills on connect and is broker-agnostic — so a
+    /// broker that returns a cold/curated list (LSE, IronBeam) or a momentary state mismatch can't
+    /// blank the picker. Re-runs when a broker connects (see <see cref="OnBrokerStateChanged"/>).
+    /// </summary>
+    private async Task LoadInstrumentsAsync()
+    {
+        try
+        {
+            var connected = _services.Selector.Connected;
+            var list = await _services.Repository.ListInstrumentsAsync();
+
+            var brokerRows = (list ?? Array.Empty<TradableInstrument>())
+                .Select(i => new SignalInstrument(
+                    $"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}",
+                    i.Category,
+                    i.Contract,
+                    i.Broker))
+                .ToList();
+
+            // Broker-tagged rows are richer (pills show the source broker); fall back to the registry
+            // when a broker contributed nothing so the picker reflects the discovered universe.
+            IReadOnlyList<SignalInstrument> rows = brokerRows.Count > 0 ? brokerRows : RegistryRows();
+
+            if (rows.Count == 0)
+            {
+                var brokers = connected.Count == 0 ? "none connected" : string.Join(", ", connected);
+                Status = $"No instruments available yet ({brokers}). Connect a broker to load its universe.";
+                _services.ActivityLog.Append(StrategyDisplayName, "INFO",
+                    $"No instruments available ({brokers}); registry empty.");
+                return;
+            }
+
+            AllInstruments = rows;
+            var source = brokerRows.Count > 0 ? string.Join(", ", connected) : "instrument registry";
+            _services.ActivityLog.Append(StrategyDisplayName, "INFO",
+                $"Loaded {AllInstruments.Count} instruments from {source}.");
+
+            // Preserve the user's current pick across a reload (this method also runs when a broker
+            // connects after the window opened — see OnBrokerStateChanged). Match by symbol since the
+            // broker-tagged DisplayName differs from any registry row the user may have selected.
+            var prevSymbol = SelectedInstrument?.Contract.Symbol;
+            SelectedInstrument =
+                (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                ?? AllInstruments.FirstOrDefault();
+            ApplyInstrumentFilter();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "{Strategy} instrument list load failed", StrategyId);
+            _services.ActivityLog.Append(StrategyDisplayName, "WARN",
+                $"Instrument list load failed ({ex.GetType().Name}: {ex.Message}).");
+        }
+    }
+
+    /// <summary>Picker rows from the canonical instrument registry (broker-agnostic; the host resolves
+    /// each row's broker at Start). Reuses the shared converter so every picker builds rows identically.</summary>
+    private IReadOnlyList<SignalInstrument> RegistryRows() =>
+        SignalInstrumentCatalog.FromRegistry(_services.Registry);
+
+    /// <summary>Short broker label appended to instrument rows so users can disambiguate the
+    /// same ticker exposed by multiple connected brokers (e.g. "ES — IB" vs "ES — cTrader").</summary>
+    private static string BrokerLabel(Core.Brokers.BrokerKind broker) => broker switch
+    {
+        Core.Brokers.BrokerKind.InteractiveBrokers => "IB",
+        Core.Brokers.BrokerKind.NinjaTrader => "NinjaTrader",
+        Core.Brokers.BrokerKind.CTrader => "cTrader",
+        Core.Brokers.BrokerKind.Alpaca => "Alpaca",
+        _ => broker.ToString(),
+    };
+
+    /// <summary>Resolves the broker to talk to for the selected instrument. Live picker rows carry
+    /// their source broker; static-catalog rows (no broker connected yet) fall back to whichever
+    /// broker is currently connected first. Throws if no broker is connected — the caller surfaces
+    /// the message in <see cref="ValidationError"/> so the user can go connect one.</summary>
+    private Core.Brokers.BrokerKind ResolveBroker(SignalInstrument instrument)
+    {
+        if (instrument.Broker is { } explicitBroker && _services.Selector.IsConnected(explicitBroker))
+            return explicitBroker;
+        var connected = _services.Selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker in the login screen.");
+        return connected[0];
+    }
+
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
+
+    /// <summary>Rebuilds <see cref="Instruments"/> from <see cref="AllInstruments"/> using the
+    /// current search text, capped at <see cref="MaxInstrumentsDisplayed"/>. The selected item
+    /// is preserved (and force-included) so the picker never blanks out mid-filter.</summary>
+    private void ApplyInstrumentFilter()
+    {
+        var term = InstrumentSearchText?.Trim() ?? string.Empty;
+        IEnumerable<SignalInstrument> query = AllInstruments;
+        if (term.Length > 0)
+            query = AllInstruments.Where(i =>
+                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
+
+        var keep = SelectedInstrument;
+        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
+
+        Instruments = new ObservableCollection<SignalInstrument>(shown);
+        SelectedInstrument = keep is not null && Instruments.Contains(keep)
+            ? keep
+            : Instruments.FirstOrDefault();
+    }
+
+    /// <summary>Subclasses build a fresh <see cref="IBacktestStrategy"/> here using their
+    /// current parameter property values.</summary>
+    protected abstract IBacktestStrategy BuildStrategy(Contract contract);
+
+    /// <summary>Override to validate strategy-specific parameters before
+    /// <see cref="IsConfigured"/> flips. Return an error message or null.</summary>
+    protected virtual string? ValidateSetup() => null;
+
+    /// <summary>Override to refresh indicator series after each new bar.
+    /// Default does nothing.</summary>
+    protected virtual void OnBarsUpdated() { }
+
+    /// <summary>Called after <see cref="WarmUpBarsAsync"/> seeds <see cref="Bars"/> from the
+    /// local store and before the live tick stream starts. Subclasses can pre-populate engine
+    /// state from the same bars — e.g. the APEX scalper seeds its snapshot history so the
+    /// price chart isn't blank until the first live candle rolls. Default does nothing.</summary>
+    protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
+
+    /// <summary>Push one row onto the universal activity log, tagged with this strategy's display
+    /// name as the source. Self-bounds and marshals to the UI thread inside the shared sink.</summary>
+    protected void Log(string category, string message) =>
+        _services.ActivityLog.Append(StrategyDisplayName, category, message);
+
+    [RelayCommand]
+    private async Task ContinueAsync()
+    {
+        ValidationError = null;
+        if (SelectedInstrument is null) { ValidationError = "Pick an instrument before continuing."; return; }
+        var setupError = ValidateSetup();
+        if (setupError is not null) { ValidationError = setupError; return; }
+
+        IsConfigured = true;
+        await StartAsync();
+    }
+
+    [RelayCommand]
+    private void ToggleAlgo()
+    {
+        IsAlgoRunning = !IsAlgoRunning;
+        var label = SelectedInstrument?.DisplayName ?? "(none)";
+        _logger.LogInformation("{Strategy} algo {State} for {Symbol}",
+            StrategyDisplayName, IsAlgoRunning ? "ARMED" : "STOPPED", label);
+        Status = IsAlgoRunning
+            ? $"Algo armed on {label} — {StrategyDisplayName}"
+            : $"Streaming {label} — algo idle";
+        Log("ALGO", IsAlgoRunning ? $"ARMED on {label}" : $"DISARMED on {label}");
+    }
+
+    [RelayCommand]
+    private async Task StartAsync()
+    {
+        ValidationError = null;
+        if (SelectedInstrument is null) { ValidationError = "Pick an instrument before starting."; return; }
+        if (IsStreaming) return;
+
+        Core.Brokers.BrokerKind broker;
+        try { broker = ResolveBroker(SelectedInstrument); }
+        catch (InvalidOperationException ex) { ValidationError = ex.Message; return; }
+
+        var contract = SelectedInstrument.Contract;
+        var instrumentId = _services.Ingest.Resolve(contract, broker);
+
+        // Curtain up: building the strategy + warming history is the slow part the user was waiting on
+        // with no feedback. Always taken down in the finally, on every exit path.
+        IsStarting = true;
+        LoadingTitle = $"Loading {SelectedInstrument.DisplayName}";
+        Status = $"Loading market data for {SelectedInstrument.DisplayName} — {StrategyDisplayName}…";
+        try
+        {
+            _streamCts = new CancellationTokenSource();
+            _strategy = BuildStrategy(contract);
+            _router = _routerFactory.Create();
+            _router.SignalEmitted += OnSignalEmitted;
+            _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
+            {
+                try { await _strategy.OnOrderEventAsync(evt, _streamCts.Token); }
+                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId); }
+            });
+
+            Signals.Clear();
+            Bars.Clear();
+            _currentBarStart = DateTime.MinValue;
+            TicksSeen = 0;
+            IsStreaming = true;
+            Log("STREAM", $"Started {SelectedInstrument.DisplayName} ({contract.SecType} {contract.Exchange})");
+
+            try
+            {
+                await _strategy.OnStartAsync(_clock, _router, _streamCts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{Strategy} OnStartAsync threw", StrategyId);
+                Status = $"Failed to start: {ex.Message}";
+                await StopAsync();
+                return;
+            }
+
+            await WarmUpBarsAsync(instrumentId, broker, _streamCts.Token);
+            Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
+
+            // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
+            // share the same handle on the ingest side, so a single Subscribe powers both observables.
+            _ingestHandle = _services.Ingest.Subscribe(contract, broker);
+
+            _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
+            _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
+
+            // Opt-in trade-tape pump: only started when the hosted strategy declares TradeTape in
+            // its DataRequirement. The pump probes broker capability before subscribing so the
+            // TradeTapeAvailable badge reflects reality rather than crashing on NotSupportedException.
+            if (DataRequirement.HasFlag(StrategyDataRequirement.TradeTape))
+            {
+                TradeTapeAvailable = false;
+                _ = RunTradeStreamAsync(broker, contract, instrumentId, _streamCts.Token);
+            }
+        }
+        finally
+        {
+            IsStarting = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task StopAsync()
+    {
+        if (!IsStreaming && _streamCts is null) return;
+
+        _streamCts?.Cancel();
+        try { if (_strategy is not null && _router is not null) await _strategy.OnEndAsync(_clock, _router, CancellationToken.None); }
+        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId); }
+
+        _ingestHandle?.Dispose(); _ingestHandle = null;
+        _tradeIngestHandle?.Dispose(); _tradeIngestHandle = null;
+        _eventSubscription?.Dispose(); _eventSubscription = null;
+        if (_router is not null) { _router.SignalEmitted -= OnSignalEmitted; _router = null; }
+        _strategy = null;
+        _streamCts?.Dispose(); _streamCts = null;
+        IsStreaming = false;
+        IsAlgoRunning = false;
+        LatestDepth = null;
+        TradeTapeAvailable = false;
+        Status = "Stopped";
+        Log("STREAM", "Stopped");
+    }
+
+    [RelayCommand]
+    private void ClearSignals() => Signals.Clear();
+
+    /// <summary>Seeds <see cref="Bars"/> with the most recent 1-minute bars from the local store
+    /// so the chart isn't empty when the user clicks Start. Granularity intentionally differs from
+    /// the 15-second live aggregation that follows — the store has no sub-minute bars and recent
+    /// 1-minute context is more useful than no context at all. Silent on failure.</summary>
+    private async Task WarmUpBarsAsync(InstrumentId instrumentId, BrokerKind broker, CancellationToken ct)
+    {
+        try
+        {
+            var recent = await _services.Store.GetRecentBarsAsync(instrumentId, WarmupBarSize, WarmupBarCount, broker, ct);
+            if (recent.Count == 0) return;
+            foreach (var b in recent) Bars.Add(b.ToBar());
+            while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
+            await OnWarmupBarsLoadedAsync(Bars.ToList());
+            OnBarsUpdated();
+            BarsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} warm-up read from store failed", StrategyId);
+        }
+    }
+
+    /// <summary>Pumps canonical quotes off the hub, projects them to the legacy <see cref="Tick"/>
+    /// the strategy interface still speaks, and feeds each one to the strategy on the UI thread.
+    /// A bounded channel decouples the hub's publish thread from the consumer so a slow strategy
+    /// can't block ingest.</summary>
+    private async Task RunQuoteStreamAsync(InstrumentId instrumentId, CancellationToken ct)
+    {
+        var channel = Channel.CreateBounded<Tick>(new BoundedChannelOptions(QuoteChannelCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+
+        using var subscription = _services.Hub.Quotes(instrumentId).Subscribe(q =>
+            channel.Writer.TryWrite(new Tick(q.EventTimeUtc, q.Bid, q.Ask, q.BidSize, q.AskSize)));
+
+        var batch = new List<Tick>(256);
+        try
+        {
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                if (_strategy is null || _router is null) break;
+                await UiThread.RunAsync(async () =>
+                {
+                    foreach (var tick in batch)
+                    {
+                        if (_strategy is null || _router is null) break;
+                        LastBid = tick.Bid;
+                        LastAsk = tick.Ask;
+                        LastMid = (tick.Bid + tick.Ask) * 0.5;
+                        TicksSeen++;
+                        AggregateBar(tick);
+                        _router.UpdateMarketContext(tick);
+                        try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                    }
+                    // Per-batch redraw trigger — windows coalesce their own redraws off this anyway.
+                    TickProcessed?.Invoke(this, EventArgs.Empty);
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "{Strategy} tick stream ended", StrategyId);
+            await UiThread.RunAsync(() => Status = $"Stream ended: {ex.Message}");
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+            await UiThread.RunAsync(() => IsStreaming = false);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort L2 depth pump running alongside the quote stream. Forwards each book
+    /// snapshot to the strategy's <see cref="IBacktestStrategy.OnDepthAsync"/> so book-aware
+    /// signals (OBI) can use real depth. Brokers without depth (Alpaca, IB-not-yet-wired)
+    /// produce no events on the hub — we degrade silently to the L1 path.
+    /// </summary>
+    private async Task RunDepthStreamAsync(InstrumentId instrumentId, CancellationToken ct)
+    {
+        var channel = Channel.CreateBounded<DepthSnapshot>(new BoundedChannelOptions(DepthChannelCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+
+        using var subscription = _services.Hub.Depth(instrumentId).Subscribe(s =>
+            channel.Writer.TryWrite(s));
+
+        var batch = new List<DepthSnapshot>(64);
+        try
+        {
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var s)) batch.Add(s);
+                if (batch.Count == 0) continue;
+                if (_strategy is null || _router is null) break;
+                await UiThread.RunAsync(async () =>
+                {
+                    foreach (var snapshot in batch)
+                    {
+                        if (_strategy is null || _router is null) break;
+                        try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                    }
+                    // The order-book pane only needs the freshest book; intermediates are stale.
+                    LatestDepth = batch[^1];
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} depth stream ended", StrategyId);
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+        }
+    }
+
+    /// <summary>
+    /// Opt-in trade-tape pump running alongside the quote and depth pumps, started only when
+    /// <see cref="DataRequirement"/> includes <see cref="StrategyDataRequirement.TradeTape"/>.
+    ///
+    /// <para>Capability is probed before subscribing: the active broker client's
+    /// <c>SubscribeTradesAsync</c> is called in a try/catch for
+    /// <see cref="NotSupportedException"/>. Brokers without a trade tape (NinjaTrader,
+    /// cTrader, Alpaca in this build) throw synchronously from the method body; IB and
+    /// Simulated return a valid async enumerator. On a <see cref="NotSupportedException"/>
+    /// the pump logs once via the shared Activity Log, sets
+    /// <see cref="TradeTapeAvailable"/> to <c>false</c>, and exits — quote/bar/depth pumps
+    /// are unaffected. On success the pump subscribes the ingest trade feed, consumes
+    /// <see cref="IMarketDataHub.Trades"/> off the hub, and forwards each
+    /// <see cref="TradePrint"/> to <see cref="IBacktestStrategy.OnTradeAsync"/>.</para>
+    ///
+    /// <para>The channel/marshalling/cancellation pattern is identical to
+    /// <see cref="RunDepthStreamAsync"/>. A bounded <see cref="Channel{T}"/> decouples the
+    /// hub publish thread from the consumer so a slow strategy cannot block ingest.</para>
+    /// </summary>
+    private async Task RunTradeStreamAsync(
+        BrokerKind broker, Contract contract, InstrumentId instrumentId, CancellationToken ct)
+    {
+        // Probe broker capability before subscribing. Brokers without a trade tape throw
+        // NotSupportedException directly from SubscribeTradesAsync (before any MoveNextAsync),
+        // so a plain try/catch here is sufficient — we don't need to start iterating.
+        try
+        {
+            // Probe: discard the enumerator immediately; we only want to know if it throws.
+            // The actual streaming goes through the ingest / hub below.
+            _ = _services.Selector.Get(broker).SubscribeTradesAsync(contract, ct);
+        }
+        catch (NotSupportedException nse)
+        {
+            await UiThread.RunAsync(() =>
+            {
+                TradeTapeAvailable = false;
+                Log("TAPE", $"Trade tape not available on {broker}: {nse.Message.Split('.')[0]}");
+            });
+            return;
+        }
+
+        // Broker supports trades — subscribe the ingest feed and set the availability flag.
+        _tradeIngestHandle = _services.Ingest.SubscribeTrades(contract, broker);
+        await UiThread.RunAsync(() => TradeTapeAvailable = true);
+
+        var channel = Channel.CreateBounded<TradePrint>(new BoundedChannelOptions(TradeChannelCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+
+        using var subscription = _services.Hub.Trades(instrumentId).Subscribe(t =>
+            channel.Writer.TryWrite(t));
+
+        var batch = new List<TradePrint>(256);
+        try
+        {
+            while (await channel.Reader.WaitToReadAsync(ct))
+            {
+                batch.Clear();
+                while (batch.Count < MaxStreamDrainBatch && channel.Reader.TryRead(out var t)) batch.Add(t);
+                if (batch.Count == 0) continue;
+                if (_strategy is null || _router is null) break;
+                await UiThread.RunAsync(async () =>
+                {
+                    foreach (var trade in batch)
+                    {
+                        if (_strategy is null || _router is null) break;
+                        try { await _strategy.OnTradeAsync(trade, _clock, _router, ct); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId); }
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} trade stream ended", StrategyId);
+        }
+        finally
+        {
+            channel.Writer.TryComplete();
+        }
+    }
+
+    private void AggregateBar(Tick tick)
+    {
+        var mid = (tick.Bid + tick.Ask) * 0.5;
+        var ts = tick.TimestampUtc;
+        var bucket = new DateTime(ts.Ticks - (ts.Ticks % BarInterval.Ticks), DateTimeKind.Utc);
+
+        if (_currentBarStart == DateTime.MinValue)
+        {
+            _currentBarStart = bucket;
+            _barOpen = _barHigh = _barLow = _barClose = mid;
+            _barVolume = 1;
+            return;
+        }
+
+        if (bucket != _currentBarStart)
+        {
+            var bar = new Bar(_currentBarStart, _barOpen, _barHigh, _barLow, _barClose, _barVolume);
+            Bars.Add(bar);
+            while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
+            Log("BAR", $"{bar.TimestampUtc:HH:mm:ss} O={bar.Open:F4} H={bar.High:F4} L={bar.Low:F4} C={bar.Close:F4} V={bar.Volume}");
+            OnBarsUpdated();
+            BarsChanged?.Invoke(this, EventArgs.Empty);
+
+            _currentBarStart = bucket;
+            _barOpen = _barHigh = _barLow = _barClose = mid;
+            _barVolume = 1;
+        }
+        else
+        {
+            if (mid > _barHigh) _barHigh = mid;
+            if (mid < _barLow) _barLow = mid;
+            _barClose = mid;
+            _barVolume++;
+        }
+    }
+
+    private void OnSignalEmitted(SignalEntry entry)
+    {
+        Signals.Insert(0, entry);
+        while (Signals.Count > MaxSignalsRetained) Signals.RemoveAt(Signals.Count - 1);
+
+        Log("SIGNAL", $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4}){(IsAlgoRunning ? "" : " [idle]")}");
+
+        if (!IsAlgoRunning) return;
+
+        var symbol = SelectedInstrument?.DisplayName ?? "(none)";
+        var direction = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";
+        var msg = $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
+
+        _notifications.PublishAsync(new StrategyNotification(
+            Kind: NotificationKind.Signal,
+            StrategyId: StrategyId,
+            StrategyName: StrategyDisplayName,
+            Symbol: symbol,
+            Direction: direction,
+            Message: msg,
+            TimestampUtc: entry.TimestampUtc))
+            .FireAndForgetSafe(_logger, $"signal publish {StrategyId}");
+    }
+
+    public void Dispose()
+    {
+        _services.Selector.StateChanged -= OnBrokerStateChanged;
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+        _ingestHandle?.Dispose();
+        _tradeIngestHandle?.Dispose();
+        _eventSubscription?.Dispose();
+    }
+}

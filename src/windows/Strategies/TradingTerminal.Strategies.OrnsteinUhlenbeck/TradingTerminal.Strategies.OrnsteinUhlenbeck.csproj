@@ -1,11 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- Multi-target so the (portable) strategy VM + descriptor compile for Linux/Avalonia on the
          net9.0 leg, while the WPF window stays on the net9.0-windows7.0 leg. Template for porting
          the other 11 Strategies.* projects. -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net9.0;net9.0-windows7.0</TargetFrameworks>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Ornstein-Uhlenbeck mean reversion - live signal-mode wrapper around the OrnsteinUhlenbeckStrategy backtest implementation.</Description>
   </PropertyGroup>
 
@@ -16,10 +15,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\shared\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\shared\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <!-- Portable VM layer (ViewModelBase, LiveSignalStrategyViewModelBase, router factory). -->
-    <ProjectReference Include="..\..\..\shared\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
   <!-- The WPF shell primitives (StrategyWindowBase, ScottPlot helpers) only on the Windows leg. -->
@@ -33,10 +32,10 @@
     <Compile Remove="OrnsteinUhlenbeckStrategyWindow.xaml.cs" />
   </ItemGroup>
 
-  <!-- ── Cross-platform (Avalonia) view: net9.0 leg only ──────────────────────────────────────
+  <!-- â”€â”€ Cross-platform (Avalonia) view: net9.0 leg only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
        The strategy ships its own Avalonia window (the counterpart to the WPF MetroWindow) so the
        Avalonia shell opens it through IStrategyFactory. The Avalonia package is referenced only on
-       the net9.0 leg, so its XAML compiler (which globs **/*.axaml — never the WPF .xaml) runs only
+       the net9.0 leg, so its XAML compiler (which globs **/*.axaml â€” never the WPF .xaml) runs only
        here; the WPF Page compiler globs **/*.xaml only on the windows leg. The two never overlap. -->
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
     <PackageReference Include="Avalonia" Version="11.2.1" />

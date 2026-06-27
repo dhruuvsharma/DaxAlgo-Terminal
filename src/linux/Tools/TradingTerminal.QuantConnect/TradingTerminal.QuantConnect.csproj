@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target: portable VM on net9.0 (equity curve exposed as a portable double[]; the WPF
+         PointCollection projection is #if WINDOWS). The WPF window stays on the windows leg. The LEAN
+         CLI seam (ILeanClient) is cross-platform. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>QuantConnect / LEAN integration: a polyglot subprocess seam to the local lean CLI behind ILeanClient.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\linux\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\linux\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
+    <Compile Remove="QuantConnectWindow.xaml.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <Compile Remove="AvaloniaUi\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

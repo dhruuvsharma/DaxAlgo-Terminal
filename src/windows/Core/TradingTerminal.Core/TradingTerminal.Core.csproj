@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target: net9.0 = portable (Linux/ARM64), net9.0-windows7.0 = Windows WPF build.
+         Clears the singular TargetFramework inherited from Directory.Build.props so the SDK
+         honors TargetFrameworks (plural) and does an outer multi-target build. -->
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Description>Domain models and abstractions. No UI or IB dependencies.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.Tests" />
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+  </ItemGroup>
+
+</Project>
