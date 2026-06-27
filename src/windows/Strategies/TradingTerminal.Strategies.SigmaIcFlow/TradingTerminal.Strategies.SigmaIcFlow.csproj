@@ -12,17 +12,14 @@
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
-  <!-- Self-contained plugin: references only the host's stable CONTRACT assemblies (Core + the UI
-       bases), NOT Infrastructure. Its engine (ApexScalperStrategy, in Engine/) depends only on
-       TradingTerminal.Core.*. This plugin-isolation invariant is what the marketplace needs; in
-       Phase B these project refs become the DaxAlgo.Sdk / DaxAlgo.Sdk.Wpf NuGet packages. -->
+  <!-- Plugin references ONLY the DaxAlgo SDK — the Phase B boundary. DaxAlgo.Sdk.Wpf transitively
+       provides the headless contract (DaxAlgo.Sdk -> TradingTerminal.Core, incl. Core.Quant) and the
+       WPF UI bases (TradingTerminal.UI / .UI.Core, incl. ScottPlot.WPF). NO host-internal
+       (Infrastructure) reference. This is exactly the surface a third-party plugin will compile
+       against once the SDK ships as NuGet. MahApps is the plugin's own UI-toolkit dependency (its
+       window XAML uses MetroWindow). -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk.Wpf\DaxAlgo.Sdk.Wpf.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
   </ItemGroup>
 

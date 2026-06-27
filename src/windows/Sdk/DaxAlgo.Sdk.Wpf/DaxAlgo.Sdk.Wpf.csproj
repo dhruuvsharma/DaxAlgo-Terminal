@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── DaxAlgo plugin SDK (WPF UI base) ───────────────────────────────────────────────────────
+       The WPF half of the plugin SDK: the live-strategy view-model bases and window base a WPF
+       plugin derives from (LiveSignalStrategyViewModelBase, ViewModelBase, StrategyWindowBase, the
+       shared param controls, the universal Activity Log sink), plus everything in DaxAlgo.Sdk.
+
+       v1 is a curated façade over the host UI bases (TradingTerminal.UI + TradingTerminal.UI.Core).
+       A WPF strategy plugin references THIS package only; Core/UI/UI.Core (and MahApps/ScottPlot)
+       flow transitively. The Avalonia tree gets a parallel DaxAlgo.Sdk.Avalonia when that port
+       resumes — the headless DaxAlgo.Sdk is shared, the UI base is per-tree. -->
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <IsPackable>true</IsPackable>
+    <PackageId>DaxAlgo.Sdk.Wpf</PackageId>
+    <Version>0.1.0-alpha</Version>
+    <Authors>DaxAlgo</Authors>
+    <Description>DaxAlgo Terminal plugin SDK — WPF UI base (live-strategy VM/window bases, param controls, Activity Log) for building a WPF strategy plugin. Includes DaxAlgo.Sdk.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+    <ProjectReference Include="..\..\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+  </ItemGroup>
+
+</Project>

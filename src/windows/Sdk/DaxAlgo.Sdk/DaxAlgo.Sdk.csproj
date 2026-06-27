@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── DaxAlgo plugin SDK (headless contract) ─────────────────────────────────────────────────
+       The stable, UI-free surface a strategy plugin compiles against: domain types, market-data
+       DTOs, the backtest IStrategyKernel/IBacktestStrategy contracts, parameter schema, quant math
+       (TradingTerminal.Core.Quant), and the ITradingStrategy / StrategyFactoryRegistration /
+       BacktestStrategyOption plugin seams.
+
+       v1 is a curated FAÇADE over TradingTerminal.Core (the host's already broker-/UI-free contract
+       layer): a plugin references DaxAlgo.Sdk instead of naming host projects directly, which is the
+       boundary we version and (later) narrow. The matching UI base lives in DaxAlgo.Sdk.Wpf.
+       TFM tracks the Windows tree (net9.0-windows7.0); a cross-platform net9.0 SDK comes when the
+       packages are published for the Linux tree too. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>DaxAlgo.Sdk</PackageId>
+    <Version>0.1.0-alpha</Version>
+    <Authors>DaxAlgo</Authors>
+    <Description>DaxAlgo Terminal plugin SDK — the headless contract a strategy plugin compiles against (domain, market data, backtest kernels, parameter schema, quant math, plugin seams).</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+  </ItemGroup>
+
+</Project>
