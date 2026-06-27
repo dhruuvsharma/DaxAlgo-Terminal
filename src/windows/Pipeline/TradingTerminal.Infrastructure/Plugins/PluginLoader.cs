@@ -23,11 +23,27 @@ public sealed record LoadedPlugin(string Name, string TargetSdkVersion, string A
 public static class PluginLoader
 {
     /// <summary>Scans <paramref name="pluginsRoot"/> and registers each plugin into
-    /// <paramref name="services"/>. A missing directory or no plugins is a no-op (empty list).</summary>
+    /// <paramref name="services"/> using the <see cref="PluginTrustPolicy.Permissive"/> policy (the
+    /// open-core dev flow — unsigned local plugins load, signatures aren't inspected). A missing
+    /// directory or no plugins is a no-op.</summary>
     public static IReadOnlyList<LoadedPlugin> LoadInto(
         IServiceCollection services,
         string pluginsRoot,
         string hostSdkVersion,
+        Action<string, Exception>? onError = null) =>
+        LoadInto(services, pluginsRoot, hostSdkVersion, PluginTrustPolicy.Permissive, DefaultInspector, onError);
+
+    /// <summary>Scans <paramref name="pluginsRoot"/> and registers each plugin that satisfies
+    /// <paramref name="policy"/> into <paramref name="services"/>. Trust is checked BEFORE the
+    /// assembly is loaded — an untrusted plugin's code never executes. A missing directory or no
+    /// plugins is a no-op (empty list); a rejected or faulted plugin is reported via
+    /// <paramref name="onError"/> and skipped, never blocking the host.</summary>
+    public static IReadOnlyList<LoadedPlugin> LoadInto(
+        IServiceCollection services,
+        string pluginsRoot,
+        string hostSdkVersion,
+        PluginTrustPolicy policy,
+        IPluginSignatureInspector inspector,
         Action<string, Exception>? onError = null)
     {
         var loaded = new List<LoadedPlugin>();
@@ -37,6 +53,15 @@ public static class PluginLoader
         {
             try
             {
+                // ── Trust gate (before loading any code) ──────────────────────────────────────────
+                var manifest = PluginManifest.TryRead(Path.GetDirectoryName(dll)!);
+                // Inspect the signature only when the policy actually needs it (the permissive dev
+                // flow skips Authenticode entirely).
+                var signature = policy.RequireSignature ? inspector.Inspect(dll) : PluginSignature.Unsigned;
+                if (!policy.Allows(signature, manifest is not null, out var reason))
+                    throw new PluginRejectedException(dll, reason!);
+
+                // ── Load + register ──────────────────────────────────────────────────────────────
                 var ctx = new PluginLoadContext(dll);
                 var asm = ctx.LoadFromAssemblyPath(dll);
                 if (RegisterFromAssembly(asm, services, hostSdkVersion) is { } meta)
@@ -49,6 +74,11 @@ public static class PluginLoader
         }
         return loaded;
     }
+
+    /// <summary>The default signature inspector: real Authenticode on Windows, null (always unsigned)
+    /// elsewhere. Only consulted when a policy requires signatures.</summary>
+    private static IPluginSignatureInspector DefaultInspector =>
+        OperatingSystem.IsWindows() ? new AuthenticodeSignatureInspector() : new NullSignatureInspector();
 
     /// <summary>Finds the single public <see cref="IStrategyPlugin"/> in <paramref name="assembly"/>,
     /// checks its version against <paramref name="hostSdkVersion"/>, and invokes
@@ -119,4 +149,13 @@ public sealed class PluginIncompatibleException(string pluginName, string plugin
     public string PluginName { get; } = pluginName;
     public string PluginVersion { get; } = pluginVersion;
     public string HostVersion { get; } = hostVersion;
+}
+
+/// <summary>Thrown when a plugin fails the <see cref="PluginTrustPolicy"/> (unsigned, untrusted
+/// signer, or missing required manifest). The plugin's code is NOT loaded.</summary>
+public sealed class PluginRejectedException(string assemblyPath, string reason)
+    : Exception($"Plugin '{assemblyPath}' rejected by trust policy: {reason}.")
+{
+    public string AssemblyPath { get; } = assemblyPath;
+    public string Reason { get; } = reason;
 }
