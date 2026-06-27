@@ -24,4 +24,10 @@
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- IPluginRegistrar exposes IServiceCollection so a plugin's Register() body mirrors a
+         first-party AddXxxStrategy(). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
 </Project>

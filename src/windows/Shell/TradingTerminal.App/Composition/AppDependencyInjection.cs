@@ -7,6 +7,7 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
+using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.UI;
 using TradingTerminal.Strategies.SigmaIcFlow;
 using TradingTerminal.Strategies.CumulativeDelta;
@@ -87,6 +88,17 @@ public static class AppDependencyInjection
         services.AddIndexKScoreSurfaceStrategy();
         services.AddIndexRegimeGraphStrategy();
         services.AddFilteredOrderFlowStrategy();
+
+        // Third-party strategy plugins — discovered at runtime from the app's plugins/ folder, each
+        // loaded in its own collectible context and registered through the SAME DI seam as the
+        // first-party strategies above (no host recompile). Missing folder = no-op; a bad plugin is
+        // logged and skipped, never blocking startup. This is the open-core marketplace entry point.
+        var pluginsRoot = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins");
+        var loadedPlugins = PluginLoader.LoadInto(
+            services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version,
+            onError: (path, ex) => Serilog.Log.Warning(ex, "Failed to load strategy plugin {Path}", path));
+        foreach (var plugin in loadedPlugins)
+            Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk})", plugin.Name, plugin.TargetSdkVersion);
 
         return services;
     }

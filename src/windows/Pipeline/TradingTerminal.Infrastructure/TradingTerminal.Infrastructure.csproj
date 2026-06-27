@@ -97,6 +97,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <!-- Host-side plugin loader (Plugins/) understands the DaxAlgo.Sdk plugin contract. The loader is
+         host tooling, not a plugin — plugins reference the SDK, never Infrastructure. -->
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
   </ItemGroup>
 
   <ItemGroup>
