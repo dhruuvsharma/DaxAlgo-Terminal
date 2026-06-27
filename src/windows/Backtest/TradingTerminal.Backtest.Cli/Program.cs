@@ -370,23 +370,32 @@ static double[] ParseDoubleList(string raw) =>
 // Infrastructure.Backtest.WalkForwardGridBuilders so the App's Backtest analysis tab
 // can call them too.
 static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> BuildWalkForwardGrid(
-    string strategyId, Contract contract, Args a) => strategyId.ToLowerInvariant() switch
+    string strategyId, Contract contract, Args a)
 {
-    "meanreversion" or "mean-reversion" => WalkForwardGridBuilders.MeanReversion(
-        ParseIntList(a.Optional("lookback") ?? "50,100,200"),
-        ParseDoubleList(a.Optional("entry") ?? "0.05,0.10,0.20"),
-        ParseDoubleList(a.Optional("stop") ?? "0.20,0.40"),
-        a.Int("qty", 1)),
-    "donchianbreakout" or "donchian" or "breakout" => WalkForwardGridBuilders.Donchian(
-        ParseIntList(a.Optional("lookback") ?? "50,100,200"),
-        ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40"),
-        a.Int("qty", 1)),
-    "ornsteinuhlenbeck" or "ou" => WalkForwardGridBuilders.OrnsteinUhlenbeck(
-        ParseIntList(a.Optional("lookback") ?? "300,500,1000"),
-        ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5"),
-        a.Int("qty", 1)),
-    _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
-};
+    var option = ResolveBacktestOption(strategyId)
+        ?? throw new ArgumentException(
+            $"Unknown strategy '{strategyId}'. Built-in walk-forward grids: meanReversion, donchianBreakout, ornsteinUhlenbeck."
+            + (PluginStrategies.AvailableIds.Count > 0 ? $" Plugins: {string.Join(", ", PluginStrategies.AvailableIds)}." : string.Empty));
+
+    // Empty axis => the strategy's grid applies its own defaults; otherwise pass the user's values.
+    var axes = new WalkForwardAxes(
+        Lookbacks: ParseIntList(a.Optional("lookback") ?? string.Empty),
+        Entries: ParseDoubleList(a.Optional("entry") ?? string.Empty),
+        Stops: ParseDoubleList(a.Optional("stop") ?? string.Empty),
+        Trails: ParseDoubleList(a.Optional("trail") ?? string.Empty),
+        Thresholds: ParseDoubleList(a.Optional("threshold") ?? string.Empty),
+        Holds: ParseIntList(a.Optional("hold") ?? string.Empty),
+        EntryZ: ParseDoubleList(a.Optional("entry-z") ?? string.Empty),
+        Quantity: a.Int("qty", 1));
+
+    return WalkForwardGridBuilders.For(option, axes);
+}
+
+// Resolves a backtest option by id from the host catalog plus any loaded plugin (so walk-forward
+// works for plugin strategies that declare a grid). Case-insensitive on the canonical id.
+static BacktestStrategyOption? ResolveBacktestOption(string id) =>
+    BacktestStrategyCatalog.All.Concat(PluginStrategies.Options)
+        .FirstOrDefault(o => string.Equals(o.Id, id, StringComparison.OrdinalIgnoreCase));
 
 static async Task<int> WalkForwardAsync(string[] argv)
 {

@@ -36,6 +36,16 @@ public sealed record BacktestStrategyOption(
     public IBacktestStrategy CreateForBacktest(Contract contract) =>
         BacktestBuild is { } build ? build(contract) : Create(contract);
 
+    /// <summary>
+    /// Optional factory producing this strategy's walk-forward parameter grid (the candidate configs
+    /// the walk-forward optimiser sweeps). Declared HERE — next to the strategy's own <see cref="Build"/>
+    /// — so a strategy (including a runtime-loaded plugin) ships its grid with itself; the host's
+    /// walk-forward path resolves the grid from the registered option rather than hardcoding a
+    /// per-strategy switch. <c>null</c> (default) means the strategy doesn't support walk-forward
+    /// optimisation.
+    /// </summary>
+    public Func<WalkForwardAxes, IReadOnlyList<WalkForwardCandidate>>? WalkForwardGrid { get; init; }
+
     /// <summary>True when this strategy advertises at least one tunable.</summary>
     public bool HasParameters => !Schema.IsEmpty;
 

@@ -1,76 +1,28 @@
-using System.Globalization;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
-using TradingTerminal.Infrastructure.Backtest.Strategies;
 
 namespace TradingTerminal.Infrastructure.Backtest;
 
 /// <summary>
-/// Pure helpers that turn a parameter grid into a list of fresh-strategy-builders for
-/// walk-forward optimisation. Each builder takes the <see cref="Contract"/> and returns a
-/// new <see cref="IBacktestStrategy"/> with no leaked state, so every window gets a clean
-/// instance. Used by both the CLI's 'walkforward' subcommand and the WPF Backtest analysis
-/// tab.
+/// Resolves a strategy's walk-forward candidate grid. The grids themselves now live ON each strategy
+/// option (<see cref="BacktestStrategyOption.WalkForwardGrid"/>) — declared in the catalog entry for
+/// built-ins or in a plugin's registration — so this no longer hardcodes any strategy or references
+/// any engine type. It is the single resolution point both the CLI 'walkforward' subcommand and the
+/// WPF Backtest-analysis tab call. Each candidate's builder makes a FRESH strategy per window
+/// (strategies are stateful), so no instance leaks across train→test→next-window.
 /// </summary>
 public static class WalkForwardGridBuilders
 {
-    public static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> Build(
-        string strategyId,
-        int[] lookbacks,
-        double[] entries,
-        double[] stops,
-        double[] trails,
-        double[] thresholds,
-        int[] holds,
-        double[] entryZ,
-        int quantity) => strategyId.ToLowerInvariant() switch
+    /// <summary>The strategy's walk-forward grid for the given axes, as (label, fresh-builder) pairs.
+    /// Throws when the option declares no grid.</summary>
+    public static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> For(
+        BacktestStrategyOption option, WalkForwardAxes axes)
     {
-        "meanreversion" or "mean-reversion" => MeanReversion(lookbacks, entries, stops, quantity),
-        "donchianbreakout" or "donchian" or "breakout" => Donchian(lookbacks, trails, quantity),
-        "ornsteinuhlenbeck" or "ou" => OrnsteinUhlenbeck(lookbacks, entryZ, quantity),
-        _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
-    };
-
-    public static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> MeanReversion(
-        int[] lookbacks, double[] entries, double[] stops, int qty)
-    {
-        var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-        foreach (var l in lookbacks)
-            foreach (var e in entries)
-                foreach (var s in stops)
-                {
-                    int lc = l; double ec = e, sc = s;
-                    list.Add(($"mr-lk{lc}-e{ec.ToString(CultureInfo.InvariantCulture)}-s{sc.ToString(CultureInfo.InvariantCulture)}",
-                        c => new MeanReversionStrategy(c, lc, ec, sc, qty)));
-                }
-        return list;
-    }
-
-    public static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> Donchian(
-        int[] lookbacks, double[] trails, int qty)
-    {
-        var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-        foreach (var l in lookbacks)
-            foreach (var s in trails)
-            {
-                int lc = l; double sc = s;
-                list.Add(($"don-lk{lc}-trail{sc.ToString(CultureInfo.InvariantCulture)}",
-                    c => new DonchianBreakoutStrategy(c, lc, sc, qty)));
-            }
-        return list;
-    }
-
-    public static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> OrnsteinUhlenbeck(
-        int[] lookbacks, double[] entryZ, int qty)
-    {
-        var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-        foreach (var l in lookbacks)
-            foreach (var ez in entryZ)
-            {
-                int lc = l; double ezc = ez;
-                list.Add(($"ou-lk{lc}-z{ezc.ToString(CultureInfo.InvariantCulture)}",
-                    c => new OrnsteinUhlenbeckStrategy(c, lookback: lc, entryZ: ezc, quantity: qty)));
-            }
-        return list;
+        var candidates = option.WalkForwardGrid?.Invoke(axes)
+            ?? throw new ArgumentException($"Walk-forward grid not defined for '{option.Id}'.");
+        return candidates.Select(c => (c.Label, c.Build)).ToList();
     }
 }

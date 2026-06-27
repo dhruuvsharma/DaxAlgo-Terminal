@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -22,12 +23,25 @@ namespace TradingTerminal.Ai.BacktestAnalysis;
 public sealed partial class BacktestAnalysisViewModel : ViewModelBase
 {
     private readonly ILogger<BacktestAnalysisViewModel> _logger;
+    private readonly IBacktestStrategyRegistry _strategyRegistry;
 
-    public BacktestAnalysisViewModel(ILogger<BacktestAnalysisViewModel> logger)
+    public BacktestAnalysisViewModel(
+        ILogger<BacktestAnalysisViewModel> logger,
+        IBacktestStrategyRegistry strategyRegistry)
     {
         _logger = logger;
-        StrategyChoices = new[] { "meanReversion", "donchianBreakout", "microprice", "ou" };
-        SelectedStrategy = "meanReversion";
+        _strategyRegistry = strategyRegistry;
+
+        // Offer only strategies that actually declare a walk-forward grid (built-ins or plugins),
+        // by their canonical id — so the dropdown can't pick a strategy the grid can't build.
+        StrategyChoices = strategyRegistry.All
+            .Where(o => o.WalkForwardGrid is not null)
+            .Select(o => o.Id)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        SelectedStrategy = StrategyChoices.Contains("meanReversion")
+            ? "meanReversion"
+            : StrategyChoices.FirstOrDefault() ?? "meanReversion";
     }
 
     public IReadOnlyList<string> StrategyChoices { get; }
@@ -119,16 +133,18 @@ public sealed partial class BacktestAnalysisViewModel : ViewModelBase
                 ContractMultiplier: 1.0,
                 StartingCash: 100_000);
 
-            var grid = WalkForwardGridBuilders.Build(
-                SelectedStrategy,
-                lookbacks: ParseIntList(Lookbacks),
-                entries: ParseDoubleList(Entries),
-                stops: ParseDoubleList(Stops),
-                trails: ParseDoubleList(Trails),
-                thresholds: ParseDoubleList(Thresholds),
-                holds: ParseIntList(Holds),
-                entryZ: ParseDoubleList(EntryZ),
-                quantity: Quantity);
+            var option = _strategyRegistry.Find(SelectedStrategy)
+                ?? throw new ArgumentException($"Unknown strategy '{SelectedStrategy}'.");
+            var axes = new WalkForwardAxes(
+                Lookbacks: ParseIntList(Lookbacks),
+                Entries: ParseDoubleList(Entries),
+                Stops: ParseDoubleList(Stops),
+                Trails: ParseDoubleList(Trails),
+                Thresholds: ParseDoubleList(Thresholds),
+                Holds: ParseIntList(Holds),
+                EntryZ: ParseDoubleList(EntryZ),
+                Quantity: Quantity);
+            var grid = WalkForwardGridBuilders.For(option, axes);
 
             WalkForwardStatus = $"Running {Windows} windows × {grid.Count} configs…";
 

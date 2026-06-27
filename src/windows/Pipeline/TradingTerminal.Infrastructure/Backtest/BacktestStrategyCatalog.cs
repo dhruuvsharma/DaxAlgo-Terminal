@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Strategies;
@@ -42,15 +44,40 @@ public static class BacktestStrategyCatalog
             Id: "meanReversion",
             DisplayName: "Mean reversion (demo)",
             Build: contract => new MeanReversionStrategy(contract),
-            Fast: true),
+            Fast: true)
+        {
+            WalkForwardGrid = axes =>
+                (from l in WalkForwardAxes.Or(axes.Lookbacks, 50, 100, 200)
+                 from e in WalkForwardAxes.Or(axes.Entries, 0.05, 0.10, 0.20)
+                 from s in WalkForwardAxes.Or(axes.Stops, 0.20, 0.40)
+                 select new WalkForwardCandidate(
+                     $"mr-lk{l}-e{e.ToString(CultureInfo.InvariantCulture)}-s{s.ToString(CultureInfo.InvariantCulture)}",
+                     c => new MeanReversionStrategy(c, l, e, s, axes.Quantity))).ToList(),
+        },
         new BacktestStrategyOption(
             Id: "donchianBreakout",
             DisplayName: "Donchian breakout (demo)",
-            Build: contract => new DonchianBreakoutStrategy(contract)),
+            Build: contract => new DonchianBreakoutStrategy(contract))
+        {
+            WalkForwardGrid = axes =>
+                (from l in WalkForwardAxes.Or(axes.Lookbacks, 50, 100, 200)
+                 from t in WalkForwardAxes.Or(axes.Trails, 0.10, 0.20, 0.40)
+                 select new WalkForwardCandidate(
+                     $"don-lk{l}-trail{t.ToString(CultureInfo.InvariantCulture)}",
+                     c => new DonchianBreakoutStrategy(c, l, t, axes.Quantity))).ToList(),
+        },
         new BacktestStrategyOption(
             Id: "ornsteinUhlenbeck",
             DisplayName: "Ornstein-Uhlenbeck mean reversion",
-            Build: contract => new OrnsteinUhlenbeckStrategy(contract)),
+            Build: contract => new OrnsteinUhlenbeckStrategy(contract))
+        {
+            WalkForwardGrid = axes =>
+                (from l in WalkForwardAxes.Or(axes.Lookbacks, 300, 500, 1000)
+                 from z in WalkForwardAxes.Or(axes.EntryZ, 1.5, 2.0, 2.5)
+                 select new WalkForwardCandidate(
+                     $"ou-lk{l}-z{z.ToString(CultureInfo.InvariantCulture)}",
+                     c => new OrnsteinUhlenbeckStrategy(c, lookback: l, entryZ: z, quantity: axes.Quantity))).ToList(),
+        },
         // ── S&P 500 / index baselines ─────────────────────────────────────────────────
         new BacktestStrategyOption(
             Id: "volTarget",
