@@ -1,4 +1,13 @@
 <Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/DaxAlgo.SamplePlugin/DaxAlgo.SamplePlugin.csproj" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/windows/" />
+  <Folder Name="/src/windows/Core/" />
+  <Folder Name="/src/windows/Sdk/">
+    <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
+  </Folder>
   <Project Path="src/windows/AI/TradingTerminal.Ai.BacktestAnalysis/TradingTerminal.Ai.BacktestAnalysis.csproj" />
   <Project Path="src/windows/AI/TradingTerminal.Ai.FactorResearch/TradingTerminal.Ai.FactorResearch.csproj" />
   <Project Path="src/windows/AI/TradingTerminal.Ai.MarketAnalyst/TradingTerminal.Ai.MarketAnalyst.csproj" />

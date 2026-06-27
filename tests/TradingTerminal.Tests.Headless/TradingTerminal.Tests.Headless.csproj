@@ -26,6 +26,20 @@
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
   </ItemGroup>
 
+  <!-- Sample plugin built (ReferenceOutputAssembly=false → NOT loaded into the default context) and
+       STAGED under the test output's TestPlugins/ folder so ExternalPluginLoadTests can load it from
+       disk through the real ALC path, proving cross-context type-identity sharing with a genuine
+       external DLL (not in-assembly reflection). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\samples\DaxAlgo.SamplePlugin\DaxAlgo.SamplePlugin.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="StageSamplePlugin" AfterTargets="Build">
+    <Copy SourceFiles="..\..\samples\DaxAlgo.SamplePlugin\bin\$(Configuration)\$(TargetFramework)\DaxAlgo.SamplePlugin.dll"
+          DestinationFolder="$(OutDir)TestPlugins\DaxAlgo.SamplePlugin\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />

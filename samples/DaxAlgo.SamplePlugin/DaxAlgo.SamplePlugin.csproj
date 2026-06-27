@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── Sample DaxAlgo strategy plugin (headless) ──────────────────────────────────────────────
+       The minimal copyable starter for a third-party strategy plugin: references ONLY DaxAlgo.Sdk,
+       exposes one IStrategyPlugin, and registers an ITradingStrategy + a backtestable
+       BacktestStrategyOption. No UI (a headless, backtest-only plugin) so it demonstrates the
+       contract without the WPF view layer (that uses DaxAlgo.Sdk.Wpf).
+
+       To use as a real plugin: build, then copy the output DLL to
+       <app>/plugins/DaxAlgo.SamplePlugin/DaxAlgo.SamplePlugin.dll. The host loader discovers it,
+       checks its TargetSdkVersion, and registers it like a first-party strategy. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- A plugin author would reference the published DaxAlgo.Sdk NuGet; in-repo we ProjectReference it. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\windows\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+  </ItemGroup>
+
+</Project>
