@@ -109,29 +109,43 @@ static async Task<int> RunBacktestAsync(string[] argv)
     return 0;
 }
 
-static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToLowerInvariant() switch
+// Resolves a strategy by id: host-built-in strategies first, then any loaded plugin (e.g. sigmaIcFlow
+// once packaged as a plugin, or any third-party plugin dropped into {exe}/plugins). sigmaIcFlow's
+// engine moved into the SigmaIcFlow plugin, so it is no longer a built-in here — it returns through
+// the plugin path once its DLL is present.
+static IBacktestStrategy ResolveStrategy(string id, Contract contract)
 {
-    "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
-    "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
-    "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
-    "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
-    // Index baselines
-    "voltarget" or "voltargeting" => new VolatilityTargetedStrategy(contract),
-    // L2 / depth-of-market themed
-    "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
-    "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
-    "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
-    "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
-    // sigmaIcFlow's engine (ApexScalperStrategy) now lives in the self-contained SigmaIcFlow plugin
-    // (a WPF assembly), so this headless CLI can no longer construct it directly. It will return via
-    // the runtime plugin loader in Phase B (the CLI resolving strategies from IBacktestStrategyRegistry).
-    "sigmaicflow" or "sigmaic" or "flowopt" or "apexscalper" or "apex" => throw new NotSupportedException(
-        "sigmaIcFlow is now a plugin (TradingTerminal.Strategies.SigmaIcFlow) and isn't available in the standalone CLI yet — run it from the app, or via the plugin loader once Phase B lands."),
-    "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
-    "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
-    _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, indexKScoreSurface, filteredOrderFlow.")
-};
+    IBacktestStrategy? builtin = id.ToLowerInvariant() switch
+    {
+        "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
+        "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
+        "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
+        "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
+        // Index baselines
+        "voltarget" or "voltargeting" => new VolatilityTargetedStrategy(contract),
+        // L2 / depth-of-market themed
+        "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
+        "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
+        "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
+        "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
+        "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
+        "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
+        _ => null,
+    };
+
+    return builtin
+        ?? PluginStrategies.TryCreate(id, contract)
+        ?? throw new ArgumentException(UnknownStrategyMessage(id));
+}
+
+static string UnknownStrategyMessage(string id)
+{
+    const string builtins = "buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, " +
+        "vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, indexKScoreSurface, filteredOrderFlow";
+    var plugins = PluginStrategies.AvailableIds;
+    var pluginPart = plugins.Count > 0 ? $" Plugins: {string.Join(", ", plugins)}." : " (no plugins loaded)";
+    return $"Unknown strategy '{id}'. Built-in: {builtins}.{pluginPart}";
+}
 
 static void PrintSummary(BacktestResult result)
 {

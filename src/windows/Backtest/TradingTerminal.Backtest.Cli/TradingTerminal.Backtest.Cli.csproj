@@ -16,4 +16,11 @@
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The CLI is a composition host: it builds a ServiceCollection to load strategy plugins via
+         PluginLoader (which registers through IServiceCollection). DaxAlgo.Sdk + the loader flow
+         transitively from Infrastructure. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+  </ItemGroup>
+
 </Project>
