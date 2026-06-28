@@ -95,11 +95,21 @@ public static class AppDependencyInjection
         // first-party strategies above (no host recompile). Missing folder = no-op; a bad plugin is
         // logged and skipped, never blocking startup. This is the open-core marketplace entry point.
         var pluginsRoot = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins");
+        // Dev/open-core build loads unsigned local plugins. A curated distribution would build this
+        // policy from config (pinned publisher thumbprints) instead.
+        var pluginPolicy = PluginTrustPolicy.Permissive;
         var loadedPlugins = PluginLoader.LoadInto(
             services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version,
             onError: (path, ex) => Serilog.Log.Warning(ex, "Failed to load strategy plugin {Path}", path));
         foreach (var plugin in loadedPlugins)
             Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk})", plugin.Name, plugin.TargetSdkVersion);
+
+        // Surface the plugin subsystem to the Plugin Manager UI (what's loaded, where, under which policy).
+        services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, loadedPlugins));
+
+        // Plugin Manager tool window (View → "Manage strategy plugins…").
+        services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
+        services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
 
         return services;
     }

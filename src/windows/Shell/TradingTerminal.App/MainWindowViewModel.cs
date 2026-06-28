@@ -50,6 +50,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 {
     // Stable per-window keys for the single-instance window registry (_openWindows).
     private const string NotificationsWindowId = "settings.notifications";
+    private const string PluginManagerWindowId = "plugins.manager";
     private const string BacktestStudioWindowId = "tools.backtest-studio";
     private const string LseBacktestWindowId = "lse.backtest";
     private const string RecorderWindowId = "tools.recorder";
@@ -567,6 +568,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private static string FormatLogEntry(LogEntry e) =>
         $"{e.TimestampUtc:HH:mm:ss}  {e.Source,-20}  {e.Level,-5}  {e.Message}";
+
+    [RelayCommand]
+    public void OpenPluginManager() =>
+        OpenHostedTool<TradingTerminal.App.Plugins.PluginManagerViewModel, TradingTerminal.App.Plugins.PluginManagerView>(
+            PluginManagerWindowId, "Strategy plugins", "Loading the plugin manager…");
 
     [RelayCommand]
     public void OpenBacktestStudio() =>

@@ -352,6 +352,11 @@
                           Command="{Binding OpenLiveCorrelationCommand}" />
             </MenuItem>
 
+            <MenuItem Header="_Plugins">
+                <MenuItem Header="_Manage strategy plugins…"
+                          Command="{Binding OpenPluginManagerCommand}" />
+            </MenuItem>
+
             <MenuItem Header="_LSE Tools">
                 <MenuItem Header="LSE _backtester…"
                           Command="{Binding OpenLseBacktestCommand}" />

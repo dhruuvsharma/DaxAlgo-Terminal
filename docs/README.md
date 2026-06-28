@@ -51,6 +51,7 @@ flowchart LR
 | Doc | What it covers |
 |---|---|
 | [Strategies](strategies.md) | The shipped strategies, their parameters, what each is good for. Plus the recipe for adding a new strategy. |
+| [Strategy plugins](plugins.md) | The open-core plugin system — installing a plugin (Plugins menu), and building / testing / publishing a strategy as an external plugin against the DaxAlgo SDK. |
 | [Charts & order-flow windows](charts.md) | Every Charts-menu window with its inputs and read-outs: TradingView-style charts, L2 order book, volume footprint (regression fits + virtual predictor), and the combined Bookmap + VolBook window. |
 | [Backtesting](backtesting.md) | Tick-level engine, fees, risk caps, CLI (`run` / `sweep` / `walkforward` / `mc` / `tca` / `features`). |
 | [QuantConnect / LEAN](quantconnect.md) | The optional LEAN backtest seam (subprocess + JSON) — runner / projects / data sync / settings. Experimental. |
