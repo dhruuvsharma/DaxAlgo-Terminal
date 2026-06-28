@@ -31,11 +31,18 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
     }
 
     /// <summary>True for assemblies whose type identity MUST be shared between host and plugin for the
-    /// registration contract to typecheck across the load-context boundary.</summary>
+    /// registration contract to typecheck — and for a WPF plugin's window to derive from the SAME
+    /// MahApps/ScottPlot/UI base types — across the load-context boundary. The host already has these
+    /// loaded, so deferring to the default context gives one shared identity (and one copy of WPF's
+    /// per-assembly theme/resource state).</summary>
     internal static bool IsHostContract(string? simpleName) =>
         simpleName is not null &&
         (simpleName.StartsWith("DaxAlgo.Sdk", StringComparison.Ordinal) ||
          simpleName.StartsWith("TradingTerminal.", StringComparison.Ordinal) ||
          simpleName.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) ||
-         simpleName.StartsWith("CommunityToolkit.", StringComparison.Ordinal));
+         simpleName.StartsWith("CommunityToolkit.", StringComparison.Ordinal) ||
+         // Shared WPF UI toolkits a strategy plugin's window/charts build on (host provides them).
+         simpleName.StartsWith("MahApps.", StringComparison.Ordinal) ||
+         simpleName.StartsWith("ScottPlot", StringComparison.Ordinal) ||
+         simpleName.StartsWith("ControlzEx", StringComparison.Ordinal)); // MahApps dependency
 }

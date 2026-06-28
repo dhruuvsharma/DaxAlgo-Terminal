@@ -1,56 +1,76 @@
 <Solution>
+  <Folder Name="/Core/">
+    <Project Path="src/windows/Core/TradingTerminal.Core/TradingTerminal.Core.csproj" />
+  </Folder>
+  <Folder Name="/Sdk/">
+    <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
+    <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/Pipeline/">
+    <Project Path="src/windows/Pipeline/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj" />
+    <Project Path="src/windows/Pipeline/TradingTerminal.MarketData/TradingTerminal.MarketData.csproj" />
+  </Folder>
+  <Folder Name="/Backtest/">
+    <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj" />
+    <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Engine/TradingTerminal.Backtest.Engine.csproj" />
+  </Folder>
+  <Folder Name="/UI/">
+    <Project Path="src/windows/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />
+    <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
+  </Folder>
+  <Folder Name="/Shell/">
+    <Project Path="src/windows/Shell/TradingTerminal.App/TradingTerminal.App.csproj" />
+    <Project Path="src/windows/Shell/TradingTerminal.Login/TradingTerminal.Login.csproj" />
+    <Project Path="src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj" />
+  </Folder>
+  <Folder Name="/Strategies/">
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.CumulativeDelta/TradingTerminal.Strategies.CumulativeDelta.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.FilteredOrderFlow/TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.ImbalanceHeatFront/TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.IndexKScoreSurface/TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.IndexRegimeGraph/TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowCube/TradingTerminal.Strategies.OrderFlowCube.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowPressureMap/TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowSurfaceSpike/TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowToxicity/TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrnsteinUhlenbeck/TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.SigmaIcFlow/TradingTerminal.Strategies.SigmaIcFlow.csproj" />
+    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.VolatilityTargeted/TradingTerminal.Strategies.VolatilityTargeted.csproj" />
+  </Folder>
+  <Folder Name="/AI/">
+    <Project Path="src/windows/AI/TradingTerminal.Ai/TradingTerminal.Ai.csproj" />
+    <Project Path="src/windows/AI/TradingTerminal.Ai.BacktestAnalysis/TradingTerminal.Ai.BacktestAnalysis.csproj" />
+    <Project Path="src/windows/AI/TradingTerminal.Ai.FactorResearch/TradingTerminal.Ai.FactorResearch.csproj" />
+    <Project Path="src/windows/AI/TradingTerminal.Ai.MarketAnalyst/TradingTerminal.Ai.MarketAnalyst.csproj" />
+    <Project Path="src/windows/AI/TradingTerminal.Ai.MlFeatures/TradingTerminal.Ai.MlFeatures.csproj" />
+    <Project Path="src/windows/AI/TradingTerminal.Ai.PaperLab/TradingTerminal.Ai.PaperLab.csproj" />
+  </Folder>
+  <Folder Name="/Charts/">
+    <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.Heatmap/TradingTerminal.Heatmap.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.VolumeFootprint/TradingTerminal.VolumeFootprint.csproj" />
+  </Folder>
+  <Folder Name="/MachineLearning/">
+    <Project Path="src/windows/MachineLearning/TradingTerminal.Ml.ArimaGarch/TradingTerminal.Ml.ArimaGarch.csproj" />
+    <Project Path="src/windows/MachineLearning/TradingTerminal.Ml.KalmanFilter/TradingTerminal.Ml.KalmanFilter.csproj" />
+    <Project Path="src/windows/MachineLearning/TradingTerminal.Ml.Stationarity/TradingTerminal.Ml.Stationarity.csproj" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="src/windows/Tools/TradingTerminal.AdvancedMarketRegime/TradingTerminal.AdvancedMarketRegime.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.Backtest/TradingTerminal.Backtest.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.BacktestStudio/TradingTerminal.BacktestStudio.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.Correlation/TradingTerminal.Correlation.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.LseBacktest/TradingTerminal.LseBacktest.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.MarkovRegime/TradingTerminal.MarkovRegime.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.QuantConnect/TradingTerminal.QuantConnect.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.Recording/TradingTerminal.Recording.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/DaxAlgo.SamplePlugin/DaxAlgo.SamplePlugin.csproj" />
   </Folder>
-  <Folder Name="/src/" />
-  <Folder Name="/src/windows/" />
-  <Folder Name="/src/windows/Core/" />
-  <Folder Name="/src/windows/Sdk/">
-    <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/TradingTerminal.Tests/TradingTerminal.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj" />
   </Folder>
-  <Project Path="src/windows/AI/TradingTerminal.Ai.BacktestAnalysis/TradingTerminal.Ai.BacktestAnalysis.csproj" />
-  <Project Path="src/windows/AI/TradingTerminal.Ai.FactorResearch/TradingTerminal.Ai.FactorResearch.csproj" />
-  <Project Path="src/windows/AI/TradingTerminal.Ai.MarketAnalyst/TradingTerminal.Ai.MarketAnalyst.csproj" />
-  <Project Path="src/windows/AI/TradingTerminal.Ai.MlFeatures/TradingTerminal.Ai.MlFeatures.csproj" />
-  <Project Path="src/windows/AI/TradingTerminal.Ai.PaperLab/TradingTerminal.Ai.PaperLab.csproj" />
-  <Project Path="src/windows/AI/TradingTerminal.Ai/TradingTerminal.Ai.csproj" />
-  <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj" />
-  <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Engine/TradingTerminal.Backtest.Engine.csproj" />
-  <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
-  <Project Path="src/windows/Charts/TradingTerminal.Heatmap/TradingTerminal.Heatmap.csproj" />
-  <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />
-  <Project Path="src/windows/Charts/TradingTerminal.VolumeFootprint/TradingTerminal.VolumeFootprint.csproj" />
-  <Project Path="src/windows/Core/TradingTerminal.Core/TradingTerminal.Core.csproj" />
-  <Project Path="src/windows/MachineLearning/TradingTerminal.Ml.ArimaGarch/TradingTerminal.Ml.ArimaGarch.csproj" />
-  <Project Path="src/windows/MachineLearning/TradingTerminal.Ml.KalmanFilter/TradingTerminal.Ml.KalmanFilter.csproj" />
-  <Project Path="src/windows/MachineLearning/TradingTerminal.Ml.Stationarity/TradingTerminal.Ml.Stationarity.csproj" />
-  <Project Path="src/windows/Pipeline/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj" />
-  <Project Path="src/windows/Pipeline/TradingTerminal.MarketData/TradingTerminal.MarketData.csproj" />
-  <Project Path="src/windows/Shell/TradingTerminal.App/TradingTerminal.App.csproj" />
-  <Project Path="src/windows/Shell/TradingTerminal.Login/TradingTerminal.Login.csproj" />
-  <Project Path="src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.CumulativeDelta/TradingTerminal.Strategies.CumulativeDelta.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.FilteredOrderFlow/TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.ImbalanceHeatFront/TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.IndexKScoreSurface/TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.IndexRegimeGraph/TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowCube/TradingTerminal.Strategies.OrderFlowCube.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowPressureMap/TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowSurfaceSpike/TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowToxicity/TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrnsteinUhlenbeck/TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.SigmaIcFlow/TradingTerminal.Strategies.SigmaIcFlow.csproj" />
-  <Project Path="src/windows/Strategies/TradingTerminal.Strategies.VolatilityTargeted/TradingTerminal.Strategies.VolatilityTargeted.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.AdvancedMarketRegime/TradingTerminal.AdvancedMarketRegime.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.Backtest/TradingTerminal.Backtest.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.BacktestStudio/TradingTerminal.BacktestStudio.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.Correlation/TradingTerminal.Correlation.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.LseBacktest/TradingTerminal.LseBacktest.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.MarkovRegime/TradingTerminal.MarkovRegime.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.QuantConnect/TradingTerminal.QuantConnect.csproj" />
-  <Project Path="src/windows/Tools/TradingTerminal.Recording/TradingTerminal.Recording.csproj" />
-  <Project Path="src/windows/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />
-  <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
-  <Project Path="tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj" />
-  <Project Path="tests/TradingTerminal.Tests/TradingTerminal.Tests.csproj" />
 </Solution>

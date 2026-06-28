@@ -1,0 +1,7 @@
+{
+  "id": "sigma.ic.flow",
+  "name": "Σ⁻¹·IC Order-Flow Optimizer",
+  "version": "1.0.0",
+  "targetSdkVersion": "0.1.0-alpha",
+  "publisher": "DaxAlgo"
+}

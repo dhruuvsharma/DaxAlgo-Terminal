@@ -33,7 +33,12 @@
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />
+    <!-- SigmaIcFlow ships as an EXTERNAL plugin, not a compile-time strategy: build it (for ordering)
+         but don't link it, then StageSigmaIcFlowPlugin (below) copies its DLL + plugin.json into
+         {OutDir}/plugins so PluginLoader discovers it at runtime. This is the live cross-load-context
+         WPF proof. To revert to compile-time: drop ReferenceOutputAssembly + re-add
+         AddSigmaIcFlowStrategy() in AppDependencyInjection. -->
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
     <!-- Charts-menu tools -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
@@ -133,5 +138,25 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <!--
+    Stage SigmaIcFlow as an external strategy plugin: copy its built DLL + manifest into
+    {OutDir}/plugins/<assembly-name>/ (the loader's folder/<folder>.dll convention) so the app
+    discovers it at runtime via PluginLoader. Runs after build; the SigmaIcFlow ProjectReference
+    above (ReferenceOutputAssembly=false) guarantees it's built first.
+  -->
+  <Target Name="StageSigmaIcFlowPlugin" AfterTargets="Build">
+    <PropertyGroup>
+      <SigmaIcFlowOut>..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\bin\$(Configuration)\$(TargetFramework)</SigmaIcFlowOut>
+      <SigmaIcFlowPluginDir>$(OutDir)plugins\TradingTerminal.Strategies.SigmaIcFlow</SigmaIcFlowPluginDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.dll" />
+      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.pdb" />
+      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\plugin.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SigmaIcFlowPluginFiles)" DestinationFolder="$(SigmaIcFlowPluginDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Staged SigmaIcFlow plugin -> $(SigmaIcFlowPluginDir)" />
+  </Target>
 
 </Project>

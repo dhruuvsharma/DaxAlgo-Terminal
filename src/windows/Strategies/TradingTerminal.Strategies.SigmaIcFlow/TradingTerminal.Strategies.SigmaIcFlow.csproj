@@ -39,6 +39,12 @@
     <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
+  <!-- Plugin manifest — shipped next to the DLL when this strategy is packaged as an external plugin
+       (the host reads plugin.json before loading the assembly). -->
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
