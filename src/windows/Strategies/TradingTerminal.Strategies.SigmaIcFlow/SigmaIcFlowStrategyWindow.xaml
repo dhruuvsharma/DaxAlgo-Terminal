@@ -83,14 +83,12 @@
 
     <Grid>
         <!-- ── Setup form ──────────────────────────────────────────────────────────── -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border Style="{StaticResource Strategy.SetupCard}">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="{Binding StrategyDisplayName}"
+                               Subtitle="ORDER FLOW · Σ⁻¹·IC OPTIMIZER"
+                               Tags="L1, Bars, Depth, Trade tape"
+                               Description="Tape-primary composite of Delta, VPIN, footprint stacked imbalance, tape speed, Kyle-λ residual, initiative/control/wedge/value and CVD/OBI — Σ⁻¹·IC weighted with a calibrated g(C) entry gate. Bootstrap mode runs until isotonic calibration is warm.">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource Strategy.SetupTitle}" Text="Configure Σ⁻¹·IC Order-Flow Optimizer" />
-                    <TextBlock Style="{StaticResource Strategy.SetupDescription}"
-                               Text="Tape-primary composite: Delta, VPIN, Footprint stacked imbalance, Tape Speed, Kyle-λ residual, initiative/control/wedge/value (triple regression lines), CVD divergence, OBI (live depth). Σ⁻¹·IC weighting; calibrated g(C) entry gate. Bootstrap mode active until isotonic calibration is warm." />
-
                     <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -141,8 +139,7 @@
                     <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right"
                             IsDefault="True" MinWidth="120" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </ScrollViewer>
+        </uic:StrategySetupHost>
 
         <!-- ── Running layout ─────────────────────────────────────────────────────────── -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

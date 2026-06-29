@@ -22,13 +22,12 @@
 
     <Grid>
         <!-- ── Setup form ───────────────────────────────────────────────────────────────────── -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border Style="{StaticResource Strategy.SetupCard}">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="{Binding StrategyDisplayName}"
+                               Subtitle="ORDER FLOW · arXiv:2507.22712"
+                               Tags="L1, Bars, Trade tape"
+                               Description="Trade-based OBI(T) — net signed-trade count over a rolling window — regime-classified on a 9-bin grid; the signal fires on strong same-sign regimes. Tracks filtered vs unfiltered OBI(T) to show whether filtering fleeting flow sharpens the signal. Needs a signed trade tape (IB / Simulated).">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource Strategy.SetupTitle}" Text="Configure Filtered Order-Flow Imbalance" />
-                    <TextBlock Style="{StaticResource Strategy.SetupDescription}"
-                               Text="Trade-based OBI(T) — net signed-trade count over a rolling window — regime-classified on a 9-bin grid. Signal fires on strong same-sign regimes. Tracks filtered vs unfiltered OBI(T) to show whether filtering fleeting flow sharpens the signal (arXiv:2507.22712). Needs a signed trade tape (IB / Simulated)." />
-
                     <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -60,8 +59,7 @@
 
                     <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" IsDefault="True" MinWidth="120" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </ScrollViewer>
+        </uic:StrategySetupHost>
 
         <!-- ── Runtime dashboard ────────────────────────────────────────────────────────────── -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

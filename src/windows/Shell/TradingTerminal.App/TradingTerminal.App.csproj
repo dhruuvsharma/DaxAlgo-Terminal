@@ -31,14 +31,14 @@
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-    <!-- SigmaIcFlow ships as an EXTERNAL plugin, not a compile-time strategy: build it (for ordering)
-         but don't link it, then StageSigmaIcFlowPlugin (below) copies its DLL + plugin.json into
-         {OutDir}/plugins so PluginLoader discovers it at runtime. This is the live cross-load-context
-         WPF proof. To revert to compile-time: drop ReferenceOutputAssembly + re-add
-         AddSigmaIcFlowStrategy() in AppDependencyInjection. -->
+    <!-- SigmaIcFlow and IndexRegimeGraph ship as EXTERNAL plugins, not compile-time strategies: build
+         them (for ordering) but don't link them, then the Stage*Plugin targets (below) copy each DLL +
+         plugin.json into {OutDir}/plugins so PluginLoader discovers them at runtime. This is the live
+         cross-load-context WPF proof. To revert one to compile-time: drop ReferenceOutputAssembly +
+         re-add its Add<Name>Strategy() in AppDependencyInjection. -->
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
     <!-- Charts-menu tools -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
@@ -157,6 +157,26 @@
     </ItemGroup>
     <Copy SourceFiles="@(SigmaIcFlowPluginFiles)" DestinationFolder="$(SigmaIcFlowPluginDir)" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Staged SigmaIcFlow plugin -> $(SigmaIcFlowPluginDir)" />
+  </Target>
+
+  <!--
+    Stage IndexRegimeGraph as an external strategy plugin (mirrors StageSigmaIcFlowPlugin): copy its
+    built DLL + manifest into {OutDir}/plugins/<assembly-name>/ so the app discovers it at runtime via
+    PluginLoader. The IndexRegimeGraph ProjectReference above (ReferenceOutputAssembly=false) guarantees
+    it's built first.
+  -->
+  <Target Name="StageIndexRegimeGraphPlugin" AfterTargets="Build">
+    <PropertyGroup>
+      <IndexRegimeGraphOut>..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\bin\$(Configuration)\$(TargetFramework)</IndexRegimeGraphOut>
+      <IndexRegimeGraphPluginDir>$(OutDir)plugins\TradingTerminal.Strategies.IndexRegimeGraph</IndexRegimeGraphPluginDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.dll" />
+      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.pdb" />
+      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\plugin.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(IndexRegimeGraphPluginFiles)" DestinationFolder="$(IndexRegimeGraphPluginDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Staged IndexRegimeGraph plugin -> $(IndexRegimeGraphPluginDir)" />
   </Target>
 
 </Project>

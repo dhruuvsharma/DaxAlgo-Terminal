@@ -84,6 +84,17 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
 
     private readonly bool[] _seriesEnabled = Enumerable.Repeat(true, SeriesDefs.Length).ToArray();
 
+    // Shared, immutable font reused by every footprint TextBlock — the cluster is rebuilt up to ~30×/s,
+    // so allocating a FontFamily per text element churns the GC for nothing (the memory-safety rule).
+    private static readonly FontFamily FpMonoFont = new("Consolas");
+
+    // Pre-baked, frozen footprint-cell brushes bucketed by intensity, one palette per side. The cluster
+    // redraws many times a second; allocating a SolidColorBrush per cell (the old path) churned the GC.
+    // We quantise the volume→alpha ramp (36 + 170·frac) into a fixed palette and reuse the frozen brushes.
+    private const int FpCellAlphaBuckets = 48;
+    private static readonly Brush[] FpBuyCells;
+    private static readonly Brush[] FpSellCells;
+
     static SigmaIcFlowStrategyWindow()
     {
         foreach (var b in new Brush[]
@@ -95,6 +106,23 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
             BadgeBootstrap, BadgeRealTape, BadgeSynthetic,
         })
             b.Freeze();
+
+        FpBuyCells = BuildFpCellBrushes(FpBuyBrush.Color);
+        FpSellCells = BuildFpCellBrushes(FpSellBrush.Color);
+    }
+
+    private static Brush[] BuildFpCellBrushes(Color baseColor)
+    {
+        var brushes = new Brush[FpCellAlphaBuckets];
+        for (var i = 0; i < FpCellAlphaBuckets; i++)
+        {
+            var frac = (double)i / (FpCellAlphaBuckets - 1);
+            var alpha = (byte)(36 + 170.0 * frac);
+            var b = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+            b.Freeze();
+            brushes[i] = b;
+        }
+        return brushes;
     }
 
     private readonly LadderRow[] _askRows = new LadderRow[LadderDepth];
@@ -605,11 +633,9 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
     private void AddFpCellHalf(double x, double y, double w, long vol, long maxVol, SolidColorBrush baseBrush, bool isLeft)
     {
         if (vol <= 0) return;
-        var alpha = (byte)(36 + 170.0 * Math.Min(1.0, (double)vol / maxVol));
-        var c = baseBrush.Color;
-        var fill = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
-        fill.Freeze();
-        ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle { Width = w, Height = FpRowHeight, Fill = fill }, x, y));
+        var palette = ReferenceEquals(baseBrush, FpSellBrush) ? FpSellCells : FpBuyCells;
+        var bucket = (int)(Math.Min(1.0, (double)vol / maxVol) * (FpCellAlphaBuckets - 1));
+        ApexFootprintCanvas.Children.Add(FpPlace(new Rectangle { Width = w, Height = FpRowHeight, Fill = palette[bucket] }, x, y));
         AddFpText(FpCompact(vol), x, y, w - 3, FpRowHeight, FpTextBrush, 9.5,
             isLeft ? TextAlignment.Right : TextAlignment.Left, leftPad: isLeft ? 0 : 3);
     }
@@ -622,7 +648,7 @@ public partial class SigmaIcFlowStrategyWindow : StrategyWindowBase
             Text = text,
             Foreground = brush,
             FontSize = size,
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = FpMonoFont,
             Width = w,
             Height = h,
             TextAlignment = align,

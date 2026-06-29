@@ -12,13 +12,14 @@
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
+  <!-- Plugin references ONLY the DaxAlgo SDK — the same Phase B boundary SigmaIcFlow uses.
+       DaxAlgo.Sdk.Wpf transitively provides the headless contract (DaxAlgo.Sdk -> TradingTerminal.Core,
+       incl. Core.MarketData.AdvancedRegime + Core.Quant) and the WPF UI bases (TradingTerminal.UI /
+       .UI.Core, incl. ScottPlot.WPF). NO host-internal (Infrastructure) reference: the strategy only
+       consumes the Core IAdvancedRegimeProvider interface; the host registers its impl. MahApps is the
+       plugin's own UI-toolkit dependency (its window XAML uses MetroWindow). -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk.Wpf\DaxAlgo.Sdk.Wpf.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
   </ItemGroup>
 
@@ -28,6 +29,12 @@
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <Compile Remove="AvaloniaUi\**\*.cs" />
+  </ItemGroup>
+
+  <!-- Plugin manifest — shipped next to the DLL when this strategy is packaged as an external plugin
+       (the host reads plugin.json before loading the assembly). -->
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -41,23 +41,12 @@
 
     <Grid>
         <!-- Setup form -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="560"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1"
-                    Padding="24">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="Order Flow Surface Spike"
+                               Subtitle="ORDER FLOW · 3D SURFACE"
+                               Tags="L1, Bars, Trade tape"
+                               Description="Z-score surface over a rolling [slice × price-bin] matrix of signed order flow. Spikes in the latest slice trigger entries; reversion or TP/SL exits.">
                 <StackPanel>
-                    <TextBlock Text="Configure Order Flow Surface Spike"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,4" />
-                    <TextBlock Text="Z-score surface over a rolling [slice × price-bin] matrix of signed order flow. Spikes in the latest slice trigger entries; reversion or TP/SL exits."
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               Margin="0,0,0,16" />
-
                     <TextBlock Text="Instrument" Margin="0,0,0,4" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -123,8 +112,7 @@
                             MinWidth="120"
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </Grid>
+        </uic:StrategySetupHost>
 
         <!-- Surface view -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

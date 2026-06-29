@@ -21,13 +21,12 @@
     </mah:MetroWindow.LeftWindowCommands>
 
     <Grid>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border Style="{StaticResource Strategy.SetupCard}">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="{Binding StrategyDisplayName}"
+                               Subtitle="MEAN REVERSION"
+                               Tags="L1, Bars"
+                               Description="Fit an Ornstein–Uhlenbeck process on a rolling window and trade z-score deviations from the fitted mean; stop out at large z.">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource Strategy.SetupTitle}" Text="Configure Ornstein-Uhlenbeck mean reversion" />
-                    <TextBlock Style="{StaticResource Strategy.SetupDescription}"
-                               Text="Fit an OU process on a rolling window; trade z-score deviations from the fitted mean. Stop out at large z." />
-
                     <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -61,8 +60,7 @@
 
                     <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" IsDefault="True" MinWidth="120" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </ScrollViewer>
+        </uic:StrategySetupHost>
 
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">

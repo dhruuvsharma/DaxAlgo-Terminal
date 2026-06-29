@@ -40,19 +40,12 @@
 
     <Grid>
         <!-- Setup form -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="640"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1"
-                    Padding="24">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="Index K-Score Surface"
+                               Subtitle="REGIME · K-SCORE SURFACE"
+                               Tags="L1, Bars"
+                               Description="Multi-stock K-score aggregator. Each component scores 15 directional indicators into a composite K ∈ [-1.5, +1.5]; the threshold surface scales inversely with index weight.">
                 <StackPanel>
-                    <TextBlock Text="Configure Index K-Score Surface"
-                               FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock Text="Multi-stock K-score aggregator. Each component scores 15 directional indicators into a composite K ∈ [-1.5, +1.5]; the threshold surface scales inversely with index weight."
-                               TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,16" />
-
                     <TextBlock Text="Index Family" Margin="0,0,0,4" />
                     <ComboBox ItemsSource="{Binding Families}"
                               SelectedItem="{Binding SelectedFamily}"
@@ -110,8 +103,7 @@
                             HorizontalAlignment="Right" IsDefault="True" MinWidth="120"
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </Grid>
+        </uic:StrategySetupHost>
 
         <!-- Surface view -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

@@ -42,6 +42,25 @@ public partial class OrderBookWindow : MetroWindow
     private static readonly Brush GridPen = Freeze(new SolidColorBrush(Color.FromArgb(0x33, 0x88, 0x88, 0x88)));
     private static readonly FontFamily MonoFont = new("Consolas");
 
+    // Pre-baked, frozen liquidity-cell brushes bucketed by intensity. The heatmap redraws every frame
+    // and paints thousands of cells, so allocating a SolidColorBrush per cell (the old path) churned
+    // the GC hard. We quantise the size→alpha ramp into a fixed palette and reuse the frozen brushes.
+    private const int CellAlphaBuckets = 48;
+    private static readonly Brush[] BidCells = BuildCellBrushes(BidColor);
+    private static readonly Brush[] AskCells = BuildCellBrushes(AskColor);
+
+    private static Brush[] BuildCellBrushes(Color baseColor)
+    {
+        var brushes = new Brush[CellAlphaBuckets];
+        for (var i = 0; i < CellAlphaBuckets; i++)
+        {
+            var frac = (double)i / (CellAlphaBuckets - 1);
+            var alpha = (byte)(30 + 200.0 * frac);
+            brushes[i] = Freeze(new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B)));
+        }
+        return brushes;
+    }
+
     private OrderBookViewModel? _vm;
     private double _w, _h; // host canvas size (from the border's SizeChanged)
 
@@ -128,8 +147,8 @@ public partial class OrderBookWindow : MetroWindow
         {
             var c = columns[i];
             var x = X(i);
-            DrawSideCells(c.Bids, x, Y, cellH, maxSize, BidColor);
-            DrawSideCells(c.Asks, x, Y, cellH, maxSize, AskColor);
+            DrawSideCells(c.Bids, x, Y, cellH, maxSize, BidCells);
+            DrawSideCells(c.Asks, x, Y, cellH, maxSize, AskCells);
         }
 
         // ── Best bid / ask + microprice lines ───────────────────────────────────────────────────
@@ -159,17 +178,15 @@ public partial class OrderBookWindow : MetroWindow
     }
 
     private void DrawSideCells(IReadOnlyList<DepthLevel> side, double x, Func<double, double> y,
-        double cellH, long maxSize, Color baseColor)
+        double cellH, long maxSize, Brush[] cellBrushes)
     {
         var n = Math.Min(MaxLevelsPerSide, side.Count);
         for (var i = 0; i < n; i++)
         {
             var l = side[i];
             if (l.Size <= 0) continue;
-            var alpha = (byte)(30 + 200.0 * Math.Min(1.0, (double)l.Size / maxSize));
-            var fill = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
-            fill.Freeze();
-            var rect = new Rectangle { Width = ColumnWidth, Height = cellH, Fill = fill };
+            var bucket = (int)(Math.Min(1.0, (double)l.Size / maxSize) * (CellAlphaBuckets - 1));
+            var rect = new Rectangle { Width = ColumnWidth, Height = cellH, Fill = cellBrushes[bucket] };
             Canvas.SetLeft(rect, x);
             Canvas.SetTop(rect, y(l.Price) - cellH / 2.0);
             HeatCanvas.Children.Add(rect);

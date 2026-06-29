@@ -40,23 +40,12 @@
 
     <Grid>
         <!-- Setup form -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="620"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1"
-                    Padding="24">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="{Binding StrategyDisplayName}"
+                               Subtitle="ORDER FLOW · L2 SURFACE"
+                               Tags="L1, Bars, Depth"
+                               Description="Per-distance L2 imbalance-ratio surface over a rolling time window. Coherent ridges across multiple levels signal one-sided book pressure — trade with (momentum) or against (mean-reversion) the ridge. Requires L2 depth (IB or cTrader).">
                 <StackPanel>
-                    <TextBlock Text="Configure Imbalance Heat Front"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,4" />
-                    <TextBlock Text="Per-distance L2 imbalance ratio surface over a rolling time window. Coherent ridges across multiple levels signal one-sided book pressure; trade with (momentum) or against (mean-reversion) the ridge. Requires L2 depth — IB or cTrader."
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               Margin="0,0,0,16" />
-
                     <TextBlock Text="Instrument" Margin="0,0,0,4" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -138,8 +127,7 @@
                             MinWidth="120"
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </Grid>
+        </uic:StrategySetupHost>
 
         <!-- Surface view -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

@@ -110,24 +110,12 @@
 
     <Grid>
         <!-- ===== Setup form ===== -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="560"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="24"
-                    Margin="0,24">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="Cumulative Delta Scalper"
+                               Subtitle="ORDER FLOW · CVD SCALPER"
+                               Tags="L1, Bars, Trade tape"
+                               Description="Trade-tape aggressor delta (with footprint clusters) summed over a sliding window of N candles; a bid-tick proxy fills in when no tape exists. Triggers on cumΔ crossing ±θ (adaptive σ-scaled θ by default), gated by up to six confirmations. Spread/ATR gates are in basis points, so any instrument works.">
                 <StackPanel>
-                    <TextBlock Text="Configure Cumulative Delta Scalper (Sniper)"
-                               FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock Text="Trade-tape aggressor delta (with footprint clusters) summed over a sliding window of N candles; bid-tick proxy when no tape exists. Trigger on cumΔ crossing ±θ — adaptive θ = σ-scaled by default — gated by up to six confirmations (momentum, HTF EMA, EMA slope, ADX, spread, footprint stack). Spread/ATR gates are in basis points, so any instrument works."
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               Margin="0,0,0,16" />
-
                     <TextBlock Text="Instrument" Margin="0,0,0,4" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -356,8 +344,7 @@
                             MinWidth="120"
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </ScrollViewer>
+        </uic:StrategySetupHost>
 
         <!-- ===== Running layout ===== -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

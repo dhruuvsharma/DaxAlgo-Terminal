@@ -13,7 +13,6 @@ using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
 using TradingTerminal.Strategies.IndexKScoreSurface;
-using TradingTerminal.Strategies.IndexRegimeGraph;
 using TradingTerminal.Strategies.OrderFlowCube;
 using TradingTerminal.Strategies.OrderFlowPressureMap;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
@@ -87,7 +86,10 @@ public static class AppDependencyInjection
         // (staged into {BaseDirectory}/plugins by App.csproj) and loads via PluginLoader below. This
         // is the live proof that a real strategy + its WPF window load cross-load-context.
         services.AddIndexKScoreSurfaceStrategy();
-        services.AddIndexRegimeGraphStrategy();
+        // NOTE: IndexRegimeGraph is no longer compile-registered here — like SigmaIcFlow it ships as an
+        // EXTERNAL plugin (staged into {BaseDirectory}/plugins by App.csproj) and loads via PluginLoader
+        // below. It consumes only the host-registered Core IAdvancedRegimeProvider, so it needs no
+        // host-internal reference.
         services.AddFilteredOrderFlowStrategy();
 
         // Third-party strategy plugins — discovered at runtime from the app's plugins/ folder, each

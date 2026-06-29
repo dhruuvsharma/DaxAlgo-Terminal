@@ -80,6 +80,15 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// <summary>Latest whole-book snapshot, set by the depth drain and sampled by the capture timer.</summary>
     private DepthSnapshot? _latest;
 
+    /// <summary>The snapshot last projected into the ladders/strip, so the capture tick can skip the
+    /// (expensive) ladder reconcile when the book hasn't changed since the previous frame.</summary>
+    private DepthSnapshot? _renderedSnapshot;
+
+    /// <summary>Reused scratch buffers for the ladder projection so the per-frame rebuild allocates no
+    /// temporary lists — the rows are reconciled into the bound collections in place (see <see cref="Reconcile"/>).</summary>
+    private readonly List<OrderBookLevel> _bidScratch = new();
+    private readonly List<OrderBookLevel> _askScratch = new();
+
     /// <summary>Trades that have printed since the last heatmap capture, drained into the next column.</summary>
     private readonly List<TradeMark> _pendingTrades = new();
 
@@ -289,14 +298,13 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Pumps depth snapshots off the hub through a bounded channel (so the publish thread is
-    /// never blocked by the UI) and rebuilds the ladders on the UI thread for the freshest one.</summary>
+    /// never blocked by the UI) and stores the freshest one for the capture timer to project.</summary>
     private const int DepthChannelCapacity = 2_048;
 
     private async Task RunDepthStreamAsync(InstrumentId instrumentId, CancellationToken ct)
     {
         // Bounded + DropOldest so a fast book the UI can't keep up with is capped in memory (newest
-        // snapshot wins) instead of piling an unbounded backlog into GBs. We render only the freshest
-        // snapshot per drain — intermediate books are already stale, so coalescing is lossless here.
+        // snapshot wins) instead of piling an unbounded backlog into GBs.
         var channel = Channel.CreateBounded<DepthSnapshot>(new BoundedChannelOptions(DepthChannelCapacity)
         {
             SingleReader = true,
@@ -312,7 +320,11 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
             {
                 DepthSnapshot? latest = null;
                 while (channel.Reader.TryRead(out var s)) latest = s;
-                if (latest is { } snap) await UiThread.RunAsync(() => OnSnapshot(snap));
+                // Store only (atomic reference write) — the capture tick projects the freshest book
+                // into the ladders/strip/heatmap at a fixed cadence. This decouples the (expensive)
+                // ladder rebuild from the depth-update rate: a fast book can no longer pin the UI
+                // thread regenerating every ItemsControl row on each tick (the old lag source).
+                if (latest is { } snap) _latest = snap;
             }
         }
         catch (OperationCanceledException) { }
@@ -389,38 +401,38 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         CvdDirection = Math.Sign(CumulativeDelta);
     }
 
-    /// <summary>Projects a whole-book snapshot into the two display ladders and recomputes the
-    /// microstructure strip. Stores the snapshot for the capture timer (heatmap + synthetic tape).</summary>
-    private void OnSnapshot(DepthSnapshot snapshot)
+    /// <summary>Projects the freshest whole-book snapshot into the two display ladders and recomputes
+    /// the microstructure strip. Called from the capture tick (UI thread), not per depth update, so the
+    /// ladder rebuild is coalesced. Rows are reconciled into the bound collections <b>in place</b> so
+    /// WPF only re-templates the rows that actually changed instead of every row each frame.</summary>
+    private void RenderLatestBook(DepthSnapshot snapshot)
     {
-        _latest = snapshot;
-
         long maxSize = 1;
         foreach (var l in snapshot.Bids) if (l.Size > maxSize) maxSize = l.Size;
         foreach (var l in snapshot.Asks) if (l.Size > maxSize) maxSize = l.Size;
 
         // Bids: best-first (already descending). Cumulative from the top of book down.
-        var bids = new ObservableCollection<OrderBookLevel>();
+        _bidScratch.Clear();
         long cum = 0;
         foreach (var l in snapshot.Bids)
         {
             cum += l.Size;
-            bids.Add(new OrderBookLevel(l.Price, l.Size, cum, (double)l.Size / maxSize));
+            _bidScratch.Add(new OrderBookLevel(l.Price, l.Size, cum, (double)l.Size / maxSize));
         }
+        Reconcile(Bids, _bidScratch);
 
         // Asks: cumulative is computed best-first (ascending), but displayed highest-price-first so
         // the best ask sits just above the spread. Reverse after accumulating.
-        var asksBestFirst = new List<OrderBookLevel>();
+        _askScratch.Clear();
         cum = 0;
         foreach (var l in snapshot.Asks)
         {
             cum += l.Size;
-            asksBestFirst.Add(new OrderBookLevel(l.Price, l.Size, cum, (double)l.Size / maxSize));
+            _askScratch.Add(new OrderBookLevel(l.Price, l.Size, cum, (double)l.Size / maxSize));
         }
-        asksBestFirst.Reverse();
+        _askScratch.Reverse();
+        Reconcile(Asks, _askScratch);
 
-        Bids = bids;
-        Asks = new ObservableCollection<OrderBookLevel>(asksBestFirst);
         BidLevels = snapshot.Bids.Count;
         AskLevels = snapshot.Asks.Count;
         BestBid = snapshot.BestBid > 0 ? snapshot.BestBid : null;
@@ -432,6 +444,23 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         UpdateAnalytics(snapshot);
 
         Status = $"{SelectedInstrument?.DisplayName} · {snapshot.Bids.Count} bid / {snapshot.Asks.Count} ask levels · {snapshot.TimestampUtc:HH:mm:ss}";
+    }
+
+    /// <summary>Mutates <paramref name="target"/> to equal <paramref name="source"/> with the fewest
+    /// collection-change notifications: overwrite differing rows by index (a Replace updates one item
+    /// container), append the surplus, trim the tail. Avoids tearing down and rebuilding every ladder
+    /// row's visual tree each frame, which is what made a fast book lag the window.</summary>
+    private static void Reconcile(ObservableCollection<OrderBookLevel> target, List<OrderBookLevel> source)
+    {
+        for (var i = 0; i < source.Count; i++)
+        {
+            if (i < target.Count)
+            {
+                if (!target[i].Equals(source[i])) target[i] = source[i];
+            }
+            else target.Add(source[i]);
+        }
+        while (target.Count > source.Count) target.RemoveAt(target.Count - 1);
     }
 
     /// <summary>Tier 2 strip: microprice / weighted mid / imbalance / skew, all from <see cref="Microstructure"/>.</summary>
@@ -482,6 +511,15 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         if (!_ready) return;
         var snap = _latest;
         if (snap is null || snap.Bids.Count == 0 || snap.Asks.Count == 0) return;
+
+        // Project the freshest book into the ladders + strip — coalesced to this cadence so the ladder
+        // rebuild is decoupled from the depth-update rate. Skip when the book is unchanged since the
+        // last frame (the heatmap column below still scrolls the time axis either way).
+        if (!ReferenceEquals(snap, _renderedSnapshot))
+        {
+            RenderLatestBook(snap);
+            _renderedSnapshot = snap;
+        }
 
         // Synthetic tape: emit a mid-tick-derived print when no native tape is wired, so the flow
         // overlays still show something against the fake client / cTrader / Alpaca.
@@ -569,6 +607,9 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private void ResetState()
     {
         _latest = null;
+        _renderedSnapshot = null;
+        Bids.Clear();
+        Asks.Clear();
         _pendingTrades.Clear();
         _heatColumns.Clear();
         _priorTradePrice = 0;
@@ -584,8 +625,9 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
 
     private void ClearBook()
     {
-        Bids = new ObservableCollection<OrderBookLevel>();
-        Asks = new ObservableCollection<OrderBookLevel>();
+        _renderedSnapshot = null;
+        Bids.Clear();
+        Asks.Clear();
         BidLevels = AskLevels = 0;
         BestBid = BestAsk = Spread = Mid = null;
         Microprice = WeightedMid = null;

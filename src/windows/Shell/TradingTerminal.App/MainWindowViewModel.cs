@@ -422,6 +422,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             // UserControl view, which we wrap in a generic tool host window.
             var window = host.View as Window ?? ToolHostWindow.Create(host.DisplayName, (FrameworkElement)host.View);
             window.Owner = Application.Current.MainWindow;
+            // Open full-size and remember the user's last size/position/state, keyed by strategy id.
+            // Centralized here so every strategy window benefits regardless of its base class (the
+            // StrategyWindowBase ones and the plain-MetroWindow cube/surface/regime ones alike).
+            TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
             window.Closed += (_, _) =>
             {
                 _openWindows.Remove(capturedId);

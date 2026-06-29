@@ -41,23 +41,12 @@
 
     <Grid>
         <!-- Setup form -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="480"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1"
-                    Padding="24">
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="Order Flow Cube"
+                               Subtitle="ORDER FLOW · 3D CUBE"
+                               Tags="L1, Bars, Trade tape"
+                               Description="Plots CVD imbalance (trend window) versus aggressor ratio (recent window) with size ratio as colour, in a rotatable 3D cube. Defaults: 50 / 500 / 2000 trades.">
                 <StackPanel>
-                    <TextBlock Text="Configure Order Flow Cube"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,4" />
-                    <TextBlock Text="Plots CVD imbalance (trend window) vs aggressor ratio (recent window) with size ratio as color. Defaults: 50 / 500 / 2000 trades."
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               Margin="0,0,0,16" />
-
                     <TextBlock Text="Instrument" Margin="0,0,0,4" />
                     <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                           ItemsSource="{Binding Instruments}"
@@ -116,8 +105,7 @@
                             MinWidth="120"
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                 </StackPanel>
-            </Border>
-        </Grid>
+        </uic:StrategySetupHost>
 
         <!-- Cube view -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">

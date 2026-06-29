@@ -136,31 +136,104 @@
         </mah:WindowCommands>
     </mah:MetroWindow.LeftWindowCommands>
 
+    <!-- ── Per-stock indicator-settings flyout (opened by the ⚙ Indicators toolbar button) ──── -->
+    <mah:MetroWindow.Flyouts>
+        <mah:FlyoutsControl>
+            <mah:Flyout Header="INDICATOR SETTINGS" Position="Right" Width="460" Theme="Dark"
+                        IsOpen="{Binding IsSettingsOpen, Mode=TwoWay}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="18,14,18,18">
+                        <StackPanel.Resources>
+                            <Style TargetType="TextBox">
+                                <Setter Property="Width" Value="56" />
+                                <Setter Property="Margin" Value="0,0,10,6" />
+                            </Style>
+                            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                <Setter Property="FontSize" Value="10.5" />
+                                <Setter Property="Margin" Value="0,0,0,2" />
+                            </Style>
+                            <Style x:Key="SectionLabel" TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                <Setter Property="FontSize" Value="11" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter Property="Margin" Value="0,12,0,6" />
+                            </Style>
+                        </StackPanel.Resources>
+
+                        <!-- Target picker + per-stock override -->
+                        <TextBlock Text="APPLY TO" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding SettingsTargets}" SelectedItem="{Binding SelectedSettingsTarget}" />
+                        <CheckBox Content="Use custom settings for this stock" Margin="0,9,0,0"
+                                  IsChecked="{Binding UseCustomForStock}"
+                                  Visibility="{Binding IsStockTarget, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBlock Foreground="{DynamicResource Text.Secondary}" FontSize="10.5" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Text="Each stock inherits the default until you tick the box above. Edits apply on the next refresh — or hit Apply to re-analyse now." />
+
+                        <!-- Indicator parameters (disabled while a stock is inheriting the default) -->
+                        <StackPanel IsEnabled="{Binding SettingsFieldsEnabled}">
+                            <TextBlock Text="RSI" Style="{StaticResource SectionLabel}" />
+                            <WrapPanel>
+                                <StackPanel><TextBlock Text="Length" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.RsiLength}" /></StackPanel>
+                                <StackPanel><TextBlock Text="Overbought" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.RsiOverbought}" /></StackPanel>
+                                <StackPanel><TextBlock Text="Oversold" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.RsiOversold}" /></StackPanel>
+                            </WrapPanel>
+
+                            <TextBlock Text="MACD" Style="{StaticResource SectionLabel}" />
+                            <WrapPanel>
+                                <StackPanel><TextBlock Text="Fast" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.MacdFast}" /></StackPanel>
+                                <StackPanel><TextBlock Text="Slow" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.MacdSlow}" /></StackPanel>
+                                <StackPanel><TextBlock Text="Signal" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.MacdSignal}" /></StackPanel>
+                            </WrapPanel>
+
+                            <TextBlock Text="MOVING AVERAGES" Style="{StaticResource SectionLabel}" />
+                            <WrapPanel>
+                                <StackPanel><TextBlock Text="CCI" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.CciLength}" /></StackPanel>
+                                <StackPanel><TextBlock Text="MA 9" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.Ma9Length}" /></StackPanel>
+                                <StackPanel><TextBlock Text="MA 21" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.Ma21Length}" /></StackPanel>
+                                <StackPanel><TextBlock Text="MA 50" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.Ma50Length}" /></StackPanel>
+                            </WrapPanel>
+                            <WrapPanel>
+                                <StackPanel><TextBlock Text="3MA fast" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.TripleMaFast}" /></StackPanel>
+                                <StackPanel><TextBlock Text="3MA mid" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.TripleMaMid}" /></StackPanel>
+                                <StackPanel><TextBlock Text="3MA slow" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.TripleMaSlow}" /></StackPanel>
+                            </WrapPanel>
+
+                            <TextBlock Text="VOLATILITY" Style="{StaticResource SectionLabel}" />
+                            <WrapPanel>
+                                <StackPanel><TextBlock Text="ST factor" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.SuperTrendFactor}" /></StackPanel>
+                                <StackPanel><TextBlock Text="ST ATR" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.SuperTrendAtrLength}" /></StackPanel>
+                                <StackPanel><TextBlock Text="ATR" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.AtrLength}" /></StackPanel>
+                                <StackPanel><TextBlock Text="ATR reg" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.AtrRegressionLength}" /></StackPanel>
+                                <StackPanel><TextBlock Text="STD" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.StdLength}" /></StackPanel>
+                            </WrapPanel>
+
+                            <TextBlock Text="VOLUME / RANGE" Style="{StaticResource SectionLabel}" />
+                            <WrapPanel>
+                                <StackPanel><TextBlock Text="POC lookback" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.PocLookback}" /></StackPanel>
+                                <StackPanel><TextBlock Text="Trend range" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.TrendRangeLength}" /></StackPanel>
+                                <StackPanel><TextBlock Text="Δ lookback" Style="{StaticResource FieldLabel}" /><TextBox Text="{Binding EditingSettings.DeltaLookback}" /></StackPanel>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                            <Button Content="Apply &amp; re-analyse" Command="{Binding ApplySettingsCommand}" Style="{StaticResource GraphToolButton}" />
+                            <Button Content="Reset" Command="{Binding ResetSettingsCommand}" Style="{StaticResource GraphToolButton}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </mah:Flyout>
+        </mah:FlyoutsControl>
+    </mah:MetroWindow.Flyouts>
+
     <Grid>
         <!-- ── Setup form ───────────────────────────────────────────────────────────────── -->
-        <Grid Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border MaxWidth="640" VerticalAlignment="Center" CornerRadius="10"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                <Border.Effect>
-                    <DropShadowEffect Color="Black" BlurRadius="36" ShadowDepth="0" Opacity="0.6" />
-                </Border.Effect>
-                <StackPanel>
-                    <Border CornerRadius="10,10,0,0" Background="{StaticResource CardHeader}" Padding="24,18">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="▦" FontSize="22" Foreground="{DynamicResource Accent.Brush}"
-                                           Margin="0,0,10,0" VerticalAlignment="Center" />
-                                <TextBlock Text="Configure Index Regime Graph" FontSize="19" FontWeight="SemiBold"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}" Margin="0,8,0,0"
-                                       Text="Runs the Advanced Market Regime indicator stack on every constituent across all eight timeframes, blends each stock for the chosen horizon, weights by index membership, and sums to a composite up/down direction." />
-                        </StackPanel>
-                    </Border>
-                    <Border Height="2" Background="{DynamicResource Accent.Brush}" Opacity="0.55" />
-
-                    <StackPanel Margin="24,18,24,22">
+        <ctl:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="Index Regime Graph"
+                               Subtitle="REGIME · INDEX GRAPH"
+                               Tags="L1, Bars"
+                               Description="Runs the Advanced Market Regime indicator stack on every constituent across all eight timeframes, blends each stock for the chosen horizon, weights by index membership, and sums to a composite up/down direction.">
+                    <StackPanel>
                         <TextBlock Text="INDEX FAMILY" Style="{StaticResource Strategy.ParamGroupLabel}" Margin="0,0,0,5" />
                         <ComboBox ItemsSource="{Binding Families}" SelectedItem="{Binding SelectedFamily}"
                                   DisplayMemberPath="DisplayName" Margin="0,0,0,14" />
@@ -197,9 +270,7 @@
                                 HorizontalAlignment="Right" IsDefault="True" MinWidth="130"
                                 Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
                     </StackPanel>
-                </StackPanel>
-            </Border>
-        </Grid>
+        </ctl:StrategySetupHost>
 
         <!-- ── Main view ────────────────────────────────────────────────────────────────── -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -218,6 +289,8 @@
                     <Button Content="▶ Start" Command="{Binding StartCommand}" Style="{StaticResource GraphToolButton}"
                             Visibility="{Binding IsStreaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                     <Button Content="⟳ Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource GraphToolButton}" />
+                    <Button Content="⚙ Indicators" Command="{Binding ToggleSettingsCommand}" Style="{StaticResource GraphToolButton}"
+                            ToolTip="Per-stock indicator parameters (RSI / MACD / ATR / …)." />
                     <Border Style="{StaticResource Strategy.ParamDivider}" />
 
                     <TextBlock Text="HORIZON" Style="{StaticResource Strategy.ParamGroupLabel}" />

@@ -186,6 +186,12 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
 
     private Engine.ApexScalperStrategy? _engine;
 
+    /// <summary>Newest paper-trade record already mirrored into <see cref="PaperTrades"/>. Used to detect
+    /// fresh fills by identity rather than by count — the engine caps its trade log at a rolling window,
+    /// so once that cap is hit the count stops changing and a count-based check would freeze the blotter
+    /// on a long (multi-day) run.</summary>
+    private ApexTradeRecord? _lastSyncedTrade;
+
     /// <summary>Exposed for the window's footprint chart redraw.</summary>
     public Engine.ApexScalperStrategy? EngineStrategy => _engine;
 
@@ -337,10 +343,36 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
         PaperArmed = IsAlgoRunning;
 
         var trades = engine.Trades;
-        if (trades.Count != PaperTrades.Count)
+        var newest = trades.Count > 0 ? trades[^1] : null;
+        if (!ReferenceEquals(newest, _lastSyncedTrade))
         {
-            PaperTrades.Clear();
-            for (var i = trades.Count - 1; i >= 0; i--) PaperTrades.Add(ToRow(trades[i]));   // newest first
+            // Count how many records are new since the last sync by walking back to the anchor. The
+            // engine appends newest at the end and evicts the oldest from the front (rolling window),
+            // so this is normally a tiny delta — far cheaper than clearing and refilling all ~1k rows.
+            var newCount = 0;
+            for (var i = trades.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(trades[i], _lastSyncedTrade)) break;
+                newCount++;
+            }
+
+            if (newCount >= trades.Count)
+            {
+                // Anchor not found (first fill / fresh engine after Restart / evicted past the window)
+                // → full rebuild, newest first.
+                PaperTrades.Clear();
+                for (var i = trades.Count - 1; i >= 0; i--) PaperTrades.Add(ToRow(trades[i]));
+            }
+            else
+            {
+                // Prepend just the new fills (newest first), then trim the tail to the engine's window
+                // so the blotter can't grow past it over a long run.
+                for (var i = trades.Count - newCount; i < trades.Count; i++)
+                    PaperTrades.Insert(0, ToRow(trades[i]));
+                while (PaperTrades.Count > trades.Count) PaperTrades.RemoveAt(PaperTrades.Count - 1);
+            }
+
+            _lastSyncedTrade = newest;
         }
 
         double total = 0; var wins = 0;

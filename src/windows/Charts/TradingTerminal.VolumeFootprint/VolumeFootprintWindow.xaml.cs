@@ -60,10 +60,41 @@ public partial class VolumeFootprintWindow : MetroWindow
     // so allocating a FontFamily per text element churns the GC for nothing.
     private static readonly FontFamily MonoFont = new("Consolas");
 
+    // Pre-baked, frozen cell brushes bucketed by intensity, one palette per base colour. The cluster
+    // grid is rebuilt many times a second; allocating a SolidColorBrush per cell (the old path) churned
+    // the GC. We quantise the volume→alpha ramp (40 + 180·frac) into a fixed palette and reuse it.
+    // Built in the static ctor (not a field initializer) so RegLineColor — declared lower in the file —
+    // is already initialized when its palette is baked.
+    private const int CellAlphaBuckets = 48;
+    private static readonly Brush[] BuyCells;
+    private static readonly Brush[] SellCells;
+    private static readonly Brush[] VolumeCells;
+
+    private static Brush[] BuildCellBrushes(Color baseColor)
+    {
+        var brushes = new Brush[CellAlphaBuckets];
+        for (var i = 0; i < CellAlphaBuckets; i++)
+        {
+            var frac = (double)i / (CellAlphaBuckets - 1);
+            var alpha = (byte)(40 + 180.0 * frac);
+            var b = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+            b.Freeze();
+            brushes[i] = b;
+        }
+        return brushes;
+    }
+
+    private static Brush[] CellPaletteFor(Color baseColor) =>
+        baseColor == BuyColor ? BuyCells : baseColor == SellColor ? SellCells : VolumeCells;
+
     static VolumeFootprintWindow()
     {
         foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush, PocLineBrush, RegLineBrush, BuyPocBrush, SellPocBrush, PredictShade, GhostUpFill, GhostDownFill, ImbBuyPen, ImbSellPen, ValueAreaFill, ValueAreaEdge, CrosshairPen, TooltipBack, TooltipBorder })
             b.Freeze();
+
+        BuyCells = BuildCellBrushes(BuyColor);
+        SellCells = BuildCellBrushes(SellColor);
+        VolumeCells = BuildCellBrushes(RegLineColor);
     }
 
     private VolumeFootprintViewModel? _vm;
@@ -541,9 +572,8 @@ public partial class VolumeFootprintWindow : MetroWindow
 
     private void AddVolumeRect(double x, double y, double w, long vol, long maxVol, Color baseColor)
     {
-        var alpha = (byte)(40 + 180.0 * Math.Min(1.0, (double)vol / Math.Max(1, maxVol)));
-        var fill = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
-        fill.Freeze();
+        var frac = Math.Min(1.0, (double)vol / Math.Max(1, maxVol));
+        var fill = CellPaletteFor(baseColor)[(int)(frac * (CellAlphaBuckets - 1))];
         FootprintCanvas.Children.Add(Place(new Rectangle { Width = Math.Max(1, w), Height = _rowH, Fill = fill }, x, y));
     }
 

@@ -98,4 +98,9 @@ public sealed class AdvancedRegimeSettings
 
     /// <summary>A fresh settings instance with the canonical defaults.</summary>
     public static AdvancedRegimeSettings Default => new();
+
+    /// <summary>An independent copy. Every field is a value type, so a memberwise clone is a full deep
+    /// copy — used where a caller needs per-instance settings (e.g. per-constituent overrides) that can
+    /// be edited without affecting the shared default.</summary>
+    public AdvancedRegimeSettings Clone() => (AdvancedRegimeSettings)MemberwiseClone();
 }

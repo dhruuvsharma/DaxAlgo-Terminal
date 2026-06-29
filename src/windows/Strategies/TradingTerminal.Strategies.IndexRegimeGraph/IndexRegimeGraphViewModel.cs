@@ -29,6 +29,9 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
     private const string StrategyId = "index.regime.graph";
     private const string StrategyName = "Index Regime Graph";
 
+    /// <summary>The "edit the shared default" entry in the settings target picker.</summary>
+    private const string AllTarget = "All constituents (default)";
+
     /// <summary>Bounded fan-out across constituents so we respect IB market-data pacing.</summary>
     private const int MaxConcurrentAnalyses = 5;
 
@@ -54,6 +57,16 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
     // Symbols the user has expanded to the indicator×timeframe drill-down — preserved across the
     // wholesale row rebuild that each refresh performs.
     private readonly HashSet<string> _expanded = new();
+
+    // ── Per-stock indicator settings ─────────────────────────────────────────────────────────
+    // The shared default applies to every constituent unless a symbol has an override. Each call to
+    // the Advanced Market Regime provider (IAdvancedRegimeProvider.AnalyseAsync) takes its own settings
+    // object, so a per-stock override simply changes which settings that constituent is analysed with —
+    // the next refresh cycle picks it up. Overrides keyed by symbol; ConcurrentDictionary because the
+    // analysis fan-out reads it off background threads while the settings flyout edits it on the UI thread.
+    private AdvancedRegimeSettings _defaultSettings = AdvancedRegimeSettings.Default;
+    private readonly ConcurrentDictionary<string, AdvancedRegimeSettings> _settingsOverrides = new(StringComparer.Ordinal);
+    private bool _suppressOverrideSync;
 
     private IReadOnlyList<IndexComponent> _orderedComponents = Array.Empty<IndexComponent>();
     private CancellationTokenSource? _streamCts;
@@ -83,6 +96,10 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
 
         TimeframeHeaders = new ObservableCollection<string>(TfLabels);
         ConstituentRows = new ObservableCollection<ConstituentRow>();
+
+        EditingSettings = _defaultSettings;
+        SettingsTargets = new ObservableCollection<string>();
+        RebuildSettingsTargets();
     }
 
     public ObservableCollection<IndexFamily> Families { get; }
@@ -90,6 +107,9 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
     public ObservableCollection<BrokerKind> Brokers { get; }
     public ObservableCollection<string> TimeframeHeaders { get; }
     public ObservableCollection<ConstituentRow> ConstituentRows { get; }
+
+    /// <summary>Settings-panel target picker: "All constituents (default)" + each constituent symbol.</summary>
+    public ObservableCollection<string> SettingsTargets { get; }
 
     [ObservableProperty] private IndexFamily _selectedFamily;
     [ObservableProperty] private RegimeHorizon _selectedHorizon;
@@ -114,11 +134,127 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
     [ObservableProperty] private int _constituentsReady;
     [ObservableProperty] private int _constituentsTotal;
 
+    // ── Indicator-settings flyout state ──────────────────────────────────────────────────────
+    /// <summary>Whether the indicator-settings flyout is open.</summary>
+    [ObservableProperty] private bool _isSettingsOpen;
+    /// <summary>The settings object the flyout's fields bind to — either the shared default (when the
+    /// target is "All") or the selected stock's override.</summary>
+    [ObservableProperty] private AdvancedRegimeSettings _editingSettings;
+    /// <summary>Which constituent (or "All") the flyout is currently editing.</summary>
+    [ObservableProperty] private string _selectedSettingsTarget = AllTarget;
+    /// <summary>True when a specific stock is selected (not "All") — gates the override checkbox.</summary>
+    [ObservableProperty] private bool _isStockTarget;
+    /// <summary>The per-stock override toggle: on ⇒ this stock uses its own (editable) settings; off ⇒ it
+    /// inherits the shared default.</summary>
+    [ObservableProperty] private bool _useCustomForStock;
+    /// <summary>Whether the parameter fields are editable (always for "All"; for a stock only when it has
+    /// a custom override).</summary>
+    [ObservableProperty] private bool _settingsFieldsEnabled = true;
+
     public string HorizonDescription => TimeframeWeighting.Describe(SelectedHorizon);
     partial void OnSelectedHorizonChanged(RegimeHorizon value) => OnPropertyChanged(nameof(HorizonDescription));
 
+    partial void OnSelectedFamilyChanged(IndexFamily value) => RebuildSettingsTargets();
+
     public string CompositeColorHex => BandColors.Hex(CompositeBand);
     partial void OnCompositeBandChanged(CellSignal value) => OnPropertyChanged(nameof(CompositeColorHex));
+
+    // ── Indicator settings (shared default + per-stock overrides) ─────────────────────────────
+
+    /// <summary>The settings a given constituent is analysed with: its own override if one exists,
+    /// otherwise the shared default. Read on the analysis fan-out threads.</summary>
+    private AdvancedRegimeSettings SettingsFor(string symbol) =>
+        _settingsOverrides.TryGetValue(symbol, out var s) ? s : _defaultSettings;
+
+    /// <summary>Repopulates the target picker ("All" + every constituent of the chosen family) and
+    /// resets the editor back to the shared default.</summary>
+    private void RebuildSettingsTargets()
+    {
+        if (SettingsTargets is null) return; // ctor ordering guard
+        SettingsTargets.Clear();
+        SettingsTargets.Add(AllTarget);
+        if (SelectedFamily is not null)
+            foreach (var c in SelectedFamily.Components.OrderByDescending(c => c.IndexWeight))
+                SettingsTargets.Add(c.Symbol);
+        SelectedSettingsTarget = AllTarget;
+    }
+
+    partial void OnSelectedSettingsTargetChanged(string value)
+    {
+        if (value == AllTarget || string.IsNullOrEmpty(value))
+        {
+            IsStockTarget = false;
+            EditingSettings = _defaultSettings;
+            SettingsFieldsEnabled = true;
+            _suppressOverrideSync = true; UseCustomForStock = false; _suppressOverrideSync = false;
+            return;
+        }
+
+        IsStockTarget = true;
+        var hasOverride = _settingsOverrides.TryGetValue(value, out var ov);
+        // When not overridden, show the default values (read-only) so the user sees what's inherited.
+        EditingSettings = hasOverride ? ov! : _defaultSettings;
+        SettingsFieldsEnabled = hasOverride;
+        _suppressOverrideSync = true; UseCustomForStock = hasOverride; _suppressOverrideSync = false;
+    }
+
+    partial void OnUseCustomForStockChanged(bool value)
+    {
+        if (_suppressOverrideSync || !IsStockTarget) return;
+        var symbol = SelectedSettingsTarget;
+        if (value)
+        {
+            // Seed a fresh override from the current default so the stock starts where it was, then edits.
+            var ov = _settingsOverrides.GetOrAdd(symbol, _ => _defaultSettings.Clone());
+            EditingSettings = ov;
+            SettingsFieldsEnabled = true;
+            AddLog("CFG", $"Custom indicator settings enabled for {symbol}.");
+        }
+        else
+        {
+            _settingsOverrides.TryRemove(symbol, out _);
+            EditingSettings = _defaultSettings;
+            SettingsFieldsEnabled = false;
+            AddLog("CFG", $"{symbol} reverted to default indicator settings.");
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleSettings() => IsSettingsOpen = !IsSettingsOpen;
+
+    /// <summary>Re-runs the analysis so edited parameters take effect immediately (otherwise they apply
+    /// on the next auto-refresh tick). Closes the flyout.</summary>
+    [RelayCommand]
+    private void ApplySettings()
+    {
+        IsSettingsOpen = false;
+        var scope = IsStockTarget ? SelectedSettingsTarget : "all constituents";
+        AddLog("CFG", $"Applied indicator settings for {scope}.");
+        if (IsStreaming && !_refreshing) Refresh();
+    }
+
+    /// <summary>Resets the current target's parameters to the canonical defaults (the shared default for
+    /// "All", or the selected stock's override).</summary>
+    [RelayCommand]
+    private void ResetSettings()
+    {
+        if (!IsStockTarget)
+        {
+            _defaultSettings = AdvancedRegimeSettings.Default;
+            EditingSettings = _defaultSettings;
+        }
+        else if (UseCustomForStock)
+        {
+            var fresh = AdvancedRegimeSettings.Default;
+            _settingsOverrides[SelectedSettingsTarget] = fresh;
+            EditingSettings = fresh;
+        }
+        else
+        {
+            return; // inheriting the default — nothing to reset
+        }
+        AddLog("CFG", $"Reset indicator settings for {(IsStockTarget ? SelectedSettingsTarget : "all constituents")}.");
+    }
 
     // ── Configure / start / stop ────────────────────────────────────────────────────────────
 
@@ -358,9 +494,11 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
     private async Task<AdvancedRegimeSnapshot> AnalyseWithFallbackAsync(IndexComponent component, CancellationToken ct)
     {
         var broker = ResolveBroker(component);
+        // Per-stock indicator settings: this constituent's override if it has one, else the shared default.
+        var settings = SettingsFor(component.Symbol);
         var snap = await _provider.AnalyseAsync(
             component.Contract, broker, component.Symbol,
-            AdvancedTimeframe.Defaults, AdvancedRegimeSettings.Default, ct);
+            AdvancedTimeframe.Defaults, settings, ct);
 
         if (!IsEmptySnapshot(snap) || broker == BrokerKind.Simulated ||
             !_services.Selector.IsAvailable(BrokerKind.Simulated))
@@ -368,7 +506,7 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
 
         var fallback = await _provider.AnalyseAsync(
             component.Contract, BrokerKind.Simulated, component.Symbol,
-            AdvancedTimeframe.Defaults, AdvancedRegimeSettings.Default, ct);
+            AdvancedTimeframe.Defaults, settings, ct);
         if (IsEmptySnapshot(fallback))
             return snap;
 

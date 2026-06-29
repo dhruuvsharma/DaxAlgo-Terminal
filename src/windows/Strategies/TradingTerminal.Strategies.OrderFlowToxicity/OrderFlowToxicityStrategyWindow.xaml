@@ -11,10 +11,12 @@
                        Background="{DynamicResource Background.Primary}" Foreground="{DynamicResource Text.Primary}">
     <mah:MetroWindow.LeftWindowCommands><mah:WindowCommands><Button Command="{Binding ToggleAlgoCommand}" Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}" Style="{StaticResource Strategy.RunStopButton}" /></mah:WindowCommands></mah:MetroWindow.LeftWindowCommands>
     <Grid>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border Style="{StaticResource Strategy.SetupCard}"><StackPanel>
-                <TextBlock Style="{StaticResource Strategy.SetupTitle}" Text="Configure order-flow toxicity (VPIN-style)" />
-                <TextBlock Style="{StaticResource Strategy.SetupDescription}" Text="Pause trading when one side persistently dominates flow. Tune window + toxicity threshold." />
+        <uic:StrategySetupHost Visibility="{Binding IsConfigured, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Title="{Binding StrategyDisplayName}"
+                               Subtitle="ORDER FLOW"
+                               Tags="L1, Bars"
+                               Description="Gauge VPIN-style flow toxicity and pause trading when one side persistently dominates. Tune the window and toxicity threshold.">
+            <StackPanel>
                 <TextBlock Style="{StaticResource Strategy.SetupFieldLabel}" Text="Instrument" />
                 <uic:InstrumentPicker SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                       ItemsSource="{Binding Instruments}"
@@ -30,8 +32,8 @@
                 </Grid>
                 <Border Style="{StaticResource Strategy.SetupErrorBanner}" Visibility="{Binding ValidationError, Converter={StaticResource StringToVisibilityConverter}, FallbackValue=Collapsed}"><TextBlock Text="{Binding ValidationError}" Foreground="White" TextWrapping="Wrap" /></Border>
                 <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" IsDefault="True" MinWidth="120" Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
-            </StackPanel></Border>
-        </ScrollViewer>
+            </StackPanel>
+        </uic:StrategySetupHost>
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
