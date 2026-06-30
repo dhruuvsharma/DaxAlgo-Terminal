@@ -1,23 +1,62 @@
 # DaxAlgo Terminal
 
-> Last updated: 2026-06-18
+> Last updated: 2026-06-30
 
-[![.NET 9](https://img.shields.io/badge/.NET-9.0--windows-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![UI](https://img.shields.io/badge/UI-WPF%20%2B%20MahApps%20Metro-blueviolet)](#)
-[![Brokers](https://img.shields.io/badge/Brokers-IB%20%7C%20NinjaTrader%20%7C%20cTrader%20%7C%20Alpaca%20%7C%20Ironbeam%20%7C%20LSE%20%7C%20Binance%20%2B%20more-orange)](#)
+[![Windows](https://img.shields.io/badge/Windows-WPF%20%2B%20MahApps-blueviolet?logo=windows)](#two-builds-windows-and-linux)
+[![Linux](https://img.shields.io/badge/Linux%20%2F%20Pi-Avalonia-7a42bf?logo=linux)](#two-builds-windows-and-linux)
+[![Brokers](https://img.shields.io/badge/Brokers-12%20%2B%20Simulated-orange)](docs/brokers.md)
+[![Data only](https://img.shields.io/badge/Mode-Data%20%26%20Signals%20only-informational)](#-no-live-order-execution)
 
-A modular **multi-broker** WPF trading terminal that hosts strategies and tools as plug-ins inside a Bloomberg-style shell. Connect one or more brokers at login (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbeam, London Strategic Edge, or the keyless Binance feed — sessions are concurrent, with an **Auto Connect** option) and everything downstream — historical bars, live ticks, depth, trade tape, connection state, reconnect logic — routes through a single `IBrokerClient` seam. **Data and signals only — no live order execution.**
+**DaxAlgo Terminal is a desktop "cockpit" for watching markets and running trading
+strategies — a single, Bloomberg-style window that plugs into a dozen different brokers and
+data feeds, draws the charts, computes the math, and tells you when a strategy thinks something
+is happening.** It does **not** place real orders. It is built for studying market microstructure,
+backtesting ideas, and generating signals — not for executing live trades.
 
-![DaxAlgo Terminal main window](images/mainwindow.png)
+> 🖼️ **Screenshot:** `images/shell-main.png` — the main window with the strategy catalog tiled and
+> the activity-log drawer closed. *(Capture pending — see [docs/MEDIA-CHECKLIST.md](docs/MEDIA-CHECKLIST.md).)*
 
-> 🎬 _Video walkthrough — coming soon_
+> 🎬 **Video:** `images/video/shell-tour.mp4` — 2–3 min walkthrough: launch → connect → open a
+> strategy → activity log. *(Capture pending.)*
+
+---
+
+## In plain terms — what is this, really?
+
+Imagine a car dashboard, but for financial markets. Most trading screens show you a price going
+up and down. This one shows you the *machinery underneath* the price:
+
+- **The order book** — the queue of people waiting to buy and sell, and how big each order is.
+- **The tape** — every individual trade as it happens, and whether the buyer or the seller was
+  the aggressor (who "crossed the spread" to get filled).
+- **Regimes** — whether the market is calm or panicked, trending or stuck, risk-on or risk-off.
+- **Strategies** — small programs that watch all of the above and raise a flag ("a signal") when
+  their particular pattern shows up.
+
+You connect it to a data source (some are **free and need no account at all** — the Binance crypto
+feed streams live with one click), pick the windows you care about, and optionally let strategies
+ping you on Telegram or Discord when they fire. Every number on screen is computed locally, in the
+app, so what you see in a chart, a backtest, and a live signal always agree.
+
+**You do not need to be a programmer, a mathematician, or a professional trader to use it.** The
+documentation explains every feature and every formula from the ground up — see
+[Documentation](#documentation).
+
+### ⛔ No live order execution
+
+This build is **data and signals only**. There is no code path that sends a real order to a real
+broker. Strategies *describe* what they would do (enter/exit, long/short); they never *do* it with
+real money. This is a deliberate safety boundary, not a missing feature.
 
 ---
 
 ## Contents
 
 - [What ships](#what-ships)
+- [Two builds: Windows and Linux](#two-builds-windows-and-linux)
+- [The menus at a glance](#the-menus-at-a-glance)
 - [System at a glance](#system-at-a-glance) — architecture diagram
 - [Quick start](#quick-start)
 - [Screenshots & media](#screenshots--media)
@@ -29,134 +68,281 @@ A modular **multi-broker** WPF trading terminal that hosts strategies and tools 
 
 ## What ships
 
-- **10 live strategies** behind one `IBacktestStrategy` plug-in seam — the Σ⁻¹·IC Order-Flow Optimizer (tape-primary microstructure composite), Ornstein-Uhlenbeck mean reversion, volatility-targeted index baseline, L2/DOM order-flow (VPIN toxicity, cumulative delta with footprint clusters, order-flow pressure map over the S&P 100/500), the Filtered Order-Flow Imbalance research-paper strategy, and the 3D regime-cube family (Order-Flow Cube, Order-Flow Surface Spike, Imbalance Heat Front, Index K-Score Surface). Plus buy-and-hold / mean-reversion / Donchian demos in the backtester.
-- **Multi-broker backends** behind one `IBrokerClient`: IB (TWS API), NT 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0), Alpaca (REST + WebSocket), Ironbeam futures (REST + WebSocket API v2), London Strategic Edge (free multi-asset L1 + history), keyless Binance public data, and additional crypto venues (Coinbase / Bybit / Kraken / OKX) and Upstox (Indian markets) — plus the always-registered offline `Simulated` broker.
-- **Charts & order-flow windows** — TradingView-style charts (WebView2), live L2 order-book ladder, a bid/ask **volume footprint** with toggleable POC regression fits and a virtual fit-consensus predictor, and the combined **Bookmap + VolBook** liquidity-heatmap window, plus live/static correlation matrices.
-- **Machine Learning menu** — stationarity & differencing lab (ADF/KPSS/ACF, fractional differencing), ARIMA + GARCH forecasting with confidence bands, and Kalman filters (local level / trend / time-varying pairs hedge-β) — all over historical bars from the local store.
-- **Canonical market-data pipeline** — broker-neutral `InstrumentId`, Rx fanout hub, ref-counted tick-primary ingest, and a four-backend store (per-broker SQLite by default, single-file SQLite, PostgreSQL + TimescaleDB via `docker compose`, or QuestDB for the high-rate surfaces). Postgres auto-falls-back to SQLite when unreachable. Optional Telegram archive offloader so the local store can prune safely.
-- **Tick-level backtest engine** — `IFeeModel` (zero / maker-taker / bps), `IRiskManager` (per-symbol cap + daily PnL cap), L1 fill model, ParquetTick reader/writer, full stats suite (Sharpe, Sortino, Calmar, Omega, Ulcer, recovery, max consec losses). Headless CLI with `run` / `sweep` / `walkforward` / `mc` / `tca` / `features` subcommands.
-- **Notifications** — bounded `Channel<>` + hosted dispatcher fans signals out to Telegram (Bot API) and Discord (channel webhook), with an optional Ollama LLM commentary enricher.
-- **AI Market Analyst** — four-agent LangGraph (indicator → pattern → trend → decision) in a Python sidecar over loopback HTTP/JSON. Provider-agnostic (OpenAI / Anthropic / Qwen / MiniMax). Renders annotated candlestick + trend-channel charts; degrades gracefully when the sidecar isn't running.
-- **Market regime suite** — a 0–100 risk-on / risk-off composite blended from sub-signals across Yahoo Finance / FRED / CNN Fear & Greed / AAII (with an optional signal gate), plus per-instrument, Markov transition-matrix, and an 18-indicator × 8-timeframe **Advanced regime dashboard**.
-- **Bloomberg-style shell** — MahApps Metro chrome, Consolas monospace throughout, amber accent on pure-black canvas. Every tool, strategy and chart opens as its own window; the shell hosts the strategy catalog full-width with a collapsible activity-log drawer.
+- **12 live strategies** behind one plug-in seam. From simple to advanced: Ornstein–Uhlenbeck mean
+  reversion, a volatility-targeted index baseline, order-flow toxicity (VPIN), a cumulative-delta
+  scalper, a four-window 3D regime-cube family (Order-Flow Cube, Order-Flow Surface Spike,
+  Imbalance Heat Front, Index K-Score Surface), an index regime *graph*, a multi-stock order-flow
+  *pressure map*, a research-paper strategy (Filtered Order-Flow Imbalance), and the flagship
+  **Σ⁻¹·IC Order-Flow Optimizer** — a tape-primary composite that fuses twelve microstructure
+  signals with mean-variance optimal weights. Full catalog: [docs/strategies.md](docs/strategies.md).
+- **12 broker / data backends** behind one `IBrokerClient` seam — Interactive Brokers (TWS API),
+  NinjaTrader 8 (NTDirect), cTrader (Open API), Alpaca (REST + WebSocket), Ironbeam futures, London
+  Strategic Edge (free multi-asset L1 + history), Upstox (Indian markets), and the keyless public
+  crypto feeds Binance / Coinbase / Bybit / Kraken / OKX — **plus an always-available offline
+  `Simulated` broker** so the app runs end-to-end with no account at all.
+  [docs/brokers.md](docs/brokers.md).
+- **Charts & order-flow windows** — TradingView-style charts (Windows), a live L2 order-book
+  ladder, a bid/ask **volume footprint** with curve-fit POC predictors, and the combined
+  **Bookmap + VolBook** liquidity-heatmap window. [docs/charts.md](docs/charts.md).
+- **Strategy plugins (open-core)** — install third-party strategies as code-signed plugins from the
+  **Plugins** menu, or build your own against the **DaxAlgo SDK**. [docs/plugins.md](docs/plugins.md).
+- **Paper Lab** — turn a research paper (e.g. an arXiv link) into a sandboxed reproduction that
+  bridges into the backtest engine as a paper-tagged strategy. [docs/paper-lab.md](docs/paper-lab.md).
+- **Machine-Learning menu** (Windows) — a stationarity & differencing lab (ADF/KPSS/ACF, fractional
+  differencing), ARIMA + GARCH forecasting with confidence bands, and Kalman filters.
+  [docs/machine-learning.md](docs/machine-learning.md).
+- **Market-regime suite** — a 0–100 risk-on / risk-off composite blended from free public data,
+  plus an 18-indicator × 8-timeframe **Advanced regime** board. [docs/market-regime.md](docs/market-regime.md).
+- **Canonical market-data pipeline** — a broker-neutral identity (`InstrumentId`), an Rx fan-out
+  hub, tick-primary ingest, and a four-backend store (per-broker SQLite by default, single-file
+  SQLite, PostgreSQL + TimescaleDB, or QuestDB), with an optional Telegram **archive offloader**.
+  [docs/market-data.md](docs/market-data.md) · [docs/storage.md](docs/storage.md).
+- **Tick-level backtest engine + Backtest Studio** — fee models, risk caps, an L1 fill model, a
+  full statistics suite (Sharpe, Sortino, Calmar, Omega, Ulcer…), plus a headless CLI with
+  `run` / `sweep` / `walkforward` / `mc` / `tca` / `features`. [docs/backtesting.md](docs/backtesting.md).
+- **Notifications** — fan signals out to Telegram and Discord, with an optional local-LLM (Ollama)
+  commentary enricher. [docs/notifications.md](docs/notifications.md).
+- **AI Market Analyst** — a four-agent Python sidecar (indicator → pattern → trend → decision) over
+  loopback HTTP/JSON that annotates charts and gives a plain-language read.
+  [docs/ai-analyst.md](docs/ai-analyst.md).
+- **Bloomberg-style shell** — black canvas, amber accent, monospace throughout. Every tool,
+  strategy and chart opens as its own window; a live theme editor (**Theme Studio**) lets you
+  recolour the whole app. [docs/theme-studio.md](docs/theme-studio.md).
+
+---
+
+## Two builds: Windows and Linux
+
+The repository is split into **two fully independent codebases** so that work on the Linux port can
+never destabilise the Windows build. They share no project files — a fix that should apply to both
+is made twice, once per tree.
+
+| | **Windows tree** | **Linux tree** |
+|---|---|---|
+| Source root | `src/windows/` | `src/linux/` |
+| Solution | `TradingTerminal.Windows.slnx` | `TradingTerminal.Linux.slnx` |
+| Target framework | `net9.0-windows7.0` | `net9.0` |
+| UI toolkit | WPF + MahApps Metro | Avalonia |
+| Runs on | Windows 10/11 | Linux, Raspberry Pi (ARM64), also Windows |
+| Shell project | `Shell/TradingTerminal.App` | `Shell/TradingTerminal.App.Avalonia` |
+
+Both trees carry their own copy of the backend (Core, MarketData, Infrastructure, the backtest
+engine + CLI) and **all 12 strategies**, the order-flow tools, the regime board, the AI tool
+windows, the brokers, and the canonical pipeline. A handful of features are **Windows-only** because
+they depend on Windows-only components:
+
+| Feature | Windows | Linux | Why |
+|---|:---:|:---:|---|
+| 12 strategies (incl. 3D regime cubes) | ✅ | ✅ | shared |
+| Order Book · Volume Footprint · Bookmap + VolBook | ✅ | ✅ | shared |
+| Correlation · Advanced regime · Recording · Backtest Studio | ✅ | ✅ | shared |
+| AI tool windows (Analyst / Factor / ML / Backtest / Paper Lab) | ✅ | ✅ | shared |
+| Brokers + canonical pipeline + backtest engine + CLI | ✅ | ✅ | shared |
+| **TradingView-style Charts** | ✅ | ❌ | needs WebView2 (Windows) |
+| **Machine-Learning menu** (Stationarity / ARIMA-GARCH / Kalman) | ✅ | ❌ | Windows-only windows |
+| **Strategy plugins + DaxAlgo SDK** | ✅ | ❌ | plugin UI is WPF for now |
+
+> Broker availability also depends on the OS — NinjaTrader's `NTDirect.dll` is Windows-only, for
+> example. The full per-broker, per-OS matrix is in [docs/brokers.md](docs/brokers.md).
+
+---
+
+## The menus at a glance
+
+Everything opens from the top menu bar. Here's the whole surface in one table (each item opens its
+own window unless noted):
+
+| Menu | Items |
+|---|---|
+| **File** | Reconnect to broker · Start QuestDB · Exit |
+| **View** | Activity log (toggle) · Theme (Bloomberg Amber / Monochrome) · Customize theme… (Theme Studio) |
+| **Tools** | Backtest Studio · Record live ticks · Advanced market regime · Correlation matrix · Live correlation matrix |
+| **Plugins** | Manage strategy plugins… |
+| **LSE Tools** | LSE backtester |
+| **Charts** | Charts · Order book · Volume footprint · Bookmap + VolBook |
+| **Machine learning** *(Windows)* | Stationarity & differencing · ARIMA & GARCH · Kalman filter |
+| **QuantConnect / LEAN** | Backtest runner · Projects · Data sync · Settings & status |
+| **AI tools** | Factor research · ML features · Backtest analysis · Market analyst · Paper Lab |
+| **Data** | Market data archive · Archive history · Instant offload |
+| **Settings** | Notifications · Research (Paper Lab) |
+| **Help** | Support the developer · About |
+
+A guided tour of every one of these lives in [docs/user-guide.md](docs/user-guide.md).
+
+---
 
 ## System at a glance
 
+The big idea: **brokers are interchangeable, and everything downstream speaks one canonical
+language.** A quote from Interactive Brokers and a quote from Binance become the same kind of record
+the moment they enter the app, so a strategy, a chart, or the database never has to care where the
+data came from.
+
 ```mermaid
 flowchart TB
-    subgraph Brokers["Broker SDKs (external)"]
-        IB[Interactive Brokers TWS]
+    subgraph Brokers["Data sources (external) — 12 + Simulated"]
+        IB[Interactive Brokers]
         NT[NinjaTrader 8]
-        CT[cTrader Open API]
-        AL[Alpaca REST/WS]
-        IR[Ironbeam API v2]
+        CT[cTrader]
+        AL[Alpaca]
+        IR[Ironbeam]
         LSE[London Strategic Edge]
-        BIN[Binance public WS]
+        UP[Upstox]
+        CR[Binance · Coinbase · Bybit · Kraken · OKX]
         SIM[Simulated feed]
     end
 
     subgraph Seam["IBrokerClient seam — Infrastructure"]
-        BS[BrokerSelector<br/>concurrent sessions + reconnect]
+        BS[BrokerSelector<br/>concurrent sessions · reconnect · API meter]
     end
 
     subgraph Pipeline["Canonical pipeline — MarketData"]
-        ING[IMarketDataIngest<br/>normalize · ref-count]
-        HUB[IMarketDataHub<br/>Rx fanout by InstrumentId]
-        STORE[(IMarketDataStore<br/>SQLite / Postgres / QuestDB)]
+        ING[Ingest<br/>normalize · ref-count · stamp provenance]
+        HUB[Hub<br/>Rx fan-out by InstrumentId]
+        STORE[(Store<br/>SQLite / Postgres / QuestDB)]
         REG[InstrumentRegistry]
+        ARCH[Archive offloader<br/>→ Telegram]
     end
 
-    subgraph Consumers["Consumers — UI projects"]
-        STRAT[Live strategies x10]
+    subgraph Consumers["Consumers — UI + engine projects"]
+        STRAT[Live strategies ×12]
         TOOLS[Charts · OrderBook · Footprint · Bookmap]
-        ML[ML / Regime / Correlation]
-        BT[Backtest engine + CLI]
-        AI[AI analyst sidecar]
+        REGML[Regime · Correlation · Machine Learning]
+        BT[Backtest engine + Studio + CLI]
+        AI[AI analyst + Paper Lab sidecar]
         NOTIF[Notifications: Telegram · Discord]
     end
 
     Brokers --> BS --> ING
     ING --> HUB
     ING --> STORE
+    STORE --> ARCH
     REG -.identity.-> ING
     HUB --> STRAT
     HUB --> TOOLS
-    STORE --> ML
+    STORE --> REGML
     STORE --> BT
     STRAT --> NOTIF
     STRAT --> AI
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the full design rationale, threading model, and component diagrams.
+See [docs/architecture.md](docs/architecture.md) for the full design rationale, the threading
+model, and the component + dependency diagrams.
+
+---
 
 ## Quick start
+
+You need the **.NET 9 SDK** and Git. No broker account is required to build or run — the
+**`Simulated`** broker serves a synthetic feed offline, and the **`Binance`** tile streams real
+live crypto data (bars, L1, **L2 depth**, trades) with **no API key and no account**.
+
+### Windows (WPF)
 
 ```powershell
 git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
 cd "DaxAlgo Terminal"
-dotnet restore
-dotnet build -c Release
-dotnet run --project src/TradingTerminal.App -c Release
+dotnet build TradingTerminal.Windows.slnx
+dotnet run --project src/windows/Shell/TradingTerminal.App
 ```
 
-You don't need any broker account to build and run. The **`Binance`** tile streams real, live crypto data (bars, L1, **L2 depth**, trades) over Binance's public WebSocket with **no API key and no account** — just click Connect. For a fully-offline run, the always-registered **`Simulated` broker** serves a synthetic random-walk feed (or replay of your local store); the dev launch profiles (`Dev: Simulated (offline)` etc.) even skip the login window.
+### Linux / Raspberry Pi (Avalonia)
 
-For setup details (DLL resolution, port numbers, OAuth flow, API keys, the keyless Binance feed, dev launch profiles), see [docs/getting-started.md](docs/getting-started.md) and [docs/brokers.md](docs/brokers.md).
+```bash
+git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
+cd "DaxAlgo Terminal"
+dotnet build TradingTerminal.Linux.slnx
+dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
+```
+
+> There is **no** bare `dotnet build` with no argument — two solutions exist, so always name one.
+> The helper scripts `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` /
+> `linux/Dockerfile` (Linux) wrap each tree.
+
+**Want to skip the login screen while developing?** The Windows shell ships dev launch profiles
+(`Dev: Simulated (offline)`, `Dev: Replay (local DB)`, `Dev: Live (no login)`) that auto-connect and
+go straight to the main window. See [docs/getting-started.md](docs/getting-started.md).
+
+---
 
 ## Screenshots & media
 
-> 📌 Screenshots and video walkthroughs are being filled in across the docs. Where a screenshot or video isn't in yet, you'll see a **_coming soon_** placeholder — these mark every tool, strategy and window so the media slots are reserved.
+> 📌 All screenshots and videos are being (re)captured. Until then you'll see clean
+> `🖼️ _coming soon_` / `🎬 _coming soon_` placeholders throughout the docs — every one is reserved
+> with an exact target filename in [docs/MEDIA-CHECKLIST.md](docs/MEDIA-CHECKLIST.md), so nothing
+> renders as a broken image.
 
-| | |
+| Slot | Shows |
 |---|---|
-| ![Login](images/loginscreenwindow.png) | ![Σ⁻¹·IC Order-Flow Optimizer](images/apexmicrostructurescalperwindow.png) |
-| Multi-broker login | Σ⁻¹·IC Order-Flow Optimizer |
-| ![Imbalance Heat Front](images/imbalanceheatfrontwindow.png) | ![Index K-Score Surface](images/indexkscoresurfacewindow.png) |
-| Imbalance Heat Front (3D) | Index K-Score Surface (3D) |
-| ![Backtest](images/backtestwindow.png) | ![AI Market Analyst](images/almarketanalystwindow.png) |
-| Tick-level backtest | AI Market Analyst |
-| ![Market regime](images/marketregimewindow.png) | ![Correlation matrix](images/correlationmatrixwindow.png) |
-| Market-regime composite | Correlation matrix |
+| `images/shell-main.png` | The shell — strategy catalog + menus |
+| `images/login-window.png` | Multi-broker login |
+| `images/strategy-sigmaicflow-window.png` | Σ⁻¹·IC Order-Flow Optimizer |
+| `images/chart-bookmap.png` | Bookmap + VolBook liquidity heatmap |
+| `images/chart-footprint.png` | Volume footprint |
+| `images/tool-backteststudio.png` | Backtest Studio |
+| `images/ai-marketanalyst.png` | AI Market Analyst |
+| `images/tool-advancedregime.png` | Advanced market-regime board |
 
-> 🎬 _Full video walkthroughs for the shell, each strategy and each tool — coming soon._
+The full list (every strategy, tool, chart and window) is in
+[docs/MEDIA-CHECKLIST.md](docs/MEDIA-CHECKLIST.md).
 
-More screenshots are embedded throughout the focused docs (strategies, brokers, AI analyst, tools).
+---
 
 ## Documentation
 
-All documentation lives in [docs/](docs/README.md). Quick links:
+All documentation lives in **[docs/](docs/README.md)** and is written for two readers at once: a
+plain-English explanation first (with analogies and worked examples), then the technical and
+mathematical depth below it. Quick links:
 
 | Audience | Start here |
 |---|---|
-| First-time user | [getting-started.md](docs/getting-started.md), [user-guide.md](docs/user-guide.md) |
+| Brand-new user | [getting-started.md](docs/getting-started.md), [user-guide.md](docs/user-guide.md) |
 | Setting up a broker | [brokers.md](docs/brokers.md), [ib-tws-setup.md](docs/ib-tws-setup.md) |
-| Tuning configuration | [configuration.md](docs/configuration.md) |
-| Adding a strategy / broker / notifier | [contributing.md](docs/contributing.md) |
+| Understanding the strategies | [strategies.md](docs/strategies.md) |
+| The actual math (from scratch) | [math-reference.md](docs/math-reference.md) |
+| Charts & order-flow windows | [charts.md](docs/charts.md) |
 | Backtesting | [backtesting.md](docs/backtesting.md) |
+| Plugins & the SDK | [plugins.md](docs/plugins.md) |
+| Paper Lab (reproduce a paper) | [paper-lab.md](docs/paper-lab.md) |
 | Storage & databases | [storage.md](docs/storage.md), [market-data.md](docs/market-data.md) |
-| Feature deep-dive | [docs/README.md](docs/README.md) (index of every focused doc) |
-| Architecture | [architecture.md](docs/architecture.md) |
+| Tuning configuration | [configuration.md](docs/configuration.md) |
+| Architecture & contributing | [architecture.md](docs/architecture.md), [contributing.md](docs/contributing.md) |
 | Something broken | [troubleshooting.md](docs/troubleshooting.md) |
 
+---
+
 ## Project graph
+
+Each box is a project; arrows mean "depends on". The shape is deliberately a **layered fan**: a
+dependency-free `Core` at the bottom, the data pipeline above it, then everything user-facing on
+top. Adding a broker or a strategy is a new leaf + one registration line — the shell never changes.
 
 ```mermaid
 flowchart TD
     App --> Core & MarketData & Infrastructure & UI & Login & Ai
-    App --> Strategies["Strategies.* (x12)"]
-    App --> ToolWins["Tool windows<br/>Charts · OrderBook · VolumeFootprint · Heatmap ·<br/>Correlation · *Regime · Backtest · Recording ·<br/>Ml.* · Ai.* · QuantConnect"]
+    App --> Strategies["Strategies.* ×12"]
+    App --> ToolWins["Tool / chart / ML / AI windows<br/>Charts · OrderBook · VolumeFootprint · Heatmap ·<br/>Correlation · AdvancedMarketRegime · BacktestStudio ·<br/>Recording · Ml.* · Ai.* · QuantConnect · LseBacktest"]
+    App --> Plugins["Plugins (DaxAlgo SDK)"]
     Login --> Core & UI & Infrastructure
     Ai --> Core & UI & Infrastructure & MarketData
     Strategies --> Infrastructure & UI & Core
     ToolWins --> Infrastructure & UI & Core & MarketData
+    Plugins --> SDK[DaxAlgo.Sdk] --> Core
     Infrastructure --> MarketData & Core
     MarketData --> Core
     UI --> Core
     Core --> Nothing([no dependencies])
 ```
 
-`Core` has zero deps on UI, WPF, or any broker SDK. The market-data pipeline (`MarketData`) sits below `Infrastructure`; the login flow (`Login`) and AI/ML tooling (`Ai`) are their own projects so the App shell stays thin. Adding a new broker = a new `IBrokerClient` implementation in `Infrastructure/<Broker>/` and one DI registration block. Adding a new strategy = a new `TradingTerminal.Strategies.<Name>` project + one DI line. The shell stays untouched.
+`Core` has zero dependencies on UI, WPF/Avalonia, or any broker SDK. `MarketData` (the canonical
+pipeline) sits just above it. Adding a **broker** = one `IBrokerClient` implementation in
+`Infrastructure/<Broker>/` + one DI block. Adding a **strategy** = one
+`TradingTerminal.Strategies.<Name>` project + one DI line. The same structure holds in both the
+Windows and Linux trees.
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Built by **Dhruv Sharma**. If the project is useful to you, the
+**Help → Support the developer** menu explains how to say thanks.

@@ -13,6 +13,17 @@ A plugin is a normal .NET assembly that references the **DaxAlgo SDK** and expos
 `IStrategyPlugin`. The host discovers it, verifies it, and registers its strategy through exactly the
 same dependency-injection seam the built-in strategies use — no host recompile.
 
+> **In plain terms.** A *plugin* is an add-on strategy that someone else built, which you drop into
+> the app — like installing an Expert Advisor in MetaTrader, or an extension in your browser. You
+> don't rebuild anything or read any code: you point the app at the plugin file, it checks the plugin
+> is genuine, and the new strategy appears in your catalog next to the built-in ones. **Open-core**
+> just means the terminal itself is free and open source, while strategies can be shipped and sold
+> separately as plugins.
+
+> **Windows only (for now).** The plugin system and the DaxAlgo SDK live in the Windows/WPF build.
+> The Linux/Avalonia tree doesn't ship the SDK yet, so plugins are a Windows feature today. (The rest
+> of the app — the 12 built-in strategies, tools, brokers — runs on both.)
+
 ---
 
 ## For users: installing a plugin
@@ -22,6 +33,9 @@ Open **Plugins → Manage strategy plugins…**. The window shows:
 - the plugins folder (`<app>/plugins`),
 - the trust policy in force (see [Trust & signing](#trust--signing)),
 - the plugins currently loaded.
+
+> 🖼️ **Screenshot:** `images/plugins-manager.png` — the Plugin Manager: installed-plugins list, the
+> trust policy badge, and Install-from-file.
 
 **Install plugin…** lets you pick a plugin's main `.dll`; the app validates it (manifest + signature,
 without running its code) and copies the package into the plugins folder. You can also click **Open

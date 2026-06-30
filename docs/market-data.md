@@ -21,11 +21,8 @@ For the architectural rationale (canonical identity, ref-counted ingest, async w
 
 ## Screenshots
 
-| Archive settings | Archive activity |
-|---|---|
-| ![Archive settings](../images/archivesettingswindow_1.png) ![Archive settings](../images/archivesettingswindow_2.png) | ![Archive activity](../images/archiveactivitywindow.png) |
-
-> 🎬 _Video walkthrough (archive offload round-trip) — coming soon_
+> 🖼️ **Screenshot:** `images/data-archive-settings.png` — the Telegram archive-offloader settings (Data → Market data archive).
+> 🖼️ **Screenshot:** `images/data-archive-history.png` — the archive history window (Data → Archive history).
 
 ## Pipeline at a glance
 

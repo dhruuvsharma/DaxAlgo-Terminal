@@ -8,14 +8,10 @@ This doc covers how to set each one up. For the architectural rationale and per-
 
 ## Screenshots
 
-![Login screen](../images/loginscreenwindow.png)
-
-| Interactive Brokers | cTrader | Alpaca |
-|---|---|---|
-| ![IB login](../images/inteactivebrokerloginwindow.png) | ![cTrader login](../images/ctraderloginwindow.png) | ![Alpaca login](../images/alpacaloginwindow.png) |
-
-> 🖼️ _Login-tile screenshots for NinjaTrader · Ironbeam · LSE · Upstox · Binance · Coinbase · Bybit · Kraken · OKX — coming soon_
-> 🎬 _Video walkthrough (multi-broker login + Auto Connect) — coming soon_
+> 🖼️ **Screenshot:** `images/login-window.png` — the login window with every broker tile + Auto Connect.
+> 🖼️ **Screenshot:** `images/login-services-panel.png` — the "Services & external dependencies" probe panel.
+> 🖼️ **Screenshot:** `images/login-broker-ib.png` · `images/login-broker-ctrader.png` · `images/login-broker-alpaca.png` — example per-broker login forms.
+> 🎬 **Video:** `images/video/shell-tour.mp4` — multi-broker login + Auto Connect (opening of the tour).
 
 ## Capability matrix
 

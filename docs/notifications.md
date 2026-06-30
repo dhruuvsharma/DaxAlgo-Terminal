@@ -10,10 +10,7 @@ For the optional AI-generated commentary line that prepends to every notificatio
 
 ## Screenshots
 
-![Notification settings](../images/notificationwindow_1.png)
-![Notification settings](../images/notificationwindow_2.png)
-
-> 🎬 _Video walkthrough — coming soon_
+> 🖼️ **Screenshot:** `images/settings-notifications.png` — the Notifications settings: Telegram + Discord + Ollama enricher + AI Market Analyst blocks (Settings → Notifications).
 
 ## Telegram setup
 
@@ -92,7 +89,7 @@ The signal still appears in the strategy's own window — only the outbound aler
 
 ## Adding a new transport
 
-Add a class implementing `INotificationTransport` in `src/TradingTerminal.Infrastructure/Notifications/<Channel>/`, plus one DI line in `NotificationsServiceCollectionExtensions.AddNotifications`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`.
+Add a class implementing `INotificationTransport` in `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/<Channel>/` (and the `src/linux` mirror), plus one DI line in `NotificationsServiceCollectionExtensions.AddNotifications`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`.
 
 Mirror the Telegram or Discord transport for the shape:
 

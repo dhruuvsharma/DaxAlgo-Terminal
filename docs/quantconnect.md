@@ -38,14 +38,14 @@ flowchart LR
 
 ## Relationship to the built-in backtester
 
-The terminal already ships its own [tick-level backtest engine](backtesting.md) (`daxalgo-backtest` + the Tools → Backtest window). QuantConnect/LEAN is a **separate, optional** path for users who already have LEAN algorithms or want LEAN's data/universe model — it does not replace the native engine.
+The terminal already ships its own [tick-level backtest engine](backtesting.md) (`daxalgo-backtest` + Backtest Studio). QuantConnect/LEAN is a **separate, optional** path for users who already have LEAN algorithms or want LEAN's data/universe model — it does not replace the native engine.
 
 ## Code reference
 
 | What | Where |
 |---|---|
-| Window + VM (4 tabs) | `src/TradingTerminal.QuantConnect/` (`QuantConnectWindow`, `QuantConnectViewModel`) |
-| LEAN CLI client | `src/TradingTerminal.QuantConnect/LocalCliLeanClient.cs` |
+| Window + VM (4 tabs) | `src/windows/Tools/TradingTerminal.QuantConnect/` (`QuantConnectWindow`, `QuantConnectViewModel`) |
+| LEAN CLI client | `src/windows/Tools/TradingTerminal.QuantConnect/LocalCliLeanClient.cs` |
 | Shell wiring | `MainWindowViewModel.OpenQuantConnect(tab)` opens the single-instance window via `IServiceProvider` |
 
 ## See also

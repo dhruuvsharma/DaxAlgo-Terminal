@@ -1,6 +1,14 @@
 # Backtesting
 
-> Last updated: 2026-06-19
+> Last updated: 2026-06-30
+
+### In plain terms
+
+**Backtesting means "replaying history to see how a strategy *would* have done."** You feed the engine
+a recording of past market data, it plays it back tick by tick through a strategy, *pretends* to place
+the strategy's orders into a simulated order book (charging realistic fees and slippage), and then
+reports the result — the equity curve, the win rate, the worst drawdown, and a battery of performance
+ratios. Nothing real is traded; it's a flight simulator for a strategy.
 
 The terminal ships a tick-level backtest engine that runs the same strategies against historical parquet files. Strategies implement `IBacktestStrategy` and trade through an `IOrderRouter` — the same seam they would use live — so the engine measures simulated fills, P&L, equity curve, drawdown, and a broad performance suite.
 
@@ -8,20 +16,22 @@ For the strategy catalog and how to add new strategies, see [strategies.md](stra
 
 ## Surfaces
 
-- **CLI** (`daxalgo-backtest.exe`) — headless, scriptable. Subcommands: `synth`, `run`, `sweep`, `walkforward`, `mc`, `tca`, `features`.
-- **Tools → Backtest** in the WPF shell — opens its own window: strategy picker, run/cancel, ScottPlot equity curve, trades grid, stats panel.
-- **C++ Fast engine** (optional) — set via the "Use C++ Fast engine" checkbox in the Backtest window when the C++ binary is built. Only `meanReversion` is wired on the C++ side today. See [polyglot.md](polyglot.md).
+There are three ways to run a backtest:
 
-![Tick-level backtest window](../images/backtestwindow.png)
+- **Backtest Studio** (Tools → Backtest Studio) — the full graphical workbench: strategy picker, instrument + date range, run/cancel, a live equity curve, a trades grid, and the stats panel. Start here.
+- **Quick backtest** — right-click any card in the strategy catalog → **Quick backtest (last 1 year)** for a one-click run on a default instrument, no setup.
+- **CLI** (`daxalgo-backtest`) — headless and scriptable, for sweeps, walk-forward, and CI. Subcommands: `synth`, `run`, `sweep`, `walkforward`, `mc`, `tca`, `features`.
+- **C++ Fast engine** (optional) — a "Use C++ Fast engine" checkbox when the C++ binary is built; only `meanReversion` is wired on the C++ side today. See [polyglot.md](polyglot.md).
 
-> 🎬 _Video walkthrough — coming soon_
+> 🖼️ **Screenshot:** `images/tool-backteststudio.png` — Backtest Studio with an equity curve and the stats panel populated.
+> 🎬 **Video:** `images/video/backtest-studio.mp4` — a backtest run end-to-end.
 
 ## Generate a synthetic dataset and run
 
 ```powershell
-dotnet build src\TradingTerminal.Backtest.Cli
+dotnet build src\windows\Backtest\TradingTerminal.Backtest.Cli
 
-$exe = "src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe"
+$exe = "src\windows\Backtest\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe"
 
 # Generate 10k ticks of a mean-reverting random walk with variable L1 sizes
 & $exe synth --output bt-data.parquet --ticks 10000
@@ -62,7 +72,7 @@ Run any command with no args to see its specific flags.
 ### Example end-to-end pipeline
 
 ```powershell
-$exe = "src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe"
+$exe = "src\windows\Backtest\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe"
 
 # 1. Build a tape
 & $exe synth --output ticks.parquet --ticks 100000
@@ -132,7 +142,7 @@ The Tools → Record live ticks window streams the active broker's live tick fee
 After a backtest, evaluate whether slippage is killing the strategy:
 
 ```powershell
-$exe = "src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe"
+$exe = "src\windows\Backtest\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe"
 & $exe tca --results .\bt-results\ --output tca.json
 ```
 

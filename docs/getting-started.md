@@ -1,57 +1,95 @@
 # Getting started
 
-> Last updated: 2026-06-19
+> Last updated: 2026-06-30
 
-The shortest path from a clean clone to a running shell. For broker-specific configuration after the first launch, see [brokers.md](brokers.md). For the daily-use walkthrough, see [user-guide.md](user-guide.md).
+The shortest path from a clean clone to a running shell — on **either** build (Windows/WPF or
+Linux/Avalonia). For broker-specific configuration after the first launch, see
+[brokers.md](brokers.md). For the daily-use walkthrough, see [user-guide.md](user-guide.md).
 
 ## Prerequisites
 
-| Tool | Version |
+| Tool | Version / notes |
 |---|---|
-| Windows | 10 or 11 |
-| .NET SDK | 9.x (target framework is `net9.0-windows`) |
-| Git | any recent version |
+| **.NET SDK** | 9.x. (Only the .NET 9 SDK is needed — no .NET 8.) |
+| **Git** | any recent version |
+| **OS** | **Windows 10/11** for the WPF build, **or** Linux / Raspberry Pi (ARM64) for the Avalonia build. The Avalonia build also runs on Windows. |
 
-You do **not** need any broker account to build and run. Two zero-credential paths give you data out of the box:
+You do **not** need any broker account to build and run. Two zero-credential paths give you data out
+of the box:
 
-- **`Binance` (real, live data)** — the **Binance (no login)** tile streams real crypto bars / L1 / **L2 depth** / trades over Binance's public WebSocket with no API key and no account. Just click Connect. (Crypto only; geo-blocked regions repoint the host — see [brokers.md](brokers.md#binance-public-market-data-no-key).)
-- **`Simulated` (fully offline)** — an in-process synthetic random-walk feed, or replay of your local store; no network, no Docker. The quickest offline launch is the **`Dev: Simulated (offline)`** profile below, which skips login entirely.
+- **`Binance` (real, live data)** — the **Binance (no login)** tile streams real crypto bars / L1 /
+  **L2 depth** / trades over Binance's public WebSocket with no API key and no account. Just click
+  Connect. (Crypto only; geo-blocked regions repoint the host — see
+  [brokers.md](brokers.md#binance-public-market-data-no-key).)
+- **`Simulated` (fully offline)** — an in-process synthetic random-walk feed, or replay of your local
+  store; no network, no Docker. The quickest offline launch is the **`Dev: Simulated (offline)`**
+  profile below, which skips login entirely.
 
-The four account-based broker tiles (IB / NinjaTrader / cTrader / Alpaca) only connect once their SDK is wired and credentials are filled in.
+The account-based broker tiles (IB, NinjaTrader, cTrader, Alpaca, Ironbeam, London Strategic Edge,
+Upstox, and the other crypto venues) connect once their credentials are filled in — see
+[brokers.md](brokers.md).
 
-Optional:
+Optional, only if you want the matching feature:
 
-- **Docker Desktop** — only if you want the PostgreSQL + TimescaleDB market-data backend. SQLite is the default and needs nothing.
-- **TWS API** (`CSharpAPI.dll`) — only if you want the real Interactive Brokers client. Auto-discovered from `C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\`.
-- **NTDirect.dll** — only if you want the real NinjaTrader 8 client. Auto-discovered from `%USERPROFILE%\Documents\NinjaTrader 8\bin64\`.
+- **Docker Desktop** — for the PostgreSQL + TimescaleDB or QuestDB market-data backends, and for
+  **Paper Lab**'s sandbox. SQLite is the default and needs nothing.
+- **TWS API** (`CSharpAPI.dll`) — for the real Interactive Brokers client. Auto-discovered from
+  `C:\TWS API\…`.
+- **NTDirect.dll** — for the real NinjaTrader 8 client (Windows only). Auto-discovered from
+  `%USERPROFILE%\Documents\NinjaTrader 8\bin64\`.
 
 ## Clone and build
 
 ```powershell
 git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
 cd "DaxAlgo Terminal"
-dotnet restore
-dotnet build -c Release
 ```
 
-Successful build prints, when applicable:
+There are **two solutions** — always name the one you want (there is no bare `dotnet build`).
 
-- `IB CSharpAPI resolved from: <path>` — the real IB client is compiled in (`HAS_IBAPI`).
-- `NTDirect resolved from: <path>` — the real NT client is compiled in (`HAS_NTAPI`).
+**Windows (WPF):**
 
-cTrader and Alpaca are always compiled in (NuGet packages — no DLL gate).
+```powershell
+dotnet build TradingTerminal.Windows.slnx
+```
+
+**Linux / Raspberry Pi (Avalonia):**
+
+```bash
+dotnet build TradingTerminal.Linux.slnx
+```
+
+A successful Windows build prints, when applicable, `IB CSharpAPI resolved from: <path>`
+(`HAS_IBAPI`) and `NTDirect resolved from: <path>` (`HAS_NTAPI`) — confirming the real IB / NT clients
+compiled in. cTrader and Alpaca are always compiled in (NuGet packages, no DLL gate).
 
 ## Run
 
+**Windows (WPF):**
+
 ```powershell
-dotnet run --project src/TradingTerminal.App -c Release
+dotnet run --project src/windows/Shell/TradingTerminal.App
 ```
 
-The login window opens with broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, London Strategic Edge, and the keyless Binance feed. Connect one or more (sessions are concurrent), and the main shell opens. Tick **Auto Connect** to have every broker with saved credentials connect automatically on future launches.
+**Linux / Raspberry Pi (Avalonia):**
 
-### Dev launch profiles (skip login, run offline)
+```bash
+dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
+```
 
-For development the fastest path is a launch profile that bypasses login and auto-connects the `Simulated` broker. `src/TradingTerminal.App/Properties/launchSettings.json` defines them; each is selected by `DOTNET_ENVIRONMENT`, which layers an `appsettings.{Env}.json` (repo root) over `appsettings.json`.
+The **login window** opens with broker tiles. Connect one or more (sessions are concurrent), and the
+main shell opens. Tick **Auto Connect** to have every broker with saved credentials connect
+automatically on future launches.
+
+> 🖼️ **Screenshot:** `images/login-window.png` — the login window with the broker tiles and Auto
+> Connect.
+
+### Dev launch profiles (skip login, run offline) — Windows
+
+For development the fastest path is a launch profile that bypasses login and auto-connects the
+`Simulated` broker. `src/windows/Shell/TradingTerminal.App/Properties/launchSettings.json` defines
+them; each is selected by `DOTNET_ENVIRONMENT`, which layers an `appsettings.{Env}.json` (repo root)
+over `appsettings.json`.
 
 | Profile | `DOTNET_ENVIRONMENT` | Behaviour |
 |---|---|---|
@@ -63,38 +101,46 @@ For development the fastest path is a launch profile that bypasses login and aut
 Pick one from the Visual Studio debug-target dropdown, or set the environment from the shell:
 
 ```powershell
-$env:DOTNET_ENVIRONMENT = "DevSim"; dotnet run --project src/TradingTerminal.App
+$env:DOTNET_ENVIRONMENT = "DevSim"; dotnet run --project src/windows/Shell/TradingTerminal.App
 ```
 
-Then double-click any strategy card in the catalog to open it in its own window and watch ticks flow. These dev files are off in the shipped build. See [configuration.md](configuration.md#dev-launch-profiles) for the `Dev` / `SimulatedBroker` keys.
+Then double-click any strategy card in the catalog to open it and watch ticks flow. These dev files
+are off in the shipped build. See [configuration.md](configuration.md#dev-launch-profiles) for the
+`Dev` / `SimulatedBroker` keys.
 
 ## Repo layout (at a glance)
 
+The repo holds **two independent trees** (see
+[architecture.md](architecture.md#two-independent-trees)):
+
 ```
 DaxAlgo Terminal/
-├── src/                                  C# source
-│   ├── TradingTerminal.App               WPF entry, DI bootstrap, MainWindow, LoginWindow
-│   ├── TradingTerminal.Backtest.Cli      Headless backtest runner (daxalgo-backtest.exe)
-│   ├── TradingTerminal.Core              Domain models + interfaces (no UI/broker deps)
-│   ├── TradingTerminal.MarketData        Canonical pipeline (hub, ingest, store, registry, archive)
-│   ├── TradingTerminal.Infrastructure    Broker clients, backtest engine, notifications, regime
-│   ├── TradingTerminal.UI                Theme, base view-models, universal activity-log sink, shared controls
-│   ├── TradingTerminal.<Tool>            One project per tool/chart/ML/AI window (opens as its own window)
-│   └── TradingTerminal.Strategies.*      One project per strategy (12 of them)
-├── tests/TradingTerminal.Tests           xUnit + FluentAssertions + NSubstitute
+├── src/
+│   ├── windows/                      Windows / WPF tree  (TradingTerminal.Windows.slnx, net9.0-windows7.0)
+│   │   ├── Core/ Pipeline/ Shell/    Core · MarketData + Infrastructure · UI + Login + App
+│   │   ├── Charts/ Tools/ AI/        tool, chart, regime, AI and QuantConnect windows
+│   │   ├── MachineLearning/          the ML windows (Windows-only)
+│   │   ├── Strategies/               12 per-strategy projects
+│   │   └── Sdk/                      DaxAlgo SDK for plugins (Windows-only)
+│   └── linux/                        Linux / Avalonia tree (TradingTerminal.Linux.slnx, net9.0)
+│       └── …                         same layout, App.Avalonia shell, no Charts(WebView2)/ML/SDK
+├── tests/                            Windows tests + tests/linux/ for the Avalonia tree
 ├── tools/
-│   ├── cpp-backtester/                   C++ tick backtester (subprocess sidecar)
-│   └── python-ml/                        Python AI Market Analyst (FastAPI sidecar)
-├── docs/                                 this folder
-├── scripts/                              boilerplate generators
-└── appsettings.json                      default configuration
+│   ├── cpp-backtester/               C++ tick backtester (subprocess sidecar)
+│   └── python-ml/                    Python AI / Paper Lab sidecar (FastAPI)
+├── docs/                             this folder
+├── images/                          screenshots (see docs/MEDIA-CHECKLIST.md)
+├── scripts/                          boilerplate generators
+└── appsettings.json                 default configuration
 ```
 
 The full project graph and layering rules are in [architecture.md](architecture.md).
 
 ## What to read next
 
-- New user wanting to use the app → [user-guide.md](user-guide.md).
+- New user wanting to use the app → [user-guide.md](user-guide.md) (the full menu tour).
 - Configuring a real broker → [brokers.md](brokers.md).
+- Understanding the strategies → [strategies.md](strategies.md) and [math-reference.md](math-reference.md).
 - Tuning configuration → [configuration.md](configuration.md).
-- Adding a feature → [contributing.md](contributing.md), then [architecture.md](architecture.md) for the constraints you must not break.
+- Adding a feature → [contributing.md](contributing.md), then [architecture.md](architecture.md) for
+  the constraints you must not break.

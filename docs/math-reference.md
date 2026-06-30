@@ -1,12 +1,86 @@
 # Methods & math reference
 
-> Last updated: 2026-06-20
+> Last updated: 2026-06-30
 
 A single place that writes down **the actual math** behind every strategy, analytical tool, and chart in the terminal — the formula, the variable meanings, and a pointer to the source file that implements it. It exists so a contributor or researcher can understand *what is being computed* without reverse-engineering the code.
 
 Everything here is grounded in shipped code. Where a strategy already carries a full derivation in its own project README (the Σ⁻¹·IC optimizer), this page summarises and links rather than duplicates.
 
 **Conventions.** Returns are log returns $r_t = \ln(p_t/p_{t-1})$ unless stated. $\hat S(z)=\mathrm{clamp}(3z/\theta,-3,3)$ is the shared "z-score → bounded score" squash. All variance/mean accumulation uses single-pass Welford internally (never $\sum x^2 - (\sum x)^2/n$). Estimators emit a **neutral** value, never `NaN`, on a degenerate window. **Data/signals only — no formula here sizes a real order.**
+
+---
+
+## 0. How to read this page (plain-language primer)
+
+You do **not** need a maths degree. Almost every formula below is built from the same handful of
+ideas. Learn these eight and the rest of the page decodes itself. Each comes with a one-line meaning
+and a tiny worked number.
+
+### Average (mean) — "the typical value"
+
+Add the numbers up, divide by how many there are. If the last five trade sizes were 2, 4, 4, 6, 9
+contracts, the average is $(2+4+4+6+9)/5 = 5$. Written $\bar x$ ("x-bar").
+
+### Standard deviation ($\sigma$) — "how spread out the numbers are"
+
+Roughly, the *typical distance* of a value from the average. Small $\sigma$ = everything clusters
+near the mean; large $\sigma$ = wildly scattered. For the sizes above, the deviations from 5 are
+$-3,-1,-1,+1,+4$; squaring, averaging and square-rooting gives $\sigma \approx 2.4$. So a "normal"
+trade is about 2.4 contracts away from the average of 5.
+
+### Z-score ($z$) — "how unusual is this value?"
+
+$$z = \frac{x - \bar x}{\sigma}$$
+
+How many standard deviations a value sits above (+) or below (−) the average. A size of 9 has
+$z = (9-5)/2.4 \approx 1.7$ — "about 1.7 standard deviations bigger than normal", i.e. somewhat
+unusual but not extreme. A z near 0 is ordinary; |z| above ~2 is genuinely rare (top/bottom ~2%).
+**This is the single most-used quantity on the page** — almost every "signal" is "how unusual is the
+current reading versus its recent history?".
+
+### The squash $\hat S(z)$ — "turn an unusualness score into a capped −3…+3 score"
+
+$$\hat S(z) = \mathrm{clamp}\!\left(\tfrac{3z}{\theta}, -3, +3\right)$$
+
+A z-score can in principle be huge; we don't want one freak reading to dominate a blend. The squash
+rescales by a threshold $\theta$ (often 2) and then *clamps* (hard-limits) the result to the range
+$[-3, +3]$. Worked: $z = 2,\ \theta = 2 \Rightarrow 3\cdot 2/2 = 3$ (maxed out). $z = 0.5 \Rightarrow
+0.75$. $z = 10 \Rightarrow$ still just $+3$. Every strategy signal in this app speaks this common
+−3…+3 "language" so they can be compared and combined fairly.
+
+### Log return — "percentage change that adds up cleanly"
+
+$$r_t = \ln\!\left(\frac{p_t}{p_{t-1}}\right)$$
+
+The change in price from one bar to the next, expressed so that gains and losses *sum* over time
+(ordinary percentages don't: +10% then −10% is not 0%). For small moves it's almost identical to the
+percentage change — a move from 100 to 101 is $\ln(101/100) \approx 0.995\% \approx 1\%$.
+
+### Correlation ($\rho$) — "do two things move together?"
+
+A number from $-1$ to $+1$. $+1$ = they rise and fall in perfect lockstep; $0$ = unrelated; $-1$ =
+perfect mirror images. Used to tell whether two instruments (or two trading signals) are really
+giving you independent information or just saying the same thing twice.
+
+### Regression slope ($\beta$) — "the steepness of the best-fit trend line"
+
+Draw the straight line that best fits a cloud of points; $\beta$ is how steeply it rises. A positive
+$\beta$ on a price-vs-time fit means an uptrend; the *standard error* of $\beta$ tells you how
+trustworthy that slope is (a steep line through scattered points is less reliable than a steep line
+through tight points).
+
+### Covariance matrix $\Sigma$ and its inverse $\Sigma^{-1}$ — "the redundancy table"
+
+When you have several signals, $\Sigma$ is a grid recording how each pair moves together. Its
+**inverse** $\Sigma^{-1}$ is the mathematical tool that says "two signals that always agree are
+partly redundant — don't count both at full strength." It's what stops a blend from being fooled by
+five copies of the same idea. Paired with the **Information Coefficient (IC)** — how well a signal's
+ranking has predicted future returns — the product $\Sigma^{-1}\!\cdot IC$ gives the *optimal* mix:
+reward signals that predict well, discount signals that merely echo each other.
+
+> **Throughout the page:** a hat ( $\hat{}$ ) means "an estimate of"; $\sum$ means "add up";
+> $\mathrm{clamp}(x,a,b)$ means "if $x<a$ use $a$, if $x>b$ use $b$, else use $x$"; $\Delta$ ("delta")
+> means "the change in". Anywhere you see a z-score, mentally read "how unusual, in std-devs."
 
 ---
 
@@ -38,6 +112,16 @@ These pure modules are reused across strategies, tools and charts — learn them
 
 **Lee–Ready (1991) aggressor classification.** Brokers that don't report the initiating side are signed by: (1) *quote rule* — print $\ge$ ask ⇒ **buy**, $\le$ bid ⇒ **sell**; (2) *tick rule* inside the spread — higher than prior print ⇒ buy, lower ⇒ sell, equal ⇒ carry the prior class forward (zero-tick). First ambiguous print of a session returns `Unknown` rather than guessing.
 
+> **Worked example — microprice & queue imbalance.** Say the best bid is 100.00 with **800** lots
+> waiting, and the best ask is 100.25 with **200** lots. The naive **mid** is $(100.00+100.25)/2 =
+> 100.125$. But there is 4× more size resting on the bid, so:
+> - **Queue imbalance** $= (800-200)/(800+200) = +0.6$ — leaning bullish (buyers outweigh sellers in
+>   the queue).
+> - **Microprice** $= (Q_b\,a + Q_a\,b)/(Q_b+Q_a) = (800\cdot100.25 + 200\cdot100.00)/1000 = 100.20$ —
+>   pulled *up*, toward the thin ask, because the heavy bid is likely to absorb selling and the next
+>   print "wants" to be nearer the ask. Microprice is a better short-horizon fair value than the mid
+>   precisely because it accounts for this lopsidedness.
+
 ### 1.3 Trade-flow imbalance OBI(T) — `Core/MarketData/OrderFlowImbalance.cs`
 
 Trade-based order-book imbalance over a backward window (Anantha–Jain–Maiti 2025, Eq. 17):
@@ -45,6 +129,13 @@ Trade-based order-book imbalance over a backward window (Anantha–Jain–Maiti 
 $$\mathrm{OBI}(T) = \frac{N_{\text{buy}} - N_{\text{sell}}}{N_{\text{buy}} + N_{\text{sell}}} \in [-1,1]$$
 
 Classified into **9 equal-width regimes** across $[-1,1]$, re-centred to $-4..+4$: bin $=\mathrm{clamp}\big(\lfloor (\mathrm{OBI}+1)/w\rfloor,0,8\big)-4$ with $w=2/9$. $|{\text{regime}}|\ge k$ is a "strong" regime.
+
+> **In plain terms.** Count how many recent trades hit the *ask* (buyers in a hurry) versus the
+> *bid* (sellers in a hurry); OBI(T) is just "buyers minus sellers, as a fraction." **Worked
+> example:** of the last 50 trades, 35 were buyer-initiated and 15 seller-initiated, so $\mathrm{OBI}
+> = (35-15)/50 = +0.4$. Dropping it into the 9-bin map: $w = 2/9 \approx 0.222$, bin
+> $= \lfloor (0.4+1)/0.222 \rfloor - 4 = \lfloor 6.3 \rfloor - 4 = +2$ — a *moderate* buy-pressure
+> regime. With a "strong" cut-off of $k=3$, this $+2$ would **not** yet be strong enough to act on.
 
 ### 1.4 Quant estimators — `Core/Quant/`
 
@@ -89,9 +180,28 @@ $$b=\widehat{e^{-\theta\Delta t}},\quad \mu=\frac{a}{1-b},\quad \sigma^2_{\text{
 
 Trade the stationary z-score $z=(X_t-\hat\mu)/\hat\sigma_{\text{stat}}$: enter long at $z\le-Z_{\text{entry}}$, short at $z\ge Z_{\text{entry}}$, flatten at $|z|\le Z_{\text{exit}}$, stop at $|z|\ge Z_{\text{stop}}$. **Fit rejected** if $b\le0$ or $b\ge1$ (non-stationary — no mean reversion). Half-life $t_{1/2}=\ln2/\theta$ is the headline readout.
 
+> **In plain terms.** Some prices behave like a **stretched rubber band**: pull them away from a
+> "fair" centre and they tend to snap back. OU is the rubber-band model — it continuously re-estimates
+> the centre and how springy the band is. **Worked example:** the rolling fit gives centre
+> $\hat\mu = 100$ and stationary spread $\hat\sigma_{\text{stat}} = 0.5$. Price is 99.0, so
+> $z = (99 - 100)/0.5 = -2.0$ — two std below centre. With $Z_{\text{entry}} = 1.5$ that clears the
+> threshold ⇒ **enter long** (bet on the snap-back); flatten when price climbs back near 100
+> ($|z|\le Z_{\text{exit}}$). If instead the fit returns $b \ge 1$, the "band" isn't springy at all
+> (it's drifting), so the trade is **rejected**. The **half-life** answers "how many bars until the
+> band pulls the price halfway home?" — e.g. an AR(1) coefficient $b = 0.95$ gives
+> $\theta = -\ln(0.95) \approx 0.051$ and $t_{1/2} = \ln 2 / \theta \approx 13.5$ bars.
+
 ### Volatility-targeted — `volTarget`
 
 EWMA variance of returns $\sigma^2_t=(1-\alpha)\sigma^2_{t-1}+\alpha r_t^2$ with $\alpha=1-e^{-\ln2/H}$ (half-life $H$). Position $=\mathrm{clamp}\big(\mathrm{round}(\text{TargetVol}/\sigma_t),\,1,\,Q_{\max}\big)$ — exposure shrinks when vol spikes, grows when it compresses (AQR-style risk-parity overlay; Asness–Moskowitz–Pedersen 2013). Long-only as shipped; rebalances every $k$ ticks.
+
+> **In plain terms.** Keep your *risk* roughly constant by trading **smaller when the market is
+> jumpy** and **bigger when it is calm**, instead of holding a fixed number of contracts. ("EWMA" just
+> means a rolling average that weights recent bars more than old ones.) **Worked example:** with a
+> target-vol budget of $1.0$ (same units as $\sigma_t$): if the current EWMA vol is calm at
+> $\sigma_t = 0.5$, position $= \mathrm{round}(1.0/0.5) = 2$ units; if volatility then doubles to
+> $\sigma_t = 1.0$, position $= \mathrm{round}(1.0/1.0) = 1$ unit — half the size for the same risk.
+> The result is clamped between $1$ and $Q_{\max}$.
 
 ### Order-flow toxicity (VPIN) — `vpin`
 
@@ -100,6 +210,13 @@ Volume-synchronised probability of informed trading (Easley–López de Prado–
 $$\text{toxicity}=\frac{\big|\sum f\big|}{\sum |f|}\in[0,1]$$
 
 When toxicity $\ge$ threshold, **fade** the prevailing aggressor (buyers in control ⇒ short), hold for `HoldTicks`. The engine ships the textbook **L1 tick-rule approximation**; true volume-bucket VPIN with real prints runs inside the Σ⁻¹·IC engine (§ below).
+
+> **In plain terms.** VPIN asks "how *one-sided* has the recent volume been?" — a stand-in for "are
+> informed traders leaning hard one way?" $0$ = buying and selling are balanced; $1$ = everything went
+> one direction. **Worked example:** over the window the signed flows add up to $+800$ while the total
+> traded (ignoring direction) is $1000$, so toxicity $= |{+}800|/1000 = 0.8$ — heavily buy-dominated.
+> Past the threshold the strategy *fades* it (sells into the buying frenzy), wagering the one-sided
+> burst will exhaust and snap back.
 
 ### Cumulative delta — CumulativeDelta (live-only)
 
@@ -139,7 +256,7 @@ Multi-ticker S&P 100/500 grid (ticker × time). Per cell flags **unusual 1-minut
 
 ### Σ⁻¹·IC Order-Flow Optimizer — `sigmaIcFlow`
 
-The flagship composite: 12 microstructure signals fused with mean-variance optimal weights $w\propto\Sigma^{-1}\cdot IC$ (Ledoit–Wolf $\Sigma$, Spearman IC), isotonic calibration $g(C)=\mathbb E[r\mid C]$, a full round-trip cost gate, a first-passage EV check, and ¼-Kelly sizing. Every formula — DELTA / VPIN / FOOTPRINT / TAPE_SPEED (Hawkes) / KYLE (2SLS) / the triple EW-regression structure block with Newey–West errors / CVD / OBI / PRED_NODE (Kalman) — is derived in the **[project README](../src/TradingTerminal.Strategies.SigmaIcFlow/README.md)**. Don't duplicate it; read it there.
+The flagship composite: 12 microstructure signals fused with mean-variance optimal weights $w\propto\Sigma^{-1}\cdot IC$ (Ledoit–Wolf $\Sigma$, Spearman IC), isotonic calibration $g(C)=\mathbb E[r\mid C]$, a full round-trip cost gate, a first-passage EV check, and ¼-Kelly sizing. Every formula — DELTA / VPIN / FOOTPRINT / TAPE_SPEED (Hawkes) / KYLE (2SLS) / the triple EW-regression structure block with Newey–West errors / CVD / OBI / PRED_NODE (Kalman) — is derived in the **[project README](../src/windows/Strategies/TradingTerminal.Strategies.SigmaIcFlow/README.md)**. Don't duplicate it; read it there.
 
 ---
 
@@ -153,19 +270,11 @@ The flagship composite: 12 microstructure signals fused with mean-variance optim
 - **PSD repair** before any decomposition: clip negative eigenvalues to 0, renormalise the diagonal.
 - **PCA** eigendecomposes the correlation matrix; PC1 loadings ≈ the market factor, explained-variance ratio $\lambda_i/\sum\lambda$.
 
-### 3.2 Markov regime — `TradingTerminal.MarkovRegime`
-
-Discretise into states, then the maximum-likelihood **transition matrix** with Laplace smoothing:
-
-$$P_{ij}=\frac{\text{count}(i\to j)+\alpha}{\text{count}(i\to\cdot)+\alpha K},\qquad \sum_j P_{ij}=1$$
-
-The **stationary distribution** $\pi$ solves $\pi P=\pi$ (left eigenvector for eigenvalue 1, normalised) — the long-run regime occupancy. HMM inference (forward / Viterbi) runs in log space to avoid underflow.
-
-### 3.3 Market regime composite — `Core/Regime/MarketRegimeCalculator`
+### 3.2 Market regime composite — `Core/Regime/MarketRegimeCalculator`
 
 A 0–100 risk-on/off score from **ten** sub-signals (volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset). Each raw input is mapped to a 0–100 sub-score (e.g. VIX and price-vs-200dma are normalised against their own historical range, sentiment surveys onto bull/bear balance), then the composite is the **weighted mean** of the available categories — a failed source drops out and the weights renormalise rather than poisoning the score. Bands: 0–24 Extreme Fear … 75–100 Extreme Greed (`RegimeStateMapper`). It's a risk-management input, not a standalone signal.
 
-### 3.4 Advanced / Instrument regime — `Core/MarketData/AdvancedRegime/`
+### 3.3 Advanced market regime board — `Core/MarketData/AdvancedRegime/`
 
 A multi-timeframe indicator board: **18 rows** (RSI, MACD, CCI, MA 9/21/50, 3-MA stack, VWAP, SuperTrend, ATR, ATR-regression, STD, POC, TRD, delta, cumulative delta, volume buy/sell, and a composite **Trend** needle) across **8 timeframe columns** (1m…1D, with aggregated 20m/30m buckets via `BarTimeframeAggregator`, not broker `BarSize` requests). Each cell is classified bullish / bearish / neutral from its indicator's standard rule (e.g. RSI vs 30/70, MACD histogram sign, price vs SuperTrend); the Trend needle sums the cell votes. The **Index Regime Graph** strategy runs this stack across every index constituent.
 
@@ -177,7 +286,7 @@ A multi-timeframe indicator board: **18 rows** (RSI, MACD, CCI, MA 9/21/50, 3-MA
 
 - **Bars** built by `FootprintFeatures` (Core): per (time bucket, price bucket) cell of buy vs sell volume; **POC** is the price row of max total volume per column.
 - **Stacked-imbalance** (the diagonal rule): a bid/ask cell pair is "stacked" when one side exceeds the diagonal-opposite side by the **3:1** ratio; consecutive stacked levels mark absorption fronts (same rule the Σ⁻¹·IC FOOTPRINT signal scores).
-- **POC slopes** in the stats panel and the seven fit curves come from `CurveFitting` (`Core/Quant/`): OLS (linear/quadratic/cubic), **Theil–Sen** (median of pairwise slopes — robust to outlier POC bars), exponential (log-space OLS), logarithmic $a+b\ln(x+1)$, and **LOWESS** (locally-weighted linear, tricube kernel, half-sample span). The **virtual predictor** extrapolates each enabled fit $N$ bars out and draws their mean as the consensus. Per-project [README](../src/TradingTerminal.VolumeFootprint/README.md) has the exact forms.
+- **POC slopes** in the stats panel and the seven fit curves come from `CurveFitting` (`Core/Quant/`): OLS (linear/quadratic/cubic), **Theil–Sen** (median of pairwise slopes — robust to outlier POC bars), exponential (log-space OLS), logarithmic $a+b\ln(x+1)$, and **LOWESS** (locally-weighted linear, tricube kernel, half-sample span). The **virtual predictor** extrapolates each enabled fit $N$ bars out and draws their mean as the consensus. Per-project [README](../src/windows/Charts/TradingTerminal.VolumeFootprint/README.md) has the exact forms.
 
 ### 4.2 Bookmap + VolBook — `TradingTerminal.Heatmap`
 

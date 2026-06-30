@@ -1,202 +1,279 @@
 # User guide
 
-> Last updated: 2026-06-19
+> Last updated: 2026-06-30
 
-A daily-use walkthrough for **using** the terminal. For installation and the first launch, see [getting-started.md](getting-started.md). For per-broker setup, see [brokers.md](brokers.md). For each feature in depth, follow the cross-links.
+A daily-use walkthrough for **using** the terminal, written so you can follow it with no trading,
+coding, or maths background. For installation and the first launch, see
+[getting-started.md](getting-started.md). For per-broker setup, see [brokers.md](brokers.md). Each
+feature has a deep-dive doc — followed by a cross-link.
 
-## Screenshots
+> 🖼️ **Screenshot:** `images/shell-main.png` — the main window.
+> 🎬 **Video:** `images/video/shell-tour.mp4` — a 2–3 minute walkthrough of everything below.
 
-| Backtest | Tick recorder | Correlation matrix |
-|---|---|---|
-| ![Backtest](../images/backtestwindow.png) | ![Tick recorder](../images/recordtickswindow.png) | ![Correlation matrix](../images/correlationmatrixwindow.png) |
+---
 
-> 🎬 _Video walkthroughs for the shell and each tool — coming soon_
+## 1. Launching and logging in
 
-## Launching
+Run the app (see [getting-started.md](getting-started.md)):
 
 ```powershell
-dotnet run --project src/TradingTerminal.App
+# Windows / WPF
+dotnet run --project src/windows/Shell/TradingTerminal.App
+# Linux / Avalonia
+dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
 ```
 
-You see the **login window** with broker tiles: Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, London Strategic Edge, and the keyless Binance feed. Connect one or more — sessions are concurrent, and each instrument routes its data path (history, ticks, depth, tape, connection state) through the broker it belongs to.
+The **login window** opens with a tile per data source: **Interactive Brokers, NinjaTrader, cTrader,
+Alpaca, Ironbeam, London Strategic Edge, Upstox, Binance, Coinbase, Bybit, Kraken, OKX**, plus the
+always-available offline **Simulated** feed. You can connect **several at once** — sessions are
+concurrent, and each instrument's data (history, live ticks, depth, trade tape, connection state)
+routes through the broker it belongs to.
 
-Tick **Auto Connect** (bottom of the login window) to have every broker form fire its Connect with saved credentials as soon as the window opens. The flag persists across sessions, and each broker connects independently — one dead broker never blocks the rest.
+- The **Binance** tile needs **no account** — click Connect and live crypto data flows.
+- Tick **Auto Connect** to have every broker with saved credentials connect automatically on future
+  launches. One dead broker never blocks the others.
+- A **Services & external dependencies** expander probes the optional helpers (Python sidecar,
+  Docker, IB TWS, NinjaTrader, Ollama) and tells you if any aren't running.
 
-After **Sign in**, the main shell opens. The status bar at the bottom shows connection state and the count of live brokers. If the login fails, open the **Activity log** drawer (bottom) — every broker error is logged there with enough detail to act on (IB error codes, cTrader `ProtoOAErrorRes`, NT `rc != 0` reasons).
+After **Sign in**, the main shell opens. If a login fails, open the **Activity log** drawer (bottom)
+— every broker error is logged there with enough detail to act on.
 
-## The main shell
+---
 
-The shell does **not** use a docking framework — every strategy, tool and chart opens as **its own window**. The `MainWindow` itself is a full-width strategy catalog with a collapsible log drawer.
+## 2. The main shell
+
+Every strategy, tool and chart opens as **its own window**. The main window itself is a full-width
+**strategy catalog** with a collapsible log drawer.
 
 ```
-+--------------------------------------------------------------+
-| DAXALGO TERMINAL · F1 HELP · API meter · sessions · UTC clock|
-| File View Tools Charts Machine-learning AI Data Settings     |
-| [Disconnect banner — only when not Connected]                |
-+--------------------------------------------------------------+
-|  STRATEGY CATALOG          (double-click to open)    N=14    |
-|  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         |
-|  │ Sigma-IC │ │ CumDelta │ │ Toxicity │ │ OU       │   …     |
-|  │ pills    │ │ pills    │ │ pills    │ │ pills    │         |
-|  └──────────┘ └──────────┘ └──────────┘ └──────────┘         |
-+--------------------------------------------------------------+
-| ▴ ACTIVITY LOG   (collapsible drawer — closed by default)    |
-+--------------------------------------------------------------+
-| ●Connected            LIVE 2 brokers              12:34:56   |
-+--------------------------------------------------------------+
++--------------------------------------------------------------------+
+| DAXALGO TERMINAL · F1 HELP · API meter · CRYPTO/NYSE/LSE · UTC clock|
+| File View Tools Plugins LSE-Tools Charts Machine-learning           |
+|        QuantConnect/LEAN AI-tools Data Settings Help                |
+| [Disconnect banner — only when not Connected]                      |
++--------------------------------------------------------------------+
+|  STRATEGY CATALOG            (double-click to open)        N=12    |
+|  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐               |
+|  │ Sigma-IC │ │ CumDelta │ │ Toxicity │ │ OU       │   …  (tiled)  |
+|  │ pills    │ │ pills    │ │ pills    │ │ pills    │               |
+|  └──────────┘ └──────────┘ └──────────┘ └──────────┘               |
++--------------------------------------------------------------------+
+| ▴ ACTIVITY LOG   (collapsible drawer — closed by default)          |
++--------------------------------------------------------------------+
+| ●Connected            LIVE 2 brokers                    12:34:56   |
++--------------------------------------------------------------------+
 ```
 
-- **Top header strip** — terminal wordmark, an F1 HELP tile, the live **API-call meter** (click for the per-broker rate-cap breakdown), approximate market-session badges (CRYPTO / NYSE / LSE), and UTC + local clocks.
-- **Strategy catalog (centre, full width)** — a tiled grid of strategy cards. Each shows the name, id, description, and data-requirement + classification pills. **Double-click** a card (or right-click → Open) to launch the strategy in its own window.
-- **Activity-log drawer (bottom)** — the one universal Serilog sink (system + per-strategy/window entries). Collapsed by default; click the **▴ ACTIVITY LOG** strip (or View → Activity log) to slide it open. Filter, copy, and tail are all here. There are no per-window log panels.
-- **Status bar (bottom)** — connection-state dot (green = connected), the count of live brokers, and the local clock.
-- **Tools / Charts / Machine learning / AI tools / etc. menus** — each item opens its tool in a dedicated window; re-selecting an already-open tool just focuses it.
-- **View menu** toggles the activity-log drawer (and theme).
+- **Header strip** — the wordmark, an **F1 HELP** tile, the live **API-call meter** (click it for a
+  per-broker breakdown of calls vs each broker's rate limit — green/amber/red on the hottest one),
+  approximate market-session badges (**CRYPTO** 24/7, **NYSE**, **LSE** — open/closed), and **UTC +
+  local** clocks.
+- **Strategy catalog** — a tiled grid of strategy cards. Each shows the name, id, description, and the
+  data/classification **pills** (explained in [strategies.md](strategies.md#reading-the-catalog-cards)).
+  **Double-click** a card (or right-click → *Open*) to launch that strategy in its own window.
+- **Activity-log drawer** — the one universal log (system messages from Serilog + per-strategy/window
+  entries), collapsed by default. Click the **▴ ACTIVITY LOG** strip (or *View → Activity log*) to
+  slide it open. Filter by typing in the box; copy rows with Ctrl+C. **There are no per-window log
+  panels — everything routes here.**
+- **Status bar** — connection-state dot (green = connected), the count of live brokers, and the clock.
 
-## Running a strategy live (signal mode)
+> 🖼️ **Screenshot:** `images/shell-activity-log.png` — the activity-log drawer open with coloured
+> level pills.
 
-Every strategy opens as a separate window. The pattern is identical for all:
+---
 
-1. **Double-click** the strategy in the left pane. A `MetroWindow` opens with the strategy's title in its title bar.
-2. **Pick an instrument** from the dropdown. The shared catalog (`SignalInstrumentCatalog` in `TradingTerminal.UI`) covers common ETFs, big-name US stocks, continuous futures, and spot FX. To trade something not on the list, edit the catalog (see [Customisations](#customisations)).
-3. **Edit the parameters** in the "Parameters" panel. Each strategy exposes the knobs from its underlying logic (period, threshold, lookback, etc.) as text fields. Defaults are sensible but not optimised for any particular instrument.
-4. **Hit Start.** The window subscribes to the live tick stream for the chosen contract via the active broker. The stats bar starts updating. Whenever the strategy would submit an order, a row appears in the **signal log grid** AND a `StrategyNotification` is published.
-5. **Hit Stop** to flatten the strategy's internal state and stop receiving ticks. **Clear log** clears the in-window grid (notifications already sent stay sent).
+## 3. The menus — a complete tour
 
-**No order ever leaves the terminal.** Every strategy runs in "signal mode" — the underlying engine produces orders that the host's synthetic router intercepts and surfaces as notifications. Execution is delegated to whatever app you actually trade from (Bookmap, your broker's own platform, a custom OMS).
+Every window in the app lives under one of these menus. Re-selecting an already-open window just
+brings it to the front (windows are single-instance).
 
-Closing the window resets the strategy's state. Re-opening it gives you a fresh instance. If you want to keep state across sessions, leave the window open.
+### File
+| Item | What it does |
+|---|---|
+| **Reconnect to broker** | Force a reconnect of the active broker session. |
+| **Start QuestDB** | Launch Docker (if needed) and the QuestDB container, then switch on high-rate tick persistence — without restarting. |
+| **Exit** | Close the app. |
 
-For the full strategy catalog and the recipe to add a new strategy, see [strategies.md](strategies.md).
+### View
+| Item | What it does |
+|---|---|
+| **Activity log** | Show/hide the bottom log drawer. |
+| **Theme** | Switch between **Bloomberg Amber** and **Monochrome (B&W)**. |
+| **Customize theme… (Theme Studio)** | Open the live colour editor — recolour any part of the app and save your own theme. See [theme-studio.md](theme-studio.md). |
 
-## Notifications
+### Tools
+| Item | What it does |
+|---|---|
+| **Backtest Studio** | The full backtest workbench — run any strategy on historical data and read the stats. See [backtesting.md](backtesting.md). |
+| **Record live ticks** | Capture the live feed to a file you can replay/backtest later (see §6 below). |
+| **Advanced market regime** | An 18-indicator × 8-timeframe board telling you whether an instrument is trending/ranging/volatile across timeframes. See [market-regime.md](market-regime.md#advanced-market-regime-board). |
+| **Correlation matrix** | How a basket of instruments move together (historical). See [math-reference.md](math-reference.md#31-correlation-matrix--tradingterminalcorrelation). |
+| **Live correlation matrix** | The same, updating live (EWMA). |
 
-Every signal fired by any strategy goes through a single notification pipeline. **Settings → Notifications** opens the configuration window with blocks for **Telegram**, **Discord**, **Ollama** (local LLM commentary), and **AI Market Analyst**.
+### Plugins
+| Item | What it does |
+|---|---|
+| **Manage strategy plugins…** | Install / view third-party strategy plugins. See [plugins.md](plugins.md). *(Windows.)* |
 
-- For Telegram and Discord setup steps and the Ollama enricher, see [notifications.md](notifications.md).
-- For the AI Market Analyst, see [ai-analyst.md](ai-analyst.md).
+### LSE Tools
+| Item | What it does |
+|---|---|
+| **LSE backtester** | A backtester that pulls historical bars straight from the free London Strategic Edge feed. |
 
-## Market regime panel
+### Charts
+| Item | What it does |
+|---|---|
+| **Charts** | TradingView-style candlestick charting with indicator overlays. *(Windows.)* |
+| **Order book** | The live L2 depth ladder. |
+| **Volume footprint** | A bid/ask cluster chart with curve-fit POC predictors. |
+| **Bookmap + VolBook** | The combined liquidity-heatmap + volume-profile + DOM window. |
 
-**Tools → Market regime** opens a window with the current **risk-on / risk-off composite** (0–100 gauge, five bands). The score blends ten weighted sub-signals (volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset) from Yahoo Finance, FRED, CNN Fear & Greed, and AAII sentiment.
+Full per-window reference: [charts.md](charts.md).
 
-Optional behaviour:
+### Machine learning *(Windows)*
+| Item | What it does |
+|---|---|
+| **Stationarity & differencing** | Is this series "tradeable-stable", and how to transform it (ADF/KPSS/ACF). |
+| **ARIMA & GARCH** | Forecast the price with a confidence band, and model its volatility. |
+| **Kalman filter** | Smooth a series or track a time-varying pairs hedge ratio. |
 
-- Fire a `RegimeChange` notification when the band crosses.
-- Gate outbound `Signal` notifications when the composite is risk-off (the signal still appears in the strategy's own window).
+Deep dive (with the maths from scratch): [machine-learning.md](machine-learning.md).
 
-See [market-regime.md](market-regime.md) for setup, sources, and the gate mechanism.
+### QuantConnect / LEAN
+| Item | What it does |
+|---|---|
+| **Backtest runner / Projects / Data sync / Settings & status** | An optional bridge to the open-source LEAN backtester (runs as a separate process). Experimental — see [quantconnect.md](quantconnect.md). |
 
-Three more regime tools live under **Tools**: **Instrument regime** (per-instrument analyzer), **Markov regime** (transition-matrix model over historical bars), and **Advanced market regime** — a multi-timeframe dashboard with 18 indicator rows (RSI, MACD, CCI, MA stack, VWAP, SuperTrend, ATR, POC, delta/cum-delta, a composite Trend needle, …) across 8 toggleable timeframe columns from 1m to 1D. See [market-regime.md](market-regime.md#advanced-market-regime-dashboard).
+### AI tools
+| Item | What it does |
+|---|---|
+| **Factor research** | Inspect microstructure features and whether they predict the next move (§7). |
+| **ML features** | Feature-engineering workbench over recorded ticks. |
+| **Backtest analysis** | AI-assisted read of a backtest's results. |
+| **Market analyst** | A four-agent AI that gives a plain-language Long/Short/NoCall read on an instrument. See [ai-analyst.md](ai-analyst.md). |
+| **Paper Lab** | Turn a research paper into a backtestable strategy, safely. See [paper-lab.md](paper-lab.md). |
 
-## Charts & order-flow windows
+### Data
+| Item | What it does |
+|---|---|
+| **Market data archive** | Configure the optional Telegram offloader that backs up + prunes your local store. |
+| **Archive history** | Browse what's been archived. |
+| **Instant offload (all pending)** | Push everything pending to the archive now. See [storage.md](storage.md). |
 
-The **Charts** menu hosts the market-microstructure visualizations. Each opens as its own window against any connected broker. Full per-window reference — inputs, parameters, read-outs, data requirements — in [charts.md](charts.md). In short:
+### Settings
+| Item | What it does |
+|---|---|
+| **Notifications** | Telegram, Discord, and the Ollama commentary enricher. See [notifications.md](notifications.md). |
+| **Research (Paper Lab)** | Enable the Paper Lab reproduction sidecar + loopback URL. |
 
-- **Charts** — TradingView-style candlestick charting (WebView2-hosted).
-- **Order book** — live L2 depth ladder for brokers that serve depth.
-- **Volume footprint** — bid/ask cluster chart (see below).
-- **Bookmap + VolBook** — one combined live microstructure window: L2 liquidity heatmap, trade dots (with large-lot/iceberg flags), session volume profile + VWAP + value area, a CVD panel, the live DOM, and pause/scrub playback with price zoom.
+### Help
+| Item | What it does |
+|---|---|
+| **Support the developer** | How to send feedback and support the project. |
+| **About** | Version and credits. |
 
-### Volume footprint
+---
 
-A bid/ask cluster chart built from the live trade tape (brokers without a native tape get a synthetic L1-derived fallback, flagged in the status line). Pick instrument, bar interval (15s–5m), tick size, and visible bar count. Each column shows per-price buy/sell volume cells, the total POC (yellow outline), and buy/sell POC connector lines; the floating stats panel tracks POC slopes, cumulative delta, ticks/sec, and the buy/sell split.
+## 4. Running a strategy live (signal mode)
 
-Two analytics layers sit on top:
+Every strategy opens as a separate window; the pattern is the same for all:
 
-- **Regression fits** — seven toggleable fit curves through each POC series (total / buy / sell): linear, quadratic, cubic, Theil–Sen (robust), exponential, logarithmic, and LOWESS. Checkboxes in the toolbar; each kind has its own dash pattern, colored by series.
-- **Virtual predictor** — extrapolates every enabled fit *N* bars past the last column and draws the per-series **consensus** (mean of the selected fits) as ghost candles in a shaded forecast region: body spans the predicted buy↔sell POC, a dashed orange tick marks the predicted total POC, and the predicted price prints in the footer. Toggle with **Predicted candles**, set the horizon with **Bars ahead** (1–30). It is curve extrapolation, not a forecast model — robust fits (linear / Theil–Sen / LOWESS) extrapolate sanely; cubic and exponential can run away over long horizons by design.
+1. **Double-click** the strategy card in the catalog. Its window opens.
+2. **Pick an instrument** from the dropdown (the shared catalog covers common ETFs, big US stocks,
+   continuous futures, and spot FX/crypto). To add your own, see §8.
+3. **Edit the parameters** in the Parameters panel. Each knob (period, threshold, lookback…) comes
+   from the underlying logic; defaults are sensible but not optimised for any instrument.
+4. **Press Start.** The window subscribes to the live feed for that instrument. Whenever the strategy
+   *would* act, a row appears in its **signal log** **and** a notification is published.
+5. **Press Stop** to flatten the strategy's internal state. **Clear log** clears the in-window grid
+   (already-sent notifications stay sent).
 
-## Machine Learning tools
+**No order ever leaves the terminal.** Every strategy runs in "signal mode" — it tells you what it
+*would* do; you act (or not) in whatever platform you actually trade from. See
+[strategies.md](strategies.md) for the catalog and each strategy explained.
 
-The **Machine learning** menu hosts three offline time-series statistics windows that fit over historical bars from the store — no live subscription:
+---
 
-- **Stationarity & differencing** — ADF + KPSS verdict cards, ACF with white-noise band, rolling-moment bands, and a transform recommendation (none / log / diff / log-returns / fractional differencing).
-- **ARIMA & GARCH** — AIC order search, price forecast with a 95% band, GARCH(1,1) conditional volatility vs the long-run level.
-- **Kalman filter** — local level / local linear trend / dynamic regression (time-varying pairs hedge β with spread z-score), with a Q/R responsiveness knob and innovation-whiteness diagnostics.
+## 5. Quick backtest from the catalog
 
-See [machine-learning.md](machine-learning.md) for each window in depth and the `Core/Quant/TimeSeries` math reference.
+Want to see how a strategy would have done recently, without opening Backtest Studio? **Right-click a
+catalog card → Quick backtest (last 1 year).** The app pulls a year of history for a default
+instrument and runs it, showing the equity curve and stats. For full control (instrument, dates,
+fees, risk caps), use **Tools → Backtest Studio** — see [backtesting.md](backtesting.md).
 
-## Local market-data store
+---
 
-Every tick / quote / bar / trade (and L2 depth) the terminal sees from any broker is written to a local store, so strategies can warm up on history and you can replay later. Four backends — **per-broker SQLite** (default, zero-config, one file per broker per stream), single-file SQLite, PostgreSQL + TimescaleDB, or QuestDB (via the repo-root `docker-compose.yml`).
+## 6. Recording live ticks
 
-If you set `Provider: Postgres` but the database isn't reachable at startup, the app falls back to SQLite automatically — logged at warning level. Nothing else changes; the in-memory live hub keeps working either way.
-
-See [market-data.md](market-data.md) for the pipeline architecture and the optional Telegram archive offloader.
-
-## Backtesting
-
-The terminal ships a tick-level backtest engine that runs strategies against historical parquet files.
-
-1. **Generate or obtain tick data.** The simplest path is the CLI's `synth` subcommand for a mean-reverting random walk. For real data, use the **Live tick recorder** below.
-2. **Open Tools → Backtest.** Pick a strategy from the dropdown, set the symbol, point the **Data** path at your parquet file. Configure tick size, slippage, contract multiplier, starting cash.
-3. **Hit Run.** The engine replays every tick through the strategy and the simulated order book. The equity curve plots live; trades and stats populate as fills come in.
-4. After the run, the results dir (`./bt-results/` by default) contains `summary.json`, `trades.csv`, `equity.csv`, `fills.csv`.
-
-For the full CLI cheat sheet and engine internals, see [backtesting.md](backtesting.md).
-
-## Recording live ticks
-
-Build a proprietary tick archive on your account that you can replay through the backtest engine later.
+Build your own tick archive to replay/backtest later:
 
 1. **Tools → Record live ticks.**
-2. Pick an instrument.
-3. Click **Browse** to pick an output `.parquet` path (default lives in `%LOCALAPPDATA%\DaxAlgo Terminal\recordings\`).
-4. Hit **Start.** The window streams the live tick feed from the active broker into the parquet writer. The grid shows the most recent 30 ticks; the stats row shows elapsed time, total ticks written, current bid/ask.
-5. **Stop** flushes the writer and closes the file. The resulting parquet is directly usable as `--data` for `daxalgo-backtest run` or the Backtest window.
+2. Pick an instrument and an output `.parquet` path (default under
+   `%LOCALAPPDATA%\DaxAlgo Terminal\recordings\`).
+3. **Start** — the live feed streams into the file; the grid shows recent ticks and a running count.
+4. **Stop** flushes and closes the file. The result is directly usable as `--data` for the
+   `daxalgo-backtest` CLI or in Backtest Studio.
 
-L1 only today — depth recording (cTrader's L2) needs a separate columnar format and isn't wired yet. Tickers like ES (CME), spot FX through cTrader, stocks through IB all work.
+L1 today; depth recording isn't wired yet.
 
-## Factor research
+---
 
-Inspect microstructure features and gauge their predictive shape — the day-to-day quant researcher loop.
+## 7. Factor research (AI tools)
 
-1. **Tools → Factor research.**
-2. **Browse** for a parquet tick file (synth or recorded).
-3. Set **BarTicks** (ticks per aggregated bar), **VolWindow** (rolling vol estimator window in bars), **ForwardBars** (decile-sort horizon).
-4. **Compute.** The tab populates:
-   - **Pairwise correlation matrix** between standard features (`LogReturn`, `RollingVol`, `MicropriceDev`, `QueueImbalance`, `Spread`). Look for redundant features (|ρ| > 0.7) you should drop.
-   - **Decile sort** of the selected feature against forward N-bar returns. A monotone shape = predictive; flat = no edge at this horizon. Change the **Feature** dropdown or **ForwardBars** to re-run instantly.
+The day-to-day "does this feature predict anything?" loop:
 
-## AI Market Analyst
+1. **AI tools → Factor research.**
+2. **Browse** for a parquet tick file (synthetic or recorded).
+3. Set **BarTicks** (ticks per bar), **VolWindow**, **ForwardBars** (the prediction horizon).
+4. **Compute.** You get a **correlation matrix** of standard features (spot redundant ones with
+   |ρ| > 0.7) and a **decile sort** of a chosen feature against forward returns — a monotone staircase
+   means predictive, flat means no edge at that horizon.
 
-A multi-agent LangGraph analyst that runs an indicator → pattern → trend → decision flow and returns a structured verdict (Long / Short / NoCall) with annotated charts. Requires a Python sidecar and an API key for OpenAI / Anthropic / Qwen / MiniMax.
+---
 
-**AI tools → Market analyst** opens the analyst window. Type a symbol, pick a timeframe and bar count, hit **Analyze**.
-
-For setup, per-notification enrichment, and graceful-degradation behaviour, see [ai-analyst.md](ai-analyst.md).
-
-## Customisations
+## 8. Customisations
 
 ### Add an instrument to the catalog
-
-The shared signal-strategy instrument list lives at `src/TradingTerminal.UI/TradeableInstrument.cs` (class `SignalInstrumentCatalog`). Add a row to `All` following the existing pattern; instruments appear in every strategy's and tool's picker on next launch (all windows share the one catalog via the global `InstrumentPicker` control).
+The shared instrument list lives at `src/windows/Shell/TradingTerminal.UI/…SignalInstrumentCatalog…`
+(and the mirror under `src/linux/…`). Add a row following the existing pattern; it then appears in
+every strategy and tool picker on next launch.
 
 ### Tune a strategy's parameters
-
-Each per-strategy project's `<Name>StrategyViewModel.cs` declares parameters as `[ObservableProperty]`s with defaults from the engine implementation's constructor. Edit the defaults in the VM, or — more commonly — change them at runtime in the strategy window's Parameters panel before hitting Start.
+Change them at runtime in the strategy window's Parameters panel, or edit the defaults in that
+strategy's view-model. For systematic searches, use the CLI's `sweep` / `walkforward` — see
+[backtesting.md](backtesting.md).
 
 ### Add a new strategy, broker, or notifier
+See [contributing.md](contributing.md) for the recipes and the layering rules (and remember the
+**two trees** — changes apply to `src/windows` and `src/linux` independently).
 
-See [contributing.md](contributing.md) for the recipes and layering rules.
+---
 
-## CLI cheat sheet
+## 9. CLI cheat sheet
 
-The backtest engine is also a headless CLI for scripting, cron, or CI. Build it once:
+The backtest engine is also a headless CLI for scripting/CI. Build it once:
 
 ```powershell
-dotnet build src\TradingTerminal.Backtest.Cli
+# Windows
+dotnet build src/windows/Backtest/TradingTerminal.Backtest.Cli
+# Linux
+dotnet build src/linux/Backtest/TradingTerminal.Backtest.Cli
 ```
 
-Then call `daxalgo-backtest.exe <command>`. Full subcommand list and a worked end-to-end pipeline in [backtesting.md](backtesting.md#cli-subcommand-reference).
+Then call `daxalgo-backtest <command>` (`run` / `synth` / `sweep` / `walkforward` / `mc` / `tca` /
+`features`). Full reference and a worked pipeline: [backtesting.md](backtesting.md#cli-subcommand-reference).
 
-## Troubleshooting
+---
 
-For symptom → fix tables across every subsystem, see [troubleshooting.md](troubleshooting.md). The most common pitfalls:
+## 10. Troubleshooting
 
-- TWS isn't running, or its socket port doesn't match `appsettings.json`. Default TWS Paper is 7497.
-- NT 8 isn't running, or **Tools → Options → AT Interface → AT Interface enabled** isn't ticked.
-- cTrader access token has expired (~30 days). Re-run the OAuth refresh.
-- Alpaca key was minted for a different environment (paper key against live, or vice versa). Re-check the live toggle.
-- Postgres set as the store provider but Docker isn't running. The app falls back to SQLite — check the Activity log drawer.
+For symptom → fix tables across every subsystem, see [troubleshooting.md](troubleshooting.md). The
+most common pitfalls:
+
+- TWS isn't running, or its socket port doesn't match `appsettings.json` (default TWS Paper is 7497).
+- NinjaTrader 8 isn't running, or **Tools → Options → AT Interface → AT Interface enabled** isn't
+  ticked.
+- A cTrader access token has expired (~30 days) — re-run the OAuth refresh.
+- An Alpaca key was minted for the wrong environment (paper vs live) — re-check the live toggle.
+- Postgres set as the store provider but Docker isn't running — the app falls back to SQLite; check
+  the Activity-log drawer.

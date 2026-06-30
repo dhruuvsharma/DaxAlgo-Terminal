@@ -1,10 +1,31 @@
 # Machine Learning tools
 
-> Last updated: 2026-06-18
+> Last updated: 2026-06-30 · **Windows build only**
 
-Three time-series statistics windows under the top-level **Machine learning** menu. All of them are **offline analysis over historical bars** pulled from the canonical store via `IMarketDataRepository` — no live subscription, no broker round-trip beyond the history request, and fitting always runs off the UI thread. Each window follows the same conventions as the other tool windows: global instrument picker, timeframe dropdown, bar-count input, ScottPlot dark charts.
+> **Windows only.** The Machine-learning menu and its three windows ship in the Windows/WPF build.
+> The Linux/Avalonia tree doesn't include them yet (the underlying maths library is shared, but the
+> windows aren't ported).
 
-The windows are thin UI over reusable math in **`src/TradingTerminal.Core/Quant/TimeSeries/`** — every estimator is a plain testable class you can also call from a strategy or the backtester.
+### In plain terms
+
+These three tools answer three classic questions about a price series using only **historical bars**
+— they *analyse*, they don't trade:
+
+- **Stationarity & differencing** — *"Is this series steady enough to model, and if not, how do I make
+  it so?"* Raw prices wander off; most statistics need a series that hovers around a stable average.
+  This tool checks, and recommends the gentlest fix.
+- **ARIMA & GARCH** — *"What's a sensible forecast, and how jumpy is it likely to be?"* ARIMA projects
+  the **price**; GARCH projects the **volatility** (is a calm or stormy stretch ahead?).
+- **Kalman filter** — *"What's the real signal hiding under the noise?"* — smoothing a wiggly series,
+  or tracking how the relationship between **two** instruments drifts over time (the heart of pairs
+  trading).
+
+You don't need to know the maths to use them — each window shows a plain verdict and a chart. The
+exact formulas, derived step by step, are in the [math reference](math-reference.md#15-time-series--corequanttimeseries-machine-learning-menu).
+
+Technically, all three are **offline analysis over historical bars** pulled from the canonical store via `IMarketDataRepository` — no live subscription, no broker round-trip beyond the history request, and fitting always runs off the UI thread. Each window follows the same conventions as the other tool windows: global instrument picker, timeframe dropdown, bar-count input, ScottPlot dark charts.
+
+The windows are thin UI over reusable math in **`src/windows/Core/TradingTerminal.Core/Quant/TimeSeries/`** — every estimator is a plain testable class you can also call from a strategy or the backtester.
 
 ## Stationarity & differencing
 
@@ -66,9 +87,9 @@ Implementation: `KalmanFilters` in `Core/Quant/TimeSeries/`.
 
 | What | Where |
 |---|---|
-| Window projects | `src/TradingTerminal.Ml.Stationarity/`, `src/TradingTerminal.Ml.ArimaGarch/`, `src/TradingTerminal.Ml.KalmanFilter/` |
-| Math | `src/TradingTerminal.Core/Quant/TimeSeries/` — `Ols`, `StationarityTests`, `SeriesTransforms`, `ArimaModel`, `GarchModel`, `NelderMead`, `KalmanFilters` |
-| DI | each project ships its own `Add…Surface()` extension, called from `App.xaml.cs` |
+| Window projects | `src/windows/MachineLearning/TradingTerminal.Ml.Stationarity/`, `…Ml.ArimaGarch/`, `…Ml.KalmanFilter/` |
+| Math | `src/windows/Core/TradingTerminal.Core/Quant/TimeSeries/` — `Ols`, `StationarityTests`, `SeriesTransforms`, `ArimaModel`, `GarchModel`, `NelderMead`, `KalmanFilters` |
+| DI | each project ships its own `Add…Surface()` extension, called from the shell's `App` startup |
 | Tests | `tests/TradingTerminal.Tests/Quant/TimeSeriesMathTests.cs` (seeded synthetic series) |
 
 ## Limitations

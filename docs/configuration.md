@@ -80,7 +80,7 @@ Real, live crypto market data from Binance's **public** WebSocket + REST endpoin
 
 ## Dev launch profiles
 
-`src/TradingTerminal.App/Properties/launchSettings.json` defines launch profiles that set `DOTNET_ENVIRONMENT`, which layers a matching `appsettings.{Env}.json` (repo root) over `appsettings.json`. These are developer conveniences — **off in the shipped build** (no `DOTNET_ENVIRONMENT` set ⇒ no dev file loaded).
+`src/windows/Shell/TradingTerminal.App/Properties/launchSettings.json` defines launch profiles that set `DOTNET_ENVIRONMENT`, which layers a matching `appsettings.{Env}.json` (repo root) over `appsettings.json`. These are developer conveniences — **off in the shipped build** (no `DOTNET_ENVIRONMENT` set ⇒ no dev file loaded).
 
 | Profile | `DOTNET_ENVIRONMENT` | Dev file | Behaviour |
 |---|---|---|---|

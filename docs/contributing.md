@@ -4,15 +4,21 @@
 
 How to add new features without breaking the layering rules. The constraints come from [architecture.md](architecture.md) — read that first if you haven't.
 
+> **Two trees.** The repo is two independent codebases — `src/windows` (WPF) and `src/linux`
+> (Avalonia). Paths below are shown for the **Windows** tree; the Linux tree mirrors them under
+> `src/linux/…`. **A change meant for both must be made in both** (see
+> [architecture.md](architecture.md#two-independent-trees)). Build/test name a solution:
+> `dotnet build TradingTerminal.Windows.slnx` or `…Linux.slnx`.
+
 ## The three plug-in seams
 
 The codebase has three explicit extension points, each one a "plug-in" pattern:
 
 | Seam | Interface | Project layout | DI extension |
 |---|---|---|---|
-| Strategies | `ITradingStrategy` + `IBacktestStrategy` | One `src/TradingTerminal.Strategies.<Name>/` project per strategy | `services.AddXxxStrategy()` |
-| Brokers | `IBrokerClient` | Files under `src/TradingTerminal.Infrastructure/<Broker>/` | Per-broker DI block in `DependencyInjection.cs` |
-| Notifiers | `INotificationTransport` | Files under `src/TradingTerminal.Infrastructure/Notifications/<Channel>/` | Single line in `NotificationsServiceCollectionExtensions` |
+| Strategies | `ITradingStrategy` + `IBacktestStrategy` | One `src/windows/Strategies/TradingTerminal.Strategies.<Name>/` project per strategy | `services.AddXxxStrategy()` |
+| Brokers | `IBrokerClient` | Files under `src/windows/Pipeline/TradingTerminal.Infrastructure/<Broker>/` | Per-broker DI block in `DependencyInjection.cs` |
+| Notifiers | `INotificationTransport` | Files under `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/<Channel>/` | Single line in `NotificationsServiceCollectionExtensions` |
 
 Stay inside these seams and you can't accidentally break MVVM, threading, or the layer graph.
 
@@ -20,7 +26,7 @@ Stay inside these seams and you can't accidentally break MVVM, threading, or the
 
 See [strategies.md](strategies.md#adding-a-new-strategy) for the full recipe. Short version:
 
-1. Copy an existing `src/TradingTerminal.Strategies.<Name>/` project, rename.
+1. Copy an existing `src/windows/Strategies/TradingTerminal.Strategies.<Name>/` project, rename.
 2. Implement `IBacktestStrategy` for the engine-side logic (in `Infrastructure/Backtest/Strategies/<Name>Strategy.cs`).
 3. The new project's view-model extends `LiveSignalStrategyViewModelBase` and constructs the engine class in `BuildStrategy(contract)`.
 4. Register in `App.xaml.cs` via `services.AddXxxStrategy()`.
@@ -44,7 +50,7 @@ The `MarketDataRepository`, `ConnectionManager`, every view-model, and every str
 
 ## Adding a new notification transport
 
-1. Add a class implementing `INotificationTransport` in `src/TradingTerminal.Infrastructure/Notifications/<Channel>/<Channel>Transport.cs`. Inject `IOptionsMonitor<NotificationsOptions>` and `IHttpClientFactory`.
+1. Add a class implementing `INotificationTransport` in `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/<Channel>/<Channel>Transport.cs`. Inject `IOptionsMonitor<NotificationsOptions>` and `IHttpClientFactory`.
 2. Extend `NotificationsOptions` (Core) with a nested `<Channel>Options` record holding `Enabled`, channel-specific creds, and `IncludeIdleSignals`.
 3. Register the named `HttpClient` and the transport in `NotificationsServiceCollectionExtensions.AddNotifications`. The dispatcher auto-discovers transports via `IEnumerable<INotificationTransport>`.
 4. Add a Settings tab block in `NotificationsSettingsView.xaml` and `NotificationsSettingsViewModel`. The `notifications.json` writer auto-picks up the new section as long as it's a top-level key under `Notifications`.
@@ -92,7 +98,7 @@ If you find yourself adding a `Dispatcher.Invoke` outside `MarketDataRepository`
 ## Tests
 
 ```powershell
-dotnet test
+dotnet test TradingTerminal.Windows.slnx   # or TradingTerminal.Linux.slnx
 ```
 
 - `xUnit` + `FluentAssertions` + `NSubstitute`.

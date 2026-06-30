@@ -8,13 +8,9 @@ For the polyglot architecture rationale, see [polyglot.md](polyglot.md).
 
 ## Screenshots
 
-| AI Market Analyst | ML features |
-|---|---|
-| ![AI Market Analyst](../images/almarketanalystwindow.png) | ![ML features](../images/mlfeatureswindow.png) |
-| Backtest analysis | Factor research |
-| ![Backtest analysis](../images/backtestanalysiswindow.png) | ![Factor research](../images/factorresearchwindow.png) |
-
-> 🎬 _Video walkthroughs (Market analyst · Factor research · ML features · Backtest analysis) — coming soon_
+> 🖼️ **Screenshot:** `images/ai-marketanalyst.png` — the analyst's indicator / pattern / trend columns + the LONG / SHORT / NO-CALL verdict.
+> 🖼️ **Screenshot:** `images/ai-factorresearch.png` · `images/ai-mlfeatures.png` · `images/ai-backtestanalysis.png` — the other three AI tool windows.
+> 🎬 **Video:** `images/video/ai-analyst.mp4` — asking the analyst for a read on an instrument.
 
 > Each of these four **AI tools** opens as its own window (`AI tools` menu): Market analyst, Factor research, ML features, Backtest analysis.
 
@@ -57,7 +53,7 @@ The service binds to `127.0.0.1` only — never to `0.0.0.0`. Loopback-only + pr
 
 ### 3. Wire it up in the terminal
 
-**Tools → Settings → Notifications**, scroll to the **AI Market Analyst** block:
+**Settings → Notifications**, scroll to the **AI Market Analyst** block:
 
 - Tick **Enabled**.
 - Set the endpoint to `http://127.0.0.1:8765`.

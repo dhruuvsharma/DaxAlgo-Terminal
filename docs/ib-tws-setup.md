@@ -231,7 +231,7 @@ If you can't find your symbol in the picker dropdown:
   if your symbol isn't there but TWS knows it, you can subscribe by constructing the contract
   manually — but the picker won't show it. The catalog is a UX-affordance, not an allowlist.
 - For US equities not in the catalog, edit
-  `src/TradingTerminal.Infrastructure/Ib/IbCuratedCatalog.cs` and add a row to the appropriate
+  `src/windows/Pipeline/TradingTerminal.Infrastructure/Ib/IbCuratedCatalog.cs` and add a row to the appropriate
   list (`Sp500Heavyweights()` is the easiest place).
 
 For cTrader, the picker shows **every symbol the connected cTID account has permissions for**.

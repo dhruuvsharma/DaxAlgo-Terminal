@@ -1,26 +1,45 @@
 # Market regime composite
 
-> Last updated: 2026-06-18
+> Last updated: 2026-06-30
 
 A broker-independent **risk-on / risk-off score** (0–100, five bands: Extreme Fear → Extreme Greed) blended from ten weighted sub-signals: volatility, positioning, trend, breadth, momentum, credit, liquidity, macro, sentiment, cross-asset. Inputs come from free public endpoints — nothing depends on which broker is connected.
 
-> 📐 The scoring/weighting math for this composite, the Markov-regime transition matrix, and the Advanced-regime indicator stack is in the [Methods & math reference](math-reference.md#3-tool-math).
+### In plain terms
+
+Think of one **mood ring for the whole market**. Instead of looking at a single stock, it pulls a
+handful of free public gauges — how scared options traders are (VIX), whether prices are above their
+long-term average, credit spreads, sentiment surveys — and boils them into a single number from **0
+(extreme fear)** to **100 (extreme greed)**. You don't trade this number directly; you use it as a
+**safety switch**: for example, "don't send me buy alerts while the whole market is in panic mode."
+It's a risk-management backdrop, not a strategy.
+
+There are **two separate things** in this doc, and it's worth keeping them straight:
+
+1. **The macro composite** (this 0–100 mood score) — a background service that powers the signal gate
+   and regime-change alerts. It has **no window of its own** in the current build.
+2. **The Advanced market regime board** (Tools → Advanced market regime) — a per-instrument,
+   multi-timeframe indicator grid you open and look at. Covered at the [end of this page](#advanced-market-regime-board).
+
+> 📐 The scoring/weighting math for this composite and the Advanced-regime indicator stack is in the [Methods & math reference](math-reference.md#3-tool-math).
 
 For all `MarketRegime:*` keys, see [configuration.md](configuration.md). For how the gate interacts with the notification pipeline, see [notifications.md](notifications.md).
 
-## Screenshots
+## How the composite is surfaced
 
-| Composite regime | Per-instrument regime |
-|---|---|
-| ![Market regime](../images/marketregimewindow.png) | ![Instrument regime](../images/instrumentregime.png) |
+The macro composite runs as a **background service**. It refreshes on a timer and feeds two things:
 
-> 🎬 _Video walkthrough — coming soon_
+- the optional **risk-off signal gate** — suppress outbound alerts when the market is risk-off
+  (configured below), and
+- **regime-change notifications** — an alert when the band flips (e.g. Greed → Fear).
 
-## Where to open it
+It exposes its latest snapshot through `IMarketRegimeProvider` (see [Code reference](#code-reference)),
+so any window or strategy can read the current score, band, and macro header metrics (10Y yield, HY
+spread, Fed funds). **In the current build there is no dedicated composite window** — the score lives
+in the notification pipeline and configuration; the on-screen regime tool is the
+[Advanced market regime board](#advanced-market-regime-board).
 
-**Tools → Market regime** opens a window showing the composite as a 0–100 gauge with the five bands, plus the per-category breakdown and a header strip of macro metrics (10Y yield, HY spread, Fed funds).
-
-The panel shows "unavailable" until the first refresh lands. If every source fails, the composite degrades to neutral 50 with the same flag, rather than crashing.
+If every source fails, the composite degrades to a neutral 50 (flagged `Unavailable`) rather than
+crashing.
 
 ## Inputs
 
@@ -90,12 +109,11 @@ The actual math lives in `Core/Regime/MarketRegimeCalculator` — a pure functio
 
 The exact boundaries are in `RegimeStateMapper` (Core).
 
-## Advanced market regime dashboard
+## Advanced market regime board
 
-**Tools → Advanced market regime…** opens a separate, per-instrument dashboard window — a WPF port of a TradingView-style multi-timeframe indicator board, independent of the macro composite above.
+**Tools → Advanced market regime…** opens a per-instrument indicator board — a TradingView-style multi-timeframe grid, independent of the macro composite above. **In plain terms:** for one instrument it shows whether a whole panel of indicators reads "up", "down", or "neutral" across eight timeframes at once, so you can see instantly whether the timeframes agree (strong signal) or disagree (chop).
 
-> 🖼️ _Screenshot — coming soon_
-> 🎬 _Video walkthrough — coming soon_
+> 🖼️ **Screenshot:** `images/tool-advancedregime.png` — the 18-row × 8-timeframe board, colour-coded, with the composite Trend needle.
 
 - **18 indicator rows**: RSI, MACD, CCI, MA 9/21/50, 3-MA stack, VWAP, SuperTrend, ATR, ATR regression, STD, POC, TRD, delta, cumulative delta, volume buy/sell, and a composite **Trend** needle.
 - **8 toggleable timeframe columns** from 1m to 1D, including aggregated 20m/30m buckets (timeframes are `TimeSpan` buckets aggregated from 1m + 1D bars, not broker `BarSize` requests).
@@ -103,7 +121,7 @@ The exact boundaries are in `RegimeStateMapper` (Core).
 
 Each cell is colored bullish / bearish / neutral so you can read trend agreement across timeframes at a glance. Data comes from `IMarketDataRepository` history — it works against any connected broker (or the local store).
 
-Code: pure math + models in `Core/MarketData/AdvancedRegime/` (calculator, bar indicators, `BarTimeframeAggregator`), `AdvancedRegimeService` in Infrastructure, window in `src/TradingTerminal.AdvancedMarketRegime/`.
+Code: pure math + models in `Core/MarketData/AdvancedRegime/` (calculator, bar indicators, `BarTimeframeAggregator`), `AdvancedRegimeService` in Infrastructure, window in `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/` (with the Avalonia mirror under `src/linux/Tools/`).
 
 ## Limitations
 

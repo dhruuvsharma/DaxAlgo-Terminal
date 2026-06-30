@@ -1,8 +1,25 @@
 # Charts & order-flow windows
 
-> Last updated: 2026-06-18
+> Last updated: 2026-06-30
 
-Reference for every window under the **Charts** menu: what it shows, what it needs, and every input/parameter it exposes. Each opens as its own window, streams through the canonical pipeline (`IMarketDataHub` / `IMarketDataIngest` — never a broker SDK directly), and uses the shared instrument picker (one global catalog; see [user-guide.md](user-guide.md#add-an-instrument-to-the-catalog)).
+### In plain terms
+
+The **Charts** menu holds four ways to *look* at a market, from familiar to exotic:
+
+- **Charts** — an ordinary candlestick price chart with moving-average / RSI / MACD overlays. If
+  you've used any trading app, this is the one you already know. *(Windows build only.)*
+- **Order book** — the live queue of resting buy and sell orders ("Level 2 / depth"): who's waiting to
+  buy or sell, at what price, and in what size.
+- **Volume footprint** — instead of just price, it shows *how much* traded at *each price* inside each
+  bar, split into aggressive buying vs selling — so you can see where the real activity happened.
+- **Bookmap + VolBook** — the "x-ray" view: a colour heatmap of where liquidity is sitting in the
+  order book over time, with every trade printed on top, plus a volume profile and a running
+  buy-minus-sell line. It's the most information-dense window in the app.
+
+You don't need to read all four; pick the one that matches what you're trying to see. The rest of this
+page is the precise reference.
+
+Reference for every window under the **Charts** menu: what it shows, what it needs, and every input/parameter it exposes. Each opens as its own window, streams through the canonical pipeline (`IMarketDataHub` / `IMarketDataIngest` — never a broker SDK directly), and uses the shared instrument picker (one global catalog; see [user-guide.md](user-guide.md#8-customisations)).
 
 > 📐 **The math** behind the footprint imbalance rule, regression fits, heatmap √-compression, VWAP, CVD, and value area is collected in the [Methods & math reference](math-reference.md#4-chart-math).
 
@@ -19,6 +36,10 @@ Reference for every window under the **Charts** menu: what it shows, what it nee
 A window opened against a broker that can't serve its feed reports it in the status line (footprint falls back to a synthetic tape; Bookmap's volume features stay empty until a tape is present). **Note:** IB depth (`reqMktDepth`) is not yet wired — IB serves L1 + tape but not the L2 order book.
 
 ## Charts (TradingView-style)
+
+> **Windows build only.** This window renders through WebView2 (an embedded browser), which is a
+> Windows component — so it ships only in the WPF tree. The other three Charts windows run on both
+> builds.
 
 **Charts → Charts…** — candlestick charting rendered by Lightweight Charts inside a WebView2; all numbers are computed in C# (`Core` indicators), so chart, backtest, and live values agree.
 
@@ -136,11 +157,11 @@ Needs **L2** for the heatmap/DOM; the volume features need the **trade tape**.
 
 Each project carries its own README with the full setting/color/math detail:
 
-| What | Where | Per-project README |
+| What | Where (Windows tree; Linux mirrors under `src/linux/Charts/`) | Per-project README |
 |---|---|---|
-| Charts window | `src/TradingTerminal.Charts/` (WebView2 assets under `Assets/`) | [README](../src/TradingTerminal.Charts/README.md) |
-| Order book | `src/TradingTerminal.OrderBook/` | [README](../src/TradingTerminal.OrderBook/README.md) |
-| Volume footprint | `src/TradingTerminal.VolumeFootprint/` (bar math: `FootprintFeatures` in Core; fits: `Core/Quant/CurveFitting.cs`) | [README](../src/TradingTerminal.VolumeFootprint/README.md) — incl. the regression-fit and predictor math |
-| Bookmap + VolBook | `src/TradingTerminal.Heatmap/` (`BookmapHeatmapViewModel` data engine + `BookmapHeatmapWindow` rendering) | [README](../src/TradingTerminal.Heatmap/README.md) |
+| Charts window *(Windows only)* | `src/windows/Charts/TradingTerminal.Charts/` (WebView2 assets under `Assets/`) | [README](../src/windows/Charts/TradingTerminal.Charts/README.md) |
+| Order book | `src/windows/Charts/TradingTerminal.OrderBook/` | [README](../src/windows/Charts/TradingTerminal.OrderBook/README.md) |
+| Volume footprint | `src/windows/Charts/TradingTerminal.VolumeFootprint/` (bar math: `FootprintFeatures` in Core; fits: `Core/Quant/CurveFitting.cs`) | [README](../src/windows/Charts/TradingTerminal.VolumeFootprint/README.md) — incl. the regression-fit and predictor math |
+| Bookmap + VolBook | `src/windows/Charts/TradingTerminal.Heatmap/` (`BookmapHeatmapViewModel` data engine + `BookmapHeatmapWindow` rendering) | [README](../src/windows/Charts/TradingTerminal.Heatmap/README.md) |
 
-DI: each project ships an `Add…Surface()` extension called from `App.xaml.cs`.
+DI: each project ships an `Add…Surface()` extension called from the shell's `App` startup.
