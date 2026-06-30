@@ -35,7 +35,6 @@ using TradingTerminal.Backtest;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.LseBacktest;
 using TradingTerminal.Recording;
-using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ml.Stationarity;
 using TradingTerminal.Ml.ArimaGarch;
@@ -209,8 +208,7 @@ public partial class App : Application
                 // Managed local Python sidecar (daxalgo-ml): auto-launch on startup when AI/research is
                 // enabled, kill on exit, on-demand start from the login screen — no manual command.
                 services.AddSidecar(ctx.Configuration);
-                // Regime tools — Markov + Advanced market regime panels.
-                services.AddMarkovRegimeSurface();
+                // Regime tools — Advanced market regime panel.
                 services.AddAdvancedMarketRegimeSurface();
                 // Machine Learning menu — time-series statistics panels.
                 services.AddStationaritySurface();

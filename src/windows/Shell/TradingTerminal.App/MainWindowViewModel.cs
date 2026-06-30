@@ -22,7 +22,6 @@ using TradingTerminal.Backtest;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.LseBacktest;
 using TradingTerminal.Recording;
-using TradingTerminal.MarkovRegime;
 using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ml.Stationarity;
 using TradingTerminal.Ml.ArimaGarch;
@@ -59,7 +58,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string BacktestAnalysisWindowId = "ai.backtestanalysis";
     private const string AiAnalystWindowId = "ai.marketanalyst";
     private const string PaperLabWindowId = "ai.paperlab";
-    private const string MarkovRegimeWindowId = "tools.regime.markov";
     private const string AdvancedRegimeWindowId = "tools.regime.advanced";
     private const string StationarityWindowId = "ml.stationarity";
     private const string ArimaGarchWindowId = "ml.arimagarch";
@@ -676,10 +674,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void OpenBookmap() =>
         OpenWindowTool<BookmapHeatmapViewModel, BookmapHeatmapWindow>(BookmapWindowId, "Bookmap + VolBook", "Building the liquidity heatmap…");
-
-    [RelayCommand]
-    public void OpenMarkovRegime() =>
-        OpenHostedTool<MarkovRegimeViewModel, MarkovRegimeView>(MarkovRegimeWindowId, "Markov regime", "Building the Markov regime model…");
 
     [RelayCommand]
     public void OpenStationarity() =>

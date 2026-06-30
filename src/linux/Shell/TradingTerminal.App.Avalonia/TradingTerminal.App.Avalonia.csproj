@@ -38,7 +38,6 @@
     <ProjectReference Include="..\..\..\linux\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
     <!-- Tools windows. -->
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
-    <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.MarkovRegime\TradingTerminal.MarkovRegime.csproj" />
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
     <ProjectReference Include="..\..\..\linux\Tools\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj" />

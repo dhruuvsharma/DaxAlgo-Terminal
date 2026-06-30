@@ -31,7 +31,6 @@
   <Project Path="src/linux/Tools/TradingTerminal.BacktestStudio/TradingTerminal.BacktestStudio.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.Correlation/TradingTerminal.Correlation.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.LseBacktest/TradingTerminal.LseBacktest.csproj" />
-  <Project Path="src/linux/Tools/TradingTerminal.MarkovRegime/TradingTerminal.MarkovRegime.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.QuantConnect/TradingTerminal.QuantConnect.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.Recording/TradingTerminal.Recording.csproj" />
   <Project Path="src/linux/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />

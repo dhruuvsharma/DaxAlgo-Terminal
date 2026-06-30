@@ -342,8 +342,6 @@
                           Command="{Binding OpenBacktestStudioCommand}" />
                 <MenuItem Header="_Record live ticks…"
                           Command="{Binding OpenRecorderCommand}" />
-                <MenuItem Header="Mar_kov regime…"
-                          Command="{Binding OpenMarkovRegimeCommand}" />
                 <MenuItem Header="_Advanced market regime…"
                           Command="{Binding OpenAdvancedRegimeCommand}" />
                 <MenuItem Header="_Correlation matrix…"

@@ -15,7 +15,7 @@ namespace TradingTerminal.Ml.Stationarity;
 /// of historical bars, applies the selected transform (level / log / first difference / log
 /// returns / fractional difference), and runs ADF + KPSS off the UI thread. The view draws the
 /// transformed series with rolling mean ± 2σ bands and the ACF on the <see cref="Updated"/>
-/// event (the sanctioned ScottPlot-in-MVVM pattern, same as the Markov regime tool). It also
+/// event (the sanctioned ScottPlot-in-MVVM pattern). It also
 /// sweeps ADF across all transforms to recommend the mildest stationary one — the practical
 /// "what d do I feed ARIMA?" answer.
 /// </summary>

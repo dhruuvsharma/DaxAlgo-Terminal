@@ -161,7 +161,6 @@
         <MenuItem Header="_Backtest…" Click="OnBacktest" />
         <MenuItem Header="_Backtest Studio…" Click="OnBacktestStudio" />
         <MenuItem Header="_Record live ticks…" Click="OnRecorder" />
-        <MenuItem Header="Mar_kov regime…" Click="OnMarkovRegime" />
         <MenuItem Header="_Advanced market regime…" Click="OnAdvancedRegime" />
         <MenuItem Header="_Correlation matrix…" Click="OnCorrelation" />
         <MenuItem Header="_Live correlation matrix…" Click="OnLiveCorrelation" />

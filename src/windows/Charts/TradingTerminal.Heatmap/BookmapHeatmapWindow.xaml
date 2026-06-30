@@ -24,7 +24,7 @@
         <!-- Title -->
         <StackPanel Grid.Row="0">
             <TextBlock Text="Bookmap + VolBook" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="Live microstructure surface — L2 liquidity heatmap (dark → bright = more resting size), trade dots (green buy / red sell, sized by volume; large lots outlined, refilling icebergs ringed), SVP (session range volume profile, POC + value area), developing VWAP, a CVD panel with per-column delta bars, CAV (cumulative average volume), and COB (the current order-book column) down the right edge, with a hover crosshair. Pause to scrub history; scroll-wheel to zoom price, double-click to reset. Needs L2; volume features need the tape."
+            <TextBlock Text="Live microstructure surface — L2 liquidity heatmap (teal bid / red ask, brighter = more resting size), trade dots (green buy / red sell, sized by volume; large lots outlined, refilling icebergs ringed), SVP (session range volume profile, POC + value area), developing VWAP, a CVD panel with per-column delta bars, CAV (cumulative average volume), and COB (the current order-book column) down the right edge, with a hover crosshair. Pause to scrub history; scroll-wheel to zoom price, double-click to reset. Needs L2; volume features need the tape."
                        Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,0" />
         </StackPanel>
 

@@ -34,6 +34,10 @@ public sealed class BookmapSurface : FrameworkElement
 
     // Fixed dark palette (this is a "lights-off" microstructure view, theme-independent).
     private static readonly Color EmptyCell = Color.FromRgb(0x0A, 0x0A, 0x0F);
+    // Heatmap cell base colours — teal bid / red ask, matching the Order Book window's liquidity
+    // field. Each cell is the side colour alpha-blended over EmptyCell, intensity ∝ resting size.
+    private static readonly Color BidCellColor = Color.FromRgb(0x26, 0xA6, 0x9A);
+    private static readonly Color AskCellColor = Color.FromRgb(0xEF, 0x53, 0x50);
     private static readonly Brush SurfaceBack = Frozen(new SolidColorBrush(Color.FromRgb(0x0A, 0x0A, 0x0F)));
     private static readonly Brush BuyBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x26, 0xA6, 0x9A)));
     private static readonly Brush SellBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xEF, 0x53, 0x50)));
@@ -74,17 +78,6 @@ public sealed class BookmapSurface : FrameworkElement
 
     private static readonly Brush PocBrush = FrozenBrush(Color.FromArgb(0xE6, 0xFF, 0x8F, 0x00));
     private static readonly Brush ValueAreaBrush = FrozenBrush(Color.FromArgb(0xC0, 0x42, 0xA5, 0xF5));
-
-    private static readonly (double T, Color C)[] Magma =
-    {
-        (0.00, Color.FromRgb(0x05, 0x01, 0x0A)),
-        (0.18, Color.FromRgb(0x33, 0x0A, 0x5C)),
-        (0.38, Color.FromRgb(0x78, 0x1C, 0x6D)),
-        (0.58, Color.FromRgb(0xBA, 0x36, 0x55)),
-        (0.78, Color.FromRgb(0xF1, 0x70, 0x5C)),
-        (0.92, Color.FromRgb(0xFE, 0xB1, 0x77)),
-        (1.00, Color.FromRgb(0xFC, 0xFD, 0xBF)),
-    };
 
     private static readonly Typeface MonoFace = new("Consolas");
 
@@ -215,24 +208,38 @@ public sealed class BookmapSurface : FrameworkElement
     private void DrawHeatmap(DrawingContext dc, IReadOnlyList<DepthSnapshot> all, double hmW, double hmH)
     {
         int cols = _vis;
-        var size = new double[PriceRows * cols];
+        var bid = new double[PriceRows * cols];
+        var ask = new double[PriceRows * cols];
         double maxSize = 0;
         double span = _pMax - _pMin;
         for (int c = 0; c < cols; c++)
         {
             var snap = all[_start + c];
-            foreach (var l in snap.Bids) Accumulate(l, c);
-            foreach (var l in snap.Asks) Accumulate(l, c);
+            foreach (var l in snap.Bids) Accumulate(bid, l, c);
+            foreach (var l in snap.Asks) Accumulate(ask, l, c);
         }
         if (maxSize <= 0) maxSize = 1;
 
+        // Colour each cell by the dominant side (teal bid / red ask), alpha-scaled by resting size and
+        // composited over the dark background — the same liquidity-field look as the Order Book window.
         var pixels = new byte[PriceRows * cols * 4];
         for (int r = 0; r < PriceRows; r++)
             for (int c = 0; c < cols; c++)
             {
-                double s = size[r * cols + c];
-                Color col = s <= 0 ? EmptyCell : Sample(Math.Sqrt(s / maxSize));
-                int i = (r * cols + c) * 4;
+                int idx = r * cols + c;
+                double b = bid[idx], a = ask[idx];
+                Color col;
+                if (b <= 0 && a <= 0)
+                {
+                    col = EmptyCell;
+                }
+                else
+                {
+                    bool isBid = b >= a;
+                    double s = isBid ? b : a;
+                    col = BlendCell(isBid ? BidCellColor : AskCellColor, s / maxSize);
+                }
+                int i = idx * 4;
                 pixels[i + 0] = col.B;
                 pixels[i + 1] = col.G;
                 pixels[i + 2] = col.R;
@@ -244,15 +251,27 @@ public sealed class BookmapSurface : FrameworkElement
         bmp.Freeze();
         dc.DrawImage(bmp, new Rect(_hmLeft, _hmTop, hmW, hmH));
 
-        void Accumulate(DepthLevel l, int c)
+        void Accumulate(double[] target, DepthLevel l, int c)
         {
             if (l.Price < _pMin || l.Price > _pMax) return;
             int r = (int)Math.Round((_pMax - l.Price) / span * (PriceRows - 1));
             if (r < 0 || r >= PriceRows) return;
             int idx = r * cols + c;
-            size[idx] += l.Size;
-            if (size[idx] > maxSize) maxSize = size[idx];
+            target[idx] += l.Size;
+            if (target[idx] > maxSize) maxSize = target[idx];
         }
+    }
+
+    /// <summary>Side colour alpha-blended over the dark <see cref="EmptyCell"/> background, with the
+    /// alpha ramp (30→230) matching the Order Book window's liquidity cells. <paramref name="frac"/> is
+    /// the cell's resting size as a fraction of the visible-window maximum.</summary>
+    private static Color BlendCell(Color side, double frac)
+    {
+        double a = (30.0 + 200.0 * Math.Clamp(frac, 0, 1)) / 255.0;
+        return Color.FromRgb(
+            (byte)(side.R * a + EmptyCell.R * (1 - a)),
+            (byte)(side.G * a + EmptyCell.G * (1 - a)),
+            (byte)(side.B * a + EmptyCell.B * (1 - a)));
     }
 
     /// <summary>SVP — Session Range Volume Profile: a left-edge volume-at-price histogram for the whole
@@ -692,24 +711,6 @@ public sealed class BookmapSurface : FrameworkElement
         double frac = (_pMax - price) / (_pMax - _pMin);
         return _hmTop + Math.Clamp(frac, 0, 1) * (_hmBottom - _hmTop);
     }
-
-    private Color Sample(double t)
-    {
-        t = Math.Clamp(t, 0, 1);
-        for (int i = 1; i < Magma.Length; i++)
-        {
-            if (t <= Magma[i].T)
-            {
-                var (t0, c0) = Magma[i - 1];
-                var (t1, c1) = Magma[i];
-                double f = (t - t0) / (t1 - t0);
-                return Color.FromRgb(Lerp(c0.R, c1.R, f), Lerp(c0.G, c1.G, f), Lerp(c0.B, c1.B, f));
-            }
-        }
-        return Magma[^1].C;
-    }
-
-    private static byte Lerp(byte a, byte b, double f) => (byte)(a + (b - a) * Math.Clamp(f, 0, 1));
 
     private static Brush Frozen(SolidColorBrush b) { b.Freeze(); return b; }
     private static Brush FrozenBrush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }

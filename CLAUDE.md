@@ -59,7 +59,7 @@ Core           → (nothing)
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
 | AI tool windows (one project each) — Market analyst, factor research, ML features, backtest analysis | `TradingTerminal.Ai.<Name>` (`MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`) |
 | Per-strategy live windows (10) | `TradingTerminal.Strategies.<Name>` |
-| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`MarkovRegime`/`Backtest`/`Recording`) |
+| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`Backtest`/`Recording`) |
 | Machine Learning menu windows (one project each) — time-series stats over historical bars; math lives in `Core/Quant/TimeSeries/` | `TradingTerminal.Ml.<Name>` (`Stationarity`/`ArimaGarch`/`KalmanFilter`) |
 | Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
@@ -99,7 +99,7 @@ Per-tool projects: the App shell no longer hosts tool windows — each tool is i
 | `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML (the shell is plain MahApps windows — no docking framework). |
 | `memory-safety` | Adding/editing any tool/chart/strategy/AI window or streaming VM — bounded channels, batch-drain, coalesced redraw, IDisposable teardown so a feed can't pile up RAM. The `leakcheck-on-stop` hook enforces a subset. |
 | `software-architecture` | Planning multi-project work — decomposition, design-pattern catalog, the plan contract. The `manager` agent loads this. |
-| `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (`Strategies.*`, Correlation, MarkovRegime). |
+| `quant-math` | Touching OU/correlation/PCA/3D-geometry/VPIN/Markov/vol math (`Strategies.*`, Correlation). |
 | `skill-author` | Adding/fixing a skill — frontmatter, "pushy" triggering, bespoke-vs-external + the licensing rule. |
 | `paper-reproduction` | The Paper Lab pipeline — paper → sandboxed repro → bridge into the backtest engine as a paper-tagged strategy (`Core/Research/`, `Infrastructure/Research/`, `Ai.PaperLab`). The `paper-repro` agent loads this. |
 | `untrusted-execution` | Running untrusted third-party/paper code safely — deny-by-default Docker/WSL2/VM sandbox, egress allowlist, quotas, kill-tree, never in-process. Load before touching `Infrastructure/Research/Sandbox/` or `ISandboxRunner`. |

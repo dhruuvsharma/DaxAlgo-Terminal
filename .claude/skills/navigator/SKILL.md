@@ -22,7 +22,7 @@ Layer graph (acyclic): `Core ← MarketData ← Infrastructure ← {Login, Ai, A
 | `TradingTerminal.Ai.<Name>` | One AI tool window per project + its `Add<Name>()` extension: `Ai.MarketAnalyst`, `Ai.FactorResearch`, `Ai.MlFeatures`, `Ai.BacktestAnalysis`. |
 | `TradingTerminal.Ml.<Name>` | One ML window per project (time-series stats over historical bars; math in `Core/Quant/TimeSeries/`): `Ml.Stationarity`, `Ml.ArimaGarch`, `Ml.KalmanFilter`. |
 | `TradingTerminal.Strategies.<Name>` | Per-strategy live window + VM + `ITradingStrategy` descriptor + `Add<Name>Strategy()`. **12 of them** (incl. OrderFlowPressureMap — a multi-ticker monitor strategy; strategy-shaped things NEVER become tool projects). |
-| `TradingTerminal.<Name>` (tool projects) | One tool window per project + its `Add…Surface` extension: `Charts`, `OrderBook`, `VolumeFootprint`, `Heatmap` (Bookmap + VolBook), `Correlation`, `MarketRegime`, `InstrumentRegime`, `MarkovRegime`, `AdvancedMarketRegime`, `Backtest`, `Recording`, plus `QuantConnect`. Each refs Core/UI/Infrastructure; opened from App via `IServiceProvider`. |
+| `TradingTerminal.<Name>` (tool projects) | One tool window per project + its `Add…Surface` extension: `Charts`, `OrderBook`, `VolumeFootprint`, `Heatmap` (Bookmap + VolBook), `Correlation`, `MarketRegime`, `InstrumentRegime`, `AdvancedMarketRegime`, `Backtest`, `Recording`, plus `QuantConnect`. Each refs Core/UI/Infrastructure; opened from App via `IServiceProvider`. |
 | `TradingTerminal.App` | `App.xaml.cs` (composition root + `OnStartup`), `Composition/AppDependencyInjection.cs` (`AddStrategyPlugins`/`AddShell`/`AddSettingsSurface`/`AddArchiveSurface` — tool surfaces now live in their own projects), `Shell/` (MainWindow, factories, **`ToolHostWindow`** — generic host for UserControl-view tools; AvalonDock + DockTab removed), `MainWindow.xaml(.cs)` (top menu incl. **Charts** menu; full-width strategy catalog + bottom activity-log drawer), `MainWindowViewModel`, `Notifications/`, `Archive/`, broker-meter. Thin shell — tools moved out. |
 | `TradingTerminal.Backtest.Cli` | `daxalgo-backtest` headless CLI (`Program.cs`: run/synth/sweep/walkforward/mc/tca/features). |
 
@@ -41,7 +41,7 @@ Layer graph (acyclic): `Core ← MarketData ← Infrastructure ← {Login, Ai, A
 ## DI entry points (called from `App.xaml.cs`)
 
 Infrastructure/pipeline: `AddInfrastructure` · `AddMarketDataPipeline` · `AddMarketDataArchive` · `AddMarketRegime` (provider/refresh, Infrastructure) · `AddNotifications` · `AddStrategyPlugins` · `AddLogin` · `AddShell` · `AddSettingsSurface` · `AddArchiveSurface`.
-Tool surfaces (each defined in its own project): `AddBacktestSurface` · `AddRecordingSurface` · `AddCorrelationSurface` · `AddChartsSurface` · `AddOrderBookSurface` · `AddFootprintSurface` · `AddMarketRegimeSurface` · `AddInstrumentRegimeSurface` · `AddMarkovRegimeSurface`.
+Tool surfaces (each defined in its own project): `AddBacktestSurface` · `AddRecordingSurface` · `AddCorrelationSurface` · `AddChartsSurface` · `AddOrderBookSurface` · `AddFootprintSurface` · `AddMarketRegimeSurface` · `AddInstrumentRegimeSurface`.
 AI (shared seam + per-tool): `AddAiAnalyst` (seam, in `TradingTerminal.Ai`) · `AddMarketAnalyst` · `AddFactorResearch` · `AddMlFeatures` · `AddBacktestAnalysis`.
 
 ## Build / test

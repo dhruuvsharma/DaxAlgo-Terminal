@@ -7,7 +7,7 @@ namespace TradingTerminal.UI.Controls;
 
 /// <summary>
 /// The shared instrument dropdown used everywhere — every strategy window and the App tools
-/// (regime / Markov / recorder). Bundles a search box + a ComboBox whose rows show the clean
+/// (regime / recorder). Bundles a search box + a ComboBox whose rows show the clean
 /// symbol plus coloured pills (broker · asset class · data types). The owning view-model still
 /// owns the data and filtering; this control just binds to <see cref="ItemsSource"/> (the
 /// filtered list), <see cref="SelectedInstrument"/>, and <see cref="SearchText"/>.
