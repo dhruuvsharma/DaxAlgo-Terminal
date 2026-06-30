@@ -46,6 +46,7 @@
     <Project Path="src/windows/AI/TradingTerminal.Ai.PaperLab/TradingTerminal.Ai.PaperLab.csproj" />
   </Folder>
   <Folder Name="/Charts/">
+    <Project Path="src/windows/Charts/TradingTerminal.BubbleChart/TradingTerminal.BubbleChart.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.Heatmap/TradingTerminal.Heatmap.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />

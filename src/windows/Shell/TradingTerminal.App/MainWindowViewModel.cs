@@ -16,6 +16,7 @@ using TradingTerminal.App.Shell;
 using TradingTerminal.Charts;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
+using TradingTerminal.BubbleChart;
 using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
@@ -69,6 +70,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string OrderBookWindowId = "tools.orderbook";
     private const string FootprintWindowId = "tools.footprint";
     private const string BookmapWindowId = "tools.heatmap.bookmap";
+    private const string BubbleChartWindowId = "charts.bubbleline";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
@@ -674,6 +676,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void OpenBookmap() =>
         OpenWindowTool<BookmapHeatmapViewModel, BookmapHeatmapWindow>(BookmapWindowId, "Bookmap + VolBook", "Building the liquidity heatmap…");
+
+    // Experimental: price line + per-bar growing volume bubble. Kept separate from the live charts.
+    [RelayCommand]
+    public void OpenBubbleChart() =>
+        OpenWindowTool<BubbleChartViewModel, BubbleChartWindow>(BubbleChartWindowId, "Volume bubble line", "Building the volume-bubble line…");
 
     [RelayCommand]
     public void OpenStationarity() =>
