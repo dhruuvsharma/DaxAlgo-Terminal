@@ -1,0 +1,130 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════
+         GREEK — "Marble" (light). An editorial, museum-daylight palette inspired by ancient Greece:
+         Pentelic marble and aged parchment for the surfaces, warm charcoal ink for text, and a
+         terracotta/amphora accent (the "orange spark" of the reference). P&L is kept thematic yet
+         legible — laurel-olive up, wine-dark (Homer's oínops) down, antique-gold warning.
+
+         Defines EXACTLY the same key set as Brushes.xaml so ThemeManager can hot-swap it in. This is
+         the app's first LIGHT palette, so it also flips the core MahApps native surfaces (window /
+         control / flyout background + foreground) to marble — the custom shell is already fully
+         token-driven, so everything else follows automatically.
+         ═══════════════════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Backgrounds — marble canvas, cleaner marble panels, pure-marble elevated cards -->
+    <Color x:Key="Background.Primary.Color">#F2F0EA</Color>
+    <Color x:Key="Background.Surface.Color">#FAF8F3</Color>
+    <Color x:Key="Background.Elevated.Color">#FFFFFF</Color>
+    <Color x:Key="Border.Color">#DAD3C5</Color>
+
+    <!-- Text — charcoal ink, faded-ink secondary, near-black display headers -->
+    <Color x:Key="Text.Primary.Color">#2B2620</Color>
+    <Color x:Key="Text.Secondary.Color">#79705F</Color>
+    <Color x:Key="Text.Header.Color">#211C16</Color>
+    <Color x:Key="Text.Highlight.Color">#B4471F</Color>
+
+    <!-- Semantic — terracotta accent; laurel/wine P&L; antique-gold warning -->
+    <Color x:Key="Accent.Color">#DB5A2B</Color>
+    <Color x:Key="Accent.Dim.Color">#A8421C</Color>
+    <Color x:Key="Bullish.Color">#6E7A38</Color>
+    <Color x:Key="Bearish.Color">#8E2C3A</Color>
+    <Color x:Key="Danger.Color">#A02B24</Color>
+    <Color x:Key="Warning.Color">#B98A2E</Color>
+
+    <!-- SolidColorBrush wrappers -->
+    <SolidColorBrush x:Key="Background.Primary"  Color="{StaticResource Background.Primary.Color}" />
+    <SolidColorBrush x:Key="Background.Surface"  Color="{StaticResource Background.Surface.Color}" />
+    <SolidColorBrush x:Key="Background.Elevated" Color="{StaticResource Background.Elevated.Color}" />
+    <SolidColorBrush x:Key="Border.Brush"        Color="{StaticResource Border.Color}" />
+    <SolidColorBrush x:Key="Text.Primary"        Color="{StaticResource Text.Primary.Color}" />
+    <SolidColorBrush x:Key="Text.Secondary"      Color="{StaticResource Text.Secondary.Color}" />
+    <SolidColorBrush x:Key="Text.Header"         Color="{StaticResource Text.Header.Color}" />
+    <SolidColorBrush x:Key="Text.Highlight"      Color="{StaticResource Text.Highlight.Color}" />
+    <SolidColorBrush x:Key="Accent.Brush"        Color="{StaticResource Accent.Color}" />
+    <SolidColorBrush x:Key="Accent.Dim.Brush"    Color="{StaticResource Accent.Dim.Color}" />
+    <SolidColorBrush x:Key="Bullish.Brush"       Color="{StaticResource Bullish.Color}" />
+    <SolidColorBrush x:Key="Bearish.Brush"       Color="{StaticResource Bearish.Color}" />
+    <SolidColorBrush x:Key="Danger.Brush"        Color="{StaticResource Danger.Color}" />
+    <SolidColorBrush x:Key="Warning.Brush"       Color="{StaticResource Warning.Color}" />
+
+    <!-- Extra flat colours -->
+    <Color x:Key="Surface.Hover.Color">#ECE7DC</Color>
+    <Color x:Key="Border.Strong.Color">#C6BCA9</Color>
+    <Color x:Key="Accent.Hover.Color">#EA6E3E</Color>
+
+    <SolidColorBrush x:Key="Surface.Hover" Color="{StaticResource Surface.Hover.Color}" />
+    <SolidColorBrush x:Key="Border.Strong" Color="{StaticResource Border.Strong.Color}" />
+    <SolidColorBrush x:Key="Accent.Hover.Brush" Color="{StaticResource Accent.Hover.Color}" />
+
+    <!-- Soft (alpha) semantic fills — for pills / chips / cell washes -->
+    <SolidColorBrush x:Key="Accent.Soft"    Color="#26DB5A2B" />
+    <SolidColorBrush x:Key="Bullish.Soft"   Color="#266E7A38" />
+    <SolidColorBrush x:Key="Bearish.Soft"   Color="#268E2C3A" />
+    <SolidColorBrush x:Key="Warning.Soft"   Color="#26B98A2E" />
+    <SolidColorBrush x:Key="Highlight.Soft" Color="#26DB5A2B" />
+
+    <!-- Vertical surface gradients (chrome bars, panels, cards) — subtle warm marble -->
+    <LinearGradientBrush x:Key="Gradient.Chrome" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FBF9F4" Offset="0" />
+        <GradientStop Color="#EFEBE2" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.Elevated" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFFFFF" Offset="0" />
+        <GradientStop Color="#F6F3EC" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.Surface" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FAF8F2" Offset="0" />
+        <GradientStop Color="#F0ECE3" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Parchment header wash (left→right) for card/section headers -->
+    <LinearGradientBrush x:Key="Gradient.Header" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#F4EFE4" Offset="0" />
+        <GradientStop Color="#EAE3D5" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Terracotta gradients for primary buttons / active states -->
+    <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#EA6E3E" Offset="0" />
+        <GradientStop Color="#DB5A2B" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.AccentHover" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#F0824F" Offset="0" />
+        <GradientStop Color="#E36236" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Typographic constants (kept monospace — numeric columns rely on it) -->
+    <FontFamily x:Key="Font.Mono">Consolas, Cascadia Mono, Lucida Console</FontFamily>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════
+         MahApps overrides. Accent = terracotta (as every palette pins). Because this is the app's
+         first LIGHT palette running on the MahApps *Dark* base, we ALSO flip the core native
+         theme/control/flyout surfaces to marble + charcoal so MahApps-native chrome (window body,
+         flyouts, popups, native control fills) doesn't stay dark. IdealForeground = white: white text
+         on terracotta accent stays legible.
+         ═══════════════════════════════════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="MahApps.Brushes.Accent"  Color="{StaticResource Accent.Color}" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Accent2" Color="#E36236" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Accent3" Color="{StaticResource Accent.Dim.Color}" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Accent4" Color="#80DB5A2B" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Highlight" Color="#C24E22" />
+    <SolidColorBrush x:Key="MahApps.Brushes.AccentBase" Color="{StaticResource Accent.Color}" />
+    <Color x:Key="MahApps.Colors.Accent">#DB5A2B</Color>
+    <Color x:Key="MahApps.Colors.Highlight">#C24E22</Color>
+
+    <!-- White ideal foreground (text drawn on the accent) -->
+    <Color x:Key="MahApps.Colors.IdealForeground">#FFFFFF</Color>
+    <SolidColorBrush x:Key="MahApps.Brushes.IdealForeground" Color="#FFFFFF" />
+
+    <!-- Core light theme surfaces (flip the Dark base's native chrome to marble/charcoal) -->
+    <Color x:Key="MahApps.Colors.ThemeBackground">#F2F0EA</Color>
+    <Color x:Key="MahApps.Colors.ThemeForeground">#2B2620</Color>
+    <SolidColorBrush x:Key="MahApps.Brushes.ThemeBackground" Color="#F2F0EA" />
+    <SolidColorBrush x:Key="MahApps.Brushes.ThemeForeground" Color="#2B2620" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Control.Background" Color="#FAF8F3" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Flyout.Background" Color="#F4F1EA" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Flyout.Foreground" Color="#2B2620" />
+
+</ResourceDictionary>

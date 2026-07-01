@@ -98,7 +98,7 @@ brings it to the front (windows are single-instance).
 | Item | What it does |
 |---|---|
 | **Activity log** | Show/hide the bottom log drawer. |
-| **Theme** | Switch between **Bloomberg Amber** and **Monochrome (B&W)**. |
+| **Theme** | Switch between **Bloomberg Amber**, **Monochrome (B&W)**, and the **Greek — Marble (light)** / **Greek — Obsidian (dark)** palettes. |
 | **Customize theme… (Theme Studio)** | Open the live colour editor — recolour any part of the app and save your own theme. See [theme-studio.md](theme-studio.md). |
 
 ### Tools

@@ -81,6 +81,8 @@ public sealed class ThemeManager : IThemeManager
     {
         new("amber", "Bloomberg Amber", BaseUri + "Brushes.xaml"),
         new("mono",  "Monochrome (B&W)", BaseUri + "Monochrome.xaml"),
+        new("greek-light", "Greek — Marble (light)", BaseUri + "GreekLight.xaml"),
+        new("greek-dark",  "Greek — Obsidian (dark)", BaseUri + "GreekDark.xaml"),
     };
 
     private static readonly string AppDataDir = Path.Combine(

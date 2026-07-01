@@ -28,16 +28,18 @@ tweaking the palette, or a user who finds amber-on-black too intense and wants s
 
 ---
 
-## The two built-in themes
+## The built-in themes
 
-Before you touch the editor, there are two ready-made themes under **View → Theme**:
+Before you touch the editor, there are four ready-made themes under **View → Theme**:
 
 | Theme | Look |
 |---|---|
 | **Bloomberg Amber** | The default — amber accent on black, the classic trading-terminal feel. |
 | **Monochrome (B&W)** | A grayscale, low-chroma alternative for a calmer, distraction-free screen. |
+| **Greek — Marble (light)** | An editorial, museum-daylight look: Pentelic-marble surfaces, warm charcoal ink, and a terracotta/amphora accent. The app's first *light* theme. P&L stays thematic yet legible — laurel-olive up, wine-dark down. |
+| **Greek — Obsidian (dark)** | The night-museum counterpart: warm basalt/obsidian stone, marble-ivory text, the same glowing terracotta accent, with a bronze-gold warning. |
 
-Pick either with one click; the choice is remembered for next launch.
+Pick any with one click; the choice is remembered for next launch.
 
 ---
 
@@ -61,8 +63,8 @@ every window that uses it — strategy windows, charts, dialogs, the shell — a
 - **Keep contrast readable.** The bullish/bearish and warning/error colours carry meaning across every
   chart and the activity log; if you recolour them, keep green-ish/red-ish semantics so signals stay
   legible at a glance.
-- **Start from a base theme.** Switch to Bloomberg Amber or Monochrome first, then tweak — you'll only
-  need to change a handful of tokens.
+- **Start from a base theme.** Switch to the closest built-in first (e.g. a Greek theme for a warm,
+  editorial palette, Monochrome for grayscale), then tweak — you'll only need to change a handful of tokens.
 - **Custom themes are portable.** The exported JSON has no machine-specific data, so it's safe to
   commit to a repo or share.
 
@@ -77,9 +79,10 @@ custom theme is a serialized token→colour map persisted as JSON under the app'
 editor view-model writes token changes straight into the live `DynamicResource` dictionary, which is
 what makes the preview instantaneous. No new dependencies are required.
 
-The two base themes (Bloomberg Amber, Monochrome) are part of the shared theming layer and so are
-present on both the Windows and Linux builds; the live Theme Studio editor is reached from the desktop
-shell's **View** menu.
+Bloomberg Amber and Monochrome are part of the shared theming layer and so are present on both the
+Windows and Linux builds; the two **Greek** palettes currently ship on the Windows/WPF build (each is a
+`ResourceDictionary` under `TradingTerminal.UI/Themes/`, registered in `ThemeManager`). The live Theme
+Studio editor is reached from the desktop shell's **View** menu.
 
 See also [user-guide.md](user-guide.md) (the View menu) and [configuration.md](configuration.md)
 (where preferences persist).
