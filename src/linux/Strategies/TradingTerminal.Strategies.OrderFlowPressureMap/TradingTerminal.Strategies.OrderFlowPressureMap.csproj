@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0 (Avalonia view); the WPF heatmap window +
-         custom PressureMatrixView control stay on the windows leg. See Strategies.OrnsteinUhlenbeck. -->
+         custom PressureMatrixView control stay on the windows leg. See Strategies.CumulativeDelta. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>1-Minute Order Flow Pressure Map: a single heatmap matrix (ticker Ã— time) over the S&amp;P 100/500 universe that flags where unusual 1m volume is hitting and whether price is absorbing it or breaking through. Data/signals only.</Description>
   </PropertyGroup>

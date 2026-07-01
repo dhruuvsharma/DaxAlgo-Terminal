@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-30
 
-The terminal ships **12 live strategies** behind one `IBacktestStrategy` plug-in seam (plus three
+The terminal ships **9 live strategies** behind one `IBacktestStrategy` plug-in seam (plus three
 buy-and-hold / mean-reversion / Donchian *engine demos* used for testing). This page is the
 **catalog and the plain-English tour**; the exact formulas live in the
 [Methods & math reference](math-reference.md#2-strategy-math), and the heaviest one (the Σ⁻¹·IC
@@ -67,18 +67,15 @@ and where it runs:
 
 | # | Strategy | Id | Live project | Needs | One-liner |
 |---|---|---|---|---|---|
-| 1 | Volatility-Targeted baseline | `volTarget` | VolatilityTargeted | BAR | Size the position to keep risk constant. |
-| 2 | Ornstein–Uhlenbeck mean reversion | `ornsteinUhlenbeck` | OrnsteinUhlenbeck | BAR/L1 | "Rubber-band" snap-back around a fitted centre. |
-| 3 | Order-Flow Toxicity (VPIN) | `vpin` | OrderFlowToxicity | TAPE | Fade one-sided, "toxic" bursts of flow. |
-| 4 | Cumulative Delta Scalper | *(live-only)* | CumulativeDelta | TAPE | Trade buy/sell-pressure divergences from price. |
-| 5 | Filtered Order-Flow Imbalance | `filtered.orderflow.imbalance` | FilteredOrderFlow | TAPE | Paper strategy: trade *filtered* trade-imbalance regimes. |
-| 6 | Order-Flow Cube (3D) | `orderFlowCube` | OrderFlowCube | TAPE | Accumulation/distribution as a 3D order-flow cube. |
-| 7 | Order-Flow Surface Spike (3D) | `orderFlowSurfaceSpike` | OrderFlowSurfaceSpike | TAPE | Ride a confirmed volume "spike" on a 3D surface. |
-| 8 | Imbalance Heat Front (3D) | `imbalanceHeatFront` | ImbalanceHeatFront | L2 | Ride or fade a wall of order-book pressure. |
-| 9 | Index K-Score Surface (3D) | `indexKScoreSurface` | IndexKScoreSurface | BAR | Score every constituent of an index, combine. |
-| 10 | Index Regime Graph | `index.regime.graph` | IndexRegimeGraph | BAR | A health board for a whole index, as a node graph. |
-| 11 | 1-Minute Order-Flow Pressure Map | `orderflow.pressuremap` | OrderFlowPressureMap | L2 | Multi-stock grid flagging unusual 1-min volume. |
-| 12 | Σ⁻¹·IC Order-Flow Optimizer | `sigma.ic.flow` | SigmaIcFlow | TAPE | Flagship: a 12-signal microstructure committee. |
+| 1 | Cumulative Delta Scalper | *(live-only)* | CumulativeDelta | TAPE | Trade buy/sell-pressure divergences from price. |
+| 2 | Filtered Order-Flow Imbalance | `filtered.orderflow.imbalance` | FilteredOrderFlow | TAPE | Paper strategy: trade *filtered* trade-imbalance regimes. |
+| 3 | Order-Flow Cube (3D) | `orderFlowCube` | OrderFlowCube | TAPE | Accumulation/distribution as a 3D order-flow cube. |
+| 4 | Order-Flow Surface Spike (3D) | `orderFlowSurfaceSpike` | OrderFlowSurfaceSpike | TAPE | Ride a confirmed volume "spike" on a 3D surface. |
+| 5 | Imbalance Heat Front (3D) | `imbalanceHeatFront` | ImbalanceHeatFront | L2 | Ride or fade a wall of order-book pressure. |
+| 6 | Index K-Score Surface (3D) | `indexKScoreSurface` | IndexKScoreSurface | BAR | Score every constituent of an index, combine. |
+| 7 | Index Regime Graph | `index.regime.graph` | IndexRegimeGraph | BAR | A health board for a whole index, as a node graph. |
+| 8 | 1-Minute Order-Flow Pressure Map | `orderflow.pressuremap` | OrderFlowPressureMap | L2 | Multi-stock grid flagging unusual 1-min volume. |
+| 9 | Σ⁻¹·IC Order-Flow Optimizer | `sigma.ic.flow` | SigmaIcFlow | TAPE | Flagship: a 12-signal microstructure committee. |
 
 The same engine ids are selectable in **Backtest Studio** and the `daxalgo-backtest` CLI.
 **Cumulative Delta**, **Index Regime Graph**, and the **Pressure Map** ship as live-only windows (no
@@ -91,62 +88,7 @@ only in the backtester as smoke tests.
 
 Each entry below is **plain-English first**. The "→ math" link jumps to the exact formula.
 
-### 1 · Volatility-Targeted baseline — `volTarget`
-
-**In plain terms.** The simplest idea in the catalog: instead of always trading the same number of
-contracts, trade *fewer* when the market is jumpy and *more* when it's calm, so your risk stays
-roughly level. It's the "cruise control" of position sizing.
-
-**How it decides.** It keeps a rolling estimate of how volatile recent returns have been, then sets
-position size to `target_volatility ÷ recent_volatility`. Calm market (small denominator) → bigger
-size; turbulent market → smaller size. → [math](math-reference.md#volatility-targeted--voltarget).
-
-**Good for / caveats.** A clean baseline for index products and a building block, not an edge by
-itself. Long-only as shipped.
-
-**Needs:** candles (`BAR`). Single-asset, any broker.
-
-> 🖼️ **Screenshot:** `images/strategy-volatilitytargeted-window.png`
-
-### 2 · Ornstein–Uhlenbeck mean reversion — `ornsteinUhlenbeck`
-
-**In plain terms.** Some prices behave like a **stretched rubber band** — pull them far from a "fair"
-centre and they tend to snap back. This strategy continuously measures where that centre is and how
-springy the band is, and bets on the snap-back when price is stretched far enough.
-
-**How it decides.** It fits a mean-reversion model (an "AR(1)/OU" fit) over a rolling window to get a
-centre and a typical spread, then converts the current price into a **z-score** (how many spreads
-from centre). Far below centre → go long; far above → go short; back near centre → flatten. If the
-fit says the series is *drifting* rather than springy, it refuses to trade. The **half-life** readout
-tells you how many bars a typical snap-back takes.
-→ [math](math-reference.md#ornsteinuhlenbeck--ornsteinuhlenbeck).
-
-**Good for / caveats.** Range-bound / pairs-like instruments. Dangerous in a strong trend (the band
-"breaks") — which is exactly why the drift check exists.
-
-**Needs:** candles / L1. Single-asset, any broker.
-
-> 🖼️ **Screenshot:** `images/strategy-ornsteinuhlenbeck-window.png`
-
-### 3 · Order-Flow Toxicity (VPIN) — `vpin`
-
-**In plain terms.** "Toxicity" is a measure of how **one-sided** recent trading has been — a proxy
-for *informed* traders pushing hard in one direction. When flow gets extremely one-sided, this
-strategy bets the burst will exhaust and **fades** it (sells into a buying frenzy, buys into a
-sell-off).
-
-**How it decides.** It computes VPIN — the absolute net flow divided by total flow, a number from 0
-(perfectly balanced) to 1 (totally one-directional). Above a threshold, it takes the *opposite* side
-of the prevailing aggressor and holds for a set time. → [math](math-reference.md#order-flow-toxicity-vpin--vpin).
-
-**Good for / caveats.** Short-horizon exhaustion plays. The engine version uses an L1 approximation;
-the "real" volume-bucket VPIN lives inside the Σ⁻¹·IC optimizer (#12).
-
-**Needs:** trade tape (`TAPE`). Single-asset; brokers that supply trades (IB, Binance, Ironbeam).
-
-> 🖼️ **Screenshot:** `images/strategy-orderflowtoxicity-window.png`
-
-### 4 · Cumulative Delta Scalper — CumulativeDelta *(live-only)*
+### 1 · Cumulative Delta Scalper — CumulativeDelta *(live-only)*
 
 **In plain terms.** "Delta" is buys-minus-sells among aggressive traders; **cumulative** delta (CVD)
 is the running total. The trick: don't trade the CVD *level* — trade **disagreements** between CVD
@@ -164,7 +106,7 @@ backtest id).
 
 > 🖼️ **Screenshot:** `images/strategy-cumulativedelta-window.png`
 
-### 5 · Filtered Order-Flow Imbalance — `filtered.orderflow.imbalance` *(research paper)*
+### 2 · Filtered Order-Flow Imbalance — `filtered.orderflow.imbalance` *(research paper)*
 
 **In plain terms.** Count how many recent trades were buyer-initiated versus seller-initiated — that
 ratio is "order-book imbalance over trades," OBI(T). The paper's insight (Anantha–Jain–Maiti 2025):
@@ -184,7 +126,7 @@ fixed event-time window or until the regime decays back to neutral.
 
 > 🖼️ **Screenshot:** `images/strategy-filteredorderflow-window.png`
 
-### 6 · Order-Flow Cube (3D) — `orderFlowCube`
+### 3 · Order-Flow Cube (3D) — `orderFlowCube`
 
 **In plain terms.** Picture three dials describing the flow: (a) net buying vs selling, (b) how
 aggressive buyers are, (c) whether trade sizes are unusually big. Plot them as the X/Y/Z of a point
@@ -204,7 +146,7 @@ math note.)
 
 > 🖼️ **Screenshot:** `images/strategy-orderflowcube-window.png`
 
-### 7 · Order-Flow Surface Spike (3D) — `orderFlowSurfaceSpike`
+### 4 · Order-Flow Surface Spike (3D) — `orderFlowSurfaceSpike`
 
 **In plain terms.** Lay recent trading out as a **heat-map surface**: time across one axis, price
 levels up the other, and "how much signed volume happened here" as the height/colour. A sudden, tall
@@ -219,7 +161,7 @@ ticks in the same direction. Exits on fixed target/stop, spike fade, or a sign f
 
 > 🖼️ **Screenshot:** `images/strategy-orderflowsurfacespike-window.png`
 
-### 8 · Imbalance Heat Front (3D) — `imbalanceHeatFront`
+### 5 · Imbalance Heat Front (3D) — `imbalanceHeatFront`
 
 **In plain terms.** Look at the order book and ask, at each distance from the current price, "is
 there far more resting size on the bid or the ask?" A run of consecutive levels that all lean the
@@ -238,7 +180,7 @@ L1-only, the ridge collapses to a single touch-level check — so backtest it kn
 
 > 🖼️ **Screenshot:** `images/strategy-imbalanceheatfront-window.png`
 
-### 9 · Index K-Score Surface (3D) — `indexKScoreSurface`
+### 6 · Index K-Score Surface (3D) — `indexKScoreSurface`
 
 **In plain terms.** For index trading (e.g. US30 / S&P 500), score **every member stock** on a
 −1…+1 scale ("K-score") built from 15 indicators, then combine those scores, weighted by how big
@@ -253,7 +195,7 @@ basket. → [math](math-reference.md#index-k-score-surface-3d--indexkscoresurfac
 
 > 🖼️ **Screenshot:** `images/strategy-indexkscoresurface-window.png`
 
-### 10 · Index Regime Graph — `index.regime.graph` *(live-only)*
+### 7 · Index Regime Graph — `index.regime.graph` *(live-only)*
 
 **In plain terms.** A **health board for a whole index**. It runs the same 18-indicator ×
 8-timeframe "Advanced regime" analysis (see [market-regime.md](market-regime.md)) on *every*
@@ -268,7 +210,7 @@ weighted index direction. → [math](math-reference.md#index-regime-graph--index
 
 > 🖼️ **Screenshot:** `images/strategy-indexregimegraph-window.png`
 
-### 11 · 1-Minute Order-Flow Pressure Map — `orderflow.pressuremap` *(monitor)*
+### 8 · 1-Minute Order-Flow Pressure Map — `orderflow.pressuremap` *(monitor)*
 
 **In plain terms.** A **grid of the S&P 100/500**: rows are stocks, columns are recent minutes. A
 cell lights up when that stock's volume in that minute is *unusually* high for it, and the colour
@@ -284,7 +226,7 @@ it flags, it doesn't signal entries. → [math](math-reference.md#1-minute-order
 
 > 🖼️ **Screenshot:** `images/strategy-pressuremap-window.png`
 
-### 12 · Σ⁻¹·IC Order-Flow Optimizer — `sigma.ic.flow` *(flagship)*
+### 9 · Σ⁻¹·IC Order-Flow Optimizer — `sigma.ic.flow` *(flagship)*
 
 **In plain terms.** A **committee of twelve microstructure experts** voting on direction. The clever
 part is *how the votes are weighted*: not by hand, but automatically, so that experts who have
@@ -325,7 +267,7 @@ Each strategy is its own project following the same six-file shape. The fastest 
 existing project, rename, and edit. **Remember the two trees** — a strategy you want on both Windows
 and Linux must be added under `src/windows/Strategies/` *and* `src/linux/Strategies/`.
 
-1. **Copy** the closest existing project (e.g. `src/windows/Strategies/TradingTerminal.Strategies.VolatilityTargeted`).
+1. **Copy** the closest existing project (e.g. `src/windows/Strategies/TradingTerminal.Strategies.CumulativeDelta`).
    Rename the directory, the `.csproj`, and the class prefix.
 2. **Files in the new project:**
    - `MyStrategy.cs` — the `ITradingStrategy` descriptor (`Id` / `DisplayName` / `Description`, plus

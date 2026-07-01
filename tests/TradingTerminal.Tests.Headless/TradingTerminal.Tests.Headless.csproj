@@ -17,10 +17,7 @@
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <!-- Ported per-strategy projects (net9.0 leg) â€” verify their portable VMs resolve headless. -->
-    <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.OrnsteinUhlenbeck\TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.VolatilityTargeted\TradingTerminal.Strategies.VolatilityTargeted.csproj" />
-    <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.OrderFlowToxicity\TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
     <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" />

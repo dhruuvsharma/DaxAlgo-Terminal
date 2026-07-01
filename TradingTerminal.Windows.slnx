@@ -32,10 +32,7 @@
     <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowCube/TradingTerminal.Strategies.OrderFlowCube.csproj" />
     <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowPressureMap/TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
     <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowSurfaceSpike/TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowToxicity/TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrnsteinUhlenbeck/TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
     <Project Path="src/windows/Strategies/TradingTerminal.Strategies.SigmaIcFlow/TradingTerminal.Strategies.SigmaIcFlow.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.VolatilityTargeted/TradingTerminal.Strategies.VolatilityTargeted.csproj" />
   </Folder>
   <Folder Name="/AI/">
     <Project Path="src/windows/AI/TradingTerminal.Ai/TradingTerminal.Ai.csproj" />

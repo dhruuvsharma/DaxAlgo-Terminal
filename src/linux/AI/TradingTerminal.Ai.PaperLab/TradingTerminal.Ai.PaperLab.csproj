@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Multi-target: portable VM on net9.0 (uses IUiDispatcher + System.Reactive, both portable);
-         the WPF UserControl stays on the windows leg. See Strategies.OrnsteinUhlenbeck. -->
+         the WPF UserControl stays on the windows leg. See Strategies.CumulativeDelta. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>Paper Lab tool window â€” autoarxiv-style paper-reproduction UI. Consumes IReproOrchestrator and IPaperIngestClient (registered by AddPaperResearch in Infrastructure).</Description>
   </PropertyGroup>

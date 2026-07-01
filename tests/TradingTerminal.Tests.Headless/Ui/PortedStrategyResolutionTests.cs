@@ -10,10 +10,7 @@ using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Strategies.CumulativeDelta;
 using TradingTerminal.Strategies.FilteredOrderFlow;
 using TradingTerminal.Strategies.ImbalanceHeatFront;
-using TradingTerminal.Strategies.OrderFlowToxicity;
-using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.SigmaIcFlow;
-using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 using Xunit;
@@ -49,10 +46,7 @@ public sealed class PortedStrategyResolutionTests
             sp.GetRequiredService<InMemoryLogSink>(),
             sp.GetRequiredService<IInstrumentRegistry>()));
 
-        services.AddOrnsteinUhlenbeckStrategy();
         services.AddCumulativeDeltaStrategy();
-        services.AddVolatilityTargetedStrategy();
-        services.AddOrderFlowToxicityStrategy();
         services.AddFilteredOrderFlowStrategy();
         services.AddImbalanceHeatFrontStrategy();
         services.AddSigmaIcFlowStrategy();
@@ -63,11 +57,10 @@ public sealed class PortedStrategyResolutionTests
     }
 
     [Fact]
-    public void OrnsteinUhlenbeck_view_model_resolves_with_seeded_instruments()
+    public void CumulativeDelta_view_model_resolves_with_seeded_instruments()
     {
-        var vm = BuildHeadlessGraph().GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>();
+        var vm = BuildHeadlessGraph().GetRequiredService<CumulativeDeltaViewModel>();
 
-        vm.StrategyId.Should().Be("ornstein.uhlenbeck");
         vm.AllInstruments.Should().NotBeEmpty("the VM seeds the shared instrument catalog");
     }
 
@@ -76,10 +69,7 @@ public sealed class PortedStrategyResolutionTests
     {
         var provider = BuildHeadlessGraph();
 
-        provider.GetRequiredService<OrnsteinUhlenbeckStrategyViewModel>().Should().NotBeNull();
         provider.GetRequiredService<CumulativeDeltaViewModel>().Should().NotBeNull();
-        provider.GetRequiredService<VolatilityTargetedStrategyViewModel>().Should().NotBeNull();
-        provider.GetRequiredService<OrderFlowToxicityStrategyViewModel>().Should().NotBeNull();
         provider.GetRequiredService<FilteredOrderFlowViewModel>().Should().NotBeNull();
         provider.GetRequiredService<ImbalanceHeatFrontViewModel>().Should().NotBeNull();
         provider.GetRequiredService<SigmaIcFlowStrategyViewModel>().Should().NotBeNull();

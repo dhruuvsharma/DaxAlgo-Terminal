@@ -68,8 +68,7 @@ real money. This is a deliberate safety boundary, not a missing feature.
 
 ## What ships
 
-- **12 live strategies** behind one plug-in seam. From simple to advanced: Ornstein–Uhlenbeck mean
-  reversion, a volatility-targeted index baseline, order-flow toxicity (VPIN), a cumulative-delta
+- **9 live strategies** behind one plug-in seam. From simple to advanced: a cumulative-delta
   scalper, a four-window 3D regime-cube family (Order-Flow Cube, Order-Flow Surface Spike,
   Imbalance Heat Front, Index K-Score Surface), an index regime *graph*, a multi-stock order-flow
   *pressure map*, a research-paper strategy (Filtered Order-Flow Imbalance), and the flagship
@@ -127,13 +126,13 @@ is made twice, once per tree.
 | Shell project | `Shell/TradingTerminal.App` | `Shell/TradingTerminal.App.Avalonia` |
 
 Both trees carry their own copy of the backend (Core, MarketData, Infrastructure, the backtest
-engine + CLI) and **all 12 strategies**, the order-flow tools, the regime board, the AI tool
+engine + CLI) and **all 9 strategies**, the order-flow tools, the regime board, the AI tool
 windows, the brokers, and the canonical pipeline. A handful of features are **Windows-only** because
 they depend on Windows-only components:
 
 | Feature | Windows | Linux | Why |
 |---|:---:|:---:|---|
-| 12 strategies (incl. 3D regime cubes) | ✅ | ✅ | shared |
+| 9 strategies (incl. 3D regime cubes) | ✅ | ✅ | shared |
 | Order Book · Volume Footprint · Bookmap + VolBook | ✅ | ✅ | shared |
 | Correlation · Advanced regime · Recording · Backtest Studio | ✅ | ✅ | shared |
 | AI tool windows (Analyst / Factor / ML / Backtest / Paper Lab) | ✅ | ✅ | shared |

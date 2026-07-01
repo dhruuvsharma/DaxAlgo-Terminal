@@ -16,9 +16,6 @@ using TradingTerminal.Strategies.IndexKScoreSurface;
 using TradingTerminal.Strategies.OrderFlowCube;
 using TradingTerminal.Strategies.OrderFlowPressureMap;
 using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
-using TradingTerminal.Strategies.OrderFlowToxicity;
-using TradingTerminal.Strategies.OrnsteinUhlenbeck;
-using TradingTerminal.Strategies.VolatilityTargeted;
 
 namespace TradingTerminal.App.Composition;
 
@@ -70,14 +67,7 @@ public static class AppDependencyInjection
         // Dedicated live strategies — each in its own project, opens as a MetroWindow.
         services.AddCumulativeDeltaStrategy();
 
-        // HFT / microstructure
-        services.AddOrnsteinUhlenbeckStrategy();
-
-        // Index baselines
-        services.AddVolatilityTargetedStrategy();
-
         // L2 / depth-of-market
-        services.AddOrderFlowToxicityStrategy();
         services.AddOrderFlowPressureMapStrategy();
         services.AddOrderFlowCubeStrategy();
         services.AddOrderFlowSurfaceSpikeStrategy();

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0 (ScottPlot.Avalonia 2D scatter); the WPF
          HelixToolkit window stays on the windows leg. The data is a 2D phase-space trail, so the
-         cross-platform view is a faithful 2D scatter. See Strategies.OrnsteinUhlenbeck. -->
+         cross-platform view is a faithful 2D scatter. See Strategies.CumulativeDelta. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>Order-flow regime cube â€” 2D phase-space view of CVD vs aggressor ratio with size-ratio color, live from the trade tape.</Description>
   </PropertyGroup>

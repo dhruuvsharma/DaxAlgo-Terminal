@@ -13,8 +13,8 @@ namespace TradingTerminal.Tests.Backtesting;
 /// Covers the pluggable walk-forward grid seam: grids live on each strategy's
 /// <see cref="BacktestStrategyOption.WalkForwardGrid"/> (catalog entry or plugin registration) and
 /// <see cref="WalkForwardGridBuilders.For"/> resolves them — no hardcoded per-strategy switch and no
-/// engine references in the resolver. This is what lets a strategy (e.g. OU once it becomes a plugin)
-/// ship its walk-forward grid with itself.
+/// engine references in the resolver. This is what lets a strategy ship its walk-forward grid with
+/// itself (e.g. when it becomes a plugin).
 /// </summary>
 public sealed class WalkForwardGridTests
 {
@@ -22,28 +22,28 @@ public sealed class WalkForwardGridTests
         BacktestStrategyCatalog.All.First(o => o.Id == id);
 
     [Fact]
-    public void Ou_option_declares_a_walk_forward_grid() =>
-        Option("ornsteinUhlenbeck").WalkForwardGrid.Should().NotBeNull();
+    public void Donchian_option_declares_a_walk_forward_grid() =>
+        Option("donchianBreakout").WalkForwardGrid.Should().NotBeNull();
 
     [Fact]
-    public void Ou_grid_uses_its_own_defaults_when_axes_are_empty()
+    public void Donchian_grid_uses_its_own_defaults_when_axes_are_empty()
     {
-        var grid = WalkForwardGridBuilders.For(Option("ornsteinUhlenbeck"), WalkForwardAxes.Defaults);
+        var grid = WalkForwardGridBuilders.For(Option("donchianBreakout"), WalkForwardAxes.Defaults);
 
-        grid.Should().HaveCount(9); // 3 default lookbacks x 3 default entryZ
-        grid.Should().OnlyContain(c => c.Label.StartsWith("ou-lk"));
-        grid[0].Builder(Contract.UsStock("TEST")).Should().BeOfType<OrnsteinUhlenbeckStrategy>();
+        grid.Should().HaveCount(9); // 3 default lookbacks x 3 default trails
+        grid.Should().OnlyContain(c => c.Label.StartsWith("don-lk"));
+        grid[0].Builder(Contract.UsStock("TEST")).Should().BeOfType<DonchianBreakoutStrategy>();
     }
 
     [Fact]
     public void Caller_supplied_axes_override_the_grid_defaults()
     {
-        var axes = WalkForwardAxes.Defaults with { Lookbacks = [100], EntryZ = [2.0] };
+        var axes = WalkForwardAxes.Defaults with { Lookbacks = [100], Trails = [0.20] };
 
-        var grid = WalkForwardGridBuilders.For(Option("ornsteinUhlenbeck"), axes);
+        var grid = WalkForwardGridBuilders.For(Option("donchianBreakout"), axes);
 
         grid.Should().ContainSingle();
-        grid[0].Label.Should().Be("ou-lk100-z2");
+        grid[0].Label.Should().Be("don-lk100-trail0.2");
     }
 
     [Fact]

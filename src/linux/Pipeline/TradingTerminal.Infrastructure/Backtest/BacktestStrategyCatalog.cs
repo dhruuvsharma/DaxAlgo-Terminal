@@ -48,21 +48,7 @@ public static class BacktestStrategyCatalog
             Id: "donchianBreakout",
             DisplayName: "Donchian breakout (demo)",
             Build: contract => new DonchianBreakoutStrategy(contract)),
-        new BacktestStrategyOption(
-            Id: "ornsteinUhlenbeck",
-            DisplayName: "Ornstein-Uhlenbeck mean reversion",
-            Build: contract => new OrnsteinUhlenbeckStrategy(contract)),
-        // ── S&P 500 / index baselines ─────────────────────────────────────────────────
-        new BacktestStrategyOption(
-            Id: "volTarget",
-            DisplayName: "Volatility targeting (index)",
-            Build: contract => new VolatilityTargetedStrategy(contract)),
-
         // ── L2 / depth-of-market themed (cTrader DOM territory) ───────────────────────
-        new BacktestStrategyOption(
-            Id: "vpin",
-            DisplayName: "Order-flow toxicity / VPIN-style (L1 approx.)",
-            Build: contract => new OrderFlowToxicityStrategy(contract)),
         new BacktestStrategyOption(
             Id: "orderFlowCube",
             DisplayName: "Order-flow regime cube (CVD × aggressor × size)",

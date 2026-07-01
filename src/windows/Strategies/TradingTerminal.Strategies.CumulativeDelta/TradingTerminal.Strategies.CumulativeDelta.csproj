@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Multi-target so the portable VM + descriptor compile for Linux/Avalonia (net9.0); the WPF
-         window stays on the windows leg. See Strategies.OrnsteinUhlenbeck for the template. -->
+         window stays on the windows leg. See Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Cumulative-delta scalper. Bid-tick rule per bar, sliding window of N bar-deltas, threshold-cross trigger, ATR + HTF EMA + session/spread/cooldown guards.</Description>
   </PropertyGroup>
@@ -27,7 +27,7 @@
     <Compile Remove="CumulativeDeltaWindow.xaml.cs" />
   </ItemGroup>
 
-  <!-- Cross-platform (Avalonia) view on the net9.0 leg only (see Strategies.OrnsteinUhlenbeck). -->
+  <!-- Cross-platform (Avalonia) view on the net9.0 leg only (see Strategies.CumulativeDelta). -->
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
     <PackageReference Include="Avalonia" Version="11.2.1" />
   </ItemGroup>

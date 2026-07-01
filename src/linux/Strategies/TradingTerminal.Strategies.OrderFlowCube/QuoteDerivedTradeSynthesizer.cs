@@ -7,7 +7,7 @@ namespace TradingTerminal.Strategies.OrderFlowCube;
 /// <see cref="Quote"/>s when the broker exposes no real trade tape (cTrader, NT8 AT Interface,
 /// Alpaca-unwired). Mid ticks up ⇒ Buy print at the ask, size = AskSize; mid ticks down ⇒ Sell
 /// print at the bid, size = BidSize; mid unchanged ⇒ no event. Same pattern
-/// <c>OrderFlowToxicityStrategy</c> uses for its VPIN approximation. Degraded vs a real trade
+/// a VPIN-style approximation uses. Degraded vs a real trade
 /// tape but preserves the directional-flow signal.
 /// </summary>
 internal sealed class QuoteDerivedTradeSynthesizer

@@ -12,7 +12,7 @@ namespace TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 /// <item>Mid ticks down ⇒ synthesize a Sell print at the bid, size = BidSize.</item>
 /// <item>Mid unchanged ⇒ no event.</item>
 /// </list>
-/// This is the textbook L1 fallback; the same pattern <c>OrderFlowToxicityStrategy</c> uses for
+/// This is the textbook L1 fallback; the same VPIN-style approximation pattern used for
 /// its VPIN approximation. Real trade volume (what actually filled) is unknowable from L1, so we
 /// substitute top-of-book size as a directional-flow proxy. Signal quality is degraded vs a
 /// real trade tape but the regime-detection edge survives.

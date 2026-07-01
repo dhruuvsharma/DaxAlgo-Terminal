@@ -27,7 +27,6 @@ public static class WalkForwardGridBuilders
     {
         "meanreversion" or "mean-reversion" => MeanReversion(lookbacks, entries, stops, quantity),
         "donchianbreakout" or "donchian" or "breakout" => Donchian(lookbacks, trails, quantity),
-        "ornsteinuhlenbeck" or "ou" => OrnsteinUhlenbeck(lookbacks, entryZ, quantity),
         _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
     };
 
@@ -56,20 +55,6 @@ public static class WalkForwardGridBuilders
                 int lc = l; double sc = s;
                 list.Add(($"don-lk{lc}-trail{sc.ToString(CultureInfo.InvariantCulture)}",
                     c => new DonchianBreakoutStrategy(c, lc, sc, qty)));
-            }
-        return list;
-    }
-
-    public static IReadOnlyList<(string, Func<Contract, IBacktestStrategy>)> OrnsteinUhlenbeck(
-        int[] lookbacks, double[] entryZ, int qty)
-    {
-        var list = new List<(string, Func<Contract, IBacktestStrategy>)>();
-        foreach (var l in lookbacks)
-            foreach (var ez in entryZ)
-            {
-                int lc = l; double ezc = ez;
-                list.Add(($"ou-lk{lc}-z{ezc.ToString(CultureInfo.InvariantCulture)}",
-                    c => new OrnsteinUhlenbeckStrategy(c, lookback: lc, entryZ: ezc, quantity: qty)));
             }
         return list;
     }

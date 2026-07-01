@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0; the WPF window (HelixToolkit 3D surface)
-         stays on the windows leg. See Strategies.OrnsteinUhlenbeck for the template. -->
+         stays on the windows leg. See Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>Imbalance Heat Front - 3D bid/ask pressure surface over [distance-from-touch x time] with ridge-driven entries (momentum or mean-reversion). Requires L2 depth.</Description>
   </PropertyGroup>

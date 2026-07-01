@@ -3,7 +3,7 @@
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0 (Avalonia view); the WPF HelixToolkit 3D
          height-map window stays on the windows leg. The faithful cross-platform 3D surface lands with
-         the Step-5 GPU control / a ScottPlot heatmap. See Strategies.OrnsteinUhlenbeck. -->
+         the Step-5 GPU control / a ScottPlot heatmap. See Strategies.CumulativeDelta. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>Order-flow surface spike detector â€” 3D Z-score heightmap of [slice Ã— price-bin] order-flow imbalance with real-time spike entries.</Description>
   </PropertyGroup>

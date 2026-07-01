@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Multi-target: portable VM on net9.0 (Avalonia view; MessageBox is #if WINDOWS); the WPF
-         ScottPlot view stays on the windows leg. See Strategies.OrnsteinUhlenbeck for the template. -->
+         ScottPlot view stays on the windows leg. See Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>LSE backtester: pulls historical OHLCV from the London Strategic Edge broker, synthesizes intrabar ticks, and replays them through the shared engine.</Description>
   </PropertyGroup>

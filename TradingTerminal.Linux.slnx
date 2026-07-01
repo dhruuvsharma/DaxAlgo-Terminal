@@ -22,10 +22,7 @@
   <Project Path="src/linux/Strategies/TradingTerminal.Strategies.OrderFlowCube/TradingTerminal.Strategies.OrderFlowCube.csproj" />
   <Project Path="src/linux/Strategies/TradingTerminal.Strategies.OrderFlowPressureMap/TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
   <Project Path="src/linux/Strategies/TradingTerminal.Strategies.OrderFlowSurfaceSpike/TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
-  <Project Path="src/linux/Strategies/TradingTerminal.Strategies.OrderFlowToxicity/TradingTerminal.Strategies.OrderFlowToxicity.csproj" />
-  <Project Path="src/linux/Strategies/TradingTerminal.Strategies.OrnsteinUhlenbeck/TradingTerminal.Strategies.OrnsteinUhlenbeck.csproj" />
   <Project Path="src/linux/Strategies/TradingTerminal.Strategies.SigmaIcFlow/TradingTerminal.Strategies.SigmaIcFlow.csproj" />
-  <Project Path="src/linux/Strategies/TradingTerminal.Strategies.VolatilityTargeted/TradingTerminal.Strategies.VolatilityTargeted.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.AdvancedMarketRegime/TradingTerminal.AdvancedMarketRegime.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.Backtest/TradingTerminal.Backtest.csproj" />
   <Project Path="src/linux/Tools/TradingTerminal.BacktestStudio/TradingTerminal.BacktestStudio.csproj" />

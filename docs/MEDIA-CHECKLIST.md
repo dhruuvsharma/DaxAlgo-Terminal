@@ -109,12 +109,6 @@ shot (the parameter panel before Start). 3D strategies should show the Helix vie
 | P2 | `strategy-sigmaicflow-settings.png` | Σ⁻¹·IC parameter panel. |
 | P2 | `strategy-cumulativedelta-window.png` | Cumulative Delta Scalper — CVD line + footprint clusters. |
 | P3 | `strategy-cumulativedelta-settings.png` | Cumulative Delta params. |
-| P2 | `strategy-orderflowtoxicity-window.png` | Order-Flow Toxicity (VPIN) window. |
-| P3 | `strategy-orderflowtoxicity-settings.png` | VPIN params. |
-| P2 | `strategy-ornsteinuhlenbeck-window.png` | Ornstein–Uhlenbeck — z-score bands + half-life readout. |
-| P3 | `strategy-ornsteinuhlenbeck-settings.png` | OU params. |
-| P2 | `strategy-volatilitytargeted-window.png` | Volatility-Targeted baseline — position vs realised vol. |
-| P3 | `strategy-volatilitytargeted-settings.png` | Vol-target params. |
 | P2 | `strategy-orderflowcube-window.png` | Order-Flow Cube — Helix 3D scatter + decay trail. |
 | P3 | `strategy-orderflowcube-settings.png` | Cube params. |
 | P2 | `strategy-orderflowsurfacespike-window.png` | Order-Flow Surface Spike — 3D z-score surface. |

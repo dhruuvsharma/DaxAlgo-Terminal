@@ -26,10 +26,7 @@ using TradingTerminal.QuantConnect;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Heatmap;
-using TradingTerminal.Strategies.OrderFlowToxicity;
-using TradingTerminal.Strategies.OrnsteinUhlenbeck;
 using TradingTerminal.Strategies.SigmaIcFlow;
-using TradingTerminal.Strategies.VolatilityTargeted;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -92,10 +89,7 @@ public static class ServiceConfiguration
             sp.GetRequiredService<IInstrumentRegistry>()));
 
         // Ported per-strategy VMs (descriptor + portable VM; the WPF windows are #if'd out on net9.0).
-        services.AddOrnsteinUhlenbeckStrategy();
         services.AddCumulativeDeltaStrategy();
-        services.AddVolatilityTargetedStrategy();
-        services.AddOrderFlowToxicityStrategy();
         services.AddFilteredOrderFlowStrategy();
         services.AddImbalanceHeatFrontStrategy();
         services.AddSigmaIcFlowStrategy();

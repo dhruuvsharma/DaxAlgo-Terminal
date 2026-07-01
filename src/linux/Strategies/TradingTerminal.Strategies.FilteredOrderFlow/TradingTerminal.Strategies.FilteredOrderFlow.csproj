@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Multi-target: portable VM + descriptor on net9.0; WPF window on the windows leg. See
-         Strategies.OrnsteinUhlenbeck for the template. -->
+         Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0</TargetFramework>
     <Description>Filtered order-flow imbalance (arXiv:2507.22712) - live signal-mode wrapper around the FilteredOrderFlowStrategy backtest implementation. Trade-based OBI(T) over a rolling window, regime-classified, filtered vs unfiltered, directional signal on strong same-sign regimes.</Description>
   </PropertyGroup>

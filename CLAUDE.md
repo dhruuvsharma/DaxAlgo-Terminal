@@ -64,7 +64,7 @@ Core           → (nothing)
 | Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
-Live strategies (12): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class still `ApexScalperStrategy`), CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted.
+Live strategies (9): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class still `ApexScalperStrategy`), CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike. (Removed 2026-07-01: OrnsteinUhlenbeck, VolatilityTargeted, OrderFlowToxicity.)
 
 **Strategy-vs-tool rule:** anything that registers an `ITradingStrategy` / `StrategyFactoryRegistration` (including multi-ticker *monitor* strategies like OrderFlowPressureMap) is a **strategy**: project `TradingTerminal.Strategies.<Name>`, namespace to match, **Strategies** solution folder, DI via `Add<Name>Strategy()` called from `AddStrategyPlugins()`. Tool projects (`Add…Surface`, Tools/Charts menu) are only for non-strategy windows. When in doubt: if it belongs in the Strategies catalog, it's a strategy project.
 

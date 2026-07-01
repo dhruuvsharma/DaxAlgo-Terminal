@@ -114,11 +114,7 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
     "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
     "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
-    "ornsteinuhlenbeck" or "ou" => new OrnsteinUhlenbeckStrategy(contract),
-    // Index baselines
-    "voltarget" or "voltargeting" => new VolatilityTargetedStrategy(contract),
     // L2 / depth-of-market themed
-    "vpin" or "toxicity" => new OrderFlowToxicityStrategy(contract),
     "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
     "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
     "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
@@ -126,7 +122,7 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract) => id.ToL
     "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
     "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
     _ => throw new ArgumentException(
-        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, ornsteinUhlenbeck, volTarget, vpin, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, sigmaIcFlow, indexKScoreSurface, filteredOrderFlow.")
+        $"Unknown strategy '{id}'. Available: buyAndHold, meanReversion, donchianBreakout, orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, sigmaIcFlow, indexKScoreSurface, filteredOrderFlow.")
 };
 
 static void PrintSummary(BacktestResult result)
@@ -235,8 +231,7 @@ static async Task<int> SweepAsync(string[] argv)
     {
         "meanreversion" or "mean-reversion" => BuildMeanReversionGrid(contract, a),
         "donchianbreakout" or "donchian" or "breakout" => BuildDonchianGrid(contract, a),
-        "ornsteinuhlenbeck" or "ou" => BuildOuGrid(contract, a),
-        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion, donchianBreakout, or ornsteinUhlenbeck."),
+        _ => throw new ArgumentException($"Sweep doesn't know parameters for '{strategyId}'. Try meanReversion or donchianBreakout."),
     };
 
     Console.WriteLine($"Sweep: {grid.Count} configurations on {symbol} (parallel={maxParallel})");
@@ -322,20 +317,6 @@ static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildDonchianGrid(
     return grid;
 }
 
-static IReadOnlyList<(string Label, IBacktestStrategy Build)> BuildOuGrid(Contract contract, Args a)
-{
-    var lookbacks = ParseIntList(a.Optional("lookback") ?? "300,500,1000");
-    var entries = ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5");
-    var qty = a.Int("qty", 1);
-
-    var grid = new List<(string, IBacktestStrategy)>();
-    foreach (var l in lookbacks)
-        foreach (var ez in entries)
-            grid.Add(($"ou-lk{l}-z{ez.ToString(CultureInfo.InvariantCulture)}",
-                new OrnsteinUhlenbeckStrategy(contract, lookback: l, entryZ: ez, quantity: qty)));
-    return grid;
-}
-
 static int[] ParseIntList(string raw) =>
     raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(s => int.Parse(s, CultureInfo.InvariantCulture))
@@ -362,10 +343,6 @@ static IReadOnlyList<(string Label, Func<Contract, IBacktestStrategy> Builder)> 
     "donchianbreakout" or "donchian" or "breakout" => WalkForwardGridBuilders.Donchian(
         ParseIntList(a.Optional("lookback") ?? "50,100,200"),
         ParseDoubleList(a.Optional("trail") ?? "0.10,0.20,0.40"),
-        a.Int("qty", 1)),
-    "ornsteinuhlenbeck" or "ou" => WalkForwardGridBuilders.OrnsteinUhlenbeck(
-        ParseIntList(a.Optional("lookback") ?? "300,500,1000"),
-        ParseDoubleList(a.Optional("entry-z") ?? "1.5,2.0,2.5"),
         a.Int("qty", 1)),
     _ => throw new ArgumentException($"Walk-forward grid not defined for '{strategyId}'."),
 };
