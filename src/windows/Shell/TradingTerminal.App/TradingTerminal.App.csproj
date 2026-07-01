@@ -24,19 +24,21 @@
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
-    <!-- SigmaIcFlow and IndexRegimeGraph ship as EXTERNAL plugins, not compile-time strategies: build
-         them (for ordering) but don't link them, then the Stage*Plugin targets (below) copy each DLL +
-         plugin.json into {OutDir}/plugins so PluginLoader discovers them at runtime. This is the live
-         cross-load-context WPF proof. To revert one to compile-time: drop ReferenceOutputAssembly +
-         re-add its Add<Name>Strategy() in AppDependencyInjection. -->
+    <!-- Every first-party strategy ships as an EXTERNAL plugin, not a compile-time reference: build it
+         (for ordering) but don't link it (ReferenceOutputAssembly=false), then the StageStrategyPlugins
+         target (below) copies each DLL + pdb + plugin.json (and HelixToolkit for the 3D-cube plugins)
+         into {OutDir}/plugins so PluginLoader discovers + loads them at runtime in their own collectible
+         load context. To revert one to compile-time: drop ReferenceOutputAssembly + re-add its
+         Add<Name>Strategy() in AppDependencyInjection. -->
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" ReferenceOutputAssembly="false" />
     <!-- Charts-menu tools -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
     <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
@@ -44,7 +46,6 @@
     <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
     <!-- Experimental: Volume Bubble Line chart (separate from the live Charts/OrderBook/Bookmap). -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.BubbleChart\TradingTerminal.BubbleChart.csproj" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
     <!-- Tools-menu surfaces -->
     <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
@@ -175,6 +176,50 @@
     </ItemGroup>
     <Copy SourceFiles="@(IndexRegimeGraphPluginFiles)" DestinationFolder="$(IndexRegimeGraphPluginDir)" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Staged IndexRegimeGraph plugin -> $(IndexRegimeGraphPluginDir)" />
+  </Target>
+
+  <!--
+    Stage the remaining first-party strategies that ship as EXTERNAL plugins (same model as
+    SigmaIcFlow/IndexRegimeGraph above, but batched). Each is referenced ReferenceOutputAssembly=false
+    so it builds but is not linked; here its DLL + pdb + plugin.json are copied into
+    {OutDir}/plugins/<assembly>/ for PluginLoader to discover at runtime. The 3D-cube plugins also
+    carry HelixToolkit.Wpf as a PRIVATE dependency (nothing else in the host graph pulls it in), so it
+    is copied alongside them and resolved from the plugin's own load-context folder.
+  -->
+  <ItemGroup>
+    <StrategyPlugin Include="TradingTerminal.Strategies.CumulativeDelta" />
+    <StrategyPlugin Include="TradingTerminal.Strategies.FilteredOrderFlow" />
+    <StrategyPlugin Include="TradingTerminal.Strategies.OrderFlowPressureMap" />
+    <StrategyPlugin Include="TradingTerminal.Strategies.OrderFlowCube" />
+    <StrategyPlugin Include="TradingTerminal.Strategies.OrderFlowSurfaceSpike" />
+    <StrategyPlugin Include="TradingTerminal.Strategies.ImbalanceHeatFront" />
+    <StrategyPlugin Include="TradingTerminal.Strategies.IndexKScoreSurface" />
+    <!-- HelixToolkit.Wpf is a PRIVATE dependency of the 3D-cube plugins and is pulled in by nothing
+         else in the host graph, so it must be copied into each plugin's own folder for the ALC to
+         resolve it at load time. -->
+    <HelixStrategyPlugin Include="TradingTerminal.Strategies.OrderFlowCube" />
+    <HelixStrategyPlugin Include="TradingTerminal.Strategies.OrderFlowSurfaceSpike" />
+    <HelixStrategyPlugin Include="TradingTerminal.Strategies.ImbalanceHeatFront" />
+    <HelixStrategyPlugin Include="TradingTerminal.Strategies.IndexKScoreSurface" />
+  </ItemGroup>
+
+  <Target Name="StageStrategyPlugins" AfterTargets="Build">
+    <ItemGroup>
+      <StrategyPluginFile Include="..\..\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).dll">
+        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
+      </StrategyPluginFile>
+      <StrategyPluginFile Include="..\..\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).pdb">
+        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
+      </StrategyPluginFile>
+      <StrategyPluginFile Include="..\..\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\plugin.json">
+        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
+      </StrategyPluginFile>
+      <StrategyPluginFile Condition="'@(HelixStrategyPlugin)' != ''" Include="..\..\Strategies\%(HelixStrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\HelixToolkit.Wpf.dll">
+        <PluginDir>$(OutDir)plugins\%(HelixStrategyPlugin.Identity)</PluginDir>
+      </StrategyPluginFile>
+    </ItemGroup>
+    <Copy SourceFiles="@(StrategyPluginFile)" DestinationFolder="%(StrategyPluginFile.PluginDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Staged strategy plugins -> $(OutDir)plugins" />
   </Target>
 
 </Project>

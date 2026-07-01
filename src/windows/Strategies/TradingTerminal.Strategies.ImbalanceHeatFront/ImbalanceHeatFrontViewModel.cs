@@ -8,7 +8,7 @@ using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.UI;
-using EngineStrategy = TradingTerminal.Infrastructure.Backtest.Strategies.ImbalanceHeatFrontStrategy;
+using EngineStrategy = TradingTerminal.Strategies.ImbalanceHeatFront.Engine.ImbalanceHeatFrontStrategy;
 
 namespace TradingTerminal.Strategies.ImbalanceHeatFront;
 

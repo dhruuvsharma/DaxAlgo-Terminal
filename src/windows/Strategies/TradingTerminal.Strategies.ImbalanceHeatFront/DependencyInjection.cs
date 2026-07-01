@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Strategies.ImbalanceHeatFront;
@@ -9,6 +10,16 @@ public static class DependencyInjection
     {
         services.AddSingleton<ITradingStrategy, ImbalanceHeatFrontStrategy>();
         services.AddTransient<ImbalanceHeatFrontViewModel>();
+
+        // Backtest entry — the plugin owns its engine (Engine/ImbalanceHeatFrontStrategy) and registers
+        // its own BacktestStrategyOption at runtime (no BacktestStrategyCatalog edit).
+        services.AddSingleton(new BacktestStrategyOption(
+            Id: "imbalanceHeatFront",
+            DisplayName: "Imbalance Heat Front (L2 bid-ask pressure surface)",
+            Build: contract => new Engine.ImbalanceHeatFrontStrategy(contract))
+        {
+            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
+        });
 #if WINDOWS
         services.AddTransient<ImbalanceHeatFrontWindow>();
 

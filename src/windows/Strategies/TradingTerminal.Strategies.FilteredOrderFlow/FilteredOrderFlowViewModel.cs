@@ -9,7 +9,7 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.UI;
-using EngineStrategy = TradingTerminal.Infrastructure.Backtest.Strategies.FilteredOrderFlowStrategy;
+using EngineStrategy = TradingTerminal.Strategies.FilteredOrderFlow.Engine.FilteredOrderFlowStrategy;
 
 namespace TradingTerminal.Strategies.FilteredOrderFlow;
 

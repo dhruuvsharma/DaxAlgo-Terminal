@@ -4,7 +4,7 @@ using TradingTerminal.Core.IndexKScore;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Infrastructure.Backtest.Strategies;
+namespace TradingTerminal.Strategies.IndexKScoreSurface.Engine;
 
 /// <summary>
 /// Single-instrument variant of the Index K-Score Surface strategy. The full multi-stock

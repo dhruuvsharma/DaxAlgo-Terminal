@@ -3,7 +3,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Infrastructure.Backtest.Strategies;
+namespace TradingTerminal.Strategies.ImbalanceHeatFront.Engine;
 
 /// <summary>
 /// Imbalance Heat Front. Maintains a rolling matrix of per-distance L2 imbalance ratios over

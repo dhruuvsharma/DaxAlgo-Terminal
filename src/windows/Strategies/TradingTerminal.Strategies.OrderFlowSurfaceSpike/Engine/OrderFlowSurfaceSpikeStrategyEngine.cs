@@ -3,7 +3,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Infrastructure.Backtest.Strategies;
+namespace TradingTerminal.Strategies.OrderFlowSurfaceSpike.Engine;
 
 /// <summary>
 /// Order Flow Surface Spike detector. Maintains a rolling matrix [<see cref="NumSlices"/> time

@@ -1,35 +1,30 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: portable VM + descriptor on net9.0 (ScottPlot.Avalonia 2D scatter); the WPF
-         HelixToolkit window stays on the windows leg. The data is a 2D phase-space trail, so the
-         cross-platform view is a faithful 2D scatter. See Strategies.CumulativeDelta. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
-    <Description>Order-flow regime cube â€” 2D phase-space view of CVD vs aggressor ratio with size-ratio color, live from the trade tape.</Description>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <UseWPF>true</UseWPF>
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <!-- Emit HelixToolkit.Wpf.dll into bin so the host can stage this private dep into the plugin
+         folder (nothing else in the host graph pulls it in). -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <Description>Order-flow regime cube — 2D phase-space view of CVD vs aggressor ratio with size-ratio color, live from the trade tape. Ships its own backtest engine (Engine/).</Description>
   </PropertyGroup>
 
+  <!-- Ships as an EXTERNAL plugin: references ONLY the DaxAlgo SDK (the Phase B boundary). The engine
+       (Engine/OrderFlowCubeStrategy) moved in from Infrastructure so the plugin is self-contained; it
+       depends only on Core, which DaxAlgo.Sdk provides. HelixToolkit is a PRIVATE dep staged into the
+       plugin folder by the host. See Strategies.SigmaIcFlow. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk.Wpf\DaxAlgo.Sdk.Wpf.csproj" />
     <PackageReference Include="HelixToolkit.Wpf" Version="2.27.0" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
-    <Compile Remove="OrderFlowCubeWindow.xaml.cs" />
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+
+  <ItemGroup>
     <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 

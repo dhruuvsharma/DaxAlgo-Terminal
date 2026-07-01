@@ -1,0 +1,7 @@
+{
+  "id": "orderflow.surface.spike",
+  "name": "Order-Flow Surface Spike",
+  "version": "1.0.0",
+  "targetSdkVersion": "0.1.0-alpha",
+  "publisher": "DaxAlgo"
+}

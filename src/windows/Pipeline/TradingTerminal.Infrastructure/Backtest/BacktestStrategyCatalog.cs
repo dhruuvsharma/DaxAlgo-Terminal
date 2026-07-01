@@ -66,42 +66,11 @@ public static class BacktestStrategyCatalog
                      $"don-lk{l}-trail{t.ToString(CultureInfo.InvariantCulture)}",
                      c => new DonchianBreakoutStrategy(c, l, t, axes.Quantity))).ToList(),
         },
-        // ── L2 / depth-of-market themed (cTrader DOM territory) ───────────────────────
-        new BacktestStrategyOption(
-            Id: "orderFlowCube",
-            DisplayName: "Order-flow regime cube (CVD × aggressor × size)",
-            Build: contract => new OrderFlowCubeStrategy(contract))
-        {
-            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape,
-        },
-        new BacktestStrategyOption(
-            Id: "orderFlowSurfaceSpike",
-            DisplayName: "Order-flow surface spike detector (Z-score over slice×bin matrix)",
-            Build: contract => new OrderFlowSurfaceSpikeStrategy(contract))
-        {
-            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape,
-        },
-        new BacktestStrategyOption(
-            Id: "imbalanceHeatFront",
-            DisplayName: "Imbalance Heat Front (L2 bid-ask pressure surface)",
-            Build: contract => new ImbalanceHeatFrontStrategy(contract))
-        {
-            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.Depth,
-        },
-        // NOTE: "sigmaIcFlow" is no longer registered here. Its engine (ApexScalperStrategy) now
-        // lives in the TradingTerminal.Strategies.SigmaIcFlow plugin and registers its own
-        // BacktestStrategyOption at runtime via IBacktestStrategyRegistry in AddSigmaIcFlowStrategy().
-        // This is the plugin model: the host catalog names no plugin-owned strategy.
-        new BacktestStrategyOption(
-            Id: "indexKScoreSurface",
-            DisplayName: "Index K-Score Surface (single-instrument backtest variant)",
-            Build: contract => new IndexKScoreSurfaceStrategy(contract)),
-        new BacktestStrategyOption(
-            Id: "filteredOrderFlow",
-            DisplayName: "Filtered order-flow imbalance OBI(T) (arXiv:2507.22712)",
-            Build: contract => new FilteredOrderFlowStrategy(contract))
-        {
-            DataRequirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars | StrategyDataRequirement.TradeTape,
-        },
+        // NOTE: the host catalog now names only the three engine demos. Every first-party strategy
+        // (SigmaIcFlow, IndexRegimeGraph, OrderFlowCube, OrderFlowSurfaceSpike, ImbalanceHeatFront,
+        // IndexKScoreSurface, FilteredOrderFlow, …) ships as an EXTERNAL plugin: each moves its engine
+        // into its own project and registers its BacktestStrategyOption at runtime via
+        // Add<Name>Strategy(). IBacktestStrategyRegistry aggregates every DI-registered option, so no
+        // plugin-owned strategy is named here.
     };
 }

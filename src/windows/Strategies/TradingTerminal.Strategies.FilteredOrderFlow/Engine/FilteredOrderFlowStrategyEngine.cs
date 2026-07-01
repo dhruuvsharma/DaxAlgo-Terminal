@@ -4,7 +4,7 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Infrastructure.Backtest.Strategies;
+namespace TradingTerminal.Strategies.FilteredOrderFlow.Engine;
 
 /// <summary>
 /// Filtered order-flow imbalance — Anantha, Jain &amp; Maiti (2025), "Order-Flow Filtration and

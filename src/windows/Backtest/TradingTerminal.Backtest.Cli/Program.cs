@@ -120,12 +120,9 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract)
         "buyandhold" or "buy-and-hold" => new BuyAndHoldStrategy(contract),
         "meanreversion" or "mean-reversion" => new MeanReversionStrategy(contract),
         "donchianbreakout" or "donchian" or "breakout" => new DonchianBreakoutStrategy(contract),
-        // L2 / depth-of-market themed
-        "orderflowcube" or "ofcube" or "cube" => new OrderFlowCubeStrategy(contract),
-        "orderflowsurfacespike" or "ofss" or "surfacespike" or "surface" => new OrderFlowSurfaceSpikeStrategy(contract),
-        "imbalanceheatfront" or "ihf" or "heatfront" => new ImbalanceHeatFrontStrategy(contract),
-        "indexkscoresurface" or "kscore" or "indexkscore" => new IndexKScoreSurfaceStrategy(contract),
-        "filteredorderflow" or "fof" or "obit" => new FilteredOrderFlowStrategy(contract),
+        // Every other strategy (orderFlowCube / orderFlowSurfaceSpike / imbalanceHeatFront /
+        // indexKScoreSurface / filteredOrderFlow / sigmaIcFlow / …) ships as an external plugin and
+        // resolves through the PluginStrategies path below once its DLL is in {exe}/plugins.
         _ => null,
     };
 
@@ -136,8 +133,7 @@ static IBacktestStrategy ResolveStrategy(string id, Contract contract)
 
 static string UnknownStrategyMessage(string id)
 {
-    const string builtins = "buyAndHold, meanReversion, donchianBreakout, " +
-        "orderFlowCube, orderFlowSurfaceSpike, imbalanceHeatFront, indexKScoreSurface, filteredOrderFlow";
+    const string builtins = "buyAndHold, meanReversion, donchianBreakout";
     var plugins = PluginStrategies.AvailableIds;
     var pluginPart = plugins.Count > 0 ? $" Plugins: {string.Join(", ", plugins)}." : " (no plugins loaded)";
     return $"Unknown strategy '{id}'. Built-in: {builtins}.{pluginPart}";

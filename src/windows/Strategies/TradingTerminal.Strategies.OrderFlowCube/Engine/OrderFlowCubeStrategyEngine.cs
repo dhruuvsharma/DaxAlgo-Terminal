@@ -3,7 +3,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Infrastructure.Backtest.Strategies;
+namespace TradingTerminal.Strategies.OrderFlowCube.Engine;
 
 /// <summary>
 /// "Order Flow Cube" regime strategy — the first in the multi-variable regime-cube series

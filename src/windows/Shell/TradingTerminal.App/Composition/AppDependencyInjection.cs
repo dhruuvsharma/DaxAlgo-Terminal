@@ -9,13 +9,6 @@ using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.UI;
-using TradingTerminal.Strategies.CumulativeDelta;
-using TradingTerminal.Strategies.FilteredOrderFlow;
-using TradingTerminal.Strategies.ImbalanceHeatFront;
-using TradingTerminal.Strategies.IndexKScoreSurface;
-using TradingTerminal.Strategies.OrderFlowCube;
-using TradingTerminal.Strategies.OrderFlowPressureMap;
-using TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 
 namespace TradingTerminal.App.Composition;
 
@@ -64,28 +57,18 @@ public static class AppDependencyInjection
             sp.GetRequiredService<TradingTerminal.UI.Logging.InMemoryLogSink>(),
             sp.GetRequiredService<Core.MarketData.IInstrumentRegistry>()));
 
-        // Dedicated live strategies — each in its own project, opens as a MetroWindow.
-        services.AddCumulativeDeltaStrategy();
+        // NOTE: every first-party strategy is now compile-registered NOWHERE here — each ships as an
+        // EXTERNAL plugin (SigmaIcFlow, IndexRegimeGraph, CumulativeDelta, FilteredOrderFlow,
+        // OrderFlowCube, OrderFlowSurfaceSpike, ImbalanceHeatFront, IndexKScoreSurface,
+        // OrderFlowPressureMap). App.csproj builds each with ReferenceOutputAssembly=false and stages its
+        // DLL + plugin.json into {BaseDirectory}/plugins; PluginLoader (below) discovers and registers
+        // them at runtime through the SAME DI seam. IndexRegimeGraph consumes only the host-registered
+        // Core IAdvancedRegimeProvider (TryAdd'd above), so it needs no host-internal reference.
 
-        // L2 / depth-of-market
-        services.AddOrderFlowPressureMapStrategy();
-        services.AddOrderFlowCubeStrategy();
-        services.AddOrderFlowSurfaceSpikeStrategy();
-        services.AddImbalanceHeatFrontStrategy();
-        // NOTE: SigmaIcFlow is no longer compile-registered here — it ships as an EXTERNAL plugin
-        // (staged into {BaseDirectory}/plugins by App.csproj) and loads via PluginLoader below. This
-        // is the live proof that a real strategy + its WPF window load cross-load-context.
-        services.AddIndexKScoreSurfaceStrategy();
-        // NOTE: IndexRegimeGraph is no longer compile-registered here — like SigmaIcFlow it ships as an
-        // EXTERNAL plugin (staged into {BaseDirectory}/plugins by App.csproj) and loads via PluginLoader
-        // below. It consumes only the host-registered Core IAdvancedRegimeProvider, so it needs no
-        // host-internal reference.
-        services.AddFilteredOrderFlowStrategy();
-
-        // Third-party strategy plugins — discovered at runtime from the app's plugins/ folder, each
-        // loaded in its own collectible context and registered through the SAME DI seam as the
-        // first-party strategies above (no host recompile). Missing folder = no-op; a bad plugin is
-        // logged and skipped, never blocking startup. This is the open-core marketplace entry point.
+        // Strategy plugins — discovered at runtime from the app's plugins/ folder (the first-party ones
+        // staged by App.csproj, plus any third-party drop-ins), each loaded in its own collectible
+        // context and registered through the SAME DI seam (no host recompile). Missing folder = no-op;
+        // a bad plugin is logged and skipped, never blocking startup. The open-core marketplace entry point.
         var pluginsRoot = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins");
         // Dev/open-core build loads unsigned local plugins. A curated distribution would build this
         // policy from config (pinned publisher thumbprints) instead.

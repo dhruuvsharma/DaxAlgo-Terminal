@@ -1,35 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: portable VM + descriptor on net9.0 (Avalonia view); the WPF heatmap window +
-         custom PressureMatrixView control stay on the windows leg. See Strategies.CumulativeDelta. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
-    <Description>1-Minute Order Flow Pressure Map: a single heatmap matrix (ticker Ã— time) over the S&amp;P 100/500 universe that flags where unusual 1m volume is hitting and whether price is absorbing it or breaking through. Data/signals only.</Description>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <UseWPF>true</UseWPF>
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <Description>1-Minute Order Flow Pressure Map: a single heatmap matrix (ticker x time) over the S&amp;P 100/500 universe that flags where unusual 1m volume is hitting and whether price is absorbing it or breaking through. Data/signals only.</Description>
   </PropertyGroup>
 
+  <!-- External plugin: references ONLY the DaxAlgo SDK (live-only monitor; its engine is in-project). -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk.Wpf\DaxAlgo.Sdk.Wpf.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <!-- WPF window + custom WPF matrix control don't compile off-Windows. -->
-    <Compile Remove="OrderFlowPressureMapWindow.xaml.cs" />
-    <Compile Remove="PressureMatrixView.cs" />
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+
+  <ItemGroup>
     <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 

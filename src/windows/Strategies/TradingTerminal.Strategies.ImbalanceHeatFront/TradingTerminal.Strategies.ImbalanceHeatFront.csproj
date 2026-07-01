@@ -1,33 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: portable VM + descriptor on net9.0; the WPF window (HelixToolkit 3D surface)
-         stays on the windows leg. See Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
-    <Description>Imbalance Heat Front - 3D bid/ask pressure surface over [distance-from-touch x time] with ridge-driven entries (momentum or mean-reversion). Requires L2 depth.</Description>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <UseWPF>true</UseWPF>
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <!-- Emit HelixToolkit.Wpf.dll into bin so the host can stage this private dep into the plugin folder. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <Description>Imbalance Heat Front - 3D bid/ask pressure surface over [distance-from-touch x time] with ridge-driven entries (momentum or mean-reversion). Requires L2 depth. Ships its own backtest engine (Engine/).</Description>
   </PropertyGroup>
 
+  <!-- External plugin: references ONLY the DaxAlgo SDK. The engine (Engine/ImbalanceHeatFrontStrategy)
+       moved in from Infrastructure. HelixToolkit is a PRIVATE dep staged into the plugin folder by the
+       host. See Strategies.SigmaIcFlow. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-  </ItemGroup>
-
-  <!-- HelixToolkit 3D surface + MahApps window only on the Windows leg. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk.Wpf\DaxAlgo.Sdk.Wpf.csproj" />
     <PackageReference Include="HelixToolkit.Wpf" Version="2.27.0" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <Compile Remove="ImbalanceHeatFrontWindow.xaml.cs" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Avalonia\TradingTerminal.UI.Avalonia.csproj" />
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

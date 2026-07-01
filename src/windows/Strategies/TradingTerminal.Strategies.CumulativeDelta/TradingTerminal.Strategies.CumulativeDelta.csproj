@@ -1,37 +1,27 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target so the portable VM + descriptor compile for Linux/Avalonia (net9.0); the WPF
-         window stays on the windows leg. See Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
     <Description>Cumulative-delta scalper. Bid-tick rule per bar, sliding window of N bar-deltas, threshold-cross trigger, ATR + HTF EMA + session/spread/cooldown guards.</Description>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <UseWPF>true</UseWPF>
-    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
-  </PropertyGroup>
-
+  <!-- Ships as an EXTERNAL plugin: references ONLY the DaxAlgo SDK (the Phase B boundary).
+       DaxAlgo.Sdk.Wpf transitively provides Core + the WPF UI bases (TradingTerminal.UI / .UI.Core,
+       incl. ScottPlot.WPF). NO host-internal (Infrastructure) reference. See Strategies.SigmaIcFlow. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk.Wpf\DaxAlgo.Sdk.Wpf.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
-    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <Compile Remove="CumulativeDeltaWindow.xaml.cs" />
+  <!-- Plugin manifest — staged next to the DLL so the host reads it before loading the assembly. -->
+  <ItemGroup>
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Cross-platform (Avalonia) view on the net9.0 leg only (see Strategies.CumulativeDelta). -->
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+  <!-- Avalonia view files belong to the Linux tree only; never compiled on this WPF-only plugin. -->
+  <ItemGroup>
     <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
