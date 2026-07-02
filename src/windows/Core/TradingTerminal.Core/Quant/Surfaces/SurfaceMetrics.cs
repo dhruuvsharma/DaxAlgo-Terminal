@@ -5,7 +5,7 @@ public enum SurfaceAxisFormat
 {
     /// <summary>Fractional value shown as a percentage (0.0123 → "1.23%").</summary>
     Percent,
-    /// <summary>Dimensionless ratio (Sharpe, profit factor) shown as "0.00".</summary>
+    /// <summary>Dimensionless ratio (z-score, autocorrelation) shown as "0.00".</summary>
     Ratio,
     /// <summary>Whole number (periods, counts) shown as "0".</summary>
     Integer,
@@ -32,47 +32,40 @@ public static class SurfaceAxisFormats
 }
 
 /// <summary>
-/// Everything a per-cell metric can be computed from. Each surface cell (one grid point) owns one
-/// sample: for parameter-optimization cells this is the simulated strategy's per-bar return series
-/// plus its closed-trade returns; for temporal/cross-sectional cells it is the bucket of realized
-/// (next-period) returns that fell into the cell. Benchmark returns (the raw instrument, aligned
-/// 1:1 with <see cref="Returns"/>) enable correlation/beta; dollar volumes enable Amihud.
+/// Everything a per-cell statistic is computed from: the bucket of realized (next-period) returns
+/// that fell into the cell, the aligned dollar volumes (for Amihud), and the annualization factor.
 /// </summary>
 public sealed record SurfaceCellSample(
     double[] Returns,
-    double[]? BenchmarkReturns,
     double[]? DollarVolumes,
-    double[]? TradeReturns,
     double PeriodsPerYear)
 {
-    public static readonly SurfaceCellSample Empty = new(Array.Empty<double>(), null, null, null, 252);
+    public static readonly SurfaceCellSample Empty = new(Array.Empty<double>(), null, 252);
 }
 
 /// <summary>Registry category — drives the grouped dropdowns in the Surface Lab UI.</summary>
 public enum SurfaceMetricCategory
 {
-    /// <summary>Backtest performance metrics (natural Z-axis picks in parameter mode).</summary>
-    Performance,
-    /// <summary>Statistical / risk functions (Z or W axis).</summary>
-    Statistical,
-    /// <summary>Aggregates of a bucket of returns (natural Z picks in temporal / cross-sectional mode).</summary>
+    /// <summary>First moments / counts of the bucket (natural Z-axis picks).</summary>
     Aggregate,
+    /// <summary>Distribution shape, tail risk, dependence, and liquidity statistics (Z or W axis).</summary>
+    Statistical,
 }
 
-/// <summary>One selectable metric: id (also the formula-bar variable name), display name,
+/// <summary>One selectable statistic: id (also the formula-bar variable name), display name,
 /// category, display format, and the compute function over a cell sample.</summary>
 public sealed record SurfaceMetricDefinition(
     string Id,
     string Name,
     SurfaceMetricCategory Category,
     SurfaceAxisFormat Format,
-    Func<SurfaceCellSample, double> Compute,
-    bool RequiresBenchmark = false);
+    Func<SurfaceCellSample, double> Compute);
 
 /// <summary>
-/// The metric registry behind the Z / W axis dropdowns and the formula-bar variables.
-/// All functions are NaN-safe: degenerate samples (empty, zero variance) yield NaN, and the
-/// renderer paints NaN cells as gaps rather than lying with a zero.
+/// The statistics registry behind the Z / W axis dropdowns and the formula-bar variables.
+/// Pure math over a bucket of returns — no strategy/portfolio metrics live here. All functions
+/// are NaN-safe: degenerate samples (empty, zero variance) yield NaN, and the renderer paints
+/// NaN cells as gaps rather than lying with a zero.
 /// </summary>
 public static class SurfaceMetricRegistry
 {
@@ -83,38 +76,25 @@ public static class SurfaceMetricRegistry
 
     private static List<SurfaceMetricDefinition> Build() => new()
     {
-        // ── Performance ─────────────────────────────────────────────────────────────────────
-        new("sharpe",       "Sharpe Ratio",        SurfaceMetricCategory.Performance, SurfaceAxisFormat.Ratio,   Sharpe),
-        new("sortino",      "Sortino Ratio",       SurfaceMetricCategory.Performance, SurfaceAxisFormat.Ratio,   Sortino),
-        new("calmar",       "Calmar Ratio",        SurfaceMetricCategory.Performance, SurfaceAxisFormat.Ratio,   Calmar),
-        new("totalreturn",  "Total Return %",      SurfaceMetricCategory.Performance, SurfaceAxisFormat.Percent, TotalReturn),
-        new("cagr",         "CAGR",                SurfaceMetricCategory.Performance, SurfaceAxisFormat.Percent, Cagr),
-        new("maxdd",        "Maximum Drawdown %",  SurfaceMetricCategory.Performance, SurfaceAxisFormat.Percent, MaxDrawdown),
-        new("ulcer",        "Ulcer Index",         SurfaceMetricCategory.Performance, SurfaceAxisFormat.Ratio,   UlcerIndex),
-        new("winrate",      "Win Rate %",          SurfaceMetricCategory.Performance, SurfaceAxisFormat.Percent, WinRate),
-        new("profitfactor", "Profit Factor",       SurfaceMetricCategory.Performance, SurfaceAxisFormat.Ratio,   ProfitFactor),
-        new("expectancy",   "Expectancy",          SurfaceMetricCategory.Performance, SurfaceAxisFormat.Percent, Expectancy),
+        // ── Bucket aggregates ───────────────────────────────────────────────────────────────
+        new("avgret",    "Average Return",       SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, Mean),
+        new("medret",    "Median Return",        SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, Median),
+        new("stdret",    "Std Dev of Returns",   SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, StdDev),
+        new("count",     "Frequency (count)",    SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Integer, s => s.Returns.Length),
+        new("probup",    "P(return > 0)",        SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, ProbUp),
 
         // ── Statistical / risk ──────────────────────────────────────────────────────────────
-        new("vol",          "Realized Vol (ann.)", SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, RealizedVol),
-        new("var95",        "VaR 95%",             SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => ValueAtRisk(s, 0.95)),
-        new("var99",        "VaR 99%",             SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => ValueAtRisk(s, 0.99)),
-        new("cvar95",       "CVaR 95% (ES)",       SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => ConditionalVaR(s, 0.95)),
-        new("skew",         "Skewness",            SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,   Skewness),
-        new("kurtosis",     "Kurtosis (excess)",   SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,   Kurtosis),
-        new("zscore",       "Z-Score of mean",     SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,   ZScore),
-        new("npdf",         "Normal PDF (z)",      SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Number,  s => NormalPdf(ZScore(s))),
-        new("ncdf",         "Normal CDF (z)",      SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => NormalCdf(ZScore(s))),
-        new("pearson",      "Pearson Corr (vs underlying)", SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio, Pearson, RequiresBenchmark: true),
-        new("beta",         "Beta (vs underlying)", SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,  Beta, RequiresBenchmark: true),
-        new("amihud",       "Amihud Illiquidity",  SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Number,  Amihud),
-
-        // ── Bucket aggregates ───────────────────────────────────────────────────────────────
-        new("avgret",       "Average Return",      SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, Mean),
-        new("medret",       "Median Return",       SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, Median),
-        new("stdret",       "Std Dev of Returns",  SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, StdDev),
-        new("count",        "Frequency (count)",   SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Integer, s => s.Returns.Length),
-        new("probup",       "P(return > 0)",       SurfaceMetricCategory.Aggregate,   SurfaceAxisFormat.Percent, ProbUp),
+        new("vol",       "Realized Vol (ann.)",  SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, RealizedVol),
+        new("var95",     "VaR 95%",              SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => ValueAtRisk(s, 0.95)),
+        new("var99",     "VaR 99%",              SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => ValueAtRisk(s, 0.99)),
+        new("cvar95",    "CVaR 95% (ES)",        SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => ConditionalVaR(s, 0.95)),
+        new("skew",      "Skewness",             SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,   Skewness),
+        new("kurtosis",  "Kurtosis (excess)",    SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,   Kurtosis),
+        new("zscore",    "Z-Score of mean",      SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio,   ZScore),
+        new("npdf",      "Normal PDF (z)",       SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Number,  s => NormalPdf(ZScore(s))),
+        new("ncdf",      "Normal CDF (z)",       SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Percent, s => NormalCdf(ZScore(s))),
+        new("autocorr1", "Autocorrelation (lag 1)", SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Ratio, Autocorr1),
+        new("amihud",    "Amihud Illiquidity",   SurfaceMetricCategory.Statistical, SurfaceAxisFormat.Number,  Amihud),
     };
 
     // ── Core math (all static, allocation-light, NaN on degenerate input) ────────────────────
@@ -144,112 +124,6 @@ public static class SurfaceMetricRegistry
 
     public static double ProbUp(SurfaceCellSample s) =>
         s.Returns.Length == 0 ? double.NaN : s.Returns.Count(v => v > 0) / (double)s.Returns.Length;
-
-    public static double TotalReturn(SurfaceCellSample s)
-    {
-        if (s.Returns.Length == 0) return double.NaN;
-        var eq = 1.0;
-        foreach (var r in s.Returns) eq *= 1 + r;
-        return eq - 1;
-    }
-
-    public static double Cagr(SurfaceCellSample s)
-    {
-        if (s.Returns.Length == 0) return double.NaN;
-        var total = TotalReturn(s);
-        if (total <= -1) return -1;
-        var years = s.Returns.Length / Math.Max(s.PeriodsPerYear, 1e-9);
-        return years <= 0 ? double.NaN : Math.Pow(1 + total, 1 / years) - 1;
-    }
-
-    public static double Sharpe(SurfaceCellSample s)
-    {
-        var sd = StdDev(s.Returns);
-        if (double.IsNaN(sd) || sd <= 0) return double.NaN;
-        return Mean(s) / sd * Math.Sqrt(s.PeriodsPerYear);
-    }
-
-    public static double Sortino(SurfaceCellSample s)
-    {
-        if (s.Returns.Length < 2) return double.NaN;
-        var mean = Mean(s);
-        var ssDown = 0.0;
-        var nDown = 0;
-        foreach (var r in s.Returns)
-        {
-            if (r >= 0) continue;
-            ssDown += r * r;
-            nDown++;
-        }
-        if (nDown == 0) return double.NaN;
-        var downside = Math.Sqrt(ssDown / s.Returns.Length);
-        return downside <= 0 ? double.NaN : mean / downside * Math.Sqrt(s.PeriodsPerYear);
-    }
-
-    /// <summary>Max peak-to-trough equity drawdown as a positive fraction (0.25 = −25%).</summary>
-    public static double MaxDrawdown(SurfaceCellSample s)
-    {
-        if (s.Returns.Length == 0) return double.NaN;
-        double eq = 1, peak = 1, maxDd = 0;
-        foreach (var r in s.Returns)
-        {
-            eq *= 1 + r;
-            if (eq > peak) peak = eq;
-            var dd = 1 - eq / peak;
-            if (dd > maxDd) maxDd = dd;
-        }
-        return maxDd;
-    }
-
-    public static double Calmar(SurfaceCellSample s)
-    {
-        var dd = MaxDrawdown(s);
-        if (double.IsNaN(dd) || dd <= 0) return double.NaN;
-        return Cagr(s) / dd;
-    }
-
-    /// <summary>Ulcer index: RMS of the percentage drawdown series (in percent points).</summary>
-    public static double UlcerIndex(SurfaceCellSample s)
-    {
-        if (s.Returns.Length == 0) return double.NaN;
-        double eq = 1, peak = 1, ss = 0;
-        foreach (var r in s.Returns)
-        {
-            eq *= 1 + r;
-            if (eq > peak) peak = eq;
-            var ddPct = (1 - eq / peak) * 100;
-            ss += ddPct * ddPct;
-        }
-        return Math.Sqrt(ss / s.Returns.Length);
-    }
-
-    /// <summary>Win rate over closed trades when available, else share of positive periods.</summary>
-    public static double WinRate(SurfaceCellSample s)
-    {
-        var basis = s.TradeReturns is { Length: > 0 } t ? t : s.Returns;
-        if (basis.Length == 0) return double.NaN;
-        return basis.Count(v => v > 0) / (double)basis.Length;
-    }
-
-    public static double ProfitFactor(SurfaceCellSample s)
-    {
-        var basis = s.TradeReturns is { Length: > 0 } t ? t : s.Returns;
-        double win = 0, loss = 0;
-        foreach (var v in basis)
-        {
-            if (v > 0) win += v;
-            else loss -= v;
-        }
-        if (loss <= 0) return double.NaN;
-        return win / loss;
-    }
-
-    /// <summary>Mean closed-trade return (per-period mean when no trades exist).</summary>
-    public static double Expectancy(SurfaceCellSample s)
-    {
-        var basis = s.TradeReturns is { Length: > 0 } t ? t : s.Returns;
-        return basis.Length == 0 ? double.NaN : basis.Average();
-    }
 
     public static double RealizedVol(SurfaceCellSample s)
     {
@@ -336,39 +210,20 @@ public static class SurfaceMetricRegistry
         return 0.5 * (1 + erf);
     }
 
-    public static double Pearson(SurfaceCellSample s)
+    /// <summary>Lag-1 sample autocorrelation of the cell's returns (arrival order).</summary>
+    public static double Autocorr1(SurfaceCellSample s)
     {
-        var b = s.BenchmarkReturns;
         var r = s.Returns;
-        if (b is null || b.Length != r.Length || r.Length < 3) return double.NaN;
-        double mr = r.Average(), mb = b.Average();
-        double cov = 0, vr = 0, vb = 0;
+        if (r.Length < 3) return double.NaN;
+        var mean = r.Average();
+        double num = 0, den = 0;
         for (var i = 0; i < r.Length; i++)
         {
-            var dr = r[i] - mr;
-            var db = b[i] - mb;
-            cov += dr * db;
-            vr += dr * dr;
-            vb += db * db;
+            var d = r[i] - mean;
+            den += d * d;
+            if (i > 0) num += d * (r[i - 1] - mean);
         }
-        if (vr <= 0 || vb <= 0) return double.NaN;
-        return cov / Math.Sqrt(vr * vb);
-    }
-
-    public static double Beta(SurfaceCellSample s)
-    {
-        var b = s.BenchmarkReturns;
-        var r = s.Returns;
-        if (b is null || b.Length != r.Length || r.Length < 3) return double.NaN;
-        double mr = r.Average(), mb = b.Average();
-        double cov = 0, vb = 0;
-        for (var i = 0; i < r.Length; i++)
-        {
-            cov += (r[i] - mr) * (b[i] - mb);
-            vb += (b[i] - mb) * (b[i] - mb);
-        }
-        if (vb <= 0) return double.NaN;
-        return cov / vb;
+        return den <= 0 ? double.NaN : num / den;
     }
 
     /// <summary>Amihud (2002) illiquidity: mean(|r| / dollar volume) × 10⁶.</summary>

@@ -79,7 +79,7 @@
                              mah:TextBoxHelper.Watermark="custom formula (overrides metric)…"
                              mah:TextBoxHelper.ClearTextButton="True"
                              FontFamily="Consolas, Cascadia Mono, monospace" />
-                    <TextBlock Text="Operators + − * / ^ · Log() Exp() Sqrt() Abs() Max() Min() Avg() Sum() · variables are metric ids (sharpe, maxdd, vol, winrate, cagr, var95, …)"
+                    <TextBlock Text="Operators + − * / ^ · Log() Exp() Sqrt() Abs() Max() Min() Avg() Sum() · variables are statistic ids (avgret, medret, stdret, count, probup, vol, var95, var99, cvar95, skew, kurtosis, zscore, npdf, ncdf, autocorr1, amihud)"
                                FontSize="10" Foreground="{DynamicResource Text.Secondary}"
                                TextWrapping="Wrap" Margin="0,3,0,0" />
                 </StackPanel>
@@ -101,7 +101,7 @@
                       Background="{DynamicResource Background.Surface}">
             <StackPanel Margin="12">
                 <TextBlock Text="3D Surface Lab" FontSize="17" FontWeight="SemiBold" />
-                <TextBlock Text="Parameter landscapes, seasonality surfaces, and conditional-return surfaces over historical bars."
+                <TextBlock Text="Seasonality and cross-sectional return-statistics surfaces — one-shot over history, or live on streaming market data."
                            Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,10" />
 
                 <TextBlock Text="SURFACE MODE" FontSize="11" FontWeight="SemiBold"
@@ -167,7 +167,8 @@
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Content="GENERATE SURFACE"
                             Command="{Binding GenerateCommand}"
-                            IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
+                            IsEnabled="{Binding CanGenerate}"
+                            ToolTip="One-shot build over stored/historical bars."
                             Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"
                             Padding="0,8" FontWeight="SemiBold" />
                     <Button Grid.Column="2" Content="✕" ToolTip="Cancel"
@@ -175,6 +176,28 @@
                             Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                             Padding="10,8" />
                 </Grid>
+
+                <Button Command="{Binding ToggleLiveCommand}"
+                        Margin="0,8,0,0" Padding="0,8" FontWeight="SemiBold"
+                        Foreground="White"
+                        ToolTip="Seed from history, then rebuild the surface continuously from streaming quotes/trades.">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+                            <Setter Property="Background" Value="{DynamicResource Bullish.Brush}" />
+                            <Setter Property="Content" Value="● GO LIVE" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
+                                    <Setter Property="Content" Value="■ STOP LIVE" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <TextBlock Text="{Binding LiveStatus}" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Bullish.Brush}" TextWrapping="Wrap" Margin="0,6,0,0"
+                           Visibility="{Binding IsLive, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                 <mah:MetroProgressBar IsIndeterminate="True" Margin="0,8,0,0"
                                       Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -214,8 +237,8 @@
                 <CheckBox IsChecked="{Binding ShowPeakMarker}"
                           Content="Peak finder (pin the global maximum)" />
                 <CheckBox IsChecked="{Binding RobustnessColorMode}" Margin="0,6,0,0"
-                          Content="Robustness heatmap (green = plateau, red = overfit spike)"
-                          ToolTip="Colors each cell by the gradient to its neighbors instead of by the W metric. Smooth plateaus are parameter-robust; isolated spikes are likely overfit." />
+                          Content="Robustness heatmap (green = plateau, red = spike)"
+                          ToolTip="Colors each cell by the gradient to its neighbors instead of by the W statistic. Smooth plateaus are stable effects; isolated spikes are likely noise/outliers." />
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                     <TextBlock Text="Height ×" VerticalAlignment="Center"
                                Foreground="{DynamicResource Text.Secondary}" FontSize="11" />

@@ -5,41 +5,27 @@ using Xunit;
 
 namespace TradingTerminal.Tests.Quant;
 
-/// <summary>Metric registry math for the 3D Surface Lab (Core/Quant/Surfaces).</summary>
+/// <summary>Statistics registry math for the 3D Surface Lab (Core/Quant/Surfaces).</summary>
 public sealed class SurfaceMetricsTests
 {
     private static SurfaceCellSample Sample(double[] returns, double ppy = 252) =>
-        new(returns, null, null, null, ppy);
+        new(returns, null, ppy);
 
     [Fact]
-    public void TotalReturn_Compounds()
+    public void MeanMedianStd_KnownSeries()
     {
-        SurfaceMetricRegistry.TotalReturn(Sample(new[] { 0.10, 0.10 }))
-            .Should().BeApproximately(0.21, 1e-12);
+        var s = Sample(new[] { 0.01, 0.02, 0.03, 0.10 });
+        SurfaceMetricRegistry.Mean(s).Should().BeApproximately(0.04, 1e-12);
+        SurfaceMetricRegistry.Median(s).Should().BeApproximately(0.025, 1e-12);
+        SurfaceMetricRegistry.StdDev(s).Should().BeGreaterThan(0);
     }
 
     [Fact]
-    public void Sharpe_KnownSeries()
+    public void RealizedVol_Annualizes()
     {
-        // mean 0.01, sample std 0.01 → sharpe = 1 * sqrt(252)
         var s = Sample(new[] { 0.0, 0.02, 0.0, 0.02 });
-        var mean = 0.01;
         var std = Math.Sqrt(4.0 / 3.0 * 0.0001);
-        SurfaceMetricRegistry.Sharpe(s).Should().BeApproximately(mean / std * Math.Sqrt(252), 1e-9);
-    }
-
-    [Fact]
-    public void Sharpe_ZeroVariance_IsNaN()
-    {
-        SurfaceMetricRegistry.Sharpe(Sample(new[] { 0.01, 0.01, 0.01 })).Should().Be(double.NaN);
-    }
-
-    [Fact]
-    public void MaxDrawdown_PeakToTrough()
-    {
-        // equity: 1.1 → 0.88 (peak 1.1, trough 0.88 ⇒ dd = 0.2), then recovery
-        var s = Sample(new[] { 0.10, -0.20, 0.05 });
-        SurfaceMetricRegistry.MaxDrawdown(s).Should().BeApproximately(0.20, 1e-12);
+        SurfaceMetricRegistry.RealizedVol(s).Should().BeApproximately(std * Math.Sqrt(252), 1e-9);
     }
 
     [Fact]
@@ -47,31 +33,9 @@ public sealed class SurfaceMetricsTests
     {
         var returns = Enumerable.Range(1, 100).Select(i => -i / 1000.0).ToArray(); // -0.1% … -10%
         var s = Sample(returns);
-        // 95% VaR: 5th percentile of the sorted (ascending) returns = index 5 → -0.095 … loss 0.095
         SurfaceMetricRegistry.ValueAtRisk(s, 0.95).Should().BeGreaterThan(0.09).And.BeLessThan(0.10);
         SurfaceMetricRegistry.ConditionalVaR(s, 0.95).Should()
             .BeGreaterThan(SurfaceMetricRegistry.ValueAtRisk(s, 0.95));
-    }
-
-    [Fact]
-    public void WinRateAndProfitFactor_UseTradesWhenPresent()
-    {
-        var s = new SurfaceCellSample(
-            new[] { 0.01, -0.01 }, null, null,
-            TradeReturns: new[] { 0.05, 0.05, -0.02, 0.03 }, 252);
-        SurfaceMetricRegistry.WinRate(s).Should().BeApproximately(0.75, 1e-12);
-        SurfaceMetricRegistry.ProfitFactor(s).Should().BeApproximately(0.13 / 0.02, 1e-9);
-        SurfaceMetricRegistry.Expectancy(s).Should().BeApproximately(0.0275, 1e-12);
-    }
-
-    [Fact]
-    public void BetaAndPearson_AgainstBenchmark()
-    {
-        var bench = new[] { 0.01, -0.02, 0.015, 0.005, -0.01 };
-        var strat = bench.Select(b => 2 * b).ToArray(); // beta 2, corr 1
-        var s = new SurfaceCellSample(strat, bench, null, null, 252);
-        SurfaceMetricRegistry.Beta(s).Should().BeApproximately(2.0, 1e-9);
-        SurfaceMetricRegistry.Pearson(s).Should().BeApproximately(1.0, 1e-9);
     }
 
     [Fact]
@@ -87,6 +51,33 @@ public sealed class SurfaceMetricsTests
     {
         SurfaceMetricRegistry.Skewness(Sample(new[] { -0.02, -0.01, 0.0, 0.01, 0.02 }))
             .Should().BeApproximately(0, 1e-9);
+    }
+
+    [Fact]
+    public void Autocorr1_AlternatingSeriesIsNegative_ConstantTrendPositive()
+    {
+        SurfaceMetricRegistry.Autocorr1(Sample(new[] { 0.01, -0.01, 0.01, -0.01, 0.01, -0.01 }))
+            .Should().BeLessThan(-0.5);
+        SurfaceMetricRegistry.Autocorr1(Sample(new[] { -0.03, -0.02, -0.01, 0.01, 0.02, 0.03 }))
+            .Should().BeGreaterThan(0.3);
+    }
+
+    [Fact]
+    public void Amihud_UsesDollarVolumes()
+    {
+        var s = new SurfaceCellSample(new[] { 0.01, -0.02 }, new[] { 1e6, 2e6 }, 252);
+        // mean(|0.01|/1e6, |0.02|/2e6) * 1e6 = mean(0.01, 0.01) = 0.01
+        SurfaceMetricRegistry.Amihud(s).Should().BeApproximately(0.01, 1e-12);
+    }
+
+    [Fact]
+    public void Registry_HasNoPortfolioMetrics()
+    {
+        // The portfolio/backtest layer was removed by design — the registry must stay pure
+        // return statistics (no sharpe/winrate/profitfactor/maxdd/stop-loss style entries).
+        var ids = SurfaceMetricRegistry.All.Select(m => m.Id).ToArray();
+        ids.Should().NotContain(new[] { "sharpe", "sortino", "calmar", "totalreturn", "cagr",
+            "maxdd", "ulcer", "winrate", "profitfactor", "expectancy", "beta", "pearson" });
     }
 
     [Fact]
@@ -137,10 +128,10 @@ public sealed class SurfaceFormulaParserTests
     [Fact]
     public void Variables_ResolveThroughCallback()
     {
-        var f = SurfaceFormula.TryParse("sharpe / (1 + Abs(maxdd))", out var error);
+        var f = SurfaceFormula.TryParse("zscore / (1 + Abs(var95))", out var error);
         error.Should().BeNull();
-        f!.Variables.Should().BeEquivalentTo(new[] { "sharpe", "maxdd" });
-        f.Evaluate(id => id == "sharpe" ? 2.0 : 0.25).Should().BeApproximately(1.6, 1e-12);
+        f!.Variables.Should().BeEquivalentTo(new[] { "zscore", "var95" });
+        f.Evaluate(id => id == "zscore" ? 2.0 : 0.25).Should().BeApproximately(1.6, 1e-12);
     }
 
     [Fact]
@@ -148,6 +139,13 @@ public sealed class SurfaceFormulaParserTests
     {
         SurfaceFormula.TryParse("bogusmetric + 1", out var error).Should().BeNull();
         error.Should().Contain("bogusmetric");
+    }
+
+    [Fact]
+    public void RemovedPortfolioVariable_IsRejected()
+    {
+        SurfaceFormula.TryParse("sharpe * 2", out var error).Should().BeNull();
+        error.Should().Contain("sharpe");
     }
 
     [Fact]
@@ -177,9 +175,8 @@ public sealed class SurfaceGridAnalysisTests
     }
 
     [Fact]
-    public void Robustness_FlatGridHasNaNRange_SpikeScoresHigh()
+    public void Robustness_SpikeScoresHigherThanPlateau()
     {
-        // A flat plateau with one spike: the spike (and its neighbors) score worse than the far plateau.
         var z = new double[5, 5];
         z[2, 2] = 10;
         var rob = SurfaceGridAnalysis.Robustness(z);
@@ -197,7 +194,7 @@ public sealed class SurfaceGridAnalysisTests
     }
 }
 
-/// <summary>End-to-end grid building over synthetic bars (all three modes).</summary>
+/// <summary>End-to-end grid building over synthetic bars (both modes).</summary>
 public sealed class SurfaceGridBuilderTests
 {
     private static List<Bar> HourlyBars(int count, Func<int, double> ret)
@@ -224,7 +221,7 @@ public sealed class SurfaceGridBuilderTests
     [Fact]
     public void TemporalMode_RecoversAPlantedHourEffect()
     {
-        // Returns are +1% only at hour 10, 0 otherwise (bar i's return is realized AT its timestamp).
+        // Returns are +1% only at hour 10, ~0 otherwise.
         var bars = HourlyBars(24 * 60, i => 0);
         for (var i = 1; i < bars.Count; i++)
         {
@@ -232,7 +229,6 @@ public sealed class SurfaceGridBuilderTests
             var prev = bars[i - 1].Close;
             bars[i] = bars[i] with { Close = prev * 1.01 };
         }
-        // Rebuild consistency of neighboring closes is irrelevant — the builder only uses close ratios.
 
         var request = new SurfaceRequest(
             SurfaceMode.TemporalAggregation,
@@ -246,8 +242,6 @@ public sealed class SurfaceGridBuilderTests
         result.Columns.Should().Be(24);
         result.Rows.Should().Be(7);
 
-        // Every populated hour-10 cell should average ≈ +1%; hour-5 cells ≈ 0 (may drift from
-        // the neighbor-close rewrite above, so give it slack).
         for (var row = 0; row < result.Rows; row++)
         {
             if (double.IsNaN(result.Z[row, 10])) continue;
@@ -256,50 +250,40 @@ public sealed class SurfaceGridBuilderTests
     }
 
     [Fact]
-    public void ParameterMode_ProducesGridAndNaNsDegenerateCells()
+    public void TemporalMode_FormulaOverridesMetric()
     {
-        var bars = HourlyBars(600, i => Math.Sin(i / 15.0) * 0.01);
+        var bars = HourlyBars(24 * 30, i => Math.Sin(i / 10.0) * 0.01);
         var request = new SurfaceRequest(
-            SurfaceMode.ParameterOptimization,
-            new SurfaceAxisSpec("fastma", 5, 25, 10),   // 5, 15, 25
-            new SurfaceAxisSpec("slowma", 10, 30, 10),  // 10, 20, 30
-            new SurfaceAxisSpec("sharpe", 0, 0, 0),
-            new SurfaceAxisSpec("maxdd", 0, 0, 0),
+            SurfaceMode.TemporalAggregation,
+            new SurfaceAxisSpec("hour", 0, 23, 1),
+            new SurfaceAxisSpec("dow", 0, 6, 1),
+            new SurfaceAxisSpec("avgret", 0, 0, 0, Formula: "avgret / (1 + Abs(stdret))"),
+            new SurfaceAxisSpec("count", 0, 0, 0),
             8760);
 
         var result = SurfaceGridBuilder.Build(bars, request);
-        result.Columns.Should().Be(3);
-        result.Rows.Should().Be(3);
+        result.ZName.Should().Contain("avgret");
 
-        // fast=25 × slow=10 and fast=15 × slow=10 are degenerate (fast ≥ slow) ⇒ NaN.
-        result.Z[0, 2].Should().Be(double.NaN);
-        result.Z[0, 1].Should().Be(double.NaN);
-        // fast=5 × slow=30 is a legal combo and must be computed (may still be NaN only if
-        // the sim never trades — with a sine wave price it does trade).
-        double.IsNaN(result.Z[2, 0]).Should().BeFalse();
-        // Robustness grid is populated alongside.
-        result.Robustness.GetLength(0).Should().Be(3);
-    }
-
-    [Fact]
-    public void ParameterMode_FormulaOverridesMetric()
-    {
-        var bars = HourlyBars(400, i => Math.Sin(i / 10.0) * 0.01);
-        var request = new SurfaceRequest(
-            SurfaceMode.ParameterOptimization,
-            new SurfaceAxisSpec("fastma", 5, 15, 5),
-            new SurfaceAxisSpec("slowma", 20, 40, 10),
-            new SurfaceAxisSpec("sharpe", 0, 0, 0, Formula: "totalreturn / (1 + Abs(maxdd))"),
-            new SurfaceAxisSpec("maxdd", 0, 0, 0),
-            8760);
-
-        var result = SurfaceGridBuilder.Build(bars, request);
-        result.ZName.Should().Contain("totalreturn");
-        // Spot-check one cell against the direct computation.
-        var overrides = new Dictionary<string, double> { ["fastma"] = 5, ["slowma"] = 20 };
-        var sample = ParameterSurfaceSimulator.Run(bars, overrides, 8760);
-        var expected = SurfaceMetricRegistry.TotalReturn(sample) / (1 + Math.Abs(SurfaceMetricRegistry.MaxDrawdown(sample)));
-        result.Z[0, 0].Should().BeApproximately(expected, 1e-12);
+        // Spot-check a populated cell against the direct computation of the same bucket.
+        for (var r = 0; r < result.Rows; r++)
+        {
+            for (var c = 0; c < result.Columns; c++)
+            {
+                if (double.IsNaN(result.Z[r, c])) continue;
+                var bucket = new List<double>();
+                for (var i = 1; i < bars.Count; i++)
+                {
+                    var t = bars[i].TimestampUtc;
+                    if (t.Hour == c && ((int)t.DayOfWeek + 6) % 7 == r)
+                        bucket.Add(bars[i].Close / bars[i - 1].Close - 1);
+                }
+                var sample = new SurfaceCellSample(bucket.ToArray(), null, 8760);
+                var expected = SurfaceMetricRegistry.Mean(sample) / (1 + Math.Abs(SurfaceMetricRegistry.StdDev(sample)));
+                result.Z[r, c].Should().BeApproximately(expected, 1e-12);
+                return; // one populated cell is enough
+            }
+        }
+        Assert.Fail("no populated cell found");
     }
 
     [Fact]
@@ -318,7 +302,6 @@ public sealed class SurfaceGridBuilderTests
         var result = SurfaceGridBuilder.Build(bars, request);
         result.Columns.Should().Be(4); // (-0.02..0.02)/0.01 = 4 bins
         result.Rows.Should().Be(10);
-        // The W grid carries the per-cell frequency; total observations can't exceed bar count.
         var total = 0.0;
         foreach (var w in result.W)
             if (!double.IsNaN(w)) total += w;
@@ -341,7 +324,6 @@ public sealed class SurfaceGridBuilderTests
         var result = SurfaceGridBuilder.Build(bars, request);
         result.Rows.Should().Be(5);
         result.YLabels[0].Should().StartWith("t").And.EndWith("1");
-        // Random-walk data: P(up) hovers around 0.5 in populated cells.
         for (var r = 0; r < result.Rows; r++)
         {
             for (var c = 0; c < result.Columns; c++)
@@ -366,5 +348,69 @@ public sealed class SurfaceGridBuilderTests
 
         var act = () => SurfaceGridBuilder.Build(bars, request);
         act.Should().Throw<ArgumentException>().WithMessage("*notametric*");
+    }
+}
+
+/// <summary>The live rolling bar window feeding the streaming Surface Lab.</summary>
+public sealed class LiveBarSeriesTests
+{
+    private static readonly DateTime T0 = new(2025, 6, 2, 10, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void PricesAggregateIntoBucketedOhlcBars()
+    {
+        var series = new LiveBarSeries(TimeSpan.FromMinutes(1), 100);
+        series.PushPrice(T0.AddSeconds(1), 100);
+        series.PushPrice(T0.AddSeconds(20), 102);   // high
+        series.PushPrice(T0.AddSeconds(40), 99);    // low
+        series.PushPrice(T0.AddSeconds(59), 101);   // close
+        series.PushVolume(500);
+        series.PushPrice(T0.AddSeconds(61), 103);   // next bucket → commits the first bar
+
+        var bars = series.Snapshot();
+        bars.Should().HaveCount(2);
+        bars[0].TimestampUtc.Should().Be(T0);
+        (bars[0].Open, bars[0].High, bars[0].Low, bars[0].Close).Should().Be((100.0, 102.0, 99.0, 101.0));
+        bars[0].Volume.Should().Be(500);
+        bars[1].Open.Should().Be(103);
+    }
+
+    [Fact]
+    public void RetentionIsHardCapped()
+    {
+        var series = new LiveBarSeries(TimeSpan.FromMinutes(1), 10);
+        for (var i = 0; i < 500; i++)
+            series.PushPrice(T0.AddMinutes(i), 100 + i * 0.01);
+        series.Count.Should().BeLessThanOrEqualTo(11); // cap + forming bar
+    }
+
+    [Fact]
+    public void SeededHistoryAndLiveTailNeverOverlap()
+    {
+        var history = new List<Bar>
+        {
+            new(T0, 100, 101, 99, 100.5, 10),
+            new(T0.AddMinutes(1), 100.5, 101.5, 100, 101, 12),
+        };
+        var series = new LiveBarSeries(TimeSpan.FromMinutes(1), 100);
+        series.Seed(history);
+
+        // A live tick INSIDE the last seeded bar's bucket must not rewind time.
+        series.PushPrice(T0.AddMinutes(1).AddSeconds(30), 105);
+        var bars = series.Snapshot();
+        bars.Should().HaveCount(3);
+        bars[2].TimestampUtc.Should().Be(T0.AddMinutes(2));
+        bars[2].Close.Should().Be(105);
+        bars.Should().BeInAscendingOrder(b => b.TimestampUtc);
+    }
+
+    [Fact]
+    public void SnapshotIsAPointInTimeCopy()
+    {
+        var series = new LiveBarSeries(TimeSpan.FromMinutes(1), 100);
+        series.PushPrice(T0, 100);
+        var snap = series.Snapshot();
+        series.PushPrice(T0.AddSeconds(10), 200);
+        snap[0].Close.Should().Be(100); // later pushes don't mutate the handed-out copy
     }
 }

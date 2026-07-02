@@ -1,15 +1,13 @@
 namespace TradingTerminal.Core.Quant.Surfaces;
 
-/// <summary>Top-level surface mode — decides what the X/Y/Z/W axes can be bound to.</summary>
+/// <summary>Top-level surface mode — decides what the X/Y axes can be bound to. Both modes are
+/// pure statistics of realized returns (no strategy/portfolio simulation).</summary>
 public enum SurfaceMode
 {
-    /// <summary>Mode A: X/Y are strategy parameters swept over a range; Z is a performance
-    /// metric of the simulated strategy; W (color) is a risk metric. Backtest landscapes.</summary>
-    ParameterOptimization,
-    /// <summary>Mode B: X/Y are calendar buckets (hour of day × day of week, …); Z aggregates
-    /// the returns that fell into each bucket. Seasonality surfaces.</summary>
+    /// <summary>X/Y are calendar buckets (hour of day × day of week, …); Z aggregates the
+    /// returns that fell into each bucket. Seasonality surfaces.</summary>
     TemporalAggregation,
-    /// <summary>Mode C: X/Y bucket conditioning variables (prior-return bin, volatility bucket,
+    /// <summary>X/Y bucket conditioning variables (prior-return bin, volatility bucket,
     /// volume decile, time lag); Z is a statistic of the NEXT-period returns in each cell.</summary>
     CrossSectional,
 }
@@ -19,8 +17,8 @@ public enum SurfaceAxisRole { X, Y, Z, Color }
 
 /// <summary>
 /// One entry in an axis dropdown. <see cref="RangeEditable"/> gates the Min/Max/Step inputs
-/// (parameter sweeps and linear bins are editable; calendar and quantile buckets are fixed).
-/// For Z/Color roles the id is a <see cref="SurfaceMetricRegistry"/> metric id.
+/// (linear bins are editable; calendar and quantile buckets are fixed). For Z/Color roles the
+/// id is a <see cref="SurfaceMetricRegistry"/> metric id.
 /// </summary>
 public sealed record SurfaceAxisOption(
     string Id,
@@ -32,19 +30,7 @@ public sealed record SurfaceAxisOption(
     double DefaultMax,
     double DefaultStep);
 
-/// <summary>A Mode-A strategy parameter: sweep range defaults plus the value used when the
-/// parameter is NOT on an axis (0 disables optional filters/exits).</summary>
-public sealed record StrategyParameterDefinition(
-    string Id,
-    string Name,
-    double DefaultMin,
-    double DefaultMax,
-    double DefaultStep,
-    double DefaultValue,
-    bool IsInteger,
-    SurfaceAxisFormat Format);
-
-/// <summary>A Mode-B calendar bucket axis (fixed bucket count with labels).</summary>
+/// <summary>A temporal calendar bucket axis (fixed bucket count with labels).</summary>
 public sealed record TemporalAxisDefinition(
     string Id,
     string Name,
@@ -54,7 +40,7 @@ public sealed record TemporalAxisDefinition(
     public int BucketCount => Labels.Length;
 }
 
-/// <summary>What a Mode-C axis conditions on.</summary>
+/// <summary>What a cross-sectional axis conditions on.</summary>
 public enum CrossSectionVariable
 {
     /// <summary>Previous-bar simple return, bucketed into linear bins (Min/Max/Step editable).</summary>
@@ -67,7 +53,7 @@ public enum CrossSectionVariable
     TimeLag,
 }
 
-/// <summary>A Mode-C conditioning axis.</summary>
+/// <summary>A cross-sectional conditioning axis.</summary>
 public sealed record CrossSectionAxisDefinition(
     string Id,
     string Name,
@@ -80,29 +66,11 @@ public sealed record CrossSectionAxisDefinition(
 
 /// <summary>
 /// The static catalog behind every Surface Lab dropdown: given (mode, role) it lists the
-/// legal options. Z/Color options delegate to <see cref="SurfaceMetricRegistry"/>, filtered so
-/// benchmark-dependent metrics (beta, correlation) only appear where a benchmark exists
-/// (parameter mode, strategy vs underlying) and trade metrics lead in parameter mode.
+/// legal options. Z/Color options delegate to <see cref="SurfaceMetricRegistry"/> — bucket
+/// aggregates first, then the statistical/risk functions.
 /// </summary>
 public static class SurfaceAxisCatalog
 {
-    /// <summary>Mode-A sweepable parameters. The simulator is a long/flat MA-cross kernel with
-    /// optional RSI / ROC entry filters and stop-loss / take-profit / ATR-trail exits — every
-    /// classic "two-parameter heatmap" lives inside this family.</summary>
-    public static IReadOnlyList<StrategyParameterDefinition> Parameters { get; } = new StrategyParameterDefinition[]
-    {
-        new("fastma",     "Fast MA Period",        2,    60,   2,     10, true,  SurfaceAxisFormat.Integer),
-        new("slowma",     "Slow MA Period",        10,   200,  5,     30, true,  SurfaceAxisFormat.Integer),
-        new("rsilen",     "RSI Lookback (filter)", 2,    50,   2,     0,  true,  SurfaceAxisFormat.Integer),
-        new("roclen",     "ROC Lookback (filter)", 2,    60,   2,     0,  true,  SurfaceAxisFormat.Integer),
-        new("stoploss",   "Stop Loss %",           0.005, 0.10, 0.005, 0, false, SurfaceAxisFormat.Percent),
-        new("takeprofit", "Take Profit %",         0.01,  0.20, 0.01,  0, false, SurfaceAxisFormat.Percent),
-        new("atrmult",    "ATR Multiplier (trail)", 0.5,  6,    0.25,  0, false, SurfaceAxisFormat.Ratio),
-    };
-
-    public static StrategyParameterDefinition? ResolveParameter(string id) =>
-        Parameters.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));
-
     public static IReadOnlyList<TemporalAxisDefinition> TemporalAxes { get; } = new TemporalAxisDefinition[]
     {
         new("hour",  "Hour of Day",
@@ -134,16 +102,13 @@ public static class SurfaceAxisCatalog
         CrossSectionAxes.FirstOrDefault(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The options legal for one dropdown. X/Y options depend on the mode; Z/Color
-    /// options are metric-registry entries filtered by mode capability.</summary>
+    /// options are metric-registry entries (aggregates first, then statistical).</summary>
     public static IReadOnlyList<SurfaceAxisOption> OptionsFor(SurfaceMode mode, SurfaceAxisRole role)
     {
         if (role is SurfaceAxisRole.X or SurfaceAxisRole.Y)
         {
             return mode switch
             {
-                SurfaceMode.ParameterOptimization => Parameters
-                    .Select(p => new SurfaceAxisOption(p.Id, p.Name, "Strategy Parameters", p.Format, true, p.DefaultMin, p.DefaultMax, p.DefaultStep))
-                    .ToList(),
                 SurfaceMode.TemporalAggregation => TemporalAxes
                     .Select(a => new SurfaceAxisOption(a.Id, a.Name, "Calendar Buckets", SurfaceAxisFormat.Integer, false, 0, a.BucketCount - 1, 1))
                     .ToList(),
@@ -153,37 +118,15 @@ public static class SurfaceAxisCatalog
             };
         }
 
-        // Z / Color: metric registry entries valid for the mode. Trade-based and benchmark-based
-        // metrics only make sense in parameter mode (there IS a strategy and an underlying there);
-        // bucket modes get aggregates first, then the sample statistics.
-        var isParamMode = mode == SurfaceMode.ParameterOptimization;
-        IEnumerable<SurfaceMetricDefinition> metrics = SurfaceMetricRegistry.All;
-        if (!isParamMode)
-            metrics = metrics.Where(m => !m.RequiresBenchmark);
-
-        metrics = isParamMode
-            ? metrics.OrderBy(m => m.Category switch
-            {
-                SurfaceMetricCategory.Performance => 0,
-                SurfaceMetricCategory.Statistical => 1,
-                _ => 2,
-            })
-            : metrics.OrderBy(m => m.Category switch
-            {
-                SurfaceMetricCategory.Aggregate => 0,
-                SurfaceMetricCategory.Statistical => 1,
-                _ => 2,
-            });
-
-        return metrics
+        return SurfaceMetricRegistry.All
+            .OrderBy(m => m.Category == SurfaceMetricCategory.Aggregate ? 0 : 1)
             .Select(m => new SurfaceAxisOption(m.Id, m.Name, CategoryLabel(m.Category), m.Format, false, 0, 0, 0))
             .ToList();
     }
 
     private static string CategoryLabel(SurfaceMetricCategory c) => c switch
     {
-        SurfaceMetricCategory.Performance => "Performance Metrics",
-        SurfaceMetricCategory.Statistical => "Statistical & Risk",
-        _ => "Bucket Aggregates",
+        SurfaceMetricCategory.Aggregate => "Bucket Aggregates",
+        _ => "Statistical & Risk",
     };
 }

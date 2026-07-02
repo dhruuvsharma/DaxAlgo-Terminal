@@ -2,9 +2,9 @@ using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Core.Quant.Surfaces;
 
-/// <summary>One configured axis: the picked option id, the sweep/bin range (ignored when the
-/// option's range is fixed), and — for Z/Color — an optional custom formula that overrides the
-/// picked metric (variables are metric ids, see <see cref="SurfaceFormula"/>).</summary>
+/// <summary>One configured axis: the picked option id, the bin range (ignored when the option's
+/// range is fixed), and — for Z/Color — an optional custom formula that overrides the picked
+/// statistic (variables are metric ids, see <see cref="SurfaceFormula"/>).</summary>
 public sealed record SurfaceAxisSpec(string OptionId, double Min, double Max, double Step, string? Formula = null);
 
 /// <summary>A full surface request: mode + the four axis specs.</summary>
@@ -17,7 +17,7 @@ public sealed record SurfaceRequest(
     double PeriodsPerYear);
 
 /// <summary>The computed surface. Grids are indexed [yRow, xCol]; NaN cells are honest gaps
-/// (degenerate parameter combos, empty buckets) and render as holes, never as zero.</summary>
+/// (empty buckets) and render as holes, never as zero.</summary>
 public sealed record SurfaceGridResult(
     SurfaceMode Mode,
     string XName, SurfaceAxisFormat XFormat, double[] XValues, string[] XLabels,
@@ -31,13 +31,13 @@ public sealed record SurfaceGridResult(
 }
 
 /// <summary>
-/// Builds a <see cref="SurfaceGridResult"/> from historical bars for any of the three surface
-/// modes. Pure and CancellationToken-aware — call it from <c>Task.Run</c>; Mode A parallelizes
-/// across grid cells (each cell is an independent simulator run).
+/// Builds a <see cref="SurfaceGridResult"/> from bars (historical or a live rolling window) for
+/// either surface mode. Pure, allocation-bounded, and CancellationToken-aware — a single pass
+/// over the bars plus a per-cell statistics pass, cheap enough to re-run every live tick batch.
 /// </summary>
 public static class SurfaceGridBuilder
 {
-    /// <summary>Hard cap per axis so a careless step can't request a million backtests.</summary>
+    /// <summary>Hard cap per axis so a careless bin step can't request a million cells.</summary>
     public const int MaxAxisPoints = 81;
 
     private const int VolatilityWindow = 20;
@@ -50,7 +50,6 @@ public static class SurfaceGridBuilder
 
         var result = request.Mode switch
         {
-            SurfaceMode.ParameterOptimization => BuildParameter(bars, request, zEval, wEval, ct),
             SurfaceMode.TemporalAggregation => BuildTemporal(bars, request, zEval, wEval, ct),
             _ => BuildCrossSection(bars, request, zEval, wEval, ct),
         };
@@ -74,43 +73,7 @@ public static class SurfaceGridBuilder
         return TimeSpan.FromDays(365).TotalSeconds / median;
     }
 
-    // ── Mode A: parameter sweep ────────────────────────────────────────────────────────────────
-
-    private static SurfaceGridResult BuildParameter(
-        IReadOnlyList<Bar> bars, SurfaceRequest request, CellEvaluator zEval, CellEvaluator wEval, CancellationToken ct)
-    {
-        var px = SurfaceAxisCatalog.ResolveParameter(request.X.OptionId)
-                 ?? throw new ArgumentException($"Unknown parameter '{request.X.OptionId}' on X.");
-        var py = SurfaceAxisCatalog.ResolveParameter(request.Y.OptionId)
-                 ?? throw new ArgumentException($"Unknown parameter '{request.Y.OptionId}' on Y.");
-        if (px.Id == py.Id)
-            throw new ArgumentException("X and Y must sweep different parameters.");
-
-        var xs = RangeValues(request.X, px.IsInteger);
-        var ys = RangeValues(request.Y, py.IsInteger);
-        var z = NewGrid(ys.Length, xs.Length);
-        var w = NewGrid(ys.Length, xs.Length);
-
-        var ppy = request.PeriodsPerYear;
-        Parallel.For(0, ys.Length, new ParallelOptions { CancellationToken = ct }, row =>
-        {
-            var overrides = new Dictionary<string, double>(2, StringComparer.OrdinalIgnoreCase);
-            for (var col = 0; col < xs.Length; col++)
-            {
-                ct.ThrowIfCancellationRequested();
-                overrides[px.Id] = xs[col];
-                overrides[py.Id] = ys[row];
-                var sample = ParameterSurfaceSimulator.Run(bars, overrides, ppy);
-                z[row, col] = zEval.Evaluate(sample);
-                w[row, col] = wEval.Evaluate(sample);
-            }
-        });
-
-        return Assemble(request, px.Name, px.Format, xs, Labels(xs, px.Format),
-                        py.Name, py.Format, ys, Labels(ys, py.Format), z, w, zEval, wEval);
-    }
-
-    // ── Mode B: temporal aggregation ───────────────────────────────────────────────────────────
+    // ── Temporal aggregation (seasonality) ────────────────────────────────────────────────────
 
     private static SurfaceGridResult BuildTemporal(
         IReadOnlyList<Bar> bars, SurfaceRequest request, CellEvaluator zEval, CellEvaluator wEval, CancellationToken ct)
@@ -143,7 +106,7 @@ public static class SurfaceGridBuilder
                         ay.Name, SurfaceAxisFormat.Integer, ys, ay.Labels, z, w, zEval, wEval);
     }
 
-    // ── Mode C: cross-sectional conditioning ──────────────────────────────────────────────────
+    // ── Cross-sectional conditioning ──────────────────────────────────────────────────────────
 
     private static SurfaceGridResult BuildCrossSection(
         IReadOnlyList<Bar> bars, SurfaceRequest request, CellEvaluator zEval, CellEvaluator wEval, CancellationToken ct)
@@ -318,8 +281,7 @@ public static class SurfaceGridBuilder
             for (var c = 0; c < cols; c++)
             {
                 if (buckets[r, c].Count == 0) continue;
-                var sample = new SurfaceCellSample(
-                    buckets[r, c].ToArray(), null, volumes[r, c].ToArray(), null, ppy);
+                var sample = new SurfaceCellSample(buckets[r, c].ToArray(), volumes[r, c].ToArray(), ppy);
                 z[r, c] = zEval.Evaluate(sample);
                 w[r, c] = wEval.Evaluate(sample);
             }
@@ -377,7 +339,7 @@ public static class SurfaceGridBuilder
             wEval.Name, wEval.Format, w,
             new double[ys.Length, xs.Length]);
 
-    /// <summary>Resolves a Z/W axis spec into "metric or formula" once, up front, so a bad
+    /// <summary>Resolves a Z/W axis spec into "statistic or formula" once, up front, so a bad
     /// formula fails the request instead of producing a silent NaN surface.</summary>
     private sealed class CellEvaluator
     {
@@ -404,7 +366,7 @@ public static class SurfaceGridBuilder
                 return new CellEvaluator(null, formula, spec.Formula!.Trim(), SurfaceAxisFormat.Number);
             }
             var metric = SurfaceMetricRegistry.Resolve(spec.OptionId)
-                         ?? throw new ArgumentException($"Unknown metric '{spec.OptionId}' on {roleName}.");
+                         ?? throw new ArgumentException($"Unknown statistic '{spec.OptionId}' on {roleName}.");
             return new CellEvaluator(metric, null, metric.Name, metric.Format);
         }
 
@@ -425,7 +387,7 @@ public static class SurfaceGridBuilder
 }
 
 /// <summary>Post-processing over a computed grid: peak/trough finding and the robustness
-/// (overfit-detection) score used by the Surface Lab's robustness color mode.</summary>
+/// (spike-detection) score used by the Surface Lab's robustness color mode.</summary>
 public static class SurfaceGridAnalysis
 {
     /// <summary>Location + value of one grid extremum.</summary>
@@ -455,9 +417,9 @@ public static class SurfaceGridAnalysis
 
     /// <summary>
     /// Per-cell robustness score in [0, 1]: the RMS difference between a cell and its (up to 8)
-    /// neighbors, normalized by the global Z range. 0 ⇒ flat plateau (parameter-robust, colored
-    /// green by the view); 1 ⇒ isolated spike whose neighbors drop away (overfit, colored red).
-    /// NaN cells and cells with no valid neighbor stay NaN.
+    /// neighbors, normalized by the global Z range. 0 ⇒ flat plateau (a stable effect, colored
+    /// green by the view); 1 ⇒ isolated spike whose neighbors drop away (noise/outlier, colored
+    /// red). NaN cells and cells with no valid neighbor stay NaN.
     /// </summary>
     public static double[,] Robustness(double[,] z)
     {
