@@ -22,6 +22,15 @@ public sealed record LoadedPlugin(string Name, string TargetSdkVersion, string A
 /// </summary>
 public static class PluginLoader
 {
+    // A collectible AssemblyLoadContext starts UNLOADING the moment the GC collects the context
+    // OBJECT — DI references to the plugin's types keep its memory alive but not the context itself,
+    // leaving it stuck in the "unloading" state where any later demand-load of a plugin-private
+    // dependency throws InvalidOperationException ("AssemblyLoadContext is unloading or was already
+    // unloaded"). That's exactly what broke the Helix-based 3D strategy windows: HelixToolkit.Wpf
+    // only loads the first time such a window opens, by which point the unreferenced context had
+    // been finalized. There is no unload/hot-reload path today, so every context created here is
+    // rooted for the life of the host.
+    private static readonly List<PluginLoadContext> s_keepAlive = [];
     /// <summary>Scans <paramref name="pluginsRoot"/> and registers each plugin into
     /// <paramref name="services"/> using the <see cref="PluginTrustPolicy.Permissive"/> policy (the
     /// open-core dev flow — unsigned local plugins load, signatures aren't inspected). A missing
@@ -63,6 +72,7 @@ public static class PluginLoader
 
                 // ── Load + register ──────────────────────────────────────────────────────────────
                 var ctx = new PluginLoadContext(dll);
+                lock (s_keepAlive) s_keepAlive.Add(ctx);
                 var asm = ctx.LoadFromAssemblyPath(dll);
                 if (RegisterFromAssembly(asm, services, hostSdkVersion) is { } meta)
                     loaded.Add(meta);
