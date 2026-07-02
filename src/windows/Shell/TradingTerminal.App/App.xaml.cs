@@ -235,6 +235,22 @@ public partial class App : Application
         // Apply the persisted theme before any window is shown, so the login window already wears it.
         _host.Services.GetRequiredService<TradingTerminal.UI.Theming.IThemeManager>().ApplySaved();
 
+        // Theme every MetroWindow's OS-level title bar from the active palette. MahApps otherwise pins
+        // the title bar to its base accent (a fixed blue on every theme, which clashes badly with the
+        // light Greek palette). One class handler covers the whole app — including subclassed and
+        // plugin-provided windows — with no per-window XAML. SetResourceReference keeps the brushes
+        // DynamicResource-equivalent, so a live theme swap re-skins the title bars too.
+        EventManager.RegisterClassHandler(typeof(MahApps.Metro.Controls.MetroWindow),
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler(static (sender, _) =>
+            {
+                if (sender is not MahApps.Metro.Controls.MetroWindow w) return;
+                w.SetResourceReference(MahApps.Metro.Controls.MetroWindow.WindowTitleBrushProperty, "Gradient.Chrome");
+                w.SetResourceReference(MahApps.Metro.Controls.MetroWindow.NonActiveWindowTitleBrushProperty, "Background.Surface");
+                w.SetResourceReference(MahApps.Metro.Controls.MetroWindow.TitleForegroundProperty, "Text.Primary");
+                w.SetResourceReference(MahApps.Metro.Controls.MetroWindow.GlowBrushProperty, "Accent.Brush");
+            }));
+
         // Hold the app open across the login → main-window transition.
         ShutdownMode = ShutdownMode.OnLastWindowClose;
 
