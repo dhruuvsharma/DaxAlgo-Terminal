@@ -17,6 +17,7 @@ using TradingTerminal.Charts;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
 using TradingTerminal.BubbleChart;
+using TradingTerminal.SurfaceLab;
 using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Backtest;
@@ -71,6 +72,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private const string FootprintWindowId = "tools.footprint";
     private const string BookmapWindowId = "tools.heatmap.bookmap";
     private const string BubbleChartWindowId = "charts.bubbleline";
+    private const string SurfaceLabWindowId = "charts.surfacelab";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
@@ -681,6 +683,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void OpenBubbleChart() =>
         OpenWindowTool<BubbleChartViewModel, BubbleChartWindow>(BubbleChartWindowId, "Volume bubble line", "Building the volume-bubble line…");
+
+    [RelayCommand]
+    public void OpenSurfaceLab() =>
+        OpenHostedTool<SurfaceLabViewModel, SurfaceLabView>(SurfaceLabWindowId, "3D Surface Lab", "Preparing the surface workspace…");
 
     [RelayCommand]
     public void OpenStationarity() =>

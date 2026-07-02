@@ -47,6 +47,7 @@
     <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.Heatmap/TradingTerminal.Heatmap.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.SurfaceLab/TradingTerminal.SurfaceLab.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.VolumeFootprint/TradingTerminal.VolumeFootprint.csproj" />
   </Folder>
   <Folder Name="/MachineLearning/">

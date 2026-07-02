@@ -369,6 +369,8 @@
                           Command="{Binding OpenFootprintCommand}" />
                 <MenuItem Header="_Bookmap + VolBook…"
                           Command="{Binding OpenBookmapCommand}" />
+                <MenuItem Header="3D _Surface lab…"
+                          Command="{Binding OpenSurfaceLabCommand}" />
                 <Separator />
                 <MenuItem Header="🧪 Volume _bubble line (experimental)…"
                           Command="{Binding OpenBubbleChartCommand}" />

@@ -32,6 +32,7 @@ using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Correlation;
 using TradingTerminal.Heatmap;
 using TradingTerminal.BubbleChart;
+using TradingTerminal.SurfaceLab;
 using TradingTerminal.Backtest;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.LseBacktest;
@@ -197,6 +198,7 @@ public partial class App : Application
                 services.AddFootprintSurface();
                 services.AddHeatmapSurface();
                 services.AddBubbleChartSurface(); // experimental bubble-line chart
+                services.AddSurfaceLabSurface(); // 3D quant surface lab (parameter / seasonality / cross-sectional)
                 // AI tools — the analyst client seam (Null/Http) plus the four AI UI panels.
                 services.AddAiAnalyst(ctx.Configuration);
                 services.AddMarketAnalyst();

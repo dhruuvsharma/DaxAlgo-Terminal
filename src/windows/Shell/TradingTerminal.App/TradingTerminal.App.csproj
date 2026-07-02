@@ -46,6 +46,8 @@
     <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
     <!-- Experimental: Volume Bubble Line chart (separate from the live Charts/OrderBook/Bookmap). -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.BubbleChart\TradingTerminal.BubbleChart.csproj" />
+    <!-- 3D quant surface lab (parameter landscapes / seasonality / cross-sectional surfaces) -->
+    <ProjectReference Include="..\..\Charts\TradingTerminal.SurfaceLab\TradingTerminal.SurfaceLab.csproj" />
     <!-- Tools-menu surfaces -->
     <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
