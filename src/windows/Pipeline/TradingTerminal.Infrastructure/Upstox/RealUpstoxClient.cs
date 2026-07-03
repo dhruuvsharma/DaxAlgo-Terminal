@@ -17,6 +17,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure.Threading;
 
 namespace TradingTerminal.Infrastructure.Upstox;
 
@@ -567,13 +568,15 @@ internal sealed class RealUpstoxClient : IBrokerClient
 
     private sealed class Subscription
     {
-        private readonly Channel<object> _channel =
-            Channel.CreateUnbounded<object>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        private readonly Channel<object> _channel;
 
         public Subscription(StreamKind kind, string instrumentKey)
         {
             Kind = kind;
             InstrumentKey = instrumentKey;
+            _channel = FeedChannel.CreateDropOldest<object>(
+                kind == StreamKind.Depth ? FeedChannel.Capacity.Depth : FeedChannel.Capacity.Quotes,
+                singleWriter: false);
         }
 
         public StreamKind Kind { get; }

@@ -16,6 +16,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure.Threading;
 
 namespace TradingTerminal.Infrastructure.IronBeam;
 
@@ -729,16 +730,23 @@ internal sealed class RealIronBeamClient : IBrokerClient
 
     private readonly record struct SubKey(StreamKind Kind, string Symbol);
 
-    /// <summary>An active subscription: its identity plus an unbounded channel the pump fans into.</summary>
+    /// <summary>An active subscription: its identity plus a bounded drop-oldest channel the pump fans into.</summary>
     private sealed class Subscription
     {
-        private readonly Channel<object> _channel =
-            Channel.CreateUnbounded<object>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        private readonly Channel<object> _channel;
 
         public Subscription(StreamKind kind, string symbol)
         {
             Kind = kind;
             Symbol = symbol;
+            _channel = FeedChannel.CreateDropOldest<object>(
+                kind switch
+                {
+                    StreamKind.Trade => FeedChannel.Capacity.Trades,
+                    StreamKind.Depth => FeedChannel.Capacity.Depth,
+                    _ => FeedChannel.Capacity.Quotes,
+                },
+                singleWriter: false);
         }
 
         public StreamKind Kind { get; }

@@ -10,6 +10,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure.Threading;
 
 namespace TradingTerminal.Infrastructure.Alpaca;
 
@@ -273,10 +274,13 @@ public sealed class RealAlpacaClient : IBrokerClient
         // — same approach as cTrader. Strategies that want native minute bars can
         // route through RequestHistoricalBarsAsync + a single live-bar subscription.
         var step = barSize.ToTimeSpan();
-        var ch = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Bar>(FeedChannel.Capacity.Bars, singleWriter: true, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = true,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "Alpaca bar stream for {Symbol} shed its oldest queued bars ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         _ = Task.Run(async () =>
@@ -319,10 +323,13 @@ public sealed class RealAlpacaClient : IBrokerClient
         EnsureConnected();
         var assetClass = ClassifyAsset(contract);
 
-        var ch = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Tick>(FeedChannel.Capacity.Quotes, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = false,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "Alpaca quote stream for {Symbol} shed its oldest queued ticks ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         // Per-asset-class subscription factory + Received handler. The SDK exposes

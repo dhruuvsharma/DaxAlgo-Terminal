@@ -121,10 +121,13 @@ public sealed class MarketDataRepository : IMarketDataRepository
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var instrumentId = _ingest.Resolve(contract, broker);
-        var channel = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var channel = FeedChannel.CreateDropOldest<Bar>(FeedChannel.Capacity.Bars, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = false,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "Live bar bridge for {Symbol} ({Broker}) shed its oldest queued bars ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, broker, dropMeter.Dropped);
         });
 
         using var subscription = _hub.Bars(instrumentId, barSize).Subscribe(canonical =>
@@ -158,10 +161,13 @@ public sealed class MarketDataRepository : IMarketDataRepository
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var instrumentId = _ingest.Resolve(contract, broker);
-        var channel = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var channel = FeedChannel.CreateDropOldest<Tick>(FeedChannel.Capacity.Quotes, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = false,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "Live tick bridge for {Symbol} ({Broker}) shed its oldest queued ticks ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, broker, dropMeter.Dropped);
         });
 
         using var subscription = _hub.Quotes(instrumentId).Subscribe(quote =>

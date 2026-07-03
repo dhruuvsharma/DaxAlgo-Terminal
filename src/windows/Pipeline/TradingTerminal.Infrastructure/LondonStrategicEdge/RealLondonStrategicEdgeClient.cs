@@ -15,6 +15,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure.Threading;
 
 namespace TradingTerminal.Infrastructure.LondonStrategicEdge;
 
@@ -695,11 +696,11 @@ internal sealed class RealLondonStrategicEdgeClient : IBrokerClient
 
     // ── Internal subscription bookkeeping ───────────────────────────────────────────────────────
 
-    /// <summary>An active tick subscription: its LSE symbol plus an unbounded channel the pump fans into.</summary>
+    /// <summary>An active tick subscription: its LSE symbol plus a bounded drop-oldest channel the pump fans into.</summary>
     private sealed class Subscription
     {
         private readonly Channel<Tick> _channel =
-            Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+            FeedChannel.CreateDropOldest<Tick>(FeedChannel.Capacity.Quotes, singleWriter: false);
 
         public Subscription(string symbol) => Symbol = symbol;
 

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Infrastructure.Threading;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
@@ -145,10 +146,13 @@ public sealed class RealNinjaClient : IBrokerClient
         EnsureSubscribed(instrument);
 
         var step = barSize.ToTimeSpan();
-        var ch = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Bar>(FeedChannel.Capacity.Bars, singleWriter: true, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = true,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "NT bar stream for {Symbol} shed its oldest queued bars ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         _ = Task.Run(async () =>
@@ -199,10 +203,13 @@ public sealed class RealNinjaClient : IBrokerClient
         var instrument = ToNtInstrument(contract);
         EnsureSubscribed(instrument);
 
-        var ch = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Tick>(FeedChannel.Capacity.Quotes, singleWriter: true, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = true,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "NT tick stream for {Symbol} shed its oldest queued ticks ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         _ = Task.Run(async () =>

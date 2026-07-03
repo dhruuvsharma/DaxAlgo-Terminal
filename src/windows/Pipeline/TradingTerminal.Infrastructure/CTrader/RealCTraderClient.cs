@@ -10,6 +10,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure.Threading;
 
 namespace TradingTerminal.Infrastructure.CTrader;
 
@@ -299,10 +300,13 @@ public sealed class RealCTraderClient : IBrokerClient
         // for v1 we synthesize bars from the spot stream, which is simpler and avoids two parallel
         // subscriptions per chart. Aggregate ticks into OHLC at the configured cadence.
         var step = barSize.ToTimeSpan();
-        var ch = Channel.CreateUnbounded<Bar>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Bar>(FeedChannel.Capacity.Bars, singleWriter: true, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = true,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "cTrader bar stream for {Symbol} shed its oldest queued bars ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         _ = Task.Run(async () =>
@@ -346,10 +350,13 @@ public sealed class RealCTraderClient : IBrokerClient
         var symbol = await ResolveSymbolAsync(contract.Symbol, ct).ConfigureAwait(false);
         var scale = Math.Pow(10, symbol.Digits);
 
-        var ch = Channel.CreateUnbounded<Tick>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Tick>(FeedChannel.Capacity.Quotes, singleWriter: true, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = true,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "cTrader spot stream for {Symbol} shed its oldest queued ticks ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         // Subscribe to spots for this symbol. The shared MessageDispatcher will not route
@@ -422,10 +429,13 @@ public sealed class RealCTraderClient : IBrokerClient
         var firstEventLogged = false;
         var lastCrossedWarnUtc = DateTime.MinValue;
 
-        var ch = Channel.CreateUnbounded<DepthSnapshot>(new UnboundedChannelOptions
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<DepthSnapshot>(FeedChannel.Capacity.Depth, singleWriter: true, onItemDropped: _ =>
         {
-            SingleReader = true,
-            SingleWriter = true,
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "cTrader depth stream for {Symbol} shed its oldest queued snapshots ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
         });
 
         using var depthSub = _client!.OfType<ProtoOADepthEvent>()

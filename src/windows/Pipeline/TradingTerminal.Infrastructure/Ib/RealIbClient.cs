@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using TradingTerminal.Infrastructure.Threading;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
@@ -161,7 +162,14 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
         if (_client?.IsConnected() != true) throw new InvalidOperationException("Not connected.");
 
         var reqId = Interlocked.Increment(ref _nextRequestId);
-        var ch = Channel.CreateUnbounded<Bar>();
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<Bar>(FeedChannel.Capacity.Bars, onItemDropped: _ =>
+        {
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "IB bar stream for {Symbol} shed its oldest queued bars ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
+        });
         lock (_gate) _streams[reqId] = ch;
 
         var ibContract = ToIbContract(contract);
@@ -231,7 +239,14 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
         if (_client?.IsConnected() != true) throw new InvalidOperationException("Not connected.");
 
         var reqId = Interlocked.Increment(ref _nextRequestId);
-        var ch = Channel.CreateUnbounded<TradeTick>();
+        var dropMeter = new FeedDropMeter();
+        var ch = FeedChannel.CreateDropOldest<TradeTick>(FeedChannel.Capacity.Trades, onItemDropped: _ =>
+        {
+            if (dropMeter.Record())
+                _logger.LogWarning(
+                    "IB trade tape for {Symbol} shed its oldest queued prints ({Dropped} total) — consumer is not keeping up",
+                    contract.Symbol, dropMeter.Dropped);
+        });
         lock (_gate) _tradeStreams[reqId] = ch;
 
         var ibContract = ToIbContract(contract);
@@ -311,7 +326,8 @@ public sealed class RealIbClient : IBApi.DefaultEWrapper, IBrokerClient
     /// </summary>
     private sealed class TickStream
     {
-        public Channel<Tick> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<Tick>();
+        public Channel<Tick> Channel { get; } =
+            FeedChannel.CreateDropOldest<Tick>(FeedChannel.Capacity.Quotes, singleWriter: false);
         public double Bid;
         public double Ask;
         public long BidSize;
