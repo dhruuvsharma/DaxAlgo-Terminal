@@ -48,6 +48,9 @@ public partial class VolumeFootprintWindow : MetroWindow
     private static readonly Brush PredictShade = new SolidColorBrush(Color.FromArgb(0x12, 0x29, 0xB6, 0xF6)); // forecast region wash
     private static readonly Brush GhostUpFill = new SolidColorBrush(Color.FromArgb(0x38, 0x2E, 0x7D, 0x32));
     private static readonly Brush GhostDownFill = new SolidColorBrush(Color.FromArgb(0x38, 0xC6, 0x28, 0x28));
+    private static readonly Brush MlGhostStroke = new SolidColorBrush(Color.FromRgb(0xB3, 0x88, 0xFF));      // ML ghost outline (violet)
+    private static readonly Brush MlGhostUpFill = new SolidColorBrush(Color.FromArgb(0x30, 0x7C, 0xB3, 0x42)); // violet-tinted buy wash
+    private static readonly Brush MlGhostDownFill = new SolidColorBrush(Color.FromArgb(0x30, 0xD3, 0x2F, 0x5A)); // violet-tinted sell wash
     private static readonly Brush ImbBuyPen = new SolidColorBrush(Color.FromRgb(0x69, 0xF0, 0xAE));  // ask-imbalance (stacked buying)
     private static readonly Brush ImbSellPen = new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x80)); // bid-imbalance (stacked selling)
     private static readonly Brush ValueAreaFill = new SolidColorBrush(Color.FromArgb(0x14, 0x90, 0xCA, 0xF9));
@@ -89,7 +92,7 @@ public partial class VolumeFootprintWindow : MetroWindow
 
     static VolumeFootprintWindow()
     {
-        foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush, PocLineBrush, RegLineBrush, BuyPocBrush, SellPocBrush, PredictShade, GhostUpFill, GhostDownFill, ImbBuyPen, ImbSellPen, ValueAreaFill, ValueAreaEdge, CrosshairPen, TooltipBack, TooltipBorder })
+        foreach (var b in new[] { BuyBrush, SellBrush, PocPen, GridPen, TextBrush, DimText, UpBrush, DownBrush, PocLineBrush, RegLineBrush, BuyPocBrush, SellPocBrush, PredictShade, GhostUpFill, GhostDownFill, MlGhostStroke, MlGhostUpFill, MlGhostDownFill, ImbBuyPen, ImbSellPen, ValueAreaFill, ValueAreaEdge, CrosshairPen, TooltipBack, TooltipBorder })
             b.Freeze();
 
         BuyCells = BuildCellBrushes(BuyColor);
@@ -167,12 +170,20 @@ public partial class VolumeFootprintWindow : MetroWindow
                 if (pb + ps > maxProfileVol) maxProfileVol = pb + ps;
             }
 
-        // Predicted (virtual) columns extend the price axis: snap each consensus price to the tick
-        // grid so the ghost candles get real rows even above/below the traded range.
+        // Predicted (virtual) columns extend the price axis: snap each consensus/ML price to the
+        // tick grid so the ghost candles get real rows even above/below the traded range. The
+        // ghost region is the wider of the regression and ML forecasts, so ML ghosts still render
+        // when the regression predictor is toggled off.
         var predicted = _vm.Predicted;
+        var mlPredicted = _vm.MlPredicted;
+        var ghostCols = Math.Max(predicted.Count, mlPredicted.Count);
         var tick = ParseTick(_vm.TickSizeText);
         _tick = tick;
         foreach (var p in predicted)
+            foreach (var v in new[] { p.Poc, p.BuyPoc, p.SellPoc })
+                if (double.IsFinite(v))
+                    prices.Add(Math.Round(Math.Round(v / tick) * tick, 10));
+        foreach (var p in mlPredicted)
             foreach (var v in new[] { p.Poc, p.BuyPoc, p.SellPoc })
                 if (double.IsFinite(v))
                     prices.Add(Math.Round(Math.Round(v / tick) * tick, 10));
@@ -186,7 +197,7 @@ public partial class VolumeFootprintWindow : MetroWindow
         _decimals = decimals;
 
         var showProfile = _vm.ShowVolumeProfile;
-        FootprintCanvas.Width = LeftAxisWidth + (bars.Count + predicted.Count) * ColumnWidth
+        FootprintCanvas.Width = LeftAxisWidth + (bars.Count + ghostCols) * ColumnWidth
                                 + (showProfile ? ProfileWidth : 0);
         FootprintCanvas.Height = HeaderHeight + rows.Count * _rowH + FooterHeight;
 
@@ -214,6 +225,7 @@ public partial class VolumeFootprintWindow : MetroWindow
         var predicted = _vm.Predicted;
         DrawFitCurves(bars.Count + predicted.Count, rows);
         DrawPredictedBars(bars, predicted, rows, decimals);
+        DrawMlPredictedBars(bars, _vm.MlPredicted, predicted.Count, rows, decimals);
     }
 
     /// <summary>Right-edge composite session volume profile: a horizontal bid/ask histogram of total
@@ -223,7 +235,7 @@ public partial class VolumeFootprintWindow : MetroWindow
         IReadOnlyDictionary<double, int> rowIndex, Dictionary<double, long> profileBuy,
         Dictionary<double, long> profileSell, long maxProfileVol)
     {
-        var x0 = LeftAxisWidth + (bars.Count + _vm!.Predicted.Count) * ColumnWidth;
+        var x0 = LeftAxisWidth + (bars.Count + Math.Max(_vm!.Predicted.Count, _vm.MlPredicted.Count)) * ColumnWidth;
         const double pad = 4;
         var usableW = ProfileWidth - pad * 2;
 
@@ -332,6 +344,90 @@ public partial class VolumeFootprintWindow : MetroWindow
                     x, fy + 3, ColumnWidth, 16, DimText, 10.5, TextAlignment.Center);
                 prevPoc = p.Poc;
             }
+        }
+    }
+
+    /// <summary>Draws the ML forecast as violet <em>dotted</em> ghost candles overlaid on the same
+    /// future columns as the regression ghosts (which are dashed): body spans the predicted
+    /// buy/sell POCs, its <b>width scales with the predicted volume</b> (vs the visible bars'
+    /// mean), its <b>tint follows the predicted delta sign</b>, a dotted violet tick marks the
+    /// predicted total POC and the footer prints the predicted delta. When the regression
+    /// predictor is off (or shorter), this also supplies the forecast wash / boundary / column
+    /// headers for the columns the regression didn't draw.</summary>
+    private void DrawMlPredictedBars(List<RenderBar> bars, IReadOnlyList<MlPredictedBar> ml,
+        int regressionCols, List<double> rows, int decimals)
+    {
+        if (ml.Count == 0 || rows.Count == 0) return;
+
+        var x0 = LeftAxisWidth + bars.Count * ColumnWidth;
+        var height = HeaderHeight + rows.Count * _rowH + FooterHeight;
+
+        if (ml.Count > regressionCols)
+        {
+            FootprintCanvas.Children.Add(Place(new Rectangle
+            {
+                Width = (ml.Count - regressionCols) * ColumnWidth,
+                Height = height,
+                Fill = PredictShade,
+            }, x0 + regressionCols * ColumnWidth, 0));
+            if (regressionCols == 0)
+                FootprintCanvas.Children.Add(new Line
+                {
+                    X1 = x0, Y1 = 0, X2 = x0, Y2 = height,
+                    Stroke = DimText, StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 4, 4 },
+                });
+        }
+
+        double meanVolume = 0;
+        foreach (var bar in bars) meanVolume += bar.TotalVolume;
+        meanVolume = bars.Count > 0 ? meanVolume / bars.Count : 0;
+
+        var fy = HeaderHeight + rows.Count * _rowH;
+        for (var j = 0; j < ml.Count; j++)
+        {
+            var p = ml[j];
+            var x = x0 + j * ColumnWidth;
+            if (j >= regressionCols)
+                AddText($"+{j + 1}", x, 0, ColumnWidth, HeaderHeight, DimText, 10.5, TextAlignment.Center);
+
+            if (double.IsFinite(p.BuyPoc) && double.IsFinite(p.SellPoc))
+            {
+                var yTop = PriceToY(Math.Max(p.BuyPoc, p.SellPoc), rows);
+                var yBottom = PriceToY(Math.Min(p.BuyPoc, p.SellPoc), rows);
+                var widthFrac = meanVolume > 0 && double.IsFinite(p.Volume)
+                    ? Math.Clamp(0.22 + 0.5 * p.Volume / meanVolume, 0.22, 0.86)
+                    : 0.34;
+                var bodyW = ColumnWidth * widthFrac;
+                FootprintCanvas.Children.Add(Place(new Rectangle
+                {
+                    Width = bodyW,
+                    Height = Math.Max(3, yBottom - yTop),
+                    Fill = p.Delta >= 0 ? MlGhostUpFill : MlGhostDownFill,
+                    Stroke = MlGhostStroke,
+                    StrokeThickness = 1.4,
+                    StrokeDashArray = new DoubleCollection { 1, 3 },
+                }, x + (ColumnWidth - bodyW) / 2.0, yTop));
+            }
+
+            if (double.IsFinite(p.Poc))
+            {
+                var y = PriceToY(p.Poc, rows);
+                var tickW = ColumnWidth * 0.6;
+                FootprintCanvas.Children.Add(new Line
+                {
+                    X1 = x + (ColumnWidth - tickW) / 2.0, Y1 = y,
+                    X2 = x + (ColumnWidth + tickW) / 2.0, Y2 = y,
+                    Stroke = MlGhostStroke, StrokeThickness = 2,
+                    StrokeDashArray = new DoubleCollection { 1, 2 },
+                });
+                if (j >= regressionCols)
+                    AddText(p.Poc.ToString("N" + decimals, CultureInfo.InvariantCulture),
+                        x, fy + 3, ColumnWidth, 16, DimText, 10.5, TextAlignment.Center);
+            }
+
+            AddText($"Δ̂ {p.Delta:+#,##0;-#,##0;0}", x, fy + 19, ColumnWidth, 14,
+                MlGhostStroke, 10, TextAlignment.Center);
         }
     }
 

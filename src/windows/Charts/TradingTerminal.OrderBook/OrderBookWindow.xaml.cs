@@ -27,6 +27,10 @@ public partial class OrderBookWindow : MetroWindow
     private const double ColumnWidth = 4;   // px per captured time column
     private const int MaxLevelsPerSide = 30; // cap drawn depth so a deep book stays performant
 
+    /// <summary>Columns reserved right of "now" for the ML forecast path (96 px covers the
+    /// 20-step / 5 s horizon with a margin). 0 when no forecast is showing.</summary>
+    private const int ForecastGutterColumns = 24;
+
     // Fixed palette (canvas drawing is theme-independent, like the footprint window).
     private static readonly Color BidColor = Color.FromRgb(0x26, 0xA6, 0x9A);
     private static readonly Color AskColor = Color.FromRgb(0xEF, 0x53, 0x50);
@@ -40,6 +44,8 @@ public partial class OrderBookWindow : MetroWindow
     private static readonly Brush TrendLine = Freeze(new SolidColorBrush(Color.FromRgb(0x29, 0xB6, 0xF6)));
     private static readonly Brush DimText = Freeze(new SolidColorBrush(Color.FromRgb(0x9E, 0x9E, 0x9E)));
     private static readonly Brush GridPen = Freeze(new SolidColorBrush(Color.FromArgb(0x33, 0x88, 0x88, 0x88)));
+    private static readonly Brush MlPath = Freeze(new SolidColorBrush(Color.FromRgb(0xB3, 0x88, 0xFF)));      // ML forecast (violet — matches the footprint's ML identity)
+    private static readonly Brush MlWash = Freeze(new SolidColorBrush(Color.FromArgb(0x0D, 0xB3, 0x88, 0xFF)));
     private static readonly FontFamily MonoFont = new("Consolas");
 
     // Pre-baked, frozen liquidity-cell brushes bucketed by intensity. The heatmap redraws every frame
@@ -117,8 +123,13 @@ public partial class OrderBookWindow : MetroWindow
         var plotH = _h - laneH;
         if (plotH <= 20) return;
 
+        // ML forecast gutter: the live columns stop short of the right edge so the predicted
+        // path has room ahead of "now".
+        var forecast = _vm.MlForecast;
+        var gutterW = forecast is not null ? ForecastGutterColumns * ColumnWidth : 0;
+
         // Right-aligned scroll: draw the most recent columns that fit.
-        var visible = Math.Min(columns.Count, Math.Max(1, (int)(plotW / ColumnWidth)));
+        var visible = Math.Min(columns.Count, Math.Max(1, (int)((plotW - gutterW) / ColumnWidth)));
         var start = columns.Count - visible;
 
         // Price range + max size over the visible window (for the y-map and alpha scaling).
@@ -129,6 +140,11 @@ public partial class OrderBookWindow : MetroWindow
             var c = columns[i];
             ScanSide(c.Bids, ref pMin, ref pMax, ref maxSize);
             ScanSide(c.Asks, ref pMin, ref pMax, ref maxSize);
+        }
+        if (forecast is not null)
+        {
+            IncludePrice(forecast.ReferenceMicroprice, ref pMin, ref pMax);
+            foreach (var p in forecast.Path) IncludePrice(p.Microprice, ref pMin, ref pMax);
         }
         if (pMax <= pMin) return;
 
@@ -163,6 +179,68 @@ public partial class OrderBookWindow : MetroWindow
 
         // ── Bottom imbalance lane ───────────────────────────────────────────────────────────────
         if (laneH > 0) DrawImbalanceLane(columns, start, X, plotH, laneH);
+
+        // ── ML forecast path (drawn last so it rides above the field) ─────────────────────────
+        if (forecast is not null) DrawMlForecast(columns, X, Y, plotH, forecast);
+    }
+
+    private static void IncludePrice(double price, ref double pMin, ref double pMax)
+    {
+        if (!double.IsFinite(price) || price <= 0) return;
+        if (price < pMin) pMin = price;
+        if (price > pMax) pMax = price;
+    }
+
+    /// <summary>Draws the ML micro-forecast in the right gutter: a faint violet wash + dotted
+    /// "now" divider, then a dotted violet polyline from the last live microprice through the
+    /// predicted microprice at each horizon (one column = one 250 ms step), dots at the horizon
+    /// points. Violet + dotted is the app's ML visual identity (the footprint ghosts match).</summary>
+    private void DrawMlForecast(IReadOnlyList<HeatColumn> columns, Func<int, double> x,
+        Func<double, double> y, double plotH, TradingTerminal.Core.Ml.OrderBookForecast forecast)
+    {
+        var nowX = x(columns.Count - 1) + ColumnWidth;
+        if (nowX >= _w) return;
+
+        var wash = new Rectangle { Width = Math.Max(0, _w - nowX), Height = plotH, Fill = MlWash };
+        Canvas.SetLeft(wash, nowX);
+        Canvas.SetTop(wash, 0);
+        HeatCanvas.Children.Add(wash);
+        HeatCanvas.Children.Add(new Line
+        {
+            X1 = nowX, Y1 = 0, X2 = nowX, Y2 = plotH,
+            Stroke = DimText, StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 4, 4 },
+        });
+
+        var pts = new PointCollection();
+        if (double.IsFinite(forecast.ReferenceMicroprice) && forecast.ReferenceMicroprice > 0)
+            pts.Add(new Point(x(columns.Count - 1) + ColumnWidth / 2.0, y(forecast.ReferenceMicroprice)));
+        var dots = new List<Point>();
+        foreach (var p in forecast.Path)
+        {
+            if (!double.IsFinite(p.Microprice) || p.Microprice <= 0) continue;
+            var pt = new Point(nowX + p.HorizonSteps * ColumnWidth - ColumnWidth / 2.0, y(p.Microprice));
+            pts.Add(pt);
+            dots.Add(pt);
+        }
+        if (pts.Count < 2) return;
+
+        HeatCanvas.Children.Add(new Polyline
+        {
+            Points = pts,
+            Stroke = MlPath,
+            StrokeThickness = 1.6,
+            StrokeDashArray = new DoubleCollection { 1, 3 },
+            StrokeLineJoin = PenLineJoin.Round,
+        });
+        foreach (var d in dots)
+        {
+            var dot = new Ellipse { Width = 6, Height = 6, Fill = MlPath };
+            Canvas.SetLeft(dot, d.X - 3);
+            Canvas.SetTop(dot, d.Y - 3);
+            HeatCanvas.Children.Add(dot);
+        }
+        AddText("ML", nowX + 4, 4, 30, 14, MlPath, 9.5);
     }
 
     private static void ScanSide(IReadOnlyList<DepthLevel> side, ref double pMin, ref double pMax, ref long maxSize)

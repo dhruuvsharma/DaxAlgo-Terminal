@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Core.Quant;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -42,6 +43,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private readonly IMarketDataRepository _repository;
     private readonly IMarketDataHub _hub;
     private readonly IMarketDataIngest _ingest;
+    private readonly IMarketDataStore _store;
     private readonly IBrokerSelector _selector;
     private readonly InMemoryLogSink _log;
     private readonly ILogger<VolumeFootprintViewModel> _logger;
@@ -54,12 +56,22 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private bool _useSynthetic;
 
     // ── Per-bar accumulator ────────────────────────────────────────────────────────────────
-    // We keep the raw prints for the forming bar and call FootprintFeatures.BuildBar (Core) once
-    // per render tick to rebuild the immutable Core bar. This ensures the chart and Apex v2 engine
-    // score from the same math while keeping the rebuild off the hot per-trade path.
-    private readonly List<FootprintPrint> _currentPrints = new();
-    private DateTime _currentBucketStart = DateTime.MinValue;
-    private long _cumulativeDelta;
+    // The bucketer keeps the raw prints for the forming bar and calls FootprintFeatures.BuildBar
+    // (Core) to seal buckets / rebuild the forming bar once per render tick. The same bucketer
+    // implementation drives the ML warm-start backfill, so historical training bars are built
+    // through the exact same path as live ones.
+    private FootprintTimeBucketer? _bucketer;
+
+    /// <summary>Online next-bar forecaster. Recreated on every <see cref="Restart"/> (it is
+    /// instrument/interval/tick scoped); null while the warm-start backfill is still training it.</summary>
+    private FootprintNextBarPredictor? _ml;
+
+    /// <summary>Start time of the last bar the warm-start backfill trained on, so the live seam
+    /// bar is never learned twice.</summary>
+    private DateTime _lastBackfillBarStart = DateTime.MinValue;
+
+    /// <summary>How many bars of stored tape the warm-start replays (capped at 24 h of span).</summary>
+    private const int WarmStartBars = 200;
 
     /// <summary>Set by trade ingest, cleared by the render tick — coalesces many trades into one
     /// canvas rebuild so a fast tape can't pin the UI thread (the old per-trade redraw both pinned
@@ -103,6 +115,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         IMarketDataRepository repository,
         IMarketDataHub hub,
         IMarketDataIngest ingest,
+        IMarketDataStore store,
         IBrokerSelector selector,
         InMemoryLogSink log,
         ILogger<VolumeFootprintViewModel> logger)
@@ -110,6 +123,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _repository = repository;
         _hub = hub;
         _ingest = ingest;
+        _store = store;
         _selector = selector;
         _log = log;
         _logger = logger;
@@ -196,6 +210,19 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private bool _showPredictedBars = true;
     [ObservableProperty] private int _predictionBars = 5;
 
+    // ── ML predictor (online-learned next-bar forecast; see FootprintNextBarPredictor) ────────
+    [ObservableProperty] private bool _showMlPrediction = true;
+    /// <summary>Replay recent stored tape through the predictor on (re)start so it isn't cold.</summary>
+    [ObservableProperty] private bool _warmStartFromHistory = true;
+    [ObservableProperty] private string _mlSamplesText = "0";
+    [ObservableProperty] private string _mlMaeText = "—";
+    [ObservableProperty] private string _mlHitRateText = "—";
+    [ObservableProperty] private string _regMaeText = "—";
+    [ObservableProperty] private string _regHitRateText = "—";
+    /// <summary>+1 when the ML forecaster is beating the regression consensus on rolling MAE,
+    /// −1 when it is losing, 0 while either side lacks scores (drives the stats-row colour).</summary>
+    [ObservableProperty] private int _mlEdgeDirection;
+
     /// <summary>Fitted overlay curves (one ŷ per column, extended by the prediction horizon when
     /// the predictor is on) for every enabled fit kind × POC series. Rebuilt on each trade and on
     /// checkbox toggles; read by the code-behind.</summary>
@@ -204,6 +231,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     /// <summary>Virtual predicted columns past the last bar — per-series consensus (mean) of every
     /// enabled fit extrapolated forward. Empty when the predictor is off or no fit is enabled.</summary>
     public IReadOnlyList<PredictedBar> Predicted { get; private set; } = Array.Empty<PredictedBar>();
+
+    /// <summary>ML-forecast future columns past the last bar, capped at the model's horizon
+    /// (shorter than the regression's — direct per-horizon learners don't extrapolate far).
+    /// Empty while the model warms up or when the toggle is off.</summary>
+    public IReadOnlyList<MlPredictedBar> MlPredicted { get; private set; } = Array.Empty<MlPredictedBar>();
 
     /// <summary>Least-squares slope of POC price against bar (column) index across the visible bars,
     /// in price units per bar. Feeds the stats-panel slope read-out.</summary>
@@ -243,7 +275,17 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnShowLogarithmicFitChanged(bool value) => RefreshFitCurves();
     partial void OnShowLowessFitChanged(bool value) => RefreshFitCurves();
     partial void OnShowPredictedBarsChanged(bool value) => RefreshFitCurves();
-    partial void OnPredictionBarsChanged(int value) => RefreshFitCurves();
+    partial void OnPredictionBarsChanged(int value)
+    {
+        RefreshFitCurves();
+        PublishMlForecast();
+    }
+
+    partial void OnShowMlPredictionChanged(bool value)
+    {
+        PublishMlForecast();
+        RaiseRedraw();
+    }
 
     // Display-mode / overlay / zoom toggles only change presentation — redraw, don't restart.
     partial void OnSelectedDisplayModeChanged(CellDisplayMode value) => RaiseRedraw();
@@ -305,10 +347,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
         _useSynthetic = !BrokerSupportsTradeTape(broker);
         _synth.Reset();
-        _currentPrints.Clear();
+        _bucketer = new FootprintTimeBucketer(interval.Span, TickSize,
+            _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape);
+        _ml = null;
+        _lastBackfillBarStart = DateTime.MinValue;
         _dirty = false;
-        _currentBucketStart = DateTime.MinValue;
-        _cumulativeDelta = 0;
         TradesSeen = 0;
         SessionDelta = 0;
         ResetStats();
@@ -320,10 +363,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
             $"Footprint on {instrument.DisplayName} [{BrokerLabel(broker)}] — {tape}, {interval.Label} bars, tick {TickSize}");
 
         _streamCts = new CancellationTokenSource();
-        _ = RunStreamAsync(instrument.Contract, broker, _streamCts.Token);
+        _ = RunStreamAsync(instrument.Contract, broker, interval.Span, TickSize, _streamCts.Token);
     }
 
-    private async Task RunStreamAsync(Contract contract, BrokerKind broker, CancellationToken ct)
+    private async Task RunStreamAsync(Contract contract, BrokerKind broker, TimeSpan span,
+        double tickSize, CancellationToken ct)
     {
         InstrumentId instrumentId;
         try
@@ -359,6 +403,29 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
               })
             : _hub.Trades(instrumentId).Subscribe(t => channel.Writer.TryWrite(t));
 
+        // Warm-start the ML forecaster from stored tape before the drain loop begins. Live prints
+        // buffer in the bounded channel meanwhile (DropOldest keeps that safe); the ML engine is
+        // only published to _ml once training is done, so live seals can never race the backfill.
+        var ml = new FootprintNextBarPredictor(tickSize);
+        if (WarmStartFromHistory)
+        {
+            try
+            {
+                await WarmStartAsync(instrumentId, broker, span, tickSize, ml, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Footprint: ML warm-start failed for {Symbol}; starting cold", contract.Symbol);
+            }
+        }
+        if (ct.IsCancellationRequested) return;
+        _ml = ml;
+        UpdateMlStats();
+
         // Drain in batches: one UI-thread marshal per batch instead of one per trade. Aggregation
         // into the forming bucket is cheap; the (expensive) canvas rebuild is left to the render
         // timer via the dirty flag, so trade rate is fully decoupled from redraw rate.
@@ -385,49 +452,131 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         }
     }
 
+    /// <summary>Trains the fresh predictor through recent stored tape (interval × <see cref="WarmStartBars"/>
+    /// bars, capped at 24 h) so it is useful from the first live seal instead of needing ~20 live
+    /// bars. Bars are rebuilt through the same <see cref="FootprintTimeBucketer"/> path the live
+    /// stream uses. Runs entirely on a thread-pool thread against local state — the engine is only
+    /// published to <see cref="_ml"/> by the caller after this completes, so nothing is shared. A
+    /// missing/empty store simply trains on nothing and the model starts cold.</summary>
+    private async Task WarmStartAsync(InstrumentId instrumentId, BrokerKind broker, TimeSpan span,
+        double tickSize, FootprintNextBarPredictor ml, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var to = new DateTime(now.Ticks - now.Ticks % span.Ticks, DateTimeKind.Utc);
+        var lookbackTicks = Math.Min(span.Ticks * WarmStartBars, TimeSpan.FromHours(24).Ticks);
+        var from = to - TimeSpan.FromTicks(lookbackTicks);
+
+        var trainedBars = 0;
+        var lastSealedStart = DateTime.MinValue;
+        await Task.Run(async () =>
+        {
+            var bucketer = new FootprintTimeBucketer(span, tickSize, FeedQuality.RealTape);
+            await foreach (var trade in _store.ReadTradesAsync(instrumentId, from, to, broker, ct))
+            {
+                if (bucketer.Add(FootprintPrint.From(trade)) is not { } sealedCore) continue;
+                ml.OnBarSealed(Summarize(new RenderBar(sealedCore)), double.NaN);
+                lastSealedStart = sealedCore.StartUtc;
+                trainedBars++;
+            }
+        }, ct);
+
+        _lastBackfillBarStart = lastSealedStart;
+        if (trainedBars > 0)
+            _log.Append(LogSource, "INFO",
+                $"ML warm-start: trained on {trainedBars} stored bars ({(ml.IsReady ? "ready" : "still cold")})");
+    }
+
+    /// <summary>Republishes <see cref="MlPredicted"/> from the engine's latest forecast, clamped
+    /// to the user's horizon, and refreshes the stats read-outs. Cheap; safe to call from toggle
+    /// handlers as well as the seal path.</summary>
+    private void PublishMlForecast()
+    {
+        var forecast = _ml?.LastForecast ?? Array.Empty<FootprintForecastBar>();
+        if (!ShowMlPrediction || forecast.Count == 0)
+        {
+            MlPredicted = Array.Empty<MlPredictedBar>();
+        }
+        else
+        {
+            var take = Math.Min(forecast.Count, Math.Clamp(PredictionBars, 1, 60));
+            var columns = new MlPredictedBar[take];
+            for (var i = 0; i < take; i++)
+            {
+                var f = forecast[i];
+                columns[i] = new MlPredictedBar(f.Poc, f.BuyPoc, f.SellPoc, f.TotalVolume, f.Delta, f.Horizon);
+            }
+            MlPredicted = columns;
+        }
+        UpdateMlStats();
+    }
+
+    private void UpdateMlStats()
+    {
+        if (_ml is null)
+        {
+            MlSamplesText = "0";
+            MlMaeText = MlHitRateText = RegMaeText = RegHitRateText = "—";
+            MlEdgeDirection = 0;
+            return;
+        }
+
+        MlSamplesText = _ml.SamplesSeen.ToString("N0", CultureInfo.InvariantCulture);
+        var ml = _ml.MlAccuracy;
+        var reg = _ml.BaselineAccuracy;
+        (MlMaeText, MlHitRateText) = FormatAccuracy(ml);
+        (RegMaeText, RegHitRateText) = FormatAccuracy(reg);
+        MlEdgeDirection = ml.ScoredCount >= 10 && reg.ScoredCount >= 10
+            ? Math.Sign(reg.PocMaeTicks - ml.PocMaeTicks)
+            : 0;
+    }
+
+    private static (string mae, string hit) FormatAccuracy(ForecastAccuracy accuracy) =>
+        accuracy.ScoredCount == 0
+            ? ("—", "—")
+            : (accuracy.PocMaeTicks.ToString("0.00", CultureInfo.InvariantCulture) + " t",
+               (accuracy.DirectionalHitRate * 100).ToString("0", CultureInfo.InvariantCulture) + "%");
+
     /// <summary>Ingests a drained batch of trades on the UI thread: cheap per-trade accumulation
     /// (bucket roll/seal + append to the forming bucket) only. The expensive forming-bar rebuild,
     /// stats and canvas redraw are deferred to <see cref="OnRenderTick"/> via the dirty flag, so a
     /// fast tape can't pin the UI thread or back the channel up.</summary>
     private void IngestBatch(List<TradePrint> batch)
     {
-        var interval = SelectedInterval;
-        if (interval is null) return;
-
-        var span = interval.Span;
-        var tickSize = TickSize;
-        var quality = _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape;
+        if (_bucketer is null) return;
         var now = DateTime.UtcNow;
 
         foreach (var trade in batch)
         {
-            var ts = trade.EventTimeUtc;
-            var bucket = new DateTime(ts.Ticks - (ts.Ticks % span.Ticks), DateTimeKind.Utc);
-
-            if (bucket != _currentBucketStart)
-            {
-                // Seal the completed bucket: build it once and fold its delta into the CVD thread.
-                if (_currentBucketStart != DateTime.MinValue && _currentPrints.Count > 0)
-                {
-                    var finalized = BuildRenderBar(_currentPrints, tickSize, _currentBucketStart,
-                        bucket, quality, _cumulativeDelta);
-                    _cumulativeDelta += finalized.Core.Delta;
-                    if (Bars.Count > 0 && Bars[^1].StartUtc == _currentBucketStart) Bars[^1] = finalized;
-                    else Bars.Add(finalized);
-                    while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
-                }
-
-                _currentBucketStart = bucket;
-                _currentPrints.Clear();
-            }
-
-            _currentPrints.Add(FootprintPrint.From(trade));
+            if (_bucketer.Add(FootprintPrint.From(trade)) is { } sealedCore)
+                OnBarSealed(sealedCore);
             TradesSeen++;
             _tradeArrivals.Enqueue(now);
         }
 
         _dirty = true;
     }
+
+    /// <summary>Folds a sealed Core bar into the visible bars, then runs the ML step: score the
+    /// previous forecast against this realized bar, learn, and predict the next horizon. The
+    /// regression consensus published <em>before</em> this seal is captured as the baseline —
+    /// a genuine ex-ante forecast made from the bars visible before this bar completed. Seals
+    /// happen at most once per interval, so this stays off the hot per-trade path.</summary>
+    private void OnBarSealed(FootprintBar sealedCore)
+    {
+        var finalized = new RenderBar(sealedCore);
+        if (Bars.Count > 0 && Bars[^1].StartUtc == sealedCore.StartUtc) Bars[^1] = finalized;
+        else Bars.Add(finalized);
+        while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
+
+        if (_ml is null || sealedCore.StartUtc <= _lastBackfillBarStart) return;
+        var baseline = Predicted.Count > 0 ? Predicted[0].Poc : double.NaN;
+        _ml.OnBarSealed(Summarize(finalized), baseline);
+        PublishMlForecast();
+    }
+
+    private static FootprintBarSummary Summarize(RenderBar bar) =>
+        FootprintBarSummary.From(bar.Core, bar.BuyPointOfControl, bar.SellPointOfControl,
+            bar.ValueAreaHigh, bar.ValueAreaLow);
 
     /// <summary>Render tick (~12 fps): if trades arrived since the last tick, rebuild the forming
     /// bar once from the accumulated prints, refresh the stats and redraw the canvas. Always decays
@@ -438,40 +587,20 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         if (!_dirty) return;
         _dirty = false;
 
-        var interval = SelectedInterval;
-        if (interval is null || _currentBucketStart == DateTime.MinValue) return;
+        if (_bucketer?.BuildForming() is not { } formingCore) return;
+        var formingBar = new RenderBar(formingCore);
 
-        var quality = _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape;
-        var formingBar = BuildRenderBar(_currentPrints, TickSize, _currentBucketStart,
-            _currentBucketStart + interval.Span, quality, _cumulativeDelta);
-
-        if (Bars.Count > 0 && Bars[^1].StartUtc == _currentBucketStart) Bars[^1] = formingBar;
+        if (Bars.Count > 0 && Bars[^1].StartUtc == formingCore.StartUtc) Bars[^1] = formingBar;
         else
         {
             Bars.Add(formingBar);
             while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
         }
 
-        SessionDelta = _cumulativeDelta + formingBar.Core.Delta;
+        SessionDelta = formingCore.CumulativeDelta;
         UpdateStats();
         Status = $"{SelectedInstrument?.DisplayName} · {Bars.Count} bars · {TradesSeen} trades · CVD {SessionDelta:+#;-#;0}";
         FootprintChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>Delegates bar construction to <see cref="FootprintFeatures.BuildBar"/> (Core) and
-    /// wraps the result in a <see cref="RenderBar"/> that adds the argmax buy/sell POC fields the
-    /// overlay connector lines need.</summary>
-    private static RenderBar BuildRenderBar(
-        IReadOnlyList<FootprintPrint> prints,
-        double tickSize,
-        DateTime startUtc,
-        DateTime endUtc,
-        FeedQuality quality,
-        long cumulativeDeltaBefore)
-    {
-        var core = FootprintFeatures.BuildBar(prints, tickSize, startUtc, endUtc,
-            quality, cumulativeDeltaBefore);
-        return new RenderBar(core);
     }
 
     /// <summary>Recomputes the POC regression and the stats-panel read-outs from the visible bars.
@@ -660,6 +789,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         CvdDirection = 0;
         TicksPerSecondText = "0.0"; VisibleVolumeText = "0"; BuySellText = "—"; CurrentPocText = "—";
         StackedText = "—";
+        MlPredicted = Array.Empty<MlPredictedBar>();
+        MlSamplesText = "0";
+        MlMaeText = MlHitRateText = RegMaeText = RegHitRateText = "—";
+        MlEdgeDirection = 0;
     }
 
     private static int DecimalsFor(double tick)
@@ -673,7 +806,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private void ClearBars()
     {
         Bars.Clear();
-        _currentPrints.Clear();
+        _bucketer?.Reset();
         _dirty = false;
         FootprintChanged?.Invoke(this, EventArgs.Empty);
     }

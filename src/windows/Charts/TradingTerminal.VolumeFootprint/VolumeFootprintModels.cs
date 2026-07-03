@@ -25,6 +25,12 @@ public sealed record PocFitCurve(CurveFitKind Kind, PocSeries Series, IReadOnlyL
 /// enabled fit kind extrapolated to that future column. NaN where a series had no valid fit.</summary>
 public sealed record PredictedBar(double Poc, double BuyPoc, double SellPoc);
 
+/// <summary>One ML-forecast future column, produced by the online next-bar predictor. Beyond the
+/// POC prices it carries the predicted total volume (drives the ghost body's width) and delta
+/// (its sign drives the buy/sell tint) — the learned counterpart of the regression consensus.</summary>
+public sealed record MlPredictedBar(
+    double Poc, double BuyPoc, double SellPoc, double Volume, double Delta, int Horizon);
+
 /// <summary>
 /// WPF render model for one footprint bar. Wraps the immutable <see cref="FootprintBar"/>
 /// produced by <see cref="FootprintFeatures.BuildBar"/> and adds the two argmax-per-side POC

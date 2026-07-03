@@ -25,6 +25,10 @@ exact formulas, derived step by step, are in the [math reference](math-reference
 
 Technically, all three are **offline analysis over historical bars** pulled from the canonical store via `IMarketDataRepository` — no live subscription, no broker round-trip beyond the history request, and fitting always runs off the UI thread. Each window follows the same conventions as the other tool windows: global instrument picker, timeframe dropdown, bar-count input, ScottPlot dark charts.
 
+> **Looking for *live* machine learning?** Two chart windows embed **online learners** (recursive least squares, trained continuously, warm-started from the local store, scored live against a classical baseline):
+> - the [Volume footprint chart](charts.md#ml-predictor) forecasts the next bars' POC/volume/delta vs the chart's regression predictor (`Core/Ml/FootprintNextBarPredictor`, [math §4.1](math-reference.md#41-volume-footprint--tradingterminalvolumefootprint));
+> - the [Order book window](charts.md#ml-micro-forecast) forecasts the microprice path 250 ms–5 s out plus spread-widening / depth-drain / sweep-jump probabilities vs the queue-imbalance rule (`Core/Ml/OrderBookMicroPredictor`, [math §4.3](math-reference.md#43-order-book--tradingterminalorderbook)).
+
 The windows are thin UI over reusable math in **`src/windows/Core/TradingTerminal.Core/Quant/TimeSeries/`** — every estimator is a plain testable class you can also call from a strategy or the backtester.
 
 ## Stationarity & differencing

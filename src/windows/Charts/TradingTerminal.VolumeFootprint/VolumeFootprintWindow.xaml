@@ -76,8 +76,9 @@
                 <!-- ── Grouped option menus ── -->
                 <Menu Background="Transparent" IsMainMenu="False" VerticalAlignment="Center"
                       Foreground="{DynamicResource Text.Primary}">
-                    <!-- Regression: one checkbox per POC-fit curve flavour, plus the forward prediction. -->
-                    <MenuItem Header="📈 Regression ▾">
+                    <!-- Prediction: one checkbox per POC-fit curve flavour, the regression forward
+                         prediction, and the online-learned ML forecast. -->
+                    <MenuItem Header="📈 Prediction ▾">
                         <MenuItem Header="Regression fits" IsEnabled="False" />
                         <Separator />
                         <MenuItem Header="Linear" IsCheckable="True" IsChecked="{Binding ShowLinearFit}" />
@@ -98,6 +99,11 @@
                                 </StackPanel>
                             </MenuItem.Header>
                         </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Machine learning" IsEnabled="False" />
+                        <MenuItem Header="ML prediction (online)" IsCheckable="True" IsChecked="{Binding ShowMlPrediction}" />
+                        <MenuItem Header="Warm-start from history" IsCheckable="True" IsChecked="{Binding WarmStartFromHistory}"
+                                  ToolTip="Replay recent stored trade tape through the model on start so it isn't cold. Takes effect on the next restart (instrument/interval/tick change)." />
                     </MenuItem>
 
                     <!-- Overlays: analytics drawn over the footprint cells. -->
@@ -221,6 +227,16 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
+                    <Style x:Key="ValMlEdge" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MlEdgeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding MlEdgeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
                     <Style x:Key="ValCvd" TargetType="TextBlock" BasedOn="{StaticResource Val}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding CvdDirection}" Value="1">
@@ -241,6 +257,9 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -278,6 +297,19 @@
 
                         <TextBlock Grid.Row="8" Grid.Column="0" Text="Stacked ▲/▼" Style="{StaticResource Lbl}" />
                         <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding StackedText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="9" Grid.Column="0" Text="ML MAE / hit" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource ValMlEdge}">
+                            <Run Text="{Binding MlMaeText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding MlHitRateText, Mode=OneWay}" />
+                        </TextBlock>
+
+                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Reg MAE / hit" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource Val}">
+                            <Run Text="{Binding RegMaeText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding RegHitRateText, Mode=OneWay}" />
+                        </TextBlock>
+
+                        <TextBlock Grid.Row="11" Grid.Column="0" Text="ML samples" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding MlSamplesText}" Style="{StaticResource Val}" />
                     </Grid>
                 </StackPanel>
             </Border>
@@ -310,6 +342,8 @@
                     <TextBlock Text="fit curves (dash = kind)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
                     <Border Width="11" Height="11" BorderBrush="#4CAF50" BorderThickness="1" Background="#382E7D32" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="predicted" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Rectangle Width="11" Height="11" Stroke="#B388FF" StrokeThickness="1.2" StrokeDashArray="1 2" Fill="#30B388FF" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="ML predicted" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
                     <Border Width="11" Height="11" BorderBrush="#69F0AE" BorderThickness="1.6" Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="buy imb" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,8,0" />
                     <Border Width="11" Height="11" BorderBrush="#FF8A80" BorderThickness="1.6" Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,0" />

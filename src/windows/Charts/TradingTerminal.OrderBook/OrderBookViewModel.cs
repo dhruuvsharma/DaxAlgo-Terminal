@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Core.Quant.TimeSeries;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -68,6 +69,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private readonly IMarketDataRepository _repository;
     private readonly IMarketDataHub _hub;
     private readonly IMarketDataIngest _ingest;
+    private readonly IMarketDataStore _store;
     private readonly IBrokerSelector _selector;
     private readonly InMemoryLogSink _log;
     private readonly ILogger<OrderBookViewModel> _logger;
@@ -101,10 +103,29 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private readonly IDisposable _captureTimer;
     private bool _ready;
 
+    // ── ML micro-forecaster ──────────────────────────────────────────────────────────────────
+    /// <summary>Online order-book forecaster, stepped once per capture tick. Recreated per
+    /// <see cref="Restart"/>; null while the warm-start backfill is still training it.</summary>
+    private OrderBookMicroPredictor? _ml;
+
+    /// <summary>Last warm-start step boundary, so a live step can never re-learn the seam.</summary>
+    private DateTime _mlWatermarkUtc = DateTime.MinValue;
+
+    /// <summary>Signed trade volume / print count accumulated since the last capture tick — the
+    /// flow inputs of the next <see cref="OrderBookStepSummary"/>.</summary>
+    private long _flowSinceStep;
+    private int _tradesSinceStep;
+
+    /// <summary>How far back the warm-start replays stored depth, and its step-count cap
+    /// (7 200 steps = 30 min at the capture cadence).</summary>
+    private static readonly TimeSpan WarmStartLookback = TimeSpan.FromMinutes(30);
+    private const int MaxWarmStartSteps = 7_200;
+
     public OrderBookViewModel(
         IMarketDataRepository repository,
         IMarketDataHub hub,
         IMarketDataIngest ingest,
+        IMarketDataStore store,
         IBrokerSelector selector,
         InMemoryLogSink log,
         ILogger<OrderBookViewModel> logger)
@@ -112,6 +133,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         _repository = repository;
         _hub = hub;
         _ingest = ingest;
+        _store = store;
         _selector = selector;
         _log = log;
         _logger = logger;
@@ -194,6 +216,34 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _tradeTapeLive;        // true when a native tape is wired
     [ObservableProperty] private string _tradeTapeText = "—";
 
+    // ── Tier 5: ML micro-forecast (online-learned; see OrderBookMicroPredictor) ─────────────────
+    /// <summary>The latest forecast for the renderer (violet path ahead of the heatmap) — null when
+    /// the toggle is off, the model is warming up, or the book is unusable.</summary>
+    public OrderBookForecast? MlForecast { get; private set; }
+
+    [ObservableProperty] private bool _showMlForecast = true;
+    /// <summary>Replay recent stored depth through the predictor on (re)start so it isn't cold.</summary>
+    [ObservableProperty] private bool _warmStartFromHistory = true;
+    [ObservableProperty] private string _mlSamplesText = "0";
+    [ObservableProperty] private string _mlMaeText = "—";
+    [ObservableProperty] private string _mlHitRateText = "—";
+    [ObservableProperty] private string _baseMaeText = "—";
+    [ObservableProperty] private string _baseHitRateText = "—";
+    /// <summary>+1 when the model beats the queue-imbalance rule on rolling hit-rate, −1 when it
+    /// loses, 0 while either lacks scores (drives the scoreboard colour).</summary>
+    [ObservableProperty] private int _mlEdgeDirection;
+    [ObservableProperty] private string _pSpreadText = "—";
+    [ObservableProperty] private string _pDepthText = "—";
+    [ObservableProperty] private string _pSweepText = "—";
+    /// <summary>Raw probabilities in [0, 1] for the chip mini-bars.</summary>
+    [ObservableProperty] private double _pSpread;
+    [ObservableProperty] private double _pDepth;
+    [ObservableProperty] private double _pSweep;
+    /// <summary>Probability alert levels (0 calm &lt; 0.4 ≤ 1 elevated &lt; 0.7 ≤ 2 hot) for the chip colours.</summary>
+    [ObservableProperty] private int _pSpreadLevel;
+    [ObservableProperty] private int _pDepthLevel;
+    [ObservableProperty] private int _pSweepLevel;
+
     // ── View toggles (presentation only — redraw, never restart the stream) ─────────────────────
     [ObservableProperty] private bool _showHeatmap = true;
     [ObservableProperty] private bool _showTrades = true;
@@ -212,6 +262,12 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     partial void OnShowTradesChanged(bool value) => RaiseRedraw();
     partial void OnShowMicropriceLineChanged(bool value) => RaiseRedraw();
     partial void OnShowImbalanceLaneChanged(bool value) => RaiseRedraw();
+
+    partial void OnShowMlForecastChanged(bool value)
+    {
+        PublishMlForecast();
+        RaiseRedraw();
+    }
 
     private void RaiseRedraw()
     {
@@ -289,6 +345,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
             _ = RunDepthStreamAsync(id, _streamCts.Token);
             if (!_useSyntheticTape)
                 _ = RunTradeStreamAsync(id, _streamCts.Token);
+            _ = InitializeMlAsync(id, _streamCts.Token);
         }
         catch (Exception ex)
         {
@@ -399,6 +456,8 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         }
         CumulativeDelta += delta;
         CvdDirection = Math.Sign(CumulativeDelta);
+        _flowSinceStep += delta;
+        _tradesSinceStep += batch.Count;
     }
 
     /// <summary>Projects the freshest whole-book snapshot into the two display ladders and recomputes
@@ -546,6 +605,23 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         _heatColumns.Add(column);
         while (_heatColumns.Count > MaxHeatColumns) _heatColumns.RemoveAt(0);
 
+        // ML step: one summary per capture tick (even when the book is unchanged — the targets
+        // are time-based). The step time is the tick's wall clock, not the snapshot's event time,
+        // so a quiet book still advances the model's horizon bookkeeping. Sub-millisecond work.
+        if (_ml is { } ml)
+        {
+            var stepTime = DateTime.UtcNow;
+            if (stepTime > _mlWatermarkUtc)
+            {
+                var step = OrderBookStepSummary.From(snap, DepthLevelsForStats, SelectedSweepSize,
+                    _flowSinceStep, _tradesSinceStep, tradeFlowValid: true, timestampUtc: stepTime);
+                ml.OnStep(step);
+                PublishMlForecast();
+            }
+        }
+        _flowSinceStep = 0;
+        _tradesSinceStep = 0;
+
         UpdateImbalanceTrend();
         BookChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -564,9 +640,128 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
             _pendingTrades.Add(new TradeMark(price, size, side));
             CumulativeDelta += isBuy ? size : -size;
             CvdDirection = Math.Sign(CumulativeDelta);
+            _flowSinceStep += isBuy ? size : -size;
+            _tradesSinceStep++;
         }
         _priorMid = mid;
     }
+
+    /// <summary>Creates and publishes the ML forecaster for the (re)started stream. When warm-start
+    /// is on, first trains it through recent stored depth on a thread-pool thread — against purely
+    /// local state — and only then assigns <see cref="_ml"/>, so live steps can never race the
+    /// backfill. An empty store or a store error degrades to a cold start.</summary>
+    private async Task InitializeMlAsync(InstrumentId instrumentId, CancellationToken ct)
+    {
+        var ml = new OrderBookMicroPredictor();
+        if (WarmStartFromHistory)
+        {
+            try
+            {
+                var trained = await WarmStartAsync(instrumentId, ml, ct);
+                if (trained > 0)
+                    _log.Append(LogSource, "INFO",
+                        $"ML warm-start: trained on {trained} stored depth steps ({(ml.IsReady ? "ready" : "still cold")})");
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Order book: ML warm-start failed; starting cold");
+            }
+        }
+        if (ct.IsCancellationRequested) return;
+        _ml = ml;
+        PublishMlForecast();
+    }
+
+    /// <summary>Replays up to <see cref="WarmStartLookback"/> of stored depth (all brokers merged —
+    /// <c>ReadDepthAsync</c> has no source filter) through the same step shape the live tick builds,
+    /// resampled onto the capture grid by <see cref="DepthStepSampler"/>. Returns steps trained.</summary>
+    private async Task<int> WarmStartAsync(InstrumentId instrumentId, OrderBookMicroPredictor ml, CancellationToken ct)
+    {
+        var to = DateTime.UtcNow;
+        var from = to - WarmStartLookback;
+        var sweepSize = SelectedSweepSize;
+        var trained = 0;
+        var lastBoundary = DateTime.MinValue;
+
+        await Task.Run(async () =>
+        {
+            var sampler = new DepthStepSampler(TimeSpan.FromMilliseconds(CaptureIntervalMs), DepthLevelsForStats, sweepSize);
+            var steps = new List<OrderBookStepSummary>(32);
+            await foreach (var snapshot in _store.ReadDepthAsync(instrumentId, from, to, ct))
+            {
+                steps.Clear();
+                sampler.Add(snapshot, steps);
+                foreach (var step in steps)
+                {
+                    ml.OnStep(step);
+                    if (++trained >= MaxWarmStartSteps) break;
+                }
+                if (trained >= MaxWarmStartSteps) break;
+            }
+            lastBoundary = sampler.LastBoundaryUtc;
+        }, ct);
+
+        _mlWatermarkUtc = lastBoundary;
+        return trained;
+    }
+
+    /// <summary>Republishes the renderer's forecast + the probability chips + the scoreboard from
+    /// the engine's latest state. Cheap; called per step and from the toggle handler.</summary>
+    private void PublishMlForecast()
+    {
+        var forecast = _ml?.LastForecast;
+        MlForecast = ShowMlForecast ? forecast : null;
+
+        if (forecast is not null)
+        {
+            (PSpreadText, PSpreadLevel) = FormatProbability(forecast.PSpreadWidens);
+            (PDepthText, PDepthLevel) = FormatProbability(forecast.PDepthDrains);
+            (PSweepText, PSweepLevel) = FormatProbability(forecast.PSweepJumps);
+            PSpread = forecast.PSpreadWidens;
+            PDepth = forecast.PDepthDrains;
+            PSweep = forecast.PSweepJumps;
+        }
+        else
+        {
+            PSpreadText = PDepthText = PSweepText = "—";
+            PSpreadLevel = PDepthLevel = PSweepLevel = 0;
+            PSpread = PDepth = PSweep = 0;
+        }
+        UpdateMlStats();
+    }
+
+    private void UpdateMlStats()
+    {
+        if (_ml is null)
+        {
+            MlSamplesText = "0";
+            MlMaeText = MlHitRateText = BaseMaeText = BaseHitRateText = "—";
+            MlEdgeDirection = 0;
+            return;
+        }
+
+        MlSamplesText = _ml.SamplesSeen.ToString("N0", CultureInfo.InvariantCulture);
+        var mlAccuracy = _ml.MlAccuracy;
+        var baseAccuracy = _ml.BaselineAccuracy;
+        (MlMaeText, MlHitRateText) = FormatAccuracy(mlAccuracy);
+        (BaseMaeText, BaseHitRateText) = FormatAccuracy(baseAccuracy);
+        MlEdgeDirection = mlAccuracy.ScoredCount >= 20 && baseAccuracy.ScoredCount >= 20
+            ? Math.Sign(mlAccuracy.DirectionalHitRate - baseAccuracy.DirectionalHitRate)
+            : 0;
+    }
+
+    private static (string text, int level) FormatProbability(double p) =>
+        ((p * 100).ToString("0", CultureInfo.InvariantCulture) + "%", p >= 0.7 ? 2 : p >= 0.4 ? 1 : 0);
+
+    private static (string mae, string hit) FormatAccuracy(ForecastAccuracy accuracy) =>
+        accuracy.ScoredCount == 0
+            ? ("—", "—")
+            : (accuracy.PocMaeTicks.ToString("0.00", CultureInfo.InvariantCulture) + " t",
+               (accuracy.DirectionalHitRate * 100).ToString("0", CultureInfo.InvariantCulture) + "%");
 
     /// <summary>Tier 3: OLS fit of cumulative imbalance vs column index over the ring buffer. Slope is
     /// the directional pressure trend (imbalance-units per column); feeds the lane line + read-out.</summary>
@@ -620,6 +815,17 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         HasImbalanceTrend = false;
         ImbalanceSlope = ImbalanceIntercept = 0;
         ImbalanceSlopeText = "—"; ImbalanceSlopeDirection = 0;
+        _ml = null;
+        _mlWatermarkUtc = DateTime.MinValue;
+        _flowSinceStep = 0;
+        _tradesSinceStep = 0;
+        MlForecast = null;
+        MlSamplesText = "0";
+        MlMaeText = MlHitRateText = BaseMaeText = BaseHitRateText = "—";
+        MlEdgeDirection = 0;
+        PSpreadText = PDepthText = PSweepText = "—";
+        PSpreadLevel = PDepthLevel = PSweepLevel = 0;
+        PSpread = PDepth = PSweep = 0;
         BookChanged?.Invoke(this, EventArgs.Empty);
     }
 

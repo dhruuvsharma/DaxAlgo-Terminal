@@ -104,6 +104,58 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- ML event-probability chips: value + mini-bar coloured by alert level (0 calm / 1 elevated / 2 hot). -->
+        <SolidColorBrush x:Key="MlText" Color="#B388FF" />
+        <Style x:Key="PSpreadValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PSpreadLevel}" Value="1">
+                    <Setter Property="Foreground" Value="#FFB300" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PSpreadLevel}" Value="2">
+                    <Setter Property="Foreground" Value="#FF5252" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PDepthValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PDepthLevel}" Value="1">
+                    <Setter Property="Foreground" Value="#FFB300" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PDepthLevel}" Value="2">
+                    <Setter Property="Foreground" Value="#FF5252" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PSweepValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PSweepLevel}" Value="1">
+                    <Setter Property="Foreground" Value="#FFB300" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PSweepLevel}" Value="2">
+                    <Setter Property="Foreground" Value="#FF5252" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ProbBar" TargetType="ProgressBar">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="4" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Foreground" Value="{StaticResource MlText}" />
+        </Style>
+        <!-- ML scoreboard value, coloured by whether the model beats the imbalance rule. -->
+        <Style x:Key="MlEdgeValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MlEdgeDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource UpText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding MlEdgeDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource DownText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </mah:MetroWindow.Resources>
 
     <Grid>
@@ -140,7 +192,11 @@
                     <CheckBox Content="Heatmap" IsChecked="{Binding ShowHeatmap}" Margin="0,0,12,0" />
                     <CheckBox Content="Trades" IsChecked="{Binding ShowTrades}" Margin="0,0,12,0" />
                     <CheckBox Content="Microprice" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,12,0" />
-                    <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" />
+                    <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" Margin="0,0,12,0" />
+                    <CheckBox Content="ML forecast" IsChecked="{Binding ShowMlForecast}" Margin="0,0,12,0"
+                              Foreground="{StaticResource MlText}" />
+                    <CheckBox Content="ML warm-start" IsChecked="{Binding WarmStartFromHistory}"
+                              ToolTip="Replay recent stored depth through the model on start so it isn't cold. Takes effect on the next restart (instrument change)." />
                 </StackPanel>
 
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
@@ -218,10 +274,44 @@
                     <TextBlock Text="CVD" Style="{StaticResource StatCaption}" />
                     <TextBlock Text="{Binding CumulativeDelta, StringFormat='+#;-#;0'}" Style="{StaticResource CvdValue}" />
                 </StackPanel>
-                <StackPanel>
+                <StackPanel Margin="0,0,18,0">
                     <TextBlock Text="TAPE" Style="{StaticResource StatCaption}" />
                     <TextBlock Text="{Binding TradeTapeText}" Style="{StaticResource StatValue}"
                                Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                </StackPanel>
+
+                <!-- ML micro-forecast: event-probability chips + the ML-vs-imbalance-rule scoreboard. -->
+                <StackPanel Margin="0,0,14,0">
+                    <TextBlock Text="P SPREAD↑ 2s" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                    <TextBlock Text="{Binding PSpreadText}" Style="{StaticResource PSpreadValue}" />
+                    <ProgressBar Style="{StaticResource ProbBar}" Value="{Binding PSpread, Mode=OneWay}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,14,0">
+                    <TextBlock Text="P DEPTH↓ 2s" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                    <TextBlock Text="{Binding PDepthText}" Style="{StaticResource PDepthValue}" />
+                    <ProgressBar Style="{StaticResource ProbBar}" Value="{Binding PDepth, Mode=OneWay}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="P SWEEP↑ 2s" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                    <TextBlock Text="{Binding PSweepText}" Style="{StaticResource PSweepValue}" />
+                    <ProgressBar Style="{StaticResource ProbBar}" Value="{Binding PSweep, Mode=OneWay}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,14,0">
+                    <TextBlock Text="ML 1s (hit·MAE)" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                    <TextBlock Style="{StaticResource MlEdgeValue}">
+                        <Run Text="{Binding MlHitRateText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding MlMaeText, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Margin="0,0,14,0">
+                    <TextBlock Text="OBI 1s (hit·MAE)" Style="{StaticResource StatCaption}" />
+                    <TextBlock Style="{StaticResource StatValue}">
+                        <Run Text="{Binding BaseHitRateText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding BaseMaeText, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="ML SAMPLES" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding MlSamplesText}" Style="{StaticResource StatValue}"
+                               Foreground="{DynamicResource Text.Secondary}" />
                 </StackPanel>
             </WrapPanel>
         </Border>
