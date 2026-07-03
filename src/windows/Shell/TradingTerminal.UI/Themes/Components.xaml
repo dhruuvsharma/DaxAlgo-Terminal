@@ -185,4 +185,70 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ===== Tool-window chrome (stat chips, icon toggles, options rail) =====
+         Shared by the Charts-menu tool windows so every stat strip and side rail reads the same.
+         A stat "chip" is a StackPanel of App.StatCaption over App.StatValue. -->
+
+    <!-- Tiny caption above a stat value ("SPREAD", "MICROPRICE"). -->
+    <Style x:Key="App.StatCaption" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <!-- Monospace stat value under an App.StatCaption. -->
+    <Style x:Key="App.StatValue" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- Icon toggle for toolbar view state (pause, help, options rail). Same footprint as
+         App.IconButton; checked = accent wash so active state is obvious at a glance. -->
+    <Style x:Key="App.IconToggle" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="Background" Value="#1C1C1C" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Padding" Value="0,2" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="b" CornerRadius="4" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource Accent.Soft}" />
+                            <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource Accent.Soft}" />
+                            <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Collapsible right-hand options rail: elevated surface with a left hairline. -->
+    <Style x:Key="App.OptionsRail" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1,0,0,0" />
+        <Setter Property="Padding" Value="12,10" />
+    </Style>
+
 </ResourceDictionary>

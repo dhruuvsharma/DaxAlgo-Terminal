@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
@@ -10,6 +13,7 @@ using TradingTerminal.Core.Ml;
 using TradingTerminal.Core.Quant.TimeSeries;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.OrderBook;
 
@@ -48,9 +52,10 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// <summary>Top-N levels used for cumulative imbalance / weighted mid / book skew.</summary>
     private const int DepthLevelsForStats = 10;
 
-    /// <summary>How many heatmap columns the ring buffer keeps (the visible time window). At the
-    /// <see cref="CaptureIntervalMs"/> cadence this is the wall-clock span shown.</summary>
-    private const int MaxHeatColumns = 600;
+    /// <summary>Default heatmap ring length (columns = the visible time window). At the
+    /// <see cref="CaptureIntervalMs"/> cadence 600 columns ≈ 2.5 minutes; the options rail offers
+    /// the lengths in <see cref="HeatWindowOptions"/>.</summary>
+    private const int DefaultHeatColumns = 600;
 
     /// <summary>Capture/redraw cadence for the heatmap (ms). Decoupled from the depth update rate so a
     /// fast book can't pin the UI thread — each tick snapshots the latest book into one column.</summary>
@@ -142,6 +147,9 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         Instruments = new ObservableCollection<SignalInstrument>(_allInstruments.Take(MaxInstrumentsDisplayed));
         SweepSizes = new ObservableCollection<int> { 100, 500, 1_000, 5_000, 10_000 };
         _selectedSweepSize = 1_000;
+        HeatWindowOptions = new ObservableCollection<int> { 300, 600, 1_200, 2_400 };
+        _heatWindowColumns = DefaultHeatColumns;
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
 
@@ -156,6 +164,12 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<SignalInstrument> Instruments { get; }
     public ObservableCollection<int> SweepSizes { get; }
+
+    /// <summary>Heatmap ring lengths the options rail offers (columns; one per capture tick).</summary>
+    public ObservableCollection<int> HeatWindowOptions { get; }
+
+    /// <summary>Saved preset names for the toolbar picker.</summary>
+    public ObservableCollection<string> PresetNames { get; }
 
     /// <summary>Heatmap ring buffer (oldest first, left → right). Read by the code-behind renderer.</summary>
     public IReadOnlyList<HeatColumn> HeatColumns => _heatColumns;
@@ -250,6 +264,23 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _showMicropriceLine = true;
     [ObservableProperty] private bool _showImbalanceLane = true;
 
+    /// <summary>Freezes the capture/render loop (ladders, heatmap, ML steps) while the stream keeps
+    /// flowing underneath — the freshest book is still tracked, so resume is instant. Lets the user
+    /// actually read a fast book.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    /// <summary>Heatmap ring length in columns (one column per capture tick).</summary>
+    [ObservableProperty] private int _heatWindowColumns;
+
+    /// <summary>True once the current stream has projected at least one non-empty book — drives the
+    /// heatmap empty-state overlay.</summary>
+    [ObservableProperty] private bool _hasBook;
+
+    // ── Presets (named view-option snapshots; see ToolPresetStore) ──────────────────────────────
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
     /// <summary>Raised on the UI thread whenever the heatmap ring buffer changes and the canvas should
     /// redraw. The ladder + strip are plain bindings and update themselves.</summary>
     public event EventHandler? BookChanged;
@@ -267,6 +298,25 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     {
         PublishMlForecast();
         RaiseRedraw();
+    }
+
+    partial void OnIsPausedChanged(bool value) =>
+        Status = value
+            ? $"⏸ Paused — the stream keeps running in the background ({SelectedInstrument?.DisplayName})."
+            : $"Resumed — {SelectedInstrument?.DisplayName}.";
+
+    partial void OnHeatWindowColumnsChanged(int value)
+    {
+        if (value < 10) return;
+        while (_heatColumns.Count > value) _heatColumns.RemoveAt(0);
+        RaiseRedraw();
+    }
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
     }
 
     private void RaiseRedraw()
@@ -499,6 +549,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         Spread = BestBid is { } b && BestAsk is { } a ? a - b : null;
         Mid = BestBid is { } bb && BestAsk is { } aa ? (aa + bb) * 0.5 : null;
         LastUpdateUtc = snapshot.TimestampUtc;
+        HasBook = true;
 
         UpdateAnalytics(snapshot);
 
@@ -567,7 +618,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// trims the ring, and asks the canvas to redraw. Decoupled from the depth rate by design.</summary>
     private void OnCaptureTick()
     {
-        if (!_ready) return;
+        if (!_ready || IsPaused) return;
         var snap = _latest;
         if (snap is null || snap.Bids.Count == 0 || snap.Asks.Count == 0) return;
 
@@ -603,7 +654,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
             Trades = trades,
         };
         _heatColumns.Add(column);
-        while (_heatColumns.Count > MaxHeatColumns) _heatColumns.RemoveAt(0);
+        while (_heatColumns.Count > Math.Max(10, HeatWindowColumns)) _heatColumns.RemoveAt(0);
 
         // ML step: one summary per capture tick (even when the book is unchanged — the targets
         // are time-based). The step time is the tick's wall clock, not the snapshot's event time,
@@ -803,6 +854,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     {
         _latest = null;
         _renderedSnapshot = null;
+        HasBook = false;
         Bids.Clear();
         Asks.Clear();
         _pendingTrades.Clear();
@@ -832,6 +884,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private void ClearBook()
     {
         _renderedSnapshot = null;
+        HasBook = false;
         Bids.Clear();
         Asks.Clear();
         BidLevels = AskLevels = 0;
@@ -844,6 +897,108 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         LastUpdateUtc = null;
         _heatColumns.Clear();
         BookChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ── Presets ──────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ToolPresetStore<OrderBookPreset> _presetStore = new("order-book");
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new OrderBookPreset(
+            ShowHeatmap, ShowTrades, ShowMicropriceLine, ShowImbalanceLane,
+            ShowMlForecast, WarmStartFromHistory, SelectedSweepSize, HeatWindowColumns));
+        RefreshPresetNames(selected: name);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' deleted");
+    }
+
+    private void ApplyPreset(OrderBookPreset preset)
+    {
+        ShowHeatmap = preset.ShowHeatmap;
+        ShowTrades = preset.ShowTrades;
+        ShowMicropriceLine = preset.ShowMicropriceLine;
+        ShowImbalanceLane = preset.ShowImbalanceLane;
+        ShowMlForecast = preset.ShowMlForecast;
+        WarmStartFromHistory = preset.WarmStartFromHistory;
+        if (SweepSizes.Contains(preset.SweepSize)) SelectedSweepSize = preset.SweepSize;
+        if (HeatWindowOptions.Contains(preset.HeatWindowColumns)) HeatWindowColumns = preset.HeatWindowColumns;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG snapshots stay view-side) ─────────
+
+    [RelayCommand]
+    private async Task ExportLadderCsvAsync()
+    {
+        if (Bids.Count == 0 && Asks.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("side,price,size,cumulative");
+        for (var i = Asks.Count - 1; i >= 0; i--) AppendLevel(sb, "ask", Asks[i]);   // best ask first
+        foreach (var level in Bids) AppendLevel(sb, "bid", level);                   // best bid first
+        await SaveCsvAsync($"orderbook-ladder-{SymbolToken()}", sb.ToString());
+
+        static void AppendLevel(StringBuilder sb, string side, OrderBookLevel level) =>
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{side},{level.Price},{level.Size},{level.Cumulative}"));
+    }
+
+    [RelayCommand]
+    private async Task ExportSeriesCsvAsync()
+    {
+        if (_heatColumns.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,best_bid,best_ask,microprice,imbalance,trade_count,signed_trade_volume");
+        foreach (var c in _heatColumns)
+        {
+            long signedVolume = 0;
+            var tradeCount = 0;
+            if (c.Trades is { } trades)
+            {
+                tradeCount = trades.Count;
+                foreach (var t in trades) signedVolume += t.Side == AggressorSide.Sell ? -t.Size : t.Size;
+            }
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{c.TimeUtc:O},{c.BestBid},{c.BestAsk},{c.Microprice},{c.Imbalance},{tradeCount},{signedVolume}"));
+        }
+        await SaveCsvAsync($"orderbook-series-{SymbolToken()}", sb.ToString());
+    }
+
+    private string SymbolToken() =>
+        (SelectedInstrument?.Contract.Symbol ?? "book").Replace('/', '-').Replace(':', '-');
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            _log.Append(LogSource, "INFO", $"Exported → {path}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Order book: CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
     }
 
     private BrokerKind ResolveBroker(SignalInstrument instrument)
@@ -882,3 +1037,15 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         StopStream();
     }
 }
+
+/// <summary>A named snapshot of the Order Book window's view options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\order-book.json).</summary>
+public sealed record OrderBookPreset(
+    bool ShowHeatmap,
+    bool ShowTrades,
+    bool ShowMicropriceLine,
+    bool ShowImbalanceLane,
+    bool ShowMlForecast,
+    bool WarmStartFromHistory,
+    int SweepSize,
+    int HeatWindowColumns);

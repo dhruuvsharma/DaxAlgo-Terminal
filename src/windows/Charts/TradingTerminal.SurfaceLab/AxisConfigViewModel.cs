@@ -8,7 +8,7 @@ namespace TradingTerminal.SurfaceLab;
 /// Configuration for one surface axis (X, Y, Z, or Color/W): a searchable, category-grouped
 /// option dropdown, Min/Max/Step range inputs (shown only when the option's range is editable —
 /// parameter sweeps and linear bins), and, for the Z/Color axes, a custom formula bar that
-/// overrides the picked metric (variables are metric ids, e.g. <c>sharpe / (1 + maxdd)</c>).
+/// overrides the picked metric (variables are registry metric ids, e.g. <c>avgret / (1 + vol)</c>).
 /// The parent VM repopulates the options whenever the surface mode changes.
 /// </summary>
 public sealed partial class AxisConfigViewModel : ObservableObject

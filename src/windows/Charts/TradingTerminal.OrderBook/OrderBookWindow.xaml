@@ -61,15 +61,9 @@
             <Setter Property="Margin" Value="6,0" />
         </Style>
 
-        <!-- A stat "chip": tiny caption above a mono value. -->
-        <Style x:Key="StatCaption" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="9" />
-            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-        </Style>
-        <Style x:Key="StatValue" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Consolas" />
-            <Setter Property="FontSize" Value="13" />
-        </Style>
+        <!-- Stat chips ride the shared tool chrome (Components.xaml); local keys kept for brevity. -->
+        <Style x:Key="StatCaption" TargetType="TextBlock" BasedOn="{StaticResource App.StatCaption}" />
+        <Style x:Key="StatValue" TargetType="TextBlock" BasedOn="{StaticResource App.StatValue}" />
 
         <!-- Cumulative-imbalance value, coloured by sign (ImbalanceDirection). -->
         <Style x:Key="ImbalanceValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
@@ -166,15 +160,13 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar: instrument picker + view toggles + sweep size -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                Padding="8,6">
+        <!-- Toolbar: instrument + presets + actions (view options live in the ⚙ rail) -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="280" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -187,26 +179,62 @@
                                       SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                       MaxDropDownHeight="460" />
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
-                            Margin="16,0,0,0">
-                    <CheckBox Content="Heatmap" IsChecked="{Binding ShowHeatmap}" Margin="0,0,12,0" />
-                    <CheckBox Content="Trades" IsChecked="{Binding ShowTrades}" Margin="0,0,12,0" />
-                    <CheckBox Content="Microprice" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,12,0" />
-                    <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" Margin="0,0,12,0" />
-                    <CheckBox Content="ML forecast" IsChecked="{Binding ShowMlForecast}" Margin="0,0,12,0"
-                              Foreground="{StaticResource MlText}" />
-                    <CheckBox Content="ML warm-start" IsChecked="{Binding WarmStartFromHistory}"
-                              ToolTip="Replay recent stored depth through the model on start so it isn't cold. Takes effect on the next restart (instrument change)." />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <Border Style="{StaticResource App.ParamDivider}" />
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="140" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save" />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current view options as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Sweep size" VerticalAlignment="Center" Margin="0,0,6,0"
-                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                    <ComboBox Width="90" ItemsSource="{Binding SweepSizes}"
-                              SelectedItem="{Binding SelectedSweepSize}" />
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause the display — the stream keeps running underneath, resume is instant" />
+                    <Button Style="{StaticResource App.IconButton}" Content="▤"
+                            Command="{Binding ExportLadderCsvCommand}"
+                            ToolTip="Export the current ladder (side, price, size, cumulative) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportSeriesCsvCommand}"
+                            ToolTip="Export the heatmap time series (best bid/ask, microprice, imbalance, flow) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  ToolTip="What am I looking at?" />
+                    <ToggleButton x:Name="OptionsToggle" Style="{StaticResource App.IconToggle}" Content="⚙"
+                                  IsChecked="True" Margin="0"
+                                  ToolTip="Show / hide the options rail" />
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-330" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE ORDER BOOK" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Ladder" /><Run Text=" — live L2 levels with per-level and cumulative size; the bar length is size relative to the deepest visible level." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Heatmap" /><Run Text=" — time × price resting liquidity (teal bids / red asks, brighter = bigger). Solid lines track best bid/ask; the dotted amber line is the microprice." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Dots" /><Run Text=" — prints, sized by volume and coloured by aggressor (green buy / red sell). Tape-less brokers get synthetic mid-tick prints." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Bottom lane" /><Run Text=" — cumulative top-10 queue imbalance per column, with an OLS trend line: sustained slope = directional pressure." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Sweep" /><Run Text=" — estimated fill price for a market order of the chosen size walking the book; ⚠ means the visible book is too thin to fill it." /><LineBreak />
+                        <Run FontWeight="SemiBold" Foreground="{StaticResource MlText}" Text="ML (violet)" /><Run Text=" — an online-learned micro-forecaster: the dotted path is the predicted microprice out to ~5 s, the chips are event probabilities in the next 2 s, and the scoreboard compares its rolling hit-rate to a queue-imbalance baseline." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <!-- Microstructure analytics strip -->
         <Border Grid.Row="1"
@@ -316,11 +344,12 @@
             </WrapPanel>
         </Border>
 
-        <!-- Main area: liquidity heatmap (left) + classic ladder (right) -->
+        <!-- Main area: liquidity heatmap (left) + classic ladder + collapsible options rail -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- Heatmap: scrolling time × price liquidity, drawn in code-behind off BookChanged. -->
@@ -328,7 +357,31 @@
                     Background="#0F1115"
                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,1,0"
                     SizeChanged="HeatHost_SizeChanged">
-                <Canvas x:Name="HeatCanvas" Background="Transparent" />
+                <Grid>
+                    <Canvas x:Name="HeatCanvas" Background="Transparent" />
+
+                    <!-- Empty state until the first non-empty book arrives -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBook}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="◫" FontSize="42" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                        <TextBlock Text="Awaiting depth" FontSize="15" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" Margin="0,6,0,4"
+                                   Foreground="{DynamicResource Text.Primary}" />
+                        <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="The liquidity heatmap fills as L2 snapshots stream in. If nothing arrives, the selected broker may not publish depth — the crypto feeds (Binance, Bybit, Kraken, OKX, Coinbase), cTrader, Ironbeam and Upstox do." />
+                    </StackPanel>
+                </Grid>
             </Border>
 
             <!-- Ladder: all ask levels (top), then all bid levels (bottom) -->
@@ -377,14 +430,51 @@
                                   ItemTemplate="{StaticResource LevelRowTemplate}" />
                 </ScrollViewer>
             </Grid>
+
+            <!-- Options rail (collapsible via the ⚙ toolbar toggle) -->
+            <Border Grid.Column="2" Style="{StaticResource App.OptionsRail}" Width="215"
+                    Visibility="{Binding IsChecked, ElementName=OptionsToggle, Converter={StaticResource BoolToVis}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="VIEW" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <CheckBox Content="Liquidity heatmap" IsChecked="{Binding ShowHeatmap}" Margin="0,0,0,4" />
+                        <CheckBox Content="Trade dots" IsChecked="{Binding ShowTrades}" Margin="0,0,0,4" />
+                        <CheckBox Content="Microprice line" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,0,4" />
+                        <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" Margin="0,0,0,12" />
+
+                        <TextBlock Text="HEAT WINDOW" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding HeatWindowOptions}"
+                                  SelectedItem="{Binding HeatWindowColumns}" />
+                        <TextBlock Text="columns kept · 250 ms each (600 ≈ 2.5 min)" FontSize="10"
+                                   Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                   Margin="0,3,0,12" />
+
+                        <TextBlock Text="MICROSTRUCTURE" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <TextBlock Text="Sweep size (cost-to-fill)" FontSize="10"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <ComboBox ItemsSource="{Binding SweepSizes}"
+                                  SelectedItem="{Binding SelectedSweepSize}" Margin="0,2,0,12" />
+
+                        <TextBlock Text="ML FORECAST" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <CheckBox Content="Show forecast path" IsChecked="{Binding ShowMlForecast}"
+                                  Foreground="{StaticResource MlText}" Margin="0,0,0,4" />
+                        <CheckBox Content="Warm-start from history" IsChecked="{Binding WarmStartFromHistory}"
+                                  ToolTip="Replay recent stored depth through the model on start so it isn't cold. Takes effect on the next restart (instrument change)." />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
         </Grid>
 
         <!-- Status line -->
-        <Border Grid.Row="3"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
-                Padding="8,3">
-            <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+        <Border Grid.Row="3" Style="{StaticResource App.FooterBar}">
+            <DockPanel>
+                <Border DockPanel.Dock="Right" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
         </Border>
     </Grid>
 </mah:MetroWindow>

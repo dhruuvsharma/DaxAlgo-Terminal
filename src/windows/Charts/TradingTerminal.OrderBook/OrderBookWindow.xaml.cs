@@ -101,6 +101,17 @@ public partial class OrderBookWindow : MetroWindow
 
     private void OnBookChanged(object? sender, EventArgs e) => Redraw();
 
+    /// <summary>Toolbar 📷: PNG snapshot of the whole window content (heatmap + strip + ladder).
+    /// View-side by design — the visual tree is a view concern; data exports are VM commands.</summary>
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (Content is not FrameworkElement root) return;
+        var symbol = _vm?.SelectedInstrument?.Contract.Symbol ?? "book";
+        var path = TradingTerminal.UI.Controls.ViewExport.SavePng(
+            root, $"orderbook-{symbol}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        if (path is not null && _vm is not null) _vm.Status = $"Snapshot saved → {path}";
+    }
+
     private void Redraw()
     {
         HeatCanvas.Children.Clear();
@@ -112,11 +123,7 @@ public partial class OrderBookWindow : MetroWindow
         }
 
         var columns = _vm.HeatColumns;
-        if (columns.Count == 0)
-        {
-            AddText("Waiting for depth…", AxisWidth + 8, 8, 240, 18, DimText, 11);
-            return;
-        }
+        if (columns.Count == 0) return;   // the XAML empty-state overlay covers this
 
         var laneH = _vm.ShowImbalanceLane ? LaneHeight : 0;
         var plotW = _w - AxisWidth;
