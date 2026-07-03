@@ -132,8 +132,12 @@ shot (the parameter panel before Start). 3D strategies should show the Helix vie
 |---|---|---|
 | P1 | `chart-charts.png` | TradingView-style Charts window (WebView2) with SMA/EMA/RSI/MACD overlays. *(Windows only.)* |
 | P2 | `chart-orderbook.png` | L2 Order Book ladder with per-level bars + cumulative depth. |
+| P1 | `chart-orderbook-ml.png` | Order Book heatmap with the violet dotted ML forecast path in the right gutter, probability chips (P SPREAD↑/P DEPTH↓/P SWEEP↑) lit, and the ML-vs-OBI scoreboard visible in the strip. |
 | P1 | `chart-footprint.png` | Volume Footprint with POC, stacked-imbalance highlights, fit curves + virtual predictor. |
+| P1 | `chart-footprint-ml.png` | Volume Footprint forecast region with both predictors on: green/red dashed regression ghosts + violet dotted ML ghosts (width ∝ predicted volume, Δ̂ footer), ML vs Reg MAE/hit scoreboard visible in the stats panel. |
 | P1 | `chart-bookmap.png` | Bookmap + VolBook: liquidity heatmap + trade dots + volume profile/VWAP/value area + CVD panel + DOM. |
+| P1 | `chart-surfacelab.png` | 3D Surface Lab: a seasonality or cross-sectional surface in the Helix viewport with the peak pin, cutting planes and 2D slice charts visible. |
+| P2 | `chart-surfacelab-robustness.png` | Same surface with the robustness heatmap on — green plateau vs red spike colouring. |
 
 ---
 
