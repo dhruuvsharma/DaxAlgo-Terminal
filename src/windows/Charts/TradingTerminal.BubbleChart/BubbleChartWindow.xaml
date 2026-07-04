@@ -11,6 +11,9 @@
                  WindowStartupLocation="CenterOwner"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
+    <mah:MetroWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </mah:MetroWindow.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -18,11 +21,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar: instrument + time-column width. -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                Padding="8,5">
+        <!-- Toolbar: instrument + time-column width + view toggles + presets/actions. -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}">
             <Border.Resources>
                 <Style x:Key="ToolLabel" TargetType="TextBlock">
                     <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
@@ -31,31 +31,120 @@
                     <Setter Property="Margin" Value="0,0,6,0" />
                 </Style>
             </Border.Resources>
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
-                <uic:InstrumentPicker Width="260"
-                                      ShowSearch="True"
-                                      ItemsSource="{Binding Instruments}"
-                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
-                                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
-                                      MaxDropDownHeight="460" Margin="0,0,12,0" />
+            <DockPanel LastChildFill="True">
+                <!-- ── Actions (right): presets · pause · export · help ── -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="110" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save" />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current view options as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause the display — the book and tape keep rolling underneath, resume is instant" />
+                    <Button Style="{StaticResource App.IconButton}" Content="◍"
+                            Command="{Binding ExportTradesCsvCommand}"
+                            ToolTip="Export the recent prints (time, price, size, side, large-lot flag) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportBookCsvCommand}"
+                            ToolTip="Export the column series (time, best bid, best ask) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?" Margin="0"
+                                  ToolTip="What am I looking at?" />
+                </StackPanel>
 
-                <TextBlock Text="Column" Style="{StaticResource ToolLabel}" />
-                <ComboBox Width="84" VerticalAlignment="Center"
-                          ItemsSource="{Binding Timeframes}"
-                          SelectedItem="{Binding SelectedTimeframe}"
-                          DisplayMemberPath="Label" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
+                    <uic:InstrumentPicker Width="260"
+                                          ShowSearch="True"
+                                          ItemsSource="{Binding Instruments}"
+                                          SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                          SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                          MaxDropDownHeight="460" Margin="0,0,12,0" />
 
-                <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="14,3" />
-                <TextBlock Text="🧪 experimental — Bookmap-style liquidity heatmap + trade bubbles"
-                           VerticalAlignment="Center" FontSize="11"
-                           Foreground="{DynamicResource Text.Secondary}" />
-            </StackPanel>
+                    <TextBlock Text="Column" Style="{StaticResource ToolLabel}" />
+                    <ComboBox Width="84" VerticalAlignment="Center"
+                              ItemsSource="{Binding Timeframes}"
+                              SelectedItem="{Binding SelectedTimeframe}"
+                              DisplayMemberPath="Label" />
+
+                    <TextBlock Text="Window" Style="{StaticResource ToolLabel}" Margin="12,0,6,0" />
+                    <ComboBox Width="70" VerticalAlignment="Center"
+                              ItemsSource="{Binding RetainedOptions}"
+                              SelectedItem="{Binding RetainedColumns}"
+                              ToolTip="Columns of history kept and drawn" />
+
+                    <Border Width="1" Background="{DynamicResource Border.Brush}" Margin="14,3" />
+                    <CheckBox Content="Bubbles" IsChecked="{Binding ShowBubbles}" VerticalAlignment="Center"
+                              Margin="0,0,10,0" />
+                    <CheckBox Content="Large lots only" IsChecked="{Binding LargeOnly}" VerticalAlignment="Center"
+                              ToolTip="Show only prints ≥5× the rolling mean size" />
+                </StackPanel>
+            </DockPanel>
         </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-330" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE BUBBLE HEATMAP" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Heatmap" /><Run Text=" — time × price resting L2 liquidity: dark = thin, blue → teal → yellow → red = increasingly heavy resting size. Walls show up as hot horizontal bands; pulls/refills as bands appearing and vanishing." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Bubbles" /><Run Text=" — executed prints, sized by volume: green = aggressive buying, red = aggressive selling. Watch for big bubbles landing ON a hot band — absorption — versus bands vanishing before price arrives — spoofy liquidity." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Large lots" /><Run Text=" — white-ringed bubbles are prints ≥5× the rolling mean size; the large-lots-only toggle isolates them." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Column" /><Run Text=" — the wall-clock width of one heatmap column; smaller = finer time resolution, larger = more history on screen." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <!-- The HeatmapBubbleSurface is inserted into this grid in code-behind (avoids the
              same-assembly XAML MC3074 issue), behind the floating read-out. -->
         <Grid Grid.Row="1" x:Name="ChartArea">
+            <!-- Empty state: no columns yet (either still connecting, or the broker has no L2) -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400"
+                        IsHitTestVisible="False">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ColumnsFilled}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="◉" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                <TextBlock Text="Awaiting depth" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,6,0,4"
+                           Foreground="{DynamicResource Text.Primary}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                           Foreground="{DynamicResource Text.Secondary}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="The liquidity heatmap fills as L2 snapshots stream in — give it a few columns." />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NoDepth}" Value="True">
+                                    <Setter Property="Text" Value="This broker serves no L2 depth, so the heatmap stays empty. Pick a depth-capable feed — the keyless crypto tiles (Binance, Bybit, Kraken, OKX, Coinbase), cTrader, Ironbeam or Upstox." />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
             <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,18,0"
                     Background="#E6121620" Opacity="0.96"
                     BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="4"
@@ -109,14 +198,12 @@
         </Grid>
 
         <!-- Legend + status -->
-        <Border Grid.Row="2"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
-                Padding="8,4">
+        <Border Grid.Row="2" Style="{StaticResource App.FooterBar}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,16,0">
                     <TextBlock Text="liquidity" FontSize="11" Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -142,6 +229,10 @@
                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
                            Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"
                            TextAlignment="Right" />
+                <Border Grid.Column="2" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
             </Grid>
         </Border>
     </Grid>

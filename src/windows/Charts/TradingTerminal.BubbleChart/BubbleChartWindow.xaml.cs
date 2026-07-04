@@ -27,6 +27,18 @@ public partial class BubbleChartWindow : MetroWindow
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         => _surface.ViewModel = e.NewValue as BubbleChartViewModel;
 
+    /// <summary>Toolbar 📷: PNG snapshot of the whole window content (surface + read-out overlay).
+    /// View-side by design — the visual tree is a view concern; data exports are VM commands.</summary>
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (Content is not FrameworkElement root) return;
+        var vm = DataContext as BubbleChartViewModel;
+        var symbol = vm?.SelectedInstrument?.Contract.Symbol ?? "book";
+        var path = TradingTerminal.UI.Controls.ViewExport.SavePng(
+            root, $"bubble-heatmap-{symbol}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        if (path is not null && vm is not null) vm.Status = $"Snapshot saved → {path}";
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         // The VM is disposed by the shell's OpenWindowTool Closed handler; just release the surface's

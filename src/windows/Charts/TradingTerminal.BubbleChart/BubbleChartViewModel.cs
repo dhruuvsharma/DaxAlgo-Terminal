@@ -1,13 +1,17 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.BubbleChart;
 
@@ -98,6 +102,9 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
                              ?? Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
         SelectedTimeframe = Timeframes.First(t => t.Label == "1 s");
+        RetainedOptions = new ObservableCollection<int> { 180, 360, 720 };
+        _retainedColumns = MaxRetained;
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         // Coalesced render tick (~12 fps). Feed only marks dirty; this raises SurfaceChanged.
         _renderTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(80), OnRenderTick);
@@ -109,6 +116,12 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<SignalInstrument> Instruments { get; }
     public ObservableCollection<HeatTimeframe> Timeframes { get; }
+
+    /// <summary>Retained-column window options for the toolbar (visible history length).</summary>
+    public ObservableCollection<int> RetainedOptions { get; }
+
+    /// <summary>Saved preset names for the toolbar picker.</summary>
+    public ObservableCollection<string> PresetNames { get; }
 
     private static readonly IReadOnlyList<HeatTimeframe> AllTimeframes = new[]
     {
@@ -135,15 +148,61 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private int _priceDecimals = 2;
     [ObservableProperty] private bool _noDepth;
 
+    /// <summary>Freezes redraws (columns/trades keep rolling underneath; resume is instant).</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    // ── View toggles (presentation only; applied in RecentTrades / the retained trim) ───────────
+    [ObservableProperty] private bool _showBubbles = true;
+    /// <summary>Show only the large-lot prints (≥5× the rolling mean size).</summary>
+    [ObservableProperty] private bool _largeOnly;
+    /// <summary>Columns of history kept and drawn (one column per timeframe bucket).</summary>
+    [ObservableProperty] private int _retainedColumns;
+
+    // ── Presets (named view-option snapshots; see ToolPresetStore) ──────────────────────────────
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
     /// <summary>Raised on the UI thread (timer-coalesced) when the buffers change; the surface redraws.</summary>
     public event EventHandler? SurfaceChanged;
 
     // ── Buffers exposed to the surface (read on the UI thread) ─────────────────────────────────
     public IReadOnlyList<DepthSnapshot> Columns => _columns;
-    public HeatTrade[] RecentTrades() => _trades.ToArray();
+
+    /// <summary>Prints for the bubble overlay, filtered by the view toggles (all / large-only / off) —
+    /// the surface stays a dumb renderer while the VM owns the view state.</summary>
+    public HeatTrade[] RecentTrades()
+    {
+        if (!ShowBubbles) return Array.Empty<HeatTrade>();
+        if (!LargeOnly) return _trades.ToArray();
+        return _trades.Where(t => t.Large).ToArray();
+    }
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedInstrumentChanged(SignalInstrument? value) { if (_ready) Restart(); }
+
+    partial void OnShowBubblesChanged(bool value) => _dirty = true;
+    partial void OnLargeOnlyChanged(bool value) => _dirty = true;
+
+    partial void OnRetainedColumnsChanged(int value)
+    {
+        if (value < 10) return;
+        while (_columns.Count > value) _columns.RemoveAt(0);
+        ColumnsFilled = _columns.Count;
+        _dirty = true;
+    }
+
+    partial void OnIsPausedChanged(bool value) =>
+        Status = value
+            ? $"⏸ Paused — the book and tape keep rolling in the background ({SelectedInstrument?.DisplayName})."
+            : $"Resumed — {SelectedInstrument?.DisplayName}.";
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
 
     partial void OnSelectedTimeframeChanged(HeatTimeframe? value)
     {
@@ -272,7 +331,7 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
         {
             _columns.Add(snapshot);
             _lastColumnTime = snapshot.TimestampUtc;
-            while (_columns.Count > MaxRetained) _columns.RemoveAt(0);
+            while (_columns.Count > Math.Max(10, RetainedColumns)) _columns.RemoveAt(0);
         }
         else
         {
@@ -307,7 +366,7 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
 
     private void OnRenderTick()
     {
-        if (!_dirty) return;
+        if (IsPaused || !_dirty) return;
         _dirty = false;
         SurfaceChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -323,6 +382,90 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
         ColumnsFilled = 0;
         TradeCount = 0;
         BestBid = BestAsk = Mid = LastPrice = null;
+    }
+
+    // ── Presets ──────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ToolPresetStore<BubbleHeatmapPreset> _presetStore = new("bubble-heatmap");
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new BubbleHeatmapPreset(
+            SelectedTimeframe?.Label ?? "1 s", ShowBubbles, LargeOnly, RetainedColumns));
+        RefreshPresetNames(selected: name);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' deleted");
+    }
+
+    private void ApplyPreset(BubbleHeatmapPreset preset)
+    {
+        if (Timeframes.FirstOrDefault(t => t.Label == preset.TimeframeLabel) is { } tf)
+            SelectedTimeframe = tf;
+        ShowBubbles = preset.ShowBubbles;
+        LargeOnly = preset.LargeOnly;
+        if (RetainedOptions.Contains(preset.RetainedColumns)) RetainedColumns = preset.RetainedColumns;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG snapshots stay view-side) ─────────
+
+    [RelayCommand]
+    private async Task ExportTradesCsvAsync()
+    {
+        if (_trades.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,price,size,side,large");
+        foreach (var t in _trades)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{t.Time:O},{t.Price},{t.Size},{t.Side},{t.Large}"));
+        await SaveCsvAsync("bubble-trades", sb.ToString());
+    }
+
+    [RelayCommand]
+    private async Task ExportBookCsvAsync()
+    {
+        if (_columns.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,best_bid,best_ask");
+        foreach (var c in _columns)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{c.TimestampUtc:O},{c.BestBid},{c.BestAsk}"));
+        await SaveCsvAsync("bubble-book", sb.ToString());
+    }
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "book").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            _log.Append(LogSource, "INFO", $"Exported → {path}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Bubble heatmap: CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
     }
 
     private BrokerKind ResolveBroker(SignalInstrument instrument)
@@ -374,3 +517,11 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
         StopStream();
     }
 }
+
+/// <summary>A named snapshot of the Bubble Heatmap window's view options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\bubble-heatmap.json).</summary>
+public sealed record BubbleHeatmapPreset(
+    string TimeframeLabel,
+    bool ShowBubbles,
+    bool LargeOnly,
+    int RetainedColumns);
