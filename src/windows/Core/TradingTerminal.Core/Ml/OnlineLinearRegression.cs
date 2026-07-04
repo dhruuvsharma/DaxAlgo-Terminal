@@ -15,8 +15,11 @@ namespace TradingTerminal.Core.Ml;
 ///
 /// Pure C#, no NuGet adds. Stateful, single-threaded.
 /// </summary>
-public sealed class OnlineLinearRegression
+public sealed class OnlineLinearRegression : IOnlineForecaster
 {
+    /// <summary>Algorithm discriminator stored in <see cref="ForecasterState.Kind"/>.</summary>
+    public const string ForecasterKind = "rls";
+
     private readonly int _d;
     private readonly double[] _beta;
     private readonly double[,] _p;   // d × d inverse-covariance proxy
@@ -35,6 +38,7 @@ public sealed class OnlineLinearRegression
         _scratchPX = new double[_d];
     }
 
+    public string Kind => ForecasterKind;
     public int Dimensions => _d;
     public double Lambda { get; }
     public long Samples => _samples;
@@ -79,5 +83,38 @@ public sealed class OnlineLinearRegression
                 _p[i, j] = (_p[i, j] - _scratchPX[i] * _scratchPX[j] / denom) / Lambda;
 
         _samples++;
+    }
+
+    /// <summary>Captures β, the P matrix (row-major) and the sample count into a snapshot. The
+    /// forgetting factor is a fixed hyper-parameter set at construction, so it is not stored — a
+    /// restore targets an instance already built with the intended <see cref="Lambda"/>.</summary>
+    public ForecasterState SaveState()
+    {
+        var beta = new double[_d];
+        Array.Copy(_beta, beta, _d);
+        var cov = new double[_d * _d];
+        for (var i = 0; i < _d; i++)
+            for (var j = 0; j < _d; j++)
+                cov[i * _d + j] = _p[i, j];
+        return new ForecasterState(ForecasterKind, _d, _samples, beta, cov);
+    }
+
+    /// <summary>Restores state from <see cref="SaveState"/>. The snapshot must be an RLS state of
+    /// matching dimension (β length d, covariance length d²); anything else throws so a corrupt or
+    /// mismatched artifact fails loudly rather than training from a garbled prior.</summary>
+    public void LoadState(ForecasterState state)
+    {
+        if (state.Kind != ForecasterKind)
+            throw new ArgumentException($"Expected '{ForecasterKind}' state, got '{state.Kind}'.", nameof(state));
+        if (state.Dimensions != _d || state.Coefficients.Length != _d)
+            throw new ArgumentException($"Expected {_d}-dimensional state, got {state.Dimensions}.", nameof(state));
+        if (state.Covariance.Length != _d * _d)
+            throw new ArgumentException($"Expected a {_d}×{_d} covariance ({_d * _d} entries), got {state.Covariance.Length}.", nameof(state));
+
+        Array.Copy(state.Coefficients, _beta, _d);
+        for (var i = 0; i < _d; i++)
+            for (var j = 0; j < _d; j++)
+                _p[i, j] = state.Covariance[i * _d + j];
+        _samples = state.Samples;
     }
 }

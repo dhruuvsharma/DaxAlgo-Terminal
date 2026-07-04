@@ -8,6 +8,7 @@ using Npgsql;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure.MarketData.Store;
 
 namespace TradingTerminal.Infrastructure.MarketData;
@@ -35,6 +36,23 @@ public static class MarketDataPipelineServiceCollectionExtensions
         var usePostgres = opts.Provider == MarketDataProvider.Postgres && CanReachPostgres(pgConn);
 
         services.AddSingleton<IMarketDataHub, MarketDataHub>();
+
+        // Trained-model registry: its own small SQLite file (default ml-models.db), independent of the
+        // market-data backend. Registered as a lazy singleton factory — nothing resolves it until a
+        // chart/strategy actually checkpoints or loads a model, so users who never touch ML pay no cost
+        // (the DB file isn't created). Holds only model weights + metadata, never market data.
+        var modelSection = configuration.GetSection(ModelRegistryOptions.SectionName);
+        services.Configure<ModelRegistryOptions>(modelSection);
+        var modelOpts = modelSection.Get<ModelRegistryOptions>() ?? new ModelRegistryOptions();
+        services.AddSingleton<IModelRegistry>(_ =>
+        {
+            var path = string.IsNullOrWhiteSpace(modelOpts.DatabasePath)
+                ? ResolveModelDatabasePath()
+                : modelOpts.DatabasePath;
+            var registry = new SqliteModelRegistry(path);
+            if (modelOpts.RetentionDays > 0) registry.PruneOlderThan(modelOpts.RetentionDays);
+            return registry;
+        });
 
         // The canonical identity registry stays single-file (the shared marketdata.db) regardless of
         // backend — including the per-broker store, whose split is only of the time-series tables.
@@ -161,6 +179,15 @@ public static class MarketDataPipelineServiceCollectionExtensions
             "DaxAlgoTerminal");
         Directory.CreateDirectory(dir);
         return Path.Combine(dir, "marketdata.db");
+    }
+
+    private static string ResolveModelDatabasePath()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DaxAlgoTerminal");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, "ml-models.db");
     }
 
     private static string BuildSqliteConnectionString(string path)

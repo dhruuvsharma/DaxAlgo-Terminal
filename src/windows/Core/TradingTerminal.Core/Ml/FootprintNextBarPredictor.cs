@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace TradingTerminal.Core.Ml;
 
 /// <summary>
@@ -26,6 +28,20 @@ public sealed class FootprintNextBarPredictor
     private const double EwmaHalfLifeBars = 16.0;
     private const double DeltaClamp = 3.0;
     private const int LagBarsRequired = 4;
+
+    /// <summary>Model-family discriminator this predictor's artifacts are filed under in the registry.</summary>
+    public const string ModelKind = "footprint-nextbar";
+    private const string BankName = "nextbar";
+
+    /// <summary>Ordered names of the raw feature vector (see <see cref="TryBuildRawFeatures"/>) — the
+    /// artifact's <see cref="FeatureContract"/>, which guards restores and documents the inputs.</summary>
+    private static readonly string[] FeatureNames =
+    {
+        "bias", "poc_mom_1", "poc_mom_2", "poc_mom_3", "buy_sell_poc_spread",
+        "poc_position_in_range", "value_area_width_ticks", "range_ticks", "delta_ratio",
+        "ewma_delta_ratio", "log_volume_vs_ewma", "cum_delta_change", "stacked_imbalance_net",
+        "feed_quality", "baseline_poc_delta_ticks", "baseline_valid",
+    };
 
     private readonly double _tickSize;
     private readonly FootprintPredictorOptions _options;
@@ -158,6 +174,92 @@ public sealed class FootprintNextBarPredictor
         _ewmaLogVolume = 0;
         _ewmaDeltaRatio = 0;
         _lastForecast = Array.Empty<FootprintForecastBar>();
+    }
+
+    /// <summary>
+    /// Checkpoints the learned state (the per-(target × horizon) RLS weights, the feature
+    /// standardizer, and the running EWMAs) into a portable <see cref="ModelArtifact"/> filed under
+    /// the given instrument/timeframe. The transient harness (history ring, pending forecasts) is
+    /// deliberately not captured — it re-fills within a few bars, while the artifact preserves
+    /// everything that took data to learn.
+    /// </summary>
+    public ModelArtifact CreateArtifact(string instrumentKey, string timeframe)
+    {
+        var learners = new List<ForecasterState>(_options.MaxHorizon * TargetCount);
+        for (var h = 0; h < _options.MaxHorizon; h++)
+            for (var k = 0; k < TargetCount; k++)
+                learners.Add(_bank[h][k].SaveState());
+
+        var scalars = new[]
+        {
+            new ScalarState("ewma_volume", _ewmaVolume),
+            new ScalarState("ewma_log_volume", _ewmaLogVolume),
+            new ScalarState("ewma_delta_ratio", _ewmaDeltaRatio),
+            new ScalarState("ewma_initialized", _ewmaInitialized ? 1.0 : 0.0),
+            new ScalarState("tick_size", _tickSize),
+        };
+
+        var ml = MlAccuracy;
+        var baseline = BaselineAccuracy;
+        var metrics = new ModelMetrics(
+            ml.PocMaeTicks, ml.DirectionalHitRate, baseline.PocMaeTicks, baseline.DirectionalHitRate, ml.ScoredCount);
+        var trainedThrough = _history.Count > 0
+            ? DateTime.SpecifyKind(_history[^1].StartUtc, DateTimeKind.Utc)
+            : DateTime.UtcNow;
+
+        return new ModelArtifact(
+            SchemaVersion: ModelArtifact.CurrentSchemaVersion,
+            ModelKind: ModelKind,
+            Algorithm: OnlineLinearRegression.ForecasterKind,
+            InstrumentKey: instrumentKey,
+            Timeframe: timeframe,
+            Features: new FeatureContract(FeatureDim, FeatureNames),
+            OptionsJson: JsonSerializer.Serialize(_options, ModelArtifactJson.Options),
+            Banks: new[] { new BankState(BankName, learners) },
+            Scaler: _scaler.SaveState(),
+            Scalars: scalars,
+            Metrics: metrics,
+            SamplesTrained: _samplesSeen,
+            TrainedThroughUtc: trainedThrough,
+            CreatedUtc: DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Restores a previously-checkpointed model into this predictor so it resumes warm instead of
+    /// cold. Returns false (leaving the predictor freshly cold) when the artifact is from a different
+    /// model family/algorithm, a mismatched feature contract, or a different bank/scaler shape — a
+    /// tuning change must not load stale weights against the wrong feature vector.
+    /// </summary>
+    public bool TryRestore(ModelArtifact artifact)
+    {
+        if (artifact.SchemaVersion != ModelArtifact.CurrentSchemaVersion) return false;
+        if (artifact.ModelKind != ModelKind) return false;
+        if (artifact.Algorithm != OnlineLinearRegression.ForecasterKind) return false;
+        if (artifact.Features.Dimension != FeatureDim) return false;
+        if (artifact.Scaler.Dimensions != FeatureDim) return false;
+        var bank = artifact.Bank(BankName);
+        if (bank is null || bank.Learners.Count != _options.MaxHorizon * TargetCount) return false;
+
+        try
+        {
+            var idx = 0;
+            for (var h = 0; h < _options.MaxHorizon; h++)
+                for (var k = 0; k < TargetCount; k++)
+                    _bank[h][k].LoadState(bank.Learners[idx++]);
+            _scaler.LoadState(artifact.Scaler);
+        }
+        catch (ArgumentException)
+        {
+            Reset();
+            return false;
+        }
+
+        _ewmaVolume = artifact.Scalar("ewma_volume");
+        _ewmaLogVolume = artifact.Scalar("ewma_log_volume");
+        _ewmaDeltaRatio = artifact.Scalar("ewma_delta_ratio");
+        _ewmaInitialized = artifact.Scalar("ewma_initialized") > 0.5;
+        _samplesSeen = artifact.SamplesTrained;
+        return true;
     }
 
     private OnlineLinearRegression[][] CreateBank()

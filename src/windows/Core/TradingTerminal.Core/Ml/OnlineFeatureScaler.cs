@@ -86,4 +86,31 @@ public sealed class OnlineFeatureScaler
         Array.Clear(_variance);
         _samples = 0;
     }
+
+    /// <summary>Captures the running mean/variance and sample count. The decay, clip and passthrough
+    /// count are fixed hyper-parameters set at construction and so are not stored — a restore targets
+    /// an instance already built with them.</summary>
+    public FeatureScalerState SaveState()
+    {
+        var mean = new double[_mean.Length];
+        var variance = new double[_variance.Length];
+        Array.Copy(_mean, mean, _mean.Length);
+        Array.Copy(_variance, variance, _variance.Length);
+        return new FeatureScalerState(_mean.Length, _samples, mean, variance);
+    }
+
+    /// <summary>Restores state from <see cref="SaveState"/>; throws on a dimension mismatch.</summary>
+    public void LoadState(FeatureScalerState state)
+    {
+        if (state.Dimensions != _mean.Length || state.Mean.Length != _mean.Length || state.Variance.Length != _mean.Length)
+            throw new ArgumentException($"Expected {_mean.Length}-dimensional scaler state, got {state.Dimensions}.", nameof(state));
+        Array.Copy(state.Mean, _mean, _mean.Length);
+        Array.Copy(state.Variance, _variance, _variance.Length);
+        _samples = state.Samples;
+    }
 }
+
+/// <summary>Serializable state of an <see cref="OnlineFeatureScaler"/>: the per-dimension running
+/// mean and (EW) variance plus the sample count. Plain arrays so System.Text.Json round-trips
+/// cleanly.</summary>
+public sealed record FeatureScalerState(int Dimensions, long Samples, double[] Mean, double[] Variance);

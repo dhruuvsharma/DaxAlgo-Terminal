@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace TradingTerminal.Core.Ml;
 
 /// <summary>
@@ -27,6 +29,22 @@ public sealed class OrderBookMicroPredictor
     private const double EwmaHalfLifeSteps = 64.0;
     private const double DefaultTick = 0.01;
     private const int FeatureLagSteps = 5;
+
+    /// <summary>Model-family discriminator this predictor's artifacts are filed under in the registry.</summary>
+    public const string ModelKind = "orderbook-micro";
+    private const string DirectionBankName = "direction";
+    private const string EventBankName = "event";
+
+    /// <summary>Ordered names of the raw feature vector (see <see cref="TryBuildRawFeatures"/>) — the
+    /// artifact's <see cref="FeatureContract"/>, which guards restores and documents the inputs.</summary>
+    private static readonly string[] FeatureNames =
+    {
+        "bias", "microprice_mom_1", "microprice_mom_2", "microprice_mom_5", "imbalance_l1",
+        "imbalance_cum", "microprice_minus_mid", "spread_ticks", "log_depth_ratio",
+        "log_total_depth_vs_ewma", "bid3_change", "ask3_change", "largest_level_gap_ticks",
+        "worst_sweep_ticks", "sweep_cost_skew_ticks", "signed_flow_ratio", "ewma_signed_flow_ratio",
+        "log_trade_count_vs_ewma", "trade_flow_valid",
+    };
 
     private readonly OrderBookPredictorOptions _options;
     private readonly int _flagshipIndex;
@@ -215,6 +233,102 @@ public sealed class OrderBookMicroPredictor
         _ewmaSignedFlowRatio = 0;
         _ewmaLogTradeCount = 0;
         _lastForecast = null;
+    }
+
+    /// <summary>
+    /// Checkpoints the learned state (the direction- and event-head RLS weights, the feature
+    /// standardizer, the running EWMAs and the tick estimate) into a portable <see cref="ModelArtifact"/>.
+    /// The transient harness (step ring, pending forecasts) is not captured — it re-fills within a few
+    /// steps, while the artifact preserves everything that took data to learn.
+    /// </summary>
+    public ModelArtifact CreateArtifact(string instrumentKey, string timeframe)
+    {
+        var direction = new List<ForecasterState>(_directionBank.Length);
+        foreach (var learner in _directionBank) direction.Add(learner.SaveState());
+        var events = new List<ForecasterState>(_eventBank.Length);
+        foreach (var learner in _eventBank) events.Add(learner.SaveState());
+
+        var scalars = new[]
+        {
+            new ScalarState("ewma_total_depth", _ewmaTotalDepth),
+            new ScalarState("ewma_log_depth", _ewmaLogDepth),
+            new ScalarState("ewma_abs_flow", _ewmaAbsFlow),
+            new ScalarState("ewma_signed_flow_ratio", _ewmaSignedFlowRatio),
+            new ScalarState("ewma_log_trade_count", _ewmaLogTradeCount),
+            new ScalarState("ewma_initialized", _ewmaInitialized ? 1.0 : 0.0),
+            new ScalarState("observed_tick", _observedTick),
+            new ScalarState("spread_brier", SpreadWidenScore.Brier),
+            new ScalarState("depth_brier", DepthDrainScore.Brier),
+            new ScalarState("sweep_brier", SweepJumpScore.Brier),
+        };
+
+        var ml = MlAccuracy;
+        var baseline = BaselineAccuracy;
+        var metrics = new ModelMetrics(
+            ml.PocMaeTicks, ml.DirectionalHitRate, baseline.PocMaeTicks, baseline.DirectionalHitRate, ml.ScoredCount);
+        var trainedThrough = _ring.Count > 0
+            ? DateTime.SpecifyKind(_ring[^1].TimestampUtc, DateTimeKind.Utc)
+            : DateTime.UtcNow;
+
+        return new ModelArtifact(
+            SchemaVersion: ModelArtifact.CurrentSchemaVersion,
+            ModelKind: ModelKind,
+            Algorithm: OnlineLinearRegression.ForecasterKind,
+            InstrumentKey: instrumentKey,
+            Timeframe: timeframe,
+            Features: new FeatureContract(FeatureDim, FeatureNames),
+            OptionsJson: JsonSerializer.Serialize(_options, ModelArtifactJson.Options),
+            Banks: new[]
+            {
+                new BankState(DirectionBankName, direction),
+                new BankState(EventBankName, events),
+            },
+            Scaler: _scaler.SaveState(),
+            Scalars: scalars,
+            Metrics: metrics,
+            SamplesTrained: _samplesSeen,
+            TrainedThroughUtc: trainedThrough,
+            CreatedUtc: DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Restores a previously-checkpointed model so this predictor resumes warm. Returns false
+    /// (leaving it cold) on any model-family / algorithm / feature-contract / bank-shape mismatch —
+    /// notably a different horizon set, which changes the direction bank size.
+    /// </summary>
+    public bool TryRestore(ModelArtifact artifact)
+    {
+        if (artifact.SchemaVersion != ModelArtifact.CurrentSchemaVersion) return false;
+        if (artifact.ModelKind != ModelKind) return false;
+        if (artifact.Algorithm != OnlineLinearRegression.ForecasterKind) return false;
+        if (artifact.Features.Dimension != FeatureDim) return false;
+        if (artifact.Scaler.Dimensions != FeatureDim) return false;
+        var direction = artifact.Bank(DirectionBankName);
+        var events = artifact.Bank(EventBankName);
+        if (direction is null || direction.Learners.Count != _directionBank.Length) return false;
+        if (events is null || events.Learners.Count != _eventBank.Length) return false;
+
+        try
+        {
+            for (var i = 0; i < _directionBank.Length; i++) _directionBank[i].LoadState(direction.Learners[i]);
+            for (var i = 0; i < _eventBank.Length; i++) _eventBank[i].LoadState(events.Learners[i]);
+            _scaler.LoadState(artifact.Scaler);
+        }
+        catch (ArgumentException)
+        {
+            Reset();
+            return false;
+        }
+
+        _ewmaTotalDepth = artifact.Scalar("ewma_total_depth");
+        _ewmaLogDepth = artifact.Scalar("ewma_log_depth");
+        _ewmaAbsFlow = artifact.Scalar("ewma_abs_flow");
+        _ewmaSignedFlowRatio = artifact.Scalar("ewma_signed_flow_ratio");
+        _ewmaLogTradeCount = artifact.Scalar("ewma_log_trade_count");
+        _ewmaInitialized = artifact.Scalar("ewma_initialized") > 0.5;
+        _observedTick = artifact.Scalar("observed_tick", double.MaxValue);
+        _samplesSeen = artifact.SamplesTrained;
+        return true;
     }
 
     private OnlineLinearRegression[] CreateBank(int count)
