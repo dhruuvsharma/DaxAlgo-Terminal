@@ -4,6 +4,14 @@ A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Twelve brokers be
 
 This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigger) and **docs/**. Don't re-derive conventions each session — load the matching skill, or `navigator` for "where does X live".
 
+## Work tracking — GitHub issues are the source of truth
+
+Ongoing initiatives and multi-session work are tracked as **GitHub issues** (`gh issue`), not in model memory or the user's head. Two living trackers:
+- **[#3](https://github.com/dhruuvsharma/DaxAlgo-Terminal/issues/3)** — Windows scale refactor epic (6-phase Surface-Lab-grade UX + perf pass; per-phase checklist + commit hashes).
+- **[#4](https://github.com/dhruuvsharma/DaxAlgo-Terminal/issues/4)** — Roadmap / backlog of planned & in-flight initiatives.
+
+**The pipeline (do this without being asked):** when you finish a slice of tracked work, **update its issue** — tick the checkbox and drop the commit hash. When a new initiative starts, **open an issue** (`gh issue create`, apply labels: `epic`/`refactor`/`ui-ux`/`performance`/`charts`/`strategies`/`tools`/`ai-ml`/`distribution`/`roadmap`) and link it from #4. When active work spins out of the backlog, promote it to its own labelled issue. Prefer a short issue comment or checkbox tick over expanding a memory file. Write issue bodies via `--body-file` (PowerShell 5.1 mangles inline `-m`/`--body` with embedded double quotes).
+
 ## ⚠️ Two independent trees — NO shared code (2026-06-27)
 
 The repo is **forked into two fully independent codebases with zero shared projects** (done so Linux/Avalonia work can never destabilize the Windows/WPF build):
