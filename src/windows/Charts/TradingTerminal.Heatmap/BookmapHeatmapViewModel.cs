@@ -1,3 +1,7 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -5,6 +9,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Heatmap;
 
@@ -77,8 +82,12 @@ public sealed partial class BookmapHeatmapViewModel : SingleInstrumentHeatmapVie
         : base(repository, hub, ingest, selector, logger)
     {
         _selectedTimeframe = Timeframes[2]; // default 1 s — calmer + lighter than sub-second columns
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
         Status = "Pick an instrument to stream Bookmap + VolBook (needs L2; volume features need the tape).";
     }
+
+    /// <summary>Saved preset names for the toolbar picker.</summary>
+    public ObservableCollection<string> PresetNames { get; }
 
     /// <summary>Column-width presets for the time axis (how much wall-clock each heatmap column spans).</summary>
     public IReadOnlyList<TimeframeOption> Timeframes { get; } = new[]
@@ -156,6 +165,114 @@ public sealed partial class BookmapHeatmapViewModel : SingleInstrumentHeatmapVie
 
     [RelayCommand]
     private void TogglePause() => IsPaused = !IsPaused;
+
+    // ── Presets (named view-option snapshots; see ToolPresetStore) ──────────────────────────────
+
+    private readonly ToolPresetStore<BookmapPreset> _presetStore = new("bookmap-volbook");
+
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new BookmapPreset(
+            SelectedTimeframe.Label, ShowVolumeProfile, ShowVwap, ShowValueArea, ShowCvdPanel,
+            ShowTradeDots, HighlightLargeLots, ShowOrderBook, ShowCav));
+        RefreshPresetNames(selected: name);
+        Logger.LogInformation("Bookmap preset '{Name}' saved", name);
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        Logger.LogInformation("Bookmap preset '{Name}' deleted", name);
+    }
+
+    private void ApplyPreset(BookmapPreset preset)
+    {
+        if (Timeframes.FirstOrDefault(t => t.Label == preset.TimeframeLabel) is { } tf)
+            SelectedTimeframe = tf;
+        ShowVolumeProfile = preset.ShowVolumeProfile;
+        ShowVwap = preset.ShowVwap;
+        ShowValueArea = preset.ShowValueArea;
+        ShowCvdPanel = preset.ShowCvdPanel;
+        ShowTradeDots = preset.ShowTradeDots;
+        HighlightLargeLots = preset.HighlightLargeLots;
+        ShowOrderBook = preset.ShowOrderBook;
+        ShowCav = preset.ShowCav;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG snapshots stay view-side) ─────────
+
+    [RelayCommand]
+    private async Task ExportProfileCsvAsync()
+    {
+        var profile = VolumeProfileSnapshot();
+        if (profile.Length == 0) return;
+        Array.Sort(profile, (a, b) => a.Price.CompareTo(b.Price));
+        var va = ComputeValueArea();
+        var sb = new StringBuilder();
+        sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+            $"# session volume profile · poc={va.Poc} vah={va.ValueAreaHigh} val={va.ValueAreaLow} total={va.TotalVolume}"));
+        sb.AppendLine("price,buy_volume,sell_volume");
+        foreach (var b in profile)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"{b.Price},{b.BuyVolume},{b.SellVolume}"));
+        await SaveCsvAsync("bookmap-profile", sb.ToString());
+    }
+
+    [RelayCommand]
+    private async Task ExportFlowCsvAsync()
+    {
+        if (_stats.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,buy_volume,sell_volume,cvd,vwap,cav");
+        for (var i = 0; i < _stats.Count && i < _columns.Count; i++)
+        {
+            var s = _stats[i];
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{_columns[i].TimestampUtc:O},{s.BuyVolume},{s.SellVolume},{s.Cvd},{s.Vwap},{s.AvgVolume}"));
+        }
+        await SaveCsvAsync("bookmap-flow", sb.ToString());
+    }
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "book").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Bookmap: CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
 
     /// <summary>Force a redraw without waiting for the next feed tick (e.g. a toggle while paused) —
     /// the render timer coalesces it within one tick.</summary>
@@ -390,6 +507,19 @@ public sealed record TimeframeOption(string Label, double Seconds)
 {
     public override string ToString() => Label;
 }
+
+/// <summary>A named snapshot of the Bookmap + VolBook window's view options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\bookmap-volbook.json).</summary>
+public sealed record BookmapPreset(
+    string TimeframeLabel,
+    bool ShowVolumeProfile,
+    bool ShowVwap,
+    bool ShowValueArea,
+    bool ShowCvdPanel,
+    bool ShowTradeDots,
+    bool HighlightLargeLots,
+    bool ShowOrderBook,
+    bool ShowCav);
 
 /// <summary>Mutable-by-copy accumulator cell for a volume-profile price bucket.</summary>
 internal readonly record struct ProfileCell(long Buy, long Sell);

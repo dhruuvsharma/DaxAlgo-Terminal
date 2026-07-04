@@ -55,9 +55,54 @@
                 <TextBlock Text="History" Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <Slider Width="240" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
                         Value="{Binding ScrubPosition}" IsEnabled="{Binding IsPaused}"
-                        VerticalAlignment="Center" Margin="0,0,4,0" />
+                        VerticalAlignment="Center" Margin="0,0,18,0" />
+
+                <Border Width="1" Margin="0,0,18,0" Background="{DynamicResource Border.Brush}" />
+
+                <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" VerticalAlignment="Center" />
+                <ComboBox Width="120" IsEditable="True" VerticalAlignment="Center"
+                          ItemsSource="{Binding PresetNames}"
+                          SelectedItem="{Binding SelectedPreset}"
+                          Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                          ToolTip="Pick a preset to apply it, or type a new name and press save" />
+                <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                        Command="{Binding SavePresetCommand}"
+                        ToolTip="Save the current view options (timeframe + overlay toggles) as a named preset" />
+                <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                        Command="{Binding DeletePresetCommand}"
+                        ToolTip="Delete the selected preset" />
+                <Button Style="{StaticResource App.IconButton}" Content="▤"
+                        Command="{Binding ExportProfileCsvCommand}"
+                        ToolTip="Export the session volume profile (price, buy, sell — with POC / value-area header) as CSV" />
+                <Button Style="{StaticResource App.IconButton}" Content="↧"
+                        Command="{Binding ExportFlowCsvCommand}"
+                        ToolTip="Export the per-column flow series (buy/sell volume, CVD, VWAP, CAV) as CSV" />
+                <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                        ToolTip="Save a PNG snapshot of this window" />
+                <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?" Margin="0"
+                              ToolTip="What am I looking at?" />
             </WrapPanel>
         </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-350" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="400" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING BOOKMAP + VOLBOOK" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Heatmap" /><Run Text=" — resting L2 size per price row over time (teal bid / red ask, brighter = heavier). Persistent hot bands are walls; bands that vanish as price approaches were likely spoofed." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Dots" /><Run Text=" — prints sized by volume (green buy / red sell). Outlined = large lot (≥5× mean size); ringed = iceberg (the same price/size refilling repeatedly)." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="SVP / VWAP / value area" /><Run Text=" — the session volume-at-price histogram with POC and the 70% value-area band, plus the developing VWAP track." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="CVD panel" /><Run Text=" — cumulative volume delta with per-column buy/sell bars: divergence between CVD and price flags absorption." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="COB / CAV" /><Run Text=" — the live DOM column down the right edge and the cumulative-average-volume strip." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Playback" /><Run Text=" — Pause freezes the view and unlocks the History scrub slider over the retained columns; scroll-wheel zooms price, double-click resets." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <!-- Body -->
         <Grid Grid.Row="2" Margin="0,12,0,0">
@@ -96,6 +141,29 @@
                     Background="#0A0A0F"
                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                     ClipToBounds="True" />
+
+            <!-- Empty state until the first depth column lands (drawn over the surface host) -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        MaxWidth="420" IsHitTestVisible="False">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ColumnsFilled}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="▦" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                <TextBlock Text="Awaiting depth" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,6,0,4"
+                           Foreground="{DynamicResource Text.Primary}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="The surface fills as L2 snapshots stream in; volume features (SVP, VWAP, CVD, dots) need a trade tape on top. Depth-capable feeds: the keyless crypto tiles (Binance, Bybit, Kraken, OKX, Coinbase), cTrader, Ironbeam and Upstox." />
+            </StackPanel>
         </Grid>
 
         <!-- Status -->

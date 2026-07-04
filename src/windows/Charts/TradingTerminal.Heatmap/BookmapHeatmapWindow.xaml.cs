@@ -32,6 +32,17 @@ public partial class BookmapHeatmapWindow : MetroWindow
 
     private void OnHeatmapUpdated(object? sender, EventArgs e) => _surface.OnDataUpdated();
 
+    /// <summary>Toolbar 📷: PNG snapshot of the whole window content (surface + read-outs).
+    /// View-side by design — the visual tree is a view concern; data exports are VM commands.</summary>
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (Content is not FrameworkElement root) return;
+        var symbol = _vm?.SelectedInstrument?.Contract.Symbol ?? "book";
+        var path = TradingTerminal.UI.Controls.ViewExport.SavePng(
+            root, $"bookmap-{symbol}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        if (path is not null && _vm is not null) _vm.Status = $"Snapshot saved → {path}";
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         if (_vm is null) return;
