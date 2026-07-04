@@ -11,6 +11,9 @@
                  WindowStartupLocation="CenterOwner"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
+    <mah:MetroWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </mah:MetroWindow.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -20,10 +23,7 @@
 
         <!-- Single neat toolbar: primary data selectors inline, every toggle/tuner grouped into
              dropdown menus (Regression · Overlays · Display) so the chrome stays compact. -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                Padding="8,5">
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}">
             <Border.Resources>
                 <!-- Label in front of an inline control. -->
                 <Style x:Key="ToolLabel" TargetType="TextBlock">
@@ -55,7 +55,34 @@
                 </Style>
             </Border.Resources>
 
-            <StackPanel Orientation="Horizontal">
+            <DockPanel LastChildFill="True">
+                <!-- ── Actions (right): presets · pause · export · help ── -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="120" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save" />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current view options (interval, tick, overlays, fits, ML) as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause the display — the tape keeps accumulating underneath, resume is instant" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportBarsCsvCommand}"
+                            ToolTip="Export the visible bars (POCs, value area, volumes, delta, stacked runs) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?" Margin="0"
+                                  ToolTip="What am I looking at?" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
                 <!-- ── Primary data selectors (kept inline; changed most often) ── -->
                 <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
                 <uic:InstrumentPicker Width="240"
@@ -165,8 +192,29 @@
                 <TextBlock Text="Zoom" Style="{StaticResource ToolLabel}" />
                 <TextBlock Text="{Binding Zoom, StringFormat={}{0:0.0}×}" VerticalAlignment="Center"
                            Foreground="{DynamicResource Text.Primary}" FontSize="11" FontFamily="Consolas" />
-            </StackPanel>
+                </StackPanel>
+            </DockPanel>
         </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-350" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="400" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE FOOTPRINT" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Cells" /><Run Text=" — each bar is a price ladder for one interval: sell volume (red, left) × buy volume (green, right) per level, or net delta / total volume in the other cell modes." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="POC" /><Run Text=" — the amber-boxed level is the bar's point of control (most traded); connectors and regression fits track how total / buy / sell POCs migrate across bars." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Imbalances" /><Run Text=" — outlined cells mark 3:1 diagonal bid/ask imbalances; stacked runs of them flag initiative buying or selling." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Value area" /><Run Text=" — the shaded band holds ~70% of the bar's volume (VAH ↔ VAL); the right gutter is the composite session profile." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Predicted" /><Run Text=" — ghost candles extrapolate the enabled regression fits forward by the chosen horizon (consensus of the fits)." /><LineBreak />
+                        <Run FontWeight="SemiBold" Foreground="#B388FF" Text="ML ghosts (violet)" /><Run Text=" — an online-learned next-bar forecaster predicts POC, volume and delta per future bar; the stats panel scores its rolling MAE and hit-rate against the regression consensus, and warm-start pre-trains it from your stored tape." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <!-- Footprint cluster grid (drawn in code-behind onto the Canvas) + floating stats panel -->
         <Grid Grid.Row="1">
@@ -175,6 +223,29 @@
                           Background="{DynamicResource Background.Primary}">
                 <Canvas x:Name="FootprintCanvas" Background="Transparent" />
             </ScrollViewer>
+
+            <!-- Empty state until the first prints arrive -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400"
+                        IsHitTestVisible="False">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Bars.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="▥" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                <TextBlock Text="Awaiting trades" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,6,0,4"
+                           Foreground="{DynamicResource Text.Primary}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="Footprint bars build as prints stream in. IB, Binance and Ironbeam feed a real trade tape; every other broker falls back to synthetic L1-derived prints automatically, so the chart still fills." />
+            </StackPanel>
 
             <!-- Floating analytics panel: POC-regression slope, CVD, ticks/sec and volume read-outs.
                  Sits over the chart's top-right and does not scroll with the canvas. -->
@@ -316,14 +387,12 @@
         </Grid>
 
         <!-- Legend + status -->
-        <Border Grid.Row="2"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
-                Padding="8,4">
+        <Border Grid.Row="2" Style="{StaticResource App.FooterBar}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,16,0">
                     <Border Width="11" Height="11" Background="#2E7D32" VerticalAlignment="Center" Margin="0,0,4,0" />
@@ -354,6 +423,10 @@
                 <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
                            Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"
                            TextAlignment="Right" />
+                <Border Grid.Column="2" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
             </Grid>
         </Border>
     </Grid>

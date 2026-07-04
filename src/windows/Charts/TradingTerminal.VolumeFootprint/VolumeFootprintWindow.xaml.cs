@@ -794,6 +794,17 @@ public partial class VolumeFootprintWindow : MetroWindow
         return decimals;
     }
 
+    /// <summary>Toolbar 📷: PNG snapshot of the whole window content (cluster grid + stats panel).
+    /// View-side by design — the visual tree is a view concern; data exports are VM commands.</summary>
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (Content is not FrameworkElement root) return;
+        var symbol = _vm?.SelectedInstrument?.Contract.Symbol ?? "footprint";
+        var path = TradingTerminal.UI.Controls.ViewExport.SavePng(
+            root, $"footprint-{symbol}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        if (path is not null && _vm is not null) _vm.Status = $"Snapshot saved → {path}";
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         if (_vm is null) return;

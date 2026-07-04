@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +13,7 @@ using TradingTerminal.Core.Ml;
 using TradingTerminal.Core.Quant;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.VolumeFootprint;
 
@@ -140,6 +143,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                              ?? Instruments.FirstOrDefault();
         SelectedInterval = Intervals.First(i => i.Label == "1m");
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         // Coalesced render tick (~12 fps) via the portable timer seam. IDisposable, owned by this VM.
         _renderTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(80), OnRenderTick);
@@ -159,6 +163,9 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     /// <summary>Most recent footprint bars, oldest first (rendered left → right).</summary>
     public ObservableCollection<RenderBar> Bars { get; }
 
+    /// <summary>Saved preset names for the toolbar picker.</summary>
+    public ObservableCollection<string> PresetNames { get; }
+
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
     [ObservableProperty] private FootprintInterval? _selectedInterval;
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
@@ -167,6 +174,15 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private string _status = "Pick an instrument to stream its footprint.";
     [ObservableProperty] private long _tradesSeen;
     [ObservableProperty] private long _sessionDelta;
+
+    /// <summary>Freezes the render tick (forming-bar rebuild, stats, canvas redraw) while trades keep
+    /// accumulating into the bucketer underneath — resume repaints instantly with nothing lost.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    // ── Presets (named view-option snapshots; see ToolPresetStore) ──────────────────────────────
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
 
     // ── Top-right stats panel ──────────────────────────────────────────────────────────────────
     [ObservableProperty] private string _pocSlopeText = "—";
@@ -294,6 +310,18 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnShowVolumeProfileChanged(bool value) => RaiseRedraw();
     partial void OnShowCellTextChanged(bool value) => RaiseRedraw();
     partial void OnZoomChanged(double value) => RaiseRedraw();
+
+    partial void OnIsPausedChanged(bool value) =>
+        Status = value
+            ? $"⏸ Paused — the tape keeps accumulating in the background ({SelectedInstrument?.DisplayName})."
+            : $"Resumed — {SelectedInstrument?.DisplayName}.";
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
 
     private void RaiseRedraw()
     {
@@ -583,8 +611,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     /// the ticks/sec read-out so it falls toward zero when the tape goes quiet.</summary>
     private void OnRenderTick()
     {
-        UpdateTicksPerSecond();
-        if (!_dirty) return;
+        UpdateTicksPerSecond();   // always runs so the arrivals queue stays pruned, even paused
+        if (IsPaused || !_dirty) return;
         _dirty = false;
 
         if (_bucketer?.BuildForming() is not { } formingCore) return;
@@ -811,6 +839,102 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         FootprintChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    // ── Presets ──────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ToolPresetStore<FootprintPreset> _presetStore = new("volume-footprint");
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new FootprintPreset(
+            SelectedInterval?.Label ?? "1m", TickSizeText, MaxBars,
+            SelectedDisplayMode.ToString(), ShowImbalances, ShowValueArea, ShowVolumeProfile,
+            ShowCellText, Zoom,
+            ShowLinearFit, ShowQuadraticFit, ShowCubicFit, ShowTheilSenFit,
+            ShowExponentialFit, ShowLogarithmicFit, ShowLowessFit,
+            ShowPredictedBars, PredictionBars, ShowMlPrediction, WarmStartFromHistory));
+        RefreshPresetNames(selected: name);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Applies a preset with the <see cref="_ready"/> guard down so the per-property
+    /// On*Changed handlers can't each trigger their own <see cref="Restart"/> — one restart at
+    /// the end covers the interval/tick changes.</summary>
+    private void ApplyPreset(FootprintPreset preset)
+    {
+        _ready = false;
+        if (Intervals.FirstOrDefault(i => i.Label == preset.IntervalLabel) is { } interval)
+            SelectedInterval = interval;
+        TickSizeText = preset.TickSize;
+        MaxBars = Math.Clamp(preset.MaxBars, 2, 40);
+        if (Enum.TryParse<CellDisplayMode>(preset.DisplayMode, out var mode) && DisplayModes.Contains(mode))
+            SelectedDisplayMode = mode;
+        ShowImbalances = preset.ShowImbalances;
+        ShowValueArea = preset.ShowValueArea;
+        ShowVolumeProfile = preset.ShowVolumeProfile;
+        ShowCellText = preset.ShowCellText;
+        Zoom = Math.Clamp(preset.Zoom, 0.5, 3.0);
+        ShowLinearFit = preset.ShowLinearFit;
+        ShowQuadraticFit = preset.ShowQuadraticFit;
+        ShowCubicFit = preset.ShowCubicFit;
+        ShowTheilSenFit = preset.ShowTheilSenFit;
+        ShowExponentialFit = preset.ShowExponentialFit;
+        ShowLogarithmicFit = preset.ShowLogarithmicFit;
+        ShowLowessFit = preset.ShowLowessFit;
+        ShowPredictedBars = preset.ShowPredictedBars;
+        PredictionBars = Math.Clamp(preset.PredictionBars, 1, 30);
+        ShowMlPrediction = preset.ShowMlPrediction;
+        WarmStartFromHistory = preset.WarmStartFromHistory;
+        _ready = true;
+        Restart();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG snapshots stay view-side) ─────────
+
+    [RelayCommand]
+    private async Task ExportBarsCsvAsync()
+    {
+        if (Bars.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("start_utc,poc,buy_poc,sell_poc,vah,val,buy_volume,sell_volume,delta,cumulative_delta,stacked_buy,stacked_sell");
+        foreach (var bar in Bars)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{bar.StartUtc:O},{bar.PointOfControl},{bar.BuyPointOfControl},{bar.SellPointOfControl},{bar.ValueAreaHigh},{bar.ValueAreaLow},{bar.Core.BuyVolume},{bar.Core.SellVolume},{bar.Core.Delta},{bar.Core.CumulativeDelta},{bar.StackedBuy},{bar.StackedSell}"));
+
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "footprint").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"footprint-{symbol}-{SelectedInterval?.Label}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            _log.Append(LogSource, "INFO", $"Exported {Bars.Count} bars → {path}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Footprint: CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
+
     private BrokerKind ResolveBroker(SignalInstrument instrument)
     {
         if (instrument.Broker is { } explicitBroker && _selector.IsConnected(explicitBroker))
@@ -845,6 +969,31 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         StopStream();
     }
 }
+
+/// <summary>A named snapshot of the Volume Footprint window's view options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\volume-footprint.json).
+/// The instrument is deliberately NOT part of a preset — presets are portable view configs.</summary>
+public sealed record FootprintPreset(
+    string IntervalLabel,
+    string TickSize,
+    int MaxBars,
+    string DisplayMode,
+    bool ShowImbalances,
+    bool ShowValueArea,
+    bool ShowVolumeProfile,
+    bool ShowCellText,
+    double Zoom,
+    bool ShowLinearFit,
+    bool ShowQuadraticFit,
+    bool ShowCubicFit,
+    bool ShowTheilSenFit,
+    bool ShowExponentialFit,
+    bool ShowLogarithmicFit,
+    bool ShowLowessFit,
+    bool ShowPredictedBars,
+    int PredictionBars,
+    bool ShowMlPrediction,
+    bool WarmStartFromHistory);
 
 /// <summary>
 /// L1 tick-rule synthesizer: derives <see cref="TradePrint"/>s from a quote stream when the broker
