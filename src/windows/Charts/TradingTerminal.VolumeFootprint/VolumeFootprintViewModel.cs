@@ -47,6 +47,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private readonly IMarketDataHub _hub;
     private readonly IMarketDataIngest _ingest;
     private readonly IMarketDataStore _store;
+    private readonly IModelRegistry _modelRegistry;
     private readonly IBrokerSelector _selector;
     private readonly InMemoryLogSink _log;
     private readonly ILogger<VolumeFootprintViewModel> _logger;
@@ -68,6 +69,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     /// <summary>Online next-bar forecaster. Recreated on every <see cref="Restart"/> (it is
     /// instrument/interval/tick scoped); null while the warm-start backfill is still training it.</summary>
     private FootprintNextBarPredictor? _ml;
+
+    /// <summary>The (instrument, timeframe) key the current <see cref="_ml"/> is scoped to, captured
+    /// when it is built/restored so a later checkpoint saves it under the same registry coordinate.</summary>
+    private string? _mlInstrumentKey;
+    private string? _mlTimeframe;
 
     /// <summary>Start time of the last bar the warm-start backfill trained on, so the live seam
     /// bar is never learned twice.</summary>
@@ -119,6 +125,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         IMarketDataHub hub,
         IMarketDataIngest ingest,
         IMarketDataStore store,
+        IModelRegistry modelRegistry,
         IBrokerSelector selector,
         InMemoryLogSink log,
         ILogger<VolumeFootprintViewModel> logger)
@@ -127,6 +134,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _hub = hub;
         _ingest = ingest;
         _store = store;
+        _modelRegistry = modelRegistry;
         _selector = selector;
         _log = log;
         _logger = logger;
@@ -365,6 +373,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private void Restart()
     {
         StopStream();
+        SaveModelCheckpoint();
         var instrument = SelectedInstrument;
         var interval = SelectedInterval;
         if (instrument is null || interval is null) return;
@@ -378,6 +387,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _bucketer = new FootprintTimeBucketer(interval.Span, TickSize,
             _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape);
         _ml = null;
+        _mlInstrumentKey = null;
+        _mlTimeframe = null;
         _lastBackfillBarStart = DateTime.MinValue;
         _dirty = false;
         TradesSeen = 0;
@@ -391,11 +402,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
             $"Footprint on {instrument.DisplayName} [{BrokerLabel(broker)}] — {tape}, {interval.Label} bars, tick {TickSize}");
 
         _streamCts = new CancellationTokenSource();
-        _ = RunStreamAsync(instrument.Contract, broker, interval.Span, TickSize, _streamCts.Token);
+        _ = RunStreamAsync(instrument.Contract, broker, interval.Span, interval.Label, TickSize, _streamCts.Token);
     }
 
     private async Task RunStreamAsync(Contract contract, BrokerKind broker, TimeSpan span,
-        double tickSize, CancellationToken ct)
+        string timeframe, double tickSize, CancellationToken ct)
     {
         InstrumentId instrumentId;
         try
@@ -434,8 +445,12 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         // Warm-start the ML forecaster from stored tape before the drain loop begins. Live prints
         // buffer in the bounded channel meanwhile (DropOldest keeps that safe); the ML engine is
         // only published to _ml once training is done, so live seals can never race the backfill.
+        // Prefer a saved checkpoint for this (instrument, timeframe): if one restores, the model is
+        // already warm and we skip the cold backfill. Otherwise warm-start from stored tape as before.
         var ml = new FootprintNextBarPredictor(tickSize);
-        if (WarmStartFromHistory)
+        var instrumentKey = instrumentId.ToString();
+        var restored = TryRestoreModel(ml, instrumentKey, timeframe);
+        if (!restored && WarmStartFromHistory)
         {
             try
             {
@@ -452,6 +467,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         }
         if (ct.IsCancellationRequested) return;
         _ml = ml;
+        _mlInstrumentKey = instrumentKey;
+        _mlTimeframe = timeframe;
         UpdateMlStats();
 
         // Drain in batches: one UI-thread marshal per batch instead of one per trade. Aggregation
@@ -477,6 +494,47 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         finally
         {
             channel.Writer.TryComplete();
+        }
+    }
+
+    /// <summary>Loads the newest saved checkpoint for this (instrument, timeframe) and restores it
+    /// into <paramref name="ml"/>. Returns false (leaving the model cold) when none is stored or the
+    /// artifact is incompatible — the caller then falls back to the stored-tape warm-start.</summary>
+    private bool TryRestoreModel(FootprintNextBarPredictor ml, string instrumentKey, string timeframe)
+    {
+        try
+        {
+            var key = new ModelKey(
+                FootprintNextBarPredictor.ModelKind, instrumentKey, timeframe, OnlineLinearRegression.ForecasterKind);
+            var saved = _modelRegistry.LoadLatest(key);
+            if (saved is null || !ml.TryRestore(saved)) return false;
+            _log.Append(LogSource, "INFO",
+                $"ML: restored saved model ({saved.SamplesTrained:N0} bars trained, MAE {saved.Metrics.MlMaeTicks:F2}t) — skipping cold warm-start");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Footprint: ML restore failed; starting fresh");
+            return false;
+        }
+    }
+
+    /// <summary>Checkpoints the current model into the registry (as a new version) when it is ready
+    /// and scoped to a known (instrument, timeframe) — called on restart and on window close so the
+    /// next session resumes warm. Best-effort; a store failure is logged, never thrown.</summary>
+    private void SaveModelCheckpoint()
+    {
+        var ml = _ml;
+        if (ml is null || !ml.IsReady || _mlInstrumentKey is null || _mlTimeframe is null) return;
+        try
+        {
+            var stored = _modelRegistry.Save(ml.CreateArtifact(_mlInstrumentKey, _mlTimeframe));
+            _log.Append(LogSource, "INFO",
+                $"ML: saved model for {_mlInstrumentKey} {_mlTimeframe} (v{stored.Version}, {ml.SamplesSeen:N0} bars)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Footprint: ML checkpoint save failed");
         }
     }
 
@@ -966,6 +1024,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     public void Dispose()
     {
         _renderTimer.Dispose();
+        SaveModelCheckpoint();
         StopStream();
     }
 }

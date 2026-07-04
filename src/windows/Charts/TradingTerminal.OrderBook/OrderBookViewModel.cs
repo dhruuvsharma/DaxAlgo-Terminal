@@ -75,6 +75,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private readonly IMarketDataHub _hub;
     private readonly IMarketDataIngest _ingest;
     private readonly IMarketDataStore _store;
+    private readonly IModelRegistry _modelRegistry;
     private readonly IBrokerSelector _selector;
     private readonly InMemoryLogSink _log;
     private readonly ILogger<OrderBookViewModel> _logger;
@@ -113,6 +114,13 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// <see cref="Restart"/>; null while the warm-start backfill is still training it.</summary>
     private OrderBookMicroPredictor? _ml;
 
+    /// <summary>Registry timeframe key for the order-book model — the fixed 250 ms capture cadence.</summary>
+    private const string MlTimeframe = "250ms";
+
+    /// <summary>The instrument key the current <see cref="_ml"/> is scoped to, captured when the model
+    /// is built/restored so a later checkpoint saves it under the same registry coordinate.</summary>
+    private string? _mlInstrumentKey;
+
     /// <summary>Last warm-start step boundary, so a live step can never re-learn the seam.</summary>
     private DateTime _mlWatermarkUtc = DateTime.MinValue;
 
@@ -131,6 +139,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         IMarketDataHub hub,
         IMarketDataIngest ingest,
         IMarketDataStore store,
+        IModelRegistry modelRegistry,
         IBrokerSelector selector,
         InMemoryLogSink log,
         ILogger<OrderBookViewModel> logger)
@@ -139,6 +148,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         _hub = hub;
         _ingest = ingest;
         _store = store;
+        _modelRegistry = modelRegistry;
         _selector = selector;
         _log = log;
         _logger = logger;
@@ -367,6 +377,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private void Restart()
     {
         StopStream();
+        SaveModelCheckpoint();
         ResetState();
         var instrument = SelectedInstrument;
         if (instrument is null) return;
@@ -704,7 +715,9 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private async Task InitializeMlAsync(InstrumentId instrumentId, CancellationToken ct)
     {
         var ml = new OrderBookMicroPredictor();
-        if (WarmStartFromHistory)
+        var instrumentKey = instrumentId.ToString();
+        var restored = TryRestoreModel(ml, instrumentKey);
+        if (!restored && WarmStartFromHistory)
         {
             try
             {
@@ -724,7 +737,49 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         }
         if (ct.IsCancellationRequested) return;
         _ml = ml;
+        _mlInstrumentKey = instrumentKey;
         PublishMlForecast();
+    }
+
+    /// <summary>Loads the newest saved checkpoint for this instrument (250 ms cadence) and restores
+    /// it into <paramref name="ml"/>. Returns false (cold) when none is stored or it is incompatible,
+    /// so the caller falls back to the stored-depth warm-start.</summary>
+    private bool TryRestoreModel(OrderBookMicroPredictor ml, string instrumentKey)
+    {
+        try
+        {
+            var key = new ModelKey(
+                OrderBookMicroPredictor.ModelKind, instrumentKey, MlTimeframe, OnlineLinearRegression.ForecasterKind);
+            var saved = _modelRegistry.LoadLatest(key);
+            if (saved is null || !ml.TryRestore(saved)) return false;
+            _log.Append(LogSource, "INFO",
+                $"ML: restored saved model ({saved.SamplesTrained:N0} steps trained, MAE {saved.Metrics.MlMaeTicks:F2}t) — skipping cold warm-start");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Order book: ML restore failed; starting fresh");
+            return false;
+        }
+    }
+
+    /// <summary>Checkpoints the current model into the registry (as a new version) when it is ready
+    /// and scoped to a known instrument — called on restart and window close so the next session
+    /// resumes warm. Best-effort; a store failure is logged, never thrown.</summary>
+    private void SaveModelCheckpoint()
+    {
+        var ml = _ml;
+        if (ml is null || !ml.IsReady || _mlInstrumentKey is null) return;
+        try
+        {
+            var stored = _modelRegistry.Save(ml.CreateArtifact(_mlInstrumentKey, MlTimeframe));
+            _log.Append(LogSource, "INFO",
+                $"ML: saved model for {_mlInstrumentKey} {MlTimeframe} (v{stored.Version}, {ml.SamplesSeen:N0} steps)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Order book: ML checkpoint save failed");
+        }
     }
 
     /// <summary>Replays up to <see cref="WarmStartLookback"/> of stored depth (all brokers merged —
@@ -868,6 +923,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         ImbalanceSlope = ImbalanceIntercept = 0;
         ImbalanceSlopeText = "—"; ImbalanceSlopeDirection = 0;
         _ml = null;
+        _mlInstrumentKey = null;
         _mlWatermarkUtc = DateTime.MinValue;
         _flowSinceStep = 0;
         _tradesSinceStep = 0;
@@ -1034,6 +1090,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _captureTimer.Dispose();
+        SaveModelCheckpoint();
         StopStream();
     }
 }
