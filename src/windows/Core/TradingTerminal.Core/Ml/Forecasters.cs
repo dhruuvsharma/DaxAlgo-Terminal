@@ -72,4 +72,17 @@ public static class Forecasters
         LearnerKind.Logistic => "Logistic (events)",
         _ => kind.ToString(),
     };
+
+    /// <summary>The learners a window's "Model" selector offers for the <em>direction / regression</em>
+    /// banks. Logistic is intentionally excluded — it only fits the binary event heads (where it rides
+    /// on <c>EventLearner</c>), and would squash an unbounded price-move target to a probability.</summary>
+    public static IReadOnlyList<LearnerOption> DirectionChoices { get; } = new[]
+    {
+        new LearnerOption(LearnerKind.Rls, DisplayName(LearnerKind.Rls)),
+        new LearnerOption(LearnerKind.OnlineGradientDescent, DisplayName(LearnerKind.OnlineGradientDescent)),
+        new LearnerOption(LearnerKind.EwmaBaseline, DisplayName(LearnerKind.EwmaBaseline)),
+    };
 }
+
+/// <summary>A learner choice for a UI selector: the <see cref="LearnerKind"/> plus its display name.</summary>
+public sealed record LearnerOption(LearnerKind Kind, string Name);

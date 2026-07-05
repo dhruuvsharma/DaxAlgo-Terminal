@@ -236,6 +236,12 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     // ── ML predictor (online-learned next-bar forecast; see FootprintNextBarPredictor) ────────
     [ObservableProperty] private bool _showMlPrediction = true;
+
+    /// <summary>Selectable learner algorithms for the ML bank (Logistic is excluded — it only fits
+    /// binary event heads, not the direction/POC targets). Switching retrains on the next restart.</summary>
+    public IReadOnlyList<LearnerOption> Learners => Forecasters.DirectionChoices;
+
+    [ObservableProperty] private LearnerOption _selectedLearner = Forecasters.DirectionChoices[0];
     /// <summary>Replay recent stored tape through the predictor on (re)start so it isn't cold.</summary>
     [ObservableProperty] private bool _warmStartFromHistory = true;
     [ObservableProperty] private string _mlSamplesText = "0";
@@ -310,6 +316,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         PublishMlForecast();
         RaiseRedraw();
     }
+
+    partial void OnSelectedLearnerChanged(LearnerOption value) { if (_ready) Restart(); }
 
     // Display-mode / overlay / zoom toggles only change presentation — redraw, don't restart.
     partial void OnSelectedDisplayModeChanged(CellDisplayMode value) => RaiseRedraw();
@@ -447,9 +455,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         // only published to _ml once training is done, so live seals can never race the backfill.
         // Prefer a saved checkpoint for this (instrument, timeframe): if one restores, the model is
         // already warm and we skip the cold backfill. Otherwise warm-start from stored tape as before.
-        var ml = new FootprintNextBarPredictor(tickSize);
+        var learner = SelectedLearner.Kind;
+        var ml = new FootprintNextBarPredictor(tickSize, new FootprintPredictorOptions(Learner: learner));
         var instrumentKey = instrumentId.ToString();
-        var restored = TryRestoreModel(ml, instrumentKey, timeframe);
+        var restored = TryRestoreModel(ml, instrumentKey, timeframe, learner);
         if (!restored && WarmStartFromHistory)
         {
             try
@@ -500,12 +509,12 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     /// <summary>Loads the newest saved checkpoint for this (instrument, timeframe) and restores it
     /// into <paramref name="ml"/>. Returns false (leaving the model cold) when none is stored or the
     /// artifact is incompatible — the caller then falls back to the stored-tape warm-start.</summary>
-    private bool TryRestoreModel(FootprintNextBarPredictor ml, string instrumentKey, string timeframe)
+    private bool TryRestoreModel(FootprintNextBarPredictor ml, string instrumentKey, string timeframe, LearnerKind learner)
     {
         try
         {
             var key = new ModelKey(
-                FootprintNextBarPredictor.ModelKind, instrumentKey, timeframe, OnlineLinearRegression.ForecasterKind);
+                FootprintNextBarPredictor.ModelKind, instrumentKey, timeframe, Forecasters.Tag(learner));
             var saved = _modelRegistry.LoadLatest(key);
             if (saved is null || !ml.TryRestore(saved)) return false;
             _log.Append(LogSource, "INFO",

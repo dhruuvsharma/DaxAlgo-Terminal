@@ -460,6 +460,11 @@
                                   Foreground="{StaticResource MlText}" Margin="0,0,0,4" />
                         <CheckBox Content="Warm-start from history" IsChecked="{Binding WarmStartFromHistory}"
                                   ToolTip="Replay recent stored depth through the model on start so it isn't cold. Takes effect on the next restart (instrument change)." />
+                        <TextBlock Text="Model" FontSize="10" Foreground="{DynamicResource Text.Secondary}" Margin="0,8,0,2" />
+                        <ComboBox ItemsSource="{Binding Learners}"
+                                  SelectedItem="{Binding SelectedLearner}"
+                                  DisplayMemberPath="Name"
+                                  ToolTip="Online-learner algorithm for the direction bank. Switching retrains on the next restart (loads your saved model for that algorithm, or warm-starts fresh)." />
                     </StackPanel>
                 </ScrollViewer>
             </Border>

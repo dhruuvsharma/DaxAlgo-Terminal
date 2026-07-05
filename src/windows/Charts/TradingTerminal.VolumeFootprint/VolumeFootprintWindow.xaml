@@ -131,6 +131,18 @@
                         <MenuItem Header="ML prediction (online)" IsCheckable="True" IsChecked="{Binding ShowMlPrediction}" />
                         <MenuItem Header="Warm-start from history" IsCheckable="True" IsChecked="{Binding WarmStartFromHistory}"
                                   ToolTip="Replay recent stored trade tape through the model on start so it isn't cold. Takes effect on the next restart (instrument/interval/tick change)." />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Model" Style="{StaticResource MenuItemLabel}" VerticalAlignment="Center" />
+                                    <ComboBox Width="150" Margin="8,0,0,0"
+                                              ItemsSource="{Binding Learners}"
+                                              SelectedItem="{Binding SelectedLearner}"
+                                              DisplayMemberPath="Name"
+                                              ToolTip="Online-learner algorithm for the ML bank. Switching retrains on the next restart (loads your saved model for that algorithm, or warm-starts fresh)." />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
                     </MenuItem>
 
                     <!-- Overlays: analytics drawn over the footprint cells. -->

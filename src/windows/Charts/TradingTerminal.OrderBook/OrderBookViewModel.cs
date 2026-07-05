@@ -246,6 +246,12 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     public OrderBookForecast? MlForecast { get; private set; }
 
     [ObservableProperty] private bool _showMlForecast = true;
+
+    /// <summary>Selectable learner algorithms for the direction (microprice) bank (Logistic is
+    /// excluded — it fits the binary event heads). Switching retrains on the next restart.</summary>
+    public IReadOnlyList<LearnerOption> Learners => Forecasters.DirectionChoices;
+
+    [ObservableProperty] private LearnerOption _selectedLearner = Forecasters.DirectionChoices[0];
     /// <summary>Replay recent stored depth through the predictor on (re)start so it isn't cold.</summary>
     [ObservableProperty] private bool _warmStartFromHistory = true;
     [ObservableProperty] private string _mlSamplesText = "0";
@@ -309,6 +315,8 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         PublishMlForecast();
         RaiseRedraw();
     }
+
+    partial void OnSelectedLearnerChanged(LearnerOption value) { if (_ready) Restart(); }
 
     partial void OnIsPausedChanged(bool value) =>
         Status = value
@@ -714,9 +722,10 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// backfill. An empty store or a store error degrades to a cold start.</summary>
     private async Task InitializeMlAsync(InstrumentId instrumentId, CancellationToken ct)
     {
-        var ml = new OrderBookMicroPredictor();
+        var learner = SelectedLearner.Kind;
+        var ml = new OrderBookMicroPredictor(new OrderBookPredictorOptions(Learner: learner));
         var instrumentKey = instrumentId.ToString();
-        var restored = TryRestoreModel(ml, instrumentKey);
+        var restored = TryRestoreModel(ml, instrumentKey, learner);
         if (!restored && WarmStartFromHistory)
         {
             try
@@ -744,12 +753,12 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// <summary>Loads the newest saved checkpoint for this instrument (250 ms cadence) and restores
     /// it into <paramref name="ml"/>. Returns false (cold) when none is stored or it is incompatible,
     /// so the caller falls back to the stored-depth warm-start.</summary>
-    private bool TryRestoreModel(OrderBookMicroPredictor ml, string instrumentKey)
+    private bool TryRestoreModel(OrderBookMicroPredictor ml, string instrumentKey, LearnerKind learner)
     {
         try
         {
             var key = new ModelKey(
-                OrderBookMicroPredictor.ModelKind, instrumentKey, MlTimeframe, OnlineLinearRegression.ForecasterKind);
+                OrderBookMicroPredictor.ModelKind, instrumentKey, MlTimeframe, Forecasters.Tag(learner));
             var saved = _modelRegistry.LoadLatest(key);
             if (saved is null || !ml.TryRestore(saved)) return false;
             _log.Append(LogSource, "INFO",
