@@ -51,7 +51,7 @@ public sealed class FootprintNextBarPredictor
     private readonly List<FootprintBarSummary> _history;
     private readonly List<PendingSnapshot> _pending = new();
 
-    private OnlineLinearRegression[][] _bank;   // [horizon − 1][target]
+    private IOnlineForecaster[][] _bank;   // [horizon − 1][target]
     private OnlineFeatureScaler _scaler;
     private long _barIndex = -1;
     private long _samplesSeen;
@@ -210,7 +210,7 @@ public sealed class FootprintNextBarPredictor
         return new ModelArtifact(
             SchemaVersion: ModelArtifact.CurrentSchemaVersion,
             ModelKind: ModelKind,
-            Algorithm: OnlineLinearRegression.ForecasterKind,
+            Algorithm: _bank[0][0].Kind,
             InstrumentKey: instrumentKey,
             Timeframe: timeframe,
             Features: new FeatureContract(FeatureDim, FeatureNames),
@@ -234,7 +234,7 @@ public sealed class FootprintNextBarPredictor
     {
         if (artifact.SchemaVersion != ModelArtifact.CurrentSchemaVersion) return false;
         if (artifact.ModelKind != ModelKind) return false;
-        if (artifact.Algorithm != OnlineLinearRegression.ForecasterKind) return false;
+        if (artifact.Algorithm != _bank[0][0].Kind) return false;
         if (artifact.Features.Dimension != FeatureDim) return false;
         if (artifact.Scaler.Dimensions != FeatureDim) return false;
         var bank = artifact.Bank(BankName);
@@ -262,14 +262,14 @@ public sealed class FootprintNextBarPredictor
         return true;
     }
 
-    private OnlineLinearRegression[][] CreateBank()
+    private IOnlineForecaster[][] CreateBank()
     {
-        var bank = new OnlineLinearRegression[_options.MaxHorizon][];
+        var bank = new IOnlineForecaster[_options.MaxHorizon][];
         for (var h = 0; h < _options.MaxHorizon; h++)
         {
-            bank[h] = new OnlineLinearRegression[TargetCount];
+            bank[h] = new IOnlineForecaster[TargetCount];
             for (var k = 0; k < TargetCount; k++)
-                bank[h][k] = new OnlineLinearRegression(FeatureDim, _options.Lambda);
+                bank[h][k] = Forecasters.Create(_options.Learner, FeatureDim, _options.Lambda);
         }
         return bank;
     }

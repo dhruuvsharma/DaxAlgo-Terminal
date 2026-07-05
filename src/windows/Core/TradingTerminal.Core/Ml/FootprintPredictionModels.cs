@@ -79,9 +79,11 @@ public readonly record struct ForecastAccuracy(
 /// <param name="MetricsWindow">Rolling window for MAE / hit-rate.</param>
 /// <param name="Lambda">RLS exponential-forgetting factor.</param>
 /// <param name="MinSamplesReady">Per-horizon RLS updates required before forecasts are emitted.</param>
+/// <param name="Learner">Which online-learner algorithm the per-(target × horizon) bank uses.</param>
 public sealed record FootprintPredictorOptions(
     int MaxHorizon = 8,
     int HistoryCapacity = 512,
     int MetricsWindow = 100,
     double Lambda = 0.995,
-    int MinSamplesReady = 20);
+    int MinSamplesReady = 20,
+    LearnerKind Learner = LearnerKind.Rls);

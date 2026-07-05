@@ -155,6 +155,8 @@ public readonly record struct EventScore(double Brier, double BaseRate, long Sco
 /// <param name="SpreadWidenTicks">Spread-widening label threshold, in ticks above the reference spread.</param>
 /// <param name="DepthDrainRatio">Depth-drain label: a side's top-3 depth dips to ≤ this fraction of reference.</param>
 /// <param name="SweepJumpRatio">Sweep-jump label: worst-side sweep cost reaches ≥ this multiple of reference.</param>
+/// <param name="Learner">Online-learner algorithm for the direction (microprice) heads.</param>
+/// <param name="EventLearner">Online-learner algorithm for the binary event heads (logistic recommended).</param>
 public sealed record OrderBookPredictorOptions(
     int FlagshipHorizon = 4,
     int EventWindow = 8,
@@ -165,7 +167,9 @@ public sealed record OrderBookPredictorOptions(
     double BaselineDeadBand = 0.05,
     double SpreadWidenTicks = 1.0,
     double DepthDrainRatio = 0.7,
-    double SweepJumpRatio = 1.25)
+    double SweepJumpRatio = 1.25,
+    LearnerKind Learner = LearnerKind.Rls,
+    LearnerKind EventLearner = LearnerKind.Rls)
 {
     /// <summary>Direction horizons in steps (250 ms each): 250 ms / 500 ms / 1 s / 2 s / 5 s.</summary>
     public IReadOnlyList<int> Horizons { get; init; } = DefaultHorizons;

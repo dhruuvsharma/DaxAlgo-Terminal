@@ -58,8 +58,8 @@ public sealed class OrderBookMicroPredictor
     private readonly RollingBrierScore _depthScore;
     private readonly RollingBrierScore _sweepScore;
 
-    private OnlineLinearRegression[] _directionBank;
-    private OnlineLinearRegression[] _eventBank;
+    private IOnlineForecaster[] _directionBank;
+    private IOnlineForecaster[] _eventBank;
     private OnlineFeatureScaler _scaler;
     private long _stepIndex = -1;
     private long _samplesSeen;
@@ -88,8 +88,8 @@ public sealed class OrderBookMicroPredictor
         _spreadScore = new RollingBrierScore(_options.MetricsWindow);
         _depthScore = new RollingBrierScore(_options.MetricsWindow);
         _sweepScore = new RollingBrierScore(_options.MetricsWindow);
-        _directionBank = CreateBank(_options.Horizons.Count);
-        _eventBank = CreateBank(3);
+        _directionBank = CreateBank(_options.Horizons.Count, _options.Learner);
+        _eventBank = CreateBank(3, _options.EventLearner);
         _scaler = new OnlineFeatureScaler(FeatureDim);
     }
 
@@ -212,8 +212,8 @@ public sealed class OrderBookMicroPredictor
 
     public void Reset()
     {
-        _directionBank = CreateBank(_options.Horizons.Count);
-        _eventBank = CreateBank(3);
+        _directionBank = CreateBank(_options.Horizons.Count, _options.Learner);
+        _eventBank = CreateBank(3, _options.EventLearner);
         _scaler = new OnlineFeatureScaler(FeatureDim);
         _ring.Clear();
         _pendingDirections.Clear();
@@ -273,7 +273,7 @@ public sealed class OrderBookMicroPredictor
         return new ModelArtifact(
             SchemaVersion: ModelArtifact.CurrentSchemaVersion,
             ModelKind: ModelKind,
-            Algorithm: OnlineLinearRegression.ForecasterKind,
+            Algorithm: _directionBank[0].Kind,
             InstrumentKey: instrumentKey,
             Timeframe: timeframe,
             Features: new FeatureContract(FeatureDim, FeatureNames),
@@ -300,7 +300,7 @@ public sealed class OrderBookMicroPredictor
     {
         if (artifact.SchemaVersion != ModelArtifact.CurrentSchemaVersion) return false;
         if (artifact.ModelKind != ModelKind) return false;
-        if (artifact.Algorithm != OnlineLinearRegression.ForecasterKind) return false;
+        if (artifact.Algorithm != _directionBank[0].Kind) return false;
         if (artifact.Features.Dimension != FeatureDim) return false;
         if (artifact.Scaler.Dimensions != FeatureDim) return false;
         var direction = artifact.Bank(DirectionBankName);
@@ -331,10 +331,10 @@ public sealed class OrderBookMicroPredictor
         return true;
     }
 
-    private OnlineLinearRegression[] CreateBank(int count)
+    private IOnlineForecaster[] CreateBank(int count, LearnerKind kind)
     {
-        var bank = new OnlineLinearRegression[count];
-        for (var i = 0; i < count; i++) bank[i] = new OnlineLinearRegression(FeatureDim, _options.Lambda);
+        var bank = new IOnlineForecaster[count];
+        for (var i = 0; i < count; i++) bank[i] = Forecasters.Create(kind, FeatureDim, _options.Lambda);
         return bank;
     }
 
