@@ -148,7 +148,7 @@
   -->
   <Target Name="StageSigmaIcFlowPlugin" AfterTargets="Build">
     <PropertyGroup>
-      <SigmaIcFlowOut>..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\bin\$(Configuration)\$(TargetFramework)</SigmaIcFlowOut>
+      <SigmaIcFlowOut>$(DaxAlgoOutputBase)src\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\bin\$(Configuration)\$(TargetFramework)</SigmaIcFlowOut>
       <SigmaIcFlowPluginDir>$(OutDir)plugins\TradingTerminal.Strategies.SigmaIcFlow</SigmaIcFlowPluginDir>
     </PropertyGroup>
     <ItemGroup>
@@ -168,7 +168,7 @@
   -->
   <Target Name="StageIndexRegimeGraphPlugin" AfterTargets="Build">
     <PropertyGroup>
-      <IndexRegimeGraphOut>..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\bin\$(Configuration)\$(TargetFramework)</IndexRegimeGraphOut>
+      <IndexRegimeGraphOut>$(DaxAlgoOutputBase)src\windows\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\bin\$(Configuration)\$(TargetFramework)</IndexRegimeGraphOut>
       <IndexRegimeGraphPluginDir>$(OutDir)plugins\TradingTerminal.Strategies.IndexRegimeGraph</IndexRegimeGraphPluginDir>
     </PropertyGroup>
     <ItemGroup>
@@ -207,16 +207,16 @@
 
   <Target Name="StageStrategyPlugins" AfterTargets="Build">
     <ItemGroup>
-      <StrategyPluginFile Include="..\..\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).dll">
+      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).dll">
         <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
       </StrategyPluginFile>
-      <StrategyPluginFile Include="..\..\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).pdb">
+      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).pdb">
         <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
       </StrategyPluginFile>
-      <StrategyPluginFile Include="..\..\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\plugin.json">
+      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\plugin.json">
         <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
       </StrategyPluginFile>
-      <StrategyPluginFile Condition="'@(HelixStrategyPlugin)' != ''" Include="..\..\Strategies\%(HelixStrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\HelixToolkit.Wpf.dll">
+      <StrategyPluginFile Condition="'@(HelixStrategyPlugin)' != ''" Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(HelixStrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\HelixToolkit.Wpf.dll">
         <PluginDir>$(OutDir)plugins\%(HelixStrategyPlugin.Identity)</PluginDir>
       </StrategyPluginFile>
     </ItemGroup>

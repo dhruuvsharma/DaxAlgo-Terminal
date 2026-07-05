@@ -29,6 +29,32 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Platforms>AnyCPU</Platforms>
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+
+    <!-- Base directory under which each project's bin lives, mirroring the repo layout. Default:
+         in-tree (repo root, trailing slash). Overridden below when build output is redirected
+         (Windows dev). Plugin-staging targets use it to locate a sibling project's built output
+         regardless of whether the redirect is active. -->
+    <DaxAlgoOutputBase>$(MSBuildThisFileDirectory)</DaxAlgoOutputBase>
+  </PropertyGroup>
+
+  <!--
+    Build-output redirect (Windows dev only). This repo lives on a small D: drive that the
+    two-tree solution's bin/obj (~2 GB) repeatedly fills — which cascades into "metadata file not
+    found" / restore errors. Send all build output to a roomy drive instead, keyed by each
+    project's repo-relative path so the windows/ and linux/ trees (which deliberately share project
+    names) never collide, and so the layout under the root mirrors the repo.
+
+    Gated on Windows: a Linux/Pi build must keep its default in-tree output (a 'C:\' path would be
+    nonsense there). Override the destination by setting a DaxAlgoBuildRoot env var / MSBuild
+    property. BaseIntermediateOutputPath must be set here (in Directory.Build.props) so it lands
+    before the SDK computes the obj/ location.
+  -->
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <DaxAlgoBuildRoot Condition="'$(DaxAlgoBuildRoot)' == ''">C:\DaxAlgoBuild</DaxAlgoBuildRoot>
+    <_DaxAlgoProjectRel>$([MSBuild]::MakeRelative($(MSBuildThisFileDirectory), $(MSBuildProjectDirectory)))</_DaxAlgoProjectRel>
+    <BaseIntermediateOutputPath>$(DaxAlgoBuildRoot)\$(_DaxAlgoProjectRel)\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(DaxAlgoBuildRoot)\$(_DaxAlgoProjectRel)\bin\</BaseOutputPath>
+    <DaxAlgoOutputBase>$(DaxAlgoBuildRoot)\</DaxAlgoOutputBase>
   </PropertyGroup>
 
 </Project>

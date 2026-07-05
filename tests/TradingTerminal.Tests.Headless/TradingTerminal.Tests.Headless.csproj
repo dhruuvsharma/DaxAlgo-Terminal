@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <Target Name="StageSamplePlugin" AfterTargets="Build">
-    <Copy SourceFiles="..\..\samples\DaxAlgo.SamplePlugin\bin\$(Configuration)\$(TargetFramework)\DaxAlgo.SamplePlugin.dll"
+    <Copy SourceFiles="$(DaxAlgoOutputBase)samples\DaxAlgo.SamplePlugin\bin\$(Configuration)\$(TargetFramework)\DaxAlgo.SamplePlugin.dll"
           DestinationFolder="$(OutDir)TestPlugins\DaxAlgo.SamplePlugin\"
           SkipUnchangedFiles="true" />
   </Target>
