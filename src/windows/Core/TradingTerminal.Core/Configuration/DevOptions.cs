@@ -13,6 +13,15 @@ public sealed class DevOptions
     public const string SectionName = "Dev";
 
     /// <summary>
+    /// Which product <see cref="AppEdition"/> this run composes as. Lets a single build be launched
+    /// as Basic / Intermediate / Professional (one launch profile each) for testing the tier
+    /// differences — the login screen's broker set and the shell menu follow it. Defaults to
+    /// <see cref="AppEdition.Professional"/> (the shipped exe's edition), so a normal launch is
+    /// unchanged. Set via the <c>Dev__Edition</c> environment variable in the launch profiles.
+    /// </summary>
+    public AppEdition Edition { get; set; } = AppEdition.Professional;
+
+    /// <summary>
     /// When true, the app skips the login window on startup, auto-connects
     /// <see cref="AutoConnectBrokers"/>, and opens the main shell directly. Tightens the
     /// debug loop when the login + broker handshake is already settled.

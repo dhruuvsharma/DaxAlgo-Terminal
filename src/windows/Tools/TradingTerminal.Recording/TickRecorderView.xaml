@@ -36,9 +36,10 @@
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Instrument" VerticalAlignment="Center" Margin="0,0,8,0" />
             <uic:InstrumentPicker Grid.Column="1"
-                      ShowSearch="False"
+                      ShowSearch="True"
                       ItemsSource="{Binding Instruments}"
                       SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                       IsEnabled="{Binding IsRecording, Converter={StaticResource InverseBooleanConverter}}" />
             <TextBlock Grid.Column="3" Text="Output" VerticalAlignment="Center" Margin="0,0,8,0" />
             <TextBox Grid.Column="4"

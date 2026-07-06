@@ -13,31 +13,15 @@ using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
-using TradingTerminal.Login;
 using TradingTerminal.Infrastructure;
-using TradingTerminal.Infrastructure.AiAnalyst;
-using TradingTerminal.Infrastructure.MarketData;
-using TradingTerminal.Infrastructure.MarketData.Archive;
-using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
-using TradingTerminal.Infrastructure.Notifications;
-using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.Infrastructure.Research;
 using TradingTerminal.Infrastructure.Sidecar;
 using TradingTerminal.UI.Converters;
 using TradingTerminal.UI.Logging;
-// Per-tool projects (Charts menu + Tools menu + AI tools), each shipping its own Add*Surface extension.
-using TradingTerminal.Charts;
-using TradingTerminal.OrderBook;
-using TradingTerminal.VolumeFootprint;
-using TradingTerminal.Correlation;
-using TradingTerminal.Heatmap;
+// Pro-only per-tool projects (App.Core ships only the COMMON surfaces; these are the Professional add-ons).
 using TradingTerminal.BubbleChart;
 using TradingTerminal.SurfaceLab;
-using TradingTerminal.Backtest;
-using TradingTerminal.BacktestStudio;
 using TradingTerminal.LseBacktest;
-using TradingTerminal.Recording;
-using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Ml.Stationarity;
 using TradingTerminal.Ml.ArimaGarch;
 using TradingTerminal.Ml.KalmanFilter;
@@ -168,39 +152,47 @@ public partial class App : Application
                 services.Configure<SimulatedBrokerOptions>(
                     ctx.Configuration.GetSection(SimulatedBrokerOptions.SectionName));
 
-                // Cross-cutting infrastructure
+                // Cross-cutting: the shared Activity Log sink instance (same one the Serilog sink above
+                // writes to). Registered before AddCoreShell so its TryAdd is a no-op and this instance wins.
                 services.AddSingleton(inMemoryLogSink);
-                services.AddSingleton<TradingTerminal.UI.Theming.IThemeManager, TradingTerminal.UI.Theming.ThemeManager>();
-                services.AddTradingTerminalInfrastructure();
-                services.AddMarketDataPipeline(ctx.Configuration);
-                services.AddMarketDataArchive(ctx.Configuration);
-                services.AddParquetLake(ctx.Configuration);
-                services.AddNotifications(ctx.Configuration);
-                // Market regime — registered after AddNotifications so its risk-off signal gate
-                // supersedes the notifications module's no-op default.
-                services.AddMarketRegime(ctx.Configuration);
 
-                // Feature modules — each is a one-line manifest entry.
-                services.AddStrategyPlugins();
-                services.AddLogin();
-                services.AddShell();
-                services.AddBacktestSurface();
-                services.AddBacktestStudioSurface();
+                // Which edition to compose as. The shipped exe is Professional; a launch profile can set
+                // Dev:Edition (via the Dev__Edition env var) to Basic / Intermediate to test the tier
+                // differences in this single build. (AppEdition is a value type, so register it through
+                // the non-generic Type/instance overload.)
+                var edition = ctx.Configuration.GetSection(DevOptions.SectionName).Get<DevOptions>()?.Edition
+                              ?? AppEdition.Professional;
+                services.AddSingleton(typeof(AppEdition), edition);
+
+                // Broker layer: shared broker-neutral infrastructure + keyless (crypto/Simulated) always;
+                // credentialed brokers (IB/NT/cTrader/Alpaca/Ironbeam/LSE/Upstox) are an Intermediate-and-up
+                // surface, so Basic is keyless-only.
+                services.AddInfrastructureCore();
+                services.AddKeylessBrokers();
+                if (edition >= AppEdition.Intermediate)
+                    services.AddCredentialedBrokers();
+
+                // Common composition shared by every edition (pipeline / archive / notifications / regime /
+                // strategy plug-ins / login / shell + window host / support / settings / AI-analyst seam +
+                // the common tool & chart surfaces + cross-cutting singletons).
+                services.AddCoreShell(ctx.Configuration);
+
+                if (edition < AppEdition.Professional)
+                {
+                    // Basic / Intermediate: the common menu only, and NO tier-exclusive launch commands
+                    // (MainWindowViewModel.ExtendedTools stays null, so the Pro menu items never bind).
+                    // The Professional-only surfaces below are simply not registered.
+                    services.AddTransient<IShellMenuBar, CommonMenuBar>();
+                    return;
+                }
+
+                // ── Professional-only surfaces (layered on top of AddCoreShell) ─────────────────────
                 // LSE Tools menu — backtester that pulls historical bars straight from the LSE broker.
                 services.AddLseBacktestSurface();
-                services.AddSettingsSurface();
-                services.AddSupport();
-                services.AddRecordingSurface();
-                services.AddCorrelationSurface();
-                // Charts menu tools.
-                services.AddChartsSurface();
-                services.AddOrderBookSurface();
-                services.AddFootprintSurface();
-                services.AddHeatmapSurface();
+                // Charts menu extras.
                 services.AddBubbleChartSurface(); // experimental bubble-line chart
-                services.AddSurfaceLabSurface(); // 3D quant surface lab (parameter / seasonality / cross-sectional)
-                // AI tools — the analyst client seam (Null/Http) plus the four AI UI panels.
-                services.AddAiAnalyst(ctx.Configuration);
+                services.AddSurfaceLabSurface();   // 3D quant surface lab
+                // AI UI panels (the analyst client seam itself is wired in AddCoreShell).
                 services.AddMarketAnalyst();
                 services.AddFactorResearch();
                 services.AddMlFeatures();
@@ -212,15 +204,17 @@ public partial class App : Application
                 // Managed local Python sidecar (daxalgo-ml): auto-launch on startup when AI/research is
                 // enabled, kill on exit, on-demand start from the login screen — no manual command.
                 services.AddSidecar(ctx.Configuration);
-                // Regime tools — Advanced market regime panel.
-                services.AddAdvancedMarketRegimeSurface();
                 // Machine Learning menu — time-series statistics panels.
                 services.AddStationaritySurface();
                 services.AddArimaGarchSurface();
                 services.AddKalmanFilterSurface();
                 // QuantConnect / LEAN — polyglot subprocess backtest seam + tool window.
                 services.AddQuantConnectSurface(ctx.Configuration);
-                services.AddArchiveSurface();
+
+                // Tier-exclusive launch commands + the full Professional menu, consumed by the shell VM
+                // (ExtendedTools) and its MenuBar region.
+                services.AddSingleton<IShellExtendedToolCommands, ProfessionalToolCommands>();
+                services.AddTransient<IShellMenuBar, ProfessionalMenuBar>();
             })
             .Build();
 

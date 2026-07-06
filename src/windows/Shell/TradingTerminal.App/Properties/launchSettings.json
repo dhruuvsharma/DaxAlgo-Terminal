@@ -3,6 +3,24 @@
     "App (Login)": {
       "commandName": "Project"
     },
+    "Edition: Basic (login)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "Dev__Edition": "Basic"
+      }
+    },
+    "Edition: Intermediate (login)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "Dev__Edition": "Intermediate"
+      }
+    },
+    "Edition: Professional (login)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "Dev__Edition": "Professional"
+      }
+    },
     "Dev: Simulated (offline)": {
       "commandName": "Project",
       "environmentVariables": {

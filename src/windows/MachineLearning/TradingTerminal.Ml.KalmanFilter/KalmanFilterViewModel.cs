@@ -73,11 +73,13 @@ public sealed partial class KalmanFilterViewModel : ViewModelBase
         QrRatio = 1e-3;
 
         AllInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
-        SecondInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "QQQ")
-                           ?? Instruments.Skip(1).FirstOrDefault();
+        // Hide-until-search: empty visible list; ApplyInstrumentFilter (below) collapses it to the selections.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+        SecondInstrument = InstrumentPickerFilter.InitialSelection(SecondInstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "QQQ") ?? AllInstruments.Skip(1).FirstOrDefault());
+        ApplyInstrumentFilter();
 
         _ = LoadInstrumentsAsync();
     }
@@ -87,6 +89,11 @@ public sealed partial class KalmanFilterViewModel : ViewModelBase
     public ObservableCollection<double> QrRatios { get; }
     public ObservableCollection<SignalInstrument> Instruments { get; private set; }
     public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+
+    /// <summary>Keys under which this window remembers its two selected instruments (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "ml.kalman";
+    private const string SecondInstrumentPersistKey = "ml.kalman.second";
 
     /// <summary>Chart payload for the view renderer. Null until the first successful run.</summary>
     public KalmanChartData? ChartData { get; private set; }
@@ -334,9 +341,15 @@ public sealed partial class KalmanFilterViewModel : ViewModelBase
             if (list is null || list.Count == 0) return;
             AllInstruments = list.Select(i => new SignalInstrument(
                 i.DisplayName, i.Category, i.Contract, i.Broker)).ToList();
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+            SelectedInstrument = (SelectedInstrument?.Contract.Symbol is { } prev
+                                     ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                                 ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, AllInstruments)
+                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault();
-            SecondInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "QQQ")
+            SecondInstrument = (SecondInstrument?.Contract.Symbol is { } prev2
+                                   ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev2) : null)
+                               ?? InstrumentPickerFilter.Remembered(SecondInstrumentPersistKey, AllInstruments)
+                               ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "QQQ")
                                ?? AllInstruments.Skip(1).FirstOrDefault();
             ApplyInstrumentFilter();
         }
@@ -346,24 +359,18 @@ public sealed partial class KalmanFilterViewModel : ViewModelBase
         }
     }
 
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
+    /// <summary>Hide-until-search: no term shows only the two current selections; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so neither selection flickers out.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText,
+            new[] { SelectedInstrument, SecondInstrument }, MaxInstrumentsDisplayed));
 
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-        var keep2 = SecondInstrument;
-        if (keep2 is not null && !shown.Contains(keep2)) shown.Insert(0, keep2);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        OnPropertyChanged(nameof(Instruments));
-        SelectedInstrument = keep is not null && Instruments.Contains(keep) ? keep : Instruments.FirstOrDefault();
-        SecondInstrument = keep2 is not null && Instruments.Contains(keep2) ? keep2 : Instruments.Skip(1).FirstOrDefault();
-    }
+    /// <summary>Remember the two selected instruments so the window reopens on them.</summary>
+    partial void OnSelectedInstrumentChanged(SignalInstrument? value) =>
+        LastInstrumentStore.Save(InstrumentPersistKey, value?.Contract.Symbol);
+    partial void OnSecondInstrumentChanged(SignalInstrument? value) =>
+        LastInstrumentStore.Save(SecondInstrumentPersistKey, value?.Contract.Symbol);
 
     private sealed record Analysis(KalmanChartData Chart, KalmanResult Result, int PointCount);
 }

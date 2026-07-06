@@ -38,19 +38,31 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
         _repository = repository;
         _selector = selector;
         _logger = logger;
-        Instruments = SignalInstrumentCatalog.All;
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "EUR")
-                             ?? Instruments[0];
+        AllInstruments = SignalInstrumentCatalog.All;
+        // Hide-until-search: empty visible list; ApplyFilter (below) collapses it to the selection.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "EUR") ?? AllInstruments.FirstOrDefault());
+        ApplyFilter();
         var defaultDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DaxAlgo Terminal", "recordings");
         OutputPath = Path.Combine(defaultDir, $"ticks-{DateTime.UtcNow:yyyyMMdd-HHmm}.parquet");
     }
 
-    public IReadOnlyList<SignalInstrument> Instruments { get; }
+    public ObservableCollection<SignalInstrument> Instruments { get; }
+
+    /// <summary>Full instrument universe; the search box filters this into <see cref="Instruments"/>.</summary>
+    public IReadOnlyList<SignalInstrument> AllInstruments { get; }
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.recording";
+
     public ObservableCollection<RecorderTickPreview> RecentTicks { get; } = new();
     public const int PreviewSize = 30;
 
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private string _outputPath = "";
     [ObservableProperty] private bool _isRecording;
     [ObservableProperty] private long _ticksWritten;
@@ -59,6 +71,14 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private double? _lastAsk;
     [ObservableProperty] private string _elapsed = "00:00:00";
     [ObservableProperty] private string? _validationError;
+
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
+
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, 500));
 
     [RelayCommand]
     private async Task BrowseOutput()
@@ -160,6 +180,8 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        // Remember the instrument the user was last recording so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _writer?.DisposeAsync().AsTask().Wait();

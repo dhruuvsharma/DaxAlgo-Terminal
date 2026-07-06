@@ -49,6 +49,20 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddTradingTerminalInfrastructure(this IServiceCollection services)
     {
+        services.AddInfrastructureCore();
+        services.AddKeylessBrokers();
+        services.AddCredentialedBrokers();
+        return services;
+    }
+
+    /// <summary>
+    /// Shared broker-neutral infrastructure — UI dispatcher, event bus, session, API meter, the
+    /// broker selector + market-data repository, the clock, and the Parquet query layer. Registers
+    /// NO broker clients; pair with <see cref="AddKeylessBrokers"/> and/or
+    /// <see cref="AddCredentialedBrokers"/>. Every edition shell calls this first.
+    /// </summary>
+    public static IServiceCollection AddInfrastructureCore(this IServiceCollection services)
+    {
 #if WINDOWS
         services.TryAddSingleton<IUiDispatcher, WpfDispatcher>();
 #else
@@ -58,10 +72,33 @@ public static class DependencyInjection
         services.TryAddSingleton<IEventBus, EventBus>();
         services.TryAddSingleton<SessionContext>();
 
-        // API-call meter — singleton, used by every broker via MeteredBrokerClient decorator
-        // below, polled by the header chip widget in the WPF shell.
+        // API-call meter — singleton, used by every broker via MeteredBrokerClient decorator,
+        // polled by the header chip widget in the WPF shell.
         services.AddSingleton<IBrokerApiMeter, BrokerApiMeter>();
 
+        services.AddSingleton<IBrokerSelector, BrokerSelector>();
+        services.AddSingleton<IMarketDataRepository, MarketDataRepository>();
+
+        // Clock seam — shared by the backtest engine and live signal-timing.
+        services.TryAddSingleton<IClock, SystemClock>();
+
+        // Read-only analytical query layer over the Parquet tick archive (DuckDB, embedded).
+        // DuckDB native is Windows-only in this build; off-Windows we register a stub that fails loudly.
+#if WINDOWS
+        services.TryAddSingleton<IParquetQueryService, DuckDbParquetQueryService>();
+#else
+        services.TryAddSingleton<IParquetQueryService, UnsupportedParquetQueryService>();
+#endif
+        return services;
+    }
+
+    /// <summary>
+    /// Credentialed brokers — Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, London
+    /// Strategic Edge, Upstox — plus their login helpers. Registered from the Intermediate edition
+    /// up (Basic ships keyless brokers only). IB/NT ride their build-time DLL gates.
+    /// </summary>
+    public static IServiceCollection AddCredentialedBrokers(this IServiceCollection services)
+    {
 #if HAS_IBAPI
         services.AddSingleton<IBrokerClient>(sp =>
             new MeteredBrokerClient(
@@ -130,21 +167,6 @@ public static class DependencyInjection
                     : "Connected to paper-api.alpaca.markets (paper trading).");
         });
 
-        // Binance — always available (public market data over WebSocket + REST; no SDK, no key,
-        // no account). Real, live crypto bars / L1 / L2 / trades — the zero-credential way to run
-        // the terminal against a real feed. Metered like the other networked brokers.
-        services.AddSingleton<IBrokerClient>(sp =>
-            new MeteredBrokerClient(
-                ActivatorUtilities.CreateInstance<RealBinanceClient>(sp),
-                sp.GetRequiredService<IBrokerApiMeter>()));
-
-        services.AddSingleton<BrokerConnectionMode>(_ =>
-            new BrokerConnectionMode(
-                BrokerKind.Binance,
-                IsLive: true,
-                DisplayName: "Binance (live data)",
-                Description: "Public Binance market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
-
         // Ironbeam — always available (futures FCM over a hand-rolled REST + WebSocket API v2; no SDK
         // DLL gate, just HTTP). JWT auth from username + API key, market data through a server-created
         // stream (L1 quotes / L2 depth / real trade tape). Demo or live by options. Metered like the
@@ -200,6 +222,31 @@ public static class DependencyInjection
                 DisplayName: "Upstox",
                 Description: "Indian markets (NSE/BSE) — REST + WebSocket API v2/v3; OAuth2, live L1 + 5-level depth, historical candles. Data-only."));
 
+        return services;
+    }
+
+    /// <summary>
+    /// Keyless brokers — the public crypto feeds (Binance, Coinbase, Bybit, Kraken, OKX) and the
+    /// in-process Simulated feed. No API key, no account. Available in every edition (including
+    /// Basic). The networked feeds are metered; Simulated is not (no external calls to count).
+    /// </summary>
+    public static IServiceCollection AddKeylessBrokers(this IServiceCollection services)
+    {
+        // Binance — public market data over WebSocket + REST; no SDK, no key, no account. Real,
+        // live crypto bars / L1 / L2 / trades — the zero-credential way to run the terminal against
+        // a real feed. Metered like the other networked brokers.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealBinanceClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
+                BrokerKind.Binance,
+                IsLive: true,
+                DisplayName: "Binance (live data)",
+                Description: "Public Binance market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
+
         // Coinbase / Bybit / Kraken / OKX — always available (public crypto market data over
         // WebSocket + REST; no SDK, no key, no account). Real, live bars / L1 / L2 / trades — the same
         // zero-credential pattern as Binance. Metered like the other networked brokers.
@@ -253,20 +300,6 @@ public static class DependencyInjection
                     ? "Replays recorded data from the local store as a live feed — offline, no broker."
                     : "In-process random-walk feed. Fully offline — no broker, no network.");
         });
-
-        services.AddSingleton<IBrokerSelector, BrokerSelector>();
-        services.AddSingleton<IMarketDataRepository, MarketDataRepository>();
-
-        // Clock seam — shared by the backtest engine and live signal-timing.
-        services.TryAddSingleton<IClock, SystemClock>();
-
-        // Read-only analytical query layer over the Parquet tick archive (DuckDB, embedded).
-        // DuckDB native is Windows-only in this build; off-Windows we register a stub that fails loudly.
-#if WINDOWS
-        services.TryAddSingleton<IParquetQueryService, DuckDbParquetQueryService>();
-#else
-        services.TryAddSingleton<IParquetQueryService, UnsupportedParquetQueryService>();
-#endif
 
         return services;
     }

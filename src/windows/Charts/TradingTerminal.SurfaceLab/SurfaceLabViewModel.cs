@@ -88,10 +88,13 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
         SelectedTimeframe = Timeframes.First(t => t.BarSize == BarSize.OneMinute);
 
         AllInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
-                             ?? Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search: empty visible list; ApplyInstrumentFilter (below) collapses it to the selection.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
+                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                  ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
 
         SelectedMode = Modes[0];
 
@@ -185,6 +188,10 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
         WAxis.SetOptions(SurfaceAxisCatalog.OptionsFor(value.Mode, SurfaceAxisRole.Color), preferredIndex: 3 /* count */);
         if (IsLive) _dirty = true; // live surface re-targets on the next tick
     }
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.surfacelab";
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
     partial void OnShowPeakMarkerChanged(bool value) => SurfaceUpdated?.Invoke(this, EventArgs.Empty);
@@ -540,6 +547,8 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        // Remember the instrument the user was last on so this window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _rebuildTimer.Dispose();
         StopLive(null);
         _runCts?.Cancel();
@@ -577,7 +586,10 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
             if (list is null || list.Count == 0) return;
             AllInstruments = list.Select(i => new SignalInstrument(
                 i.DisplayName, i.Category, i.Contract, i.Broker)).ToList();
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
+            SelectedInstrument = (SelectedInstrument?.Contract.Symbol is { } prev
+                                     ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                                 ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, AllInstruments)
+                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault();
             ApplyInstrumentFilter();
@@ -588,21 +600,11 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        OnPropertyChanged(nameof(Instruments));
-        SelectedInstrument = keep is not null && Instruments.Contains(keep) ? keep : Instruments.FirstOrDefault();
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 }
 
 /// <summary>Surface-mode dropdown row.</summary>

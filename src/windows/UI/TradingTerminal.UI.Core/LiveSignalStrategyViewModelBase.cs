@@ -101,10 +101,13 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         // fills the registry the moment a broker connects, so if any broker is already up this is the
         // real, discovered universe; if none is up yet it's empty and the picker fills on connect.
         AllInstruments = RegistryRows();
-        Instruments = new ObservableCollection<SignalInstrument>(
-            AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search: start with an empty visible list (ApplyInstrumentFilter collapses it to
+        // just the selection) and restore the instrument last used in this strategy window, falling
+        // back to the old SPY default only on first-ever use. See InstrumentPickerFilter.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(StrategyId, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
 
@@ -272,6 +275,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             var prevSymbol = SelectedInstrument?.Contract.Symbol;
             SelectedInstrument =
                 (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? InstrumentPickerFilter.Remembered(StrategyId, AllInstruments)
                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
                 ?? AllInstruments.FirstOrDefault();
@@ -317,27 +321,13 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
 
-    /// <summary>Rebuilds <see cref="Instruments"/> from <see cref="AllInstruments"/> using the
-    /// current search text, capped at <see cref="MaxInstrumentsDisplayed"/>. The selected item
-    /// is preserved (and force-included) so the picker never blanks out mid-filter.</summary>
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i =>
-                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        SelectedInstrument = keep is not null && Instruments.Contains(keep)
-            ? keep
-            : Instruments.FirstOrDefault();
-    }
+    /// <summary>Rebuilds the visible <see cref="Instruments"/> for the picker. With no search text it
+    /// collapses to just the current selection — the predefined universe stays hidden until the user
+    /// searches; typing filters <see cref="AllInstruments"/>. Rebuilt in place so the selection never
+    /// flickers out. See <see cref="InstrumentPickerFilter"/>.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     /// <summary>Subclasses build a fresh <see cref="IBacktestStrategy"/> here using their
     /// current parameter property values.</summary>
@@ -766,6 +756,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     public void Dispose()
     {
+        // Remember the instrument the user was last on so this strategy window reopens on it.
+        LastInstrumentStore.Save(StrategyId, SelectedInstrument?.Contract.Symbol);
         _services.Selector.StateChanged -= OnBrokerStateChanged;
         _streamCts?.Cancel();
         _streamCts?.Dispose();

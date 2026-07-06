@@ -61,10 +61,11 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _logger = logger;
 
         AllInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(
-            AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search + restore the last instrument used here (see InstrumentPickerFilter).
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
 
         TrailPoints = new ObservableCollection<CubePoint>();
         _ = LoadInstrumentsAsync();
@@ -77,6 +78,10 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _appLogSink.Append(LogSource, level, message);
 
     public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "orderflow.cube";
 
     [ObservableProperty] private ObservableCollection<SignalInstrument> _instruments = new();
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
@@ -130,7 +135,10 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
             AllInstruments = list
                 .Select(i => new SignalInstrument(i.DisplayName, i.Category, i.Contract, i.Broker))
                 .ToList();
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+            SelectedInstrument = (SelectedInstrument?.Contract.Symbol is { } prev
+                                     ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                                 ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, AllInstruments)
+                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "ES")
                                  ?? AllInstruments.FirstOrDefault();
             ApplyInstrumentFilter();
@@ -162,19 +170,11 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
 
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i =>
-                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        SelectedInstrument = keep is not null && Instruments.Contains(keep) ? keep : Instruments.FirstOrDefault();
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     [RelayCommand]
     private void Continue()
@@ -441,6 +441,8 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        // Remember the instrument the user was last on so this window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _streamCts?.Cancel();
         _streamCts?.Dispose();
         _streamCts = null;

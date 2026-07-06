@@ -62,9 +62,11 @@ public sealed partial class StationarityViewModel : ViewModelBase
         SelectedTransform = Transforms[0];
 
         AllInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search: empty visible list; ApplyInstrumentFilter (below) collapses it to the selection.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
 
         _ = LoadInstrumentsAsync();
     }
@@ -73,6 +75,10 @@ public sealed partial class StationarityViewModel : ViewModelBase
     public ObservableCollection<TransformOption> Transforms { get; }
     public ObservableCollection<SignalInstrument> Instruments { get; private set; }
     public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "ml.stationarity";
 
     /// <summary>Chart payload for the view renderer. Null until the first successful run.</summary>
     public StationarityChartData? ChartData { get; private set; }
@@ -265,7 +271,10 @@ public sealed partial class StationarityViewModel : ViewModelBase
             if (list is null || list.Count == 0) return;
             AllInstruments = list.Select(i => new SignalInstrument(
                 i.DisplayName, i.Category, i.Contract, i.Broker)).ToList();
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+            SelectedInstrument = (SelectedInstrument?.Contract.Symbol is { } prev
+                                     ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                                 ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, AllInstruments)
+                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault();
             ApplyInstrumentFilter();
         }
@@ -275,21 +284,15 @@ public sealed partial class StationarityViewModel : ViewModelBase
         }
     }
 
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        OnPropertyChanged(nameof(Instruments));
-        SelectedInstrument = keep is not null && Instruments.Contains(keep) ? keep : Instruments.FirstOrDefault();
-    }
+    /// <summary>Remember the last selected instrument so the window reopens on it.</summary>
+    partial void OnSelectedInstrumentChanged(SignalInstrument? value) =>
+        LastInstrumentStore.Save(InstrumentPersistKey, value?.Contract.Symbol);
 
     private sealed record StationarityAnalysis(
         StationarityChartData Chart,

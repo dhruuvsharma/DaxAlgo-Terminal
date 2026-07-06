@@ -89,8 +89,9 @@ Capture priority is flagged **P1** (front-page / most-viewed), **P2** (feature d
 
 | Pri | Filename | What to capture |
 |---|---|---|
-| P1 | `login-window.png` | The login window with the broker tiles and the Auto Connect option. |
-| P2 | `login-services-panel.png` | The "Services & external dependencies" expander showing the probe rows (sidecar, Docker, IB TWS, NinjaTrader, Ollama) with re-check. |
+| P1 | `login-window.png` | ✅ **Captured.** The login window with the broker tiles and the Auto Connect option. |
+| P2 | `login-services-panel.png` | ✅ **Captured.** The "Services & external dependencies" expander showing the probe rows (sidecar, Docker, IB TWS, NinjaTrader, Ollama) with re-check. |
+| — | `video/login-window.mp4` | ✅ **Captured.** Walkthrough of all brokers, the services panel, and launching the terminal (wired into `getting-started.md` + `brokers.md`). |
 | P3 | `login-broker-ib.png` | IB login form (host/port/clientId). |
 | P3 | `login-broker-alpaca.png` | Alpaca login form (key/secret, paper/live toggle). |
 | P3 | `login-broker-ctrader.png` | cTrader OAuth login form. |

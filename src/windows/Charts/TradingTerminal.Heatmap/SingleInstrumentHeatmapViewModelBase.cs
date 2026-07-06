@@ -24,6 +24,10 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
 {
     public const int MaxInstrumentsDisplayed = 500;
 
+    /// <summary>Key under which this window's last selected instrument is remembered
+    /// (see <see cref="LastInstrumentStore"/>). One heatmap window today, so a constant suffices.</summary>
+    protected virtual string InstrumentPersistKey => "tool.heatmap";
+
     /// <summary>Redraw cadence — decoupled from the data feed so a fast book/tape can't thrash the UI.</summary>
     private static readonly TimeSpan RenderInterval = TimeSpan.FromMilliseconds(200);
 
@@ -53,9 +57,11 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
         Logger = logger;
 
         _allInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(_allInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search + restore the last instrument used here (see InstrumentPickerFilter).
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
+            () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
+        ApplyFilter();
 
         // Coalesced render tick via the portable timer seam (WPF/Avalonia dispatcher). IDisposable.
         _renderTimer = UiThread.CreateRenderTimer(RenderInterval, () => OnRenderTick(this, EventArgs.Empty));
@@ -149,11 +155,13 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
                 .Select(i => new SignalInstrument($"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}", i.Category, i.Contract, i.Broker))
                 .ToList();
 
-            var keep = SelectedInstrument;
+            var prevSymbol = SelectedInstrument?.Contract.Symbol;
+            SelectedInstrument =
+                (prevSymbol is not null ? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, _allInstruments)
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? _allInstruments.FirstOrDefault();
             ApplyFilter();
-            SelectedInstrument = keep is not null && Instruments.Contains(keep)
-                ? keep
-                : _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault();
         }
         catch (Exception ex)
         {
@@ -161,20 +169,12 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
         }
     }
 
-    private void ApplyFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = _allInstruments;
-        if (term.Length > 0)
-            query = _allInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments.Clear();
-        foreach (var inst in shown) Instruments.Add(inst);
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="_allInstruments"/>. Rebuilt in place so the selection (and thus the stream) never
+    /// flickers out. See <see cref="InstrumentPickerFilter"/>.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_allInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     private void Restart()
     {
@@ -244,6 +244,8 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
 
     public virtual void Dispose()
     {
+        // Remember the instrument the user was last streaming so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _renderTimer.Dispose();
         StopStream();
     }

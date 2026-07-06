@@ -8,10 +8,19 @@ This doc covers how to set each one up. For the architectural rationale and per-
 
 ## Screenshots
 
-> 🖼️ **Screenshot:** `images/login-window.png` — the login window with every broker tile + Auto Connect.
-> 🖼️ **Screenshot:** `images/login-services-panel.png` — the "Services & external dependencies" probe panel.
-> 🖼️ **Screenshot:** `images/login-broker-ib.png` · `images/login-broker-ctrader.png` · `images/login-broker-alpaca.png` — example per-broker login forms.
-> 🎬 **Video:** `images/video/shell-tour.mp4` — multi-broker login + Auto Connect (opening of the tour).
+The login window with every broker tile + Auto Connect:
+
+![Login window — all broker tiles](../images/login-window.png)
+
+The **Services & external dependencies** panel — probes each optional external launch (sidecar, Docker,
+IB TWS, NinjaTrader, Ollama):
+
+![Login window — Services & external dependencies panel](../images/login-services-panel.png)
+
+🎬 **Video:** [`images/video/login-window.mp4`](../images/video/login-window.mp4) — all available
+brokers, the services panel, and launching the terminal.
+
+> 🖼️ **Screenshot:** `images/login-broker-ib.png` · `images/login-broker-ctrader.png` · `images/login-broker-alpaca.png` — example per-broker login forms _(coming soon)_.
 
 ## Capability matrix
 

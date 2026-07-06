@@ -80,6 +80,10 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     /// <summary>Raised on each live forming/closed candle for the active instrument.</summary>
     public event EventHandler<ChartCandle>? CandleUpdated;
 
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.charts";
+
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedInstrumentChanged(TradableInstrument? value) => QueueReload();
     partial void OnSelectedTimeframeChanged(ChartTimeframe? value) => QueueReload();
@@ -111,10 +115,14 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
                 return;
             }
             _allInstruments = list;
+            SelectedInstrument =
+                (SelectedInstrument?.Contract.Symbol is { } prev
+                    ? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, _allInstruments, i => i.Contract.Symbol)
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                ?? _allInstruments.FirstOrDefault();
             ApplyFilter();
-            SelectedInstrument = _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                                 ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
-                                 ?? _allInstruments.FirstOrDefault();
             Status = $"{_allInstruments.Count} instruments.";
         }
         catch (Exception ex)
@@ -124,18 +132,12 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void ApplyFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<TradableInstrument> query = _allInstruments;
-        if (term.Length > 0)
-            query = _allInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-        var keep = SelectedInstrument;
-        Instruments.Clear();
-        foreach (var inst in query.Take(MaxInstrumentsDisplayed)) Instruments.Add(inst);
-        if (keep is not null && !Instruments.Contains(keep)) Instruments.Insert(0, keep);
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="_allInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_allInstruments, InstrumentSearchText, SelectedInstrument,
+            MaxInstrumentsDisplayed, i => i.DisplayName));
 
     private async Task ReloadAsync()
     {
@@ -278,6 +280,8 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        // Remember the instrument the user was last charting so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         StopLive();

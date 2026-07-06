@@ -12,7 +12,7 @@
                  WindowStartupLocation="CenterScreen"
                  ShowMaxRestoreButton="False"
                  ShowMinButton="True"
-                 Icon="pack://application:,,,/Icon/DaxAlgoLogo.ico"
+                 Icon="pack://application:,,,/TradingTerminal.App.Core;component/Icon/DaxAlgoLogo.ico"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
 
@@ -245,7 +245,7 @@
                     <Border Width="76" Height="76" CornerRadius="16"
                             HorizontalAlignment="Center"
                             Background="#ECECEC">
-                        <Image Source="pack://application:,,,/Icon/DaxAlgoLogo.png"
+                        <Image Source="pack://application:,,,/TradingTerminal.App.Core;component/Icon/DaxAlgoLogo.png"
                                Width="54" Height="54"
                                RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>

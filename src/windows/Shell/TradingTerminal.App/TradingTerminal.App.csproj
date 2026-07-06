@@ -1,74 +1,50 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Icon\DaxAlgoLogo.ico</ApplicationIcon>
-    <Description>WPF shell, DI bootstrap, MainWindow.</Description>
+    <!-- app.manifest + the EXE icon now live in App.Core (shared across editions); point at them there. -->
+    <ApplicationManifest>..\TradingTerminal.App.Core\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\TradingTerminal.App.Core\Icon\DaxAlgoLogo.ico</ApplicationIcon>
+    <Description>Professional-edition WPF shell: App.Core (common shell + tools) plus every Pro-only surface (ML / AI panels / LSE / QuantConnect / Surface Lab / experimental bubble chart) and the full menu.</Description>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Resource Include="Icon\DaxAlgoLogo.ico" />
-    <Resource Include="Icon\DaxAlgoLogo.png" />
-  </ItemGroup>
 
   <PropertyGroup>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <!-- Common shell + tools/charts + DI composition — everything shared across editions. -->
+    <ProjectReference Include="..\TradingTerminal.App.Core\TradingTerminal.App.Core.csproj" />
+    <!-- Referenced directly by App.xaml.cs (broker options, AddInfrastructureCore/Keyless/Credentialed,
+         Paper research + sidecar wiring, converter/log-sink seams, AppEdition). -->
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
-    <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
-    <ProjectReference Include="..\..\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
-    <!-- Every first-party strategy ships as an EXTERNAL plugin, not a compile-time reference: build it
-         (for ordering) but don't link it (ReferenceOutputAssembly=false), then the StageStrategyPlugins
-         target (below) copies each DLL + pdb + plugin.json (and HelixToolkit for the 3D-cube plugins)
-         into {OutDir}/plugins so PluginLoader discovers + loads them at runtime in their own collectible
-         load context. To revert one to compile-time: drop ReferenceOutputAssembly + re-add its
-         Add<Name>Strategy() in AppDependencyInjection. -->
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.SigmaIcFlow\TradingTerminal.Strategies.SigmaIcFlow.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\TradingTerminal.Strategies.IndexRegimeGraph.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.CumulativeDelta\TradingTerminal.Strategies.CumulativeDelta.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.FilteredOrderFlow\TradingTerminal.Strategies.FilteredOrderFlow.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowCube\TradingTerminal.Strategies.OrderFlowCube.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowSurfaceSpike\TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.ImbalanceHeatFront\TradingTerminal.Strategies.ImbalanceHeatFront.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.IndexKScoreSurface\TradingTerminal.Strategies.IndexKScoreSurface.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" ReferenceOutputAssembly="false" />
-    <!-- Charts-menu tools -->
-    <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
-    <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
-    <ProjectReference Include="..\..\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
-    <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
-    <!-- Experimental: Volume Bubble Line chart (separate from the live Charts/OrderBook/Bookmap). -->
+
+    <!-- ── Pro-only feature surfaces (NOT in App.Core) ─────────────────────────────────────────── -->
+    <!-- Experimental: Volume Bubble Line chart. -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.BubbleChart\TradingTerminal.BubbleChart.csproj" />
-    <!-- 3D quant surface lab (parameter landscapes / seasonality / cross-sectional surfaces) -->
+    <!-- 3D quant surface lab. -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.SurfaceLab\TradingTerminal.SurfaceLab.csproj" />
-    <!-- Tools-menu surfaces -->
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
+    <!-- LSE Tools menu — backtester over LSE historical bars. -->
     <ProjectReference Include="..\..\Tools\TradingTerminal.LseBacktest\TradingTerminal.LseBacktest.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
-    <!-- Machine Learning-menu tools -->
+    <!-- QuantConnect / LEAN integration. -->
+    <ProjectReference Include="..\..\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
+    <!-- Machine Learning-menu tools. -->
     <ProjectReference Include="..\..\MachineLearning\TradingTerminal.Ml.Stationarity\TradingTerminal.Ml.Stationarity.csproj" />
     <ProjectReference Include="..\..\MachineLearning\TradingTerminal.Ml.ArimaGarch\TradingTerminal.Ml.ArimaGarch.csproj" />
     <ProjectReference Include="..\..\MachineLearning\TradingTerminal.Ml.KalmanFilter\TradingTerminal.Ml.KalmanFilter.csproj" />
-    <!-- AI tools (shared seam ref is above; these are the UI panels) -->
+    <!-- AI tool panels (the shared IAiAnalystClient seam is wired in App.Core's AddCoreShell). -->
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.MarketAnalyst\TradingTerminal.Ai.MarketAnalyst.csproj" />
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.FactorResearch\TradingTerminal.Ai.FactorResearch.csproj" />
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.MlFeatures\TradingTerminal.Ai.MlFeatures.csproj" />
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.BacktestAnalysis\TradingTerminal.Ai.BacktestAnalysis.csproj" />
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
-    <!-- QuantConnect / LEAN integration -->
-    <ProjectReference Include="..\..\Tools\TradingTerminal.QuantConnect\TradingTerminal.QuantConnect.csproj" />
-    <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
   </ItemGroup>
+
+  <!-- Strategy plug-ins staged as external DLLs into {OutDir}/plugins (shared across editions). -->
+  <Import Project="..\StrategyPlugins.targets" />
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
@@ -84,7 +60,6 @@
     <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
   </ItemGroup>
 
   <ItemGroup>
@@ -132,96 +107,12 @@
     </None>
     <!--
       GPU parameter-sweep accelerator. Built by tools/cpp-backtester/gpu/build.bat (nvcc); when
-      present it's copied next to the app where ProcessGpuOptimizer resolves it. Missing â‡’ the
+      present it's copied next to the app where ProcessGpuOptimizer resolves it. Missing => the
       Studio transparently falls back to the CPU optimizer.
     -->
     <None Include="..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe')" Link="gpu_optimizer.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
-  <!--
-    Stage SigmaIcFlow as an external strategy plugin: copy its built DLL + manifest into
-    {OutDir}/plugins/<assembly-name>/ (the loader's folder/<folder>.dll convention) so the app
-    discovers it at runtime via PluginLoader. Runs after build; the SigmaIcFlow ProjectReference
-    above (ReferenceOutputAssembly=false) guarantees it's built first.
-  -->
-  <Target Name="StageSigmaIcFlowPlugin" AfterTargets="Build">
-    <PropertyGroup>
-      <SigmaIcFlowOut>$(DaxAlgoOutputBase)src\windows\Strategies\TradingTerminal.Strategies.SigmaIcFlow\bin\$(Configuration)\$(TargetFramework)</SigmaIcFlowOut>
-      <SigmaIcFlowPluginDir>$(OutDir)plugins\TradingTerminal.Strategies.SigmaIcFlow</SigmaIcFlowPluginDir>
-    </PropertyGroup>
-    <ItemGroup>
-      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.dll" />
-      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.pdb" />
-      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\plugin.json" />
-    </ItemGroup>
-    <Copy SourceFiles="@(SigmaIcFlowPluginFiles)" DestinationFolder="$(SigmaIcFlowPluginDir)" SkipUnchangedFiles="true" />
-    <Message Importance="high" Text="Staged SigmaIcFlow plugin -> $(SigmaIcFlowPluginDir)" />
-  </Target>
-
-  <!--
-    Stage IndexRegimeGraph as an external strategy plugin (mirrors StageSigmaIcFlowPlugin): copy its
-    built DLL + manifest into {OutDir}/plugins/<assembly-name>/ so the app discovers it at runtime via
-    PluginLoader. The IndexRegimeGraph ProjectReference above (ReferenceOutputAssembly=false) guarantees
-    it's built first.
-  -->
-  <Target Name="StageIndexRegimeGraphPlugin" AfterTargets="Build">
-    <PropertyGroup>
-      <IndexRegimeGraphOut>$(DaxAlgoOutputBase)src\windows\Strategies\TradingTerminal.Strategies.IndexRegimeGraph\bin\$(Configuration)\$(TargetFramework)</IndexRegimeGraphOut>
-      <IndexRegimeGraphPluginDir>$(OutDir)plugins\TradingTerminal.Strategies.IndexRegimeGraph</IndexRegimeGraphPluginDir>
-    </PropertyGroup>
-    <ItemGroup>
-      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.dll" />
-      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.pdb" />
-      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\plugin.json" />
-    </ItemGroup>
-    <Copy SourceFiles="@(IndexRegimeGraphPluginFiles)" DestinationFolder="$(IndexRegimeGraphPluginDir)" SkipUnchangedFiles="true" />
-    <Message Importance="high" Text="Staged IndexRegimeGraph plugin -> $(IndexRegimeGraphPluginDir)" />
-  </Target>
-
-  <!--
-    Stage the remaining first-party strategies that ship as EXTERNAL plugins (same model as
-    SigmaIcFlow/IndexRegimeGraph above, but batched). Each is referenced ReferenceOutputAssembly=false
-    so it builds but is not linked; here its DLL + pdb + plugin.json are copied into
-    {OutDir}/plugins/<assembly>/ for PluginLoader to discover at runtime. The 3D-cube plugins also
-    carry HelixToolkit.Wpf as a PRIVATE dependency (nothing else in the host graph pulls it in), so it
-    is copied alongside them and resolved from the plugin's own load-context folder.
-  -->
-  <ItemGroup>
-    <StrategyPlugin Include="TradingTerminal.Strategies.CumulativeDelta" />
-    <StrategyPlugin Include="TradingTerminal.Strategies.FilteredOrderFlow" />
-    <StrategyPlugin Include="TradingTerminal.Strategies.OrderFlowPressureMap" />
-    <StrategyPlugin Include="TradingTerminal.Strategies.OrderFlowCube" />
-    <StrategyPlugin Include="TradingTerminal.Strategies.OrderFlowSurfaceSpike" />
-    <StrategyPlugin Include="TradingTerminal.Strategies.ImbalanceHeatFront" />
-    <StrategyPlugin Include="TradingTerminal.Strategies.IndexKScoreSurface" />
-    <!-- HelixToolkit.Wpf is a PRIVATE dependency of the 3D-cube plugins and is pulled in by nothing
-         else in the host graph, so it must be copied into each plugin's own folder for the ALC to
-         resolve it at load time. -->
-    <HelixStrategyPlugin Include="TradingTerminal.Strategies.OrderFlowCube" />
-    <HelixStrategyPlugin Include="TradingTerminal.Strategies.OrderFlowSurfaceSpike" />
-    <HelixStrategyPlugin Include="TradingTerminal.Strategies.ImbalanceHeatFront" />
-    <HelixStrategyPlugin Include="TradingTerminal.Strategies.IndexKScoreSurface" />
-  </ItemGroup>
-
-  <Target Name="StageStrategyPlugins" AfterTargets="Build">
-    <ItemGroup>
-      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).dll">
-        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
-      </StrategyPluginFile>
-      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).pdb">
-        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
-      </StrategyPluginFile>
-      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\plugin.json">
-        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
-      </StrategyPluginFile>
-      <StrategyPluginFile Condition="'@(HelixStrategyPlugin)' != ''" Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(HelixStrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\HelixToolkit.Wpf.dll">
-        <PluginDir>$(OutDir)plugins\%(HelixStrategyPlugin.Identity)</PluginDir>
-      </StrategyPluginFile>
-    </ItemGroup>
-    <Copy SourceFiles="@(StrategyPluginFile)" DestinationFolder="%(StrategyPluginFile.PluginDir)" SkipUnchangedFiles="true" />
-    <Message Importance="high" Text="Staged strategy plugins -> $(OutDir)plugins" />
-  </Target>
 
 </Project>

@@ -73,9 +73,11 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
             row.PropertyChanged += OnRowToggleChanged;
 
         AllInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search: empty visible list; ApplyInstrumentFilter (below) collapses it to the selection.
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
 
         HeaderCells = new ObservableCollection<string>();
         Rows = new ObservableCollection<DashboardRow>();
@@ -103,6 +105,10 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
     [ObservableProperty] private bool _autoRefresh;
     [ObservableProperty] private int _refreshSeconds = 30;
     [ObservableProperty] private string _lastUpdated = "never";
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.advancedregime";
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
 
@@ -153,7 +159,10 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
                 i.Category,
                 i.Contract,
                 i.Broker)).ToList();
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+            SelectedInstrument = (SelectedInstrument?.Contract.Symbol is { } prev
+                                     ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                                 ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, AllInstruments)
+                                 ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
                                  ?? AllInstruments.FirstOrDefault();
             ApplyInstrumentFilter();
@@ -164,21 +173,11 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
         }
     }
 
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        OnPropertyChanged(nameof(Instruments));
-        SelectedInstrument = keep is not null && Instruments.Contains(keep) ? keep : Instruments.FirstOrDefault();
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     [RelayCommand]
     public async Task AnalyzeAsync()
@@ -293,6 +292,8 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
     /// <summary>Stops the auto-refresh loop and any in-flight analyze when the tab closes.</summary>
     public void Dispose()
     {
+        // Remember the instrument the user was last analyzing so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _autoCts?.Cancel();
         _autoCts?.Dispose();
         _autoCts = null;

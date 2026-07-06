@@ -81,8 +81,16 @@ The **login window** opens with broker tiles. Connect one or more (sessions are 
 main shell opens. Tick **Auto Connect** to have every broker with saved credentials connect
 automatically on future launches.
 
-> 🖼️ **Screenshot:** `images/login-window.png` — the login window with the broker tiles and Auto
-> Connect.
+![Login window — broker tiles and Auto Connect](../images/login-window.png)
+
+The **Services & external dependencies** expander lists every optional external launch (Python
+sidecar, Docker, IB TWS, NinjaTrader, Ollama) and probes whether each is running, with a copy-command
+and re-check button — so you know exactly what's needed before you connect.
+
+![Login window — Services & external dependencies panel](../images/login-services-panel.png)
+
+🎬 **Video walkthrough:** [`images/video/login-window.mp4`](../images/video/login-window.mp4) —
+all available brokers, the services panel, and launching the terminal.
 
 ### Dev launch profiles (skip login, run offline) — Windows
 

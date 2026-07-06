@@ -154,14 +154,16 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         _logger = logger;
 
         _allInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(_allInstruments.Take(MaxInstrumentsDisplayed));
+        // Hide-until-search: empty visible list; ApplyFilter (below) collapses it to the selection.
+        Instruments = new ObservableCollection<SignalInstrument>();
         SweepSizes = new ObservableCollection<int> { 100, 500, 1_000, 5_000, 10_000 };
         _selectedSweepSize = 1_000;
         HeatWindowOptions = new ObservableCollection<int> { 300, 600, 1_200, 2_400 };
         _heatWindowColumns = DefaultHeatColumns;
         PresetNames = new ObservableCollection<string>(_presetStore.Names);
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
+            () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
+        ApplyFilter();
 
         // Coalesced capture/render tick via the portable timer seam (WPF Dispatcher / Avalonia
         // Dispatcher under the hood). Returns an IDisposable owned by this VM.
@@ -301,6 +303,10 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     /// redraw. The ladder + strip are plain bindings and update themselves.</summary>
     public event EventHandler? BookChanged;
 
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.orderbook";
+
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedInstrumentChanged(SignalInstrument? value) { if (_ready) Restart(); }
     partial void OnSelectedSweepSizeChanged(int value) { if (_latest is { } s) UpdateSweepCost(s); }
@@ -355,11 +361,13 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
                 .Select(i => new SignalInstrument($"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}", i.Category, i.Contract, i.Broker))
                 .ToList();
 
-            var keep = SelectedInstrument;
+            var prevSymbol = SelectedInstrument?.Contract.Symbol;
+            SelectedInstrument =
+                (prevSymbol is not null ? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, _allInstruments)
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? _allInstruments.FirstOrDefault();
             ApplyFilter();
-            SelectedInstrument = keep is not null && Instruments.Contains(keep)
-                ? keep
-                : _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault();
         }
         catch (Exception ex)
         {
@@ -367,20 +375,12 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void ApplyFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = _allInstruments;
-        if (term.Length > 0)
-            query = _allInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments.Clear();
-        foreach (var inst in shown) Instruments.Add(inst);
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="_allInstruments"/>. Rebuilt in place so the selection (and thus the stream) never
+    /// flickers out. See <see cref="InstrumentPickerFilter"/>.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_allInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     private void Restart()
     {
@@ -1098,6 +1098,8 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        // Remember the instrument the user was last streaming so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _captureTimer.Dispose();
         SaveModelCheckpoint();
         StopStream();

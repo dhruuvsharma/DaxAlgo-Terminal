@@ -102,6 +102,10 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     private DateTime _lastSignalDayUtc;
     private DateTime _lastSignalTimeUtc = DateTime.MinValue;
 
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "cumulative.delta";
+
     public CumulativeDeltaViewModel(
         LiveStrategyHostServices services,
         INotificationPublisher notifications,
@@ -112,10 +116,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _logger = logger;
 
         AllInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(
-            AllInstruments.Take(MaxInstrumentsDisplayed));
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.DisplayName.StartsWith("EUR.USD"))
-                             ?? Instruments.FirstOrDefault();
+        // Hide-until-search + restore the last instrument used here (see InstrumentPickerFilter).
+        Instruments = new ObservableCollection<SignalInstrument>();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
+            () => AllInstruments.FirstOrDefault(i => i.DisplayName.StartsWith("EUR.USD")) ?? AllInstruments.FirstOrDefault());
+        ApplyInstrumentFilter();
 
         TimeframeOptions = new[]
         {
@@ -147,7 +152,10 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
                 .ToList();
 
             // Prefer EUR.USD (the EA's home pair) if the broker offers FX; else the first symbol.
-            SelectedInstrument = AllInstruments.FirstOrDefault(i => i.DisplayName.StartsWith("EUR.USD"))
+            SelectedInstrument = (SelectedInstrument?.Contract.Symbol is { } prev
+                                     ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                                 ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, AllInstruments)
+                                 ?? AllInstruments.FirstOrDefault(i => i.DisplayName.StartsWith("EUR.USD"))
                                  ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol.StartsWith("EURUSD"))
                                  ?? AllInstruments.FirstOrDefault();
             ApplyInstrumentFilter();
@@ -170,23 +178,11 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     partial void OnInstrumentSearchTextChanged(string value) => ApplyInstrumentFilter();
 
-    private void ApplyInstrumentFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = AllInstruments;
-        if (term.Length > 0)
-            query = AllInstruments.Where(i =>
-                i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-
-        Instruments = new ObservableCollection<SignalInstrument>(shown);
-        SelectedInstrument = keep is not null && Instruments.Contains(keep)
-            ? keep
-            : Instruments.FirstOrDefault();
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="AllInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     // ---------- Setup form bindings ----------
 
@@ -421,6 +417,8 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
     public void Dispose()
     {
+        // Remember the instrument the user was last on so this window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;

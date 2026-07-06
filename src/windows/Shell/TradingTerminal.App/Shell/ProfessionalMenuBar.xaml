@@ -1,0 +1,149 @@
+<UserControl x:Class="TradingTerminal.App.Shell.ProfessionalMenuBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <!-- Full Professional-edition menu. DataContext is the shell MainWindowViewModel (inherited from the
+         host ContentControl). Common items bind directly to the VM's commands; Pro-only items bind
+         through {Binding ExtendedTools.*} (an IShellExtendedToolCommands the Professional shell registers). -->
+    <Menu Background="{DynamicResource Gradient.Chrome}"
+          Foreground="{DynamicResource Text.Primary}"
+          BorderBrush="{DynamicResource Border.Brush}"
+          BorderThickness="0,0,0,1">
+
+        <MenuItem Header="_File">
+            <MenuItem Header="_Reconnect to broker"
+                      Command="{Binding ReconnectCommand}" />
+            <MenuItem Header="Start _QuestDB"
+                      Command="{Binding StartQuestDbCommand}"
+                      ToolTip="Launch Docker Desktop (if needed) and the QuestDB container, then enable tick persistence without restarting." />
+            <Separator />
+            <MenuItem Header="E_xit"
+                      Command="{Binding ExitCommand}"
+                      InputGestureText="Alt+F4" />
+        </MenuItem>
+
+        <MenuItem Header="_View">
+            <MenuItem Header="Activity _log"
+                      IsCheckable="True"
+                      IsChecked="{Binding IsLogVisible, Mode=TwoWay}" />
+            <Separator />
+            <MenuItem Header="_Theme" ItemsSource="{Binding Themes}">
+                <MenuItem.ItemContainerStyle>
+                    <Style TargetType="MenuItem">
+                        <Setter Property="Header" Value="{Binding Name}" />
+                        <Setter Property="IsCheckable" Value="True" />
+                        <Setter Property="IsChecked" Value="{Binding IsCurrent, Mode=OneWay}" />
+                        <Setter Property="Command"
+                                Value="{Binding DataContext.ApplyThemeCommand, RelativeSource={RelativeSource AncestorType=Menu}}" />
+                        <Setter Property="CommandParameter" Value="{Binding Id}" />
+                    </Style>
+                </MenuItem.ItemContainerStyle>
+            </MenuItem>
+            <MenuItem Header="_Customize theme… (Theme Studio)"
+                      Command="{Binding OpenThemeStudioCommand}"
+                      ToolTip="Open the live colour editor — tweak any palette token, then save and share custom themes." />
+        </MenuItem>
+
+        <MenuItem Header="_Tools">
+            <MenuItem Header="_Backtest Studio…"
+                      Command="{Binding OpenBacktestStudioCommand}" />
+            <MenuItem Header="_Record live ticks…"
+                      Command="{Binding OpenRecorderCommand}" />
+            <MenuItem Header="_Advanced market regime…"
+                      Command="{Binding OpenAdvancedRegimeCommand}" />
+            <MenuItem Header="_Correlation matrix…"
+                      Command="{Binding OpenCorrelationCommand}" />
+            <MenuItem Header="_Live correlation matrix…"
+                      Command="{Binding OpenLiveCorrelationCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_Plugins">
+            <MenuItem Header="_Manage strategy plugins…"
+                      Command="{Binding OpenPluginManagerCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_LSE Tools">
+            <MenuItem Header="LSE _backtester…"
+                      Command="{Binding ExtendedTools.OpenLseBacktestCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_Charts">
+            <MenuItem Header="C_harts…"
+                      Command="{Binding OpenChartsCommand}" />
+            <MenuItem Header="_Order book…"
+                      Command="{Binding OpenOrderBookCommand}" />
+            <MenuItem Header="_Volume footprint…"
+                      Command="{Binding OpenFootprintCommand}" />
+            <MenuItem Header="_Bookmap + VolBook…"
+                      Command="{Binding OpenBookmapCommand}" />
+            <MenuItem Header="3D _Surface lab…"
+                      Command="{Binding ExtendedTools.OpenSurfaceLabCommand}" />
+            <Separator />
+            <MenuItem Header="🧪 Volume _bubble line (experimental)…"
+                      Command="{Binding ExtendedTools.OpenBubbleChartCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_Machine learning">
+            <MenuItem Header="_Stationarity &amp; differencing…"
+                      Command="{Binding ExtendedTools.OpenStationarityCommand}" />
+            <MenuItem Header="_ARIMA &amp; GARCH…"
+                      Command="{Binding ExtendedTools.OpenArimaGarchCommand}" />
+            <MenuItem Header="_Kalman filter…"
+                      Command="{Binding ExtendedTools.OpenKalmanFilterCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_QuantConnect / LEAN">
+            <MenuItem Header="_Backtest runner…"
+                      Command="{Binding ExtendedTools.OpenQuantConnectBacktestCommand}" />
+            <MenuItem Header="_Projects…"
+                      Command="{Binding ExtendedTools.OpenQuantConnectProjectsCommand}" />
+            <MenuItem Header="_Data sync…"
+                      Command="{Binding ExtendedTools.OpenQuantConnectDataCommand}" />
+            <Separator />
+            <MenuItem Header="_Settings &amp; status…"
+                      Command="{Binding ExtendedTools.OpenQuantConnectSettingsCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_AI tools">
+            <MenuItem Header="_Factor research…"
+                      Command="{Binding ExtendedTools.OpenResearchCommand}" />
+            <MenuItem Header="_ML features…"
+                      Command="{Binding ExtendedTools.OpenMlFeaturesCommand}" />
+            <MenuItem Header="_Backtest analysis…"
+                      Command="{Binding ExtendedTools.OpenBacktestAnalysisCommand}" />
+            <Separator />
+            <MenuItem Header="_Market analyst…"
+                      Command="{Binding ExtendedTools.OpenAiAnalystCommand}" />
+            <MenuItem Header="_Paper Lab…"
+                      Command="{Binding ExtendedTools.OpenPaperLabCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_Data">
+            <MenuItem Header="_Market data archive…"
+                      Command="{Binding OpenArchiveSettingsCommand}" />
+            <MenuItem Header="Archive _history…"
+                      Command="{Binding OpenArchiveActivityCommand}" />
+            <Separator />
+            <MenuItem Header="_Instant offload (all pending)…"
+                      Command="{Binding InstantOffloadCommand}" />
+        </MenuItem>
+
+        <MenuItem Header="_Settings">
+            <MenuItem Header="_Notifications…"
+                      Command="{Binding OpenNotificationsSettingsCommand}" />
+            <MenuItem Header="_Research (Paper Lab)…"
+                      Command="{Binding OpenResearchSettingsCommand}"
+                      ToolTip="Enable the Paper Lab reproduction sidecar (paper → repo resolution)." />
+        </MenuItem>
+
+        <MenuItem Header="_Help">
+            <MenuItem Header="_Support the developer…"
+                      Command="{Binding OpenSupportCommand}"
+                      ToolTip="Send feedback to the developer and learn how to support the project." />
+            <MenuItem Header="_About DaxAlgo Terminal…"
+                      Command="{Binding OpenSupportCommand}" />
+        </MenuItem>
+    </Menu>
+</UserControl>

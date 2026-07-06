@@ -52,6 +52,14 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
 
     private BacktestStrategyOption? _option;
 
+    /// <summary>Current broker-scoped universe (crypto for Binance, else the shared catalog); the
+    /// search box filters this into <see cref="Instruments"/>.</summary>
+    private IReadOnlyList<SignalInstrument> _backtestUniverse = Array.Empty<SignalInstrument>();
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.quickbacktest";
+
     public QuickBacktestViewModel(
         IBacktestStrategyRegistry registry,
         IBacktestSession session,
@@ -107,6 +115,7 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string _strategyDisplayName = "Strategy";
 
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private BarSize _selectedBarSize;
     [ObservableProperty] private LookbackOption _selectedLookback;
     [ObservableProperty] private BrokerKind _selectedBroker;
@@ -138,6 +147,13 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
     }
 
     partial void OnSelectedBrokerChanged(BrokerKind value) => RebuildInstrumentsFor(value);
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
+
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters the
+    /// broker-scoped universe. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_backtestUniverse, InstrumentSearchText, SelectedInstrument, 500));
 
     /// <summary>Raised after a run completes so the view can redraw the ScottPlot equity curve.</summary>
     public event EventHandler? EquityCurveUpdated;
@@ -170,7 +186,9 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
             SelectedBroker = BrokerKind.Binance;          // rebuilds Instruments to the crypto universe
             SelectedDataMode = QuickBacktestDataMode.FullTapeRealTrades;
             SelectedLookback = Lookbacks.First(l => l.Duration == TimeSpan.FromHours(2));
-            SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT") ?? Instruments.FirstOrDefault();
+            SelectedInstrument = InstrumentPickerFilter.Remembered(InstrumentPersistKey, _backtestUniverse)
+                                 ?? _backtestUniverse.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
+                                 ?? _backtestUniverse.FirstOrDefault();
         }
 
         if (RunCommand.CanExecute(null)) RunCommand.Execute(null);
@@ -190,11 +208,13 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
     /// <summary>Binance shows the crypto universe; every other broker uses the shared signal catalog.</summary>
     private void RebuildInstrumentsFor(BrokerKind broker)
     {
-        var keep = SelectedInstrument?.Contract.Symbol;
-        Instruments.Clear();
-        var source = broker == BrokerKind.Binance ? CryptoInstruments() : SignalInstrumentCatalog.All;
-        foreach (var i in source) Instruments.Add(i);
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == keep) ?? Instruments.FirstOrDefault();
+        _backtestUniverse = broker == BrokerKind.Binance ? CryptoInstruments() : SignalInstrumentCatalog.All;
+        SelectedInstrument =
+            (SelectedInstrument?.Contract.Symbol is { } prev
+                ? _backtestUniverse.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+            ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, _backtestUniverse)
+            ?? _backtestUniverse.FirstOrDefault();
+        ApplyFilter();
     }
 
     private static IReadOnlyList<SignalInstrument> CryptoInstruments() => new[]
@@ -344,6 +364,8 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
     /// <summary>Cancels any in-flight run when the window closes so a long backtest doesn't outlive it.</summary>
     public void Dispose()
     {
+        // Remember the instrument the user last backtested so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         try { _runCts?.Cancel(); }
         catch (ObjectDisposedException) { /* run already completed and disposed the CTS */ }
     }

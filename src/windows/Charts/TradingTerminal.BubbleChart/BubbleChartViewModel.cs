@@ -95,12 +95,15 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
         _logger = logger;
 
         _allInstruments = SignalInstrumentCatalog.All;
-        Instruments = new ObservableCollection<SignalInstrument>(_allInstruments.Take(MaxInstrumentsDisplayed));
+        // Hide-until-search: empty visible list; ApplyFilter (below) collapses it to the selection.
+        Instruments = new ObservableCollection<SignalInstrument>();
         Timeframes = new ObservableCollection<HeatTimeframe>(AllTimeframes);
 
-        SelectedInstrument = Instruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
-                             ?? Instruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                             ?? Instruments.FirstOrDefault();
+        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
+            () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
+                  ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                  ?? _allInstruments.FirstOrDefault());
+        ApplyFilter();
         SelectedTimeframe = Timeframes.First(t => t.Label == "1 s");
         RetainedOptions = new ObservableCollection<int> { 180, 360, 720 };
         _retainedColumns = MaxRetained;
@@ -178,6 +181,10 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
         return _trades.Where(t => t.Large).ToArray();
     }
 
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.bubblechart";
+
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedInstrumentChanged(SignalInstrument? value) { if (_ready) Restart(); }
 
@@ -223,13 +230,13 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
             _allInstruments = list
                 .Select(i => new SignalInstrument($"{i.DisplayName}  ·  {BrokerLabel(i.Broker)}", i.Category, i.Contract, i.Broker))
                 .ToList();
-            var keep = SelectedInstrument;
-            ApplyFilter();
-            SelectedInstrument = keep is not null && Instruments.Contains(keep)
-                ? keep
-                : _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
-                  ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                  ?? _allInstruments.FirstOrDefault();
+            var prevSymbol = SelectedInstrument?.Contract.Symbol;
+            SelectedInstrument =
+                (prevSymbol is not null ? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, _allInstruments)
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? _allInstruments.FirstOrDefault();
         }
         catch (Exception ex)
         {
@@ -237,18 +244,12 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void ApplyFilter()
-    {
-        var term = InstrumentSearchText?.Trim() ?? string.Empty;
-        IEnumerable<SignalInstrument> query = _allInstruments;
-        if (term.Length > 0)
-            query = _allInstruments.Where(i => i.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase));
-        var shown = query.Take(MaxInstrumentsDisplayed).ToList();
-        var keep = SelectedInstrument;
-        if (keep is not null && !shown.Contains(keep)) shown.Insert(0, keep);
-        Instruments.Clear();
-        foreach (var inst in shown) Instruments.Add(inst);
-    }
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="_allInstruments"/>. Rebuilt in place so the selection (and thus the stream) never
+    /// flickers out. See <see cref="InstrumentPickerFilter"/>.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_allInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
     private void Restart()
     {
@@ -513,6 +514,8 @@ public sealed partial class BubbleChartViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        // Remember the instrument the user was last streaming so the window reopens on it.
+        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _renderTimer.Dispose();
         StopStream();
     }
