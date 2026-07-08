@@ -46,13 +46,31 @@ public sealed partial class ImbalanceHeatFrontViewModel : LiveSignalStrategyView
     /// when building the mesh; changing it re-raises <see cref="SurfaceChanged"/> to redraw.</summary>
     [ObservableProperty] private double _surfaceHeightScale = 1.6;
 
-    partial void OnSurfaceHeightScaleChanged(double value) => SurfaceChanged?.Invoke(this, EventArgs.Empty);
+    partial void OnSurfaceHeightScaleChanged(double value) => RaiseSurfaceChanged();
 
     /// <summary>Latest [NumSlices, NumLevels] surface. Row 0 oldest, last row current.
     /// The Window subscribes to <see cref="SurfaceChanged"/> to redraw.</summary>
     public double[,]? Surface { get; private set; }
 
     public event EventHandler? SurfaceChanged;
+
+    /// <summary>Set when a surface redraw was suppressed by the display pause.</summary>
+    private bool _surfaceDirty;
+
+    /// <summary>Bespoke render event, gated on the shared display pause like the base's
+    /// BarsChanged — the calculator keeps updating underneath, resume replays one redraw.</summary>
+    private void RaiseSurfaceChanged()
+    {
+        if (IsPaused) { _surfaceDirty = true; return; }
+        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override void OnPauseReleased()
+    {
+        if (!_surfaceDirty) return;
+        _surfaceDirty = false;
+        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     private ImbalanceHeatFrontCalculator? _calc;
     private CancellationTokenSource? _watchdogCts;
@@ -282,7 +300,7 @@ public sealed partial class ImbalanceHeatFrontViewModel : LiveSignalStrategyView
         }
 
         Surface = _calc.GetSurface();
-        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+        RaiseSurfaceChanged();
     }
 
     private const int DepthLogInterval = 50;

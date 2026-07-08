@@ -136,7 +136,19 @@
                  at build time, so they are locked while the stream runs; Stop to edit them, then
                  Start to rebuild with the new values. The surface Z-scale is render-only and live. -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="imbalance-heat-front"
+                                           HelpTitle="READING THE HEAT FRONT">
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Surface" /><Run Text=" — a rolling time × price-level sheet of order-book imbalance: height/heat is how bid- or ask-heavy each level was in each time slice. Drag to orbit, wheel to zoom." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Ridge / front" /><Run Text=" — a connected run of same-sign imbalance at least 'Ridge width' levels wide and above 'Ridge thr', persisting 'Confirm' slices. That advancing front is pressure building before price moves." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Signals" /><Run Text=" — Momentum mode enters WITH the ridge (breakout); unchecked enters against it (mean-reversion at the wall). SL/TP are advisory pips on the signal." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Feed" /><Run Text=" — needs L2 depth: the crypto feeds (Binance, Bybit, Kraken, OKX, Coinbase), cTrader, Ironbeam and Upstox publish it." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
@@ -192,7 +204,8 @@
                             </Popup>
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -271,6 +284,10 @@
                                FontWeight="SemiBold"
                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="● ALGO ARMED" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
             </Grid>

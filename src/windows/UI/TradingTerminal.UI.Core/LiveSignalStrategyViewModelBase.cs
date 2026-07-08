@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +13,7 @@ using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.UI;
 
@@ -96,6 +99,9 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _clock = clock;
         _routerFactory = routerFactory;
         _logger = logger;
+
+        _presetStore = new ToolPresetStore<StrategyViewPreset>($"strategy-{strategyId}");
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         // Seed from the canonical instrument registry (no hardcoded catalog). Instrument-discovery
         // fills the registry the moment a broker connects, so if any broker is already up this is the
@@ -224,10 +230,60 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [ObservableProperty] private double _yAxisMin;
     [ObservableProperty] private double _yAxisMax;
 
-    partial void OnChartBarsShownChanged(int value) => BarsChanged?.Invoke(this, EventArgs.Empty);
-    partial void OnYAutoScaleChanged(bool value) => BarsChanged?.Invoke(this, EventArgs.Empty);
-    partial void OnYAxisMinChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
-    partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnChartBarsShownChanged(int value) => RaiseBarsChanged();
+    partial void OnYAutoScaleChanged(bool value) => RaiseBarsChanged();
+    partial void OnYAxisMinChanged(double value) { if (!YAutoScale) RaiseBarsChanged(); }
+    partial void OnYAxisMaxChanged(double value) { if (!YAutoScale) RaiseBarsChanged(); }
+
+    // ---------- Display pause (render-only; the strategy keeps running) ----------
+
+    /// <summary>Display pause: the chart-refresh events (<see cref="BarsChanged"/> /
+    /// <see cref="TickProcessed"/>) stop firing while the pumps, bar aggregation, strategy and —
+    /// if armed — signal generation all keep running underneath. Resume replays one catch-up
+    /// refresh, so it is instant and exact.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    /// <summary>Set when a refresh was suppressed while paused, so resume can replay it.</summary>
+    private bool _redrawPending;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = $"⏸ Display paused — {StrategyDisplayName} keeps running underneath.";
+            return;
+        }
+        Status = IsStreaming
+            ? $"Streaming {SelectedInstrument?.DisplayName} — {StrategyDisplayName}"
+            : "Resumed.";
+        if (_redrawPending)
+        {
+            _redrawPending = false;
+            BarsChanged?.Invoke(this, EventArgs.Empty);
+            TickProcessed?.Invoke(this, EventArgs.Empty);
+        }
+        OnPauseReleased();
+    }
+
+    /// <summary>Called on resume (after the base catch-up refresh) so subclasses with their own
+    /// render events — e.g. a 3D surface's SurfaceChanged — can replay a suppressed redraw.
+    /// Subclasses gate their raise sites on <see cref="IsPaused"/> themselves.</summary>
+    protected virtual void OnPauseReleased() { }
+
+    /// <summary>The one choke point every chart-refresh signal goes through — pausing here pauses
+    /// every window's render path (bar redraws and per-tick coalesced loops alike) without any
+    /// per-window code.</summary>
+    private void RaiseBarsChanged()
+    {
+        if (IsPaused) { _redrawPending = true; return; }
+        BarsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseTickProcessed()
+    {
+        if (IsPaused) { _redrawPending = true; return; }
+        TickProcessed?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>
     /// Populates the picker from real instruments only — no hardcoded catalog. Prefers each connected
@@ -492,7 +548,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
             await OnWarmupBarsLoadedAsync(Bars.ToList());
             OnBarsUpdated();
-            BarsChanged?.Invoke(this, EventArgs.Empty);
+            RaiseBarsChanged();
         }
         catch (Exception ex)
         {
@@ -540,7 +596,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                         catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
                     }
                     // Per-batch redraw trigger — windows coalesce their own redraws off this anyway.
-                    TickProcessed?.Invoke(this, EventArgs.Empty);
+                    RaiseTickProcessed();
                 });
             }
         }
@@ -715,7 +771,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             while (Bars.Count > MaxBarsRetained) Bars.RemoveAt(0);
             Log("BAR", $"{bar.TimestampUtc:HH:mm:ss} O={bar.Open:F4} H={bar.High:F4} L={bar.Low:F4} C={bar.Close:F4} V={bar.Volume}");
             OnBarsUpdated();
-            BarsChanged?.Invoke(this, EventArgs.Empty);
+            RaiseBarsChanged();
 
             _currentBarStart = bucket;
             _barOpen = _barHigh = _barLow = _barClose = mid;
@@ -752,6 +808,122 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             Message: msg,
             TimestampUtc: entry.TimestampUtc))
             .FireAndForgetSafe(_logger, $"signal publish {StrategyId}");
+    }
+
+    // ---------- Named view presets (chart-axis controls + window-specific extras) ----------
+
+    private readonly ToolPresetStore<StrategyViewPreset> _presetStore;
+
+    /// <summary>Preset names for the picker; per strategy (tool-presets\strategy-{id}.json).</summary>
+    public ObservableCollection<string> PresetNames { get; }
+
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    /// <summary>Window-specific display toggles to persist inside a preset — override and return
+    /// a string bag (each window owns its keys). Base returns null (no extras).</summary>
+    protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
+
+    /// <summary>Counterpart of <see cref="CaptureExtraPreset"/> — apply the window-specific bag.
+    /// Called before the catch-up redraw; missing keys should keep current values.</summary>
+    protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new StrategyViewPreset(
+            ChartBarsShown, YAutoScale, YAxisMin, YAxisMax, CaptureExtraPreset()));
+        RefreshPresetNames(selected: name);
+        Log("PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        Log("PRESET", $"Preset '{name}' deleted");
+    }
+
+    private void ApplyPreset(StrategyViewPreset preset)
+    {
+        if (preset.ChartBarsShown > 0) ChartBarsShown = preset.ChartBarsShown;
+        YAutoScale = preset.YAutoScale;
+        YAxisMin = preset.YAxisMin;
+        YAxisMax = preset.YAxisMax;
+        if (preset.Extras is not null) ApplyExtraPreset(preset.Extras);
+        RaiseBarsChanged();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ---------- CSV export (portable UiFile seam; PNG snapshots stay view-side) ----------
+
+    /// <summary>Exports the live 15-second chart bars. Volume is the tick count per bar (the
+    /// live aggregation counts quote updates, not traded size) — the header says so.</summary>
+    [RelayCommand]
+    private async Task ExportBarsCsvAsync()
+    {
+        if (Bars.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,open,high,low,close,ticks");
+        foreach (var b in Bars)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{b.TimestampUtc:O},{b.Open},{b.High},{b.Low},{b.Close},{b.Volume}"));
+        await SaveCsvAsync($"{StrategyId}-bars-{SymbolToken()}", sb.ToString());
+    }
+
+    /// <summary>Exports the signal tape, oldest first.</summary>
+    [RelayCommand]
+    private async Task ExportSignalsCsvAsync()
+    {
+        if (Signals.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,side,quantity,order_type,price,mid,note");
+        foreach (var s in Signals.Reverse())   // stored newest-first
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{s.TimestampUtc:O},{s.SideText},{s.Quantity},{s.OrderType},{s.Price},{s.Mid},{CsvQuote(s.Note)}"));
+        await SaveCsvAsync($"{StrategyId}-signals-{SymbolToken()}", sb.ToString());
+    }
+
+    private static string CsvQuote(string? value) =>
+        string.IsNullOrEmpty(value) ? "" : "\"" + value.Replace("\"", "\"\"") + "\"";
+
+    private string SymbolToken() =>
+        (SelectedInstrument?.Contract.Symbol ?? "live").Replace('/', '-').Replace(':', '-');
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            Log("EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "{Strategy} CSV export failed", StrategyId);
+            Status = $"Export failed: {ex.Message}";
+        }
     }
 
     public void Dispose()

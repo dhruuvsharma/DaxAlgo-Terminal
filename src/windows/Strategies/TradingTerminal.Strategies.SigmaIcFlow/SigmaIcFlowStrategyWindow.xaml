@@ -146,7 +146,19 @@
 
             <!-- Live-tuning strip -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="sigma-ic-flow"
+                                           HelpTitle="READING Σ⁻¹·IC ORDER FLOW">
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Composite" /><Run Text=" — several tape/book estimators (order-flow imbalance, trade intensity, microprice drift…) are blended with Σ⁻¹·IC weights: each estimator's information coefficient over the covariance of all of them, so correlated signals share credit instead of double-counting." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Entry" /><Run Text=" — the blended score passes an isotonic calibration g(C) before it can arm an entry; exits are first-passage (target / stop / time)." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Panels" /><Run Text=" — SIGNALS shows candles + entries/exits; the estimator lanes below show each input's contribution; the weights panel shows the live Σ⁻¹·IC blend." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Feed" /><Run Text=" — tape-primary: needs a signed trade tape (IB, Binance, Ironbeam, Simulated)." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
@@ -197,7 +209,8 @@
                             </Popup>
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -670,6 +683,10 @@
                     <TextBlock Margin="20,0,0,0" Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold"
                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="● ALGO ARMED" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
             </Grid>

@@ -64,7 +64,19 @@
         <!-- ── Runtime dashboard ────────────────────────────────────────────────────────────── -->
         <DockPanel Visibility="{Binding IsConfigured, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="filtered-order-flow"
+                                           HelpTitle="READING FILTERED ORDER FLOW">
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="OBI(T)" /><Run Text=" — net signed-trade count over the rolling window, in [−1, +1]: +1 means every trade in the window was buyer-initiated. The chart tracks the filtered series (trades ≥ min size) against the unfiltered one — divergence shows what small/fleeting flow was hiding." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Regimes" /><Run Text=" — OBI is classified on a 9-bin grid from −4 (strongly sold) to +4 (strongly bought); a signal fires when the filtered regime is at or beyond the strong threshold with the same sign." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Tape" /><Run Text=" — needs a signed trade tape (IB, Binance, Ironbeam, Simulated). The Tape flag in the dashboard turns true once prints arrive." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Paper" /><Run Text=" — reproduces the trade-based order-flow-imbalance construction of arXiv:2507.22712." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
@@ -86,7 +98,8 @@
                                               Value="{Binding Quantity, Mode=TwoWay}" />
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -112,6 +125,10 @@
                         <TextBlock Text="  |  Trades (filt/all):" Style="{StaticResource Strategy.DashLabel}" Margin="16,0,0,0" /><TextBlock Margin="6,0,0,0" Style="{StaticResource Strategy.DashValue}"><Run Text="{Binding FilteredTradesInWindow, Mode=OneWay}" />/<Run Text="{Binding UnfilteredTradesInWindow, Mode=OneWay}" /></TextBlock>
                         <TextBlock Text="  |  Signals:" Style="{StaticResource Strategy.DashLabel}" Margin="16,0,0,0" /><TextBlock Text="{Binding Signals.Count}" Margin="6,0,0,0" Style="{StaticResource Strategy.DashValue}" />
                         <TextBlock Margin="20,0,0,0" Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold" Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}" Text="● ALGO ARMED" />
+                        <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                                Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                        </Border>
                     </StackPanel>
                 </Border>
             </Grid>
