@@ -64,6 +64,16 @@ public partial class SurfaceLabView : UserControl
         UpdateSliceCharts();
     }
 
+    /// <summary>PNG snapshot of the 3D viewport. Helix is retained-mode WPF 3D, so the shared
+    /// <c>ViewExport</c> RenderTargetBitmap path captures it correctly (unlike WebView2).</summary>
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        var symbol = _vm?.SelectedInstrument?.Contract.Symbol ?? "surface";
+        var path = TradingTerminal.UI.Controls.ViewExport.SavePng(
+            View3D, $"surface-{symbol}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        if (path is not null && _vm is not null) _vm.RunStatus = $"Snapshot saved → {path}";
+    }
+
     // ── 3D surface ────────────────────────────────────────────────────────────────────────────
 
     private void RedrawSurface()

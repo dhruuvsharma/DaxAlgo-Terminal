@@ -69,6 +69,27 @@ public sealed partial class AxisConfigViewModel : ObservableObject
                          ?? options.FirstOrDefault();
     }
 
+    /// <summary>Snapshot of this axis for the window's preset store.</summary>
+    public AxisPreset ToPreset() => new(SelectedOption?.Id, Min, Max, Step,
+        SupportsFormula ? CustomFormula : null);
+
+    /// <summary>Restores a preset: picks the option by id (keeping the current pick when the id
+    /// is unknown to the active mode — the option set is mode-dependent), then re-applies the
+    /// saved ranges over the defaults the option change reset them to.</summary>
+    public void ApplyPreset(AxisPreset preset)
+    {
+        if (preset.OptionId is { Length: > 0 } id &&
+            _allOptions.FirstOrDefault(o => o.Id == id) is { } match)
+            SelectedOption = match;   // side effect: Min/Max/Step reset to the option defaults
+        if (IsRangeEditable && preset.Step > 0 && preset.Max > preset.Min)
+        {
+            Min = preset.Min;
+            Max = preset.Max;
+            Step = preset.Step;
+        }
+        if (SupportsFormula) CustomFormula = preset.Formula ?? string.Empty;
+    }
+
     /// <summary>Validates and converts to the engine spec; null + error when misconfigured.</summary>
     public SurfaceAxisSpec? ToSpec(out string? error)
     {

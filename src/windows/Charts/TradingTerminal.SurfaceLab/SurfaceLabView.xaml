@@ -88,6 +88,74 @@
     </UserControl.Resources>
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar: presets + actions (the config surface is the left pane below) -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="170" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save. Lab presets remember mode, timeframe, all four axis configs (incl. formulas) and the display toggles — not the instrument." />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current lab setup as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause live surface rebuilds — the stream keeps filling the bar window underneath, resume is instant" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportGridCsvCommand}"
+                            IsEnabled="{Binding HasResult}"
+                            ToolTip="Export the surface grid (x, y, z, w, robustness per cell) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of the 3D viewport" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-350" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="400" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE SURFACE" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Modes" /><Run Text=" — Temporal Aggregation buckets returns by two calendar dimensions (hour × weekday…) for seasonality; Cross-Sectional buckets by market state (prior return, volatility, volume…) for conditional-return structure." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Axes" /><Run Text=" — X and Y pick the two bucket variables; Z (height) and W (color) pick the per-cell statistic. A custom formula on Z / W combines statistic ids (e.g. avgret / (1 + vol))." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Holes" /><Run Text=" — cells with no observations render as gaps, not zeros: an honest surface." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Robustness heatmap" /><Run Text=" — recolors each cell by the gradient to its neighbors: green plateaus are stable effects, red spikes are likely noise or overfit. Trust plateaus, not pins." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Slices" /><Run Text=" — the two sliders cut the surface into 2D cross-sections (cutting planes shown in the viewport); the red marker is each slice's own maximum." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Live" /><Run Text=" — Go Live seeds from history and rebuilds every second from streaming quotes/trades; axis edits are picked up on the next tick." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Camera" /><Run Text=" — drag to orbit, wheel to zoom, shift-drag to pan." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <Grid Grid.Row="1">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="330" />
             <ColumnDefinition Width="4" />
@@ -195,14 +263,8 @@
                     </Button.Style>
                 </Button>
 
-                <TextBlock Text="{Binding LiveStatus}" FontSize="11" FontWeight="SemiBold"
-                           Foreground="{DynamicResource Bullish.Brush}" TextWrapping="Wrap" Margin="0,6,0,0"
-                           Visibility="{Binding IsLive, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
                 <mah:MetroProgressBar IsIndeterminate="True" Margin="0,8,0,0"
                                       Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <TextBlock Text="{Binding RunStatus}" Foreground="{DynamicResource Text.Secondary}"
-                           FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0" />
             </StackPanel>
         </ScrollViewer>
 
@@ -219,10 +281,16 @@
                                    Background="#1E1E1E"
                                    CameraRotationMode="Trackball"
                                    IsHeadLightEnabled="True" />
-            <TextBlock Text="Configure the axes on the left and press GENERATE SURFACE."
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Foreground="#88FFFFFF" FontSize="13"
-                       Visibility="{Binding HasResult, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+            <!-- Empty state until the first successful build -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400"
+                        Visibility="{Binding HasResult, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <TextBlock Text="◭" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="#88FFFFFF" Opacity="0.6" />
+                <TextBlock Text="No surface yet" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,6,0,4" Foreground="#CCFFFFFF" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5" Foreground="#88FFFFFF"
+                           Text="Configure the axes on the left, then GENERATE SURFACE for a one-shot build over history, or GO LIVE to stream. Needs a connected broker with bars — the Simulated broker always works offline." />
+            </StackPanel>
         </Grid>
 
         <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -307,5 +375,21 @@
                            FontSize="12" TextWrapping="Wrap" />
             </StackPanel>
         </ScrollViewer>
+        </Grid>
+
+        <!-- Status line -->
+        <Border Grid.Row="2" Style="{StaticResource App.FooterBar}">
+            <DockPanel>
+                <Border DockPanel.Dock="Right" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding LiveStatus}" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Bullish.Brush}" VerticalAlignment="Center" Margin="8,0,0,0"
+                           Visibility="{Binding IsLive, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <TextBlock Text="{Binding RunStatus}" FontSize="11" Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
     </Grid>
 </UserControl>

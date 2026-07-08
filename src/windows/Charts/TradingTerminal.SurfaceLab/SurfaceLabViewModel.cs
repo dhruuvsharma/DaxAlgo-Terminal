@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +12,7 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Quant.Surfaces;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.SurfaceLab;
 
@@ -90,6 +94,7 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
         AllInstruments = SignalInstrumentCatalog.All;
         // Hide-until-search: empty visible list; ApplyInstrumentFilter (below) collapses it to the selection.
         Instruments = new ObservableCollection<SignalInstrument>();
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
         SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, AllInstruments,
             () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
                   ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
@@ -131,10 +136,40 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _isLive;
     [ObservableProperty] private string _liveStatus = "";
 
+    /// <summary>Display pause: the live rebuild tick is gated; pumps keep filling the rolling
+    /// bar window underneath, so resume redraws current data on the next tick.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            RunStatus = "⏸ Paused — the stream keeps filling the bar window in the background.";
+            return;
+        }
+        RunStatus = "Resumed.";
+        _dirty = true;   // redraw with everything that arrived while paused
+    }
+
     public bool CanGenerate => !IsRunning && !IsLive;
 
     partial void OnIsRunningChanged(bool value) => OnPropertyChanged(nameof(CanGenerate));
     partial void OnIsLiveChanged(bool value) => OnPropertyChanged(nameof(CanGenerate));
+
+    // ── Presets (named lab setups; see ToolPresetStore) ──────────────────────────────────────
+
+    public ObservableCollection<string> PresetNames { get; }
+
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
 
     // ── Quant display toggles ─────────────────────────────────────────────────────────────────
 
@@ -410,7 +445,7 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
     /// grid off it. Skipped while a rebuild is in flight, so a slow build can never stack.</summary>
     private async void OnRebuildTick()
     {
-        if (!IsLive || !_dirty || _rebuilding) return;
+        if (!IsLive || !_dirty || _rebuilding || IsPaused) return;
         if (_liveBars is not { } series || SelectedMode is null) return;
 
         var xSpec = XAxis.ToSpec(out var err);
@@ -543,6 +578,102 @@ public sealed partial class SurfaceLabViewModel : ViewModelBase, IDisposable
         SurfaceUpdated?.Invoke(this, EventArgs.Empty);
     }
 
+    // ── Presets ──────────────────────────────────────────────────────────────────────────────
+
+    private readonly ToolPresetStore<SurfaceLabPreset> _presetStore = new("surface-lab");
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new SurfaceLabPreset(
+            SelectedMode?.Mode.ToString(), SelectedTimeframe?.Label, BarCount,
+            XAxis.ToPreset(), YAxis.ToPreset(), ZAxis.ToPreset(), WAxis.ToPreset(),
+            ShowPeakMarker, RobustnessColorMode, HeightScale));
+        RefreshPresetNames(selected: name);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Mode first (repopulates the four axis dropdowns), then the per-axis state over
+    /// the fresh defaults. Applying never auto-builds — Generate / Go Live stay explicit.</summary>
+    private void ApplyPreset(SurfaceLabPreset preset)
+    {
+        if (preset.Mode is { Length: > 0 } modeName &&
+            Modes.FirstOrDefault(m => m.Mode.ToString() == modeName) is { } mode)
+            SelectedMode = mode;
+        if (preset.Timeframe is { Length: > 0 } label &&
+            Timeframes.FirstOrDefault(t => t.Label == label) is { } tf)
+            SelectedTimeframe = tf;
+        if (preset.BarCount >= 200) BarCount = preset.BarCount;
+        if (preset.X is not null) XAxis.ApplyPreset(preset.X);
+        if (preset.Y is not null) YAxis.ApplyPreset(preset.Y);
+        if (preset.Z is not null) ZAxis.ApplyPreset(preset.Z);
+        if (preset.W is not null) WAxis.ApplyPreset(preset.W);
+        ShowPeakMarker = preset.ShowPeakMarker;
+        RobustnessColorMode = preset.RobustnessColorMode;
+        if (preset.HeightScale > 0) HeightScale = Math.Clamp(preset.HeightScale, 0.3, 3.0);
+        if (IsLive) _dirty = true;   // live surface re-targets on the next tick
+        else RunStatus = "Preset applied — Generate or Go Live to build.";
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──────────────
+
+    /// <summary>Long-format grid export: one row per cell with both axis coordinates and the
+    /// Z / W / robustness statistics — ready for pandas / further analysis.</summary>
+    [RelayCommand]
+    private async Task ExportGridCsvAsync()
+    {
+        if (Result is not { } r) return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# Surface Lab — mode={r.Mode} · X={Clean(r.XName)} · Y={Clean(r.YName)} · Z={Clean(r.ZName)} · W={Clean(r.WName)}");
+        sb.AppendLine("x_index,x_label,x_value,y_index,y_label,y_value,z,w,robustness");
+        for (var row = 0; row < r.Rows; row++)
+        {
+            for (var col = 0; col < r.Columns; col++)
+            {
+                sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                    $"{col},{Clean(r.XLabels[col])},{r.XValues[col]},{row},{Clean(r.YLabels[row])},{r.YValues[row]},{Fmt(r.Z[row, col])},{Fmt(r.W[row, col])},{Fmt(r.Robustness[row, col])}"));
+            }
+        }
+
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "surface").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"surface-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            _log.Append(LogSource, "INFO", $"Exported → {path}");
+            RunStatus = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Surface Lab: CSV export failed");
+            ErrorMessage = $"Export failed: {ex.Message}";
+        }
+
+        static string Clean(string s) => s.Replace(',', ';');
+        static string Fmt(double v) => double.IsNaN(v) ? "" : v.ToString("R", CultureInfo.InvariantCulture);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -612,6 +743,27 @@ public sealed record SurfaceModeOption(string Label, SurfaceMode Mode, string De
 {
     public override string ToString() => Label;
 }
+
+/// <summary>One axis inside a <see cref="SurfaceLabPreset"/> — the picked variable id, its bin /
+/// sweep range, and the custom formula (Z / Color axes only).</summary>
+public sealed record AxisPreset(string? OptionId, double Min, double Max, double Step, string? Formula);
+
+/// <summary>A named snapshot of the whole lab setup — mode, timeframe, bar depth, all four axis
+/// configs, and the display toggles — persisted per user by <see cref="ToolPresetStore{T}"/>
+/// (LocalAppData\DaxAlgo Terminal\tool-presets\surface-lab.json). The instrument is deliberately
+/// excluded so a saved "hour × weekday seasonality" applies to whatever is selected. All fields
+/// are optional so older preset files still deserialize.</summary>
+public sealed record SurfaceLabPreset(
+    string? Mode,
+    string? Timeframe,
+    int BarCount,
+    AxisPreset? X,
+    AxisPreset? Y,
+    AxisPreset? Z,
+    AxisPreset? W,
+    bool ShowPeakMarker,
+    bool RobustnessColorMode,
+    double HeightScale);
 
 /// <summary>Bar-size dropdown row (with the wall-clock interval the live aggregator buckets by).
 /// Each tool owns its own copy so the panels stay independent projects.</summary>
