@@ -69,7 +69,7 @@ Core           → (nothing)
 | Per-strategy live windows (10) | `TradingTerminal.Strategies.<Name>` |
 | Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` (`Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap`/`Correlation`/`MarketRegime`/`InstrumentRegime`/`Backtest`/`Recording`) |
 | Machine Learning menu windows (one project each) — time-series stats over historical bars; math lives in `Core/Quant/TimeSeries/` | `TradingTerminal.Ml.<Name>` (`Stationarity`/`ArimaGarch`/`KalmanFilter`) |
-| Shell, MainWindow, menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | `TradingTerminal.App` (thin shell; tools moved out) |
+| Shell, MainWindow, inline menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | **Three independent edition shells** (see “Edition shells” below): `TradingTerminal.App` (Professional) / `TradingTerminal.App.Basic` / `TradingTerminal.App.Intermediate` |
 | Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
 
 Live strategies (9): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class still `ApexScalperStrategy`), CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike. (Removed 2026-07-01: OrnsteinUhlenbeck, VolatilityTargeted, OrderFlowToxicity.)
@@ -77,6 +77,8 @@ Live strategies (9): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class
 **Strategy-vs-tool rule:** anything that registers an `ITradingStrategy` / `StrategyFactoryRegistration` (including multi-ticker *monitor* strategies like OrderFlowPressureMap) is a **strategy**: project `TradingTerminal.Strategies.<Name>`, namespace to match, **Strategies** solution folder, DI via `Add<Name>Strategy()` called from `AddStrategyPlugins()`. Tool projects (`Add…Surface`, Tools/Charts menu) are only for non-strategy windows. When in doubt: if it belongs in the Strategies catalog, it's a strategy project.
 
 Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Machine Learning** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap; the Machine Learning menu hosts Stationarity & Differencing / ARIMA & GARCH / Kalman Filter (`TradingTerminal.Ml.<Name>`, math in `Core/Quant/TimeSeries/`).
+
+**⚠️ Edition shells — NO shared shell code (2026-07-08, #19).** The Windows tree ships three fully independent WinExe shells under `src/windows/Shell/`: `TradingTerminal.App` (**Professional** — everything; assembly name preserved for tests/launch profiles), `TradingTerminal.App.Basic` (**keyless brokers only** — crypto + Simulated, keyless login, core charts/tools, full strategies catalog) and `TradingTerminal.App.Intermediate` (**all brokers + full login**, same tools as Basic). There is no `App.Core` shared shell library — each shell owns a complete copy of the shell code (`RootNamespace` stays `TradingTerminal.App` in all three; they never reference each other), **so a shell-code fix must be applied to all three copies**. Tier gating is composition-only: Basic never references the Pro-only tool projects, calls `AddKeylessBrokers()` without `AddCredentialedBrokers()`, and `AddLogin()` registers only keyless login forms — `AddCredentialedLoginForms()` must always pair with `AddCredentialedBrokers()` (resolving `IEnumerable<IBrokerLoginForm>` instantiates every registered form, so an unpaired credentialed form crashes the login window). `AppEdition`/`BrokerEditionPolicy` live in `Core/Configuration`; each shell pins its `AppEdition` as a DI constant. The Simulated broker ships in every edition behind the amber “SIMULATED DATA” banner (`SimulatedDataState`/`SimulatedDataBanner` in `TradingTerminal.UI`).
 
 ## Architectural rules (always relevant)
 
@@ -142,7 +144,9 @@ Match the cheapest model tall enough for the task. Spawn a subagent only when se
 # Windows/WPF tree
 dotnet build TradingTerminal.Windows.slnx
 dotnet test  TradingTerminal.Windows.slnx
-dotnet run --project src/windows/Shell/TradingTerminal.App
+dotnet run --project src/windows/Shell/TradingTerminal.App               # Professional
+dotnet run --project src/windows/Shell/TradingTerminal.App.Basic        # Basic (keyless brokers)
+dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate # Intermediate (all brokers)
 
 # Linux/Avalonia tree (also builds on Windows; net9.0)
 dotnet build TradingTerminal.Linux.slnx
@@ -154,7 +158,7 @@ Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` f
 
 ### Dev launch profiles (login bypass + data-source switch)
 
-`src/TradingTerminal.App/Properties/launchSettings.json` defines profiles selected by `DOTNET_ENVIRONMENT`, each layering an `appsettings.{Env}.json` (repo root) over `appsettings.json`. `DevOptions.BypassLogin` skips the login window and auto-connects `DevOptions.AutoConnectBrokers`; `SimulatedBrokerOptions` drives the feed.
+Each edition shell defines its own profiles in its `Properties/launchSettings.json`, selected by `DOTNET_ENVIRONMENT`, each layering an `appsettings.{Env}.json` (repo root) over `appsettings.json`. `DevOptions.BypassLogin` skips the login window and auto-connects `DevOptions.AutoConnectBrokers`; `SimulatedBrokerOptions` drives the feed. The Professional profiles:
 
 | Profile | `DOTNET_ENVIRONMENT` | Behaviour |
 |---|---|---|
@@ -163,12 +167,13 @@ Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` f
 | `Dev: Replay (local DB)` | `DevReplay` | No login; `Simulated` broker, **Replay** of the local store (10× clock), synthetic fallback where no data. |
 | `Dev: Live (no login)` | `DevLive` | No login; auto-connects a real broker (default IB) using saved credentials. |
 
-Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/windows/Shell/TradingTerminal.App`. These dev files are off in the shipped build.
+Basic/Intermediate carry the same profiles prefixed with the edition name (Basic has no `DevLive` — its auto-connect brokers aren't registered there). Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/windows/Shell/TradingTerminal.App`. These dev files are off in the shipped build.
 
 ## What NOT to do
 
 - Don't rename `net9.0-windows` → `net8.0-windows`. Don't put broker SDK types in `Core`/`UI`/`MarketData`.
 - Don't make `Core` depend on anything, or `MarketData` depend on `Infrastructure`.
+- Don't fix shell code in only one edition — `TradingTerminal.App` / `.App.Basic` / `.App.Intermediate` are independent copies (no shared shell library); apply the change to each. Don't reference a Pro-only tool project from Basic/Intermediate, and don't call `AddCredentialedLoginForms()` without `AddCredentialedBrokers()`.
 - Don't `new` strategies/brokers from the shell — go through `IStrategyFactory` / `IBrokerSelector`.
 - Don't build a strategy as a tool project: no `TradingTerminal.<Name>` + `Add…Surface` for anything with an `ITradingStrategy` — it must be `TradingTerminal.Strategies.<Name>` in the Strategies solution folder (see the strategy-vs-tool rule above).
 - Don't subscribe to broker streams from a VM — go through `IMarketDataHub` / `IMarketDataIngest`.

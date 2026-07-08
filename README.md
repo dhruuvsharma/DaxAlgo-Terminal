@@ -245,6 +245,16 @@ dotnet build TradingTerminal.Windows.slnx
 dotnet run --project src/windows/Shell/TradingTerminal.App
 ```
 
+The Windows terminal ships as **three editions** — three fully independent shell exes with **no
+shared shell code** (each carries its own complete copy, so lower tiers physically exclude the
+higher-tier feature DLLs):
+
+| Edition | Run | What you get |
+|---|---|---|
+| **Basic** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Basic` | Keyless brokers only (crypto + Simulated), full strategies catalog, core charts & tools |
+| **Intermediate** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate` | All 12 brokers with the full credentialed login; same tools as Basic |
+| **Professional** | `dotnet run --project src/windows/Shell/TradingTerminal.App` | Everything — adds Machine Learning, AI tools (Paper Lab + sidecar), LSE Tools, QuantConnect / LEAN, 3D Surface Lab, experimental charts |
+
 ### Linux / Raspberry Pi (Avalonia)
 
 ```bash

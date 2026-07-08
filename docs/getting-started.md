@@ -65,11 +65,26 @@ compiled in. cTrader and Alpaca are always compiled in (NuGet packages, no DLL g
 
 ## Run
 
-**Windows (WPF):**
+**Windows (WPF)** ships as **three editions** — three fully independent shell exes over the same
+platform libraries. There is **no shared shell code** between them (same philosophy as the
+Windows/Linux tree fork): each project carries its own complete copy of the shell, so lower tiers
+physically exclude the higher-tier feature DLLs from their output.
+
+| Edition | Project | Brokers | Tools |
+|---|---|---|---|
+| **Basic** | `TradingTerminal.App.Basic` | Keyless only — Binance / Coinbase / Bybit / Kraken / OKX / Simulated (no credential forms on the login screen) | Full strategies catalog, core charts (Charts / Order book / Footprint / Bookmap), core tools (Backtest Studio / Recorder / Correlation / Advanced regime), archive, notifications, Theme Studio |
+| **Intermediate** | `TradingTerminal.App.Intermediate` | **All 12** + Simulated, full credentialed login (IB / NT / cTrader / Alpaca / Ironbeam / LSE / Upstox) | Same tool set as Basic |
+| **Professional** | `TradingTerminal.App` | All | Everything — adds the Machine Learning menu, AI tools (incl. Paper Lab + managed Python sidecar), LSE Tools, QuantConnect / LEAN, 3D Surface Lab and the experimental bubble chart |
 
 ```powershell
-dotnet run --project src/windows/Shell/TradingTerminal.App
+dotnet run --project src/windows/Shell/TradingTerminal.App                # Professional
+dotnet run --project src/windows/Shell/TradingTerminal.App.Basic         # Basic
+dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate  # Intermediate
 ```
+
+The `Simulated` broker ships in **every** edition; whenever it is connected, every window shows a
+persistent amber **“SIMULATED DATA — not a live feed”** banner so a synthetic feed is never mistaken
+for a live one.
 
 **Linux / Raspberry Pi (Avalonia):**
 
@@ -95,9 +110,9 @@ all available brokers, the services panel, and launching the terminal.
 ### Dev launch profiles (skip login, run offline) — Windows
 
 For development the fastest path is a launch profile that bypasses login and auto-connects the
-`Simulated` broker. `src/windows/Shell/TradingTerminal.App/Properties/launchSettings.json` defines
-them; each is selected by `DOTNET_ENVIRONMENT`, which layers an `appsettings.{Env}.json` (repo root)
-over `appsettings.json`.
+`Simulated` broker. Each edition shell defines its own profiles in its
+`Properties/launchSettings.json`; each is selected by `DOTNET_ENVIRONMENT`, which layers an
+`appsettings.{Env}.json` (repo root) over `appsettings.json`. The Professional profiles:
 
 | Profile | `DOTNET_ENVIRONMENT` | Behaviour |
 |---|---|---|
@@ -105,6 +120,9 @@ over `appsettings.json`.
 | `Dev: Simulated (offline)` | `DevSim` | No login; `Simulated` broker, **Synthetic** random-walk. Fully offline (SQLite, no Docker/network). |
 | `Dev: Replay (local DB)` | `DevReplay` | No login; `Simulated` broker, **Replay** of the local store (10× clock), synthetic fallback where no data. |
 | `Dev: Live (no login)` | `DevLive` | No login; auto-connects a real broker (default IB) using saved credentials. |
+
+Basic and Intermediate carry the same profiles prefixed with their edition name — except Basic has
+no `DevLive` (the credentialed brokers it would auto-connect are not registered in that edition).
 
 Pick one from the Visual Studio debug-target dropdown, or set the environment from the shell:
 
