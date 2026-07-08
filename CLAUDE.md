@@ -152,7 +152,7 @@ dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate # Interm
 dotnet build TradingTerminal.Linux.slnx
 dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
 ```
-There is no top-level `dotnet build` with no argument anymore — two solutions exist, so always name one. `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` / `linux/Dockerfile` (Linux) wrap each tree.
+There is no top-level `dotnet build` with no argument anymore — two solutions exist, so always name one. `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` / `linux/Dockerfile` (Linux) wrap each tree. Per-edition **solution filters** at the repo root (`TradingTerminal.Windows.Basic|Intermediate|Professional.slnf`) build/load just one edition's project closure (Professional = full solution minus the two lower-tier shells, incl. tests); regenerate them when a shell's project references change.
 
 Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` from `C:\TWS API\`; `HAS_NTAPI` from `NTDirect.dll`) — there's no `UseRealClient` switch and no per-broker synthetic fallback; cTrader needs OAuth at login; Alpaca needs ApiKey+Secret (`IsLive` toggles paper/live; live stock stream pinned to IEX). No broker required to build/run — the `Simulated` broker (`BrokerKind.Simulated`, `SimulatedBrokerClient` in `Infrastructure/Simulation/`) is always registered and serves a synthetic random-walk feed or local-store replay.
 

@@ -82,6 +82,15 @@ dotnet run --project src/windows/Shell/TradingTerminal.App.Basic         # Basic
 dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate  # Intermediate
 ```
 
+Per-edition **solution filters** at the repo root load/build just one edition's project set —
+open them in Visual Studio or build them directly
+(`TradingTerminal.Windows.Basic.slnf` / `.Intermediate.slnf` / `.Professional.slnf`; the
+Professional filter is the full solution minus the two lower-tier shells, including tests):
+
+```powershell
+dotnet build TradingTerminal.Windows.Basic.slnf
+```
+
 The `Simulated` broker ships in **every** edition; whenever it is connected, every window shows a
 persistent amber **“SIMULATED DATA — not a live feed”** banner so a synthetic feed is never mistaken
 for a live one.
