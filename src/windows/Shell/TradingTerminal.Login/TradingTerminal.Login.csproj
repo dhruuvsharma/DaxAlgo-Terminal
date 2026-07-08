@@ -11,6 +11,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Own copies of the logo so the login window never depends on a shell assembly's resources
+         (each edition ships its own shell exe; this library must render under any of them). -->
+    <Resource Include="Icon\DaxAlgoLogo.ico" />
+    <Resource Include="Icon\DaxAlgoLogo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- MahApps / CommunityToolkit.Mvvm / Reactive flow transitively from the UI project. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
