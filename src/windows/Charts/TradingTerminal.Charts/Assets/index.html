@@ -15,7 +15,9 @@
   #legend .up { color: #26a69a; } #legend .dn { color: #ef5350; }
   #legend .k { color: #8a8a8a; } #legend .v { color: #d1d4dc; }
   #msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-    color: #8a8a8a; font-size: 14px; text-align: center; padding: 24px; }
+    color: #8a8a8a; font-size: 14px; text-align: center; padding: 24px; white-space: pre-line;
+    line-height: 1.7; background: #0a0a0a; z-index: 10; }
+  #msg .title { color: #d1d4dc; font-size: 16px; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -41,6 +43,7 @@ const chart = LWC.createChart(el, {
 let candleSeries = null, volumeSeries = null;
 let extra = [];           // indicator series to clear on reload
 let lastBar = null, sym = '', tf = '';
+let priceOnly = false;    // Line/Area series take {time, value} instead of OHLC
 
 function clearExtra() { extra.forEach(s => { try { chart.removeSeries(s); } catch (e) {} }); extra = []; }
 
@@ -56,11 +59,25 @@ window.dax = {
     sym = p.symbol; tf = p.timeframe;
     fullClear();
 
-    candleSeries = chart.addSeries(LWC.CandlestickSeries, {
-      upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
-      wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-    }, 0);
-    candleSeries.setData(p.candles || []);
+    const type = p.chartType || 'Candles';
+    priceOnly = type === 'Line' || type === 'Area';
+    if (type === 'Bars') {
+      candleSeries = chart.addSeries(LWC.BarSeries, { upColor: '#26a69a', downColor: '#ef5350' }, 0);
+    } else if (type === 'Line') {
+      candleSeries = chart.addSeries(LWC.LineSeries, { color: '#42a5f5', lineWidth: 2 }, 0);
+    } else if (type === 'Area') {
+      candleSeries = chart.addSeries(LWC.AreaSeries, {
+        lineColor: '#42a5f5', topColor: '#42a5f540', bottomColor: '#42a5f508', lineWidth: 2,
+      }, 0);
+    } else {
+      candleSeries = chart.addSeries(LWC.CandlestickSeries, {
+        upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+        wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+      }, 0);
+    }
+    candleSeries.setData(priceOnly
+      ? (p.candles || []).map(c => ({ time: c.time, value: c.close }))
+      : (p.candles || []));
     lastBar = p.candles && p.candles.length ? p.candles[p.candles.length - 1] : null;
 
     volumeSeries = chart.addSeries(LWC.HistogramSeries, {
@@ -95,14 +112,25 @@ window.dax = {
 
   updateCandle(c) {
     if (!candleSeries) return;
-    candleSeries.update(c);
+    candleSeries.update(priceOnly ? { time: c.time, value: c.close } : c);
     lastBar = c;
     renderLegend(c);
   },
 
+  // First line renders as a title; the rest as body text (see #msg styles).
   message(text) {
     const m = document.getElementById('msg');
-    m.textContent = text; m.style.display = text ? 'flex' : 'none';
+    if (!text) { m.style.display = 'none'; return; }
+    const nl = text.indexOf('\n');
+    const title = nl < 0 ? text : text.slice(0, nl);
+    const body = nl < 0 ? '' : text.slice(nl + 1);
+    m.innerHTML = '';
+    const t = document.createElement('div');
+    const ts = document.createElement('span'); ts.className = 'title'; ts.textContent = title;
+    t.appendChild(ts);
+    if (body) t.appendChild(document.createTextNode('\n' + body));
+    m.appendChild(t);
+    m.style.display = 'flex';
   },
 };
 
@@ -110,6 +138,12 @@ function fmt(v) { return (v === undefined || v === null) ? '—' : Number(v).toF
 
 function renderLegend(bar) {
   if (!bar) { legend.innerHTML = `<span class="sym">${sym || ''}</span> <span class="k">${tf}</span>`; return; }
+  if (bar.open === undefined) {   // Line/Area crosshair data carries only {value}
+    legend.innerHTML =
+      `<span class="sym">${sym}</span> <span class="k">${tf}</span><br>` +
+      `<span class="k">C</span> <span class="v">${fmt(bar.value !== undefined ? bar.value : bar.close)}</span>`;
+    return;
+  }
   const cls = bar.close >= bar.open ? 'up' : 'dn';
   legend.innerHTML =
     `<span class="sym">${sym}</span> <span class="k">${tf}</span><br>` +
@@ -124,6 +158,9 @@ chart.subscribeCrosshairMove(param => {
   const d = param.seriesData && param.seriesData.get(candleSeries);
   renderLegend(d || lastBar);
 });
+
+// Until the host pushes the first snapshot, say so instead of showing a blank canvas.
+window.dax.message('Awaiting chart data…');
 
 // Signal readiness to the host (C# waits for this before pushing data).
 if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage('ready');

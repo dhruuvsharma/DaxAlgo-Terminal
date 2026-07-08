@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -6,6 +9,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 using static TradingTerminal.Core.MarketData.Indicators;
 
 namespace TradingTerminal.Charts;
@@ -33,6 +37,15 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     private IDisposable? _liveSub;
     private IDisposable? _ingestHandle;
 
+    // Retained for CSV export; refreshed on every successful reload.
+    private IReadOnlyList<Bar> _lastBars = Array.Empty<Bar>();
+    private ChartSnapshot? _lastSnapshot;
+
+    /// <summary>Set when a live candle arrived while paused, so resume can catch up exactly
+    /// (full reload) instead of splicing a stale <c>series.update</c>.</summary>
+    private bool _pausedDirty;
+    private bool _applyingPreset;
+
     private static readonly IReadOnlyList<ChartTimeframe> AllTimeframes = new[]
     {
         new ChartTimeframe("1m",  BarSize.OneMinute,      TimeSpan.FromDays(2)),
@@ -58,21 +71,39 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         Timeframes = new ObservableCollection<ChartTimeframe>(AllTimeframes);
         SelectedTimeframe = Timeframes.First(t => t.BarSize == BarSize.OneHour);
         Instruments = new ObservableCollection<TradableInstrument>();
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         _ = LoadInstrumentsAsync();
     }
 
     public ObservableCollection<ChartTimeframe> Timeframes { get; }
     public ObservableCollection<TradableInstrument> Instruments { get; }
+    public ObservableCollection<string> PresetNames { get; }
+
+    /// <summary>Series styles the JS side knows how to render (see index.html · setData).</summary>
+    public IReadOnlyList<string> ChartTypes { get; } = new[] { "Candles", "Bars", "Line", "Area" };
 
     [ObservableProperty] private TradableInstrument? _selectedInstrument;
     [ObservableProperty] private ChartTimeframe? _selectedTimeframe;
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
+    [ObservableProperty] private string _selectedChartType = "Candles";
     [ObservableProperty] private bool _showSma = true;
     [ObservableProperty] private bool _showEma = true;
     [ObservableProperty] private bool _showRsi;
     [ObservableProperty] private bool _showMacd;
     [ObservableProperty] private string _status = "Loading instruments…";
+
+    /// <summary>Display pause: live candle pushes stop; the hub subscription keeps running so
+    /// resume is instant (a dirty flag triggers one exact catch-up reload).</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    /// <summary>True once the current load produced at least one bar — drives the CSV button.</summary>
+    [ObservableProperty] private bool _hasData;
+
+    // ── Presets (named chart setups; unlike other tools these include symbol + interval) ────────
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
 
     /// <summary>Raised after a history load with the full chart payload (candles + volume + indicators).</summary>
     public event EventHandler<ChartSnapshot>? SnapshotReady;
@@ -87,10 +118,33 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedInstrumentChanged(TradableInstrument? value) => QueueReload();
     partial void OnSelectedTimeframeChanged(ChartTimeframe? value) => QueueReload();
+    partial void OnSelectedChartTypeChanged(string value) => QueueReload();
     partial void OnShowSmaChanged(bool value) => QueueReload();
     partial void OnShowEmaChanged(bool value) => QueueReload();
     partial void OnShowRsiChanged(bool value) => QueueReload();
     partial void OnShowMacdChanged(bool value) => QueueReload();
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = $"⏸ Paused — live updates buffer in the background ({SelectedInstrument?.DisplayName}).";
+            return;
+        }
+        Status = $"Resumed — {SelectedInstrument?.DisplayName}.";
+        if (_pausedDirty)
+        {
+            _pausedDirty = false;
+            QueueReload();
+        }
+    }
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
 
     /// <summary>Called by the window once the WebView2 page has loaded and can receive data.</summary>
     public Task NotifyChartReadyAsync()
@@ -101,7 +155,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
     private void QueueReload()
     {
-        if (_chartReady) _ = ReloadAsync();
+        if (_chartReady && !_applyingPreset) _ = ReloadAsync();
     }
 
     private async Task LoadInstrumentsAsync()
@@ -174,6 +228,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
             var snapshot = new ChartSnapshot(
                 Symbol: instrument.DisplayName,
                 Timeframe: tf.Label,
+                ChartType: SelectedChartType,
                 Candles: candles,
                 Volume: volume,
                 Sma: ShowSma ? Sma(bars, 20) : null,
@@ -182,6 +237,9 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
                 Macd: ShowMacd ? Macd(bars, 12, 26, 9) : null);
 
             if (ct.IsCancellationRequested) return;
+            _lastBars = bars;
+            _lastSnapshot = snapshot;
+            HasData = bars.Count > 0;
             SnapshotReady?.Invoke(this, snapshot);
             Status = bars.Count == 0
                 ? $"No history for {instrument.DisplayName} — is the broker connected and streaming?"
@@ -204,8 +262,12 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
             var id = _ingest.Resolve(instrument.Contract, broker);
             _ingestHandle = _ingest.SubscribeBars(instrument.Contract, broker, size);
             _liveSub = _hub.Bars(id, size).Subscribe(bar =>
-                _ = UiThread.RunAsync(() => CandleUpdated?.Invoke(this,
-                    new ChartCandle(ToEpoch(bar.OpenTimeUtc), bar.Open, bar.High, bar.Low, bar.Close))));
+                _ = UiThread.RunAsync(() =>
+                {
+                    if (IsPaused) { _pausedDirty = true; return; }
+                    CandleUpdated?.Invoke(this,
+                        new ChartCandle(ToEpoch(bar.OpenTimeUtc), bar.Open, bar.High, bar.Low, bar.Close));
+                }));
         }
         catch (Exception ex)
         {
@@ -230,6 +292,131 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
     private static long ToEpoch(DateTime utc) =>
         new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeSeconds();
+
+    // ── Presets ──────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ToolPresetStore<ChartsPreset> _presetStore = new("charts");
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new ChartsPreset(
+            SelectedInstrument?.Contract.Symbol, SelectedTimeframe?.Label, SelectedChartType,
+            ShowSma, ShowEma, ShowRsi, ShowMacd));
+        RefreshPresetNames(selected: name);
+        _logger.LogInformation("Charts: preset '{Name}' saved", name);
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _logger.LogInformation("Charts: preset '{Name}' deleted", name);
+    }
+
+    /// <summary>Applies a preset behind <see cref="_applyingPreset"/> so the individual property
+    /// changes don't each fire a reload; one reload runs at the end.</summary>
+    private void ApplyPreset(ChartsPreset preset)
+    {
+        _applyingPreset = true;
+        try
+        {
+            if (preset.Symbol is { Length: > 0 } symbol &&
+                _allInstruments.FirstOrDefault(i => i.Contract.Symbol == symbol) is { } match)
+            {
+                SelectedInstrument = match;
+                ApplyFilter();   // keep the hide-until-search combo showing the new selection
+            }
+            if (preset.Timeframe is { Length: > 0 } label &&
+                Timeframes.FirstOrDefault(t => t.Label == label) is { } tf)
+                SelectedTimeframe = tf;
+            if (preset.ChartType is { Length: > 0 } type && ChartTypes.Contains(type))
+                SelectedChartType = type;
+            ShowSma = preset.ShowSma;
+            ShowEma = preset.ShowEma;
+            ShowRsi = preset.ShowRsi;
+            ShowMacd = preset.ShowMacd;
+        }
+        finally
+        {
+            _applyingPreset = false;
+        }
+        QueueReload();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──────────────────
+
+    [RelayCommand]
+    private async Task ExportCsvAsync()
+    {
+        var bars = _lastBars;
+        var snap = _lastSnapshot;
+        if (bars.Count == 0 || snap is null) return;
+
+        var sma = ToMap(snap.Sma);
+        var ema = ToMap(snap.Ema);
+        var rsi = ToMap(snap.Rsi);
+        var macd = snap.Macd?.ToDictionary(m => m.Time);
+
+        var sb = new StringBuilder();
+        sb.Append("time_utc,open,high,low,close,volume");
+        if (sma is not null) sb.Append(",sma20");
+        if (ema is not null) sb.Append(",ema50");
+        if (rsi is not null) sb.Append(",rsi14");
+        if (macd is not null) sb.Append(",macd,macd_signal,macd_hist");
+        sb.AppendLine();
+
+        foreach (var b in bars)
+        {
+            var t = ToEpoch(b.TimestampUtc);
+            sb.Append(string.Create(CultureInfo.InvariantCulture,
+                $"{b.TimestampUtc:O},{b.Open},{b.High},{b.Low},{b.Close},{b.Volume}"));
+            if (sma is not null) AppendOptional(sb, sma, t);
+            if (ema is not null) AppendOptional(sb, ema, t);
+            if (rsi is not null) AppendOptional(sb, rsi, t);
+            if (macd is not null)
+                sb.Append(macd.TryGetValue(t, out var m)
+                    ? string.Create(CultureInfo.InvariantCulture, $",{m.Macd},{m.Signal},{m.Hist}")
+                    : ",,,");
+            sb.AppendLine();
+        }
+
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"chart-{SymbolToken()}-{snap.Timeframe}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Charts: CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+
+        static Dictionary<long, double>? ToMap(ChartLinePoint[]? pts) =>
+            pts?.ToDictionary(p => p.Time, p => p.Value);
+
+        static void AppendOptional(StringBuilder sb, Dictionary<long, double> map, long t) =>
+            sb.Append(map.TryGetValue(t, out var v)
+                ? string.Create(CultureInfo.InvariantCulture, $",{v}")
+                : ",");
+    }
+
+    private string SymbolToken() =>
+        (SelectedInstrument?.Contract.Symbol ?? "chart").Replace('/', '-').Replace(':', '-');
 
     // ── Indicators (computed in C# over closes; reuse Core primitives) ──────────────────────────
 
@@ -291,6 +478,19 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 /// <summary>A selectable timeframe — label, the canonical <see cref="BarSize"/>, and how much history to pull.</summary>
 public sealed record ChartTimeframe(string Label, BarSize BarSize, TimeSpan Lookback);
 
+/// <summary>A named snapshot of the Charts window's setup, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\charts.json).
+/// Unlike the other tools, chart presets deliberately include symbol + interval — a preset here is
+/// "my SPY hourly setup", not just view toggles. All fields are optional so older files apply.</summary>
+public sealed record ChartsPreset(
+    string? Symbol,
+    string? Timeframe,
+    string? ChartType,
+    bool ShowSma,
+    bool ShowEma,
+    bool ShowRsi,
+    bool ShowMacd);
+
 // ── JSON bridge DTOs (camelCase via the window's serializer) → Lightweight Charts shapes ─────────
 public sealed record ChartCandle(long Time, double Open, double High, double Low, double Close);
 public sealed record ChartVolume(long Time, double Value, string Color);
@@ -299,6 +499,7 @@ public sealed record MacdPoint(long Time, double Macd, double Signal, double His
 public sealed record ChartSnapshot(
     string Symbol,
     string Timeframe,
+    string ChartType,
     ChartCandle[] Candles,
     ChartVolume[] Volume,
     ChartLinePoint[]? Sma,

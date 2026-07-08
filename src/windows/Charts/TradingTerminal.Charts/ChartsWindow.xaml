@@ -11,6 +11,10 @@
                  WindowStartupLocation="CenterOwner"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
+    <mah:MetroWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </mah:MetroWindow.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -18,46 +22,138 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Toolbar: instrument + timeframe + indicator toggles -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
-                Padding="8,6">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Symbol" VerticalAlignment="Center" Margin="0,0,6,0"
+        <!-- Toolbar: instrument + timeframe + presets + actions (indicators live in the ⚙ rail) -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Symbol" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <TextBox Width="150"
+                <TextBox Grid.Column="1" Width="150"
                          Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                          mah:TextBoxHelper.Watermark="Search…"
                          mah:TextBoxHelper.ClearTextButton="True"
                          Margin="0,0,6,0" />
-                <ComboBox Width="220"
+                <ComboBox Grid.Column="2" Width="220"
                           ItemsSource="{Binding Instruments}"
                           SelectedItem="{Binding SelectedInstrument}"
                           DisplayMemberPath="DisplayName"
-                          MaxDropDownHeight="420" Margin="0,0,16,0" />
+                          MaxDropDownHeight="420" Margin="0,0,12,0" />
 
-                <TextBlock Text="Timeframe" VerticalAlignment="Center" Margin="0,0,6,0"
-                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                <ComboBox Width="80"
-                          ItemsSource="{Binding Timeframes}"
-                          SelectedItem="{Binding SelectedTimeframe}"
-                          DisplayMemberPath="Label" Margin="0,0,16,0" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Timeframe" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <ComboBox Width="76"
+                              ItemsSource="{Binding Timeframes}"
+                              SelectedItem="{Binding SelectedTimeframe}"
+                              DisplayMemberPath="Label" />
+                </StackPanel>
 
-                <CheckBox Content="SMA(20)" IsChecked="{Binding ShowSma}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <CheckBox Content="EMA(50)" IsChecked="{Binding ShowEma}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <CheckBox Content="RSI(14)" IsChecked="{Binding ShowRsi}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <CheckBox Content="MACD"    IsChecked="{Binding ShowMacd}" VerticalAlignment="Center" Margin="0,0,10,0" />
-            </StackPanel>
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <Border Style="{StaticResource App.ParamDivider}" />
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="140" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save. Chart presets remember symbol, interval, chart type and indicators." />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current chart setup as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause live candle updates — the stream keeps running underneath, resume catches up instantly" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportCsvCommand}"
+                            IsEnabled="{Binding HasData}"
+                            ToolTip="Export the loaded bars + indicator values as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of the chart" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  ToolTip="What am I looking at?" />
+                    <ToggleButton x:Name="OptionsToggle" Style="{StaticResource App.IconToggle}" Content="⚙"
+                                  IsChecked="True" Margin="0"
+                                  ToolTip="Show / hide the options rail" />
+                </StackPanel>
+            </Grid>
         </Border>
 
-        <wv2:WebView2 Grid.Row="1" x:Name="Web" />
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-330" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE CHART" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Price" /><Run Text=" — candles / bars / line / area (pick in the ⚙ rail). History comes from the connected broker; the forming candle streams live off the market-data hub." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Volume" /><Run Text=" — the bottom histogram on the price pane, green for up bars and red for down bars." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="SMA 20 / EMA 50" /><Run Text=" — moving-average overlays (blue / amber), computed in C# with the same primitives the backtester uses, so chart and backtest numbers agree." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="RSI 14" /><Run Text=" — its own pane with 30 / 70 bands; above 70 is conventionally overbought, below 30 oversold." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="MACD 12·26·9" /><Run Text=" — its own pane: histogram = MACD minus signal; sign flips of the histogram mark momentum crossovers." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Legend" /><Run Text=" — hover the chart to read OHLC at the crosshair; scroll to zoom, drag to pan." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
 
-        <Border Grid.Row="2"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
-                Padding="8,3">
-            <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+        <!-- Chart + collapsible options rail. The empty state renders inside the web page itself
+             (window.dax.message) — WebView2's out-of-process composition sits above any WPF
+             overlay in the same cell (airspace), so a XAML overlay would be invisible. -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <wv2:WebView2 Grid.Column="0" x:Name="Web" />
+
+            <Border Grid.Column="1" Style="{StaticResource App.OptionsRail}" Width="200"
+                    Visibility="{Binding IsChecked, ElementName=OptionsToggle, Converter={StaticResource BoolToVis}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="CHART TYPE" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding ChartTypes}"
+                                  SelectedItem="{Binding SelectedChartType}" Margin="0,0,0,12" />
+
+                        <TextBlock Text="INDICATORS" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <CheckBox Content="SMA (20)" IsChecked="{Binding ShowSma}" Margin="0,0,0,4" />
+                        <CheckBox Content="EMA (50)" IsChecked="{Binding ShowEma}" Margin="0,0,0,4" />
+                        <CheckBox Content="RSI (14)" IsChecked="{Binding ShowRsi}" Margin="0,0,0,4" />
+                        <CheckBox Content="MACD (12·26·9)" IsChecked="{Binding ShowMacd}" Margin="0,0,0,4" />
+                        <TextBlock Text="RSI and MACD open their own panes below the price."
+                                   FontSize="10" Foreground="{DynamicResource Text.Secondary}"
+                                   TextWrapping="Wrap" Margin="0,3,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Status line -->
+        <Border Grid.Row="2" Style="{StaticResource App.FooterBar}">
+            <DockPanel>
+                <Border DockPanel.Dock="Right" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
         </Border>
     </Grid>
 </mah:MetroWindow>
