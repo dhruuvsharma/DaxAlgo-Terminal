@@ -3,10 +3,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
-    <!-- app.manifest + the EXE icon now live in App.Core (shared across editions); point at them there. -->
-    <ApplicationManifest>..\TradingTerminal.App.Core\app.manifest</ApplicationManifest>
-    <ApplicationIcon>..\TradingTerminal.App.Core\Icon\DaxAlgoLogo.ico</ApplicationIcon>
-    <Description>Professional-edition WPF shell: App.Core (common shell + tools) plus every Pro-only surface (ML / AI panels / LSE / QuantConnect / Surface Lab / experimental bubble chart) and the full menu.</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon\DaxAlgoLogo.ico</ApplicationIcon>
+    <Description>Professional-edition WPF shell — fully self-contained (no shared shell library): the complete shell + every common tool/chart surface plus every Pro-only surface (ML / AI panels / LSE / QuantConnect / Surface Lab / experimental bubble chart) and the full menu. The Basic / Intermediate shells are independent copies of this code with the tier-exclusive surfaces removed — a shell fix must be applied to each edition separately.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -14,15 +13,31 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Common shell + tools/charts + DI composition — everything shared across editions. -->
-    <ProjectReference Include="..\TradingTerminal.App.Core\TradingTerminal.App.Core.csproj" />
-    <!-- Referenced directly by App.xaml.cs (broker options, AddInfrastructureCore/Keyless/Credentialed,
-         Paper research + sidecar wiring, converter/log-sink seams, AppEdition). -->
+    <Resource Include="Icon\DaxAlgoLogo.ico" />
+    <Resource Include="Icon\DaxAlgoLogo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
+    <ProjectReference Include="..\..\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
+    <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <!-- Common Charts-menu tools (every edition ships these) -->
+    <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <!-- Common Tools-menu surfaces (every edition ships these) -->
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
 
-    <!-- ── Pro-only feature surfaces (NOT in App.Core) ─────────────────────────────────────────── -->
+    <!-- ── Pro-only feature surfaces (absent from the Basic / Intermediate shells) ─────────────── -->
     <!-- Experimental: Volume Bubble Line chart. -->
     <ProjectReference Include="..\..\Charts\TradingTerminal.BubbleChart\TradingTerminal.BubbleChart.csproj" />
     <!-- 3D quant surface lab. -->
@@ -43,8 +58,10 @@
     <ProjectReference Include="..\..\AI\TradingTerminal.Ai.PaperLab\TradingTerminal.Ai.PaperLab.csproj" />
   </ItemGroup>
 
-  <!-- Strategy plug-ins staged as external DLLs into {OutDir}/plugins (shared across editions). -->
-  <Import Project="..\StrategyPlugins.targets" />
+  <!-- Strategy plug-ins staged as external DLLs into {OutDir}/plugins. This shell owns its own
+       copy of the targets file (no cross-edition sharing); the Basic/Intermediate shells carry
+       their own copies too. -->
+  <Import Project="StrategyPlugins.targets" />
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />

@@ -1,0 +1,19 @@
+{
+  "profiles": {
+    "Basic (Login)": {
+      "commandName": "Project"
+    },
+    "Basic — Dev: Simulated (offline)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSim"
+      }
+    },
+    "Basic — Dev: Replay (local DB)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevReplay"
+      }
+    }
+  }
+}

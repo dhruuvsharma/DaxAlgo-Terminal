@@ -19,8 +19,9 @@
     <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
   </Folder>
   <Folder Name="/Shell/">
-    <Project Path="src/windows/Shell/TradingTerminal.App.Core/TradingTerminal.App.Core.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.App/TradingTerminal.App.csproj" />
+    <Project Path="src/windows/Shell/TradingTerminal.App.Basic/TradingTerminal.App.Basic.csproj" />
+    <Project Path="src/windows/Shell/TradingTerminal.App.Intermediate/TradingTerminal.App.Intermediate.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.Login/TradingTerminal.Login.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj" />
   </Folder>

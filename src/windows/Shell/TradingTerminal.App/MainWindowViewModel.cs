@@ -12,7 +12,7 @@ using TradingTerminal.App.Archive;
 using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
-// Common per-tool projects (extracted from App): Charts menu, Tools menu — no Pro-only refs here.
+// Common per-tool projects: Charts menu, Tools menu (every edition ships these).
 using TradingTerminal.Charts;
 using TradingTerminal.OrderBook;
 using TradingTerminal.VolumeFootprint;
@@ -22,6 +22,19 @@ using TradingTerminal.Backtest;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.Recording;
 using TradingTerminal.AdvancedMarketRegime;
+// Professional-only per-tool projects (absent from the Basic / Intermediate shells).
+using TradingTerminal.BubbleChart;
+using TradingTerminal.SurfaceLab;
+using TradingTerminal.LseBacktest;
+using TradingTerminal.QuantConnect;
+using TradingTerminal.Ml.Stationarity;
+using TradingTerminal.Ml.ArimaGarch;
+using TradingTerminal.Ml.KalmanFilter;
+using TradingTerminal.Ai.MarketAnalyst;
+using TradingTerminal.Ai.FactorResearch;
+using TradingTerminal.Ai.MlFeatures;
+using TradingTerminal.Ai.BacktestAnalysis;
+using TradingTerminal.Ai.PaperLab;
 using TradingTerminal.Infrastructure.MarketData.Store;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
@@ -38,7 +51,6 @@ namespace TradingTerminal.App;
 public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPresenter
 {
     // Stable per-window keys for the single-instance window registry (owned by IShellWindowHost).
-    // Only COMMON tools live here; the Pro-only ids moved to ProfessionalToolCommands.
     private const string NotificationsWindowId = "settings.notifications";
     private const string PluginManagerWindowId = "plugins.manager";
     private const string BacktestStudioWindowId = "tools.backtest-studio";
@@ -54,6 +66,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
     private const string ResearchSettingsWindowId = "settings.research";
+    // Professional-only window ids.
+    private const string LseBacktestWindowId = "lse.backtest";
+    private const string FactorResearchWindowId = "tools.research";
+    private const string MlFeaturesWindowId = "ai.mlfeatures";
+    private const string BacktestAnalysisWindowId = "ai.backtestanalysis";
+    private const string AiAnalystWindowId = "ai.marketanalyst";
+    private const string PaperLabWindowId = "ai.paperlab";
+    private const string StationarityWindowId = "ml.stationarity";
+    private const string ArimaGarchWindowId = "ml.arimagarch";
+    private const string KalmanFilterWindowId = "ml.kalmanfilter";
+    private const string QuantConnectWindowId = "tools.quantconnect";
+    private const string BubbleChartWindowId = "charts.bubbleline";
+    private const string SurfaceLabWindowId = "charts.surfacelab";
 
     private readonly IStrategyFactory _factory;
     private readonly IEventBus _eventBus;
@@ -85,12 +110,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _services = services;
         _logger = logger;
 
-        // Drive the shell "Opening…" curtain from the window host (which the Pro launchers share too).
+        // Drive the shell "Opening…" curtain from the window host.
         _host.OverlayPresenter = this;
-
-        // Tier-exclusive launch commands (LSE / ML / AI panels / QuantConnect / Surface Lab / bubble chart)
-        // are supplied by the edition shell. Null in Basic/Intermediate — those menu items don't bind.
-        ExtendedTools = services.GetService<IShellExtendedToolCommands>();
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
         LogSink = logSink;
@@ -132,15 +153,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             OnPropertyChanged(nameof(IsAuthenticated));
         };
     }
-
-    /// <summary>The edition's tier-exclusive launch commands (an <see cref="IShellExtendedToolCommands"/>
-    /// implementation), or null in a build that ships none. The menu binds Pro-only items through
-    /// <c>{Binding ExtendedTools.Open…Command}</c>.</summary>
-    public object? ExtendedTools { get; }
-
-    /// <summary>The edition's menu <c>UserControl</c> (an <see cref="IShellMenuBar"/>), assigned by
-    /// <see cref="Shell.MainShellFactory"/>. Rendered by the MainWindow's <c>MenuBar</c> region.</summary>
-    public object? MenuBar { get; internal set; }
 
     // ── IShellOverlayPresenter — lets the window host drive the shell busy-overlay ──────────────
     void IShellOverlayPresenter.Show(string title, string detail)
@@ -634,6 +646,95 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         var vm = OpenOrActivateArchiveHistory();
         if (vm.InstantOffloadCommand.CanExecute(null))
             vm.InstantOffloadCommand.Execute(null);
+    }
+
+    // ── Professional-only launch commands ────────────────────────────────────────────────────────
+    // The LSE backtester, the Machine-Learning windows (Stationarity / ARIMA-GARCH / Kalman), the AI
+    // panels (Factor research / ML features / Backtest analysis / Market analyst / Paper Lab),
+    // QuantConnect / LEAN, the 3D Surface Lab and the experimental Volume-Bubble-Line chart. The
+    // Basic / Intermediate shells' copies of this view-model simply do not carry this section.
+
+    [RelayCommand]
+    public void OpenLseBacktest() =>
+        _host.OpenHostedTool<LseBacktestViewModel, LseBacktestView>(LseBacktestWindowId, "LSE backtester", "Loading the LSE backtester…");
+
+    [RelayCommand]
+    public void OpenResearch() =>
+        _host.OpenHostedTool<FactorResearchViewModel, FactorResearchView>(FactorResearchWindowId, "Factor research", "Loading factor research…");
+
+    [RelayCommand]
+    public void OpenMlFeatures() =>
+        _host.OpenHostedTool<MlFeaturesViewModel, MlFeaturesView>(MlFeaturesWindowId, "ML features", "Computing feature definitions…");
+
+    [RelayCommand]
+    public void OpenBacktestAnalysis() =>
+        _host.OpenHostedTool<BacktestAnalysisViewModel, BacktestAnalysisView>(BacktestAnalysisWindowId, "Backtest analysis", "Loading backtest analysis…");
+
+    [RelayCommand]
+    public void OpenAiAnalyst() =>
+        _host.OpenHostedTool<AiAnalystViewModel, AiAnalystView>(AiAnalystWindowId, "AI market analyst", "Connecting to the AI analyst…");
+
+    [RelayCommand]
+    public void OpenPaperLab() =>
+        _host.OpenHostedTool<PaperLabViewModel, PaperLabView>(PaperLabWindowId, "Paper Lab", "Loading Paper Lab…");
+
+    // Experimental: price line + per-bar growing volume bubble. Kept separate from the live charts.
+    [RelayCommand]
+    public void OpenBubbleChart() =>
+        _host.OpenWindowTool<BubbleChartViewModel, BubbleChartWindow>(BubbleChartWindowId, "Volume bubble line", "Building the volume-bubble line…");
+
+    [RelayCommand]
+    public void OpenSurfaceLab() =>
+        _host.OpenHostedTool<SurfaceLabViewModel, SurfaceLabView>(SurfaceLabWindowId, "3D Surface Lab", "Preparing the surface workspace…");
+
+    [RelayCommand]
+    public void OpenStationarity() =>
+        _host.OpenHostedTool<StationarityViewModel, StationarityView>(StationarityWindowId, "Stationarity & differencing", "Loading the time-series workspace…");
+
+    [RelayCommand]
+    public void OpenArimaGarch() =>
+        _host.OpenHostedTool<ArimaGarchViewModel, ArimaGarchView>(ArimaGarchWindowId, "ARIMA & GARCH", "Loading the time-series workspace…");
+
+    [RelayCommand]
+    public void OpenKalmanFilter() =>
+        _host.OpenHostedTool<KalmanFilterViewModel, KalmanFilterView>(KalmanFilterWindowId, "Kalman filter", "Loading the time-series workspace…");
+
+    // ── QuantConnect / LEAN ─────────────────────────────────────────────────────────────────────
+    // One single-instance window with four tabs; each menu item deep-links to a tab index.
+    [RelayCommand] public void OpenQuantConnectBacktest() => OpenQuantConnect(0);
+    [RelayCommand] public void OpenQuantConnectProjects() => OpenQuantConnect(1);
+    [RelayCommand] public void OpenQuantConnectData() => OpenQuantConnect(2);
+    [RelayCommand] public void OpenQuantConnectSettings() => OpenQuantConnect(3);
+
+    private QuantConnectViewModel? _quantConnectVm;
+
+    private void OpenQuantConnect(int tab)
+    {
+        if (_host.IsOpen(QuantConnectWindowId) && _quantConnectVm is not null)
+        {
+            _quantConnectVm.SelectedTabIndex = tab;
+            _host.TryActivate(QuantConnectWindowId);
+            return;
+        }
+
+        _host.OpenWithOverlay("Opening QuantConnect / LEAN…", "Loading the LEAN workspace…", () =>
+        {
+            var vm = _services.GetRequiredService<QuantConnectViewModel>();
+            vm.SelectedTabIndex = tab;
+            var window = _services.GetRequiredService<QuantConnectWindow>();
+            window.DataContext = vm;
+            window.Owner = Application.Current.MainWindow;
+            window.Closed += (_, _) =>
+            {
+                _host.Unregister(QuantConnectWindowId);
+                _quantConnectVm = null;
+                vm.Dispose();
+            };
+            _host.Register(QuantConnectWindowId, window);
+            _quantConnectVm = vm;
+            window.Show();
+            _logger.LogInformation("Opened QuantConnect / LEAN window (tab {Tab})", tab);
+        });
     }
 
     public Task StartAsync()

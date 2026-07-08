@@ -1,0 +1,208 @@
+<UserControl x:Class="TradingTerminal.App.Theming.ThemeStudioView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}"
+             d:DesignHeight="700" d:DesignWidth="760">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Compact A/R/G/B slider stack reused by solid tokens and gradient stops. -->
+        <Style x:Key="ChannelSlider" TargetType="Slider">
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="255" />
+            <Setter Property="Width" Value="150" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="IsSnapToTickEnabled" Value="True" />
+            <Setter Property="TickFrequency" Value="1" />
+        </Style>
+        <Style x:Key="ChannelLabel" TargetType="TextBlock">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="ChannelValue" TargetType="TextBlock">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,12">
+            <StackPanel>
+                <TextBlock Text="Theme Studio"
+                           FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="Edit any colour and watch every open window re-skin live. Save your look as a custom theme, then export it to share or import one back."
+                           Foreground="{DynamicResource Text.Secondary}"
+                           TextWrapping="Wrap"
+                           Margin="0,2,0,12" />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                        <TextBlock Text="Start from" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <ComboBox ItemsSource="{Binding BaseThemes}"
+                                  SelectedItem="{Binding SelectedBaseTheme, Mode=TwoWay}"
+                                  DisplayMemberPath="Name"
+                                  MinWidth="180" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Name" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <TextBox Text="{Binding NewThemeName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 MinWidth="180" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="Reset" Command="{Binding ResetAllCommand}" Padding="14,5" Margin="0,0,8,0"
+                                ToolTip="Discard edits and return to the selected base preset." />
+                        <Button Content="Import…" Command="{Binding ImportCommand}" Padding="14,5" Margin="0,0,8,0" />
+                        <Button Content="Export…" Command="{Binding ExportCommand}" Padding="14,5" Margin="0,0,8,0" />
+                        <Button Content="Save theme" Command="{Binding SaveCommand}" Padding="14,5"
+                                ToolTip="Add the current look to the View → Theme menu." />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Status -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,8">
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Token groups -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+            <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Expander Header="{Binding Name}" IsExpanded="True" Margin="0,0,0,8"
+                                  Foreground="{DynamicResource Text.Header}" FontWeight="SemiBold">
+                            <ItemsControl ItemsSource="{Binding Tokens}" Margin="6,6,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                                                Padding="0,8" ToolTip="{Binding PrimaryKey}">
+                                            <StackPanel>
+
+                                                <!-- Solid token -->
+                                                <StackPanel Visibility="{Binding IsSolid, Converter={StaticResource BoolToVis}}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="34" />
+                                                            <ColumnDefinition Width="220" />
+                                                            <ColumnDefinition Width="120" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" Width="26" Height="18" CornerRadius="3"
+                                                                Background="{Binding Swatch}"
+                                                                BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                                                                HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                        <TextBox Grid.Column="2" Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 FontFamily="Consolas" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                                    </Grid>
+                                                    <Expander Header="RGBA" Margin="34,4,0,0" Foreground="{DynamicResource Text.Secondary}" FontWeight="Normal">
+                                                        <StackPanel Margin="0,4,0,0">
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="A" Style="{StaticResource ChannelLabel}" />
+                                                                <Slider Value="{Binding A, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                <TextBlock Text="{Binding A}" Style="{StaticResource ChannelValue}" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="R" Style="{StaticResource ChannelLabel}" />
+                                                                <Slider Value="{Binding R, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                <TextBlock Text="{Binding R}" Style="{StaticResource ChannelValue}" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="G" Style="{StaticResource ChannelLabel}" />
+                                                                <Slider Value="{Binding G, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                <TextBlock Text="{Binding G}" Style="{StaticResource ChannelValue}" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="B" Style="{StaticResource ChannelLabel}" />
+                                                                <Slider Value="{Binding B, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                <TextBlock Text="{Binding B}" Style="{StaticResource ChannelValue}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Expander>
+                                                </StackPanel>
+
+                                                <!-- Gradient token -->
+                                                <StackPanel Visibility="{Binding IsGradient, Converter={StaticResource BoolToVis}}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="220" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                                        <Border Grid.Column="1" Height="20" CornerRadius="3"
+                                                                Background="{Binding GradientPreview}"
+                                                                BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1" />
+                                                    </Grid>
+                                                    <Expander Header="Stops" Margin="0,4,0,0" Foreground="{DynamicResource Text.Secondary}" FontWeight="Normal">
+                                                        <ItemsControl ItemsSource="{Binding Stops}" Margin="0,4,0,0">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <StackPanel Margin="0,2">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Border Width="26" Height="16" CornerRadius="3"
+                                                                                    Background="{Binding Swatch}"
+                                                                                    BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                                                                                    VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                            <TextBlock Text="{Binding Label}" Width="60" VerticalAlignment="Center" />
+                                                                            <TextBox Text="{Binding Hex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     FontFamily="Consolas" Width="120" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                        <StackPanel Orientation="Horizontal" Margin="34,2,0,0">
+                                                                            <TextBlock Text="R" Style="{StaticResource ChannelLabel}" />
+                                                                            <Slider Value="{Binding R, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                            <TextBlock Text="G" Style="{StaticResource ChannelLabel}" Margin="8,0,0,0" />
+                                                                            <Slider Value="{Binding G, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                            <TextBlock Text="B" Style="{StaticResource ChannelLabel}" Margin="8,0,0,0" />
+                                                                            <Slider Value="{Binding B, Mode=TwoWay}" Style="{StaticResource ChannelSlider}" />
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Expander>
+                                                </StackPanel>
+
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

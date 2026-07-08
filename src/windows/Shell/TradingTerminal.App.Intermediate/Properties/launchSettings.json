@@ -1,0 +1,25 @@
+{
+  "profiles": {
+    "Intermediate (Login)": {
+      "commandName": "Project"
+    },
+    "Intermediate — Dev: Simulated (offline)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSim"
+      }
+    },
+    "Intermediate — Dev: Replay (local DB)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevReplay"
+      }
+    },
+    "Intermediate — Dev: Live (no login)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevLive"
+      }
+    }
+  }
+}

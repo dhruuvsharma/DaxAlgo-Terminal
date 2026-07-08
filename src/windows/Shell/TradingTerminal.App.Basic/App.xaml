@@ -1,0 +1,35 @@
+<Application x:Class="TradingTerminal.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
+             ShutdownMode="OnLastWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+            <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+            <converters:ReferenceEqualsConverter x:Key="ReferenceEqualsConverter" />
+            <converters:BrokerInitialsConverter x:Key="BrokerInitialsConverter" />
+            <converters:BrokerSubtitleConverter x:Key="BrokerSubtitleConverter" />
+            <converters:Base64ToImageSourceConverter x:Key="Base64ToImageSourceConverter" />
+            <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
+            <converters:HexToSoftBrushConverter x:Key="HexToSoftBrushConverter" />
+            <converters:HaloBrushConverter x:Key="HaloBrushConverter" />
+            <converters:CorrelationToBrushConverter x:Key="CorrelationToBrushConverter" />
+
+            <ResourceDictionary.MergedDictionaries>
+                <!-- MahApps base -->
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Blue.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+
+                <!-- Project dark theme overrides -->
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Brushes.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Dark.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Components.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/StrategyShellStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

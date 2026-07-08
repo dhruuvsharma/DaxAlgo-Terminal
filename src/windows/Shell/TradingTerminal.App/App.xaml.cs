@@ -16,9 +16,10 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure;
 using TradingTerminal.Infrastructure.Research;
 using TradingTerminal.Infrastructure.Sidecar;
+using TradingTerminal.Login;
 using TradingTerminal.UI.Converters;
 using TradingTerminal.UI.Logging;
-// Pro-only per-tool projects (App.Core ships only the COMMON surfaces; these are the Professional add-ons).
+// Professional-only per-tool projects (absent from the Basic / Intermediate shells).
 using TradingTerminal.BubbleChart;
 using TradingTerminal.SurfaceLab;
 using TradingTerminal.LseBacktest;
@@ -156,35 +157,24 @@ public partial class App : Application
                 // writes to). Registered before AddCoreShell so its TryAdd is a no-op and this instance wins.
                 services.AddSingleton(inMemoryLogSink);
 
-                // Which edition to compose as. The shipped exe is Professional; a launch profile can set
-                // Dev:Edition (via the Dev__Edition env var) to Basic / Intermediate to test the tier
-                // differences in this single build. (AppEdition is a value type, so register it through
-                // the non-generic Type/instance overload.)
-                var edition = ctx.Configuration.GetSection(DevOptions.SectionName).Get<DevOptions>()?.Edition
-                              ?? AppEdition.Professional;
-                services.AddSingleton(typeof(AppEdition), edition);
+                // This exe IS the Professional edition — the edition is fixed per shell project, not
+                // configuration. (AppEdition is a value type, so register it through the non-generic
+                // Type/instance overload.)
+                services.AddSingleton(typeof(AppEdition), AppEdition.Professional);
 
-                // Broker layer: shared broker-neutral infrastructure + keyless (crypto/Simulated) always;
-                // credentialed brokers (IB/NT/cTrader/Alpaca/Ironbeam/LSE/Upstox) are an Intermediate-and-up
-                // surface, so Basic is keyless-only.
+                // Broker layer: shared broker-neutral infrastructure + every broker — the keyless
+                // crypto/Simulated feeds and the credentialed set (IB/NT/cTrader/Alpaca/Ironbeam/LSE/Upstox).
+                // AddCredentialedLoginForms pairs with AddCredentialedBrokers — those forms resolve
+                // services only this registration provides.
                 services.AddInfrastructureCore();
                 services.AddKeylessBrokers();
-                if (edition >= AppEdition.Intermediate)
-                    services.AddCredentialedBrokers();
+                services.AddCredentialedBrokers();
+                services.AddCredentialedLoginForms();
 
-                // Common composition shared by every edition (pipeline / archive / notifications / regime /
-                // strategy plug-ins / login / shell + window host / support / settings / AI-analyst seam +
-                // the common tool & chart surfaces + cross-cutting singletons).
+                // The core composition (pipeline / archive / notifications / regime / strategy plug-ins /
+                // login / shell + window host / support / settings / AI-analyst seam + the common tool &
+                // chart surfaces + cross-cutting singletons).
                 services.AddCoreShell(ctx.Configuration);
-
-                if (edition < AppEdition.Professional)
-                {
-                    // Basic / Intermediate: the common menu only, and NO tier-exclusive launch commands
-                    // (MainWindowViewModel.ExtendedTools stays null, so the Pro menu items never bind).
-                    // The Professional-only surfaces below are simply not registered.
-                    services.AddTransient<IShellMenuBar, CommonMenuBar>();
-                    return;
-                }
 
                 // ── Professional-only surfaces (layered on top of AddCoreShell) ─────────────────────
                 // LSE Tools menu — backtester that pulls historical bars straight from the LSE broker.
@@ -210,11 +200,6 @@ public partial class App : Application
                 services.AddKalmanFilterSurface();
                 // QuantConnect / LEAN — polyglot subprocess backtest seam + tool window.
                 services.AddQuantConnectSurface(ctx.Configuration);
-
-                // Tier-exclusive launch commands + the full Professional menu, consumed by the shell VM
-                // (ExtendedTools) and its MenuBar region.
-                services.AddSingleton<IShellExtendedToolCommands, ProfessionalToolCommands>();
-                services.AddTransient<IShellMenuBar, ProfessionalMenuBar>();
             })
             .Build();
 

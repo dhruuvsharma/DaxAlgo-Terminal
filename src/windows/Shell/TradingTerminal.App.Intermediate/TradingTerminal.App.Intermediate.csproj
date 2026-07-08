@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <!-- Independent copy of the shell code (no shared shell library across editions). The types keep
+         their TradingTerminal.App.* namespaces — the three edition exes never reference each other,
+         so identical namespaces can't clash; only the assembly name differs. -->
+    <RootNamespace>TradingTerminal.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon\DaxAlgoLogo.ico</ApplicationIcon>
+    <Description>Intermediate-edition WPF shell — fully self-contained (no shared shell library): ALL brokers (keyless crypto/Simulated + the credentialed set with the full login), the full strategies catalog, core charts and core tools. No ML / AI / LSE / QuantConnect / Paper Lab / experimental surfaces. A shell fix here must be applied to the other editions' copies separately.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Icon\DaxAlgoLogo.ico" />
+    <Resource Include="Icon\DaxAlgoLogo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
+    <!-- The shared AI-analyst SEAM only (Null client) — the notification enricher resolves
+         IAiAnalystClient in every edition. The AI tool windows are Professional-only. -->
+    <ProjectReference Include="..\..\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
+    <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <!-- Core Charts-menu tools -->
+    <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <!-- Core Tools-menu surfaces -->
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
+  </ItemGroup>
+
+  <!-- Strategy plug-ins staged as external DLLs into {OutDir}/plugins. This shell owns its own
+       copy of the targets file (no cross-edition sharing). Every edition ships the full
+       strategies catalog. -->
+  <Import Project="StrategyPlugins.targets" />
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\..\..\appsettings.json" Link="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Gitignored per-user secret overrides (API keys etc.). Optional — absent on clean checkouts. -->
+    <None Include="..\..\..\..\appsettings.local.json" Link="appsettings.local.json" Condition="Exists('..\..\..\..\appsettings.local.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Dev launch-profile overrides, selected via DOTNET_ENVIRONMENT (DevSim / DevReplay /
+         DevLive from Properties/launchSettings.json). -->
+    <None Include="..\..\..\..\appsettings.DevLive.json" Link="appsettings.DevLive.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\appsettings.DevReplay.json" Link="appsettings.DevReplay.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\appsettings.DevSim.json" Link="appsettings.DevSim.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    Polyglot bridge: copy the C++ tick_backtester.exe / gpu_optimizer.exe to the output when built
+    (Backtest Studio is a core tool, so every edition gets the fast-backtest path when present).
+    Missing files are silently skipped — the DI layer falls back to NullFastBacktestRunner.
+  -->
+  <ItemGroup>
+    <None Include="..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe')" Link="tick_backtester.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\tools\cpp-backtester\build\tick_backtester.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\build\tick_backtester.exe') And !Exists('..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe')" Link="tick_backtester.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe')" Link="gpu_optimizer.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
