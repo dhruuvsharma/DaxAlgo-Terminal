@@ -18,6 +18,7 @@ Write-Host '### TEST - Windows-only suite (WPF / DuckDB / AI)' -ForegroundColor 
 dotnet test tests/TradingTerminal.Tests/TradingTerminal.Tests.csproj --nologo -v q
 
 Write-Host ''
-Write-Host 'Run the WPF app (Windows shell):       dotnet run --project src/windows/Shell/TradingTerminal.App' -ForegroundColor Green
-Write-Host 'Run a backtest (CLI):                  dotnet run --project src/windows/Backtest/TradingTerminal.Backtest.Cli -- --help' -ForegroundColor Green
+Write-Host 'Run the WPF app (Intermediate):        dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate' -ForegroundColor Green
+Write-Host 'Run the WPF app (Basic):               dotnet run --project src/windows/Shell/TradingTerminal.App.Basic' -ForegroundColor Green
+Write-Host 'Professional edition + backtest CLI:   private DaxAlgo-Terminal-Pro repo (TradingTerminal.Pro.slnx)' -ForegroundColor Green
 Write-Host 'Linux/Avalonia tree builds separately: see linux/build-and-test.sh' -ForegroundColor Green
