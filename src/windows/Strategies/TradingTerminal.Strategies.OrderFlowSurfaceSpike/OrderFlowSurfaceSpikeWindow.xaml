@@ -121,7 +121,25 @@
                  trade, so they're live while streaming. The slice/bin matrix is baked into the
                  calculator (Stop to edit, Start to rebuild). Z-height is render-only. -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="surface-spike"
+                                           ShowBarsCsv="False" ShowSignalsCsv="False"
+                                           HelpTitle="READING THE SPIKE SURFACE">
+                        <uic:StrategyChromeBar.ExtraActions>
+                            <Button Style="{StaticResource App.IconButton}" Content="↧"
+                                    Command="{Binding ExportSurfaceCsvCommand}"
+                                    ToolTip="Export the Z-score surface (slice × price-bin) as CSV" />
+                        </uic:StrategyChromeBar.ExtraActions>
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Surface" /><Run Text=" — time slices × price bins around the mid; height is the Z-score of traded volume in that bin vs its rolling mean, so a spike is volume landing where it statistically shouldn't." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Spike" /><Run Text=" — a bin whose |Z| crosses the threshold; it must persist the configured number of confirmation ticks before it counts. Above-mid spikes lean short-absorption / resistance; below-mid lean support." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Trade logic" /><Run Text=" — confirmed spike ⇒ directional signal with advisory SL/TP in pips; the position flattens when Z flips or reverts." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Feed" /><Run Text=" — real tape on IB / Binance / Ironbeam / Simulated; other brokers fall back to synthetic L1-derived prints." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
@@ -157,7 +175,8 @@
                                               Value="{Binding WindowBins, Mode=TwoWay}" />
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -226,6 +245,10 @@
                                FontWeight="SemiBold"
                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="● ALGO ARMED" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
             </Grid>

@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -8,6 +11,7 @@ using TradingTerminal.Core.IndexKScore;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Strategies.IndexKScoreSurface;
 
@@ -72,6 +76,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
 
         Families = new ObservableCollection<IndexFamily>(IndexComponentCatalog.All);
         SelectedFamily = Families.FirstOrDefault(f => f.Id == "us30") ?? Families[0];
+        RefreshPresetNames(selected: null);
 
         BarSizes = new ObservableCollection<BarSize>
         {
@@ -140,6 +145,121 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     public string[]? ColumnSymbols { get; private set; }
 
     public event EventHandler? SurfaceChanged;
+
+    // ── Display pause (render-only; components, calculators and gates keep running) ──
+
+    /// <summary>Gates the coalesced surface repaint; every component stream, K calculator and
+    /// the aggregator keep running underneath. Resume repaints on the next render tick.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = "⏸ Display paused — components keep streaming underneath.";
+            return;
+        }
+        Status = "Resumed.";
+        _surfaceDirty = true;
+    }
+
+    // ── Named presets (K-score tuning + render options; never the index family) ──
+
+    private readonly ToolPresetStore<KScorePreset> _presetStore = new("strategy-index-kscore");
+
+    public ObservableCollection<string> PresetNames { get; } = new();
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new KScorePreset(
+            TMin, TMax, MinPierceCount, CumKThreshold,
+            RsiLength, MacdFast, MacdSlow, MacdSignal, AtrLength, AtrRegLength,
+            SurfaceHeightScale));
+        RefreshPresetNames(selected: name);
+        AddLog("PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        AddLog("PRESET", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Engine params apply on the next Start (locked while streaming); the surface
+    /// height scale is render-only and applies immediately.</summary>
+    private void ApplyPreset(KScorePreset preset)
+    {
+        if (preset.TMax > preset.TMin && preset.TMin > 0) { TMin = preset.TMin; TMax = preset.TMax; }
+        if (preset.MinPierceCount > 0) MinPierceCount = preset.MinPierceCount;
+        if (preset.CumKThreshold > 0) CumKThreshold = preset.CumKThreshold;
+        if (preset.RsiLength > 1) RsiLength = preset.RsiLength;
+        if (preset.MacdFast > 0 && preset.MacdSlow > preset.MacdFast)
+        {
+            MacdFast = preset.MacdFast;
+            MacdSlow = preset.MacdSlow;
+        }
+        if (preset.MacdSignal > 0) MacdSignal = preset.MacdSignal;
+        if (preset.AtrLength > 1) AtrLength = preset.AtrLength;
+        if (preset.AtrRegLength > 1) AtrRegLength = preset.AtrRegLength;
+        if (preset.SurfaceHeightScale > 0) SurfaceHeightScale = preset.SurfaceHeightScale;
+        _surfaceDirty = true;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the K-score surface: one row per (time-slice, component) with the
+    /// component symbol and its per-column piercing threshold.</summary>
+    [RelayCommand]
+    private async Task ExportSurfaceCsvAsync()
+    {
+        if (Surface is not { } grid || ColumnSymbols is not { } symbols) return;
+        var rows = grid.GetLength(0);
+        var cols = grid.GetLength(1);
+        var sb = new StringBuilder();
+        sb.AppendLine("slice,component,k_final,threshold");
+        for (var r = 0; r < rows; r++)
+            for (var c = 0; c < cols; c++)
+                sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                    $"{r},{(c < symbols.Length ? symbols[c] : c.ToString())},{grid[r, c]},{(Thresholds is { } t && c < t.Length ? t[c] : double.NaN)}"));
+        try
+        {
+            var family = SelectedFamily?.Id ?? "index";
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"kscore-{family}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            AddLog("EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "K-score surface CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
 
     public IndexKScoreParameters BuildParameters() => new()
     {
@@ -306,6 +426,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
     /// signal/entry semantics are unchanged.</summary>
     private void OnRenderTick()
     {
+        if (IsPaused) return;   // _surfaceDirty keeps accumulating; resume repaints next tick
         if (!_surfaceDirty) return;
         _surfaceDirty = false;
         if (_aggregator is null || _orderedComponents.Count == 0) return;
@@ -584,6 +705,7 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         _lastLong = snap.LongSignalActive;
         _lastShort = snap.ShortSignalActive;
 
+        if (IsPaused) { _surfaceDirty = true; return; }
         SurfaceChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -721,3 +843,19 @@ public sealed partial class IndexKScoreSurfaceViewModel : ViewModelBase, IDispos
         public Queue<double> KHistory { get; } = new();
     }
 }
+
+/// <summary>A named snapshot of the K-score tuning + render options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (tool-presets/strategy-index-kscore.json). Engine params
+/// apply on the next Start; the height scale is live. Never the index family.</summary>
+public sealed record KScorePreset(
+    double TMin,
+    double TMax,
+    int MinPierceCount,
+    double CumKThreshold,
+    int RsiLength,
+    int MacdFast,
+    int MacdSlow,
+    int MacdSignal,
+    int AtrLength,
+    int AtrRegLength,
+    double SurfaceHeightScale);

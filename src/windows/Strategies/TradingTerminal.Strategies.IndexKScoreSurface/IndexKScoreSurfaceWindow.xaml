@@ -112,7 +112,25 @@
                  calculators (indicator windows) are baked at Start, so all of those are locked
                  while streaming (Stop to edit, Start to rebuild). K-height is render-only. -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="index-kscore"
+                                           ShowBarsCsv="False" ShowSignalsCsv="False"
+                                           HelpTitle="READING THE K-SCORE SURFACE">
+                        <uic:StrategyChromeBar.ExtraActions>
+                            <Button Style="{StaticResource App.IconButton}" Content="↧"
+                                    Command="{Binding ExportSurfaceCsvCommand}"
+                                    ToolTip="Export the K-score surface (slice × component, with thresholds) as CSV" />
+                        </uic:StrategyChromeBar.ExtraActions>
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Surface" /><Run Text=" — one column per index component (ordered by weight), one row per bar; height is each stock's K-score, a blend of RSI / MACD / ATR-regression momentum in [0, 1]." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Threshold sheet" /><Run Text=" — the translucent plane is the per-component piercing threshold; components poking through are simultaneously momentum-hot." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Signals" /><Run Text=" — enough components piercing together (min pierce count) with the cumulative K beyond its threshold fires the index-level long/short regime signal." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Feed" /><Run Text=" — bars per component from the connected broker; LOADING HISTORY shows warm-up progress." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
@@ -161,7 +179,8 @@
                             </Popup>
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -258,6 +277,10 @@
                     <TextBlock Margin="20,0,0,0" Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold"
                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="● ALGO ARMED" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
             </Grid>

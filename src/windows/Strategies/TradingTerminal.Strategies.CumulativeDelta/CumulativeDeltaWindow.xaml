@@ -351,7 +351,25 @@
 
             <!-- Live tuning strip — every parameter is read fresh on each closed bar. -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="cumulative-delta"
+                                           ShowBarsCsv="False" ShowSignalsCsv="False"
+                                           HelpTitle="READING CUMULATIVE DELTA">
+                        <uic:StrategyChromeBar.ExtraActions>
+                            <Button Style="{StaticResource App.IconButton}" Content="↧"
+                                    Command="{Binding ExportDeltasCsvCommand}"
+                                    ToolTip="Export the per-bar delta + windowed cumulative delta series as CSV" />
+                        </uic:StrategyChromeBar.ExtraActions>
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Delta" /><Run Text=" — buy volume minus sell volume per bar (real tape where the broker has one, uptick/downtick proxy otherwise; the FEED chip says which). The bottom lane plots per-bar delta and the rolling window's cumulative delta." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Trigger" /><Run Text=" — |windowed cumΔ| crossing the threshold (fixed, or adaptive at μ+kσ of recent history) proposes a signal in that direction." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Gates" /><Run Text=" — the proposal must clear the confirmation checklist (EMA slope, ADX, spread, ATR band, session, HTF trend, cooldowns) shown live in the GATES panel; green rows passed." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Footprint" /><Run Text=" — with a real tape, the last bars render as bid×ask footprints so you can see where inside the bar the delta was built." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="TRIGGER" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <uic:ParamSpinner Label="Window (bars)" Minimum="2" Maximum="50" Step="1" StringFormat="0"
@@ -426,7 +444,8 @@
                             </Border>
                         </Popup>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -466,6 +485,10 @@
                     <TextBlock Margin="20,0,0,0"
                                Foreground="{DynamicResource Text.Secondary}"
                                Text="{Binding Status}" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
 

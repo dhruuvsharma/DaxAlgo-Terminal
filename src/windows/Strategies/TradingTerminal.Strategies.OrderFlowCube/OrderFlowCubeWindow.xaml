@@ -114,7 +114,25 @@
                  they take effect immediately while streaming. The trade-count windows are baked
                  into the calculator (Stop to edit, Start to rebuild). Size× ceiling is render-only. -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Strategy.ParamStrip}">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DockPanel>
+                    <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="orderflow-cube"
+                                           ShowBarsCsv="False" ShowSignalsCsv="False"
+                                           HelpTitle="READING THE ORDER-FLOW CUBE">
+                        <uic:StrategyChromeBar.ExtraActions>
+                            <Button Style="{StaticResource App.IconButton}" Content="↧"
+                                    Command="{Binding ExportTrailCsvCommand}"
+                                    ToolTip="Export the phase-space trail (aggressor, CVD, size ratio) as CSV" />
+                        </uic:StrategyChromeBar.ExtraActions>
+                        <uic:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Phase space" /><Run Text=" — every trade updates three tape statistics: X = aggressor ratio (share of buyer-initiated trades), Y = CVD imbalance (signed volume vs baseline), Z = size ratio (recent avg trade size vs baseline). The glowing point is now; the trail is where the market has been." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Corners" /><Run Text=" — the top-far corner (high aggressor, positive CVD, big prints) is ACCUMULATION; the opposite corner is DISTRIBUTION. A trail drifting into a corner and staying is regime confirmation; bouncing through the middle is noise." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Signals" /><Run Text=" — fire when all three thresholds are crossed together. Thresholds apply live; the trade-count windows rebuild on Start." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Feed" /><Run Text=" — real tape on IB / Binance / Ironbeam / Simulated; other brokers fall back to synthetic L1-derived trades (degraded size axis)." />
+                            </TextBlock>
+                        </uic:StrategyChromeBar.HelpContent>
+                    </uic:StrategyChromeBar>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="STREAM" Style="{StaticResource Strategy.ParamGroupLabel}" />
                         <Button Content="■ Stop" Command="{Binding StopCommand}" VerticalAlignment="Center" Padding="10,3" Margin="0,0,6,0"
@@ -144,7 +162,8 @@
                                               Value="{Binding BaselineWindow, Mode=TwoWay}" />
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Grid>
@@ -210,6 +229,10 @@
                                FontWeight="SemiBold"
                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="● ALGO ARMED" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="16,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
             </Grid>

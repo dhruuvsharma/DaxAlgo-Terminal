@@ -5,6 +5,7 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                 xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="1-Minute Order Flow Pressure Map"
                  Height="860" Width="1280"
@@ -24,7 +25,25 @@
 
         <!-- Filter bar -->
         <Border Grid.Row="0" Background="#111820" BorderBrush="#263241" BorderThickness="0,0,0,1" Padding="10,7">
-            <StackPanel Orientation="Horizontal">
+            <DockPanel>
+                <uic:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="pressure-map"
+                                       ShowBarsCsv="False" ShowSignalsCsv="False"
+                                       HelpTitle="READING THE PRESSURE MAP">
+                    <uic:StrategyChromeBar.ExtraActions>
+                        <Button Style="{StaticResource App.IconButton}" Content="↧"
+                                Command="{Binding ExportScanCsvCommand}"
+                                ToolTip="Export the visible scan rows (price, imbalance, rel-vol, last signal) as CSV" />
+                    </uic:StrategyChromeBar.ExtraActions>
+                    <uic:StrategyChromeBar.HelpContent>
+                        <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="#E6EDF3" LineHeight="17">
+                            <Run FontWeight="SemiBold" Text="Matrix" /><Run Text=" — one row per S&amp;P ticker, one column per minute. Cell colour is the dominant order-flow event of that candle; brightness scales with relative volume vs the same time of day over the last 20 sessions." /><LineBreak />
+                            <Run FontWeight="SemiBold" Text="Absorption" /><Run Text=" — heavy volume, no travel: passive size soaking up aggression (cyan bullish at lows, violet bearish at highs)." /><LineBreak />
+                            <Run FontWeight="SemiBold" Text="Breakthrough / Breakdown" /><Run Text=" — heavy volume WITH travel: green up-moves, red down-moves. Fresh events also ring the cell." /><LineBreak />
+                            <Run FontWeight="SemiBold" Text="Interact" /><Run Text=" — hover a cell for its candle detail; click a row to pin its live panel. Filters apply instantly; the universe re-subscribes." />
+                        </TextBlock>
+                    </uic:StrategyChromeBar.HelpContent>
+                </uic:StrategyChromeBar>
+                <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Universe" VerticalAlignment="Center" Foreground="#8A94A6" FontSize="11" Margin="0,0,6,0" />
                 <ComboBox Width="90" ItemsSource="{Binding Universes}" SelectedItem="{Binding SelectedUniverse}"
                           Margin="0,0,18,0" />
@@ -39,7 +58,8 @@
 
                 <CheckBox Content="Active signals only" IsChecked="{Binding ShowOnlyActive}"
                           VerticalAlignment="Center" Foreground="#E6EDF3" />
-            </StackPanel>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- Matrix + overlays -->
@@ -117,8 +137,14 @@
                     <Border Width="11" Height="11" Background="#1C2530" VerticalAlignment="Center" Margin="0,0,4,0" />
                     <TextBlock Text="Neutral" FontSize="11" Foreground="#8A94A6" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11" Foreground="#8A94A6"
-                           VerticalAlignment="Center" TextAlignment="Right" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding Status}" FontSize="11" Foreground="#8A94A6"
+                               VerticalAlignment="Center" TextAlignment="Right" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="10,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

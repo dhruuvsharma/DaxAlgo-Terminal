@@ -278,6 +278,24 @@
             <!-- Toolbar -->
             <Border DockPanel.Dock="Top" Background="{StaticResource ChromeBar}"
                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="12,7">
+                <DockPanel>
+                    <ctl:StrategyChromeBar DockPanel.Dock="Right" SnapshotName="index-regime-graph"
+                                           ShowBarsCsv="False" ShowSignalsCsv="False"
+                                           HelpTitle="READING THE REGIME GRAPH">
+                        <ctl:StrategyChromeBar.ExtraActions>
+                            <Button Style="{StaticResource App.IconButton}" Content="↧"
+                                    Command="{Binding ExportTableCsvCommand}"
+                                    ToolTip="Export the constituent table (score, weight, contribution, band) as CSV" />
+                        </ctl:StrategyChromeBar.ExtraActions>
+                        <ctl:StrategyChromeBar.HelpContent>
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="Matrix" /><Run Text=" — one row per index constituent, one cell per timeframe; cell colour is that stock's regime call on that horizon (green bullish, red bearish). Expand a row for its full indicator breakdown." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Composite" /><Run Text=" — the hero strip aggregates every constituent's score, weighted by index weight; STRONG UP / STRONG DOWN fires when breadth and magnitude align." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Contrib" /><Run Text=" — each stock's weighted push on the composite; sort mentally by this column to see who is driving the index call." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="⚙ Indicators" /><Run Text=" — per-stock RSI / MACD / ATR parameter overrides; ◷ marks rows padded with synthetic history until real bars arrive." />
+                            </TextBlock>
+                        </ctl:StrategyChromeBar.HelpContent>
+                    </ctl:StrategyChromeBar>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="▦" FontSize="16" Foreground="{DynamicResource Accent.Brush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <TextBlock Text="INDEX REGIME GRAPH" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Text.Header}"
@@ -301,6 +319,7 @@
 
                     <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}" Text="{Binding Status}" />
                 </StackPanel>
+                </DockPanel>
             </Border>
 
             <!-- Footer -->
@@ -336,6 +355,10 @@
                     <TextBlock Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold" VerticalAlignment="Center"
                                Visibility="{Binding IsAlgoRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="● ARMED" />
+                    <Border Style="{StaticResource Pill.Warn}" Margin="12,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding IsPaused, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
                 </StackPanel>
             </Border>
 
@@ -412,11 +435,25 @@
                 </Border>
 
                 <!-- Rows -->
-                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                              Background="{DynamicResource Background.Surface}">
-                    <ItemsControl ItemsSource="{Binding ConstituentRows}"
-                                  VirtualizingPanel.IsVirtualizing="True"
-                                  VirtualizingPanel.VirtualizationMode="Recycling">
+                <!-- Rows. Virtualization only works when the ScrollViewer lives INSIDE the
+                     ItemsControl template (CanContentScroll) so the VirtualizingStackPanel is
+                     the scroll host — an outer ScrollViewer hands the panel infinite height and
+                     silently realizes all 500 rows. -->
+                <ItemsControl Grid.Row="2" ItemsSource="{Binding ConstituentRows}"
+                              Background="{DynamicResource Background.Surface}"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <Border Background="{TemplateBinding Background}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                              CanContentScroll="True" Focusable="False">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
@@ -585,7 +622,6 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </ScrollViewer>
             </Grid>
         </DockPanel>
     </Grid>

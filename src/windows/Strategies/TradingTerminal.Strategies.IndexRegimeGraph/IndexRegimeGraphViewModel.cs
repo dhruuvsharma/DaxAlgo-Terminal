@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +12,7 @@ using TradingTerminal.Core.IndexRegime;
 using TradingTerminal.Core.MarketData.AdvancedRegime;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Strategies.IndexRegimeGraph;
 
@@ -86,6 +90,7 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
         _provider = provider;
         _notifications = notifications;
         _logger = logger;
+        RefreshPresetNames(selected: null);
 
         Families = new ObservableCollection<IndexFamily>(IndexComponentCatalog.All);
         SelectedFamily = Families.FirstOrDefault(f => f.Id == "us30") ?? Families[0];
@@ -397,7 +402,10 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
             }
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(5, RefreshSeconds)));
             while (await timer.WaitForNextTickAsync(ct))
+            {
+                if (IsPaused) continue;   // display pause: skip the cycle, resume next tick
                 await RefreshCycleAsync(ct);
+            }
         }
         catch (OperationCanceledException) { /* Stop() */ }
         catch (Exception ex)
@@ -648,6 +656,98 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
             .FireAndForgetSafe(_logger, $"signal publish {StrategyId}");
     }
 
+    // ── Display pause (skips refresh cycles; live subscriptions keep streaming) ──
+
+    /// <summary>Gates the periodic analysis/refresh cycle; the per-constituent live
+    /// subscriptions keep filling the hub/store underneath, so resume recomputes from
+    /// current data on the next tick (or via ⟳ Refresh when auto-refresh is off).</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        Status = value
+            ? "⏸ Display paused — constituents keep streaming underneath."
+            : (AutoRefresh ? "Resumed — next auto-refresh repaints." : "Resumed — press ⟳ Refresh to repaint.");
+    }
+
+    // ── Named presets (refresh cadence; never the index family) ──
+
+    private readonly ToolPresetStore<RegimeGraphPreset> _presetStore = new("strategy-index-regime-graph");
+
+    public ObservableCollection<string> PresetNames { get; } = new();
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new RegimeGraphPreset(RefreshSeconds, AutoRefresh));
+        RefreshPresetNames(selected: name);
+        AddLog("PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        AddLog("PRESET", $"Preset '{name}' deleted");
+    }
+
+    private void ApplyPreset(RegimeGraphPreset preset)
+    {
+        if (preset.RefreshSeconds >= 5) RefreshSeconds = preset.RefreshSeconds;
+        AutoRefresh = preset.AutoRefresh;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the constituent table — one row per stock with its regime score,
+    /// index weight and composite contribution.</summary>
+    [RelayCommand]
+    private async Task ExportTableCsvAsync()
+    {
+        if (ConstituentRows.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("symbol,index_weight,stock_score,contribution,band,has_data");
+        foreach (var r in ConstituentRows)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{r.Symbol},{r.IndexWeight},{r.StockScore},{r.Contribution},{r.Band},{r.HasData}"));
+        try
+        {
+            var family = SelectedFamily?.Id ?? "index";
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"regime-graph-{family}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            AddLog("EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Regime graph CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
+
     private void AddLog(string level, string message) =>
         _services.ActivityLog.Append(StrategyName, level, message);
 
@@ -659,3 +759,7 @@ public sealed partial class IndexRegimeGraphViewModel : ViewModelBase, IDisposab
         DisposeLiveHandles();
     }
 }
+
+/// <summary>A named snapshot of the regime graph's refresh cadence, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (tool-presets/strategy-index-regime-graph.json).</summary>
+public sealed record RegimeGraphPreset(int RefreshSeconds, bool AutoRefresh);

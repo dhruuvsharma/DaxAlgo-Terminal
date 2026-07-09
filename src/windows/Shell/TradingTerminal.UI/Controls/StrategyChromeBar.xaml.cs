@@ -45,6 +45,9 @@ public partial class StrategyChromeBar : UserControl
     public static readonly DependencyProperty HelpContentProperty = DependencyProperty.Register(
         nameof(HelpContent), typeof(object), typeof(StrategyChromeBar), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty ExtraActionsProperty = DependencyProperty.Register(
+        nameof(ExtraActions), typeof(object), typeof(StrategyChromeBar), new PropertyMetadata(null));
+
     public bool ShowPresets
     {
         get => (bool)GetValue(ShowPresetsProperty);
@@ -88,6 +91,14 @@ public partial class StrategyChromeBar : UserControl
     {
         get => GetValue(HelpContentProperty);
         set => SetValue(HelpContentProperty, value);
+    }
+
+    /// <summary>Window-specific action buttons rendered between pause and PNG (e.g. a bespoke
+    /// CSV export bound to the host VM).</summary>
+    public object? ExtraActions
+    {
+        get => GetValue(ExtraActionsProperty);
+        set => SetValue(ExtraActionsProperty, value);
     }
 
     private void ExportPng_Click(object sender, RoutedEventArgs e)

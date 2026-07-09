@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +12,7 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Strategies.OrderFlowSurfaceSpike;
 
@@ -62,6 +66,7 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
             () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
         ApplyInstrumentFilter();
 
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
         _ = LoadInstrumentsAsync();
     }
 
@@ -110,6 +115,126 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
     public long LatestBin { get; private set; }
 
     public event EventHandler? SurfaceChanged;
+
+    // ── Display pause (render-only; the tape + spike detector keep running) ────────────────────
+
+    /// <summary>Gates the surface redraw; the tape pump and spike detector keep running
+    /// underneath, so resume replays one redraw with everything that happened while paused.</summary>
+    [ObservableProperty] private bool _isPaused;
+    private bool _surfaceDirty;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = "⏸ Display paused — the tape keeps streaming underneath.";
+            return;
+        }
+        Status = IsStreaming ? $"Streaming — {SignalLabel}" : "Resumed.";
+        if (!_surfaceDirty) return;
+        _surfaceDirty = false;
+        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseSurfaceChanged()
+    {
+        if (IsPaused) { _surfaceDirty = true; return; }
+        SurfaceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ── Named presets (spike tuning + render options; never the instrument) ────────────────────
+
+    private readonly ToolPresetStore<SurfaceSpikePreset> _presetStore = new("strategy-orderflow-surface-spike");
+
+    public ObservableCollection<string> PresetNames { get; }
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new SurfaceSpikePreset(
+            TicksPerSlice, NumSlices, PriceBinSize, WindowBins, SpikeThreshold,
+            ConfirmationTicks, Quantity, StopLossPips, TakeProfitPips, SurfaceHeightScale));
+        RefreshPresetNames(selected: name);
+        AddLog("PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        AddLog("PRESET", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Engine params apply on the next Start (locked while streaming); the surface
+    /// height scale is render-only and applies immediately.</summary>
+    private void ApplyPreset(SurfaceSpikePreset preset)
+    {
+        if (preset.TicksPerSlice > 0) TicksPerSlice = preset.TicksPerSlice;
+        if (preset.NumSlices > 1) NumSlices = preset.NumSlices;
+        if (preset.PriceBinSize > 0) PriceBinSize = preset.PriceBinSize;
+        if (preset.WindowBins > 2) WindowBins = preset.WindowBins;
+        if (preset.SpikeThreshold > 0) SpikeThreshold = preset.SpikeThreshold;
+        if (preset.ConfirmationTicks > 0) ConfirmationTicks = preset.ConfirmationTicks;
+        if (preset.Quantity > 0) Quantity = preset.Quantity;
+        if (preset.StopLossPips > 0) StopLossPips = preset.StopLossPips;
+        if (preset.TakeProfitPips > 0) TakeProfitPips = preset.TakeProfitPips;
+        if (preset.SurfaceHeightScale > 0) SurfaceHeightScale = preset.SurfaceHeightScale;
+        RaiseSurfaceChanged();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ─────────────────
+
+    /// <summary>Exports the current Z-score surface, one row per (slice, bin) cell.</summary>
+    [RelayCommand]
+    private async Task ExportSurfaceCsvAsync()
+    {
+        if (Surface is not { } grid) return;
+        var slices = grid.GetLength(0);
+        var bins = grid.GetLength(1);
+        var half = bins / 2;
+        var sb = new StringBuilder();
+        sb.AppendLine("slice,bin_offset,zscore");
+        for (var sl = 0; sl < slices; sl++)
+            for (var b = 0; b < bins; b++)
+                sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                    $"{sl},{b - half},{grid[sl, b]}"));
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "spike").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"surface-spike-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            AddLog("EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Surface-spike CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
 
     // Bounded, DropOldest channel + batch draining caps memory under a fast tape (the old unbounded
     // channel + per-trade marshal could pile a backlog into GBs over a long session).
@@ -324,7 +449,7 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
                 await UiThread.RunAsync(() =>
                 {
                     foreach (var trade in batch) OnTrade(trade);
-                    SurfaceChanged?.Invoke(this, EventArgs.Empty);
+                    RaiseSurfaceChanged();
                 });
             }
         }
@@ -489,3 +614,18 @@ public sealed partial class OrderFlowSurfaceSpikeViewModel : ViewModelBase, IDis
         _tradeHandle?.Dispose(); _tradeHandle = null;
     }
 }
+
+/// <summary>A named snapshot of the spike detector's tuning + render options, persisted per user
+/// by <see cref="ToolPresetStore{T}"/> (tool-presets\strategy-orderflow-surface-spike.json).
+/// Engine params apply on the next Start; the height scale is live. Never the instrument.</summary>
+public sealed record SurfaceSpikePreset(
+    int TicksPerSlice,
+    int NumSlices,
+    double PriceBinSize,
+    int WindowBins,
+    double SpikeThreshold,
+    int ConfirmationTicks,
+    long Quantity,
+    double StopLossPips,
+    double TakeProfitPips,
+    double SurfaceHeightScale);

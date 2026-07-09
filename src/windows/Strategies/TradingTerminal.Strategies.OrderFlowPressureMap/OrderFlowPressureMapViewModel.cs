@@ -1,3 +1,7 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -8,6 +12,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Strategies.OrderFlowPressureMap;
 
@@ -68,6 +73,7 @@ public sealed partial class OrderFlowPressureMapViewModel : ViewModelBase, IDisp
         _showOnlyActive = _opt.ShowOnlyActive;
 
         Snapshot = Array.Empty<PressureRowSnapshot>();
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
         _ready = true;
         Restart();
     }
@@ -111,6 +117,108 @@ public sealed partial class OrderFlowPressureMapViewModel : ViewModelBase, IDisp
 
     /// <summary>Raised on the UI thread once per second when the snapshot changes; the window redraws.</summary>
     public event EventHandler? PressureMapChanged;
+
+    // ── Display pause (render-only; the universe pumps + calculator keep running) ───────────────
+
+    /// <summary>Gates the once-per-second render tick; the universe subscriptions and candle
+    /// evaluation keep running underneath (the _dirty flag accumulates), so resume redraws the
+    /// current state on the next tick.</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = "⏸ Display paused — the universe keeps streaming underneath.";
+            return;
+        }
+        Status = "Resumed.";
+        _dirty = true;   // force a redraw on the next tick even if nothing changed while paused
+    }
+
+    // ── Named presets (scan setup: universe + filters; never a specific instrument) ─────────────
+
+    private readonly ToolPresetStore<PressureMapPreset> _presetStore = new("strategy-pressure-map");
+
+    public ObservableCollection<string> PresetNames { get; }
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new PressureMapPreset(
+            SelectedUniverse.ToString(), MinRelVol, SelectedSignalFilter.ToString(), ShowOnlyActive));
+        RefreshPresetNames(selected: name);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _log.Append(LogSource, "INFO", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Filters apply live; a universe change restarts the scan (that's its normal
+    /// behaviour when picked by hand too). Enums travel as strings so old files stay valid.</summary>
+    private void ApplyPreset(PressureMapPreset preset)
+    {
+        if (Enum.TryParse<PressureUniverse>(preset.Universe, out var universe) && Universes.Contains(universe))
+            SelectedUniverse = universe;
+        if (preset.MinRelVol >= 0) MinRelVol = preset.MinRelVol;
+        if (Enum.TryParse<SignalTypeFilter>(preset.SignalFilter, out var filter) && SignalFilters.Contains(filter))
+            SelectedSignalFilter = filter;
+        ShowOnlyActive = preset.ShowOnlyActive;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──────────────────
+
+    /// <summary>Exports the current filtered scan snapshot — one row per visible ticker.</summary>
+    [RelayCommand]
+    private async Task ExportScanCsvAsync()
+    {
+        var rows = Snapshot;
+        if (rows.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("symbol,name,last_price,book_imbalance,relative_volume,last_signal,last_signal_time_utc,active");
+        foreach (var r in rows)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{r.Symbol},\"{r.Name.Replace("\"", "\"\"")}\",{r.LastPrice},{r.BookImbalance},{r.RelativeVolume},{r.LastSignal},{r.LastSignalTime:O},{r.HasActiveSignal}"));
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"pressure-map-{SelectedUniverse}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            _log.Append(LogSource, "INFO", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Pressure map CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
 
     partial void OnSelectedUniverseChanged(PressureUniverse value) { if (_ready) Restart(); }
     partial void OnMinRelVolChanged(double value) { _dirty = true; }
@@ -339,6 +447,7 @@ public sealed partial class OrderFlowPressureMapViewModel : ViewModelBase, IDisp
 
     private void OnRenderTick()
     {
+        if (IsPaused) return;   // _dirty keeps accumulating; resume redraws on the next tick
         UpdatePinnedLive();
         if (!_dirty) return;
         _dirty = false;
@@ -542,3 +651,11 @@ internal sealed class PressureRow
     public (double bid, double ask) CurrentDepth() =>
         HasDepth ? (BidDepth5, AskDepth5) : (LastBidSize, LastAskSize);
 }
+
+/// <summary>A named snapshot of the pressure-map scan setup (universe + filters), persisted per
+/// user by <see cref="ToolPresetStore{T}"/> (tool-presets/strategy-pressure-map.json).</summary>
+public sealed record PressureMapPreset(
+    string? Universe,
+    double MinRelVol,
+    string? SignalFilter,
+    bool ShowOnlyActive);

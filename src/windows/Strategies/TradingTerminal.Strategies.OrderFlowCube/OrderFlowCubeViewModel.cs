@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +12,7 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Strategies.OrderFlowCube;
 
@@ -68,6 +72,7 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         ApplyInstrumentFilter();
 
         TrailPoints = new ObservableCollection<CubePoint>();
+        RefreshPresetNames(selected: null);
         _ = LoadInstrumentsAsync();
     }
 
@@ -119,6 +124,119 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
     public ObservableCollection<CubePoint> TrailPoints { get; }
 
     public event EventHandler? TrailChanged;
+
+    // ── Display pause (render-only; the calculator + tape keep running) ─────────────────────────
+
+    /// <summary>Gates the cube redraw; the tape pump and calculator keep running underneath,
+    /// so resume replays one redraw with everything that happened while paused.</summary>
+    [ObservableProperty] private bool _isPaused;
+    private bool _trailDirty;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = "⏸ Display paused — the tape keeps streaming underneath.";
+            return;
+        }
+        Status = IsStreaming ? $"Streaming — {RegimeLabel}" : "Resumed.";
+        if (!_trailDirty) return;
+        _trailDirty = false;
+        TrailChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseTrailChanged()
+    {
+        if (IsPaused) { _trailDirty = true; return; }
+        TrailChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ── Named presets (cube tuning + render options; never the instrument) ──────────────────────
+
+    private readonly ToolPresetStore<OrderFlowCubePreset> _presetStore = new("strategy-orderflow-cube");
+
+    public ObservableCollection<string> PresetNames { get; } = new();
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new OrderFlowCubePreset(
+            RecentWindow, TrendWindow, BaselineWindow,
+            CvdThreshold, AggressorBuyThreshold, SizeRatioThreshold, SizeAxisCeiling));
+        RefreshPresetNames(selected: name);
+        AddLog("PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        AddLog("PRESET", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Window params apply on the next Start (they're locked while streaming);
+    /// the size-axis ceiling is render-only and applies immediately.</summary>
+    private void ApplyPreset(OrderFlowCubePreset preset)
+    {
+        if (preset.RecentWindow >= 5) RecentWindow = preset.RecentWindow;
+        if (preset.TrendWindow >= RecentWindow) TrendWindow = preset.TrendWindow;
+        if (preset.BaselineWindow >= TrendWindow) BaselineWindow = preset.BaselineWindow;
+        if (preset.CvdThreshold is > 0 and < 1) CvdThreshold = preset.CvdThreshold;
+        if (preset.AggressorBuyThreshold is > 0.5 and < 1) AggressorBuyThreshold = preset.AggressorBuyThreshold;
+        if (preset.SizeRatioThreshold > 0) SizeRatioThreshold = preset.SizeRatioThreshold;
+        if (preset.SizeAxisCeiling > 0) SizeAxisCeiling = preset.SizeAxisCeiling;
+        RaiseTrailChanged();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──────────────────
+
+    /// <summary>Exports the phase-space trail — one row per retained point.</summary>
+    [RelayCommand]
+    private async Task ExportTrailCsvAsync()
+    {
+        if (TrailPoints.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,aggressor_ratio,cvd_imbalance,size_ratio");
+        foreach (var p in TrailPoints)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{p.At:O},{p.Aggressor},{p.Cvd},{p.SizeRatio}"));
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "cube").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"orderflow-cube-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            AddLog("EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Order-flow cube CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
 
     // Bounded, DropOldest channel + batch draining caps memory under a fast tape (the old unbounded
     // channel + per-trade marshal could pile a backlog into GBs over a long session).
@@ -318,7 +436,7 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
                 await UiThread.RunAsync(() =>
                 {
                     foreach (var trade in batch) OnTrade(trade);
-                    TrailChanged?.Invoke(this, EventArgs.Empty);
+                    RaiseTrailChanged();
                 });
             }
         }
@@ -450,3 +568,15 @@ public sealed partial class OrderFlowCubeViewModel : ViewModelBase, IDisposable
         _tradeHandle?.Dispose(); _tradeHandle = null;
     }
 }
+
+/// <summary>A named snapshot of the cube's tuning + render options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (tool-presets\strategy-orderflow-cube.json). Window params
+/// apply on the next Start; the size-axis ceiling is live. The instrument is never included.</summary>
+public sealed record OrderFlowCubePreset(
+    int RecentWindow,
+    int TrendWindow,
+    int BaselineWindow,
+    double CvdThreshold,
+    double AggressorBuyThreshold,
+    double SizeRatioThreshold,
+    double SizeAxisCeiling);

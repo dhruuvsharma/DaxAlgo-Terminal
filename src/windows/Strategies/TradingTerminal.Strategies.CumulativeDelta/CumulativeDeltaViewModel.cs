@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,6 +11,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Strategies.CumulativeDelta;
 
@@ -131,6 +135,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         };
         SelectedTimeframe = BarSize.ThreeMinutes;
 
+        RefreshPresetNames(selected: null);
         Bars = new ObservableCollection<Bar>();
         BarDeltas = new ObservableCollection<int>();
         RecentSignals = new ObservableCollection<string>();
@@ -308,13 +313,156 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private double _priceAxisMin;
     [ObservableProperty] private double _priceAxisMax;
 
-    partial void OnChartBarsShownChanged(int value) => BarsChanged?.Invoke(this, EventArgs.Empty);
-    partial void OnPriceAutoScaleChanged(bool value) => BarsChanged?.Invoke(this, EventArgs.Empty);
-    partial void OnPriceAxisMinChanged(double value) { if (!PriceAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
-    partial void OnPriceAxisMaxChanged(double value) { if (!PriceAutoScale) BarsChanged?.Invoke(this, EventArgs.Empty); }
+    partial void OnChartBarsShownChanged(int value) => RaiseBarsChanged();
+    partial void OnPriceAutoScaleChanged(bool value) => RaiseBarsChanged();
+    partial void OnPriceAxisMinChanged(double value) { if (!PriceAutoScale) RaiseBarsChanged(); }
+    partial void OnPriceAxisMaxChanged(double value) { if (!PriceAutoScale) RaiseBarsChanged(); }
 
     public event EventHandler? BarsChanged;
     public event EventHandler? DeltasChanged;
+
+    // ── Display pause (render-only; the tape, bars and gates keep running) ──
+
+    /// <summary>Gates all three render events (bars / deltas / footprint); the feed, bar
+    /// aggregation, CVD accounting and signal gates keep running underneath. Resume replays
+    /// one refresh of whatever went stale while paused.</summary>
+    [ObservableProperty] private bool _isPaused;
+    private bool _barsDirty, _deltasDirty, _footprintDirty;
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = "⏸ Display paused — the stream keeps running underneath.";
+            return;
+        }
+        Status = IsStreaming ? $"Streaming {SelectedInstrument?.DisplayName}" : "Resumed.";
+        if (_barsDirty) { _barsDirty = false; BarsChanged?.Invoke(this, EventArgs.Empty); }
+        if (_deltasDirty) { _deltasDirty = false; DeltasChanged?.Invoke(this, EventArgs.Empty); }
+        if (_footprintDirty) { _footprintDirty = false; FootprintChanged?.Invoke(this, EventArgs.Empty); }
+    }
+
+    private void RaiseBarsChanged()
+    {
+        if (IsPaused) { _barsDirty = true; return; }
+        BarsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseDeltasChanged()
+    {
+        if (IsPaused) { _deltasDirty = true; return; }
+        DeltasChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseFootprintChanged()
+    {
+        if (IsPaused) { _footprintDirty = true; return; }
+        FootprintChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ── Named presets (strategy tuning + chart options; never the instrument) ──
+
+    private readonly ToolPresetStore<CumulativeDeltaPreset> _presetStore = new("strategy-cumulative-delta");
+
+    public ObservableCollection<string> PresetNames { get; } = new();
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new CumulativeDeltaPreset(
+            WindowSize, DeltaThreshold, AutoThreshold, ThresholdSigma, MinConfirmations,
+            EmaSlopeBars, AdxThreshold, MaxSpreadBp, MinAtrBp, MaxAtrBp,
+            UseSessionFilter, OverlapOnly, UseHtfFilter,
+            MaxSignalsPerSession, MaxDailySignals, MinSecondsBetweenSignals,
+            ChartBarsShown, PriceAutoScale, PriceAxisMin, PriceAxisMax));
+        RefreshPresetNames(selected: name);
+        _services.ActivityLog.Append("Cumulative Delta", "PRESET", $"Preset '{name}' saved");
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _services.ActivityLog.Append("Cumulative Delta", "PRESET", $"Preset '{name}' deleted");
+    }
+
+    /// <summary>Locked engine params apply on the next Start; chart-axis options apply live.</summary>
+    private void ApplyPreset(CumulativeDeltaPreset preset)
+    {
+        if (preset.WindowSize > 0) WindowSize = preset.WindowSize;
+        if (preset.DeltaThreshold > 0) DeltaThreshold = preset.DeltaThreshold;
+        AutoThreshold = preset.AutoThreshold;
+        if (preset.ThresholdSigma > 0) ThresholdSigma = preset.ThresholdSigma;
+        if (preset.MinConfirmations > 0) MinConfirmations = preset.MinConfirmations;
+        if (preset.EmaSlopeBars > 0) EmaSlopeBars = preset.EmaSlopeBars;
+        if (preset.AdxThreshold > 0) AdxThreshold = preset.AdxThreshold;
+        if (preset.MaxSpreadBp > 0) MaxSpreadBp = preset.MaxSpreadBp;
+        if (preset.MinAtrBp > 0) MinAtrBp = preset.MinAtrBp;
+        if (preset.MaxAtrBp > 0) MaxAtrBp = preset.MaxAtrBp;
+        UseSessionFilter = preset.UseSessionFilter;
+        OverlapOnly = preset.OverlapOnly;
+        UseHtfFilter = preset.UseHtfFilter;
+        if (preset.MaxSignalsPerSession > 0) MaxSignalsPerSession = preset.MaxSignalsPerSession;
+        if (preset.MaxDailySignals > 0) MaxDailySignals = preset.MaxDailySignals;
+        if (preset.MinSecondsBetweenSignals >= 0) MinSecondsBetweenSignals = preset.MinSecondsBetweenSignals;
+        if (preset.ChartBarsShown > 0) ChartBarsShown = preset.ChartBarsShown;
+        PriceAutoScale = preset.PriceAutoScale;
+        PriceAxisMin = preset.PriceAxisMin;
+        PriceAxisMax = preset.PriceAxisMax;
+        RaiseBarsChanged();
+        RaiseDeltasChanged();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the delta series — one row per closed bar with its bar delta and the
+    /// windowed cumulative delta the signal logic runs on.</summary>
+    [RelayCommand]
+    private async Task ExportDeltasCsvAsync()
+    {
+        if (DeltaPoints.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,bar_delta,window_cum_delta");
+        foreach (var d in DeltaPoints)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{d.TimeUtc:O},{d.BarDelta},{d.WindowCum}"));
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "cvd").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"cumulative-delta-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            _services.ActivityLog.Append("Cumulative Delta", "EXPORT", $"Exported → {path}");
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Cumulative delta CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+    }
 
     // 15m bar cache used by EMA + slope + ADX.
     private readonly List<Bar> _htfBars = new();
@@ -369,8 +517,8 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         Bars.Clear();
         BarDeltas.Clear();
         ResetState();
-        BarsChanged?.Invoke(this, EventArgs.Empty);
-        DeltasChanged?.Invoke(this, EventArgs.Empty);
+        RaiseBarsChanged();
+        RaiseDeltasChanged();
 
         Status = $"Loading {SelectedInstrument.DisplayName} history…";
 
@@ -380,7 +528,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
             foreach (var b in history.TakeLast(MaxBarsRetained))
                 Bars.Add(b);
             RecalculateAtr();
-            BarsChanged?.Invoke(this, EventArgs.Empty);
+            RaiseBarsChanged();
         }
         catch (Exception ex)
         {
@@ -593,7 +741,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
                 {
                     AppendBar(bar);
                     OnBarClosed();
-                    BarsChanged?.Invoke(this, EventArgs.Empty);
+                    RaiseBarsChanged();
                 });
             }
         }
@@ -652,7 +800,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
 
         DeltaPoints.Add(new DeltaPoint(closedBar?.TimestampUtc ?? DateTime.UtcNow, candleDelta, cumDelta));
         while (DeltaPoints.Count > MaxBarsRetained) DeltaPoints.RemoveAt(0);
-        DeltasChanged?.Invoke(this, EventArgs.Empty);
+        RaiseDeltasChanged();
 
         // Sample once per bar.
         if (LastSpread is { } s)
@@ -702,7 +850,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         _footprintBars.Add(fp);
         while (_footprintBars.Count > MaxFootprintBars) _footprintBars.RemoveAt(0);
         _barPrints.Clear();
-        FootprintChanged?.Invoke(this, EventArgs.Empty);
+        RaiseFootprintChanged();
     }
 
     /// <summary>Row size from the chart-TF ATR snapped to a 1-2-5 ladder (instrument-agnostic).</summary>
@@ -1162,7 +1310,7 @@ public sealed partial class CumulativeDeltaViewModel : ViewModelBase, IDisposabl
         LastConfirmationScore = 0;
         FeedMode = "—";
         OnPropertyChanged(nameof(MaxConfirmations));
-        FootprintChanged?.Invoke(this, EventArgs.Empty);
+        RaiseFootprintChanged();
     }
 }
 
@@ -1180,3 +1328,28 @@ public enum SessionId
     NewYork = 3,
     Overlap = 4,
 }
+
+/// <summary>A named snapshot of the CVD strategy's tuning + chart options, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (tool-presets/strategy-cumulative-delta.json). Locked engine
+/// params apply on the next Start; chart options are live. Never the instrument.</summary>
+public sealed record CumulativeDeltaPreset(
+    int WindowSize,
+    int DeltaThreshold,
+    bool AutoThreshold,
+    double ThresholdSigma,
+    int MinConfirmations,
+    int EmaSlopeBars,
+    double AdxThreshold,
+    double MaxSpreadBp,
+    double MinAtrBp,
+    double MaxAtrBp,
+    bool UseSessionFilter,
+    bool OverlapOnly,
+    bool UseHtfFilter,
+    int MaxSignalsPerSession,
+    int MaxDailySignals,
+    int MinSecondsBetweenSignals,
+    int ChartBarsShown,
+    bool PriceAutoScale,
+    double PriceAxisMin,
+    double PriceAxisMax);

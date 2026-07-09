@@ -33,6 +33,9 @@
                       IsChecked="{Binding IsPaused}"
                       Visibility="{Binding ShowPause, ElementName=Root, Converter={StaticResource ChromeBoolToVis}}"
                       ToolTip="Pause the display — the strategy and its feeds keep running underneath, resume is instant" />
+
+        <!-- Window-specific action buttons (e.g. a bespoke CSV export) -->
+        <ContentPresenter Content="{Binding ExtraActions, ElementName=Root}" VerticalAlignment="Center" />
         <Button Style="{StaticResource App.IconButton}" Content="↧"
                 Command="{Binding ExportBarsCsvCommand}"
                 Visibility="{Binding ShowBarsCsv, ElementName=Root, Converter={StaticResource ChromeBoolToVis}}"
