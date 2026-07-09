@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="950"
              Background="{DynamicResource Background.Primary}"
@@ -120,7 +121,10 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
+                <mah:ProgressRing IsActive="{Binding IsComputing}" Width="16" Height="16" Margin="8,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
             <TextBlock Grid.Column="1" Foreground="{DynamicResource Text.Secondary}">
                 <Run Text="Bars:" />
                 <Run Text="{Binding BarsComputed}" />

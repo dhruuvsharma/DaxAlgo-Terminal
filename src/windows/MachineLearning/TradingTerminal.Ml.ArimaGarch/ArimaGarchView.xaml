@@ -51,6 +51,7 @@
                     <ColumnDefinition Width="50" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="Search" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{DynamicResource Text.Secondary}" />
@@ -106,6 +107,29 @@
                         Command="{Binding CancelCommand}"
                         IsEnabled="{Binding IsRunning}"
                         Padding="14,4" />
+
+                <StackPanel Grid.Column="19" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-330" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="READING ARIMA + GARCH" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="ARIMA(p,d,q)" /><Run Text=" — fits the conditional mean of the (differenced) series; the forecast fan is the mean path with its widening confidence band." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="GARCH(1,1)" /><Run Text=" — fits the conditional variance: volatility clustering. The vol panel is the annualised conditional σ — regime spikes show as ridges." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Order search" /><Run Text=" — the grid ranks (p,q) combinations by information criterion (lower is better); prefer the simplest order within ~2 of the best." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Honesty" /><Run Text=" — a mean forecast on liquid markets is weak by construction; the value is mostly in the variance model and residual diagnostics." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
             </Grid>
         </Border>
 

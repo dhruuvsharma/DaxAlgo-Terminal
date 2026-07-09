@@ -48,6 +48,7 @@
                     <ColumnDefinition Width="50" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="Search" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{DynamicResource Text.Secondary}" />
@@ -108,6 +109,29 @@
                         Command="{Binding CancelCommand}"
                         IsEnabled="{Binding IsRunning}"
                         Padding="14,4" />
+
+                <StackPanel Grid.Column="16" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-330" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="READING THE KALMAN FILTER" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="State" /><Run Text=" — a local-level(+trend) model: the filter tracks the latent 'true' price/trend through noisy observations, weighting each tick by the ratio of process to observation noise." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Q / R" /><Run Text=" — process vs observation noise: higher Q/R trusts the market more (faster, noisier); lower trusts the model (smoother, laggier)." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Innovations" /><Run Text=" — forecast errors; if they're not white noise the model is mis-specified (check the innovation ACF panel)." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Band" /><Run Text=" — the state's ±σ uncertainty; excursions of price outside it are statistically notable relative to the fitted noise." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
             </Grid>
         </Border>
 

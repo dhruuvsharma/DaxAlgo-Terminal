@@ -91,7 +91,9 @@ internal sealed class HttpAiAnalystClient : IAiAnalystClient
         catch (HttpRequestException ex)
         {
             _logger.LogDebug(ex, "AI Analyst sidecar unreachable");
-            return AnalystReport.Unavailable("Python sidecar unreachable. Is daxalgo-ml.exe running?");
+            return AnalystReport.Unavailable(
+                "AI sidecar unreachable — start it from the login screen's Services panel, or enable "
+                + "auto-start in Settings → Research (the app then launches daxalgo-ml itself), and retry.");
         }
         catch (Exception ex)
         {

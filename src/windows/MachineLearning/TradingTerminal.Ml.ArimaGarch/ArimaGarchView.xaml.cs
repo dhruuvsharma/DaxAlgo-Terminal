@@ -1,4 +1,5 @@
 using System.Windows;
+using TradingTerminal.UI.Controls;
 using System.Windows.Controls;
 using TradingTerminal.UI;
 
@@ -96,4 +97,7 @@ public partial class ArimaGarchView : UserControl
         }
         VolPlot.Refresh();
     }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e) =>
+        ViewExport.SavePng(this, $"ml-arimagarch-{DateTime.Now:yyyyMMdd-HHmmss}");
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using TradingTerminal.UI.Controls;
 using System.Windows.Controls;
 using TradingTerminal.UI;
 
@@ -123,4 +124,7 @@ public partial class StationarityView : UserControl
         }
         AcfPlot.Refresh();
     }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e) =>
+        ViewExport.SavePng(this, $"ml-stationarity-{DateTime.Now:yyyyMMdd-HHmmss}");
 }

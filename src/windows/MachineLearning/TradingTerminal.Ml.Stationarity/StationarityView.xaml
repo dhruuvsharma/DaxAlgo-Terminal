@@ -46,6 +46,7 @@
                     <ColumnDefinition Width="55" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="Search" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{DynamicResource Text.Secondary}" />
@@ -97,6 +98,30 @@
                         Command="{Binding CancelCommand}"
                         IsEnabled="{Binding IsRunning}"
                         Padding="14,4" />
+
+                <StackPanel Grid.Column="14" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-330" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="READING STATIONARITY &amp; DIFFERENCING" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Why" /><Run Text=" — most models assume a stationary series; raw prices aren't. This window shows what a transform (returns, log-diff, fractional d) does to stationarity and how much memory it destroys." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="ADF" /><Run Text=" — null: unit root (non-stationary). p &lt; 0.05 rejects it — good." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="KPSS" /><Run Text=" — null flipped: stationary. p &gt; 0.05 keeps it — good. ADF and KPSS agreeing is the strong read." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Fractional d" /><Run Text=" — differencing between 0 and 1: find the smallest d that passes ADF while the ACF still shows memory — that's the López-de-Prado sweet spot." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="ACF" /><Run Text=" — bars outside the band are significant autocorrelation (memory a model can use)." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
             </Grid>
         </Border>
 
