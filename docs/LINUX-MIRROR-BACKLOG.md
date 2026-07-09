@@ -44,3 +44,12 @@ Tick an entry only after the Linux tree builds green with the replayed change.
 Entries for Phases 2+ are appended here as those phases land backend-touching changes.
 UI/XAML work in `src/windows` is WPF-only and is NOT mirrored — the Avalonia parity backlog
 tracks UI separately.
+
+## 2026-07-09 — Windows scale refactor phases 2–6 (issue #3)
+Backend/shared-layer changes made in the Windows tree that the Linux tree should replay:
+- `MarketData/Threading/FeedChannel.cs` — `FeedDropMeter` gained a process-wide `GlobalDropped` counter (status-bar diagnostics chip reads it).
+- `UI.Core/LiveSignalStrategyViewModelBase.cs` — display pause (gated `BarsChanged`/`TickProcessed` + `OnPauseReleased` hook), named view presets (`StrategyViewPreset` + `CaptureExtraPreset`/`ApplyExtraPreset`), bars/signals CSV export via `UiFile`.
+- `UI.Core/Presets/StrategyViewPreset.cs` — new preset DTO.
+- `Ai/Analyst/HttpAiAnalystClient.cs` — sidecar-unreachable message now carries start-it guidance.
+- Recording `TickRecorderViewModel.Dispose` — parquet flush moved off the closing thread (was a blocking `.Wait()`).
+(The WPF-side chrome — StrategyChromeBar, CrashGuard, per-window XAML — is Avalonia-equivalent work, not a copy.)
