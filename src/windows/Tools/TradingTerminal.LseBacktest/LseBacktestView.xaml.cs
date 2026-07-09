@@ -1,3 +1,5 @@
+using System.Windows;
+using TradingTerminal.UI.Controls;
 using System.Windows.Controls;
 using TradingTerminal.UI.Converters;
 
@@ -38,4 +40,7 @@ public partial class LseBacktestView : UserControl
         }
         EquityPlot.Refresh();
     }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e) =>
+        ViewExport.SavePng(this, $"lse-backtest-{DateTime.Now:yyyyMMdd-HHmmss}");
 }

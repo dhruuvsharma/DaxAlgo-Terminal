@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 #if WINDOWS
 using System.Windows.Media;
 #endif
@@ -53,6 +56,33 @@ public sealed partial class QuantConnectViewModel : ViewModelBase, IDisposable
 #endif
 
         _ = InitializeAsync();
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the LEAN statistics table of the last run.</summary>
+    [RelayCommand]
+    private async Task ExportStatsCsvAsync()
+    {
+        if (Statistics.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("statistic,value");
+        foreach (var stat in Statistics)
+            sb.AppendLine($"{stat.Name.Replace(',', ';')},{stat.Value.Replace(',', ';')}");
+        try
+        {
+            var project = SelectedProject?.Name?.Replace(' ', '-') ?? "lean";
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"lean-stats-{project}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            BacktestStatus = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LEAN stats CSV export failed");
+            BacktestStatus = $"Export failed: {ex.Message}";
+        }
     }
 
     public ObservableCollection<LeanProject> Projects { get; }

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
 using System.IO;
 #if WINDOWS
 using System.Windows;
@@ -12,6 +13,7 @@ using TradingTerminal.Core.Backtest.Fast;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.Backtest;
 
@@ -41,6 +43,107 @@ public sealed partial class BacktestViewModel : ViewModelBase
         SelectedStrategy = Strategies.FirstOrDefault();
         Trades = new ObservableCollection<Trade>();
         EquityCurve = new ObservableCollection<EquityPoint>();
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
+    }
+
+    // ── Named presets (run config: engine, strategy, costs; never symbol/dates) ──
+
+    private readonly ToolPresetStore<BacktestRunPreset> _presetStore = new("backtest");
+
+    public ObservableCollection<string> PresetNames { get; }
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new BacktestRunPreset(
+            SelectedStrategy?.Id, UseFastEngine, TickSize, SlippageTicks, ContractMultiplier, StartingCash));
+        RefreshPresetNames(selected: name);
+        _logger.LogInformation("Backtest: preset '{Name}' saved", name);
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _logger.LogInformation("Backtest: preset '{Name}' deleted", name);
+    }
+
+    private void ApplyPreset(BacktestRunPreset preset)
+    {
+        if (preset.StrategyId is { Length: > 0 } id &&
+            Strategies.FirstOrDefault(o => o.Id == id) is { } match)
+            SelectedStrategy = match;
+        UseFastEngine = preset.UseFastEngine;
+        if (preset.TickSize > 0) TickSize = preset.TickSize;
+        if (preset.SlippageTicks >= 0) SlippageTicks = preset.SlippageTicks;
+        if (preset.ContractMultiplier > 0) ContractMultiplier = preset.ContractMultiplier;
+        if (preset.StartingCash > 0) StartingCash = preset.StartingCash;
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the trade list of the last run.</summary>
+    [RelayCommand]
+    private async Task ExportTradesCsvAsync()
+    {
+        if (Trades.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("entry_utc,exit_utc,side,quantity,entry_price,exit_price,gross_pnl");
+        foreach (var t in Trades)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{t.EntryUtc:O},{t.ExitUtc:O},{t.Side},{t.Quantity},{t.EntryPrice},{t.ExitPrice},{t.GrossPnl}"));
+        await SaveCsvAsync("backtest-trades", sb.ToString());
+    }
+
+    /// <summary>Exports the equity curve of the last run.</summary>
+    [RelayCommand]
+    private async Task ExportEquityCsvAsync()
+    {
+        if (EquityCurve.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,equity");
+        foreach (var pt in EquityCurve)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"{pt.TimestampUtc:O},{pt.Equity}"));
+        await SaveCsvAsync("backtest-equity", sb.ToString());
+    }
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var strategy = SelectedStrategy?.Id ?? "run";
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{strategy}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Backtest CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
     }
 
     public ObservableCollection<BacktestStrategyOption> Strategies { get; }
@@ -179,3 +282,14 @@ public sealed partial class BacktestViewModel : ViewModelBase
         _runCts?.Cancel();
     }
 }
+
+/// <summary>A named snapshot of the backtest run configuration (strategy, engine and cost
+/// model), persisted per user by <see cref="ToolPresetStore{T}"/> (tool-presets/backtest.json).
+/// Symbol, data path and date range are run-specific and deliberately excluded.</summary>
+public sealed record BacktestRunPreset(
+    string? StrategyId,
+    bool UseFastEngine,
+    double TickSize,
+    int SlippageTicks,
+    double ContractMultiplier,
+    double StartingCash);

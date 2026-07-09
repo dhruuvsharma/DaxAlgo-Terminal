@@ -1,4 +1,6 @@
+using System.Windows;
 using System.Windows.Controls;
+using TradingTerminal.UI.Controls;
 using TradingTerminal.UI.Converters;
 
 namespace TradingTerminal.Backtest;
@@ -37,5 +39,11 @@ public partial class BacktestView : UserControl
             EquityPlot.Plot.Axes.AutoScale();
         }
         EquityPlot.Refresh();
+    }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        var strategy = (DataContext as BacktestViewModel)?.SelectedStrategy?.Id ?? "backtest";
+        ViewExport.SavePng(this, $"backtest-{strategy}-{DateTime.Now:yyyyMMdd-HHmmss}");
     }
 }

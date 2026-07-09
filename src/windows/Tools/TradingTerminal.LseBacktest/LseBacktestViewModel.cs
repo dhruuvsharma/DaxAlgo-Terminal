@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Globalization;
 using System.IO;
 #if WINDOWS
@@ -55,6 +56,50 @@ public sealed partial class LseBacktestViewModel : ViewModelBase
         });
         Trades = new ObservableCollection<Trade>();
         EquityCurve = new ObservableCollection<EquityPoint>();
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the trade list of the last run.</summary>
+    [RelayCommand]
+    private async Task ExportTradesCsvAsync()
+    {
+        if (Trades.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("entry_utc,exit_utc,side,quantity,entry_price,exit_price,gross_pnl");
+        foreach (var t in Trades)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{t.EntryUtc:O},{t.ExitUtc:O},{t.Side},{t.Quantity},{t.EntryPrice},{t.ExitPrice},{t.GrossPnl}"));
+        await SaveCsvAsync("lse-backtest-trades", sb.ToString());
+    }
+
+    /// <summary>Exports the equity curve of the last run.</summary>
+    [RelayCommand]
+    private async Task ExportEquityCsvAsync()
+    {
+        if (EquityCurve.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("time_utc,equity");
+        foreach (var pt in EquityCurve)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture, $"{pt.TimestampUtc:O},{pt.Equity}"));
+        await SaveCsvAsync("lse-backtest-equity", sb.ToString());
+    }
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
     }
 
     public ObservableCollection<BacktestStrategyOption> Strategies { get; }

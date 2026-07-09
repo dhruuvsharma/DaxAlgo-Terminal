@@ -1,3 +1,5 @@
+using System.Windows;
+using TradingTerminal.UI.Controls;
 using MahApps.Metro.Controls;
 
 namespace TradingTerminal.QuantConnect;
@@ -13,5 +15,11 @@ public partial class QuantConnectWindow : MetroWindow
     {
         InitializeComponent();
         RunLogBox.TextChanged += (_, _) => RunLogBox.ScrollToEnd();
+    }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (Content is not FrameworkElement root) return;
+        ViewExport.SavePng(root, $"lean-{DateTime.Now:yyyyMMdd-HHmmss}");
     }
 }

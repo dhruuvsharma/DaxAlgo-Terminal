@@ -101,6 +101,32 @@
                             IsEnabled="{Binding IsNotRunning}" Padding="14,4" />
                     <Button Content="Cancel" Command="{Binding CancelCommand}"
                             IsEnabled="{Binding IsRunning}" Padding="12,4" Margin="6,0,0,0" />
+                    <Button Style="{StaticResource App.IconButton}" Content="▤" Margin="10,0,0,0"
+                            Command="{Binding ExportTradesCsvCommand}"
+                            ToolTip="Export the last run's round-trip trades as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="⊞"
+                            Command="{Binding ExportTrialsCsvCommand}"
+                            ToolTip="Export the optimization trial grid as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-200" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="USING BACKTEST STUDIO" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Single run" /><Run Text=" — replays the chosen data source through the strategy kernel with the parameter values on the left; results land in the equity / stats / trades tabs." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Optimize" /><Run Text=" — sweeps the ticked parameter axes over their ranges and grids every combination; the trials table ranks them by score. Prefer plateaus of good trials over a single sharp peak — sharp peaks are usually overfit." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Walk-forward" /><Run Text=" — re-optimizes on a rolling in-sample window and tests on the following out-of-sample slice; consistent out-of-sample rows are the strongest evidence a setting generalises." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Export" /><Run Text=" — ▤ trades of the last run, ⊞ the optimization trial grid, 📷 a window snapshot." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                 </StackPanel>
 
                 <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}"

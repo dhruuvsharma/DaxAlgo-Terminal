@@ -95,6 +95,32 @@
                             Command="{Binding CancelCommand}"
                             IsEnabled="{Binding IsRunning}"
                             Padding="12,4" Margin="6,0,0,0" />
+                    <Button Style="{StaticResource App.IconButton}" Content="▤" Margin="10,0,0,0"
+                            Command="{Binding ExportTradesCsvCommand}"
+                            ToolTip="Export the trade list as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportEquityCsvCommand}"
+                            ToolTip="Export the equity curve as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-200" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="LSE HISTORICAL BACKTEST" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Data" /><Run Text=" — pulls historical bars for the symbol from London Strategic Edge (free multi-asset history) and replays them through the chosen strategy with the configured costs." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Bar-based" /><Run Text=" — signals evaluate on bar closes with synthetic L1 derived from the bars; tape/depth strategies can't be faithfully tested here." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Quota" /><Run Text=" — LSE has a 50 GB/month transfer quota; QUOTA_EXCEEDED is fatal by design, so keep lookbacks reasonable." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Export" /><Run Text=" — ▤ trades, ↧ equity curve, 📷 window snapshot." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                 </StackPanel>
 
                 <TextBlock Text="{Binding Status}"

@@ -102,6 +102,20 @@
                           ToolTip="Routes the run through tools/cpp-backtester/ instead of the managed engine. Greyed out when the strategy is not wired on the C++ side, or when the tick_backtester binary has not been built."
                           Margin="0,0,0,12" />
 
+                <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,4" />
+                <DockPanel Margin="0,0,0,10">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}" ToolTip="Delete the selected preset" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource App.IconButton}" Content="💾" Margin="6,0,0,0"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current run config (strategy, engine, costs) as a named preset" />
+                    <ComboBox IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save. Presets remember strategy, engine and cost model — not symbol, data path or dates." />
+                </DockPanel>
+
                 <StackPanel Orientation="Horizontal">
                     <Button Content="Run"
                             Command="{Binding RunCommand}"
@@ -111,6 +125,32 @@
                             Command="{Binding CancelCommand}"
                             IsEnabled="{Binding IsRunning}"
                             Padding="12,4" Margin="6,0,0,0" />
+                    <Button Style="{StaticResource App.IconButton}" Content="▤" Margin="10,0,0,0"
+                            Command="{Binding ExportTradesCsvCommand}"
+                            ToolTip="Export the trade list as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportEquityCsvCommand}"
+                            ToolTip="Export the equity curve as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="How does this backtest work?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="RUNNING A BACKTEST" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Data" /><Run Text=" — replays a recorded parquet tick file (see Tools → Tick Recorder) through the strategy with the configured tick size, slippage and contract multiplier." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Engines" /><Run Text=" — the managed engine runs everything; the C++ fast engine (tools/cpp-backtester) is available for strategies wired on that side once the binary is built." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Results" /><Run Text=" — equity curve, statistics and the trade list fill in when the run completes; export either as CSV with the ▤ / ↧ buttons." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Honesty" /><Run Text=" — fills are simulated against recorded L1 with slippage; depth-dependent strategies cannot be faithfully backtested from L1 alone." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                 </StackPanel>
 
                 <TextBlock Text="{Binding Status}"

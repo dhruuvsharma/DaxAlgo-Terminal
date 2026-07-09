@@ -69,6 +69,29 @@
                             <Button Content="▶ Run backtest" Command="{Binding RunBacktestCommand}" Style="{StaticResource App.ToolButton}" />
                             <Button Content="■ Cancel" Command="{Binding CancelRunCommand}" Style="{StaticResource App.ToolButton}"
                                     Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Button Style="{StaticResource App.IconButton}" Content="↧" Margin="8,0,0,0"
+                                    Command="{Binding ExportStatsCsvCommand}"
+                                    ToolTip="Export the LEAN statistics table as CSV" />
+                            <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                                    ToolTip="Save a PNG snapshot of this window" />
+                            <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                            <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-300" VerticalOffset="6">
+                                <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                                    <StackPanel>
+                                        <TextBlock Text="RUNNING LEAN BACKTESTS" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                        <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                            <Run FontWeight="SemiBold" Text="LEAN" /><Run Text=" — runs the selected QuantConnect project through the local LEAN CLI as a subprocess; the availability line says whether the CLI and Docker are ready." /><LineBreak />
+                                            <Run FontWeight="SemiBold" Text="Results" /><Run Text=" — the statistics table and equity curve parse from LEAN's result JSON when the run completes; the log pane streams the CLI output live." /><LineBreak />
+                                            <Run FontWeight="SemiBold" Text="Scope" /><Run Text=" — this is a research seam, not a broker: LEAN projects live in their own folder and don't see the terminal's market data." />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+
                             <Border Style="{StaticResource Pill.Live}" Margin="4,0,0,0"
                                     Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <TextBlock Text="◌ RUNNING" Foreground="{DynamicResource Accent.Brush}" FontSize="10" FontWeight="SemiBold" />

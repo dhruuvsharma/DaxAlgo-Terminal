@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -54,6 +56,51 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
         SelectedCriterion = OptimizationCriterion.Sharpe;
         SelectedStrategy = Strategies.FirstOrDefault();
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the round-trip trades of the last single run.</summary>
+    [RelayCommand]
+    private async Task ExportTradesCsvAsync()
+    {
+        if (Trades.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("entry_utc,exit_utc,side,quantity,entry_price,exit_price,gross_pnl,fees");
+        foreach (var t in Trades)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{t.EntryUtc:O},{t.ExitUtc:O},{t.Side},{t.Quantity},{t.EntryPrice},{t.ExitPrice},{t.GrossPnl},{t.Fees}"));
+        await SaveCsvAsync("studio-trades", sb.ToString());
+    }
+
+    /// <summary>Exports the optimization trial grid (score, net profit, trades, parameters).</summary>
+    [RelayCommand]
+    private async Task ExportTrialsCsvAsync()
+    {
+        if (OptimizationTrials.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("score,net_profit,trade_count,parameters");
+        foreach (var t in OptimizationTrials)
+            sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                $"{t.Score},{t.NetProfit},{t.TradeCount},\"{t.Parameters.Replace("\"", "\"\"")}\""));
+        await SaveCsvAsync("studio-trials", sb.ToString());
+    }
+
+    private async Task SaveCsvAsync(string baseName, string content)
+    {
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, content);
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
     }
 
     public ObservableCollection<StrategyKernelDescriptor> Strategies { get; }

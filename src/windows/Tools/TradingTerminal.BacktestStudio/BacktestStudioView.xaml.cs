@@ -1,4 +1,5 @@
 using System.Windows;
+using TradingTerminal.UI.Controls;
 using System.Windows.Controls;
 using TradingTerminal.Core.Backtesting;
 
@@ -132,4 +133,7 @@ public partial class BacktestStudioView : UserControl
         scatter.MarkerSize = 9;
         scatter.Color = color;
     }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e) =>
+        ViewExport.SavePng(this, $"studio-{DateTime.Now:yyyyMMdd-HHmmss}");
 }
