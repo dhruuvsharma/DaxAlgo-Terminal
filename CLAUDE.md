@@ -27,6 +27,15 @@ The repo is **forked into two fully independent codebases with zero shared proje
 - Tests: `tests/TradingTerminal.Tests` (WPF) + `tests/TradingTerminal.Tests.Headless` → Windows tree; `tests/linux/TradingTerminal.Tests.Headless` → Linux tree.
 - Project-map/skill descriptions below still name projects correctly; just prepend `src/windows/<group>/` (or `src/linux/<group>/`) to the old `src/` paths.
 
+## ⚠️ Open-core split — Professional code is in a PRIVATE repo (2026-07-09)
+
+This repo is the **open-source core** (AGPL-3.0; the `src/windows/Sdk/` plugin SDK stays MIT). The **Professional edition** lives in the private overlay repo **[DaxAlgo-Terminal-Pro](https://github.com/dhruuvsharma/DaxAlgo-Terminal-Pro)**, which consumes this repo as its `public/` git submodule. Moved there (Windows tree only): the `TradingTerminal.App` Professional shell, the AI tool windows (`Ai.MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`/`PaperLab`), the `Ml.*` Machine Learning windows, `SurfaceLab`, `BubbleChart`, `LseBacktest`, `QuantConnect`, `Backtest.Cli`, the installer, and `TradingTerminal.Tests.Pro`.
+
+- **Never copy code from the Pro repo into this one** — this repo is world-readable.
+- Shared/backend work happens **here**; the Pro repo pins a commit of this repo via the submodule.
+- Shell fixes are now **×3 across two repos**: `App.Basic` + `App.Intermediate` here, `TradingTerminal.App` in the Pro repo.
+- The Linux/Avalonia tree still carries ports of some Pro windows (Ai.*, LseBacktest, QuantConnect) — pruning them is an open decision.
+
 ## Stack
 
 - **TFM**: `net9.0-windows7.0` (in `Directory.Build.props`). Don't rename to `net8.0-windows` or strip the `7.0`.
@@ -65,12 +74,12 @@ Core           → (nothing)
 | ViewModelBase, themes, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI` |
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
-| AI tool windows (one project each) — Market analyst, factor research, ML features, backtest analysis | `TradingTerminal.Ai.<Name>` (`MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`) |
-| Per-strategy live windows (10) | `TradingTerminal.Strategies.<Name>` |
-| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` — Charts group: `Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap` (Bookmap+VolBook)/`BubbleChart`/`SurfaceLab`; Tools group: `Correlation`/`Backtest`/`BacktestStudio`/`LseBacktest`/`QuantConnect`/`Recording`/`AdvancedMarketRegime`. (MarketRegime/InstrumentRegime windows removed.) |
-| Machine Learning menu windows (one project each) — time-series stats over historical bars; math lives in `Core/Quant/TimeSeries/` | `TradingTerminal.Ml.<Name>` (`Stationarity`/`ArimaGarch`/`KalmanFilter`) |
-| Shell, MainWindow, inline menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | **Three independent edition shells** (see “Edition shells” below): `TradingTerminal.App` (Professional) / `TradingTerminal.App.Basic` / `TradingTerminal.App.Intermediate` |
-| Headless backtest CLI | `TradingTerminal.Backtest.Cli` (`daxalgo-backtest`) |
+| AI tool windows (`Ai.MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`/`PaperLab`) | **Private Pro repo** (Windows tree; Avalonia ports remain under `src/linux/AI/`) |
+| Per-strategy live windows (9) | `TradingTerminal.Strategies.<Name>` |
+| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` — Charts group: `Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap` (Bookmap+VolBook); Tools group: `Correlation`/`Backtest`/`BacktestStudio`/`Recording`/`AdvancedMarketRegime`. (`BubbleChart`/`SurfaceLab`/`LseBacktest`/`QuantConnect` → private Pro repo; MarketRegime/InstrumentRegime windows removed.) |
+| Machine Learning menu windows (`Ml.Stationarity`/`ArimaGarch`/`KalmanFilter`) | **Private Pro repo** (their math stays here in `Core/Quant/TimeSeries/`) |
+| Shell, MainWindow, inline menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | **Independent edition shells** (see “Edition shells” below): `TradingTerminal.App.Basic` / `TradingTerminal.App.Intermediate` here; `TradingTerminal.App` (Professional) in the **private Pro repo** |
+| Headless backtest CLI (`daxalgo-backtest`) | **Private Pro repo** (Windows copy; the Linux tree's copy remains here) |
 
 Live strategies (9): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class still `ApexScalperStrategy`), CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike. (Removed 2026-07-01: OrnsteinUhlenbeck, VolatilityTargeted, OrderFlowToxicity.)
 
@@ -78,7 +87,7 @@ Live strategies (9): SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer; engine class
 
 Per-tool projects: the App shell no longer hosts tool windows — each tool is its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` by **Charts** / **Tools** / **AI** / **Machine Learning** / **Strategies** solution folders). App references them and opens them via `IServiceProvider`; each project ships its own `Add…Surface` extension called from `App.xaml.cs`. The Charts menu hosts Charts/OrderBook/VolumeFootprint/Heatmap (Bookmap)/BubbleChart/3D Surface Lab; the Machine Learning menu hosts Stationarity & Differencing / ARIMA & GARCH / Kalman Filter (`TradingTerminal.Ml.<Name>`, math in `Core/Quant/TimeSeries/`).
 
-**⚠️ Edition shells — NO shared shell code (2026-07-08, #19).** The Windows tree ships three fully independent WinExe shells under `src/windows/Shell/`: `TradingTerminal.App` (**Professional** — everything; assembly name preserved for tests/launch profiles), `TradingTerminal.App.Basic` (**keyless brokers only** — crypto + Simulated, keyless login, core charts/tools, full strategies catalog) and `TradingTerminal.App.Intermediate` (**all brokers + full login**, same tools as Basic). There is no `App.Core` shared shell library — each shell owns a complete copy of the shell code (`RootNamespace` stays `TradingTerminal.App` in all three; they never reference each other), **so a shell-code fix must be applied to all three copies**. Tier gating is composition-only: Basic never references the Pro-only tool projects, calls `AddKeylessBrokers()` without `AddCredentialedBrokers()`, and `AddLogin()` registers only keyless login forms — `AddCredentialedLoginForms()` must always pair with `AddCredentialedBrokers()` (resolving `IEnumerable<IBrokerLoginForm>` instantiates every registered form, so an unpaired credentialed form crashes the login window). `AppEdition`/`BrokerEditionPolicy` live in `Core/Configuration`; each shell pins its `AppEdition` as a DI constant. The Simulated broker ships in every edition behind the amber “SIMULATED DATA” banner (`SimulatedDataState`/`SimulatedDataBanner` in `TradingTerminal.UI`).
+**⚠️ Edition shells — NO shared shell code (2026-07-08, #19).** Three fully independent WinExe shells, now split across two repos: this repo ships `TradingTerminal.App.Basic` (**keyless brokers only** — crypto + Simulated, keyless login, core charts/tools, full strategies catalog) and `TradingTerminal.App.Intermediate` (**all brokers + full login**, same tools as Basic) under `src/windows/Shell/`; the **Professional** shell `TradingTerminal.App` (everything) lives in the private Pro repo. There is no `App.Core` shared shell library — each shell owns a complete copy of the shell code (`RootNamespace` stays `TradingTerminal.App` in all three; they never reference each other), **so a shell-code fix must be applied to all three copies (two here + one in the Pro repo)**. Tier gating is composition-only: Basic never references the Pro-only tool projects, calls `AddKeylessBrokers()` without `AddCredentialedBrokers()`, and `AddLogin()` registers only keyless login forms — `AddCredentialedLoginForms()` must always pair with `AddCredentialedBrokers()` (resolving `IEnumerable<IBrokerLoginForm>` instantiates every registered form, so an unpaired credentialed form crashes the login window). `AppEdition`/`BrokerEditionPolicy` live in `Core/Configuration`; each shell pins its `AppEdition` as a DI constant. The Simulated broker ships in every edition behind the amber “SIMULATED DATA” banner (`SimulatedDataState`/`SimulatedDataBanner` in `TradingTerminal.UI`).
 
 ## Architectural rules (always relevant)
 
@@ -144,21 +153,21 @@ Match the cheapest model tall enough for the task. Spawn a subagent only when se
 # Windows/WPF tree
 dotnet build TradingTerminal.Windows.slnx
 dotnet test  TradingTerminal.Windows.slnx
-dotnet run --project src/windows/Shell/TradingTerminal.App               # Professional
 dotnet run --project src/windows/Shell/TradingTerminal.App.Basic        # Basic (keyless brokers)
 dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate # Intermediate (all brokers)
+# Professional: build/run from the private DaxAlgo-Terminal-Pro repo (TradingTerminal.Pro.slnx)
 
 # Linux/Avalonia tree (also builds on Windows; net9.0)
 dotnet build TradingTerminal.Linux.slnx
 dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
 ```
-There is no top-level `dotnet build` with no argument anymore — two solutions exist, so always name one. `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` / `linux/Dockerfile` (Linux) wrap each tree. Per-edition **solution filters** at the repo root (`TradingTerminal.Windows.Basic|Intermediate|Professional.slnf`) build/load just one edition's project closure (Professional = full solution minus the two lower-tier shells, incl. tests); regenerate them when a shell's project references change.
+There is no top-level `dotnet build` with no argument anymore — two solutions exist, so always name one. `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` / `linux/Dockerfile` (Linux) wrap each tree. Per-edition **solution filters** at the repo root (`TradingTerminal.Windows.Basic|Intermediate.slnf`) build/load just one edition's project closure; regenerate them when a shell's project references change. (The Professional filter moved with the Pro code — the Pro repo builds `TradingTerminal.Pro.slnx`.)
 
 Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` from `C:\TWS API\`; `HAS_NTAPI` from `NTDirect.dll`) — there's no `UseRealClient` switch and no per-broker synthetic fallback; cTrader needs OAuth at login; Alpaca needs ApiKey+Secret (`IsLive` toggles paper/live; live stock stream pinned to IEX). No broker required to build/run — the `Simulated` broker (`BrokerKind.Simulated`, `SimulatedBrokerClient` in `Infrastructure/Simulation/`) is always registered and serves a synthetic random-walk feed or local-store replay.
 
 ### Dev launch profiles (login bypass + data-source switch)
 
-Each edition shell defines its own profiles in its `Properties/launchSettings.json`, selected by `DOTNET_ENVIRONMENT`, each layering an `appsettings.{Env}.json` (repo root) over `appsettings.json`. `DevOptions.BypassLogin` skips the login window and auto-connects `DevOptions.AutoConnectBrokers`; `SimulatedBrokerOptions` drives the feed. The Professional profiles:
+Each edition shell defines its own profiles in its `Properties/launchSettings.json`, selected by `DOTNET_ENVIRONMENT`, each layering an `appsettings.{Env}.json` (repo root) over `appsettings.json`. `DevOptions.BypassLogin` skips the login window and auto-connects `DevOptions.AutoConnectBrokers`; `SimulatedBrokerOptions` drives the feed. The profiles:
 
 | Profile | `DOTNET_ENVIRONMENT` | Behaviour |
 |---|---|---|
@@ -167,13 +176,14 @@ Each edition shell defines its own profiles in its `Properties/launchSettings.js
 | `Dev: Replay (local DB)` | `DevReplay` | No login; `Simulated` broker, **Replay** of the local store (10× clock), synthetic fallback where no data. |
 | `Dev: Live (no login)` | `DevLive` | No login; auto-connects a real broker (default IB) using saved credentials. |
 
-Basic/Intermediate carry the same profiles prefixed with the edition name (Basic has no `DevLive` — its auto-connect brokers aren't registered there). Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/windows/Shell/TradingTerminal.App`. These dev files are off in the shipped build.
+Basic/Intermediate carry the same profiles prefixed with the edition name (Basic has no `DevLive` — its auto-connect brokers aren't registered there). Switch via the VS debug-target dropdown, or `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate`. These dev files are off in the shipped build.
 
 ## What NOT to do
 
 - Don't rename `net9.0-windows` → `net8.0-windows`. Don't put broker SDK types in `Core`/`UI`/`MarketData`.
 - Don't make `Core` depend on anything, or `MarketData` depend on `Infrastructure`.
-- Don't fix shell code in only one edition — `TradingTerminal.App` / `.App.Basic` / `.App.Intermediate` are independent copies (no shared shell library); apply the change to each. Don't reference a Pro-only tool project from Basic/Intermediate, and don't call `AddCredentialedLoginForms()` without `AddCredentialedBrokers()`.
+- Don't fix shell code in only one edition — `.App.Basic` / `.App.Intermediate` (here) and `TradingTerminal.App` (private Pro repo) are independent copies (no shared shell library); apply the change to each. Don't call `AddCredentialedLoginForms()` without `AddCredentialedBrokers()`.
+- Don't copy code from the private Pro repo into this repo — this repo is public (AGPL-3.0); Pro code is proprietary.
 - Don't `new` strategies/brokers from the shell — go through `IStrategyFactory` / `IBrokerSelector`.
 - Don't build a strategy as a tool project: no `TradingTerminal.<Name>` + `Add…Surface` for anything with an `ITradingStrategy` — it must be `TradingTerminal.Strategies.<Name>` in the Strategies solution folder (see the strategy-vs-tool rule above).
 - Don't subscribe to broker streams from a VM — go through `IMarketDataHub` / `IMarketDataIngest`.

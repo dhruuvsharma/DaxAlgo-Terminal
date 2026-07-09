@@ -51,10 +51,15 @@
   -->
   <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
     <DaxAlgoBuildRoot Condition="'$(DaxAlgoBuildRoot)' == ''">C:\DaxAlgoBuild</DaxAlgoBuildRoot>
+    <!-- Key the redirected output by the checkout's folder name so two checkouts of this repo
+         (e.g. the standalone clone, the `public/` submodule inside DaxAlgo-Terminal-Pro, or a
+         git worktree) never share obj/bin — sharing them across checkouts at different commits
+         causes the same "metadata file not found" cascades the redirect was built to avoid. -->
+    <_DaxAlgoRepoDirName>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName('$(MSBuildThisFileDirectory)'))))</_DaxAlgoRepoDirName>
     <_DaxAlgoProjectRel>$([MSBuild]::MakeRelative($(MSBuildThisFileDirectory), $(MSBuildProjectDirectory)))</_DaxAlgoProjectRel>
-    <BaseIntermediateOutputPath>$(DaxAlgoBuildRoot)\$(_DaxAlgoProjectRel)\obj\</BaseIntermediateOutputPath>
-    <BaseOutputPath>$(DaxAlgoBuildRoot)\$(_DaxAlgoProjectRel)\bin\</BaseOutputPath>
-    <DaxAlgoOutputBase>$(DaxAlgoBuildRoot)\</DaxAlgoOutputBase>
+    <BaseIntermediateOutputPath>$(DaxAlgoBuildRoot)\$(_DaxAlgoRepoDirName)\$(_DaxAlgoProjectRel)\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(DaxAlgoBuildRoot)\$(_DaxAlgoRepoDirName)\$(_DaxAlgoProjectRel)\bin\</BaseOutputPath>
+    <DaxAlgoOutputBase>$(DaxAlgoBuildRoot)\$(_DaxAlgoRepoDirName)\</DaxAlgoOutputBase>
   </PropertyGroup>
 
 </Project>

@@ -54,6 +54,7 @@ public sealed partial class SigmaIcFlowStrategyViewModel : LiveSignalStrategyVie
         new CandleIntervalOption("5m",  TimeSpan.FromMinutes(5)),
         new CandleIntervalOption("10m", TimeSpan.FromMinutes(10)),
         new CandleIntervalOption("15m", TimeSpan.FromMinutes(15)),
+        new CandleIntervalOption("30m", TimeSpan.FromMinutes(30)),
     });
 
     [ObservableProperty] private CandleIntervalOption? _selectedCandleInterval;

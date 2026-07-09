@@ -3,7 +3,7 @@
 > Last updated: 2026-06-30
 
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Windows](https://img.shields.io/badge/Windows-WPF%20%2B%20MahApps-blueviolet?logo=windows)](#two-builds-windows-and-linux)
 [![Linux](https://img.shields.io/badge/Linux%20%2F%20Pi-Avalonia-7a42bf?logo=linux)](#two-builds-windows-and-linux)
 [![Brokers](https://img.shields.io/badge/Brokers-12%20%2B%20Simulated-orange)](docs/brokers.md)
@@ -242,7 +242,7 @@ live crypto data (bars, L1, **L2 depth**, trades) with **no API key and no accou
 git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
 cd "DaxAlgo Terminal"
 dotnet build TradingTerminal.Windows.slnx
-dotnet run --project src/windows/Shell/TradingTerminal.App
+dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate
 ```
 
 The Windows terminal ships as **three editions** — three fully independent shell exes with **no
@@ -253,7 +253,10 @@ higher-tier feature DLLs):
 |---|---|---|
 | **Basic** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Basic` | Keyless brokers only (crypto + Simulated), full strategies catalog, core charts & tools |
 | **Intermediate** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate` | All 12 brokers with the full credentialed login; same tools as Basic |
-| **Professional** | `dotnet run --project src/windows/Shell/TradingTerminal.App` | Everything — adds Machine Learning, AI tools (Paper Lab + sidecar), LSE Tools, QuantConnect / LEAN, 3D Surface Lab, experimental charts |
+| **Professional** | *closed source* | Everything — adds Machine Learning, AI tools (Paper Lab + sidecar), LSE Tools, QuantConnect / LEAN, 3D Surface Lab, experimental charts. Developed in a private overlay repo on top of this one; distributed as a binary release. |
+
+Basic and Intermediate are fully open source in this repo. The Professional edition's exclusive
+surfaces live in a private repo that consumes this one as a git submodule.
 
 ### Linux / Raspberry Pi (Avalonia)
 
@@ -353,5 +356,16 @@ Windows and Linux trees.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Built by **Dhruv Sharma**. If the project is useful to you, the
+**AGPL-3.0** — see [LICENSE](LICENSE). You can use, modify, and redistribute this code freely,
+but derivative works (including network services built on it) must be published under the same
+license. Two carve-outs:
+
+- **Plugin SDK** (`src/windows/Sdk/` — `DaxAlgo.Sdk`, `DaxAlgo.Sdk.Wpf`) stays **MIT**
+  (see `src/windows/Sdk/LICENSE`), so third-party plugins built against the SDK are not bound by
+  the AGPL.
+- The **Professional edition** is proprietary, developed in a private repo, and not covered by
+  this license.
+
+Code published before 2026-07-09 was released under MIT and remains available under those terms
+in the repo history. Built by **Dhruv Sharma**. If the project is useful to you, the
 **Help → Support the developer** menu explains how to say thanks.

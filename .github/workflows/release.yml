@@ -43,48 +43,36 @@ jobs:
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Building version $v"
 
-      - name: Publish app (self-contained win-x64)
+      - name: Publish Intermediate edition (self-contained win-x64)
         run: >
-          dotnet publish src/TradingTerminal.App/TradingTerminal.App.csproj
+          dotnet publish src/windows/Shell/TradingTerminal.App.Intermediate/TradingTerminal.App.Intermediate.csproj
           -c Release -r win-x64 --self-contained true
           -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/DaxAlgo-Terminal
+          -o publish/DaxAlgo-Terminal-Intermediate
 
-      - name: Publish backtest CLI (self-contained win-x64)
+      - name: Publish Basic edition (self-contained win-x64)
         run: >
-          dotnet publish src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj
+          dotnet publish src/windows/Shell/TradingTerminal.App.Basic/TradingTerminal.App.Basic.csproj
           -c Release -r win-x64 --self-contained true
           -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/DaxAlgo-Terminal/cli
+          -o publish/DaxAlgo-Terminal-Basic
 
       - name: Stage release docs
         shell: pwsh
-        run: Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal -Force
+        run: |
+          Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal-Intermediate -Force
+          Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal-Basic -Force
 
       - name: Zip (portable)
         shell: pwsh
         run: |
-          $name = "DaxAlgo-Terminal-v${{ steps.ver.outputs.version }}-win-x64.zip"
-          Compress-Archive -Path publish/DaxAlgo-Terminal/* -DestinationPath $name -Force
-          "asset=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $inter = "DaxAlgo-Terminal-Intermediate-v${{ steps.ver.outputs.version }}-win-x64.zip"
+          $basic = "DaxAlgo-Terminal-Basic-v${{ steps.ver.outputs.version }}-win-x64.zip"
+          Compress-Archive -Path publish/DaxAlgo-Terminal-Intermediate/* -DestinationPath $inter -Force
+          Compress-Archive -Path publish/DaxAlgo-Terminal-Basic/* -DestinationPath $basic -Force
+          "inter=$inter" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "basic=$basic" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
         id: zip
-
-      - name: Install Inno Setup
-        run: choco install innosetup -y --no-progress
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          # Keep the installer inside the runner workspace (overrides the local C:\DaxAlgoBuild default).
-          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
-                  "/DMySourceDir=$(Resolve-Path publish/DaxAlgo-Terminal)" `
-                  "/DMyOutputDir=Output" `
-                  installer/DaxAlgoTerminal.iss
-          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)." }
-          $setup = "installer/Output/DaxAlgo-Terminal-Setup-v${{ steps.ver.outputs.version }}.exe"
-          "setup=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-        id: installer
 
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
@@ -93,5 +81,5 @@ jobs:
           body_path: CHANGELOG.md
           draft: true
           files: |
-            ${{ steps.zip.outputs.asset }}
-            ${{ steps.installer.outputs.setup }}
+            ${{ steps.zip.outputs.inter }}
+            ${{ steps.zip.outputs.basic }}

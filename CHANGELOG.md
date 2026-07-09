@@ -8,6 +8,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- **Open-core split (2026-07-09).** The Professional edition is now closed source: the
+  `TradingTerminal.App` shell, the AI tool windows (MarketAnalyst / FactorResearch / MlFeatures /
+  BacktestAnalysis / PaperLab), the Machine Learning windows (Stationarity / ArimaGarch /
+  KalmanFilter), SurfaceLab, BubbleChart, LseBacktest, QuantConnect, the `daxalgo-backtest` CLI
+  and the installer moved to a private overlay repo that consumes this repo as a git submodule.
+  Basic and Intermediate remain fully open source here.
+- **License changed MIT → AGPL-3.0** for all code going forward (the `src/windows/Sdk/` plugin SDK
+  stays MIT so third-party plugins aren't AGPL-bound). Previously published code remains MIT in
+  the repo history.
+
 - **Strategy renamed — "APEX microstructure scalper v2" → "Σ⁻¹·IC Order-Flow Optimizer".** Live
   project `TradingTerminal.Strategies.ApexScalper` → `TradingTerminal.Strategies.SigmaIcFlow`
   (classes, namespace, DI `AddSigmaIcFlowStrategy()`); live strategy id `apex.scalper` →

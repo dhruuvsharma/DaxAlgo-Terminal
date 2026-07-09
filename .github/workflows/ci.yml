@@ -24,11 +24,11 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore TradingTerminal.Windows.slnx
 
       - name: Build
-        run: dotnet build -c Release --no-restore
+        run: dotnet build TradingTerminal.Windows.slnx -c Release --no-restore
 
       # Postgres-backed tests self-skip without Docker; [WpfFact] tests run on the windows runner.
       - name: Test
-        run: dotnet test -c Release --no-build --verbosity normal
+        run: dotnet test TradingTerminal.Windows.slnx -c Release --no-build --verbosity normal
