@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -7,6 +10,7 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.MarketData.AdvancedRegime;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.AdvancedMarketRegime;
 
@@ -81,6 +85,8 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
 
         HeaderCells = new ObservableCollection<string>();
         Rows = new ObservableCollection<DashboardRow>();
+
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         // Pull the connected broker's tradable universe in the background; replace the static
         // fallback when the list lands.
@@ -178,6 +184,104 @@ public sealed partial class AdvancedMarketRegimeViewModel : ViewModelBase, IDisp
     private void ApplyInstrumentFilter() => InstrumentPickerFilter.Apply(
         Instruments,
         InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
+
+    // ── Named presets (dashboard layout: rows / columns / display toggles / cadence) ──
+
+    private readonly ToolPresetStore<AdvancedRegimePreset> _presetStore = new("advanced-market-regime");
+
+    public ObservableCollection<string> PresetNames { get; }
+
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new AdvancedRegimePreset(
+            ColumnOptions.Where(c => c.IsEnabled).Select(c => c.Label).ToList(),
+            RowOptions.Where(r => r.IsEnabled).Select(r => r.Label).ToList(),
+            ShowValue, ShowDirection, AutoRefresh, RefreshSeconds));
+        RefreshPresetNames(selected: name);
+        _logger.LogInformation("Advanced regime: preset '{Name}' saved", name);
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _logger.LogInformation("Advanced regime: preset '{Name}' deleted", name);
+    }
+
+    /// <summary>Applies the saved row/column layout by label; unknown labels are ignored so a
+    /// preset saved on an older catalog still applies. Re-projects the current snapshot.</summary>
+    private void ApplyPreset(AdvancedRegimePreset preset)
+    {
+        if (preset.Columns is { Count: > 0 } cols)
+            foreach (var c in ColumnOptions) c.IsEnabled = cols.Contains(c.Label);
+        if (preset.Rows is { Count: > 0 } rows)
+            foreach (var r in RowOptions) r.IsEnabled = rows.Contains(r.Label);
+        ShowValue = preset.ShowValue;
+        ShowDirection = preset.ShowDirection;
+        AutoRefresh = preset.AutoRefresh;
+        if (preset.RefreshSeconds >= 5) RefreshSeconds = preset.RefreshSeconds;
+        Project();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
+
+    /// <summary>Exports the visible dashboard: indicator rows × timeframe columns, each cell as
+    /// "glyph value" exactly as displayed.</summary>
+    [RelayCommand]
+    private async Task ExportGridCsvAsync()
+    {
+        if (Rows.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.Append("indicator");
+        foreach (var h in HeaderCells) sb.Append(',').Append(h.Replace(',', ';'));
+        sb.AppendLine();
+        foreach (var row in Rows)
+        {
+            sb.Append(row.Label.Replace(',', ';'));
+            foreach (var cell in row.Cells)
+            {
+                var text = $"{cell.Glyph} {cell.ValueText}".Trim().Replace(',', ';');
+                sb.Append(',').Append(text);
+            }
+            sb.AppendLine();
+        }
+        try
+        {
+            var symbol = (SelectedInstrument?.Contract.Symbol ?? "regime").Replace('/', '-').Replace(':', '-');
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"advanced-regime-{symbol}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            LastUpdated = $"exported {DateTime.Now:HH:mm:ss}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Advanced regime CSV export failed");
+            ErrorMessage = $"Export failed: {ex.Message}";
+        }
+    }
 
     [RelayCommand]
     public async Task AnalyzeAsync()
@@ -359,3 +463,14 @@ public sealed partial class RowToggleOption : ObservableObject
 
     [ObservableProperty] private bool _isEnabled;
 }
+
+/// <summary>A named snapshot of the dashboard layout (enabled rows/columns by label, display
+/// toggles, refresh cadence), persisted per user by <see cref="ToolPresetStore{T}"/>
+/// (tool-presets/advanced-market-regime.json). Never the instrument.</summary>
+public sealed record AdvancedRegimePreset(
+    List<string>? Columns,
+    List<string>? Rows,
+    bool ShowValue,
+    bool ShowDirection,
+    bool AutoRefresh,
+    int RefreshSeconds);

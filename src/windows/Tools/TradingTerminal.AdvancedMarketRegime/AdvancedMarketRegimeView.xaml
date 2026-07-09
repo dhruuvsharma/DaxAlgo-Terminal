@@ -44,6 +44,7 @@
                     <ColumnDefinition Width="Auto" />   <!-- "s"            -->
                     <ColumnDefinition Width="Auto" />   <!-- Analyze        -->
                     <ColumnDefinition Width="Auto" />   <!-- Cancel         -->
+                    <ColumnDefinition Width="Auto" />   <!-- presets + actions -->
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="Search" VerticalAlignment="Center" Margin="0,0,6,0"
                            Foreground="{DynamicResource Text.Secondary}" />
@@ -75,6 +76,45 @@
                 <Button Grid.Column="8" Content="Cancel"
                         Command="{Binding CancelCommand}"
                         Padding="14,4" />
+
+                <StackPanel Grid.Column="9" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Border Style="{StaticResource App.ParamDivider}" />
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="120" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save. Presets remember the row/column layout, display toggles and refresh cadence — never the instrument." />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current dashboard layout as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportGridCsvCommand}"
+                            ToolTip="Export the dashboard grid as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-330" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="READING THE REGIME DASHBOARD" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Grid" /><Run Text=" — 18 indicator rows × up to 8 timeframes. Cell colour is the indicator's regime call on that horizon (green bullish / red bearish / grey neutral); the glyph is direction, the small number the raw value." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Read it by column" /><Run Text=" — a column that is uniformly green from 1m to 1D is a coherent trend; mixed colours across timeframes mean the horizons disagree (chop or transition)." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Trend row" /><Run Text=" — a composite −8…+8 needle per timeframe summarising all rows above it." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Data" /><Run Text=" — computed from stored/broker bars on Analyze (or on the auto-refresh cadence); the expander tunes indicator parameters and which rows/columns show." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
             </Grid>
         </Border>
 

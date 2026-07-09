@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
 #if WINDOWS
 using System.Windows.Data;
 #endif
@@ -219,6 +222,38 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
     {
         MatrixResult = result;
         SampleCount = result.SampleCount;
+    }
+
+    /// <summary>Exports the current N×N matrix as CSV (labels on both axes), shared by the
+    /// historical and live tools via the portable UiFile seam. No-op until a matrix exists.</summary>
+    [RelayCommand]
+    private async Task ExportMatrixCsvAsync()
+    {
+        if (MatrixResult is not { } m || m.Size == 0) return;
+        var sb = new StringBuilder();
+        sb.Append("symbol");
+        foreach (var label in m.Labels) sb.Append(',').Append(label.Replace(',', ';'));
+        sb.AppendLine();
+        for (var r = 0; r < m.Size; r++)
+        {
+            sb.Append(m.Labels[r].Replace(',', ';'));
+            for (var c = 0; c < m.Size; c++)
+                sb.Append(string.Create(CultureInfo.InvariantCulture, $",{m.At(r, c)}"));
+            sb.AppendLine();
+        }
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"correlation-{m.Size}x{m.Size}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            StatusMessage = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Correlation matrix CSV export failed");
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
     }
 
     /// <summary>Disambiguates matrix labels by broker only when the set spans more than one broker,

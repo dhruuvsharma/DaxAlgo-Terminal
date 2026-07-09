@@ -53,16 +53,43 @@
         </Grid>
 
         <!-- Controls -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
-            <Button Content="Start"
-                    Command="{Binding StartCommand}"
-                    IsEnabled="{Binding IsRecording, Converter={StaticResource InverseBooleanConverter}}"
-                    Padding="20,6" Margin="0,0,8,0" />
-            <Button Content="Stop"
-                    Command="{Binding StopCommand}"
-                    IsEnabled="{Binding IsRecording}"
-                    Padding="20,6" />
-        </StackPanel>
+        <DockPanel Grid.Row="2" Margin="0,0,0,8">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Style="{StaticResource Pill.Bear}" Margin="0,0,8,0" VerticalAlignment="Center"
+                        Visibility="{Binding IsRecording, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="● REC" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+                <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                        ToolTip="Save a PNG snapshot of this window" />
+                <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                              Margin="0" ToolTip="What does this tool do?" />
+                <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                       IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                       HorizontalOffset="-330" VerticalOffset="6">
+                    <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                            Background="{DynamicResource Background.Elevated}">
+                        <StackPanel>
+                            <TextBlock Text="RECORDING TICKS" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                <Run FontWeight="SemiBold" Text="What it does" /><Run Text=" — streams live L1 ticks (bid/ask + sizes) from the active broker straight into a parquet file. Run it for hours or days to build a real intraday tape." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Why" /><Run Text=" — the backtest engine replays these files with full microstructure fidelity: daxalgo-backtest run --data your-file.parquet." /><LineBreak />
+                                <Run FontWeight="SemiBold" Text="Notes" /><Run Text=" — L1 only (the parquet schema has no depth); the file is flushed in row groups, so give Stop a moment on a long session. The preview table shows the newest 30 ticks only — everything is written." />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Start"
+                        Command="{Binding StartCommand}"
+                        IsEnabled="{Binding IsRecording, Converter={StaticResource InverseBooleanConverter}}"
+                        Padding="20,6" Margin="0,0,8,0" />
+                <Button Content="Stop"
+                        Command="{Binding StopCommand}"
+                        IsEnabled="{Binding IsRecording}"
+                        Padding="20,6" />
+            </StackPanel>
+        </DockPanel>
 
         <!-- Stats row -->
         <Border Grid.Row="3" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
@@ -99,22 +126,45 @@
         </Border>
 
         <!-- Recent ticks -->
-        <DataGrid Grid.Row="4"
-                  ItemsSource="{Binding RecentTicks}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  HeadersVisibility="Column"
-                  CanUserAddRows="False"
-                  CanUserResizeRows="False"
-                  RowHeaderWidth="0">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Time"      Binding="{Binding TimeText}" Width="130" />
-                <DataGridTextColumn Header="Bid"       Binding="{Binding Bid, StringFormat=F5}" Width="110" />
-                <DataGridTextColumn Header="Ask"       Binding="{Binding Ask, StringFormat=F5}" Width="110" />
-                <DataGridTextColumn Header="BidSize"   Binding="{Binding BidSize}" Width="80" />
-                <DataGridTextColumn Header="AskSize"   Binding="{Binding AskSize}" Width="*" />
-            </DataGrid.Columns>
-        </DataGrid>
+        <Grid Grid.Row="4">
+            <DataGrid ItemsSource="{Binding RecentTicks}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserResizeRows="False"
+                      RowHeaderWidth="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time"      Binding="{Binding TimeText}" Width="130" />
+                    <DataGridTextColumn Header="Bid"       Binding="{Binding Bid, StringFormat=F5}" Width="110" />
+                    <DataGridTextColumn Header="Ask"       Binding="{Binding Ask, StringFormat=F5}" Width="110" />
+                    <DataGridTextColumn Header="BidSize"   Binding="{Binding BidSize}" Width="80" />
+                    <DataGridTextColumn Header="AskSize"   Binding="{Binding AskSize}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Empty state until the first tick lands -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380" IsHitTestVisible="False">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RecentTicks.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="◉" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                <TextBlock Text="No ticks yet" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,6,0,4"
+                           Foreground="{DynamicResource Text.Primary}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="Press Start to begin recording. If nothing arrives, check the broker is connected and the instrument is streaming — the Simulated broker always produces ticks." />
+            </StackPanel>
+        </Grid>
 
         <TextBlock Grid.Row="5"
                    Text="{Binding ValidationError}"

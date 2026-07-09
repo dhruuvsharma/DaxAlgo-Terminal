@@ -103,6 +103,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="Sample" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -133,6 +134,31 @@
                 <TextBlock Grid.Column="7" Text="{Binding StatusMessage}"
                            Foreground="{DynamicResource Text.Secondary}"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportMatrixCsvCommand}"
+                            ToolTip="Export the correlation matrix as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-330" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="READING THE LIVE CORRELATION MATRIX" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Matrix" /><Run Text=" — rolling Pearson correlation of live sampled mid-price returns between every pair of ticked instruments; it recomputes continuously at the sample cadence over the chosen window." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Warm-up" /><Run Text=" — coefficients firm up as the window fills; the sample chip shows how many aligned observations are in play." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Watch for" /><Run Text=" — correlation regime breaks: pairs that normally track suddenly decoupling is often the first visible sign of idiosyncratic news or a liquidity event." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
+
             </Grid>
         </Border>
 

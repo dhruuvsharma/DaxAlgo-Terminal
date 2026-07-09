@@ -106,6 +106,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="Timeframe" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -131,6 +132,32 @@
                 <TextBlock Grid.Column="6" Text="{Binding StatusMessage}"
                            Foreground="{DynamicResource Text.Secondary}"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="7" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportMatrixCsvCommand}"
+                            ToolTip="Export the correlation matrix as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  Margin="0" ToolTip="What am I looking at?" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+                           HorizontalOffset="-330" VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                                Background="{DynamicResource Background.Elevated}">
+                            <StackPanel>
+                                <TextBlock Text="READING THE CORRELATION MATRIX" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Matrix" /><Run Text=" — Pearson correlation of log returns between every pair of ticked instruments over the chosen timeframe × lookback. Deep green = moves together, deep red = moves opposite, near-zero = unrelated." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Sample count" /><Run Text=" — how many aligned return observations went into each coefficient; below ~30 the numbers are noise, so extend the lookback or pick a finer timeframe." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Cross-broker" /><Run Text=" — rows are tagged ES·IB vs ES·CT when the set spans brokers, so you can sanity-check one venue against another." /><LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Use it for" /><Run Text=" — sizing offsetting positions, spotting redundant exposure, and finding hedge candidates (strong negatives)." />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
+
             </Grid>
         </Border>
 

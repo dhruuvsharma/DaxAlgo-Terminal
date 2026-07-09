@@ -1,6 +1,8 @@
 using System;
+using System.Windows;
 using System.Windows.Data;
 using MahApps.Metro.Controls;
+using TradingTerminal.UI.Controls;
 
 namespace TradingTerminal.Correlation;
 
@@ -24,5 +26,11 @@ public partial class LiveCorrelationMatrixWindow : MetroWindow
         // Dispose the VM when the window closes — critical for the live tool: otherwise its hub quote
         // subscriptions and sampler DispatcherTimer keep the VM rooted (and ticking) forever.
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+    }
+
+    private void ExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (Content is not FrameworkElement root) return;
+        ViewExport.SavePng(root, $"correlation-{DateTime.Now:yyyyMMdd-HHmmss}");
     }
 }

@@ -184,7 +184,19 @@ public sealed partial class TickRecorderViewModel : ViewModelBase, IDisposable
         LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _streamCts?.Cancel();
         _streamCts?.Dispose();
-        _writer?.DisposeAsync().AsTask().Wait();
+        // Flush the parquet tail off-thread. Blocking here (the old .Wait()) froze the UI
+        // thread on window close for as long as the row-group flush took — and could deadlock
+        // outright if a writer continuation needed this thread.
+        var writer = _writer;
+        _writer = null;
+        if (writer is not null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await writer.DisposeAsync(); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Recorder writer flush on close failed"); }
+            });
+        }
     }
 }
 
