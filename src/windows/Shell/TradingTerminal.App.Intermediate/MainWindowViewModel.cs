@@ -188,6 +188,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private void UpdateClocks()
     {
         CurrentTime = DateTime.Now.ToString("HH:mm:ss");
+        FeedDropCount = TradingTerminal.Infrastructure.Threading.FeedDropMeter.GlobalDropped;
         var utc = DateTime.UtcNow;
         CurrentTimeUtc = utc.ToString("HH:mm:ss");
         NyseOpen = IsSessionOpen(utc, 14, 30, 21, 0);  // ~09:30–16:00 ET
@@ -291,6 +292,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     [ObservableProperty]
     private string _currentTime = DateTime.Now.ToString("HH:mm:ss");
+
+    /// <summary>Process-wide count of feed events shed by the bounded channel bridges
+    /// (see FeedDropMeter). 0 in healthy sessions; sustained growth = a consumer can't keep
+    /// up. Refreshed by the 1-second clock tick; the status bar shows it only when non-zero.</summary>
+    [ObservableProperty] private long _feedDropCount;
 
     [ObservableProperty]
     private string _currentTimeUtc = DateTime.UtcNow.ToString("HH:mm:ss");

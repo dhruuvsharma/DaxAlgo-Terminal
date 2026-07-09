@@ -65,17 +65,24 @@ public sealed class FeedDropMeter
 {
     private static readonly long LogIntervalStamp = Stopwatch.Frequency * 30L;
 
+    private static long _globalDropped;
+
     private long _dropped;
     private long _lastLogStamp;
 
     /// <summary>Total items shed since the bridge opened.</summary>
     public long Dropped => Interlocked.Read(ref _dropped);
 
+    /// <summary>Process-wide total across every feed bridge — the shell status bar surfaces this
+    /// as the drop-diagnostics chip. Sustained growth means some consumer can't keep up.</summary>
+    public static long GlobalDropped => Interlocked.Read(ref _globalDropped);
+
     /// <summary>Records one shed item; returns <c>true</c> when the caller should emit its
     /// rate-limited warning (first drop, then every 30 s while shedding continues).</summary>
     public bool Record()
     {
         Interlocked.Increment(ref _dropped);
+        Interlocked.Increment(ref _globalDropped);
         var now = Stopwatch.GetTimestamp();
         var last = Interlocked.Read(ref _lastLogStamp);
         if (last != 0 && now - last < LogIntervalStamp) return false;

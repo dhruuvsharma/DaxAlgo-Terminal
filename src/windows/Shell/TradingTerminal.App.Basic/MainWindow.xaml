@@ -795,6 +795,24 @@
             </StatusBarItem>
             <Separator />
 
+            <!-- Feed-shed diagnostics: hidden while healthy (0), amber counter once any bounded
+                 feed bridge has had to drop events. -->
+            <StatusBarItem ToolTip="Feed events shed by the bounded channel bridges since start. Occasional small numbers during bursts are by design (drop-oldest, newest wins); sustained growth means a window or strategy can't keep up with its feed.">
+                <StatusBarItem.Style>
+                    <Style TargetType="StatusBarItem">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding FeedDropCount}" Value="0">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StatusBarItem.Style>
+                <TextBlock>
+                    <Run Text="DROPS " Foreground="{DynamicResource Text.Secondary}" />
+                    <Run Text="{Binding FeedDropCount, Mode=OneWay}" Foreground="{DynamicResource Warning.Brush}" FontWeight="SemiBold" />
+                </TextBlock>
+            </StatusBarItem>
+
             <StatusBarItem HorizontalAlignment="Right">
                 <TextBlock Text="{Binding CurrentTime}"
                            Foreground="{DynamicResource Accent.Brush}"

@@ -84,6 +84,11 @@ public partial class App : Application
             return Task.FromResult(dlg.ShowDialog() == true ? dlg.FileName : (string?)null);
         };
         var inMemoryLogSink = new InMemoryLogSink();
+
+        // Last-line crash nets (shared implementation in TradingTerminal.UI): a broken window
+        // callback must not hard-kill every live feed, and a distributed build must leave a
+        // crash report behind. Wired before the host builds so even composition failures report.
+        TradingTerminal.UI.CrashGuard.Install("DaxAlgo Terminal Professional", inMemoryLogSink.Append);
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
 
         _host = Host.CreateDefaultBuilder()
