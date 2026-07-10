@@ -1,0 +1,23 @@
+# glossary — domain terms (one line each)
+
+- **InstrumentId** — canonical int identity for an instrument (`Core/Domain/InstrumentId.cs`); never broker symbology; registry maps broker symbols → id.
+- **IBrokerClient** — the one seam all 12 brokers + Simulated implement (`Core/MarketData/IBrokerClient.cs`); VMs never see SDK types.
+- **IMarketDataHub** — Rx fanout of Quotes/Trades/Bars/Depth by InstrumentId; the ONLY thing strategy VMs subscribe to.
+- **IMarketDataIngest** — ref-counted subscription pumps broker→hub→store; tick-primary (live bars are never stored).
+- **IStrategyFactory** — creates `StrategyHost` from a strategy id; shells never `new` strategies.
+- **IStrategyPlugin** — SDK seam (`DaxAlgo.Sdk`); every strategy project ships one + `Add<Name>Strategy()`; loaded at runtime by `AddStrategyPlugins()` → `PluginLoader` (ALC).
+- **LiveSignalStrategyViewModelBase** — 940-LOC base for all 9 live strategy VMs (`UI.Core`); pumps hub streams, pause/presets/CSV, chrome bar.
+- **LiveStrategyHostServices** — ctor bundle (Repository+Hub+Ingest+Store+BrokerSelector+ActivityLog) injected into every strategy VM; don't add ad-hoc deps.
+- **InMemoryLogSink** — the universal Activity Log (`UI.Core/Logging/`); Serilog feeds it as Source="System"; never add per-window log panels.
+- **SimulatedBrokerOptions** — drives the always-registered Simulated broker: Synthetic random-walk or Replay of the local store.
+- **AppEdition / BrokerEditionPolicy** — Basic|Intermediate|Professional; Keyless (crypto+Simulated) vs Credentialed broker lists; gating is composition-only.
+- **tick-primary ingest** — only ticks/quotes/trades/depth are persisted live; bars are aggregated downstream from ticks (rule 7).
+- **provenance fields** — `EventTimeUtc + IngestTimeUtc + Source + Sequence + EventTimeApproximate` on Quote/TradePrint/OhlcvBar; never strip.
+- **per-broker store** — default `SqlitePerBroker`: one file per broker per stream (`marketdata-{broker}-bars|l1|trades|l2.db`); identity in shared `marketdata.db`.
+- **trade tape** — per-broker opt-in `SubscribeTradesAsync` (IB/Binance/Ironbeam wired; NT/cTrader/Alpaca throw NotSupported).
+- **regime cube** — 3-axis Helix Toolkit 3D strategy family (OrderFlowCube, OrderFlowSurfaceSpike); recipe in `regime-cube-strategy` skill.
+- **Σ⁻¹·IC optimizer** — SigmaIcFlow's weighting: inverse-covariance times information-coefficient over tape-derived estimators; engine class `ApexScalperStrategy`.
+- **Quick backtest** — strategy-catalog right-click; maps `ITradingStrategy.BacktestStrategyId` → engine strategy; Binance full-tape or bar-synthetic mode.
+- **DROPS chip / FeedDropMeter** — feed-drop diagnostics surfaced in strategy chrome (MarketData).
+- **CrashGuard** — shell-level unhandled-exception trap (each shell owns a copy).
+- **edition shells ×3** — App.Basic + App.Intermediate (this repo) + TradingTerminal.App (private Pro repo); zero shared shell code; every shell fix applies to all three.
