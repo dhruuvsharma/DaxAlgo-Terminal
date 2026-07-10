@@ -1,5 +1,17 @@
 # context changelog — append-only session journal
 
+## 2026-07-11 (later) — hook suite revived + mirrored to Pro; shared memory
+- **verify-on-stop.ps1 had been silently DEAD since the 2026-06-27 fork** (probed pre-fork
+  `src\<Proj>\` paths; lower-layer regex matched `^src/TradingTerminal.`). Rewritten: projects
+  located by glob under `src/` (covers windows + linux trees), graph extended with UI.Core +
+  DaxAlgo.Sdk/.Wpf, SDK-leak regex matches the forked layout. Smoke-tested: 11 csproj inspected,
+  0 violations on the clean tree. session-start.ps1 run hint fixed (App → App.Intermediate).
+- Hook suite + settings.json mirrored into the Pro repo (adapted: Pro.slnx build; all Stop hooks
+  also gate dirty files inside the `public/` submodule; two-root graph check).
+- Cross-repo memory solved machine-locally: the Pro project's auto-memory dir is now an NTFS
+  junction to this project's memory (one shared store); committed journals (this file + the Pro
+  changelog) remain the repo-visible decision log.
+
 Newest first. One short block per session that touched the context layer or shipped notable work.
 (Separate from any repo CHANGELOG; this is for Claude-session continuity.)
 
