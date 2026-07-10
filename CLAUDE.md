@@ -4,6 +4,10 @@ A modular **multi-broker** WPF trading terminal. WPF + .NET 9. Twelve brokers be
 
 This is the always-loaded core. Detail lives in **skills** (lazy-loaded by trigger) and **docs/**. Don't re-derive conventions each session — load the matching skill, or `navigator` for "where does X live".
 
+## ⚡ Context layer — read before opening source (2026-07-10)
+
+**Every change request follows [`.claude/context/PROTOCOL.md`](.claude/context/PROTOCOL.md).** Load `.claude/context/index.md` + `symbols.md` + `deps.json` FIRST (file map, API signatures, blast radius) instead of reading implementations; repeated change types follow `.claude/context/RECIPES/`; regenerate the layer via `.claude/context/gen-context.sh` (see `MAINTENANCE.md`).
+
 ## Work tracking — GitHub issues are the source of truth
 
 Ongoing initiatives and multi-session work are tracked as **GitHub issues** (`gh issue`), not in model memory or the user's head. Two living trackers:
@@ -48,10 +52,10 @@ This repo is the **open-source core** (AGPL-3.0; the `src/windows/Sdk/` plugin S
 ## Solution graph (do not break)
 
 ```
-App            → MarketData, Infrastructure, UI, Login, Ai, Strategies.*, Core
+App            → MarketData, Infrastructure, UI, Login, Ai, Core (+ tool projects; strategies are runtime-loaded, NOT referenced)
 Login          → Core, UI, Infrastructure
 Ai             → Core, UI, Infrastructure, MarketData
-Strategies.*   → Infrastructure, UI, Core
+Strategies.*   → DaxAlgo.Sdk.Wpf ONLY (runtime plugins via AddStrategyPlugins → PluginLoader; ADR-0008)
 Infrastructure → MarketData, Core
 MarketData     → Core
 UI             → Core
@@ -61,7 +65,7 @@ Core           → (nothing)
 - **`Core` has zero deps on UI / WPF / any broker SDK.** New domain types go there.
 - **`MarketData` sits below Infrastructure** — the whole canonical pipeline (hub / ingest / repository / store / archive / registry) + `IUiDispatcher`. Depends only on Core. Don't make it reference Infrastructure.
 - **New broker code → `Infrastructure/<Broker>/` behind `IBrokerClient`.** View-models never see `EClientSocket` / `NTDirect` / `OpenClient` / `Alpaca.Markets`.
-- **New strategy → its own `TradingTerminal.Strategies.<Name>` project.** Engine-side `IBacktestStrategy` lives in `Infrastructure/Backtest/Strategies/`; the live project wraps it via `LiveSignalStrategyViewModelBase` (in `UI`).
+- **New strategy → its own `TradingTerminal.Strategies.<Name>` project.** Engine-side `IBacktestStrategy` lives in `Infrastructure/Backtest/Strategies/`; the live project wraps it via `LiveSignalStrategyViewModelBase` (in `UI.Core`).
 - **Login / AI are their own projects** so the App shell stays thin. The shell-handoff factories (`ILoginShellFactory`/`IMainShellFactory`) stay in App.
 
 ## Project map (where things live)
@@ -71,7 +75,8 @@ Core           → (nothing)
 | Domain types, interfaces, options | `TradingTerminal.Core` (`Brokers/`, `MarketData/`, `Backtest/`, `Notifications/`, `AiAnalyst/`, `Strategies/`, `Regime/`) |
 | Canonical pipeline (hub/ingest/repo/store/archive/registry, `IUiDispatcher`) | `TradingTerminal.MarketData` |
 | Broker clients, backtest engine + strategies, notifications, regime, `WpfDispatcher` | `TradingTerminal.Infrastructure` |
-| ViewModelBase, themes, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI` |
+| Themes, shared controls, converters, `CrashGuard` | `TradingTerminal.UI` (`src/windows/Shell/`) |
+| ViewModelBase, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI.Core` (`src/windows/UI/`) |
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
 | AI tool windows (`Ai.MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`/`PaperLab`) | **Private Pro repo** (Windows tree; Avalonia ports remain under `src/linux/AI/`) |

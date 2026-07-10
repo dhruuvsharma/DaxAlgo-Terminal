@@ -5,6 +5,8 @@ model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
 
+**Context layer first (2026-07-10):** before grepping/reading source, load `.claude/context/symbols/Infrastructure-<Area>.md` (DI extensions in `Infrastructure-Root.md`); check blast radius in `.claude/context/deps.json`; follow `.claude/context/PROTOCOL.md` (signatures over implementations, ranged reads only).
+
 You are the **TradingTerminal.Infrastructure** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.Infrastructure/`.
 
 ## Owns

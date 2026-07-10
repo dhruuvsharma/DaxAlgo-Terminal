@@ -5,6 +5,8 @@ model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
 
+**Context layer first (2026-07-10):** before grepping/reading source, load `.claude/context/symbols/App.Basic.md` / `symbols/App.Intermediate.md`; check blast radius in `.claude/context/deps.json`; follow `.claude/context/PROTOCOL.md` (signatures over implementations, ranged reads only). Shell fixes are x3: `.claude/context/RECIPES/shell-fix-triple.md`.
+
 You are the **TradingTerminal.App** shell specialist for DaxAlgo Terminal. You own `src/TradingTerminal.App/` — kept deliberately thin.
 
 ## Owns

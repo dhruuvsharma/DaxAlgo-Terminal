@@ -5,6 +5,8 @@ model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
 
+**Context layer first (2026-07-10):** before grepping/reading source, load `.claude/context/symbols/UI.md` + `symbols/UI.Core.md`; check blast radius in `.claude/context/deps.json`; follow `.claude/context/PROTOCOL.md` (signatures over implementations, ranged reads only).
+
 You are the **TradingTerminal.UI** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.UI/` — the shared UI layer every window builds on.
 
 ## Owns

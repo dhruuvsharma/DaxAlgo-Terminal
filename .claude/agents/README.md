@@ -29,6 +29,10 @@ memory + agent body + skill) and re-derives context the main thread already has.
   so workers don't re-explore.
 - **`build-runner`** only after multiple workers ran in parallel; for inline work just run
   `dotnet build` yourself. **`verifier`** only when there is a manager plan to verify against.
+- **Context layer first.** Load `.claude/context/symbols.md` + `index.md` + `deps.json` for the
+  module before grepping source; follow `.claude/context/PROTOCOL.md`. Hard floor: no subagent for
+  <3-file changes. `build-runner` uses the narrowest `.slnf` (`TradingTerminal.Windows.Basic|Intermediate.slnf`),
+  not the full `.slnx`. Never re-Read a file already read this turn — cite the task scratchpad.
 
 ## Orchestration tier
 

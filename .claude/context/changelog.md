@@ -3,6 +3,17 @@
 Newest first. One short block per session that touched the context layer or shipped notable work.
 (Separate from any repo CHANGELOG; this is for Claude-session continuity.)
 
+## 2026-07-10 (later) — pointers + routing tightening applied (Dhruv approved "apply all")
+- CLAUDE.md: context-layer section added (PROTOCOL.md is now the mandated per-change path);
+  solution graph corrected — `Strategies.* → DaxAlgo.Sdk.Wpf ONLY` (ADR-0008), App no longer
+  lists Strategies.*; project map splits `TradingTerminal.UI` vs `TradingTerminal.UI.Core`.
+- `.claude/MULTI-AGENT.md` + `.claude/agents/README.md`: hard rules — no subagent for <3-file
+  changes, context layer first, narrowest `.slnf` builds, no re-reads.
+- 15 agent bodies got a per-module "Context layer first" line (build-runner: narrowest-slnf rule).
+- Remaining known CLAUDE.md drift (deliberately untouched): the `Ai → Core, UI, Infrastructure,
+  MarketData` graph line (actual refs: Core + Infrastructure) and rule 9's "`InMemoryLogSink`, in
+  `UI`" (actually UI.Core) — context layer has the truth.
+
 ## 2026-07-10 — context layer initialized
 - Phase 1 audit (`AUDIT.md`): 875 files / 103,104 LOC Windows tree; 49 files >400 LOC hold 31%;
   Core 58% / UI 69% / MarketData 47% of public types never name-mentioned in any doc/skill.

@@ -5,6 +5,8 @@ model: haiku
 tools: Bash, Read, Grep
 ---
 
+**Narrowest build (2026-07-10):** build the smallest root `.slnf` covering the change (`TradingTerminal.Windows.Basic.slnf` / `TradingTerminal.Windows.Intermediate.slnf`); use the full `TradingTerminal.Windows.slnx` only for cross-cutting changes (Core / MarketData / Infrastructure / UI.Core signatures, or both shells). Never bare `dotnet build`.
+
 You are the **build runner** for DaxAlgo Terminal (.NET 9 / WPF). You compile and test, then
 report. You do **not** edit code — you give the manager/main thread a clean pass/fail signal.
 

@@ -5,6 +5,8 @@ model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
 
+**Context layer first (2026-07-10):** before grepping/reading source, load `.claude/context/symbols/Core-<Folder>.md` (one per top-level Core folder); check blast radius in `.claude/context/deps.json`; follow `.claude/context/PROTOCOL.md` (signatures over implementations, ranged reads only). Core has 22 dependents.
+
 You are the **TradingTerminal.Core** specialist for DaxAlgo Terminal. You own `src/TradingTerminal.Core/` and nothing else.
 
 ## Owns

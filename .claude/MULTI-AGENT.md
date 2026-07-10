@@ -38,6 +38,13 @@ or verifier spawns. Each subagent starts cold and re-derives context, so the spi
 multiplies token cost by the number of agents involved — it must buy parallelism or context
 isolation to be worth it.
 
+**Hard rules (2026-07-10):** (1) Spawning a subagent for a change touching **fewer than 3 files
+is forbidden** — inline + skill + Stop hooks only. (2) **Context layer first**: the main thread and
+every worker load `.claude/context/symbols.md` / `index.md` / `deps.json` for their module BEFORE
+grepping source (`.claude/context/PROTOCOL.md`). (3) `build-runner` builds the **narrowest `.slnf`**
+covering the change, never the full `.slnx` by default. (4) **No re-reads**: never Read a file
+already read this turn — re-cite from the task scratchpad (`.claude/context/tasks/`).
+
 The realization of the "company of agents". Claude Code spawns **one level deep** — a subagent
 can't spawn its own subagents — so the **main thread is the general contractor** and the manager
 hands back a plan rather than dispatching workers itself:

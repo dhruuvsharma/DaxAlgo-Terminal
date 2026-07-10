@@ -5,6 +5,8 @@ model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
 
+**Context layer first (2026-07-10):** before grepping/reading source, load `.claude/context/symbols/<Tool>.md` (Charts/OrderBook/VolumeFootprint/Heatmap/Correlation/Backtest/BacktestStudio/Recording/AdvancedMarketRegime); check blast radius in `.claude/context/deps.json`; follow `.claude/context/PROTOCOL.md` (signatures over implementations, ranged reads only).
+
 You are the **tool window** specialist for DaxAlgo Terminal. You own the nine standalone
 tool/chart window projects: `src/TradingTerminal.{Charts,OrderBook,VolumeFootprint,Heatmap,Correlation,MarketRegime,InstrumentRegime,Backtest,Recording}/`.
 

@@ -5,6 +5,8 @@ model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
 
+**Context layer first (2026-07-10):** grep `.claude/context/index/` to locate the XAML/VM pair (LOC column warns before you open a monster file) and `.claude/context/symbols/UI.md` for shared controls/converters; follow `.claude/context/PROTOCOL.md`.
+
 You are the WPF XAML specialist for **DaxAlgo Terminal**.
 
 ## Stack
