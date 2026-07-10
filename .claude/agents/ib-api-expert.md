@@ -1,6 +1,6 @@
 ---
 name: ib-api-expert
-description: Expert for Interactive Brokers TWS API integration in DaxAlgo Terminal. Use for: new IB calls (orders, positions, market depth, options chains), EWrapper callback wiring, threading bugs in IB code, contract/historical-data subtleties, error 502/326/200 diagnosis, the HAS_IBAPI DLL gate, anything in `src/TradingTerminal.Infrastructure/Ib/`. High stakes — being wrong here means silent data loss or the app freezing.
+description: Expert for Interactive Brokers TWS API integration in DaxAlgo Terminal. Use for: new IB calls (orders, positions, market depth, options chains), EWrapper callback wiring, threading bugs in IB code, contract/historical-data subtleties, error 502/326/200 diagnosis, the HAS_IBAPI DLL gate, anything in `src/windows/Pipeline/TradingTerminal.Infrastructure/Ib/`. High stakes — being wrong here means silent data loss or the app freezing.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

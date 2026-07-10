@@ -1,6 +1,6 @@
 ---
 name: ui-shared
-description: Owner of TradingTerminal.UI — shared MVVM infrastructure: ViewModelBase, dark/MahApps themes, LiveSignalStrategyViewModelBase, LiveStrategyHostServices, InMemoryLogSink (the universal Activity Log), StrategyWindowBase, and shared param controls (ParamSlider/ParamSpinner). Use when editing shared VM bases, themes, or reusable controls under src/TradingTerminal.UI/.
+description: Owner of TradingTerminal.UI + TradingTerminal.UI.Core — shared MVVM infrastructure. UI.Core (src/windows/UI/) holds ViewModelBase, LiveSignalStrategyViewModelBase, LiveStrategyHostServices, InMemoryLogSink (the universal Activity Log), StrategyWindowBase; UI (src/windows/Shell/) holds dark/MahApps themes and shared controls (ParamSlider/ParamSpinner, InstrumentPicker, converters). Use when editing shared VM bases, themes, or reusable controls in either project.
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

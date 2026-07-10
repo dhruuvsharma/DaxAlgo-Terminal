@@ -1,6 +1,6 @@
 ---
 name: infrastructure
-description: Owner of TradingTerminal.Infrastructure — broker clients (IB/NT/cTrader/Alpaca + the no-SDK REST/WS backends Ironbeam/LSE/Upstox/Binance/Coinbase/Bybit/Kraken/OKX + Simulated), the backtest engine + engine-side strategies, notifications, regime services, WpfDispatcher. Use when wiring an SDK call, fixing EWrapper/threading bugs, or editing anything under src/TradingTerminal.Infrastructure/. High stakes — broker SDKs and threading live here.
+description: Owner of TradingTerminal.Infrastructure — broker clients (IB/NT/cTrader/Alpaca + the no-SDK REST/WS backends Ironbeam/LSE/Upstox/Binance/Coinbase/Bybit/Kraken/OKX + Simulated), the backtest engine + engine-side strategies, notifications, regime services, WpfDispatcher. Use when wiring an SDK call, fixing EWrapper/threading bugs, or editing anything under src/windows/Pipeline/TradingTerminal.Infrastructure/. High stakes — broker SDKs and threading live here.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

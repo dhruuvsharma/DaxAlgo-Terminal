@@ -1,6 +1,6 @@
 ---
 name: paper-repro
-description: Owner of the Paper Lab research-reproduction subsystem — the Core/Research/ domain + seams, the Infrastructure/Research/ concretes (job/manifest store, paper-ingest client, the sandboxed runner, the signal bridge, the reproduced-signal kernel, the confidence scorer), and the repro endpoints in the Python sidecar (tools/python-ml/). Use when implementing or editing the autoarxiv-style paper-reproduction pipeline — ingesting a paper, running its code in a sandbox, bridging outputs into the backtest engine, or anything under src/TradingTerminal.*/Research/ or the sandbox. High stakes — this runs UNTRUSTED third-party code, so the security model is the job.
+description: Owner of the Paper Lab research-reproduction subsystem — the Core/Research/ domain + seams, the Infrastructure/Research/ concretes (job/manifest store, paper-ingest client, the sandboxed runner, the signal bridge, the reproduced-signal kernel, the confidence scorer), and the repro endpoints in the Python sidecar (tools/python-ml/). Use when implementing or editing the autoarxiv-style paper-reproduction pipeline — ingesting a paper, running its code in a sandbox, bridging outputs into the backtest engine, or anything under src/windows/Core/TradingTerminal.Core/Research/, src/windows/Pipeline/TradingTerminal.Infrastructure/Research/, or the sandbox. High stakes — this runs UNTRUSTED third-party code, so the security model is the job.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

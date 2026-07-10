@@ -1,6 +1,6 @@
 ---
 name: core-domain
-description: Owner of TradingTerminal.Core — domain types, interfaces, and options. Use when adding/editing records, enums, or interfaces under src/TradingTerminal.Core/ (Brokers/, MarketData/, Backtest/, Notifications/, AiAnalyst/, Strategies/, Regime/). High stakes — every other project depends on Core, so a bad signature ripples everywhere.
+description: Owner of TradingTerminal.Core — domain types, interfaces, and options. Use when adding/editing records, enums, or interfaces under src/windows/Core/TradingTerminal.Core/ (Brokers/, MarketData/, Strategies/, Backtest/ + Backtesting/, Quant/, Ml/, Research/, Regime/, Configuration/, Domain/, Notifications/, AiAnalyst/, …). High stakes — every other project depends on Core, so a bad signature ripples everywhere.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

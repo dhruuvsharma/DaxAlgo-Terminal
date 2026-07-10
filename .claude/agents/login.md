@@ -1,6 +1,6 @@
 ---
 name: login
-description: Owner of TradingTerminal.Login — the sign-in window, credential store, per-broker login forms, and AddLogin() DI. Use when editing login UI, credential persistence, or broker connection forms under src/TradingTerminal.Login/.
+description: Owner of TradingTerminal.Login — the sign-in window, credential store, per-broker login forms, and AddLogin() DI. Use when editing login UI, credential persistence, or broker connection forms under src/windows/Shell/TradingTerminal.Login/.
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

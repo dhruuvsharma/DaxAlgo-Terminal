@@ -1,6 +1,6 @@
 ---
 name: ai-seam
-description: Owner of TradingTerminal.Ai (shared AI analyst seam only) — IAiAnalystClient Null/Http impls, the AiAnalystEnricher in the notification pipeline, and AddAiAnalyst(). Use when touching the HTTP/JSON seam to the Python sidecar or the enricher under src/TradingTerminal.Ai/. NOT for the AI tool windows (those are the ai-* tool agents).
+description: Owner of TradingTerminal.Ai (shared AI analyst seam only) — IAiAnalystClient Null/Http impls, the AiAnalystEnricher in the notification pipeline, and AddAiAnalyst(). Use when touching the HTTP/JSON seam to the Python sidecar or the enricher under src/windows/AI/TradingTerminal.Ai/. NOT for the AI tool windows (those are the ai-* tool agents).
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

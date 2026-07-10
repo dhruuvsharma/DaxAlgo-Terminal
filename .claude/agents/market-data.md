@@ -1,6 +1,6 @@
 ---
 name: market-data
-description: Owner of TradingTerminal.MarketData — the canonical broker-neutral pipeline (hub, ingest, repository, store, archive, registry, IUiDispatcher). Use when adding store tables, changing ingest normalization, wiring trade-tape, or debugging "no data"/"duplicate ticks"/"wrong timestamps" under src/TradingTerminal.MarketData/. High stakes — silent data loss lives here.
+description: Owner of TradingTerminal.MarketData — the canonical broker-neutral pipeline (hub, ingest, repository, store, archive, registry, IUiDispatcher). Use when adding store tables, changing ingest normalization, wiring trade-tape, or debugging "no data"/"duplicate ticks"/"wrong timestamps" under src/windows/Pipeline/TradingTerminal.MarketData/. High stakes — silent data loss lives here.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
