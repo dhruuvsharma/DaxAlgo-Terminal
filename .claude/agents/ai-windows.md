@@ -1,6 +1,6 @@
 ---
 name: ai-windows
-description: Owner of the four AI tool window projects — TradingTerminal.Ai.MarketAnalyst, Ai.FactorResearch, Ai.MlFeatures, Ai.BacktestAnalysis. Use when editing any of these windows, their VMs, or their Add…Surface DI extensions under src/TradingTerminal.Ai.<Name>/. NOT for the shared seam (that's ai-seam).
+description: Owner of the AI tool windows (MarketAnalyst, FactorResearch, MlFeatures, BacktestAnalysis, PaperLab). The Windows copies live in the PRIVATE Pro repo (DaxAlgo-Terminal-Pro); this repo keeps only the Avalonia ports under src/linux/AI/. Use for those Linux ports or to scope Pro-repo window work for Dhruv. NOT for the shared seam (that's ai-seam).
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

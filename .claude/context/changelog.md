@@ -10,9 +10,14 @@ Newest first. One short block per session that touched the context layer or ship
 - `.claude/MULTI-AGENT.md` + `.claude/agents/README.md`: hard rules — no subagent for <3-file
   changes, context layer first, narrowest `.slnf` builds, no re-reads.
 - 15 agent bodies got a per-module "Context layer first" line (build-runner: narrowest-slnf rule).
-- Remaining known CLAUDE.md drift (deliberately untouched): the `Ai → Core, UI, Infrastructure,
-  MarketData` graph line (actual refs: Core + Infrastructure) and rule 9's "`InMemoryLogSink`, in
-  `UI`" (actually UI.Core) — context layer has the truth.
+- Third pass (same day, Dhruv: "everything perfect"): remaining drift FIXED — CLAUDE.md Ai graph
+  line (→ Core, Infrastructure), rule 9 `InMemoryLogSink` → UI.Core, per-tool paragraph re-scoped
+  (paths under `src/windows/<Group>/`; BubbleChart/Surface Lab/ML menu = Pro shell only),
+  ai-analyst skill row notes the Pro repo. Agent fleet corrected: `strategies` 12→9 (+ removed
+  OrderFlowToxicity/OrnsteinUhlenbeck/VolatilityTargeted quirk rows), `tool-windows` lists the
+  real 9 (+ AdvancedMarketRegime/BacktestStudio rows replace removed MarketRegime/InstrumentRegime),
+  `ai-windows`/`app-shell`/`backtest-cli` descriptions reflect the open-core split, README fleet
+  table rows updated. No known CLAUDE.md/agent drift remains as of 2026-07-10.
 
 ## 2026-07-10 — context layer initialized
 - Phase 1 audit (`AUDIT.md`): 875 files / 103,104 LOC Windows tree; 49 files >400 LOC hold 31%;

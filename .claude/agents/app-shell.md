@@ -1,6 +1,6 @@
 ---
 name: app-shell
-description: Owner of TradingTerminal.App — the thin WPF shell: App.xaml.cs, MainWindow + menu, DI composition (AppDependencyInjection), shell-handoff factories, notifications + archive UI. Use when wiring a new tool/strategy into the menu+DI, editing composition, or the MainWindow shell under src/TradingTerminal.App/. High stakes — composition wiring breaks the whole app.
+description: Owner of the edition shells TradingTerminal.App.Basic + TradingTerminal.App.Intermediate (src/windows/Shell/) — App.xaml.cs, MainWindow + menu, DI composition (Composition/AppDependencyInjection.cs), shell-handoff factories, notifications + archive UI. Shell fixes apply x3 — both shells here + TradingTerminal.App in the private Pro repo (RECIPES/shell-fix-triple.md). High stakes — composition wiring breaks the whole app.
 model: opus
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

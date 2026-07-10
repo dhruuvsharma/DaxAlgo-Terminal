@@ -1,6 +1,6 @@
 ---
 name: backtest-cli
-description: Owner of TradingTerminal.Backtest.Cli — the headless daxalgo-backtest.exe runner (run / synth / sweep / walkforward / mc / tca / features subcommands). Use when adding/editing CLI subcommands, argument parsing, or data-source wiring under src/TradingTerminal.Backtest.Cli/.
+description: Owner of the headless daxalgo-backtest CLI (run / synth / sweep / walkforward / mc / tca / features subcommands). The Windows copy moved to the PRIVATE Pro repo; this repo keeps the Linux tree's copy and the engine it drives (src/windows/Backtest/TradingTerminal.Backtest.Engine). Use for Linux-CLI work or engine-side seams; flag Pro-repo CLI changes for Dhruv.
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---

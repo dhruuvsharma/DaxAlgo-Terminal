@@ -61,9 +61,9 @@ layer-graph + SDK-leak gate that *blocks turn-end* on violations. (Build errors 
 ## Consolidated window owners
 | Projects | Agent | Model |
 |---|---|---|
-| All 12 `Strategies.*` live windows | `strategies` | sonnet |
-| All 10 tool windows (Charts, OrderBook, VolumeFootprint, Heatmap, Correlation, MarketRegime, InstrumentRegime, MarkovRegime, Backtest, Recording) | `tool-windows` | sonnet |
-| All 4 `Ai.*` windows (MarketAnalyst, FactorResearch, MlFeatures, BacktestAnalysis) | `ai-windows` | sonnet |
+| All 9 `Strategies.*` live windows | `strategies` | sonnet |
+| All 9 tool windows (Charts, OrderBook, VolumeFootprint, Heatmap, Correlation, Backtest, BacktestStudio, Recording, AdvancedMarketRegime) | `tool-windows` | sonnet |
+| `Ai.*` windows — Windows copies in the private Pro repo; Avalonia ports in `src/linux/AI/` | `ai-windows` | sonnet |
 
 Hard 3D/quant math inside a strategy window (cube/surface geometry, OU/VPIN estimators) is
 main-thread Opus work per CLAUDE.md routing — the `strategies` agent handles the window/VM

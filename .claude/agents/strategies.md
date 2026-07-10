@@ -1,6 +1,6 @@
 ---
 name: strategies
-description: Owner of ALL twelve TradingTerminal.Strategies.* live strategy window projects — SigmaIcFlow, CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity, OrnsteinUhlenbeck, VolatilityTargeted. Use when editing any strategy window/VM, its ITradingStrategy descriptor, or parameter surface under src/TradingTerminal.Strategies.*/.
+description: Owner of ALL nine TradingTerminal.Strategies.* live strategy plugin projects — SigmaIcFlow, CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike. Use when editing any strategy window/VM, its ITradingStrategy descriptor, engine kernel, or parameter surface under src/windows/Strategies/TradingTerminal.Strategies.*/.
 model: sonnet
 tools: Glob, Grep, Read, Edit, Write, Bash
 ---
@@ -44,9 +44,6 @@ hook will block on violations). Then load the per-project skill below.
 | OrderFlowCube | flagship 3-axis Helix scatter; needs tape+depth | `regime-cube-strategy` (reference impl) + `quant-math` |
 | OrderFlowPressureMap | multi-ticker S&P 100/500 monitor (strategy id `orderflow.pressuremap`); consumes `Core/Configuration/OrderFlowPressureMapOptions.cs` + `Core/MarketData/Sp100Sp500Catalog.cs` (signature changes → `core-domain`); canvas rendering in code-behind is presentation-only; test with `--filter FullyQualifiedName~PressureMap` | `add-strategy` + `quant-math` (absorption/breakthrough) |
 | OrderFlowSurfaceSpike | Helix surface; needs tape+depth; VPIN spike math | `regime-cube-strategy` + `quant-math` → `add-strategy` |
-| OrderFlowToxicity | needs trade tape; VPIN = equal-**volume** buckets, Kyle's lambda | `quant-math` → `add-strategy` |
-| OrnsteinUhlenbeck | OU SDE, half-life `ln2/theta`, OLS/MLE calibration, reject `b>=1` fits | `quant-math` → `add-strategy` |
-| VolatilityTargeted | sizing is a **signal** only | `add-strategy` |
 
 ## When done
 `dotnet build` + `dotnet test`; report.
