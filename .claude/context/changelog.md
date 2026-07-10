@@ -5,9 +5,11 @@ Newest first. One short block per session that touched the context layer or ship
 
 ## 2026-07-11 — one-click launcher
 - `claude-launch.bat` (repo root): cd to repo + start Claude Code with an initial prompt that
-  pre-loads index/symbols/deps. The PRO repo has no context layer yet — its Pro-only projects
-  are unindexed by design (open-core boundary); mirror the layer there in a Pro-repo session
-  using `public/.claude/context/gen-context.sh` as the template.
+  pre-loads index/symbols/deps.
+- Same day: the PRO overlay repo got its own mirrored layer (private commit ddf4485) — submodule
+  pin bumped to 7a6052f, Pro-only index/symbols/deps generated there, its CLAUDE.md points at
+  BOTH layers, and it has its own claude-launch.bat pre-loading both. This public layer remains
+  the authority for all shared-core modules.
 
 ## 2026-07-10 (later) — pointers + routing tightening applied (Dhruv approved "apply all")
 - CLAUDE.md: context-layer section added (PROTOCOL.md is now the mandated per-change path);
