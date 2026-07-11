@@ -1,6 +1,6 @@
 # index/Core — per-file index (Windows tree)
 
-Generated 2026-07-11. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-12. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -222,7 +222,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskManager.cs` | 117 | win | TradingTerminal.Core | B I P | Y | Current net signed position per symbol — exposed for telemetry / tests. |
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskOptions.cs` | 24 | win | TradingTerminal.Core | B I P | Y | Maximum absolute net position per symbol, in contracts/shares. 0 = disabled. |
 | `src/windows/Core/TradingTerminal.Core/Session/SessionContext.cs` | 32 | win | TradingTerminal.Core | B I P | Y | Mutable singleton populated by the login flow once the user is authenticated. |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 18 | win | TradingTerminal.Core | B I P | Y | Compiles a user-authored into a runnable |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 21 | win | TradingTerminal.Core | B I P | Y | Compiles a user-authored into a runnable |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 26 | win | TradingTerminal.Core | B I P | Y | Outcome of compiling a . On success, |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Severity of a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 16 | win | TradingTerminal.Core | B I P | Y | A user-authored strategy awaiting compilation: a stable id, a friendly display name, |
