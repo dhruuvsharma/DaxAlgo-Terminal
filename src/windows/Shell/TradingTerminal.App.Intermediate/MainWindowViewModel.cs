@@ -70,6 +70,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         SessionContext session,
         IBrokerSelector brokerSelector,
         BrokerApiMeterViewModel apiMeter,
+        Infrastructure.Plugins.PluginHostContext pluginContext,
         IShellWindowHost host,
         IServiceProvider services,
         ILogger<MainWindowViewModel> logger)
@@ -79,6 +80,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _session = session;
         _brokerSelector = brokerSelector;
         ApiMeter = apiMeter;
+        PluginProblemCount = pluginContext.Report?.AttentionCount ?? 0;
         _host = host;
         _services = services;
         _logger = logger;
@@ -227,6 +229,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     /// <summary>Live API-call meter shown as broker chips in the header strip.</summary>
     public BrokerApiMeterViewModel ApiMeter { get; }
+
+    /// <summary>Strategy plugins that failed to load or sit quarantined (user disables excluded) —
+    /// drives the header warning chip; click-through opens the Plugin Manager.</summary>
+    public int PluginProblemCount { get; }
+
+    public bool HasPluginProblems => PluginProblemCount > 0;
 
     /// <summary>Composite mode label — "Live · IB + cTrader" when multiple brokers are up. Falls
     /// back to the first connected broker's mode for single-broker sessions.</summary>

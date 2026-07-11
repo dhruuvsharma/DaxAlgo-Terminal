@@ -223,6 +223,32 @@
                         </Popup>
                     </Grid>
 
+                    <!-- Strategy-plugin problem chip — appears only when a plugin failed to load or
+                         sits quarantined (user disables don't count). Click opens the Plugin Manager. -->
+                    <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
+                            Command="{Binding OpenPluginManagerCommand}"
+                            Background="Transparent" BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
+                            ToolTip="Some strategy plugins did not load — click for details in the Plugin Manager.">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasPluginProblems}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚠" FontSize="11" Foreground="{DynamicResource Warning.Brush}"
+                                       VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBlock FontSize="10" FontWeight="Bold" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Text.Header}"
+                                       Text="{Binding PluginProblemCount, StringFormat='{}{0} PLUGIN ISSUE(S)'}" />
+                        </StackPanel>
+                    </Button>
+
                     <!-- Market session badges (approximate; no DST/holiday calendar) -->
                     <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center"
                             Background="{DynamicResource Bullish.Soft}" BorderBrush="{DynamicResource Bullish.Brush}" BorderThickness="1">

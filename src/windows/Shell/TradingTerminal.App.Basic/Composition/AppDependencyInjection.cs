@@ -153,14 +153,21 @@ public static class AppDependencyInjection
         // Dev/open-core build loads unsigned local plugins. A curated distribution would build this
         // policy from config (pinned publisher thumbprints) instead.
         var pluginPolicy = PluginTrustPolicy.Permissive;
-        var loadedPlugins = PluginLoader.LoadInto(
-            services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version,
-            onError: (path, ex) => Serilog.Log.Warning(ex, "Failed to load strategy plugin {Path}", path));
-        foreach (var plugin in loadedPlugins)
+        // Persisted lifecycle state (user disables, fault quarantines, pending uninstalls) — honoured
+        // by the loader BEFORE any plugin code runs; mutated by the Plugin Manager.
+        var pluginState = new PluginStateStore(pluginsRoot);
+        if (pluginState.LoadError is not null)
+            Serilog.Log.Warning("Plugin state reset: {Reason}", pluginState.LoadError);
+        var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version, pluginState);
+        foreach (var plugin in pluginReport.Loaded)
             Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk})", plugin.Name, plugin.TargetSdkVersion);
+        foreach (var problem in pluginReport.Problems)
+            Serilog.Log.Warning("Strategy plugin {Plugin} did not load ({Outcome}): {Reason}",
+                problem.PluginFolderName, problem.Outcome, problem.Reason);
 
-        // Surface the plugin subsystem to the Plugin Manager UI (what's loaded, where, under which policy).
-        services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, loadedPlugins));
+        // Surface the plugin subsystem to the Plugin Manager UI + the header problem chip
+        // (what loaded, what didn't and why, and the mutable lifecycle state).
+        services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, pluginReport.Loaded, pluginReport, pluginState));
 
         // Plugin Manager tool window (View → "Manage strategy plugins…").
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();

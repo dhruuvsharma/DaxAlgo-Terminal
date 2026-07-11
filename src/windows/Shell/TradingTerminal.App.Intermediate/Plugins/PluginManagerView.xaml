@@ -4,9 +4,13 @@
              mc:Ignorable="d"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             d:DesignWidth="780" d:DesignHeight="520">
+             d:DesignWidth="860" d:DesignHeight="560">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
     <Grid Margin="18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -21,34 +25,97 @@
             <TextBlock Text="{Binding TrustPolicySummary}" Opacity="0.8" Margin="0,4,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
+        <!-- Restart banner — lifecycle changes only apply on the next start (loaded plugin
+             assemblies are file-locked by their rooted load contexts). -->
+        <Border Grid.Row="1" Margin="0,12,0,0" CornerRadius="4" Padding="10,7"
+                Background="#22FFA500" BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
+                Visibility="{Binding RestartRequired, Converter={StaticResource BoolToVis}}">
+            <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"
+                       Text="Changes pending — restart DaxAlgo Terminal to apply them." />
+        </Border>
+
         <!-- Actions -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,0">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,14,0,0">
             <Button Content="Install plugin…" Command="{Binding InstallPluginCommand}" Padding="14,6" Margin="0,0,8,0" />
             <Button Content="Open plugins folder" Command="{Binding OpenPluginsFolderCommand}" Padding="14,6" />
         </StackPanel>
 
-        <TextBlock Grid.Row="2" Margin="0,10,0,0" Opacity="0.65" TextWrapping="Wrap" FontSize="11">
+        <TextBlock Grid.Row="3" Margin="0,10,0,0" Opacity="0.65" TextWrapping="Wrap" FontSize="11">
             <Run Text="Plugins folder:  " /><Run Text="{Binding PluginsRoot, Mode=OneWay}" />
         </TextBlock>
 
-        <!-- Loaded plugins -->
-        <GroupBox Grid.Row="3" Header="Loaded plugins" Margin="0,14,0,0">
-            <ListView ItemsSource="{Binding LoadedPlugins}" BorderThickness="0">
+        <!-- Every plugin the loader saw — loaded AND failed/skipped, with per-row actions. -->
+        <GroupBox Grid.Row="4" Header="Plugins" Margin="0,14,0,0">
+            <ListView ItemsSource="{Binding Rows}" BorderThickness="0"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name}" Width="260" />
-                        <GridViewColumn Header="SDK" DisplayMemberBinding="{Binding TargetSdkVersion}" Width="110" />
-                        <GridViewColumn Header="Assembly" DisplayMemberBinding="{Binding AssemblyPath}" Width="360" />
+                        <GridViewColumn Header="Status" Width="170">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StatusLabel}" FontWeight="SemiBold" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsProblem}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Loaded">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Name" Width="230">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Details" Width="260">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.85"
+                                               ToolTip="{Binding Detail}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Actions" Width="150">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Enable" Padding="8,2" Margin="0,0,6,0" FontSize="11"
+                                                Visibility="{Binding CanEnable, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.EnableCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Disable" Padding="8,2" Margin="0,0,6,0" FontSize="11"
+                                                Visibility="{Binding CanDisable, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Uninstall" Padding="8,2" FontSize="11"
+                                                Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVis}}"
+                                                Command="{Binding DataContext.UninstallCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
                     </GridView>
                 </ListView.View>
             </ListView>
         </GroupBox>
 
         <!-- Status -->
-        <TextBlock Grid.Row="4" Text="{Binding Status}" Margin="0,12,0,0" TextWrapping="Wrap" FontWeight="SemiBold" />
+        <TextBlock Grid.Row="5" Text="{Binding Status}" Margin="0,12,0,0" TextWrapping="Wrap" FontWeight="SemiBold" />
 
         <!-- Developer hint -->
-        <TextBlock Grid.Row="5" Margin="0,10,0,0" Opacity="0.6" TextWrapping="Wrap" FontSize="11"
+        <TextBlock Grid.Row="6" Margin="0,10,0,0" Opacity="0.6" TextWrapping="Wrap" FontSize="11"
                    Text="Developing a strategy? Reference the DaxAlgo.Sdk / DaxAlgo.Sdk.Wpf packages, implement IStrategyPlugin (see samples/DaxAlgo.SamplePlugin), build, then Install it here or drop the folder into the plugins directory and restart. See docs/plugins.md." />
     </Grid>
 </UserControl>
