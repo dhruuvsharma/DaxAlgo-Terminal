@@ -14,7 +14,8 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>DaxAlgo.Sdk</PackageId>
-    <Version>0.1.0-alpha</Version>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <PackageTags>daxalgo;trading;strategy;plugin;sdk</PackageTags>
     <Authors>DaxAlgo</Authors>
     <Description>DaxAlgo Terminal plugin SDK — the headless contract a strategy plugin compiles against (domain, market data, backtest kernels, parameter schema, quant math, plugin seams).</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

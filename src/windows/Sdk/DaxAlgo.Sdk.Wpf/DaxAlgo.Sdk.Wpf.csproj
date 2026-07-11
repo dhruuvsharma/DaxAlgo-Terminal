@@ -13,7 +13,8 @@
     <UseWPF>true</UseWPF>
     <IsPackable>true</IsPackable>
     <PackageId>DaxAlgo.Sdk.Wpf</PackageId>
-    <Version>0.1.0-alpha</Version>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <PackageTags>daxalgo;trading;strategy;plugin;sdk;wpf</PackageTags>
     <Authors>DaxAlgo</Authors>
     <Description>DaxAlgo Terminal plugin SDK — WPF UI base (live-strategy VM/window bases, param controls, Activity Log) for building a WPF strategy plugin. Includes DaxAlgo.Sdk.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

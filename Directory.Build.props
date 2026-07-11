@@ -24,6 +24,21 @@
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
 
+    <!-- Plugin-SDK package version — single source of truth for the FIVE NuGet packages
+         (DaxAlgo.Sdk + DaxAlgo.Sdk.Wpf and the TradingTerminal.Core/UI/UI.Core contract packages
+         they depend on; all published in lockstep). MUST equal SdkInfo.Version — the
+         nuget-publish workflow refuses to push on a mismatch. Independent of the app release
+         VersionPrefix above: the SDK contract has its own cadence (pre-1.0, every minor bump is
+         breaking for plugins — see PluginLoader.IsCompatible). -->
+    <DaxAlgoSdkVersion>0.1.0-alpha</DaxAlgoSdkVersion>
+
+    <!-- Shared NuGet metadata for the packable projects (inert for everything never packed). -->
+    <RepositoryUrl>https://github.com/dhruuvsharma/DaxAlgo-Terminal</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/dhruuvsharma/DaxAlgo-Terminal</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>
     <PlatformTarget>AnyCPU</PlatformTarget>

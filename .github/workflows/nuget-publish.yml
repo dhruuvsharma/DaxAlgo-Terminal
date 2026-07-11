@@ -1,0 +1,71 @@
+# Publishes the plugin-SDK NuGet packages (DaxAlgo.Sdk, DaxAlgo.Sdk.Wpf + the
+# TradingTerminal.Core/UI/UI.Core contract packages) to NuGet.org via TRUSTED PUBLISHING:
+# no stored API key — the NuGet/login step exchanges this job's GitHub OIDC token for a
+# short-lived push key against the "daxalgo-sdk-publish" policy on nuget.org, which pins
+# this repository, THIS file name, and the "nuget-publish" environment. Renaming this file
+# or the environment breaks the policy match on purpose.
+#
+# Trigger: push an `sdk-vX.Y.Z[-pre]` tag matching SdkInfo.Version / DaxAlgoSdkVersion
+# (the guard step refuses any mismatch), e.g.:
+#   git tag sdk-v0.1.0-alpha && git push origin sdk-v0.1.0-alpha
+# workflow_dispatch runs publish the current HEAD's version (same guards, no tag check).
+name: nuget-publish
+
+on:
+  push:
+    tags: ['sdk-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for NuGet trusted publishing
+
+jobs:
+  publish:
+    runs-on: windows-latest # WPF packages (UseWPF) only pack on Windows
+    environment: nuget-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Verify SdkInfo.Version == DaxAlgoSdkVersion (== tag)
+        shell: pwsh
+        run: |
+          $sdkInfo = (Select-String -Path src/windows/Sdk/DaxAlgo.Sdk/SdkInfo.cs -Pattern 'Version = "([^"]+)"').Matches[0].Groups[1].Value
+          $prop = (Select-String -Path Directory.Build.props -Pattern '<DaxAlgoSdkVersion>([^<]+)</DaxAlgoSdkVersion>').Matches[0].Groups[1].Value
+          if ($sdkInfo -ne $prop) { throw "SdkInfo.Version ($sdkInfo) != Directory.Build.props DaxAlgoSdkVersion ($prop) - fix before publishing." }
+          if ($env:GITHUB_REF -like 'refs/tags/sdk-v*') {
+            $tag = $env:GITHUB_REF -replace '^refs/tags/sdk-v', ''
+            if ($tag -ne $sdkInfo) { throw "Tag sdk-v$tag does not match SdkInfo.Version $sdkInfo." }
+          }
+          Write-Host "Publishing SDK version $sdkInfo"
+
+      - name: Pack (5 packages, lockstep version)
+        shell: pwsh
+        run: |
+          $projects = @(
+            'src/windows/Core/TradingTerminal.Core/TradingTerminal.Core.csproj',
+            'src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj',
+            'src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj',
+            'src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj',
+            'src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj'
+          )
+          foreach ($p in $projects) { dotnet pack $p -c Release -o packages; if ($LASTEXITCODE -ne 0) { throw "pack failed: $p" } }
+          Get-ChildItem packages
+
+      # Exchanges this job's OIDC token for a short-lived NuGet.org API key via the
+      # daxalgo-sdk-publish trusted-publishing policy (package owner: dhruv).
+      - name: NuGet login (trusted publishing)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: dhruv
+
+      - name: Push to NuGet.org
+        shell: pwsh
+        run: |
+          dotnet nuget push "packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          if ($LASTEXITCODE -ne 0) { throw "push failed" }

@@ -10,6 +10,15 @@
     <Description>Portable (WPF-free) view-model layer shared by the WPF and Avalonia UI heads.</Description>
   </PropertyGroup>
 
+  <!-- NuGet contract package in the plugin-SDK dependency chain (DaxAlgo.Sdk.Wpf depends on this).
+       Versioned in lockstep with the SDK (DaxAlgoSdkVersion), NOT the app release version.
+       AGPL-3.0 — only the DaxAlgo.Sdk* facades are MIT. -->
+  <PropertyGroup>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+    <PackageTags>daxalgo;trading;plugin;sdk;contract</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
   </ItemGroup>

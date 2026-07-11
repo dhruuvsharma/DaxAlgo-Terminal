@@ -5,6 +5,15 @@
     <Description>Shared UI primitives: ViewModelBase, dark theme, controls.</Description>
   </PropertyGroup>
 
+  <!-- NuGet contract package in the plugin-SDK dependency chain (DaxAlgo.Sdk.Wpf depends on this).
+       Versioned in lockstep with the SDK (DaxAlgoSdkVersion), NOT the app release version.
+       AGPL-3.0 — only the DaxAlgo.Sdk* facades are MIT. -->
+  <PropertyGroup>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+    <PackageTags>daxalgo;trading;plugin;sdk;contract;wpf</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <!-- Portable VM layer (ViewModelBase, live-strategy VM bases, Activity Log sink, â€¦) shared
