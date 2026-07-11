@@ -66,15 +66,16 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     /// restart — drives the banner. Loaded plugins are file-locked, so nothing applies live.</summary>
     [ObservableProperty] private bool _restartRequired;
 
-    /// <summary>Pick a plugin's main .dll, validate it against the active trust policy + SDK version,
-    /// and copy the package into the plugins folder. Activation is on next startup.</summary>
+    /// <summary>Pick a plugin package (.daxplugin, integrity-verified) or a raw main .dll (the dev
+    /// drop-in), validate it against the active trust policy + SDK version, and copy it into the
+    /// plugins folder. Activation is on next startup.</summary>
     [RelayCommand]
     private void InstallPlugin()
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Select the plugin's main .dll",
-            Filter = "Plugin assembly (*.dll)|*.dll",
+            Title = "Select a plugin package (.daxplugin) or its main .dll",
+            Filter = "Plugin package or assembly (*.daxplugin;*.dll)|*.daxplugin;*.dll",
             CheckFileExists = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -83,8 +84,13 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
             ? new AuthenticodeSignatureInspector()
             : new NullSignatureInspector();
 
-        var result = PluginInstaller.InstallFromDll(
-            dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, inspector, _state);
+        // Packages are sha256-verified and carry private deps; a raw .dll is the dev drop-in path.
+        // Both go through the same manifest/SDK/trust gates.
+        var result = dialog.FileName.EndsWith(DaxPluginPackage.Extension, StringComparison.OrdinalIgnoreCase)
+            ? PluginInstaller.InstallFromPackage(
+                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, inspector, _state)
+            : PluginInstaller.InstallFromDll(
+                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, inspector, _state);
         Status = result.Message;
         if (result.Success) RestartRequired = true;
         Rebuild();

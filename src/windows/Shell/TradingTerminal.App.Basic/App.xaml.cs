@@ -155,6 +155,21 @@ public partial class App : Application
 
         await _host.StartAsync();
 
+        // Runtime plugin-fault watchdog: unhandled dispatcher/task faults whose stack lies in a
+        // plugin's load context are attributed to that plugin (one Activity Log warning per strike);
+        // repeated faults quarantine it for the NEXT start — CrashGuard still owns keeping this
+        // session alive. Persisted state is absent only in odd host setups; then the net is off.
+        var pluginHost = _host.Services.GetRequiredService<Infrastructure.Plugins.PluginHostContext>();
+        if (pluginHost.State is { } pluginFaultState)
+            TradingTerminal.UI.Diagnostics.PluginFaultWatchdog.Attach(this, strikeLimit: 3,
+                onStrikeOut: (plugin, reason) =>
+                {
+                    pluginFaultState.Quarantine(plugin, reason);
+                    inMemoryLogSink.Append("Plugins", "Warning",
+                        $"Strategy plugin '{plugin}' quarantined after repeated faults — it will not load on the next start (re-enable in the Plugin Manager). {reason}");
+                },
+                log: (source, level, message) => inMemoryLogSink.Append(source, level, message));
+
         // Point every instrument picker (strategies, tools, charts) at the canonical registry instead
         // of the hardcoded fallback. The registry is loaded by the pipeline at startup and keeps
         // filling as brokers connect, so all dropdowns show the real discovered universe. Mirrors the
