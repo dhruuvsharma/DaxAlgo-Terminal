@@ -4,11 +4,17 @@ namespace DaxAlgo.Sdk;
 
 /// <summary>
 /// The surface a plugin uses inside <see cref="IStrategyPlugin.Register"/> to contribute services
-/// into the host. Today it exposes the host <see cref="IServiceCollection"/> directly — so a plugin's
-/// <c>Register</c> body is line-for-line identical to a first-party <c>AddXxxStrategy()</c> — and
-/// carries read-only context about the plugin. It is a named seam (rather than passing
-/// <see cref="IServiceCollection"/> raw) so the host can later observe or constrain what a plugin
-/// registers without changing plugin code.
+/// into the host. A plugin's <c>Register</c> body is line-for-line identical to a first-party
+/// <c>AddXxxStrategy()</c>, and carries read-only context about the plugin.
+/// <para>
+/// <b>The collection is add-only.</b> <see cref="Services"/> is not the raw host collection: the host
+/// hands each plugin a guarded view that stages registrations and commits them only if
+/// <c>Register</c> returns cleanly. A plugin may register new service types of its own, plus
+/// additional <c>ITradingStrategy</c> / <c>BacktestStrategyOption</c> / <c>StrategyFactoryRegistration</c>
+/// entries. Registering, replacing, or removing a service the host already provides (e.g.
+/// <c>ICredentialStore</c>, <c>IBrokerSelector</c>) is refused, and the plugin is quarantined with
+/// nothing registered. <c>TryAdd*()</c> keeps its usual no-op semantics.
+/// </para>
 /// </summary>
 public interface IPluginRegistrar
 {

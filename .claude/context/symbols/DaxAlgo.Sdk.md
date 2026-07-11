@@ -1,15 +1,15 @@
 # DaxAlgo.Sdk — public API surface
 
-Generated 2026-07-10. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
 ## src/windows/Sdk/DaxAlgo.Sdk/IPluginRegistrar.cs
 ```cs
-   13: public interface IPluginRegistrar
-   17:     IServiceCollection Services { get; }
-   20:     PluginContext Context { get; }
-   27: public sealed record PluginContext(string Name, string AssemblyPath, string TargetSdkVersion);
+   19: public interface IPluginRegistrar
+   23:     IServiceCollection Services { get; }
+   26:     PluginContext Context { get; }
+   33: public sealed record PluginContext(string Name, string AssemblyPath, string TargetSdkVersion);
 ```
 
 ## src/windows/Sdk/DaxAlgo.Sdk/IStrategyPlugin.cs

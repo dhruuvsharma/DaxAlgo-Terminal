@@ -1,6 +1,6 @@
 # index/Tests — per-file index (Windows tree)
 
-Generated 2026-07-10. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-11. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -67,8 +67,11 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Ml/RollingBrierScoreTests.cs` | 62 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Ml/RollingForecastMetricsTests.cs` | 71 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Ml/TripleBarrierLabelerTests.cs` | 77 | win | TradingTerminal.Tests.Headless | dev | Y |  |
+| `tests/TradingTerminal.Tests.Headless/Plugins/DaxPluginPackageTests.cs` | 181 | win | TradingTerminal.Tests.Headless | dev | Y | Builds a source plugin folder (garbage main dll + manifest at the |
 | `tests/TradingTerminal.Tests.Headless/Plugins/ExternalPluginLoadTests.cs` | 65 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the loader's real file/ALC path: against a GENUINE |
+| `tests/TradingTerminal.Tests.Headless/Plugins/PluginLifecycleTests.cs` | 233 | win | TradingTerminal.Tests.Headless | dev | Y | A plugin folder whose main "assembly" is garbage bytes — enumerable by |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginLoaderTests.cs` | 93 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the host plugin loader's discovery + version-gating + registration path |
+| `tests/TradingTerminal.Tests.Headless/Plugins/PluginRegistrarGuardTests.cs` | 326 | win | TradingTerminal.Tests.Headless | dev | Y | A host collection shaped like the real one: a credential store plus |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginSecurityTests.cs` | 135 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the curated-marketplace trust gate: the decisions, the |
 | `tests/TradingTerminal.Tests.Headless/Quant/CurveFittingTests.cs` | 177 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Quant/DeflatedSharpeTests.cs` | 101 | win | TradingTerminal.Tests.Headless | dev | Y |  |

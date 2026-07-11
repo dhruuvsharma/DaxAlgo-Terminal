@@ -1,6 +1,6 @@
 # TradingTerminal.UI.Core — public API surface
 
-Generated 2026-07-10. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -35,6 +35,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    32: public int Count => Items.Count;
    38: public string Details => SelectedItem is { } s
    53: public sealed record StrategyCatalogItem(string Id, string DisplayName, int ParameterCount, bool Fast);
+```
+
+## src/windows/UI/TradingTerminal.UI.Core/Diagnostics/PluginFaultTracker.cs
+```cs
+   10: public sealed class PluginFaultTracker(int strikeLimit)
+   16: public int StrikeLimit { get; } = strikeLimit;
+   20: public (int Strikes, bool StruckOutNow) RecordFault(string plugin)
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/ISignalGeneratorRouterFactory.cs

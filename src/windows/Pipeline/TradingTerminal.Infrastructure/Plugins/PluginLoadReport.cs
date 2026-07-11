@@ -16,6 +16,11 @@ public enum PluginLoadOutcome
     /// <summary>The active <see cref="PluginTrustPolicy"/> refused it before any code loaded.</summary>
     RejectedByTrust,
 
+    /// <summary>Its <c>Register</c> tried to replace a service the host owns (e.g. re-register
+    /// <c>ICredentialStore</c>) — see <see cref="GuardedServiceCollection"/>. Nothing it staged was
+    /// committed, and it is quarantined.</summary>
+    PolicyViolation,
+
     /// <summary>Its declared TargetSdkVersion is incompatible with the host SDK.</summary>
     IncompatibleSdk,
 

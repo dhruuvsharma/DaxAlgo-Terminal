@@ -182,6 +182,7 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
                     PluginLoadOutcome.Disabled => "Disabled",
                     PluginLoadOutcome.Quarantined => "Quarantined",
                     PluginLoadOutcome.RejectedByTrust => "Blocked by trust policy",
+                    PluginLoadOutcome.PolicyViolation => "Blocked — unsafe registration",
                     PluginLoadOutcome.IncompatibleSdk => "Incompatible SDK",
                     PluginLoadOutcome.ManifestInvalid => "Bad manifest",
                     _ => "Failed to load",

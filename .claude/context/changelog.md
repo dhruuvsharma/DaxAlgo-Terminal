@@ -1,5 +1,24 @@
 # context changelog — append-only session journal
 
+## 2026-07-11 (latest) — #23 phase 1: plugin registrar guard + trust policy from config
+- **The plugin DI seam was a credential-theft path**: `IPluginRegistrar.Services` handed every plugin
+  the raw host `IServiceCollection`, and MS.DI is last-registration-wins ⇒ any loaded plugin could
+  re-register `ICredentialStore` / `IBrokerSelector` / `IMarketDataStore` and intercept the broker
+  session. Closed by `Infrastructure/Plugins/GuardedServiceCollection.cs`: registrations are STAGED
+  and committed only if `Register()` returns cleanly (a violating plugin contributes nothing, not even
+  the legitimate half); allowlist = the three real multi-registration seams (`ITradingStrategy`,
+  `BacktestStrategyOption`, `StrategyFactoryRegistration`); host descriptors stay in the read view so
+  `TryAdd*()` keeps its no-op semantics. New `PluginLoadOutcome.PolicyViolation` → quarantine.
+- Trust policy now binds from config (`PluginsOptions`, `Plugins:TrustPolicy|TrustedThumbprints`,
+  `PluginTrustPolicy.From`) instead of the `Permissive` constant hardcoded in each shell. Default
+  stays Permissive — **Curated-by-default is deliberately NOT flipped**: the 9 first-party plugins are
+  unsigned, so Curated would ship an empty strategy catalog. Needs the signing decision + the consent
+  flow (#23 phase 3).
+- Verified: 9/9 plugins still load cross-ALC (`--smoke-strategies`, Pro shell) ⇒ zero false rejections;
+  50 plugin tests incl. a Roslyn-compiled **hostile plugin DLL** driven through the real loader
+  (blocked → quarantined → host `IMarketDataStore` intact); 647 headless + 5 Pro green.
+- Applied ×3 shells (Basic + Intermediate here, `TradingTerminal.App` in the Pro repo).
+
 ## 2026-07-11 (later) — hook suite revived + mirrored to Pro; shared memory
 - **verify-on-stop.ps1 had been silently DEAD since the 2026-06-27 fork** (probed pre-fork
   `src\<Proj>\` paths; lower-layer regex matched `^src/TradingTerminal.`). Rewritten: projects

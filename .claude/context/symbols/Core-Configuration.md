@@ -1,6 +1,6 @@
 # TradingTerminal.Core / Configuration — public API surface
 
-Generated 2026-07-10. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -266,6 +266,15 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    26: public ArchivePeriod Period { get; set; } = ArchivePeriod.Monthly;
    29: public ArchiveTables Tables { get; set; } = ArchiveTables.Quotes | ArchiveTables.Bars | ArchiveTables.Trades;
    33: public int DailyCheckHourUtc { get; set; } = 4;
+```
+
+## src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs
+```cs
+    4: public enum PluginTrustMode
+   22: public sealed class PluginsOptions
+   24: public const string SectionName = "Plugins";
+   29: public PluginTrustMode TrustPolicy { get; set; } = PluginTrustMode.Permissive;
+   33: public IList<string> TrustedThumbprints { get; set; } = [];
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs

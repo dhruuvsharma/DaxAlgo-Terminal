@@ -1,6 +1,6 @@
 # TradingTerminal.UI — public API surface
 
-Generated 2026-07-10. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -261,6 +261,19 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    27: public static class CrashGuard
    37: public static string ReportDirectory { get; } = Path.Combine(
    43: public static void Install(string appName, Action<string, string, string>? log = null)
+```
+
+## src/windows/Shell/TradingTerminal.UI/Diagnostics/PluginFaultWatchdog.cs
+```cs
+   18: public static class PluginFaultWatchdog
+   24: public static IDisposable Attach(
+  100: public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+```
+
+## src/windows/Shell/TradingTerminal.UI/Diagnostics/StrategyWindowSmoke.cs
+```cs
+   23: public static class StrategyWindowSmoke
+   28: public static async Task<int> RunAsync(
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/InstrumentTag.cs

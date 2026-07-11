@@ -5,8 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace TradingTerminal.Infrastructure.Plugins;
 
-/// <summary>Metadata about a plugin that was successfully discovered and registered.</summary>
-public sealed record LoadedPlugin(string Name, string TargetSdkVersion, string AssemblyPath);
+/// <summary>Metadata about a plugin that was successfully discovered and registered.
+/// <paramref name="RegisteredServices"/> is what it contributed to DI (attribution — every plugin
+/// registration is attributable to the plugin that made it).</summary>
+public sealed record LoadedPlugin(
+    string Name,
+    string TargetSdkVersion,
+    string AssemblyPath,
+    IReadOnlyList<string>? RegisteredServices = null);
 
 /// <summary>
 /// Discovers and loads strategy plugins. A plugin is a folder under the plugins root containing a
@@ -66,7 +72,7 @@ public static class PluginLoader
         LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, inspector, state: null, onError).Loaded;
 
     /// <summary>Permissive-policy scan that returns the full <see cref="PluginLoadReport"/> and honours
-    /// persisted lifecycle <paramref name="state"/> (the shells' entry point).</summary>
+    /// persisted lifecycle <paramref name="state"/>.</summary>
     public static PluginLoadReport LoadWithReport(
         IServiceCollection services,
         string pluginsRoot,
@@ -74,6 +80,17 @@ public static class PluginLoader
         PluginStateStore? state = null,
         Action<string, Exception>? onError = null) =>
         LoadWithReport(services, pluginsRoot, hostSdkVersion, PluginTrustPolicy.Permissive, DefaultInspector, state, onError);
+
+    /// <summary>Scan under a configured <paramref name="policy"/> with the default signature inspector
+    /// (real Authenticode on Windows) — the shells' entry point.</summary>
+    public static PluginLoadReport LoadWithReport(
+        IServiceCollection services,
+        string pluginsRoot,
+        string hostSdkVersion,
+        PluginTrustPolicy policy,
+        PluginStateStore? state = null,
+        Action<string, Exception>? onError = null) =>
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, onError);
 
     /// <summary>Core scan: registers every loadable plugin and classifies every one that did NOT load
     /// (disabled / quarantined / trust-rejected / SDK-incompatible / bad manifest / faulted) so the
@@ -145,6 +162,14 @@ public static class PluginLoader
                 problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.RejectedByTrust, ex.Reason));
                 onError?.Invoke(dll, ex);
             }
+            catch (PluginPolicyViolationException ex)
+            {
+                // It registered nothing (the guard staged and discarded), but it TRIED to take over a
+                // host service — quarantine so it doesn't get a second attempt on the next start.
+                problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.PolicyViolation, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(dll, ex);
+            }
             catch (PluginIncompatibleException ex)
             {
                 problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.IncompatibleSdk,
@@ -205,8 +230,13 @@ public static class PluginLoader
 
     /// <summary>Finds the single public <see cref="IStrategyPlugin"/> in <paramref name="assembly"/>,
     /// checks its version against <paramref name="hostSdkVersion"/>, and invokes
-    /// <see cref="IStrategyPlugin.Register"/>. Returns <c>null</c> when the assembly contains no plugin
-    /// type. Throws <see cref="PluginIncompatibleException"/> on a version mismatch.</summary>
+    /// <see cref="IStrategyPlugin.Register"/> against a <see cref="GuardedServiceCollection"/> — the
+    /// plugin's registrations are staged and only committed to <paramref name="services"/> once
+    /// <c>Register</c> returns cleanly, so a plugin that tries to replace a host service
+    /// (<c>ICredentialStore</c>, <c>IBrokerSelector</c>, …) contributes nothing at all. Returns
+    /// <c>null</c> when the assembly contains no plugin type. Throws
+    /// <see cref="PluginIncompatibleException"/> on a version mismatch and
+    /// <see cref="PluginPolicyViolationException"/> on a forbidden registration.</summary>
     public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
     {
         var pluginType = assembly.GetExportedTypes().FirstOrDefault(t =>
@@ -218,8 +248,10 @@ public static class PluginLoader
             throw new PluginIncompatibleException(plugin.Name, plugin.TargetSdkVersion, hostSdkVersion);
 
         var path = SafeLocation(assembly);
-        plugin.Register(new PluginRegistrar(services, new PluginContext(plugin.Name, path, plugin.TargetSdkVersion)));
-        return new LoadedPlugin(plugin.Name, plugin.TargetSdkVersion, path);
+        var guarded = new GuardedServiceCollection(services, plugin.Name);
+        plugin.Register(new PluginRegistrar(guarded, new PluginContext(plugin.Name, path, plugin.TargetSdkVersion)));
+        var registered = guarded.Commit();
+        return new LoadedPlugin(plugin.Name, plugin.TargetSdkVersion, path, registered);
     }
 
     /// <summary>Each plugin lives in its own subfolder; the main assembly is <c>&lt;foldername&gt;.dll</c>

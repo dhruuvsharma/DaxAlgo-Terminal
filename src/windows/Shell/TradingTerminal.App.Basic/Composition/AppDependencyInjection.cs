@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using TradingTerminal.App.Archive;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
+using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Logging;
@@ -75,7 +76,7 @@ public static class AppDependencyInjection
             TradingTerminal.Core.Hosting.NullSidecarController>();
 
         // Feature modules common to every edition.
-        services.AddStrategyPlugins();
+        services.AddStrategyPlugins(configuration);
         services.AddLogin();
         services.AddShell();
         services.AddSupport();
@@ -102,7 +103,7 @@ public static class AppDependencyInjection
 
     /// <summary>Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers
     /// around every entry in the backtest catalog.</summary>
-    public static IServiceCollection AddStrategyPlugins(this IServiceCollection services)
+    public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
@@ -150,17 +151,20 @@ public static class AppDependencyInjection
         // context and registered through the SAME DI seam (no host recompile). Missing folder = no-op;
         // a bad plugin is logged and skipped, never blocking startup. The open-core marketplace entry point.
         var pluginsRoot = System.IO.Path.Combine(System.AppContext.BaseDirectory, "plugins");
-        // Dev/open-core build loads unsigned local plugins. A curated distribution would build this
-        // policy from config (pinned publisher thumbprints) instead.
-        var pluginPolicy = PluginTrustPolicy.Permissive;
+        // Trust policy comes from the Plugins config section: Permissive (dev/open-core — unsigned
+        // local plugins load) or Curated (pinned publisher thumbprints + required manifest).
+        var pluginOptions = configuration.GetSection(PluginsOptions.SectionName).Get<PluginsOptions>() ?? new PluginsOptions();
+        var pluginPolicy = PluginTrustPolicy.From(pluginOptions);
         // Persisted lifecycle state (user disables, fault quarantines, pending uninstalls) — honoured
         // by the loader BEFORE any plugin code runs; mutated by the Plugin Manager.
         var pluginState = new PluginStateStore(pluginsRoot);
         if (pluginState.LoadError is not null)
             Serilog.Log.Warning("Plugin state reset: {Reason}", pluginState.LoadError);
-        var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version, pluginState);
+        var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version, pluginPolicy, pluginState);
         foreach (var plugin in pluginReport.Loaded)
-            Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk})", plugin.Name, plugin.TargetSdkVersion);
+            // Attribution: every DI registration in the app is traceable to the plugin that made it.
+            Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk}) registering {Services}",
+                plugin.Name, plugin.TargetSdkVersion, plugin.RegisteredServices ?? []);
         foreach (var problem in pluginReport.Problems)
             Serilog.Log.Warning("Strategy plugin {Plugin} did not load ({Outcome}): {Reason}",
                 problem.PluginFolderName, problem.Outcome, problem.Reason);

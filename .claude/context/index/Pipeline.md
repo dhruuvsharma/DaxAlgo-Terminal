@@ -1,6 +1,6 @@
 # index/Pipeline — per-file index (Windows tree)
 
-Generated 2026-07-10. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-11. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -69,12 +69,16 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/Telegram/TelegramTransport.cs` | 68 | win | TradingTerminal.Infrastructure | B I P | Y | Posts to api.telegram.org/bot{token}/sendMessage. Reads options through IOptionsMonitor |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Okx/RealOkxClient.cs` | 201 | win | TradingTerminal.Infrastructure | B I P | Y | OKX market-data client over the public v5 WebSocket + REST endpoints (no |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/AuthenticodeSignatureInspector.cs` | 125 | win | TradingTerminal.Infrastructure | B I P | Y | Verifies the file's embedded Authenticode signature (integrity + cert chain) via |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 82 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs` | 48 | win | TradingTerminal.Infrastructure | B I P | Y | True for assemblies whose type identity MUST be shared between host and |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 171 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxPluginPackage.cs` | 127 | win | TradingTerminal.Infrastructure | B I P | Y | Packs every file under |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/GuardedServiceCollection.cs` | 172 | win | TradingTerminal.Infrastructure | B I P | Y | Service types a plugin may legitimately contribute an ADDITIONAL registration of — |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 235 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs` | 63 | win | TradingTerminal.Infrastructure | B I P | Y | True for assemblies whose type identity MUST be shared between host and |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 57 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 324 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs` | 46 | win | TradingTerminal.Infrastructure | B I P | Y | Reads |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginSignature.cs` | 31 | win | TradingTerminal.Infrastructure | B I P | Y | The result of inspecting a plugin assembly's code signature. |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginTrustPolicy.cs` | 68 | win | TradingTerminal.Infrastructure | B I P | Y | Dev / open-core default: load anything (the existing app + CLI flow). |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginStateStore.cs` | 148 | win | TradingTerminal.Infrastructure | B I P | Y | A plugin the loader auto-disabled after a fault, with the recorded cause. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginTrustPolicy.cs` | 77 | win | TradingTerminal.Infrastructure | B I P | Y | Dev / open-core default: load anything (the existing app + CLI flow). |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Regime/AaiiSentimentClient.cs` | 59 | win | TradingTerminal.Infrastructure | B I P | Y | Scrapes the weekly AAII bull/bear sentiment survey. Lowest-reliability source: it parses |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Regime/AdvancedRegime/AdvancedRegimeService.cs` | 147 | win | TradingTerminal.Infrastructure | B I P | Y | Longest indicator lookback (MA50 / ATR-regression / POC) plus headroom. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Regime/CnnFearGreedClient.cs` | 67 | win | TradingTerminal.Infrastructure | B I P | Y | The current 0–100 index, or null if unavailable. |

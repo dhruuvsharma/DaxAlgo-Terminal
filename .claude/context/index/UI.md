@@ -1,6 +1,6 @@
 # index/UI — per-file index (Windows tree)
 
-Generated 2026-07-10. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-11. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -19,6 +19,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/UI/TradingTerminal.UI.Core/BarIndicators.cs` | 157 | win | TradingTerminal.UI.Core | B I P | Y | Returns (mean, stdev, upper, lower) arrays aligned with bars. |
 | `src/windows/UI/TradingTerminal.UI.Core/BusyState.cs` | 74 | win | TradingTerminal.UI.Core | B I P | Y | True while at least one |
 | `src/windows/UI/TradingTerminal.UI.Core/Catalog/StrategyCatalogViewModel.cs` | 53 | win | TradingTerminal.UI.Core | B I P | Y | Human-readable detail block for the currently selected strategy. |
+| `src/windows/UI/TradingTerminal.UI.Core/Diagnostics/PluginFaultTracker.cs` | 31 | win | TradingTerminal.UI.Core | B I P | Y | Records one fault for |
 | `src/windows/UI/TradingTerminal.UI.Core/ISignalGeneratorRouterFactory.cs` | 18 | win | TradingTerminal.UI.Core | B I P | Y | Default impl — vanilla |
 | `src/windows/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs` | 114 | win | TradingTerminal.UI.Core | B I P | Y | Rows to show for a |
 | `src/windows/UI/TradingTerminal.UI.Core/LastInstrumentStore.cs` | 75 | win | TradingTerminal.UI.Core | B I P | Y | The canonical symbol last selected under |

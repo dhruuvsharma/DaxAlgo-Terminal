@@ -1,6 +1,6 @@
 # index/Core — per-file index (Windows tree)
 
-Generated 2026-07-10. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-11. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -69,6 +69,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Configuration/OkxOptions.cs` | 31 | win | TradingTerminal.Core | B I P | Y | REST base for historical candles + the connectivity check. No trailing slash. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/OrderFlowPressureMapOptions.cs` | 129 | win | TradingTerminal.Core | B I P | Y | No notable pressure this candle. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ParquetLakeOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the export service idles (one cheap timer tick |
+| `src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | How much the host trusts the plugins it finds in its plugins |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the ingest client is Null and no jobs |
 | `src/windows/Core/TradingTerminal.Core/Configuration/SandboxOptions.cs` | 39 | win | TradingTerminal.Core | B I P | Y | Which runner implementation |
 | `src/windows/Core/TradingTerminal.Core/Configuration/SidecarOptions.cs` | 31 | win | TradingTerminal.Core | B I P | Y | Master switch. When true, the app auto-launches the sidecar on startup if |

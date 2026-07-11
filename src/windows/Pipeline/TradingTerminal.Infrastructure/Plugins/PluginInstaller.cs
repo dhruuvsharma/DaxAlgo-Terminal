@@ -106,7 +106,7 @@ public static class PluginInstaller
     /// <summary>Removes the plugin folder <paramref name="pluginFolderName"/> under
     /// <paramref name="pluginsRoot"/>. A plugin that loaded this session has its assembly file-locked
     /// by its rooted load context — deletion then fails, so it is marked pending in
-    /// <paramref name="state"/> and <see cref="PluginLoader.LoadWithReport"/> deletes it on the next
+    /// <paramref name="state"/> and <c>PluginLoader.LoadWithReport</c> deletes it on the next
     /// start, before anything loads. Never throws.</summary>
     public static PluginInstallResult Uninstall(
         string pluginsRoot,

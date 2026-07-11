@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using TradingTerminal.Core.Configuration;
 
 namespace TradingTerminal.Infrastructure.Plugins;
 
@@ -27,6 +28,14 @@ public sealed record PluginTrustPolicy(
         new(RequireSignature: true,
             RequireManifest: true,
             trustedThumbprints.Select(Normalize).Where(t => t.Length > 0).ToHashSet());
+
+    /// <summary>The policy the <c>Plugins</c> configuration section asks for — the shells' single
+    /// entry point, so the mapping isn't triplicated across the three shell copies.</summary>
+    public static PluginTrustPolicy From(PluginsOptions options) => options.TrustPolicy switch
+    {
+        PluginTrustMode.Curated => Curated(options.TrustedThumbprints),
+        _ => Permissive,
+    };
 
     /// <summary>True when a plugin with the given signature and manifest presence may load. On
     /// rejection, <paramref name="reason"/> explains why (for logging).</summary>

@@ -8,7 +8,8 @@ notifications, regime services, plugin loader, research sandbox, `WpfDispatcher`
 **Layout / symbols.** Per-broker folders (`Ib/ Ninja/ CTrader/ Alpaca/ IronBeam/ LondonStrategicEdge/
 Upstox/ Binance/ Coinbase/ Bybit/ Kraken/ Okx/ Simulation/`) → `symbols/Infrastructure-<Broker>.md`;
 `Backtest/` (fills, fees, risk, session, catalog) → `Infrastructure-Backtest.md`; `Plugins/`
-(PluginLoader ALC, manifest, Authenticode trust) → `Infrastructure-Plugins.md`; `Research/`
+(PluginLoader ALC, manifest, Authenticode trust, **add-only `GuardedServiceCollection` registrar
+guard** — a plugin may not replace a host service) → `Infrastructure-Plugins.md`; `Research/`
 (Docker sandbox — load `untrusted-execution` BEFORE touching) → `Infrastructure-Research.md`;
 `Notifications/`, `Regime/`. DI root: `DependencyInjection.cs` (`AddCredentialedBrokers`:100,
 `AddKeylessBrokers`:233) → `Infrastructure-Root.md`.

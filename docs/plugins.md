@@ -168,9 +168,44 @@ low-latency market-data access). So distribution is **curated + code-signed**, n
 | **Permissive** | Loads any plugin, unsigned included; signatures aren't even inspected. | The open-core dev build (default). |
 | **Curated** | Requires a `plugin.json` **and** a valid Authenticode signature whose signer-certificate **thumbprint is one the host pins**. | A curated distribution. |
 
+Set it in the `Plugins` section of `appsettings.json`:
+
+```jsonc
+"Plugins": {
+  "TrustPolicy": "Permissive",      // or "Curated"
+  "TrustedThumbprints": []          // pinned publisher certificate thumbprints (Curated)
+}
+```
+
 Thumbprint *pinning* — not merely "any valid signature" — is the gate: only assemblies signed by a known
 publisher load. The signature is verified with `WinVerifyTrust` (so a tampered DLL fails), and every
 verification failure path **rejects** the plugin (never wrongly accepts it).
+
+### The registration seam is add-only
+
+Trust decides *whether* a plugin loads. A second layer constrains what a loaded plugin may do to the
+host's dependency-injection container, because Microsoft.Extensions.DependencyInjection resolves the
+**last** registration of a service type: a plugin handed the raw container could re-register
+`ICredentialStore`, `IBrokerSelector`, or `IMarketDataStore` and silently intercept your broker
+session, credentials, and market data.
+
+`IPluginRegistrar.Services` is therefore **not** the host container — it's a guarded view:
+
+- a plugin may register **new** service types of its own (its strategy, view-models, windows), plus
+  additional `ITradingStrategy` / `BacktestStrategyOption` / `StrategyFactoryRegistration` entries
+  (the seams the host deliberately resolves as collections);
+- registering, replacing, or removing a service the **host already provides** is refused — the plugin
+  is quarantined, shows "Blocked — unsafe registration" in the Plugin Manager, and registers *nothing*
+  (its registrations are staged and only committed if `Register` returns cleanly, so it can't get
+  half-applied);
+- `TryAdd*()` keeps its normal no-op semantics, so defensive `TryAddSingleton` calls still work.
+
+Every plugin's registrations are logged with the plugin's name, so any service in the running app is
+attributable to whoever registered it.
+
+**Be clear about what this is.** An in-process .NET plugin runs with full process privileges — it can
+reflect straight past DI, P/Invoke, or start a process. The guard is a tripwire against the cheap
+attack, not a sandbox. **Curation and code signing remain the actual control.**
 
 To **publish** to a curated channel:
 
