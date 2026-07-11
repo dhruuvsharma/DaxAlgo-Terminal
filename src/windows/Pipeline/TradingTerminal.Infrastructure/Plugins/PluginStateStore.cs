@@ -18,7 +18,7 @@ public sealed record PluginQuarantine(
 /// Why pending uninstalls exist: a loaded plugin's assembly file is locked by its
 /// AssemblyLoadContext for the host's lifetime (contexts are deliberately rooted — see
 /// <see cref="PluginLoader"/>), so removing a live plugin can only happen BEFORE it loads on the
-/// next start. The store is read by <see cref="PluginLoader.LoadWithReport"/> pre-load, where all
+/// next start. The store is read by the loader's <c>LoadWithReport</c> pre-load, where all
 /// three states take effect.
 /// </para>
 /// State mutations save immediately (atomic temp+rename). A corrupt state file never blocks

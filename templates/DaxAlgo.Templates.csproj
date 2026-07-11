@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── dotnet new template package ────────────────────────────────────────────────────────────
+       Packs templates/content/* as `dotnet new` templates (currently: daxalgo-strategy).
+       Not part of any solution — packed by the nuget-publish workflow alongside the SDK packages,
+       versioned in lockstep (a template scaffolds PackageReferences pinned to the matching SDK).
+       Install:  dotnet new install DaxAlgo.Templates
+       Use:      dotnet new daxalgo-strategy -n MyStrategy -->
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageId>DaxAlgo.Templates</PackageId>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <Description>dotnet new templates for DaxAlgo Terminal strategy plugins (daxalgo-strategy: plugin entry point, backtest kernel with a worked EMA-cross demo, offline test harness, .daxplugin packaging script, AI context pack).</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>daxalgo;templates;dotnet-new;trading;strategy;plugin</PackageTags>
+
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <!-- Template content must never be compiled/expanded by THIS project. -->
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- Dotfiles (.template.config) must pack. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!-- No symbols for a content-only package (overrides the repo-wide snupkg default). -->
+    <IncludeSymbols>false</IncludeSymbols>
+    <!-- NU5110/NU5111: pack-plugin.ps1 is template CONTENT (scaffolded into the user's project),
+         not a NuGet install script — the warning doesn't apply to template packages. -->
+    <NoWarn>$(NoWarn);NU5128;NU5110;NU5111</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="content\**\*" PackagePath="content" />
+  </ItemGroup>
+
+</Project>

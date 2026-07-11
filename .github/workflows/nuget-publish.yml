@@ -43,7 +43,7 @@ jobs:
           }
           Write-Host "Publishing SDK version $sdkInfo"
 
-      - name: Pack (5 packages, lockstep version)
+      - name: Pack (6 packages, lockstep version)
         shell: pwsh
         run: |
           $projects = @(
@@ -51,7 +51,8 @@ jobs:
             'src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj',
             'src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj',
-            'src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj'
+            'src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj',
+            'templates/DaxAlgo.Templates.csproj'
           )
           foreach ($p in $projects) { dotnet pack $p -c Release -o packages; if ($LASTEXITCODE -ne 0) { throw "pack failed: $p" } }
           Get-ChildItem packages

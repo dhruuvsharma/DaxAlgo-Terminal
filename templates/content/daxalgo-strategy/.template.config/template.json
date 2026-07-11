@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "DaxAlgo",
+  "classifications": ["DaxAlgo", "Trading", "Plugin"],
+  "identity": "DaxAlgo.Strategy.CSharp",
+  "name": "DaxAlgo Terminal strategy plugin",
+  "description": "A DaxAlgo Terminal strategy plugin: IStrategyPlugin registration, a backtestable IBacktestStrategy kernel with a worked EMA-cross demo, an offline test harness, a .daxplugin packaging script, and a CLAUDE.md/AGENTS.md context pack for AI-assisted authoring.",
+  "shortName": "daxalgo-strategy",
+  "sourceName": "DaxNewStrategy",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "symbols": {
+    "strategyId": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": {
+        "source": "name",
+        "toLower": true
+      },
+      "replaces": "dax.new.strategy"
+    }
+  }
+}

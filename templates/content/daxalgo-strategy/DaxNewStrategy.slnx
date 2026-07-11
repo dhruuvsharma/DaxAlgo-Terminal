@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DaxNewStrategy/DaxNewStrategy.csproj" />
+  <Project Path="DaxNewStrategy.Tests/DaxNewStrategy.Tests.csproj" />
+</Solution>

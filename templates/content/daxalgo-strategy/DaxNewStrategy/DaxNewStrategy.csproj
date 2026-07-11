@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Must match the host: DaxAlgo Terminal's Windows tree is net9.0-windows7.0. -->
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- COMPILE-TIME surface only (ExcludeAssets=runtime): at runtime the host shares its own
+         contract assemblies into the plugin's load context, so the plugin folder must NEVER ship
+         TradingTerminal.*/DaxAlgo.Sdk* copies — a shipped copy breaks type identity with the host
+         and the strategy silently stops matching. This also keeps bin/ = exactly the files that
+         belong in the plugin package.
+         The SDK is pre-1.0: the host requires an EXACT major.minor match, so bumping this version
+         means rebuilding against the matching host. -->
+    <PackageReference Include="DaxAlgo.Sdk" Version="0.1.0-alpha" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The host reads plugin.json BEFORE loading any code (SDK-version gate + provenance). -->
+    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
