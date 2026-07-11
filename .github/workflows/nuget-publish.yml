@@ -68,5 +68,12 @@ jobs:
       - name: Push to NuGet.org
         shell: pwsh
         run: |
-          dotnet nuget push "packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          if ($LASTEXITCODE -ne 0) { throw "push failed" }
+          # Enumerate explicitly — dotnet nuget push does not expand a forward-slash glob on
+          # Windows ("File does not exist (packages/*.nupkg)"). Symbol .snupkg files are pushed
+          # automatically alongside each .nupkg.
+          $packages = Get-ChildItem packages -Filter *.nupkg
+          if ($packages.Count -eq 0) { throw "no packages found to push" }
+          foreach ($package in $packages) {
+            dotnet nuget push $package.FullName --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "push failed: $($package.Name)" }
+          }
