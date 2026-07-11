@@ -117,4 +117,17 @@
     <Message Importance="high" Text="Staged strategy plugins -> $(OutDir)plugins" />
   </Target>
 
+  <!--
+    Pin the plugins this build shipped: hash every staged assembly into {OutDir}/plugins/plugins-trusted.json.
+    That file is how the Curated trust policy accepts our OWN plugins without a code-signing certificate
+    (see PluginTrustedHashes), and it is the integrity baseline — a shipped assembly modified afterwards
+    no longer matches, and the loader quarantines the plugin as tampered instead of running rewritten code.
+    DependsOnTargets guarantees every Stage* target has run, so the folders are complete before hashing.
+    The script is SHARED (a build script, not shell code — it does not follow the x3 shell-copy rule).
+  -->
+  <Target Name="PinFirstPartyPlugins" AfterTargets="Build"
+          DependsOnTargets="StageSigmaIcFlowPlugin;StageIndexRegimeGraphPlugin;StageStrategyPlugins">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\..\..\build\gen-trusted-plugins.ps1&quot; -PluginsRoot &quot;$(OutDir)plugins&quot;" />
+  </Target>
+
 </Project>

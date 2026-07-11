@@ -152,9 +152,12 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
                 : Path.GetFileNameWithoutExtension(plugin.AssemblyPath);
             var pendingUninstall = IsPendingUninstall(key);
             var disabled = _state?.IsDisabled(key) == true;
-            var label = pendingUninstall ? "Loaded — uninstalls on restart"
+            // A plugin that is neither shipped-by-us (hash-pinned) nor signed by a pinned publisher is
+            // running on the user's say-so. Say so, permanently — not just at the consent prompt.
+            var badge = plugin.Unsigned ? " · DEV (unsigned)" : string.Empty;
+            var label = (pendingUninstall ? "Loaded — uninstalls on restart"
                 : disabled ? "Loaded — disables on restart"
-                : "Loaded";
+                : "Loaded") + badge;
             // Disclose what the IL scan saw the plugin reach for (file / network I/O). Block-level
             // capabilities never get here — those plugins don't load.
             var capabilities = (plugin.Scan?.Findings ?? [])
@@ -193,6 +196,8 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
                     PluginLoadOutcome.RejectedByTrust => "Blocked by trust policy",
                     PluginLoadOutcome.PolicyViolation => "Blocked — unsafe registration",
                     PluginLoadOutcome.BlockedByScan => "Blocked — unsafe code",
+                    PluginLoadOutcome.Tampered => "Blocked — file changed on disk",
+                    PluginLoadOutcome.Revoked => "Blocked — revoked",
                     PluginLoadOutcome.IncompatibleSdk => "Incompatible SDK",
                     PluginLoadOutcome.ManifestInvalid => "Bad manifest",
                     _ => "Failed to load",

@@ -160,8 +160,12 @@ public static class AppDependencyInjection
         var pluginState = new PluginStateStore(pluginsRoot);
         if (pluginState.LoadError is not null)
             Serilog.Log.Warning("Plugin state reset: {Reason}", pluginState.LoadError);
+        // A plugin the host can't vouch for (unsigned, not one of ours, no pinned publisher) is not
+        // silently loaded and not silently dropped: the user is shown what it is and what its code
+        // reaches for, and decides. The decision is remembered against the file's sha256, so an update
+        // has to ask again.
         var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version,
-            pluginPolicy, pluginState, pluginOptions.ScanMode);
+            pluginPolicy, pluginState, pluginOptions.ScanMode, new TradingTerminal.App.Plugins.PluginConsentPrompt());
         foreach (var plugin in pluginReport.Loaded)
             // Attribution: every DI registration in the app is traceable to the plugin that made it.
             Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk}) registering {Services}",

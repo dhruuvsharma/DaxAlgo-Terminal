@@ -1,5 +1,30 @@
 # context changelog — append-only session journal
 
+## 2026-07-11 (latest+2) — #23 phase 3: hash-pinned trust, integrity, revocation, consent → **Curated is now the shipped default**
+- **The blocker was: Curated + 9 unsigned first-party plugins = empty strategy catalog.** Dhruv's call:
+  hash-pin. `build/gen-trusted-plugins.ps1` (ONE shared copy — a build script is not shell code) hashes
+  every staged assembly into `plugins/plugins-trusted.json`; `PluginTrustedHashes` accepts a plugin whose
+  folder matches the shipped build exactly. No certificate. Verified: Curated loads all 9 unsigned
+  first-party plugins, 9/9 windows.
+- Same file = the **integrity baseline, enforced in EVERY mode** (Permissive too): assembly modified,
+  swapped, **added**, or removed ⇒ `PluginLoadOutcome.Tampered` + quarantine. Proven by appending one
+  byte to a staged DLL: that plugin quarantines with a clear reason, the other 8 load.
+  Third-party: `PluginInstaller` records sha256 at install, loader re-checks every start.
+- `revoked.json` kill-list (by sha256 = one build, or by plugin id = all builds) → `Revoked` + quarantine.
+- **Consent** (`IPluginConsentPrompt` + WPF `PluginConsentDialog` ×3 shells): unsigned/unpinned plugin ⇒
+  the user is shown publisher/file/sha256 + the scan's capabilities + the honest "this cannot be
+  sandboxed" line, and decides. Persisted **keyed by sha256** ⇒ asked once per BUILD; an update re-asks.
+  **No prompt (CLI/tests/CI) ⇒ the answer is NO.** A Block-level plugin is never offered for consent
+  (scan runs BEFORE the consent gate). Loaded-but-unsigned ⇒ permanent **DEV (unsigned)** badge.
+- **Gate order (all before one instruction of plugin code runs):** pin/integrity → revocation →
+  install-hash → IL scan → trust/consent → load → guarded registration.
+- `appsettings.json` ⇒ **Curated** (shipped); `appsettings.Dev{Sim,Replay,Live}.json` ⇒ Permissive, so
+  plugin authors aren't re-prompted on every rebuild (a rebuilt DLL = a new hash = a new consent).
+- 19 new tests (pin/tamper/revocation/consent). 676 headless + 5 Pro green; smoke 9/9 under BOTH
+  Permissive and Curated.
+- **Deferred:** DEV badge on the strategy *catalog card* (needs plugin→strategy-id attribution, which
+  `LoadedPlugin.RegisteredServices` doesn't carry yet) and the Roslyn authoring-pane gating (#23 item 6).
+
 ## 2026-07-11 (latest+1) — #23 phase 2: static IL policy scan
 - `Infrastructure/Plugins/PluginPolicyScanner.cs` — in-box `System.Reflection.Metadata`, **no new
   dependency and no plugin code runs** (the assembly is read as DATA, so the verdict lands before the

@@ -60,6 +60,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   171: public string Reason { get; } = reason;
 ```
 
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginConsent.cs
+```cs
+    6: public sealed record PluginConsentRequest(
+   25: public interface IPluginConsentPrompt
+   28:     bool RequestConsent(PluginConsentRequest request);
+```
+
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs
 ```cs
    13: public sealed record PluginHostContext(
@@ -68,6 +75,20 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    43: public static PluginInstallResult InstallFromDll(
    74: public static PluginInstallResult InstallFromPackage(
   114: public static PluginInstallResult Uninstall(
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs
+```cs
+    9: public enum PluginPinResult
+   25: public static class PluginIntegrity
+   29: public static string Sha256(string path)
+   44: public sealed record TrustedPlugin(
+   63: public sealed class PluginTrustedHashes
+   65: public const string FileName = "plugins-trusted.json";
+   75: public static PluginTrustedHashes Empty { get; } = new([]);
+   77: public bool IsEmpty => _pinned.Count == 0;
+   81: public static PluginTrustedHashes Load(string pluginsRoot)
+  108: public PluginPinResult Verify(string pluginFolderName, string pluginDirectory, out string? detail)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs
@@ -79,10 +100,10 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs
 ```cs
     4: public enum PluginLoadOutcome
-   42: public sealed record PluginLoadProblem(
-   53: public sealed record PluginLoadReport(
-   57: public static PluginLoadReport Empty { get; } = new([], []);
-   61: public int AttentionCount => Problems.Count(p => p.Outcome is not PluginLoadOutcome.Disabled);
+   50: public sealed record PluginLoadProblem(
+   61: public sealed record PluginLoadReport(
+   65: public static PluginLoadReport Empty { get; } = new([], []);
+   69: public int AttentionCount => Problems.Count(p => p.Outcome is not PluginLoadOutcome.Disabled);
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs
@@ -94,21 +115,27 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    79: public static PluginLoadReport LoadWithReport(
    90: public static PluginLoadReport LoadWithReport(
   105: public static PluginLoadReport LoadWithReport(
-  261: public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
-  292: public static bool IsCompatible(string pluginVersion, string hostVersion)
-  325: public IServiceCollection Services { get; } = services;
-  326: public PluginContext Context { get; } = context;
-  330: public sealed class PluginIncompatibleException(string pluginName, string pluginVersion, string hostVersion)
-  333: public string PluginName { get; } = pluginName;
-  334: public string PluginVersion { get; } = pluginVersion;
-  335: public string HostVersion { get; } = hostVersion;
-  340: public sealed class PluginRejectedException(string assemblyPath, string reason)
-  343: public string AssemblyPath { get; } = assemblyPath;
-  344: public string Reason { get; } = reason;
-  350: public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
-  353: public string AssemblyPath { get; } = assemblyPath;
-  354: public PluginScanReport Scan { get; } = scan;
-  355: public string Reason { get; } = scan.Summary;
+  303: public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
+  334: public static bool IsCompatible(string pluginVersion, string hostVersion)
+  367: public IServiceCollection Services { get; } = services;
+  368: public PluginContext Context { get; } = context;
+  372: public sealed class PluginIncompatibleException(string pluginName, string pluginVersion, string hostVersion)
+  375: public string PluginName { get; } = pluginName;
+  376: public string PluginVersion { get; } = pluginVersion;
+  377: public string HostVersion { get; } = hostVersion;
+  382: public sealed class PluginRejectedException(string assemblyPath, string reason)
+  385: public string AssemblyPath { get; } = assemblyPath;
+  386: public string Reason { get; } = reason;
+  392: public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
+  395: public string AssemblyPath { get; } = assemblyPath;
+  396: public PluginScanReport Scan { get; } = scan;
+  397: public string Reason { get; } = scan.Summary;
+  403: public sealed class PluginTamperedException(string assemblyPath, string reason)
+  406: public string AssemblyPath { get; } = assemblyPath;
+  407: public string Reason { get; } = reason;
+  412: public sealed class PluginRevokedException(string assemblyPath, string reason)
+  415: public string AssemblyPath { get; } = assemblyPath;
+  416: public string Reason { get; } = reason;
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs
@@ -129,6 +156,17 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   109: public static PluginScanReport Scan(string pluginDirectory, IEnumerable<string>? declaredPermissions = null)
 ```
 
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginRevocationList.cs
+```cs
+   10: public sealed record RevokedPlugin(
+   22: public sealed class PluginRevocationList
+   24: public const string FileName = "revoked.json";
+   32: public static PluginRevocationList Empty { get; } = new([]);
+   34: public bool IsEmpty => _revoked.Count == 0;
+   36: public static PluginRevocationList Load(string pluginsRoot)
+   54: public bool IsRevoked(string sha256, string? pluginId, out string? reason)
+```
+
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginSignature.cs
 ```cs
    10: public sealed record PluginSignature(bool IsSigned, bool IsValid, string? Thumbprint, string? Subject)
@@ -141,21 +179,25 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginStateStore.cs
 ```cs
-    8: public sealed record PluginQuarantine(
-   27: public sealed class PluginStateStore
-   29: public const string FileName = "plugins-state.json";
-   41: public PluginStateStore(string pluginsRoot)
-   49: public string? LoadError { get; }
-   51: public IReadOnlyList<string> Disabled { get { lock (_gate) return [.. _state.Disabled]; } }
-   52: public IReadOnlyList<PluginQuarantine> Quarantined { get { lock (_gate) return [.. _state.Quarantined]; } }
-   53: public IReadOnlyList<string> PendingUninstalls { get { lock (_gate) return [.. _state.PendingUninstall]; } }
-   55: public bool IsDisabled(string plugin)
-   60: public void SetDisabled(string plugin, bool disabled)
-   70: public PluginQuarantine? QuarantineFor(string plugin)
-   77: public void Quarantine(string plugin, string reason)
-   87: public bool ClearQuarantine(string plugin)
-   98: public void MarkPendingUninstall(string plugin)
-  110: public bool ClearPendingUninstall(string plugin)
+    9: public sealed record PluginInstallRecord(
+   14: public sealed record PluginQuarantine(
+   33: public sealed class PluginStateStore
+   35: public const string FileName = "plugins-state.json";
+   47: public PluginStateStore(string pluginsRoot)
+   55: public string? LoadError { get; }
+   57: public IReadOnlyList<string> Disabled { get { lock (_gate) return [.. _state.Disabled]; } }
+   58: public IReadOnlyList<PluginQuarantine> Quarantined { get { lock (_gate) return [.. _state.Quarantined]; } }
+   59: public IReadOnlyList<string> PendingUninstalls { get { lock (_gate) return [.. _state.PendingUninstall]; } }
+   61: public bool IsDisabled(string plugin)
+   66: public void SetDisabled(string plugin, bool disabled)
+   76: public PluginQuarantine? QuarantineFor(string plugin)
+   83: public void Quarantine(string plugin, string reason)
+   93: public bool ClearQuarantine(string plugin)
+  107: public string? InstalledHash(string plugin)
+  114: public void SetInstalledHash(string plugin, string sha256)
+  124: public void ClearInstalledHash(string plugin)
+  133: public void MarkPendingUninstall(string plugin)
+  145: public bool ClearPendingUninstall(string plugin)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginTrustPolicy.cs

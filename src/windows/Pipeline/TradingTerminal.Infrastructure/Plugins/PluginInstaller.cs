@@ -136,6 +136,9 @@ public static class PluginInstaller
             state?.ClearQuarantine(pluginFolderName);
             state?.ClearPendingUninstall(pluginFolderName);
             state?.SetDisabled(pluginFolderName, false);
+            state?.ClearInstalledHash(pluginFolderName);
+            // Consent was given to a plugin that no longer exists. A future reinstall must ask again.
+            state?.ClearConsent(pluginFolderName);
             return new(true, $"Uninstalled '{pluginFolderName}'.");
         }
         catch (Exception) when (state is not null)
@@ -219,6 +222,9 @@ public static class PluginInstaller
         // A new package gets a clean slate: past faults and pending removals no longer apply.
         state?.ClearQuarantine(dllName);
         state?.ClearPendingUninstall(dllName);
+        // Record what we installed, so the loader can tell on every start whether anything rewrote the
+        // assembly afterwards (tamper detection for plugins the build doesn't pin).
+        state?.SetInstalledHash(dllName, PluginIntegrity.Sha256(Path.Combine(targetDir, dllName + ".dll")));
 
         var display = manifest?.Name ?? dllName;
         var stillDisabled = state?.IsDisabled(dllName) == true

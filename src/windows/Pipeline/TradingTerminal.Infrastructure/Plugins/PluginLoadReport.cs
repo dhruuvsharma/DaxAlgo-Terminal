@@ -26,6 +26,14 @@ public enum PluginLoadOutcome
     /// the assembly was loaded, and quarantined.</summary>
     BlockedByScan,
 
+    /// <summary>Its assemblies no longer hash to what the build shipped (or what the user installed) —
+    /// something rewrote the plugin on disk. Quarantined in every trust mode.</summary>
+    Tampered,
+
+    /// <summary>This build is on the kill-list (<see cref="PluginRevocationList"/>) — withdrawn after
+    /// it was already installed. Quarantined.</summary>
+    Revoked,
+
     /// <summary>Its declared TargetSdkVersion is incompatible with the host SDK.</summary>
     IncompatibleSdk,
 

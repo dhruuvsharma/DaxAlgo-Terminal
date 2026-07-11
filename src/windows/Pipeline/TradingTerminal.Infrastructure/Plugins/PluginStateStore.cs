@@ -4,6 +4,19 @@ using System.Text.Json.Serialization;
 
 namespace TradingTerminal.Infrastructure.Plugins;
 
+/// <summary>The sha256 of a plugin's main assembly as it was when the user installed it — the baseline
+/// the loader re-verifies on every start (tamper detection for third-party plugins).</summary>
+public sealed record PluginInstallRecord(
+    [property: JsonPropertyName("plugin")] string Plugin,
+    [property: JsonPropertyName("sha256")] string Sha256);
+
+/// <summary>The user's explicit "yes, run this unsigned plugin" — bound to the exact build
+/// (<see cref="Sha256"/>), so an update has to ask again.</summary>
+public sealed record PluginConsentRecord(
+    [property: JsonPropertyName("plugin")] string Plugin,
+    [property: JsonPropertyName("sha256")] string Sha256,
+    [property: JsonPropertyName("consentedUtc")] DateTime ConsentedUtc);
+
 /// <summary>A plugin the loader auto-disabled after a fault, with the recorded cause.</summary>
 public sealed record PluginQuarantine(
     [property: JsonPropertyName("plugin")] string Plugin,
@@ -95,6 +108,71 @@ public sealed class PluginStateStore
         }
     }
 
+    /// <summary>True when the user has explicitly consented to running THIS EXACT build of an unsigned
+    /// plugin. Keyed by sha256, never by name: an update (or a swap) changes the hash, so the plugin
+    /// must ask again rather than inheriting the trust its predecessor was given.</summary>
+    public bool HasConsent(string plugin, string sha256)
+    {
+        lock (_gate)
+            return _state.Consented.Any(c =>
+                string.Equals(c.Plugin, plugin, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(c.Sha256, sha256, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public void GrantConsent(string plugin, string sha256)
+    {
+        lock (_gate)
+        {
+            if (HasConsentUnlocked(plugin, sha256)) return;
+            _state.Consented.Add(new PluginConsentRecord(plugin, sha256, DateTime.UtcNow));
+            Save();
+        }
+    }
+
+    /// <summary>Drops every consent for a plugin (uninstall — a later reinstall must ask again).</summary>
+    public void ClearConsent(string plugin)
+    {
+        lock (_gate)
+        {
+            if (_state.Consented.RemoveAll(c =>
+                string.Equals(c.Plugin, plugin, StringComparison.OrdinalIgnoreCase)) > 0) Save();
+        }
+    }
+
+    private bool HasConsentUnlocked(string plugin, string sha256) =>
+        _state.Consented.Any(c =>
+            string.Equals(c.Plugin, plugin, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(c.Sha256, sha256, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The sha256 recorded when this plugin was INSTALLED (third-party plugins — first-party
+    /// ones are pinned by the build in <see cref="PluginTrustedHashes"/> instead). The loader compares
+    /// it on every start: a changed assembly means something rewrote the plugin behind the user's back.</summary>
+    public string? InstalledHash(string plugin)
+    {
+        lock (_gate)
+            return _state.Installed.FirstOrDefault(i =>
+                string.Equals(i.Plugin, plugin, StringComparison.OrdinalIgnoreCase))?.Sha256;
+    }
+
+    public void SetInstalledHash(string plugin, string sha256)
+    {
+        lock (_gate)
+        {
+            _state.Installed.RemoveAll(i => string.Equals(i.Plugin, plugin, StringComparison.OrdinalIgnoreCase));
+            _state.Installed.Add(new PluginInstallRecord(plugin, sha256));
+            Save();
+        }
+    }
+
+    public void ClearInstalledHash(string plugin)
+    {
+        lock (_gate)
+        {
+            if (_state.Installed.RemoveAll(i => string.Equals(i.Plugin, plugin, StringComparison.OrdinalIgnoreCase)) > 0)
+                Save();
+        }
+    }
+
     public void MarkPendingUninstall(string plugin)
     {
         lock (_gate)
@@ -144,5 +222,7 @@ public sealed class PluginStateStore
         [JsonPropertyName("disabled")] public List<string> Disabled { get; set; } = [];
         [JsonPropertyName("quarantined")] public List<PluginQuarantine> Quarantined { get; set; } = [];
         [JsonPropertyName("pendingUninstall")] public List<string> PendingUninstall { get; set; } = [];
+        [JsonPropertyName("installed")] public List<PluginInstallRecord> Installed { get; set; } = [];
+        [JsonPropertyName("consented")] public List<PluginConsentRecord> Consented { get; set; } = [];
     }
 }

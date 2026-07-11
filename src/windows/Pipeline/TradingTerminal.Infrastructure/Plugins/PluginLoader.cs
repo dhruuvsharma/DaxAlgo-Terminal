@@ -15,7 +15,8 @@ public sealed record LoadedPlugin(
     string TargetSdkVersion,
     string AssemblyPath,
     IReadOnlyList<string>? RegisteredServices = null,
-    PluginScanReport? Scan = null);
+    PluginScanReport? Scan = null,
+    bool Unsigned = false);
 
 /// <summary>
 /// Discovers and loads strategy plugins. A plugin is a folder under the plugins root containing a
@@ -94,8 +95,9 @@ public static class PluginLoader
         PluginTrustPolicy policy,
         PluginStateStore? state = null,
         PluginScanMode scanMode = PluginScanMode.Enforce,
+        IPluginConsentPrompt? consent = null,
         Action<string, Exception>? onError = null) =>
-        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, scanMode, onError);
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, scanMode, consent, onError);
 
     /// <summary>Core scan: registers every loadable plugin and classifies every one that did NOT load
     /// (disabled / quarantined / trust-rejected / SDK-incompatible / bad manifest / faulted) so the
@@ -110,6 +112,7 @@ public static class PluginLoader
         IPluginSignatureInspector inspector,
         PluginStateStore? state = null,
         PluginScanMode scanMode = PluginScanMode.Enforce,
+        IPluginConsentPrompt? consent = null,
         Action<string, Exception>? onError = null)
     {
         var loaded = new List<LoadedPlugin>();
@@ -117,6 +120,11 @@ public static class PluginLoader
         if (!Directory.Exists(pluginsRoot)) return new PluginLoadReport(loaded, problems);
 
         if (state is not null) ApplyPendingUninstalls(pluginsRoot, state);
+
+        // The build pins the hashes of the plugins it shipped; the kill-list withdraws bad builds.
+        // Both are read once per scan and consulted before any plugin code runs.
+        var pinned = PluginTrustedHashes.Load(pluginsRoot);
+        var revoked = PluginRevocationList.Load(pluginsRoot);
 
         foreach (var dll in EnumeratePluginAssemblies(pluginsRoot))
         {
@@ -148,33 +156,80 @@ public static class PluginLoader
 
             try
             {
-                // ── Trust gate (before loading any code) ──────────────────────────────────────────
+                // ── Integrity / trust gates (all decided BEFORE loading any code) ─────────────────
                 var pluginDir = Path.GetDirectoryName(dll)!;
                 var manifest = PluginManifest.TryRead(pluginDir);
-                // Inspect the signature only when the policy actually needs it (the permissive dev
-                // flow skips Authenticode entirely).
-                var signature = policy.RequireSignature ? inspector.Inspect(dll) : PluginSignature.Unsigned;
-                if (!policy.Allows(signature, manifest is not null, out var reason))
-                    throw new PluginRejectedException(dll, reason!);
+                var hash = PluginIntegrity.Sha256(dll);
 
-                // ── Static IL policy scan (still before loading any code — the assembly is read as
-                //    DATA, so a blocked plugin never executes a single instruction) ────────────────
+                // 1. Was a plugin the BUILD shipped rewritten since? Checked in every mode — a modified
+                //    first-party assembly is never acceptable, permissive dev build or not.
+                var pin = pinned.Verify(folder, pluginDir, out var pinDetail);
+                if (pin == PluginPinResult.Tampered)
+                    throw new PluginTamperedException(dll, pinDetail ?? "the plugin folder does not match the shipped build");
+
+                // 2. Was this exact build (or this plugin) withdrawn?
+                if (revoked.IsRevoked(hash, manifest?.Id, out var revokedReason))
+                    throw new PluginRevokedException(dll, revokedReason!);
+
+                // 3. Was a plugin the USER installed rewritten since they installed it?
+                if (pin != PluginPinResult.Match
+                    && state?.InstalledHash(folder) is { Length: > 0 } installedHash
+                    && !string.Equals(installedHash, hash, StringComparison.OrdinalIgnoreCase))
+                    throw new PluginTamperedException(dll,
+                        "the assembly has changed since it was installed — something rewrote it outside the app");
+
+                // 4. Static IL policy scan. Runs BEFORE the trust/consent decision, so a plugin
+                //    carrying Block-level code is refused outright and the user is never asked to
+                //    consent to it — and so the consent dialog can show what the plugin reaches for.
+                //    Still no code loaded: the assembly is read as DATA.
                 var scan = scanMode == PluginScanMode.Off
                     ? PluginScanReport.Clean
                     : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions);
                 if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
                     throw new PluginBlockedException(dll, scan);
 
+                // 5. Trust. A pinned first-party plugin IS the trust anchor (that's what hash-pinning
+                //    buys us: a shipped catalogue that loads under Curated without a code-signing
+                //    certificate); everything else must satisfy the policy, or be one the user has
+                //    explicitly consented to run.
+                var unsigned = false;
+                if (pin != PluginPinResult.Match)
+                {
+                    // Inspect the signature only when the policy actually needs it (the permissive dev
+                    // flow skips Authenticode entirely).
+                    var signature = policy.RequireSignature ? inspector.Inspect(dll) : PluginSignature.Unsigned;
+                    if (!policy.Allows(signature, manifest is not null, out var reason))
+                    {
+                        if (!Consented(folder, hash, dll, manifest, scan, state, consent))
+                            throw new PluginRejectedException(dll, reason!);
+                    }
+                    // Neither ours-by-hash nor signed-by-a-trusted-publisher: it runs on the user's
+                    // say-so (or a permissive dev build), so it wears the DEV / UNSIGNED badge.
+                    unsigned = !signature.IsSigned || !signature.IsValid;
+                }
+
                 // ── Load + register ──────────────────────────────────────────────────────────────
                 var ctx = new PluginLoadContext(dll);
                 lock (s_keepAlive) s_keepAlive.Add(ctx);
                 var asm = ctx.LoadFromAssemblyPath(dll);
                 if (RegisterFromAssembly(asm, services, hostSdkVersion) is { } meta)
-                    loaded.Add(meta with { Scan = scan });
+                    loaded.Add(meta with { Scan = scan, Unsigned = unsigned });
             }
             catch (PluginBlockedException ex)
             {
                 problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.BlockedByScan, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(dll, ex);
+            }
+            catch (PluginTamperedException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.Tampered, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(dll, ex);
+            }
+            catch (PluginRevokedException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.Revoked, ex.Reason));
                 state?.Quarantine(folder, ex.Reason);
                 onError?.Invoke(dll, ex);
             }
@@ -242,6 +297,30 @@ public static class PluginLoader
                 // Still locked by something external — keep the mark; the scan skips it either way.
             }
         }
+    }
+
+    /// <summary>The escape hatch for a plugin the host cannot vouch for: has the user already said yes
+    /// to THIS EXACT build, or will they now? A remembered consent is keyed by sha256, so an update
+    /// re-asks rather than inheriting its predecessor's trust. With no prompt (headless: the CLI,
+    /// tests) the answer is always no — nothing is trusted merely because there was nobody to ask.</summary>
+    private static bool Consented(
+        string folder,
+        string hash,
+        string dll,
+        PluginManifest? manifest,
+        PluginScanReport scan,
+        PluginStateStore? state,
+        IPluginConsentPrompt? consent)
+    {
+        if (state?.HasConsent(folder, hash) == true) return true;
+        if (consent is null) return false;
+
+        var request = new PluginConsentRequest(
+            folder, manifest?.Name ?? folder, manifest?.Publisher, dll, hash, scan);
+        if (!consent.RequestConsent(request)) return false;
+
+        state?.GrantConsent(folder, hash);
+        return true;
     }
 
     /// <summary>The default signature inspector: real Authenticode on Windows, null (always unsigned)
@@ -353,4 +432,23 @@ public sealed class PluginBlockedException(string assemblyPath, PluginScanReport
     public string AssemblyPath { get; } = assemblyPath;
     public PluginScanReport Scan { get; } = scan;
     public string Reason { get; } = scan.Summary;
+}
+
+/// <summary>Thrown when a plugin's assemblies no longer hash to what the build shipped
+/// (<see cref="PluginTrustedHashes"/>) or to what the user installed. Something rewrote the plugin
+/// outside the app — it is quarantined, in every trust mode.</summary>
+public sealed class PluginTamperedException(string assemblyPath, string reason)
+    : Exception($"Plugin '{assemblyPath}' failed its integrity check: {reason}.")
+{
+    public string AssemblyPath { get; } = assemblyPath;
+    public string Reason { get; } = reason;
+}
+
+/// <summary>Thrown when a plugin build is on the local kill-list
+/// (<see cref="PluginRevocationList"/>).</summary>
+public sealed class PluginRevokedException(string assemblyPath, string reason)
+    : Exception($"Plugin '{assemblyPath}' is revoked: {reason}.")
+{
+    public string AssemblyPath { get; } = assemblyPath;
+    public string Reason { get; } = reason;
 }

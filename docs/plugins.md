@@ -170,15 +170,15 @@ low-latency market-data access). So distribution is **curated + code-signed**, n
 
 | Policy | Behaviour | Used by |
 |---|---|---|
-| **Permissive** | Loads any plugin, unsigned included; signatures aren't even inspected. | The open-core dev build (default). |
-| **Curated** | Requires a `plugin.json` **and** a valid Authenticode signature whose signer-certificate **thumbprint is one the host pins**. | A curated distribution. |
+| **Curated** | A plugin loads if it is one the build **pinned by hash**, *or* is signed by a publisher whose certificate **thumbprint the host pins**, *or* you **explicitly consent** to it. | **The shipped default.** |
+| **Permissive** | Loads any plugin, unsigned included; signatures aren't inspected (integrity and the IL scan still are). | The `Dev*` launch profiles, so plugin authors aren't re-prompted on every rebuild. |
 
 Set it in the `Plugins` section of `appsettings.json`:
 
 ```jsonc
 "Plugins": {
-  "TrustPolicy": "Permissive",      // or "Curated"
-  "TrustedThumbprints": [],         // pinned publisher certificate thumbprints (Curated)
+  "TrustPolicy": "Curated",         // or "Permissive"
+  "TrustedThumbprints": [],         // pinned publisher certificate thumbprints
   "ScanMode": "Enforce"             // Enforce | WarnOnly | Off — the IL policy scan below
 }
 ```
@@ -186,6 +186,54 @@ Set it in the `Plugins` section of `appsettings.json`:
 Thumbprint *pinning* — not merely "any valid signature" — is the gate: only assemblies signed by a known
 publisher load. The signature is verified with `WinVerifyTrust` (so a tampered DLL fails), and every
 verification failure path **rejects** the plugin (never wrongly accepts it).
+
+### How the app trusts its own plugins (hash pinning)
+
+The first-party strategies ship as plugins like any other, and they are **not code-signed** — so under
+Curated they would be rejected along with everything else, leaving you with an empty strategy catalog.
+Instead, the build records the sha256 of every assembly it staged into
+`plugins/plugins-trusted.json`, and Curated accepts a plugin whose folder **hashes exactly to what the
+build produced**. No certificate involved.
+
+That same file is the **integrity baseline**, and it is checked in *every* trust mode — Permissive
+included:
+
+- an assembly modified, swapped, **added**, or removed inside a shipped plugin folder ⇒ the plugin is
+  quarantined as **"Blocked — file changed on disk"**, rather than the app running rewritten code;
+- for plugins *you* installed, the host records the assembly's hash at install time and re-checks it on
+  every start — so a third-party plugin that changes behind your back is caught the same way.
+
+### Unsigned plugins: you decide
+
+A plugin that is neither ours-by-hash nor signed by a pinned publisher is **not silently loaded, and
+not silently dropped**. The host shows you what it is — name, declared publisher, file, its sha256, and
+the capabilities the IL scan found — states plainly that an in-process plugin can read your broker
+session and credentials, and asks. Nothing is trusted merely because there was nobody to ask: in a
+headless host (the backtest CLI, CI) the answer is always **no**.
+
+Your answer is remembered against the **assembly's sha256**, so:
+
+- you're asked once per plugin build, not once per start;
+- when the plugin updates, its hash changes and it **asks again** — a new build inherits nothing from
+  the trust its predecessor was given;
+- a consented plugin wears a permanent **DEV (unsigned)** badge in the Plugin Manager. It runs because
+  you said so, and the app keeps saying that out loud.
+
+A plugin the scan **Blocks** is never offered for consent — you cannot click through P/Invoke or
+`Process.Start`.
+
+### Revocation
+
+`plugins/revoked.json` is a local kill-list, checked on every load before any plugin code runs:
+
+```json
+{ "revoked": [ { "sha256": "9F86D0…", "reason": "exfiltrates credentials" },
+               { "id": "some.plugin", "reason": "publisher compromised" } ] }
+```
+
+A build found to be malicious *after* people installed it is switched off by hash (that one build) or
+by plugin id (every build of it) — the plugin is quarantined at the next start. The marketplace feed's
+revocation list will sync into this file.
 
 ### The registration seam is add-only
 
