@@ -1,0 +1,91 @@
+<mah:MetroWindow x:Class="DaxNewStrategy.DaxNewStrategyWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 Title="{Binding StrategyDisplayName}"
+                 Height="620" Width="900"
+                 WindowStartupLocation="CenterOwner"
+                 Background="{DynamicResource Background.Primary}"
+                 Foreground="{DynamicResource Text.Primary}">
+
+    <mah:MetroWindow.LeftWindowCommands>
+        <mah:WindowCommands>
+            <!-- Arm/disarm the signal engine once the strategy is streaming. -->
+            <Button Command="{Binding ToggleAlgoCommand}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Content" Value="Arm" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsConfigured}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsAlgoRunning}" Value="True">
+                                <Setter Property="Content" Value="Disarm" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </mah:WindowCommands>
+    </mah:MetroWindow.LeftWindowCommands>
+
+    <Grid Margin="16">
+        <!-- ── Setup: pick an instrument, then Continue (base flips IsConfigured + starts the stream) ── -->
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="440">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsConfigured}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <TextBlock Text="{Binding StrategyDisplayName}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4" />
+            <TextBlock Text="EMA-cross demo — needs Level-1 quotes and bars. Pick an instrument to begin."
+                       TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,12" />
+            <ComboBox ItemsSource="{Binding Instruments}"
+                      SelectedItem="{Binding SelectedInstrument, Mode=TwoWay}"
+                      DisplayMemberPath="DisplayName"
+                      IsEditable="True"
+                      Text="{Binding InstrumentSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      Margin="0,0,0,8" />
+            <Button Content="Continue" Command="{Binding ContinueCommand}" Padding="16,6" HorizontalAlignment="Right" />
+            <TextBlock Text="{Binding ValidationError}" Foreground="{DynamicResource Bearish.Brush}"
+                       TextWrapping="Wrap" Margin="0,8,0,0" />
+        </StackPanel>
+
+        <!-- ── Running: status + the signal feed ─────────────────────────────────────────────────── -->
+        <DockPanel>
+            <DockPanel.Style>
+                <Style TargetType="DockPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsConfigured}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DockPanel.Style>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" Margin="0,0,0,8"
+                       Foreground="{DynamicResource Text.Secondary}" />
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                <TextBlock Text="SIGNALS" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
+                <Button Content="Clear" Command="{Binding ClearSignalsCommand}" HorizontalAlignment="Right" Padding="10,2" />
+            </Grid>
+            <DataGrid ItemsSource="{Binding Signals}" AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding TimeText}" Width="110" />
+                    <DataGridTextColumn Header="Side" Binding="{Binding SideText}" Width="60" />
+                    <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="60" />
+                    <DataGridTextColumn Header="Type" Binding="{Binding TypeText}" Width="80" />
+                    <DataGridTextColumn Header="Price" Binding="{Binding Price}" Width="90" />
+                    <DataGridTextColumn Header="Note" Binding="{Binding Note}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+    </Grid>
+</mah:MetroWindow>

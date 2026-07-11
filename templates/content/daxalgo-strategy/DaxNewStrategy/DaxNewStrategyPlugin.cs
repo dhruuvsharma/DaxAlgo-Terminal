@@ -5,6 +5,11 @@ using TradingTerminal.Core.Strategies;
 
 namespace DaxNewStrategy;
 
+//#if (ui)
+// This plugin ships a live window: the view-model + view are registered below and tied to the strategy
+// id by a StrategyFactoryRegistration, exactly as a first-party strategy does.
+//#endif
+
 /// <summary>
 /// The plugin entry point. DaxAlgo Terminal's loader discovers this single public
 /// <see cref="IStrategyPlugin"/> in the assembly, checks <see cref="TargetSdkVersion"/> against the
@@ -30,6 +35,17 @@ public sealed class DaxNewStrategyPlugin : IStrategyPlugin
             Id: "dax.new.strategy",
             DisplayName: "DaxNewStrategy",
             Build: contract => new Engine.DaxNewStrategyKernel(contract)));
+
+#if (ui)
+        // Live window: the VM (on LiveSignalStrategyViewModelBase) + its view, tied to the strategy id.
+        // The host resolves these when the user opens the strategy from the catalog.
+        registrar.Services.AddTransient<DaxNewStrategyViewModel>();
+        registrar.Services.AddTransient<DaxNewStrategyWindow>();
+        registrar.Services.AddSingleton(new StrategyFactoryRegistration(
+            StrategyId: "dax.new.strategy",
+            ViewFactory: sp => sp.GetRequiredService<DaxNewStrategyWindow>(),
+            ViewModelFactory: sp => sp.GetRequiredService<DaxNewStrategyViewModel>()));
+#endif
     }
 }
 

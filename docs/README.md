@@ -66,7 +66,9 @@ flowchart LR
 | [Strategies](strategies.md) | All 12 strategies — what each one looks for, in plain terms and then in math, the parameters you can tune, and the recipe for adding your own. |
 | [Charts & order-flow windows](charts.md) | Every Charts-menu window and how to read it: TradingView-style charts, the L2 order book, the volume footprint, and the combined Bookmap + VolBook. |
 | [Backtesting](backtesting.md) | Backtest Studio and the tick-level engine — fees, risk caps, fills, the full stats glossary, plus the `daxalgo-backtest` CLI. |
-| [Strategy plugins & the SDK](plugins.md) | The open-core plugin system — installing a code-signed plugin from the **Plugins** menu, and building your own strategy against the DaxAlgo SDK. *(Windows.)* |
+| [Strategy plugins & the SDK](plugins.md) | The open-core plugin system — installing a code-signed plugin from the **Plugins** menu, the trust model, and the SDK overview. *(Windows.)* |
+| [Authoring a plugin](plugin-authoring.md) | The full build walkthrough: `dotnet new daxalgo-strategy` (headless or `--ui`), the kernel, parameters, pills, the test harness, packaging, the version policy, and signing. |
+| [Plugin security](plugin-security.md) | The honest threat model — what the trust layers protect against, what they don't, the DEV badge, and what true isolation would take. |
 | [Paper Lab](paper-lab.md) | Turn a research paper into a sandboxed reproduction that becomes a backtestable, paper-tagged strategy. The security model that runs untrusted code safely. |
 | [Market regime](market-regime.md) | The 0–100 risk-on / risk-off composite and the 18-indicator × 8-timeframe Advanced regime board. |
 | [Machine-Learning tools](machine-learning.md) | The Machine-learning menu — stationarity & differencing, ARIMA + GARCH, Kalman filters. *(Windows.)* |

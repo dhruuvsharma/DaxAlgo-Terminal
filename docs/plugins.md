@@ -58,86 +58,26 @@ The plugins folder layout the loader expects:
 
 ## For developers: building a plugin
 
-### 1. Start from the sample
+Start with the template — it scaffolds a complete, compiling, green-out-of-the-box plugin:
 
-The fastest start is to copy [`samples/DaxAlgo.SamplePlugin`](../samples/DaxAlgo.SamplePlugin) — a
-minimal, headless, backtest-only plugin that already wires the whole contract.
-
-### 2. Reference the SDK
-
-A plugin references the SDK packages, **not** the host's internal projects:
-
-| Package | What it gives you |
-|---|---|
-| `DaxAlgo.Sdk` | The headless contract — `ITradingStrategy`, `IStrategyKernel` / `IBacktestStrategy`, `BacktestStrategyOption`, the parameter schema, market-data DTOs, `Core.Quant` math, and the `IStrategyPlugin` / `IPluginRegistrar` plugin seams. |
-| `DaxAlgo.Sdk.Wpf` | Adds the WPF UI base for a strategy *window* — `LiveSignalStrategyViewModelBase`, `StrategyWindowBase`, the param controls, the Activity Log sink. Only needed if your plugin ships a custom WPF window. |
-
-In-repo these are project references; published they are NuGet packages. A **headless / backtest-only**
-plugin needs only `DaxAlgo.Sdk`. A plugin with a **live strategy window** needs `DaxAlgo.Sdk.Wpf`.
-
-### 3. Implement `IStrategyPlugin`
-
-The single entry point. Its `Register` body is identical to a first-party `AddXxxStrategy()` — register
-your `ITradingStrategy` descriptor, your `BacktestStrategyOption`, and (for a UI plugin) the view + view-model
-+ `StrategyFactoryRegistration`.
-
-```csharp
-using DaxAlgo.Sdk;
-using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.Core.Backtest;
-using TradingTerminal.Core.Strategies;
-
-public sealed class MyPlugin : IStrategyPlugin
-{
-    public string Name => "My Strategy";
-    public string TargetSdkVersion => SdkInfo.Version;   // the SDK you built against
-
-    public void Register(IPluginRegistrar registrar)
-    {
-        // Catalog metadata (the Strategies pane).
-        registrar.Services.AddSingleton<ITradingStrategy, MyStrategy>();
-
-        // Backtestable engine entry — aggregated into the same registry the host uses, so it shows
-        // up in Backtest Studio and the CLI with no host change.
-        registrar.Services.AddSingleton(new BacktestStrategyOption(
-            Id: "my.strategy",
-            DisplayName: "My Strategy",
-            Build: contract => new MyBacktestStrategy(contract)));
-
-        // For a live window plugin, also (on the WPF leg):
-        //   registrar.Services.AddTransient<MyStrategyViewModel>();
-        //   registrar.Services.AddTransient<MyStrategyWindow>();
-        //   registrar.Services.AddSingleton(new StrategyFactoryRegistration(
-        //       StrategyId: "my.strategy",
-        //       ViewFactory: sp => sp.GetRequiredService<MyStrategyWindow>(),
-        //       ViewModelFactory: sp => sp.GetRequiredService<MyStrategyViewModel>()));
-    }
-}
+```powershell
+dotnet new install DaxAlgo.Templates
+dotnet new daxalgo-strategy -n MyStrategy         # headless / backtest-only
+dotnet new daxalgo-strategy -n MyStrategy --ui    # + a live strategy window
 ```
 
-Your strategy's engine (`IBacktestStrategy`) and any domain types live **inside the plugin** — it owns
-its full vertical and depends only on the SDK. (See `SigmaIcFlow` for a real example: its
-`ApexScalperStrategy` engine and Apex types live in the plugin's `Engine/` folder.)
+A plugin references the SDK packages, **not** the host's internal projects — `DaxAlgo.Sdk` for a
+headless / backtest-only plugin, or `DaxAlgo.Sdk.Wpf` (bundles the WPF strategy-window base) for one with
+a live window. Its single `IStrategyPlugin.Register` body is identical to a first-party `AddXxxStrategy()`,
+and a `plugin.json` manifest declares the id, version, and `targetSdkVersion` the host reads before loading
+any code.
 
-### 4. Add a manifest (`plugin.json`)
+**→ The full walkthrough — kernel math, parameters, data-requirement/classification pills, the test
+harness, the `--ui` window, memory-safety, packaging, the version policy, and signing — is in
+[plugin-authoring.md](plugin-authoring.md).**
 
-Drop a `plugin.json` next to your assembly (set it to copy to output). The host reads it **before
-loading any code** — for the SDK-version check, and so a curated host can require declared provenance.
-
-```json
-{
-  "id": "my.strategy",
-  "name": "My Strategy",
-  "version": "1.0.0",
-  "targetSdkVersion": "0.1.0-alpha",
-  "publisher": "Your Name",
-  "permissions": ["fileIo"]
-}
-```
-
-`permissions` **declares** the Warn-level capabilities your plugin uses (`fileIo`, `network`,
-`environment` — see the policy scan below). A declared capability is *disclosed* in the Plugin Manager
-instead of being flagged. Block-level capabilities can never be declared away.
+> `samples/DaxAlgo.SamplePlugin` is a minimal headless skeleton kept as an in-tree reference; the
+> `dotnet new daxalgo-strategy` template is the canonical, maintained starting point.
 
 ---
 

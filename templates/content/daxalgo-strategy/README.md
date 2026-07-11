@@ -3,6 +3,11 @@
 A **DaxAlgo Terminal strategy plugin**, scaffolded by `dotnet new daxalgo-strategy`. It ships an
 EMA-cross demo kernel — replace the math in `DaxNewStrategy/Engine/`, keep the shape.
 
+> Scaffolded **headless** (backtest-only). Pass `--ui` (`dotnet new daxalgo-strategy -n MyStrategy --ui`)
+> to also get a live strategy **window** — a view-model on `LiveSignalStrategyViewModelBase` + a
+> `MetroWindow` view + the `StrategyFactoryRegistration` — running the same kernel. A UI plugin
+> references `DaxAlgo.Sdk.Wpf` instead of `DaxAlgo.Sdk`.
+
 ## The loop
 
 ```powershell
@@ -23,6 +28,8 @@ dotnet test  DaxNewStrategy.slnx    # 2. offline kernel harness (no broker, no d
 | `DaxNewStrategy/Engine/DaxNewStrategyKernel.cs` | The strategy — `IBacktestStrategy` signal logic |
 | `DaxNewStrategy/DaxNewStrategyPlugin.cs` | `IStrategyPlugin` entry point + catalog descriptor |
 | `DaxNewStrategy/plugin.json` | Manifest the host reads before loading any code |
+| `DaxNewStrategy/DaxNewStrategyViewModel.cs` | *(`--ui` only)* live window VM on `LiveSignalStrategyViewModelBase` |
+| `DaxNewStrategy/DaxNewStrategyWindow.xaml`(`.cs`) | *(`--ui` only)* the `MetroWindow` view |
 | `DaxNewStrategy.Tests/` | Offline harness (synthetic ticks → recording router) |
 | `pack-plugin.ps1` | Builds + packages the integrity-indexed `.daxplugin` |
 | `CLAUDE.md` / `AGENTS.md` | Context pack for AI coding agents (Claude Code, Codex, Cursor, …) |

@@ -1,5 +1,26 @@
 # context changelog — append-only session journal
 
+## 2026-07-12 (later) — #24 tail: template `--ui` variant, authoring guide v2, template CI smoke
+- **`dotnet new daxalgo-strategy --ui`** — a `ui` bool template symbol adds a live window: VM on
+  `LiveSignalStrategyViewModelBase` + a self-contained `MetroWindow` (style-trigger visibility, no host
+  converter) + `StrategyFactoryRegistration`; csproj conditionally swaps `DaxAlgo.Sdk`→`DaxAlgo.Sdk.Wpf`
+  + `UseWPF` (`<!--#if (ui)-->`), plugin.cs conditionally registers the view (`#if (ui)`). **Verified E2E
+  against the PUBLISHED NuGet packages**: both variants scaffold → build → test (3/3) → pack; `--ui` bin
+  ships only its own dll (ExcludeAssets=runtime cascades — no MahApps/TradingTerminal leak); clean
+  `.daxplugin`.
+- **Authoring guide v2** — new `docs/plugin-authoring.md` (template-first: scaffold → kernel rules →
+  params schema → DataRequirement/asset/paper pills → test harness → package → **pre-1.0 exact
+  major.minor version policy** → sign/submit + AGPL-linking caveat → `--ui` walkthrough → memory-safety
+  checklist). `docs/plugins.md` dev section trimmed to a pointer; docs/README + CLAUDE per-topic list +
+  the plugin-security link updated.
+- **Anti-drift**: the sample is reframed as a minimal in-tree reference; the **template** is canonical.
+  New `.github/workflows/template-smoke.yml`: `in-repo` job (every PR) guards template-version==
+  DaxAlgoSdkVersion, then scaffolds+builds+tests+packs BOTH variants + asserts the identity rule (no host
+  DLLs in output); `published` job (schedule/dispatch) installs `DaxAlgo.Templates` from NuGet.org and
+  builds with NO repo checkout (pure NuGet resolution — the clean-runner smoke).
+- No `src` changes; templates/docs/workflow only. **#24 remaining after this: none of the tail** (all four
+  items done). Next per epic #27: **#26** (AI Strategy Builder on the now-scan-gated Roslyn seam) → #25.
+
 ## 2026-07-12 — #23 tail: closed all four deferred flags
 - **Authoring-pane gating (the real hole):** `RoslynStrategyCompiler` now scans the emitted PE with the
   SAME policy scan (new `PluginPolicyScanner.ScanImage(bytes,name)`) BEFORE `Assembly.Load` — Block-level

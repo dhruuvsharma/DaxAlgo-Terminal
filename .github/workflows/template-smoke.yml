@@ -1,0 +1,106 @@
+# Proves the `dotnet new daxalgo-strategy` template scaffolds a plugin that BUILDS, TESTS, and PACKS —
+# both variants (headless + --ui). Two jobs:
+#
+#  * in-repo   — installs the template from THIS checkout, checks the template's pinned SDK version
+#                tracks the repo's DaxAlgoSdkVersion (the anti-drift guard — a version bump that
+#                forgets the template fails here), then scaffolds + builds + tests + packs both
+#                variants and asserts the identity rule (no host DLLs in the plugin output). Every PR.
+#  * published — installs `DaxAlgo.Templates` from NuGet.org and scaffolds against the PUBLISHED
+#                packages with NO repo checkout (pure NuGet resolution). Gated behind schedule +
+#                manual dispatch so a version-bump PR doesn't fail here before the version is live.
+name: template-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC — catch a broken published chain
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ── Anti-drift: the in-repo template must scaffold + build + test + pack, both variants ────────────
+  in-repo:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Template pins the current SDK version
+        shell: pwsh
+        run: |
+          # A fresh scaffold must reference a PUBLISHED SDK, and that version must track the repo's
+          # SdkInfo.Version / DaxAlgoSdkVersion — otherwise a bump silently orphans the template.
+          $ver = (Select-String -Path Directory.Build.props -Pattern '<DaxAlgoSdkVersion>([^<]+)</DaxAlgoSdkVersion>').Matches[0].Groups[1].Value
+          $csproj = 'templates/content/daxalgo-strategy/DaxNewStrategy/DaxNewStrategy.csproj'
+          $pinned = Select-String -Path $csproj -Pattern 'Include="DaxAlgo\.Sdk(?:\.Wpf)?" Version="([^"]+)"' -AllMatches |
+                    ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+          if ($pinned -contains $ver -and $pinned.Count -eq 1) { Write-Host "Template pins $ver (matches DaxAlgoSdkVersion)." }
+          else { throw "Template SDK pin(s) [$($pinned -join ', ')] != DaxAlgoSdkVersion ($ver). Bump the template's PackageReference versions." }
+
+      - name: Install the template from source
+        shell: pwsh
+        run: dotnet new install ./templates/content/daxalgo-strategy --force
+
+      - name: Scaffold + build + test + pack (headless and --ui)
+        shell: pwsh
+        run: |
+          $work = "$env:RUNNER_TEMP/scaffold"
+          New-Item -ItemType Directory -Force $work | Out-Null
+          foreach ($variant in @(@{ name = 'HeadlessPlug'; ui = $false }, @{ name = 'UiPlug'; ui = $true })) {
+            $out = Join-Path $work $variant.name
+            $newArgs = @('new', 'daxalgo-strategy', '-n', $variant.name, '-o', $out)
+            if ($variant.ui) { $newArgs += '--ui' }
+            & dotnet @newArgs; if ($LASTEXITCODE -ne 0) { throw "scaffold failed: $($variant.name)" }
+
+            $sln = Get-ChildItem -Recurse $out -Filter '*.slnx' | Select-Object -First 1
+            dotnet build $sln.FullName -c Release; if ($LASTEXITCODE -ne 0) { throw "build failed: $($variant.name)" }
+            dotnet test  $sln.FullName -c Release --no-build; if ($LASTEXITCODE -ne 0) { throw "test failed: $($variant.name)" }
+
+            $pack = Get-ChildItem -Recurse $out -Filter 'pack-plugin.ps1' | Select-Object -First 1
+            & $pack.FullName -Configuration Release; if ($LASTEXITCODE -ne 0) { throw "pack failed: $($variant.name)" }
+            if (-not (Get-ChildItem -Recurse $out -Filter '*.daxplugin')) { throw "no .daxplugin produced: $($variant.name)" }
+
+            # Identity rule: the plugin's build output must ship NONE of the host's contract assemblies.
+            $bin = Get-ChildItem -Recurse $out -Directory | Where-Object { $_.FullName -match 'bin\\Release\\net9.0-windows7.0$' } | Select-Object -First 1
+            $leaked = Get-ChildItem $bin.FullName -Filter *.dll | Where-Object { $_.Name -match '^(TradingTerminal|DaxAlgo|MahApps|ControlzEx|ScottPlot)' }
+            if ($leaked) { throw "identity rule broken - host DLLs in $($variant.name) output: $($leaked.Name -join ', ')" }
+            Write-Host "$($variant.name): scaffolded, built, tested, packed; bin is clean."
+          }
+
+  # ── Published: scaffold from NuGet.org with no repo checkout (pure package resolution) ─────────────
+  published:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install the template from NuGet.org
+        shell: pwsh
+        run: dotnet new install DaxAlgo.Templates --force
+
+      - name: Scaffold + build + test against the published packages (headless and --ui)
+        shell: pwsh
+        run: |
+          $work = "$env:RUNNER_TEMP/scaffold"
+          New-Item -ItemType Directory -Force $work | Out-Null
+          foreach ($variant in @(@{ name = 'HeadlessPlug'; ui = $false }, @{ name = 'UiPlug'; ui = $true })) {
+            $out = Join-Path $work $variant.name
+            $newArgs = @('new', 'daxalgo-strategy', '-n', $variant.name, '-o', $out)
+            if ($variant.ui) { $newArgs += '--ui' }
+            & dotnet @newArgs; if ($LASTEXITCODE -ne 0) { throw "scaffold failed: $($variant.name)" }
+
+            $sln = Get-ChildItem -Recurse $out -Filter '*.slnx' | Select-Object -First 1
+            dotnet build $sln.FullName -c Release; if ($LASTEXITCODE -ne 0) { throw "build failed: $($variant.name)" }
+            dotnet test  $sln.FullName -c Release --no-build; if ($LASTEXITCODE -ne 0) { throw "test failed: $($variant.name)" }
+            Write-Host "$($variant.name): built + tested against the published SDK."
+          }

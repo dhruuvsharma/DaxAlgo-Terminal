@@ -16,6 +16,12 @@ This file is the working context for an AI coding agent; everything below is loa
   `targetSdkVersion` (must stay compatible with the host SDK; pre-1.0 = exact major.minor).
 - **`DaxNewStrategy.Tests/`** — offline harness driving the kernel with synthetic ticks through a
   recording router. Keep it green; grow it with the strategy's invariants.
+- **(`--ui` scaffolds only)** `DaxNewStrategyViewModel.cs` + `DaxNewStrategyWindow.xaml(.cs)` — a live
+  strategy window. The VM derives from `LiveSignalStrategyViewModelBase` (host-provided: instrument
+  picker, warm-up, start/stop, the signal feed, presets, Activity Log) and supplies just
+  `DataRequirement` + `BuildStrategy(contract)` — which returns the SAME kernel the backtest runs, so
+  live and backtest can't diverge. The plugin then references `DaxAlgo.Sdk.Wpf` (not `DaxAlgo.Sdk`) and
+  registers the VM + window + a `StrategyFactoryRegistration`. A headless scaffold has none of this.
 
 ## Contracts (from DaxAlgo.Sdk — do not redeclare)
 

@@ -200,4 +200,4 @@ Basic/Intermediate carry the same profiles prefixed with the edition name (Basic
 
 ## When unsure
 
-`docs/architecture.md` has the full design rationale + key interface signatures — check it before adding new abstractions. Per-topic docs: `getting-started` · `user-guide` · `brokers` · `market-data` · `market-regime` · `strategies` · `backtesting` · `ai-analyst` · `polyglot` · `notifications` · `configuration` · `troubleshooting` · `contributing`.
+`docs/architecture.md` has the full design rationale + key interface signatures — check it before adding new abstractions. Per-topic docs: `getting-started` · `user-guide` · `brokers` · `market-data` · `market-regime` · `strategies` · `backtesting` · `plugins` · `plugin-authoring` · `plugin-security` · `ai-analyst` · `polyglot` · `notifications` · `configuration` · `troubleshooting` · `contributing`.

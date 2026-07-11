@@ -7,6 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!--#if (ui) -->
+    <!-- A live-window plugin ships WPF views. -->
+    <UseWPF>true</UseWPF>
+    <!--#endif -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,7 +21,13 @@
          belong in the plugin package.
          The SDK is pre-1.0: the host requires an EXACT major.minor match, so bumping this version
          means rebuilding against the matching host. -->
+    <!--#if (ui) -->
+    <!-- DaxAlgo.Sdk.Wpf bundles DaxAlgo.Sdk + the WPF strategy-window base (LiveSignalStrategyViewModelBase,
+         the shared controls, MahApps) — everything a live window needs. -->
+    <PackageReference Include="DaxAlgo.Sdk.Wpf" Version="0.1.0-alpha" ExcludeAssets="runtime" />
+    <!--#else -->
     <PackageReference Include="DaxAlgo.Sdk" Version="0.1.0-alpha" ExcludeAssets="runtime" />
+    <!--#endif -->
   </ItemGroup>
 
   <ItemGroup>

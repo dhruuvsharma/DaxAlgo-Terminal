@@ -4,7 +4,7 @@
   "classifications": ["DaxAlgo", "Trading", "Plugin"],
   "identity": "DaxAlgo.Strategy.CSharp",
   "name": "DaxAlgo Terminal strategy plugin",
-  "description": "A DaxAlgo Terminal strategy plugin: IStrategyPlugin registration, a backtestable IBacktestStrategy kernel with a worked EMA-cross demo, an offline test harness, a .daxplugin packaging script, and a CLAUDE.md/AGENTS.md context pack for AI-assisted authoring.",
+  "description": "A DaxAlgo Terminal strategy plugin: IStrategyPlugin registration, a backtestable IBacktestStrategy kernel with a worked EMA-cross demo, an offline test harness, a .daxplugin packaging script, and a CLAUDE.md/AGENTS.md context pack for AI-assisted authoring. Pass --ui to scaffold a live strategy window (LiveSignalStrategyViewModelBase + MetroWindow) as well.",
   "shortName": "daxalgo-strategy",
   "sourceName": "DaxNewStrategy",
   "preferNameDirectory": true,
@@ -21,6 +21,26 @@
         "toLower": true
       },
       "replaces": "dax.new.strategy"
+    },
+    "ui": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Also scaffold a live strategy window (view-model on LiveSignalStrategyViewModelBase + a MetroWindow view + StrategyFactoryRegistration), referencing DaxAlgo.Sdk.Wpf. Omit for a headless / backtest-only plugin."
     }
-  }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "condition": "(!ui)",
+          "exclude": [
+            "DaxNewStrategy/DaxNewStrategyViewModel.cs",
+            "DaxNewStrategy/DaxNewStrategyWindow.xaml",
+            "DaxNewStrategy/DaxNewStrategyWindow.xaml.cs"
+          ]
+        }
+      ]
+    }
+  ]
 }
