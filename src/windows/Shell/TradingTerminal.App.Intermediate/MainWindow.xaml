@@ -529,6 +529,20 @@
                                     <TextBlock Text="{Binding DisplayName}"
                                                Foreground="{DynamicResource Text.Header}"
                                                FontWeight="Bold" />
+                                    <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Plugin Manager). -->
+                                    <Border CornerRadius="3" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
+                                            Background="{DynamicResource Warning.Brush}">
+                                        <Border.Visibility>
+                                            <MultiBinding Converter="{StaticResource UnsignedStrategyConverter}">
+                                                <Binding Path="Id" />
+                                                <Binding Path="DataContext.UnsignedStrategyIds"
+                                                         RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                            </MultiBinding>
+                                        </Border.Visibility>
+                                        <TextBlock Text="DEV" FontSize="8" FontWeight="Bold"
+                                                   Foreground="{DynamicResource Background.Primary}"
+                                                   ToolTip="Unsigned plugin — running on your consent" />
+                                    </Border>
                                 </StackPanel>
                                 <TextBlock Text="{Binding Id}"
                                            Foreground="{DynamicResource Text.Highlight}"

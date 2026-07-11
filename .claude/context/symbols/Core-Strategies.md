@@ -1,13 +1,13 @@
 # TradingTerminal.Core / Strategies — public API surface
 
-Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs
 ```cs
-   15: public interface IStrategyCompiler
-   17:     StrategyCompileResult Compile(StrategyScript script);
+   18: public interface IStrategyCompiler
+   20:     StrategyCompileResult Compile(StrategyScript script);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs

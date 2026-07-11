@@ -276,7 +276,9 @@ Set `Plugins:ScanMode` to `WarnOnly` while debugging a plugin the scan blocks, o
 privileges — it can reflect straight past DI, and a determined attacker can hide a payload behind
 reflection over strings that no static scan will see. The guard and the scan are tripwires against
 lazy or accidental abuse, and a disclosure surface for you. They are **not** a sandbox.
-**Curation and code signing remain the actual control.**
+**Curation and code signing remain the actual control.** The full threat model — what each layer does
+and does not protect you from, and what true isolation would take — is in
+**[plugin-security.md](plugin-security.md)**.
 
 To **publish** to a curated channel:
 
@@ -298,5 +300,6 @@ To **publish** to a curated channel:
   types — including its `MetroWindow` — have the same identity as the host's.
 - **Data/signals only.** Like the rest of the terminal, plugins do not place live orders.
 
-See also: [contributing.md](contributing.md) (the in-tree strategy seam), [architecture.md](architecture.md),
+See also: [plugin-security.md](plugin-security.md) (the full threat model),
+[contributing.md](contributing.md) (the in-tree strategy seam), [architecture.md](architecture.md),
 [backtesting.md](backtesting.md).

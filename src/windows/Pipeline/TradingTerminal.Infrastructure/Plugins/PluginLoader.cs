@@ -3,6 +3,7 @@ using System.Reflection;
 using DaxAlgo.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Infrastructure.Plugins;
 
@@ -16,7 +17,8 @@ public sealed record LoadedPlugin(
     string AssemblyPath,
     IReadOnlyList<string>? RegisteredServices = null,
     PluginScanReport? Scan = null,
-    bool Unsigned = false);
+    bool Unsigned = false,
+    IReadOnlyList<string>? StrategyImplementationTypes = null);
 
 /// <summary>
 /// Discovers and loads strategy plugins. A plugin is a folder under the plugins root containing a
@@ -350,8 +352,15 @@ public static class PluginLoader
         var path = SafeLocation(assembly);
         var guarded = new GuardedServiceCollection(services, plugin.Name);
         plugin.Register(new PluginRegistrar(guarded, new PluginContext(plugin.Name, path, plugin.TargetSdkVersion)));
+        // Attribution: the concrete ITradingStrategy types this plugin contributed, so the host can tell
+        // which catalog entries came from which plugin (and mark an unsigned plugin's strategies DEV).
+        var strategyTypes = guarded.Staged
+            .Where(d => d.ServiceType == typeof(ITradingStrategy) && d.ImplementationType is not null)
+            .Select(d => d.ImplementationType!.FullName!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
         var registered = guarded.Commit();
-        return new LoadedPlugin(plugin.Name, plugin.TargetSdkVersion, path, registered);
+        return new LoadedPlugin(plugin.Name, plugin.TargetSdkVersion, path, registered, StrategyImplementationTypes: strategyTypes);
     }
 
     /// <summary>Each plugin lives in its own subfolder; the main assembly is <c>&lt;foldername&gt;.dll</c>

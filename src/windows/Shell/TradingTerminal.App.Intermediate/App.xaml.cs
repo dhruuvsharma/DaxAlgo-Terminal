@@ -38,6 +38,7 @@ public partial class App : Application
         // (MC3074 same-assembly XAML workaround).
         StrategyDataRequirementConverter.EnsureConverterRegistered();
         StrategyClassificationConverter.EnsureConverterRegistered();
+        UnsignedStrategyConverter.EnsureConverterRegistered();
 
         // The Activity Log sink is now WPF-free (shared with the Avalonia head); point its UI-thread
         // marshaller at the WPF Dispatcher so background-thread appends (Serilog, strategies) are safe.

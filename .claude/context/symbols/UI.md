@@ -1,6 +1,6 @@
 # TradingTerminal.UI — public API surface
 
-Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -254,6 +254,15 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
     8: public sealed class StringToVisibilityConverter : IValueConverter
    10: public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
    13: public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+```
+
+## src/windows/Shell/TradingTerminal.UI/Converters/UnsignedStrategyConverter.cs
+```cs
+   17: public sealed class UnsignedStrategyConverter : IMultiValueConverter
+   19: public const string ConverterKey = "UnsignedStrategyConverter";
+   25: public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+   32: public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+   37: public static void EnsureConverterRegistered()
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/CrashGuard.cs

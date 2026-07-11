@@ -1,5 +1,28 @@
 # context changelog — append-only session journal
 
+## 2026-07-12 — #23 tail: closed all four deferred flags
+- **Authoring-pane gating (the real hole):** `RoslynStrategyCompiler` now scans the emitted PE with the
+  SAME policy scan (new `PluginPolicyScanner.ScanImage(bytes,name)`) BEFORE `Assembly.Load` — Block-level
+  authored code (P/Invoke, Process, registry, Reflection.Emit, Assembly.Load) fails the compile via an
+  Error diagnostic; Warn-level surfaces as a Warning diagnostic (the pane already renders
+  `result.Diagnostics`, so zero UI plumbing). `IStrategyCompiler` xml-doc rewritten (it claimed authored
+  code was "no more privileged"; now mandates the scan). VM tags registered authored strategies
+  "DEV (unsigned)". Shared VM (`TradingTerminal.Settings`), not ×3.
+- **DEV badge on the catalog card:** `LoadedPlugin.StrategyImplementationTypes` (captured from the guard's
+  staged `ITradingStrategy` descriptors) → `PluginHostContext.UnsignedStrategyTypeNames` → shell VM
+  `UnsignedStrategyIds` → `UnsignedStrategyConverter` (IMultiValueConverter, shared in UI) drives a DEV
+  pill on the card via MultiBinding [Id, VM set]. ×3 shells (VM + App.xaml.cs register + MainWindow.xaml).
+  Attribution is reusable for #25.
+- **WinVerifyTrust happy path:** `AuthenticodeSignatureInspectorTests` inspects a genuinely
+  Microsoft-embedded-signed runtime binary (hostpolicy/coreclr/… next to CoreLib) and asserts
+  IsSigned+IsValid+thumbprint, plus the end-to-end Curated pin-accepts / different-thumbprint-rejects.
+  No cert install; early-returns if none present (this xUnit has no Assert.Skip).
+- **Docs:** `docs/plugin-security.md` (full threat model — what protects you, what does NOT, the DEV
+  badge, what's honestly not built) + **ADR-0009** (out-of-proc strategy host, proposed/not-scheduled) +
+  plugins.md links.
+- 9 new tests; 682 headless + 5 Pro green; smoke 9/9. **#23 is now essentially complete** (only the
+  credential-isolation audit *notes* remain, folded into plugin-security.md).
+
 ## 2026-07-11 (latest+2) — #23 phase 3: hash-pinned trust, integrity, revocation, consent → **Curated is now the shipped default**
 - **The blocker was: Curated + 9 unsigned first-party plugins = empty strategy catalog.** Dhruv's call:
   hash-pin. `build/gen-trusted-plugins.ps1` (ONE shared copy — a build script is not shell code) hashes

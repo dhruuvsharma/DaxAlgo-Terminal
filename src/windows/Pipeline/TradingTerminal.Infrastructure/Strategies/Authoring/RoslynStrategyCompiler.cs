@@ -6,6 +6,7 @@ using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Parameters;
+using TradingTerminal.Infrastructure.Plugins;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -70,10 +71,21 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         if (!emit.Success)
             return StrategyCompileResult.Failed(diagnostics);
 
+        // Authored source is untrusted the moment an AI (or a pasted snippet) can write it, and it is
+        // about to run in-process with full host privileges. Scan the emitted image with the SAME
+        // policy the plugin loader applies — before Assembly.Load, so Block-level code (P/Invoke,
+        // starting a process, the registry, Reflection.Emit, loading assemblies) never executes. The
+        // scan reads the bytes as data.
+        var image = peStream.ToArray();
+        var scan = PluginPolicyScanner.ScanImage(image, $"{Sanitize(script.Id)}.dll");
+        diagnostics = MergeScan(diagnostics, scan);
+        if (scan.Verdict == PluginScanSeverity.Block)
+            return StrategyCompileResult.Failed(diagnostics);
+
         try
         {
             peStream.Position = 0;
-            var assembly = Assembly.Load(peStream.ToArray());
+            var assembly = Assembly.Load(image);
             var option = BuildOption(script, assembly, out var bindError);
             if (option is null)
                 return StrategyCompileResult.Failed(
@@ -187,6 +199,31 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
 
     private static StrategyDiagnostic Error(string id, string message) =>
         new(StrategyDiagnosticSeverity.Error, id, message, 1, 1);
+
+    /// <summary>Turns the policy scan into diagnostics the authoring pane already knows how to show:
+    /// a Block-level finding is an Error (and fails the compile), a Warn-level one is a Warning (the
+    /// strategy compiles, but the user is told it reaches for file / network I/O). Clean scans add
+    /// nothing.</summary>
+    private static StrategyDiagnostic[] MergeScan(StrategyDiagnostic[] existing, PluginScanReport scan)
+    {
+        if (scan.Findings.Count == 0) return existing;
+
+        var merged = existing.ToList();
+        foreach (var finding in scan.Findings)
+        {
+            var severity = finding.Severity switch
+            {
+                PluginScanSeverity.Block => StrategyDiagnosticSeverity.Error,
+                PluginScanSeverity.Warn => StrategyDiagnosticSeverity.Warning,
+                _ => StrategyDiagnosticSeverity.Info,
+            };
+            var message = finding.Severity == PluginScanSeverity.Block
+                ? $"Authored strategies may not use this: {finding.Detail}. Blocked by the plugin policy scan."
+                : $"This strategy {finding.Detail}.";
+            merged.Add(new StrategyDiagnostic(severity, $"DAX2{(int)finding.Severity:D3}", message, 1, 1));
+        }
+        return [.. merged];
+    }
 
     private static IReadOnlyList<StrategyDiagnostic> Append(
         IReadOnlyList<StrategyDiagnostic> existing, StrategyDiagnostic extra) =>

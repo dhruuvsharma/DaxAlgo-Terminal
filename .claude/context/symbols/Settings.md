@@ -1,6 +1,6 @@
 # TradingTerminal.Settings — public API surface
 
-Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -64,15 +64,15 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    23: public sealed partial class StrategyAuthoringViewModel : ViewModelBase
    29: public StrategyAuthoringViewModel(
    52: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
-  110: public sealed class MyStrategy : IBacktestStrategy
-  112: public static StrategyParameterSchema Schema { get; } = new(
-  116: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
-  123: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
-  125: public MyStrategy(Contract contract, int lookback, double threshold)
-  132: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-  135: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
-  143: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
-  145: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+  115: public sealed class MyStrategy : IBacktestStrategy
+  117: public static StrategyParameterSchema Schema { get; } = new(
+  121: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+  128: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+  130: public MyStrategy(Contract contract, int lookback, double threshold)
+  137: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+  140: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+  148: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+  150: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs

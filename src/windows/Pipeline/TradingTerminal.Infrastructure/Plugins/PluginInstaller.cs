@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using DaxAlgo.Sdk;
 using TradingTerminal.Core.Configuration;
 
@@ -15,7 +16,18 @@ public sealed record PluginHostContext(
     PluginTrustPolicy TrustPolicy,
     IReadOnlyList<LoadedPlugin> LoadedPlugins,
     PluginLoadReport? Report = null,
-    PluginStateStore? State = null);
+    PluginStateStore? State = null)
+{
+    /// <summary>Full type names of the <c>ITradingStrategy</c> implementations contributed by plugins
+    /// that loaded UNSIGNED (neither shipped-by-us nor from a pinned publisher). The shell maps these to
+    /// catalog cards so an unsigned plugin's strategies wear the DEV badge, mirroring the Plugin
+    /// Manager. Empty in a fully-curated install.</summary>
+    public IReadOnlySet<string> UnsignedStrategyTypeNames { get; } =
+        LoadedPlugins
+            .Where(p => p.Unsigned)
+            .SelectMany(p => p.StrategyImplementationTypes ?? [])
+            .ToHashSet(StringComparer.Ordinal);
+}
 
 /// <summary>The outcome of an install attempt.</summary>
 public sealed record PluginInstallResult(bool Success, string Message, string? InstalledPath = null);

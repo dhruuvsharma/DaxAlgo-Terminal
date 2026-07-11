@@ -1,6 +1,6 @@
 # TradingTerminal.App.Intermediate — public API surface
 
-Generated 2026-07-11. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -10,7 +10,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    27: public IServiceProvider Services => _host!.Services;
    29: public static new App Current => (App)Application.Current;
    31: protected override async void OnStartup(StartupEventArgs e)
-  311: protected override async void OnExit(ExitEventArgs e)
+  312: protected override async void OnExit(ExitEventArgs e)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Archive/ArchiveActivityView.xaml.cs
@@ -88,10 +88,10 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    42: public static class AppDependencyInjection
    54: public static IServiceCollection AddCoreShell(this IServiceCollection services, IConfiguration configuration)
   106: public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
-  188: public static IServiceCollection AddShell(this IServiceCollection services)
-  215: public static IServiceCollection AddSupport(this IServiceCollection services)
-  225: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
-  238: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
+  192: public static IServiceCollection AddShell(this IServiceCollection services)
+  219: public static IServiceCollection AddSupport(this IServiceCollection services)
+  229: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
+  242: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs
@@ -111,49 +111,63 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    38: public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPresenter
    66: public MainWindowViewModel(
-  207: public ObservableCollection<ITradingStrategy> Strategies { get; }
-  208: public InMemoryLogSink LogSink { get; }
-  213: public ICollectionView ActivityLog { get; }
-  231: public BrokerApiMeterViewModel ApiMeter { get; }
-  235: public int PluginProblemCount { get; }
-  237: public bool HasPluginProblems => PluginProblemCount > 0;
-  241: public string ModeDisplayName
-  256: public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
-  258: public string ActiveBrokerLabel
-  272: public string DisconnectBannerText => "Disconnected — connect a broker to resume";
-  283: public bool IsAuthenticated => _session.IsAuthenticated;
-  285: public string SessionUserDisplay
-  342: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
-  349: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
-  358: public void OpenStrategy(string? strategyId)
-  406: public void QuickBacktest(string? strategyId)
-  445: public async Task ReconnectAsync()
-  456: public void Exit()
-  465: public async Task StartQuestDbAsync()
-  475: public ObservableCollection<ThemeMenuOption> Themes { get; }
-  502: public void OpenThemeStudio() =>
-  534: public void OpenPluginManager() =>
-  539: public void OpenBacktestStudio() =>
-  543: public void OpenRecorder() =>
-  547: public void OpenCorrelation() =>
-  552: public void OpenLiveCorrelation() =>
-  559: public void OpenSupport() =>
-  564: public void OpenCharts() =>
-  568: public void OpenOrderBook() =>
-  572: public void OpenFootprint() =>
-  576: public void OpenBookmap() =>
-  580: public void OpenAdvancedRegime() =>
-  586: public void OpenNotificationsSettings() =>
-  590: public void OpenArchiveSettings() =>
-  594: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
-  626: public void InstantOffload()
-  633: public Task StartAsync()
+  215: public ObservableCollection<ITradingStrategy> Strategies { get; }
+  219: public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
+  220: public InMemoryLogSink LogSink { get; }
+  225: public ICollectionView ActivityLog { get; }
+  243: public BrokerApiMeterViewModel ApiMeter { get; }
+  247: public int PluginProblemCount { get; }
+  249: public bool HasPluginProblems => PluginProblemCount > 0;
+  253: public string ModeDisplayName
+  268: public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
+  270: public string ActiveBrokerLabel
+  284: public string DisconnectBannerText => "Disconnected — connect a broker to resume";
+  295: public bool IsAuthenticated => _session.IsAuthenticated;
+  297: public string SessionUserDisplay
+  354: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
+  361: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
+  370: public void OpenStrategy(string? strategyId)
+  418: public void QuickBacktest(string? strategyId)
+  457: public async Task ReconnectAsync()
+  468: public void Exit()
+  477: public async Task StartQuestDbAsync()
+  487: public ObservableCollection<ThemeMenuOption> Themes { get; }
+  514: public void OpenThemeStudio() =>
+  546: public void OpenPluginManager() =>
+  551: public void OpenBacktestStudio() =>
+  555: public void OpenRecorder() =>
+  559: public void OpenCorrelation() =>
+  564: public void OpenLiveCorrelation() =>
+  571: public void OpenSupport() =>
+  576: public void OpenCharts() =>
+  580: public void OpenOrderBook() =>
+  584: public void OpenFootprint() =>
+  588: public void OpenBookmap() =>
+  592: public void OpenAdvancedRegime() =>
+  598: public void OpenNotificationsSettings() =>
+  602: public void OpenArchiveSettings() =>
+  606: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
+  638: public void InstantOffload()
+  645: public Task StartAsync()
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml.cs
 ```cs
     5: public partial class NotificationsSettingsView : UserControl
     7: public NotificationsSettingsView()
+```
+
+## src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginConsentDialog.xaml.cs
+```cs
+   16: public partial class PluginConsentDialog : MetroWindow
+   34: public string Headline { get; }
+   35: public string PublisherText { get; }
+   36: public string PathText { get; }
+   37: public string HashText { get; }
+   38: public IReadOnlyList<string> Capabilities { get; }
+   42: public static bool Ask(PluginConsentRequest request)
+   78: public sealed class PluginConsentPrompt : IPluginConsentPrompt
+   80: public bool RequestConsent(PluginConsentRequest request) => PluginConsentDialog.Ask(request);
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerView.xaml.cs

@@ -89,6 +89,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host.OverlayPresenter = this;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
+        // Strategies contributed by an UNSIGNED plugin (neither shipped-by-us nor from a pinned
+        // publisher) wear the DEV badge on their catalog card, mirroring the Plugin Manager.
+        UnsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
+            System.Linq.Enumerable.Select(
+                System.Linq.Enumerable.Where(factory.All,
+                    s => pluginContext.UnsignedStrategyTypeNames.Contains(s.GetType().FullName ?? string.Empty)),
+                s => s.Id),
+            System.StringComparer.Ordinal);
         LogSink = logSink;
         ActivityLog = CollectionViewSource.GetDefaultView(logSink.Entries);
         ActivityLog.Filter = FilterActivityEntry;
@@ -205,6 +213,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     }
 
     public ObservableCollection<ITradingStrategy> Strategies { get; }
+
+    /// <summary>Ids of strategies contributed by unsigned plugins — the catalog card shows a DEV badge
+    /// for these (see UnsignedStrategyConverter). Empty in a fully-curated install.</summary>
+    public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
     public InMemoryLogSink LogSink { get; }
 
     /// <summary>Filtered view over the universal activity log shown in the bottom log drawer —

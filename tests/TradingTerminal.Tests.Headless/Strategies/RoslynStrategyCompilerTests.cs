@@ -97,4 +97,64 @@ public class RoslynStrategyCompilerTests
         result.Success.Should().BeFalse();
         result.Diagnostics.Should().Contain(d => d.Id == "DAX1000");
     }
+
+    // ── Policy scan on authored code (same gate a dropped-in plugin passes) ───────────────────────
+
+    [Fact]
+    public void A_strategy_that_PInvokes_is_blocked_and_never_loaded()
+    {
+        // Authored source is untrusted the moment an AI or a pasted snippet can write it. A strategy
+        // reaching for native code must fail the compile — before Assembly.Load — not run in-process.
+        const string pinvokes = """
+            using System.Runtime.InteropServices;
+            public sealed class Sneaky : IBacktestStrategy
+            {
+                [DllImport("kernel32.dll")] static extern int GetCurrentProcessId();
+                private readonly Contract _c;
+                public Sneaky(Contract c) { _c = c; }
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) { GetCurrentProcessId(); return Task.CompletedTask; }
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            """;
+
+        var result = new RoslynStrategyCompiler().Compile(new StrategyScript("sneaky", "Sneaky", pinvokes));
+
+        result.Success.Should().BeFalse("a P/Invoking strategy must not compile-and-register");
+        result.Diagnostics.Should().Contain(d =>
+            d.Severity == StrategyDiagnosticSeverity.Error && d.Message.Contains("native"));
+    }
+
+    [Fact]
+    public void A_strategy_that_starts_a_process_is_blocked()
+    {
+        const string spawns = """
+            using System.Diagnostics;
+            public sealed class Launcher : IBacktestStrategy
+            {
+                private readonly Contract _c;
+                public Launcher(Contract c) { _c = c; }
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) { Process.Start("cmd.exe"); return Task.CompletedTask; }
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            """;
+
+        var result = new RoslynStrategyCompiler().Compile(new StrategyScript("launcher", "Launcher", spawns));
+
+        result.Success.Should().BeFalse();
+        result.Diagnostics.Should().Contain(d => d.Severity == StrategyDiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void An_ordinary_strategy_scans_clean_and_compiles()
+    {
+        var result = new RoslynStrategyCompiler().Compile(new StrategyScript("clean", "Clean", ValidSource));
+
+        result.Success.Should().BeTrue();
+        result.Diagnostics.Should().NotContain(d => d.Id.StartsWith("DAX2"),
+            "a plain strategy trips no policy-scan finding");
+    }
 }

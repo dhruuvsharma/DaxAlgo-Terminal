@@ -182,6 +182,39 @@ public sealed class PluginRegistrarGuardTests
     }
 
     [Fact]
+    public void Commit_reports_the_ITradingStrategy_implementation_types_for_attribution()
+    {
+        // The catalog DEV badge needs to know which strategy came from which (unsigned) plugin. The
+        // loader reads that from the guard's staged descriptors, so pin the shape here.
+        var host = HostServices();
+        var guarded = Guard(host);
+        guarded.AddSingleton<ITradingStrategy, PluginStrategy>();
+        guarded.AddTransient<PluginViewModel>();
+        guarded.Commit();
+
+        var strategyTypes = guarded.Staged
+            .Where(d => d.ServiceType == typeof(ITradingStrategy))
+            .Select(d => d.ImplementationType?.FullName)
+            .ToArray();
+
+        strategyTypes.Should().ContainSingle().Which.Should().Be(typeof(PluginStrategy).FullName);
+    }
+
+    [Fact]
+    public void UnsignedStrategyTypeNames_collects_only_unsigned_plugins_strategy_types()
+    {
+        var signed = new LoadedPlugin("Signed", "0.1.0", "s.dll",
+            Unsigned: false, StrategyImplementationTypes: ["Ns.SignedStrat"]);
+        var unsigned = new LoadedPlugin("Unsigned", "0.1.0", "u.dll",
+            Unsigned: true, StrategyImplementationTypes: ["Ns.UnsignedStrat", "Ns.OtherUnsigned"]);
+
+        var context = new PluginHostContext("root", PluginTrustPolicy.Permissive, [signed, unsigned]);
+
+        context.UnsignedStrategyTypeNames.Should().BeEquivalentTo(["Ns.UnsignedStrat", "Ns.OtherUnsigned"]);
+        context.UnsignedStrategyTypeNames.Should().NotContain("Ns.SignedStrat");
+    }
+
+    [Fact]
     public void Registering_its_own_type_twice_is_allowed()
     {
         var host = HostServices();

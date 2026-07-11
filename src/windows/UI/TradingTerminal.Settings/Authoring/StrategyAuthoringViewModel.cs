@@ -81,6 +81,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase
 
         if (!result.Success || result.Option is null)
         {
+            // A policy-scan Block comes back as an error diagnostic, so a strategy that reaches for
+            // P/Invoke / Process / the registry fails here with a clear reason, just like a plugin.
             Status = $"Compile failed — {result.Errors.Count()} error(s).";
             return;
         }
@@ -90,7 +92,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase
         if (result.Option.HasParameters)
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 
-        Status = $"Compiled & registered '{result.Option.DisplayName}'. " +
+        // An authored strategy is unsigned by definition — the user (or an AI) just wrote it. Say so.
+        var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
+        var caveat = warnings > 0 ? $" ({warnings} capability warning(s) below)" : string.Empty;
+        Status = $"Compiled & registered '{result.Option.DisplayName}' — DEV (unsigned){caveat}. " +
                  "It's now available in the Backtest tab.";
         _logger.LogInformation("Authored strategy {Id} compiled and registered", result.Option.Id);
     }

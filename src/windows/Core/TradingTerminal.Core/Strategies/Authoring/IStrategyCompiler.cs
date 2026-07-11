@@ -6,11 +6,14 @@ namespace TradingTerminal.Core.Strategies.Authoring;
 /// host. The concrete compiler (Roslyn) lives in Infrastructure so no compiler types leak
 /// into Core or UI; consumers depend only on this seam.
 ///
-/// <para><b>Trust boundary:</b> compiled scripts run in-process with full host privileges.
-/// This is a local, single-user desktop tool and the data/signals build carries no live
-/// order-execution path, so an authored strategy is no more privileged than a .cs file the
-/// user would otherwise add and recompile. Implementations must still fail loudly on
-/// compile errors and never partially register a broken strategy.</para>
+/// <para><b>Trust boundary:</b> compiled scripts run in-process with full host privileges — and the
+/// author isn't always the user (an AI builder, or a pasted snippet, writes source through this same
+/// seam). Implementations MUST run the emitted image through the plugin policy scan before loading it
+/// (the same gate a dropped-in plugin passes) so Block-level capabilities — P/Invoke, starting
+/// processes, the registry, <c>Reflection.Emit</c>, loading assemblies — fail the compile instead of
+/// executing. They must also fail loudly on compile errors and never partially register a broken
+/// strategy. The data/signals build carries no live order-execution path, which bounds the blast
+/// radius but does not make authored code trusted.</para>
 /// </summary>
 public interface IStrategyCompiler
 {

@@ -122,6 +122,29 @@ public static class PluginPolicyScanner
         return new PluginScanReport(verdict, findings);
     }
 
+    /// <summary>Scans a single assembly straight from its bytes — for the runtime authoring pane, whose
+    /// user/AI-written source is compiled to an in-memory image that never touches disk. Same rules as
+    /// the folder scan, so an authored strategy that P/Invokes or starts a process is caught before it
+    /// is <c>Assembly.Load</c>ed, exactly like a dropped-in plugin.</summary>
+    public static PluginScanReport ScanImage(byte[] assemblyImage, string name, IEnumerable<string>? declaredPermissions = null)
+    {
+        var declared = new HashSet<string>(declaredPermissions ?? [], StringComparer.OrdinalIgnoreCase);
+        var findings = new List<PluginScanFinding>();
+        try
+        {
+            using var pe = new PEReader(new MemoryStream(assemblyImage, writable: false));
+            ScanPeReader(pe, name, declared, findings);
+        }
+        catch (Exception ex) when (ex is BadImageFormatException or IOException)
+        {
+            findings.Add(new PluginScanFinding(name, "unreadable", PluginScanSeverity.Warn,
+                $"{name} could not be scanned ({ex.GetType().Name})"));
+        }
+
+        var verdict = findings.Count == 0 ? PluginScanSeverity.Clean : findings.Max(f => f.Severity);
+        return new PluginScanReport(verdict, findings);
+    }
+
     private static void ScanAssembly(string path, HashSet<string> declared, List<PluginScanFinding> findings)
     {
         var name = Path.GetFileName(path);
@@ -129,12 +152,7 @@ public static class PluginPolicyScanner
         {
             using var stream = File.OpenRead(path);
             using var pe = new PEReader(stream);
-            if (!pe.HasMetadata) return; // native DLL — nothing to read (and nothing we could vet anyway)
-
-            var md = pe.GetMetadataReader();
-            ScanPInvokes(md, name, declared, findings);
-            ScanTypeReferences(md, name, declared, findings);
-            ScanMemberReferences(md, name, declared, findings);
+            ScanPeReader(pe, name, declared, findings);
         }
         catch (Exception ex) when (ex is BadImageFormatException or IOException or UnauthorizedAccessException)
         {
@@ -143,6 +161,16 @@ public static class PluginPolicyScanner
             findings.Add(new PluginScanFinding(name, "unreadable", PluginScanSeverity.Warn,
                 $"{name} could not be scanned ({ex.GetType().Name})"));
         }
+    }
+
+    private static void ScanPeReader(PEReader pe, string name, HashSet<string> declared, List<PluginScanFinding> findings)
+    {
+        if (!pe.HasMetadata) return; // native DLL — nothing to read (and nothing we could vet anyway)
+
+        var md = pe.GetMetadataReader();
+        ScanPInvokes(md, name, declared, findings);
+        ScanTypeReferences(md, name, declared, findings);
+        ScanMemberReferences(md, name, declared, findings);
     }
 
     /// <summary>P/Invoke is a metadata flag, not a type reference: any method with
