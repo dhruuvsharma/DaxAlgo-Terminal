@@ -71,11 +71,12 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/AuthenticodeSignatureInspector.cs` | 125 | win | TradingTerminal.Infrastructure | B I P | Y | Verifies the file's embedded Authenticode signature (integrity + cert chain) via |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxPluginPackage.cs` | 127 | win | TradingTerminal.Infrastructure | B I P | Y | Packs every file under |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/GuardedServiceCollection.cs` | 172 | win | TradingTerminal.Infrastructure | B I P | Y | Service types a plugin may legitimately contribute an ADDITIONAL registration of — |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 235 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 249 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs` | 63 | win | TradingTerminal.Infrastructure | B I P | Y | True for assemblies whose type identity MUST be shared between host and |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 57 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 324 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs` | 46 | win | TradingTerminal.Infrastructure | B I P | Y | Reads |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 62 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 356 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs` | 52 | win | TradingTerminal.Infrastructure | B I P | Y | Reads |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginPolicyScanner.cs` | 231 | win | TradingTerminal.Infrastructure | B I P | Y | How serious a scan finding is. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginSignature.cs` | 31 | win | TradingTerminal.Infrastructure | B I P | Y | The result of inspecting a plugin assembly's code signature. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginStateStore.cs` | 148 | win | TradingTerminal.Infrastructure | B I P | Y | A plugin the loader auto-disabled after a fault, with the recorded cause. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginTrustPolicy.cs` | 77 | win | TradingTerminal.Infrastructure | B I P | Y | Dev / open-core default: load anything (the existing app + CLI flow). |

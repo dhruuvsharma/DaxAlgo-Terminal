@@ -271,10 +271,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs
 ```cs
     4: public enum PluginTrustMode
-   22: public sealed class PluginsOptions
-   24: public const string SectionName = "Plugins";
-   29: public PluginTrustMode TrustPolicy { get; set; } = PluginTrustMode.Permissive;
-   33: public IList<string> TrustedThumbprints { get; set; } = [];
+   18: public enum PluginScanMode
+   37: public sealed class PluginsOptions
+   39: public const string SectionName = "Plugins";
+   44: public PluginTrustMode TrustPolicy { get; set; } = PluginTrustMode.Permissive;
+   48: public IList<string> TrustedThumbprints { get; set; } = [];
+   53: public PluginScanMode ScanMode { get; set; } = PluginScanMode.Enforce;
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs

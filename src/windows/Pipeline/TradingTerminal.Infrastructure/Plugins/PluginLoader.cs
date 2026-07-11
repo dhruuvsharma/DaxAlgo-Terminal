@@ -2,17 +2,20 @@ using System.IO;
 using System.Reflection;
 using DaxAlgo.Sdk;
 using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.Core.Configuration;
 
 namespace TradingTerminal.Infrastructure.Plugins;
 
 /// <summary>Metadata about a plugin that was successfully discovered and registered.
 /// <paramref name="RegisteredServices"/> is what it contributed to DI (attribution — every plugin
-/// registration is attributable to the plugin that made it).</summary>
+/// registration is attributable to the plugin that made it); <paramref name="Scan"/> carries the IL
+/// scan's disclosed capabilities (file / network I/O), which loaded fine but the user should see.</summary>
 public sealed record LoadedPlugin(
     string Name,
     string TargetSdkVersion,
     string AssemblyPath,
-    IReadOnlyList<string>? RegisteredServices = null);
+    IReadOnlyList<string>? RegisteredServices = null,
+    PluginScanReport? Scan = null);
 
 /// <summary>
 /// Discovers and loads strategy plugins. A plugin is a folder under the plugins root containing a
@@ -55,7 +58,7 @@ public static class PluginLoader
         string hostSdkVersion,
         Action<string, Exception>? onError = null) =>
         LoadWithReport(services, pluginsRoot, hostSdkVersion, PluginTrustPolicy.Permissive, DefaultInspector,
-            state: null, onError).Loaded;
+            state: null, onError: onError).Loaded;
 
     /// <summary>Scans <paramref name="pluginsRoot"/> and registers each plugin that satisfies
     /// <paramref name="policy"/> into <paramref name="services"/>. Trust is checked BEFORE the
@@ -69,7 +72,7 @@ public static class PluginLoader
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
         Action<string, Exception>? onError = null) =>
-        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, inspector, state: null, onError).Loaded;
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, inspector, state: null, onError: onError).Loaded;
 
     /// <summary>Permissive-policy scan that returns the full <see cref="PluginLoadReport"/> and honours
     /// persisted lifecycle <paramref name="state"/>.</summary>
@@ -79,18 +82,20 @@ public static class PluginLoader
         string hostSdkVersion,
         PluginStateStore? state = null,
         Action<string, Exception>? onError = null) =>
-        LoadWithReport(services, pluginsRoot, hostSdkVersion, PluginTrustPolicy.Permissive, DefaultInspector, state, onError);
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, PluginTrustPolicy.Permissive, DefaultInspector,
+            state, onError: onError);
 
-    /// <summary>Scan under a configured <paramref name="policy"/> with the default signature inspector
-    /// (real Authenticode on Windows) — the shells' entry point.</summary>
+    /// <summary>Scan under a configured <paramref name="policy"/> and <paramref name="scanMode"/> with
+    /// the default signature inspector (real Authenticode on Windows) — the shells' entry point.</summary>
     public static PluginLoadReport LoadWithReport(
         IServiceCollection services,
         string pluginsRoot,
         string hostSdkVersion,
         PluginTrustPolicy policy,
         PluginStateStore? state = null,
+        PluginScanMode scanMode = PluginScanMode.Enforce,
         Action<string, Exception>? onError = null) =>
-        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, onError);
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, scanMode, onError);
 
     /// <summary>Core scan: registers every loadable plugin and classifies every one that did NOT load
     /// (disabled / quarantined / trust-rejected / SDK-incompatible / bad manifest / faulted) so the
@@ -104,6 +109,7 @@ public static class PluginLoader
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
         PluginStateStore? state = null,
+        PluginScanMode scanMode = PluginScanMode.Enforce,
         Action<string, Exception>? onError = null)
     {
         var loaded = new List<LoadedPlugin>();
@@ -143,19 +149,34 @@ public static class PluginLoader
             try
             {
                 // ── Trust gate (before loading any code) ──────────────────────────────────────────
-                var manifest = PluginManifest.TryRead(Path.GetDirectoryName(dll)!);
+                var pluginDir = Path.GetDirectoryName(dll)!;
+                var manifest = PluginManifest.TryRead(pluginDir);
                 // Inspect the signature only when the policy actually needs it (the permissive dev
                 // flow skips Authenticode entirely).
                 var signature = policy.RequireSignature ? inspector.Inspect(dll) : PluginSignature.Unsigned;
                 if (!policy.Allows(signature, manifest is not null, out var reason))
                     throw new PluginRejectedException(dll, reason!);
 
+                // ── Static IL policy scan (still before loading any code — the assembly is read as
+                //    DATA, so a blocked plugin never executes a single instruction) ────────────────
+                var scan = scanMode == PluginScanMode.Off
+                    ? PluginScanReport.Clean
+                    : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions);
+                if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
+                    throw new PluginBlockedException(dll, scan);
+
                 // ── Load + register ──────────────────────────────────────────────────────────────
                 var ctx = new PluginLoadContext(dll);
                 lock (s_keepAlive) s_keepAlive.Add(ctx);
                 var asm = ctx.LoadFromAssemblyPath(dll);
                 if (RegisterFromAssembly(asm, services, hostSdkVersion) is { } meta)
-                    loaded.Add(meta);
+                    loaded.Add(meta with { Scan = scan });
+            }
+            catch (PluginBlockedException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.BlockedByScan, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(dll, ex);
             }
             catch (PluginRejectedException ex)
             {
@@ -321,4 +342,15 @@ public sealed class PluginRejectedException(string assemblyPath, string reason)
 {
     public string AssemblyPath { get; } = assemblyPath;
     public string Reason { get; } = reason;
+}
+
+/// <summary>Thrown when the static IL scan finds a Block-level capability
+/// (<see cref="PluginPolicyScanner"/>). The plugin's code is NOT loaded — the scan reads the assembly
+/// as data.</summary>
+public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
+    : Exception($"Plugin '{assemblyPath}' blocked by the policy scan: {scan.Summary}.")
+{
+    public string AssemblyPath { get; } = assemblyPath;
+    public PluginScanReport Scan { get; } = scan;
+    public string Reason { get; } = scan.Summary;
 }

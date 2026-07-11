@@ -1,5 +1,29 @@
 # context changelog — append-only session journal
 
+## 2026-07-11 (latest+1) — #23 phase 2: static IL policy scan
+- `Infrastructure/Plugins/PluginPolicyScanner.cs` — in-box `System.Reflection.Metadata`, **no new
+  dependency and no plugin code runs** (the assembly is read as DATA, so the verdict lands before the
+  ALC ever sees it). **Block**: P/Invoke (metadata flag, not a typeref), `Process`, `Registry`,
+  `Reflection.Emit`, `Assembly.Load*`/`AssemblyLoadContext`. **Warn**: file I/O, network I/O,
+  `SetEnvironmentVariable`. Type-level rules for the unambiguous types; MEMBER-level rules for
+  `Assembly.Load` / `Environment.SetEnvironmentVariable` (their declaring types are referenced by any
+  `typeof(x).Assembly` / `Environment.NewLine` — a typeref rule there would false-positive everything).
+- `plugin.json` gains `permissions[]`: a plugin DECLARES its Warn-level capabilities and they are
+  disclosed (Plugin Manager: "uses fileIo") instead of flagged. **Block-level can never be
+  self-granted** — only curation. Wired at load (`PluginLoadOutcome.BlockedByScan` → quarantine) and at
+  install (refuses before the folder lands). `PluginsOptions.ScanMode` = Enforce (default) | WarnOnly | Off.
+- **Tuned against the real 9 first-party plugins: ZERO Blocks** (HelixToolkit.Wpf does not P/Invoke —
+  it was the feared false-Block). Only `fileIo` Warns (CSV export + Helix model IO), so the 7 that
+  trip it now declare `"permissions": ["fileIo"]`. `--smoke-strategies` 9/9 with the scan enforcing.
+- **Verdict cache deliberately NOT built** (the issue asks for one): measured **22.7 ms to scan all 9
+  folders**, HelixToolkit included. A sha256-keyed cache would add invalidation complexity to save
+  ~20ms; revisit if the scan grows. Phase 3 computes sha256 anyway for hash-pinned trust — cache there
+  if ever needed.
+- 10 scanner tests, all against **Roslyn-compiled fixture assemblies** (real IL, not fakes): P/Invoke,
+  Process.Start, Assembly.LoadFrom, self-granting a Block (refused), declared fileIo (downgraded),
+  clean strategy shapes (LINQ/typeof/Path/Environment.NewLine — no false positives), corrupt DLL,
+  payload hidden in a bundled private dep (still caught).
+
 ## 2026-07-11 (latest) — #23 phase 1: plugin registrar guard + trust policy from config
 - **The plugin DI seam was a credential-theft path**: `IPluginRegistrar.Services` handed every plugin
   the raw host `IServiceCollection`, and MS.DI is last-registration-wins ⇒ any loaded plugin could

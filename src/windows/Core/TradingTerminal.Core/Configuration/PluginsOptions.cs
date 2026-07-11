@@ -14,6 +14,21 @@ public enum PluginTrustMode
     Curated,
 }
 
+/// <summary>What the host does with the static IL policy scan's verdict.</summary>
+public enum PluginScanMode
+{
+    /// <summary>Refuse to load a plugin whose IL contains Block-level capabilities (P/Invoke, starting
+    /// processes, registry, Reflection.Emit, loading assemblies) and quarantine it. Warn-level
+    /// capabilities (file / network I/O) load but are surfaced. The default.</summary>
+    Enforce,
+
+    /// <summary>Scan and report, but load anyway. For debugging a plugin the scanner blocks.</summary>
+    WarnOnly,
+
+    /// <summary>Don't scan at all.</summary>
+    Off,
+}
+
 /// <summary>
 /// Binds the <c>Plugins</c> configuration section. Replaces the trust policy that each shell used to
 /// hardcode to <see cref="PluginTrustMode.Permissive"/>, so a distribution build can pin its
@@ -31,4 +46,9 @@ public sealed class PluginsOptions
     /// <summary>Publisher certificate thumbprints trusted in <see cref="PluginTrustMode.Curated"/>
     /// mode. Compared case-insensitively with spaces stripped.</summary>
     public IList<string> TrustedThumbprints { get; set; } = [];
+
+    /// <summary>What to do with the IL policy scan's verdict. Enforced by default — unlike trust, the
+    /// scan is safe to enforce in every edition today (all nine first-party plugins scan clean of
+    /// Block-level capabilities).</summary>
+    public PluginScanMode ScanMode { get; set; } = PluginScanMode.Enforce;
 }

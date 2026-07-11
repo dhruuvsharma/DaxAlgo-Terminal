@@ -20,7 +20,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml` | 73 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/BrokerMetering/BrokerApiChipViewModel.cs` | 95 | win | TradingTerminal.App.Basic | B | Y | Short three-letter-ish label shown on the chip ("IB", "NT", "CT", "AL"). |
 | `src/windows/Shell/TradingTerminal.App.Basic/BrokerMetering/BrokerApiMeterViewModel.cs` | 90 | win | TradingTerminal.App.Basic | B | Y | One chip per broker that has had at least one call recorded. |
-| `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 258 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
+| `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 259 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Basic | B | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml.cs` | 61 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 856 | win | TradingTerminal.App.Basic | B | N | XAML |
@@ -29,7 +29,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerView.xaml.cs` | 11 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerView.xaml` | 121 | win | TradingTerminal.App.Basic | B | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerViewModel.cs` | 203 | win | TradingTerminal.App.Basic | B | Y | One row in the plugins list — a loaded plugin OR one |
+| `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerViewModel.cs` | 213 | win | TradingTerminal.App.Basic | B | Y | One row in the plugins list — a loaded plugin OR one |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/IShellFactory.cs` | 25 | win | TradingTerminal.App.Basic | B | Y | Builds the login window with its view-model wired in. |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/IShellWindowHost.cs` | 59 | win | TradingTerminal.App.Basic | B | Y | The presenter that paints the shell "Opening…" curtain. Wired by the shell |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/LoginShellFactory.cs` | 21 | win | TradingTerminal.App.Basic | B | Y |  |
@@ -60,7 +60,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml` | 73 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/BrokerMetering/BrokerApiChipViewModel.cs` | 95 | win | TradingTerminal.App.Intermediate | I | Y | Short three-letter-ish label shown on the chip ("IB", "NT", "CT", "AL"). |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/BrokerMetering/BrokerApiMeterViewModel.cs` | 90 | win | TradingTerminal.App.Intermediate | I | Y | One chip per broker that has had at least one call recorded. |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 258 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 259 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Intermediate | I | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml.cs` | 61 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 857 | win | TradingTerminal.App.Intermediate | I | N | XAML |
@@ -69,7 +69,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerView.xaml.cs` | 11 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerView.xaml` | 121 | win | TradingTerminal.App.Intermediate | I | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerViewModel.cs` | 203 | win | TradingTerminal.App.Intermediate | I | Y | One row in the plugins list — a loaded plugin OR one |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerViewModel.cs` | 213 | win | TradingTerminal.App.Intermediate | I | Y | One row in the plugins list — a loaded plugin OR one |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/IShellFactory.cs` | 25 | win | TradingTerminal.App.Intermediate | I | Y | Builds the login window with its view-model wired in. |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/IShellWindowHost.cs` | 59 | win | TradingTerminal.App.Intermediate | I | Y | The presenter that paints the shell "Opening…" curtain. Wired by the shell |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/LoginShellFactory.cs` | 21 | win | TradingTerminal.App.Intermediate | I | Y |  |

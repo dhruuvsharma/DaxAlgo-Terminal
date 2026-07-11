@@ -71,6 +71,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Plugins/ExternalPluginLoadTests.cs` | 65 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the loader's real file/ALC path: against a GENUINE |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginLifecycleTests.cs` | 233 | win | TradingTerminal.Tests.Headless | dev | Y | A plugin folder whose main "assembly" is garbage bytes — enumerable by |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginLoaderTests.cs` | 93 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the host plugin loader's discovery + version-gating + registration path |
+| `tests/TradingTerminal.Tests.Headless/Plugins/PluginPolicyScannerTests.cs` | 223 | win | TradingTerminal.Tests.Headless | dev | Y | The plugin's private dependencies ship in its folder, so they are scanned |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginRegistrarGuardTests.cs` | 326 | win | TradingTerminal.Tests.Headless | dev | Y | A host collection shaped like the real one: a credential store plus |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginSecurityTests.cs` | 135 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the curated-marketplace trust gate: the decisions, the |
 | `tests/TradingTerminal.Tests.Headless/Quant/CurveFittingTests.cs` | 177 | win | TradingTerminal.Tests.Headless | dev | Y |  |

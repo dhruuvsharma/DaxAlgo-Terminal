@@ -160,7 +160,8 @@ public static class AppDependencyInjection
         var pluginState = new PluginStateStore(pluginsRoot);
         if (pluginState.LoadError is not null)
             Serilog.Log.Warning("Plugin state reset: {Reason}", pluginState.LoadError);
-        var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version, pluginPolicy, pluginState);
+        var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version,
+            pluginPolicy, pluginState, pluginOptions.ScanMode);
         foreach (var plugin in pluginReport.Loaded)
             // Attribution: every DI registration in the app is traceable to the plugin that made it.
             Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk}) registering {Services}",

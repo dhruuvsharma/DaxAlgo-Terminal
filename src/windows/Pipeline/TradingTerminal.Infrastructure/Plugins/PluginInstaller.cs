@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DaxAlgo.Sdk;
+using TradingTerminal.Core.Configuration;
 
 namespace TradingTerminal.Infrastructure.Plugins;
 
@@ -44,7 +45,8 @@ public static class PluginInstaller
         string pluginsRoot,
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
-        PluginStateStore? state = null)
+        PluginStateStore? state = null,
+        PluginScanMode scanMode = PluginScanMode.Enforce)
     {
         try
         {
@@ -56,7 +58,7 @@ public static class PluginInstaller
             return InstallValidatedFolder(
                 Path.GetDirectoryName(sourceDllPath)!,
                 Path.GetFileNameWithoutExtension(sourceDllPath),
-                pluginsRoot, policy, inspector, state,
+                pluginsRoot, policy, inspector, state, scanMode,
                 copyAllFiles: false);
         }
         catch (Exception ex)
@@ -74,7 +76,8 @@ public static class PluginInstaller
         string pluginsRoot,
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
-        PluginStateStore? state = null)
+        PluginStateStore? state = null,
+        PluginScanMode scanMode = PluginScanMode.Enforce)
     {
         try
         {
@@ -85,7 +88,7 @@ public static class PluginInstaller
             try
             {
                 return InstallValidatedFolder(
-                    extractedDir, mainAssemblyName, pluginsRoot, policy, inspector, state,
+                    extractedDir, mainAssemblyName, pluginsRoot, policy, inspector, state, scanMode,
                     copyAllFiles: true);
             }
             finally
@@ -156,6 +159,7 @@ public static class PluginInstaller
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
         PluginStateStore? state,
+        PluginScanMode scanMode,
         bool copyAllFiles)
     {
         PluginManifest? manifest;
@@ -173,6 +177,16 @@ public static class PluginInstaller
         var signature = policy.RequireSignature ? inspector.Inspect(mainDll) : PluginSignature.Unsigned;
         if (!policy.Allows(signature, manifest is not null, out var reason))
             return new(false, $"Rejected by the plugin trust policy: {reason}.");
+
+        // Static IL scan at install time too, so a plugin carrying Block-level capabilities never even
+        // lands in the plugins folder (the loader would refuse it at the next start anyway — better to
+        // say so now, while the user is looking at the install dialog).
+        if (scanMode != PluginScanMode.Off)
+        {
+            var scan = PluginPolicyScanner.Scan(sourceDir, manifest?.Permissions);
+            if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
+                return new(false, $"Blocked by the policy scan: {scan.Summary}.");
+        }
 
         var targetDir = Path.Combine(pluginsRoot, dllName);
         // Version-aware message: compare what's already installed (manifest-declared) with the

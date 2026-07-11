@@ -155,7 +155,16 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
             var label = pendingUninstall ? "Loaded — uninstalls on restart"
                 : disabled ? "Loaded — disables on restart"
                 : "Loaded";
-            Rows.Add(new PluginRow(key, plugin.Name, $"SDK {plugin.TargetSdkVersion}", label,
+            // Disclose what the IL scan saw the plugin reach for (file / network I/O). Block-level
+            // capabilities never get here — those plugins don't load.
+            var capabilities = (plugin.Scan?.Findings ?? [])
+                .Select(f => f.Rule)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var detail = capabilities.Length == 0
+                ? $"SDK {plugin.TargetSdkVersion}"
+                : $"SDK {plugin.TargetSdkVersion} — uses {string.Join(", ", capabilities)}";
+            Rows.Add(new PluginRow(key, plugin.Name, detail, label,
                 IsProblem: false,
                 CanEnable: disabled,
                 CanDisable: !disabled && !pendingUninstall && _state is not null,
@@ -183,6 +192,7 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
                     PluginLoadOutcome.Quarantined => "Quarantined",
                     PluginLoadOutcome.RejectedByTrust => "Blocked by trust policy",
                     PluginLoadOutcome.PolicyViolation => "Blocked — unsafe registration",
+                    PluginLoadOutcome.BlockedByScan => "Blocked — unsafe code",
                     PluginLoadOutcome.IncompatibleSdk => "Incompatible SDK",
                     PluginLoadOutcome.ManifestInvalid => "Bad manifest",
                     _ => "Failed to load",

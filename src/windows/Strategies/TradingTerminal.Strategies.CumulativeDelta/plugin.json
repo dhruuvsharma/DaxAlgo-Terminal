@@ -3,5 +3,6 @@
   "name": "Cumulative Delta Scalper",
   "version": "1.0.0",
   "targetSdkVersion": "0.1.0-alpha",
-  "publisher": "DaxAlgo"
+  "publisher": "DaxAlgo",
+  "permissions": ["fileIo"]
 }

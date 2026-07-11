@@ -88,10 +88,10 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    42: public static class AppDependencyInjection
    54: public static IServiceCollection AddCoreShell(this IServiceCollection services, IConfiguration configuration)
   106: public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
-  187: public static IServiceCollection AddShell(this IServiceCollection services)
-  214: public static IServiceCollection AddSupport(this IServiceCollection services)
-  224: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
-  237: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
+  188: public static IServiceCollection AddShell(this IServiceCollection services)
+  215: public static IServiceCollection AddSupport(this IServiceCollection services)
+  225: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
+  238: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs

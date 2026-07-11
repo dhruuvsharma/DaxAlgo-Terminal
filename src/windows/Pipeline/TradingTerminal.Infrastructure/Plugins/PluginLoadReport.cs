@@ -21,6 +21,11 @@ public enum PluginLoadOutcome
     /// committed, and it is quarantined.</summary>
     PolicyViolation,
 
+    /// <summary>The static IL scan (<see cref="PluginPolicyScanner"/>) found a Block-level capability —
+    /// P/Invoke, starting processes, the registry, Reflection.Emit, loading assemblies. Refused before
+    /// the assembly was loaded, and quarantined.</summary>
+    BlockedByScan,
+
     /// <summary>Its declared TargetSdkVersion is incompatible with the host SDK.</summary>
     IncompatibleSdk,
 

@@ -130,9 +130,14 @@ loading any code** — for the SDK-version check, and so a curated host can requ
   "name": "My Strategy",
   "version": "1.0.0",
   "targetSdkVersion": "0.1.0-alpha",
-  "publisher": "Your Name"
+  "publisher": "Your Name",
+  "permissions": ["fileIo"]
 }
 ```
+
+`permissions` **declares** the Warn-level capabilities your plugin uses (`fileIo`, `network`,
+`environment` — see the policy scan below). A declared capability is *disclosed* in the Plugin Manager
+instead of being flagged. Block-level capabilities can never be declared away.
 
 ---
 
@@ -173,7 +178,8 @@ Set it in the `Plugins` section of `appsettings.json`:
 ```jsonc
 "Plugins": {
   "TrustPolicy": "Permissive",      // or "Curated"
-  "TrustedThumbprints": []          // pinned publisher certificate thumbprints (Curated)
+  "TrustedThumbprints": [],         // pinned publisher certificate thumbprints (Curated)
+  "ScanMode": "Enforce"             // Enforce | WarnOnly | Off — the IL policy scan below
 }
 ```
 
@@ -203,9 +209,26 @@ session, credentials, and market data.
 Every plugin's registrations are logged with the plugin's name, so any service in the running app is
 attributable to whoever registered it.
 
-**Be clear about what this is.** An in-process .NET plugin runs with full process privileges — it can
-reflect straight past DI, P/Invoke, or start a process. The guard is a tripwire against the cheap
-attack, not a sandbox. **Curation and code signing remain the actual control.**
+### Static policy scan
+
+Before a plugin is loaded — while it is still just bytes on disk — the host reads its IL (and its
+bundled dependencies') and looks for capabilities a trading strategy has no business having:
+
+| Verdict | Capabilities | What happens |
+|---|---|---|
+| **Block** | P/Invoke (`DllImport`), starting processes, the Windows registry, `Reflection.Emit`, loading assemblies | The plugin **does not load** and is quarantined; the Plugin Manager says "Blocked — unsafe code". Install is refused too. |
+| **Warn** | File I/O, network I/O, writing environment variables | Loads. The capability is shown in the Plugin Manager ("uses fileIo"), so nothing is hidden from the user. |
+
+A plugin can **declare** its Warn-level capabilities in `plugin.json` (`"permissions": ["fileIo"]`) —
+declared capabilities are disclosed rather than flagged. **Block-level capabilities can never be
+self-granted**; an unreviewed plugin cannot wave itself through, only human review (curation) can.
+Set `Plugins:ScanMode` to `WarnOnly` while debugging a plugin the scan blocks, or `Off` to skip it.
+
+**Be clear about what these two layers are.** An in-process .NET plugin runs with full process
+privileges — it can reflect straight past DI, and a determined attacker can hide a payload behind
+reflection over strings that no static scan will see. The guard and the scan are tripwires against
+lazy or accidental abuse, and a disclosure surface for you. They are **not** a sandbox.
+**Curation and code signing remain the actual control.**
 
 To **publish** to a curated channel:
 

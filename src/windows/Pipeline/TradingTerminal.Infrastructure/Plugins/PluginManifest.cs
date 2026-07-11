@@ -10,12 +10,18 @@ namespace TradingTerminal.Infrastructure.Plugins;
 /// trust decision rests on the assembly's verified signature (<see cref="PluginSignature"/>); the
 /// manifest is descriptive provenance and lets a curated policy require a declared publisher.
 /// </summary>
+/// <param name="Permissions">Warn-level capabilities the plugin DECLARES it uses (<c>fileIo</c>,
+/// <c>network</c>, <c>environment</c> — the rule ids from <see cref="PluginPolicyScanner"/>). A
+/// declared capability is disclosed rather than flagged. Block-level capabilities (P/Invoke, process,
+/// registry, Reflection.Emit, assembly loading) can NEVER be self-granted here — that takes human
+/// review, or the scan would be pointless.</param>
 public sealed record PluginManifest(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("version")] string Version,
     [property: JsonPropertyName("targetSdkVersion")] string TargetSdkVersion,
-    [property: JsonPropertyName("publisher")] string? Publisher = null)
+    [property: JsonPropertyName("publisher")] string? Publisher = null,
+    [property: JsonPropertyName("permissions")] IReadOnlyList<string>? Permissions = null)
 {
     public const string FileName = "plugin.json";
 
