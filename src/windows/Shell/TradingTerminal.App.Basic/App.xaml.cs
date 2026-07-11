@@ -185,6 +185,22 @@ public partial class App : Application
         // Hold the app open across the login → main-window transition.
         ShutdownMode = ShutdownMode.OnLastWindowClose;
 
+        // Automated smoke sweep (dev/CI only): `--smoke-strategies` skips login, opens every
+        // catalog strategy window once through the real IStrategyFactory path — the cross-ALC
+        // plugin windows included — writes a PASS/FAIL report next to the exe, and exits with a
+        // non-zero code on any failure. See TradingTerminal.UI.Diagnostics.StrategyWindowSmoke.
+        if (e.Args.Any(a => string.Equals(a, "--smoke-strategies", StringComparison.OrdinalIgnoreCase)))
+        {
+            ShowMain();
+            var plugins = _host.Services.GetRequiredService<Infrastructure.Plugins.PluginHostContext>();
+            var exitCode = await TradingTerminal.UI.Diagnostics.StrategyWindowSmoke.RunAsync(
+                _host.Services.GetRequiredService<Core.Strategies.IStrategyFactory>(),
+                Path.Combine(AppContext.BaseDirectory, "smoke-strategies.txt"),
+                plugins.LoadedPlugins.Select(p => p.Name));
+            Shutdown(exitCode);
+            return;
+        }
+
         // Dev launch profiles can skip the login window entirely (see DevOptions).
         var dev = _host.Services.GetRequiredService<IOptions<DevOptions>>().Value;
         if (dev.BypassLogin)

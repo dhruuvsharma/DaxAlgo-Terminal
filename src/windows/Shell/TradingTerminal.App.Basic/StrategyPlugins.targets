@@ -39,6 +39,7 @@
     <ItemGroup>
       <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.dll" />
       <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.pdb" />
+      <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\TradingTerminal.Strategies.SigmaIcFlow.deps.json" />
       <SigmaIcFlowPluginFiles Include="$(SigmaIcFlowOut)\plugin.json" />
     </ItemGroup>
     <Copy SourceFiles="@(SigmaIcFlowPluginFiles)" DestinationFolder="$(SigmaIcFlowPluginDir)" SkipUnchangedFiles="true" />
@@ -59,6 +60,7 @@
     <ItemGroup>
       <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.dll" />
       <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.pdb" />
+      <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\TradingTerminal.Strategies.IndexRegimeGraph.deps.json" />
       <IndexRegimeGraphPluginFiles Include="$(IndexRegimeGraphOut)\plugin.json" />
     </ItemGroup>
     <Copy SourceFiles="@(IndexRegimeGraphPluginFiles)" DestinationFolder="$(IndexRegimeGraphPluginDir)" SkipUnchangedFiles="true" />
@@ -96,6 +98,12 @@
         <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
       </StrategyPluginFile>
       <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).pdb">
+        <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
+      </StrategyPluginFile>
+      <!-- The deps.json drives AssemblyDependencyResolver inside the plugin's load context — without
+           it a plugin-PRIVATE dependency (HelixToolkit.Wpf below) can only resolve via the loader's
+           flat same-folder probe. Stage it so resolution follows the documented path. -->
+      <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\%(StrategyPlugin.Identity).deps.json">
         <PluginDir>$(OutDir)plugins\%(StrategyPlugin.Identity)</PluginDir>
       </StrategyPluginFile>
       <StrategyPluginFile Include="$(DaxAlgoOutputBase)src\windows\Strategies\%(StrategyPlugin.Identity)\bin\$(Configuration)\$(TargetFramework)\plugin.json">

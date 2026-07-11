@@ -16,18 +16,33 @@ namespace TradingTerminal.Infrastructure.Plugins;
 internal sealed class PluginLoadContext : AssemblyLoadContext
 {
     private readonly AssemblyDependencyResolver _resolver;
+    private readonly string _pluginDirectory;
 
     public PluginLoadContext(string pluginMainAssemblyPath)
         : base(name: $"Plugin:{Path.GetFileNameWithoutExtension(pluginMainAssemblyPath)}", isCollectible: true)
-        => _resolver = new AssemblyDependencyResolver(pluginMainAssemblyPath);
+    {
+        _resolver = new AssemblyDependencyResolver(pluginMainAssemblyPath);
+        _pluginDirectory = Path.GetDirectoryName(pluginMainAssemblyPath)!;
+    }
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         // Share the host contract surface (return null -> default context resolves it).
         if (IsHostContract(assemblyName.Name)) return null;
 
-        var path = _resolver.ResolveAssemblyToPath(assemblyName);
+        // deps.json-driven resolution first; a private dep staged FLAT next to the plugin assembly
+        // (HelixToolkit.Wpf for the 3D-cube plugins) must still resolve when the deps.json is
+        // missing or doesn't cover it — a staged folder is not a full publish layout.
+        var path = _resolver.ResolveAssemblyToPath(assemblyName)
+            ?? ProbePluginDirectory(assemblyName.Name);
         return path is null ? null : LoadFromAssemblyPath(path);
+    }
+
+    private string? ProbePluginDirectory(string? simpleName)
+    {
+        if (string.IsNullOrEmpty(simpleName)) return null;
+        var candidate = Path.Combine(_pluginDirectory, simpleName + ".dll");
+        return File.Exists(candidate) ? candidate : null;
     }
 
     /// <summary>True for assemblies whose type identity MUST be shared between host and plugin for the
