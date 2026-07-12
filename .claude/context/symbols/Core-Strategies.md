@@ -4,6 +4,21 @@ Generated 2026-07-12. Declaration lines only; multi-line signatures show their f
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
+## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs
+```cs
+    4: public enum CodegenRole
+   11: public sealed record CodegenMessage(CodegenRole Role, string Content);
+   19: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
+   27: public sealed record StrategyCodegenResponse(bool Success, string? Code, string? RawText, string? Error)
+   29: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
+   30: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
+   45: public interface IStrategyCodegenClient
+   49:     string ProviderId { get; }
+   52:     string DisplayName { get; }
+   56:     bool IsAvailable { get; }
+   58:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+```
+
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs
 ```cs
    18: public interface IStrategyCompiler

@@ -1,5 +1,23 @@
 # context changelog — append-only session journal
 
+## 2026-07-12 (later+1) — #26 AI Strategy Builder: pack (P1) + codegen backend (P2)
+- **Phase 1 (context pack):** `build/gen-ai-context.ps1` GENERATES `sdk/ai-context/daxalgo-strategy-context.md`
+  — the codegen system prompt (engine contract, 6 hard rules, params schema, DataRequirement, quant
+  cheatsheet, memory-safety, verbatim demo kernel, + two output contracts: single-file kernel for the
+  in-app pane / full plugin project for template+CLI). Can't drift (version + example read from source);
+  byte-stable across runs (verified); a `template-smoke.yml` step regenerates + fails on diff.
+- **Phase 2 backend:** `IStrategyCodegenClient` + `AiCodegenOptions` (Core); `StrategyCodegenOrchestrator`
+  (Infrastructure) = the loop generate→compile via the SAME `IStrategyCompiler`→feed compiler errors
+  back→bounded retry (**scan gate is in the shared compile step ⇒ generated P/Invoke can NEVER exit as
+  success — tested**); providers `Fake`/`OpenAiCompatible`(OpenAI/DeepSeek/xAI/OpenRouter/Ollama)/
+  `Anthropic`/`AgentCli`(drives `claude -p`/`codex exec` w/ timeout+kill-tree, vendor owns login);
+  `CodegenCodeExtractor`; `StrategyCodegenClientFactory` (assembles usable providers from config + a
+  shell key-resolver — keys stay in the Login DPAPI store, Infra can't ref it). 17 codegen test cases;
+  696 headless green. Commits public `2c67dba` (pack), `cf97c24` (backend), `7700634` (factory).
+- **Backend only, no DI/UI.** Remaining #26: in-app pane ×3 shells + Settings "AI providers" section
+  (model-written-code CONSENT lands here per the #23 note) + `DaxAlgo.StrategyTool` global tool +
+  template hand-off + `docs/ai-strategy-builder.md`.
+
 ## 2026-07-12 (later) — #24 tail: template `--ui` variant, authoring guide v2, template CI smoke
 - **`dotnet new daxalgo-strategy --ui`** — a `ui` bool template symbol adds a live window: VM on
   `LiveSignalStrategyViewModelBase` + a self-contained `MetroWindow` (style-trigger visibility, no host

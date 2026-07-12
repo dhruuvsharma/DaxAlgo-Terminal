@@ -4,6 +4,20 @@ Generated 2026-07-12. Declaration lines only; multi-line signatures show their f
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
+## src/windows/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs
+```cs
+    4: public sealed class AiCodegenProvider
+    8: public string BaseUrl { get; set; } = string.Empty;
+   12: public string Model { get; set; } = string.Empty;
+   16: public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
+   20: public enum AiCodegenProviderKind
+   34: public sealed class AiCodegenOptions
+   36: public const string SectionName = "AiCodegen";
+   40: public string DefaultProvider { get; set; } = string.Empty;
+   44: public int MaxFixAttempts { get; set; } = 3;
+   47: public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
+```
+
 ## src/windows/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs
 ```cs
    13: public sealed class AlpacaOptions
