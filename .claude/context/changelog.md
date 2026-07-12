@@ -1,5 +1,12 @@
 # context changelog — append-only session journal
 
+## 2026-07-12 (later+4) — #26 phase 3: template CLAUDE/AGENTS generated from the pack source
+- `gen-ai-context.ps1` factors the engine contract + hard rules + parameters into canonical fragments
+  injected into BOTH the pack (`sdk/ai-context/`) AND the template's `CLAUDE.md` (== `AGENTS.md`) — one
+  source of truth for the SDK contract, so the in-app builder and a `dotnet new` + agent session can't
+  drift. Template files keep scaffold-specifics; all 3 outputs byte-stable; `template-smoke` drift step
+  now regenerates + fails if any is stale. **#26 all 4 phases done.** Public `202ca10`, Pro `8b22408`.
+
 ## 2026-07-12 (later+3) — #26 Settings "AI providers" section (keyed providers work in-app)
 - `AiKeyStore` (Login, DPAPI per-user, `ai-keys.json`) implements new Core `IAiKeyStore`;
   `CredentialStoreAiKeyResolver` (Login) = `IAiKeyResolver` over it + `{PROVIDER}_API_KEY` env fallback.
