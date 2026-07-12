@@ -33,6 +33,14 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: AI context pack is regenerated (no drift)
+        shell: pwsh
+        run: |
+          pwsh build/gen-ai-context.ps1
+          $diff = git status --porcelain sdk/ai-context/daxalgo-strategy-context.md
+          if ($diff) { git --no-pager diff sdk/ai-context/daxalgo-strategy-context.md; throw "sdk/ai-context pack is stale - run 'pwsh build/gen-ai-context.ps1' and commit." }
+          Write-Host "AI context pack is current."
+
       - name: Template pins the current SDK version
         shell: pwsh
         run: |
