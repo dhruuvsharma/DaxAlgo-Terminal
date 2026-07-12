@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 
 namespace DaxAlgo.StrategyTool;
 
@@ -38,7 +39,26 @@ internal static class ProcessRunner
         return (process.ExitCode, stdout + stderr);
     }
 
-    /// <summary>PowerShell for the packaging script — pwsh if present, else Windows PowerShell.</summary>
+    /// <summary>PowerShell for the packaging script. Prefers <c>pwsh</c> (PowerShell 7+) — it's on PATH
+    /// on CI runners and cross-platform — and only falls back to Windows PowerShell 5.1 when pwsh isn't
+    /// found. (A minimal 5.1 host on some runners can't auto-load <c>Get-FileHash</c>, which the packaging
+    /// script needs.)</summary>
     public static string PowerShell =>
-        OperatingSystem.IsWindows() ? "powershell" : "pwsh";
+        ResolveOnPath("pwsh") ?? (OperatingSystem.IsWindows() ? "powershell" : "pwsh");
+
+    private static string? ResolveOnPath(string exe)
+    {
+        var paths = Environment.GetEnvironmentVariable("PATH")?.Split(Path.PathSeparator) ?? [];
+        var extensions = OperatingSystem.IsWindows() ? new[] { ".exe", ".cmd", string.Empty } : [string.Empty];
+        foreach (var dir in paths)
+        {
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            foreach (var ext in extensions)
+            {
+                var candidate = Path.Combine(dir, exe + ext);
+                if (File.Exists(candidate)) return candidate;
+            }
+        }
+        return null;
+    }
 }
