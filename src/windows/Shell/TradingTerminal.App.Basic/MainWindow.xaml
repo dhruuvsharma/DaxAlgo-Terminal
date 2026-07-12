@@ -409,6 +409,9 @@
             <MenuItem Header="_Settings">
                 <MenuItem Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />
+                <MenuItem Header="_AI providers…"
+                          Command="{Binding OpenAiProvidersSettingsCommand}"
+                          ToolTip="Set up the AI Strategy Builder — installed agent CLIs and API keys." />
             </MenuItem>
 
             <MenuItem Header="_Help">

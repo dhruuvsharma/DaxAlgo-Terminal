@@ -20,3 +20,19 @@ internal sealed class NullAiKeyResolver : IAiKeyResolver
 {
     public string? Resolve(string providerId) => null;
 }
+
+/// <summary>
+/// Read/write access to the stored AI-provider keys — the seam the AI-providers settings section uses to
+/// let the user enter and clear keys. Implemented by the shell over its DPAPI key store; kept as a Core
+/// interface so the settings view-model (which can't reference the shell) can depend on it.
+/// </summary>
+public interface IAiKeyStore
+{
+    /// <summary>Provider ids that currently have a stored key.</summary>
+    IReadOnlyCollection<string> ConfiguredProviders { get; }
+
+    bool HasKey(string providerId);
+    void Set(string providerId, string apiKey);
+    void Remove(string providerId);
+}
+

@@ -33,6 +33,11 @@ auth isn't offered to external apps. So the builder uses paths that are legitima
 The provider picker shows every provider; the ones that aren't set up read "not set up". With none
 configured, the pane offers setup guidance instead of erroring.
 
+**Setting up providers.** Open **Settings → AI providers**. Installed agent CLIs and local Ollama show as
+detected (no key needed); for the keyed providers, paste an API key and Save — it's stored **encrypted
+for your Windows user (DPAPI)**, never in config. A `{PROVIDER}_API_KEY` environment variable works too
+(and is shared with the CLI). Restart to apply a new key.
+
 ## What leaves your machine
 
 Only your prompt and the context pack, sent to the provider you pick. Everything else — compiling,

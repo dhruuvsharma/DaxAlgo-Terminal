@@ -236,6 +236,8 @@ public static class AppDependencyInjection
     {
         services.AddTransient<NotificationsSettingsViewModel>();
         services.AddTransient<NotificationsSettingsView>();
+        services.AddTransient<TradingTerminal.App.Authoring.AiProvidersSettingsViewModel>();
+        services.AddTransient<TradingTerminal.App.Authoring.AiProvidersSettingsView>();
         services.AddTransient<TradingTerminal.App.Theming.ThemeStudioViewModel>();
         services.AddTransient<TradingTerminal.App.Theming.ThemeStudioView>();
         return services;

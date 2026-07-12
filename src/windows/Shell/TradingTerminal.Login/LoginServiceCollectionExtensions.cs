@@ -30,6 +30,13 @@ public static class LoginServiceCollectionExtensions
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
 
+        // AI Strategy Builder key store (DPAPI, per user) + the resolver that unlocks the keyed codegen
+        // providers. Registering the resolver here replaces the Null default from AddStrategyCodegen, so
+        // a stored (or {PROVIDER}_API_KEY) key makes OpenAI/DeepSeek/… available.
+        services.AddSingleton<AiKeyStore>();
+        services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IAiKeyStore>(sp => sp.GetRequiredService<AiKeyStore>());
+        services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IAiKeyResolver, CredentialStoreAiKeyResolver>();
+
         // Per-broker login forms. Each form is registered as both its concrete type (for the
         // factory's GetRequiredService lookup) and as IBrokerLoginForm (so the factory can
         // enumerate them).
