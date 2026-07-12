@@ -24,6 +24,7 @@ public sealed class PluginRevocationList
     public const string FileName = "revoked.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
     private readonly List<RevokedPlugin> _revoked;
 
@@ -72,6 +73,37 @@ public sealed class PluginRevocationList
 
         reason = null;
         return false;
+    }
+
+    /// <summary>Rewrites <see cref="FileName"/> to the union of what's already there and
+    /// <paramref name="additional"/> (deduped by sha256+id; a later entry's reason text wins). This is how
+    /// the marketplace feed's <c>revoked[]</c> is synced into the local kill-list — see
+    /// <c>Feed.PluginRevocationSync</c>. Returns the number of entries now revoked. Best-effort and never
+    /// throws: on an I/O or serialization failure the file is left untouched and the pre-existing count is
+    /// returned.</summary>
+    public static int Merge(string pluginsRoot, IEnumerable<RevokedPlugin> additional)
+    {
+        var existing = Load(pluginsRoot)._revoked;
+        try
+        {
+            var byKey = new Dictionary<string, RevokedPlugin>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in existing.Concat(additional))
+            {
+                if (string.IsNullOrWhiteSpace(entry.Sha256) && string.IsNullOrWhiteSpace(entry.Id)) continue;
+                byKey[$"{entry.Sha256}|{entry.Id}"] = entry;
+            }
+
+            var merged = byKey.Values.ToList();
+            Directory.CreateDirectory(pluginsRoot);
+            File.WriteAllText(
+                Path.Combine(pluginsRoot, FileName),
+                JsonSerializer.Serialize(new RevokedDto { Revoked = merged }, WriteOptions));
+            return merged.Count;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return existing.Count;
+        }
     }
 
     private sealed class RevokedDto
