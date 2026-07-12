@@ -179,6 +179,52 @@ public sealed class StrategyCodegenTests
             .IsAvailable.Should().BeTrue("a local keyless endpoint needs only a base URL + model");
     }
 
+    // ── provider factory ───────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Factory_builds_the_agent_clis_plus_configured_keyed_providers()
+    {
+        var options = new TradingTerminal.Core.Configuration.AiCodegenOptions
+        {
+            Providers =
+            {
+                ["deepseek"] = new() { BaseUrl = "https://api.deepseek.com/v1", Model = "deepseek-chat" },
+                ["anthropic"] = new() { BaseUrl = "https://api.anthropic.com", Model = "claude-x", Kind = TradingTerminal.Core.Configuration.AiCodegenProviderKind.Anthropic },
+                ["ollama"] = new() { BaseUrl = "http://localhost:11434/v1", Model = "llama3.1" },
+            },
+        };
+        // Only DeepSeek has a key; Ollama is keyless-local; Anthropic has no key.
+        var factory = new StrategyCodegenClientFactory(
+            () => new HttpClient(), options,
+            keyResolver: id => id == "deepseek" ? "sk-deepseek" : null);
+
+        var all = factory.BuildAll();
+
+        all.Should().Contain(c => c.ProviderId == "claude-cli");
+        all.Should().Contain(c => c.ProviderId == "codex-cli");
+        all.Single(c => c.ProviderId == "deepseek").IsAvailable.Should().BeTrue("it has a key");
+        all.Single(c => c.ProviderId == "ollama").IsAvailable.Should().BeTrue("local endpoint is keyless");
+        all.Single(c => c.ProviderId == "anthropic").IsAvailable.Should().BeFalse("no key configured");
+    }
+
+    [Fact]
+    public void Factory_selects_the_configured_default_when_available_else_the_first_available()
+    {
+        var options = new TradingTerminal.Core.Configuration.AiCodegenOptions
+        {
+            DefaultProvider = "deepseek",
+            Providers = { ["deepseek"] = new() { BaseUrl = "https://api.deepseek.com/v1", Model = "deepseek-chat" } },
+        };
+        var withKey = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => "sk-x");
+        withKey.SelectDefault()!.ProviderId.Should().Be("deepseek");
+
+        // Default configured but unavailable (no key) ⇒ fall through to the first available (an agent
+        // CLI if installed, else nothing). We only assert it's not the unavailable default.
+        var noKey = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => null);
+        var selected = noKey.SelectDefault();
+        (selected is null || selected.ProviderId != "deepseek").Should().BeTrue();
+    }
+
     // ── stubs ──────────────────────────────────────────────────────────────────────────────────────
 
     private sealed class FailingClient : IStrategyCodegenClient
