@@ -38,6 +38,8 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- DaxAlgo logo shown on the NuGet.org listing (packed to the package root below). -->
+    <PackageIcon>DaxAlgoLogo.png</PackageIcon>
 
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
     <AssemblyName>$(MSBuildProjectName)</AssemblyName>
@@ -51,6 +53,12 @@
          regardless of whether the redirect is active. -->
     <DaxAlgoOutputBase>$(MSBuildThisFileDirectory)</DaxAlgoOutputBase>
   </PropertyGroup>
+
+  <!-- Pack the DaxAlgo logo (referenced by PackageIcon above) into every package's root. Inert for a
+       project that is never packed — the file is only pulled into a .nupkg by `dotnet pack`. -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)assets/DaxAlgoLogo.png" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
 
   <!--
     Build-output redirect (Windows dev only). This repo lives on a small D: drive that the
