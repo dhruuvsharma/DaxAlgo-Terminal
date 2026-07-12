@@ -53,7 +53,9 @@ int Wrap(string verb, Dictionary<string, string> o)
 
 int Package(Dictionary<string, string> o)
 {
-    var dir = o.GetValueOrDefault("project", ".");
+    // Absolute path: the script runs with its own folder as the working dir, so a relative path would
+    // resolve doubled (dir/dir/pack-plugin.ps1).
+    var dir = Path.GetFullPath(o.GetValueOrDefault("project", "."));
     var script = Path.Combine(dir, "pack-plugin.ps1");
     if (!File.Exists(script)) { Console.Error.WriteLine($"pack-plugin.ps1 not found in '{dir}'."); return 1; }
     return ProcessRunner.Run(ProcessRunner.PowerShell, $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\"", dir);
