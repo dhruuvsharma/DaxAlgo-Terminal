@@ -23,6 +23,13 @@
     <Project Path="src/windows/Shell/TradingTerminal.Login/TradingTerminal.Login.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj" />
   </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/windows/" />
+  <Folder Name="/src/windows/Core/" />
+  <Folder Name="/src/windows/Tools/">
+    <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
+    <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
+  </Folder>
   <Folder Name="/Strategies/">
     <Project Path="src/windows/Strategies/TradingTerminal.Strategies.CumulativeDelta/TradingTerminal.Strategies.CumulativeDelta.csproj" />
     <Project Path="src/windows/Strategies/TradingTerminal.Strategies.FilteredOrderFlow/TradingTerminal.Strategies.FilteredOrderFlow.csproj" />

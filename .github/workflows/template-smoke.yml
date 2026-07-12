@@ -83,6 +83,34 @@ jobs:
             Write-Host "$($variant.name): scaffolded, built, tested, packed; bin is clean."
           }
 
+  # ── CLI: the daxalgo strategy tool drives scaffold -> build -> test -> package with the fake provider ─
+  cli:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install the template from source
+        shell: pwsh
+        run: dotnet new install ./templates/content/daxalgo-strategy --force
+
+      - name: daxalgo strategy ai --provider fake (scaffold -> build -> test -> package)
+        shell: pwsh
+        run: |
+          $tool = 'src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj'
+          $work = "$env:RUNNER_TEMP/cli"
+          New-Item -ItemType Directory -Force $work | Out-Null
+          Push-Location $work
+          try {
+            dotnet run --project "$env:GITHUB_WORKSPACE/$tool" -- strategy ai --name CliDemo --provider fake
+            if ($LASTEXITCODE -ne 0) { throw 'daxalgo strategy ai --provider fake failed' }
+            if (-not (Get-ChildItem -Recurse -Filter '*.daxplugin')) { throw 'no .daxplugin produced' }
+            Write-Host 'CLI ai --provider fake: scaffold -> build -> test -> package OK.'
+          } finally { Pop-Location }
+
   # ── Published: scaffold from NuGet.org with no repo checkout (pure package resolution) ─────────────
   published:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
