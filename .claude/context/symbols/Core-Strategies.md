@@ -10,6 +10,11 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    13:     string? Resolve(string providerId);
    16:     public static IAiKeyResolver Null { get; } = new NullAiKeyResolver();
    21: public string? Resolve(string providerId) => null;
+   29: public interface IAiKeyStore
+   32:     IReadOnlyCollection<string> ConfiguredProviders { get; }
+   34:     bool HasKey(string providerId);
+   35:     void Set(string providerId, string apiKey);
+   36:     void Remove(string providerId);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs

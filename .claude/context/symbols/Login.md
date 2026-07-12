@@ -4,6 +4,17 @@ Generated 2026-07-12. Declaration lines only; multi-line signatures show their f
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
+## src/windows/Shell/TradingTerminal.Login/AiKeyStore.cs
+```cs
+   18: public sealed class AiKeyStore : IAiKeyStore
+   29: public AiKeyStore(ILogger<AiKeyStore> logger)
+   36: public IReadOnlyCollection<string> ConfiguredProviders
+   41: public bool HasKey(string providerId)
+   48: public string? Get(string providerId)
+   54: public void Set(string providerId, string apiKey)
+   64: public void Remove(string providerId)
+```
+
 ## src/windows/Shell/TradingTerminal.Login/BrokerLoginFormBase.cs
 ```cs
    23: public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDisposable
@@ -56,6 +67,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    24: public StoredCredentials Load()
    40: public void Save(StoredCredentials credentials)
    54: public void Clear()
+```
+
+## src/windows/Shell/TradingTerminal.Login/CredentialStoreAiKeyResolver.cs
+```cs
+   11: public sealed class CredentialStoreAiKeyResolver(AiKeyStore store) : IAiKeyResolver
+   15: public string? Resolve(string providerId)
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/Forms/AlpacaLoginForm.xaml.cs
@@ -359,7 +376,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    23: public static class LoginServiceCollectionExtensions
    27: public static IServiceCollection AddLogin(this IServiceCollection services)
-   59: public static IServiceCollection AddCredentialedLoginForms(this IServiceCollection services)
+   66: public static IServiceCollection AddCredentialedLoginForms(this IServiceCollection services)
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/LoginViewModel.cs

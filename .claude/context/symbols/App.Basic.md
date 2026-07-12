@@ -56,6 +56,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    14: public Task<string?> PromptAsync(string key, CancellationToken ct)
 ```
 
+## src/windows/Shell/TradingTerminal.App.Basic/Authoring/AiProvidersSettingsView.xaml.cs
+```cs
+    5: public partial class AiProvidersSettingsView : UserControl
+    7: public AiProvidersSettingsView()
+```
+
 ## src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml.cs
 ```cs
    10: public partial class StrategyAuthoringView : UserControl
@@ -91,7 +97,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   198: public static IServiceCollection AddShell(this IServiceCollection services)
   225: public static IServiceCollection AddSupport(this IServiceCollection services)
   235: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
-  248: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
+  250: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs
@@ -110,45 +116,46 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs
 ```cs
    38: public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPresenter
-   66: public MainWindowViewModel(
-  215: public ObservableCollection<ITradingStrategy> Strategies { get; }
-  219: public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
-  220: public InMemoryLogSink LogSink { get; }
-  225: public ICollectionView ActivityLog { get; }
-  243: public BrokerApiMeterViewModel ApiMeter { get; }
-  247: public int PluginProblemCount { get; }
-  249: public bool HasPluginProblems => PluginProblemCount > 0;
-  253: public string ModeDisplayName
-  268: public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
-  270: public string ActiveBrokerLabel
-  284: public string DisconnectBannerText => "Disconnected — connect a broker to resume";
-  295: public bool IsAuthenticated => _session.IsAuthenticated;
-  297: public string SessionUserDisplay
-  354: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
-  361: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
-  370: public void OpenStrategy(string? strategyId)
-  418: public void QuickBacktest(string? strategyId)
-  457: public async Task ReconnectAsync()
-  468: public void Exit()
-  477: public async Task StartQuestDbAsync()
-  487: public ObservableCollection<ThemeMenuOption> Themes { get; }
-  514: public void OpenThemeStudio() =>
-  546: public void OpenPluginManager() =>
-  551: public void OpenBacktestStudio() =>
-  555: public void OpenRecorder() =>
-  559: public void OpenCorrelation() =>
-  564: public void OpenLiveCorrelation() =>
-  571: public void OpenSupport() =>
-  576: public void OpenCharts() =>
-  580: public void OpenOrderBook() =>
-  584: public void OpenFootprint() =>
-  588: public void OpenBookmap() =>
-  592: public void OpenAdvancedRegime() =>
-  598: public void OpenNotificationsSettings() =>
-  602: public void OpenArchiveSettings() =>
-  606: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
-  638: public void InstantOffload()
-  645: public Task StartAsync()
+   67: public MainWindowViewModel(
+  216: public ObservableCollection<ITradingStrategy> Strategies { get; }
+  220: public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
+  221: public InMemoryLogSink LogSink { get; }
+  226: public ICollectionView ActivityLog { get; }
+  244: public BrokerApiMeterViewModel ApiMeter { get; }
+  248: public int PluginProblemCount { get; }
+  250: public bool HasPluginProblems => PluginProblemCount > 0;
+  254: public string ModeDisplayName
+  269: public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
+  271: public string ActiveBrokerLabel
+  285: public string DisconnectBannerText => "Disconnected — connect a broker to resume";
+  296: public bool IsAuthenticated => _session.IsAuthenticated;
+  298: public string SessionUserDisplay
+  355: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
+  362: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
+  371: public void OpenStrategy(string? strategyId)
+  419: public void QuickBacktest(string? strategyId)
+  458: public async Task ReconnectAsync()
+  469: public void Exit()
+  478: public async Task StartQuestDbAsync()
+  488: public ObservableCollection<ThemeMenuOption> Themes { get; }
+  515: public void OpenThemeStudio() =>
+  547: public void OpenPluginManager() =>
+  552: public void OpenBacktestStudio() =>
+  556: public void OpenRecorder() =>
+  560: public void OpenCorrelation() =>
+  565: public void OpenLiveCorrelation() =>
+  572: public void OpenSupport() =>
+  577: public void OpenCharts() =>
+  581: public void OpenOrderBook() =>
+  585: public void OpenFootprint() =>
+  589: public void OpenBookmap() =>
+  593: public void OpenAdvancedRegime() =>
+  599: public void OpenNotificationsSettings() =>
+  603: public void OpenAiProvidersSettings() =>
+  608: public void OpenArchiveSettings() =>
+  612: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
+  644: public void InstantOffload()
+  651: public Task StartAsync()
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml.cs

@@ -1,5 +1,14 @@
 # context changelog — append-only session journal
 
+## 2026-07-12 (later+3) — #26 Settings "AI providers" section (keyed providers work in-app)
+- `AiKeyStore` (Login, DPAPI per-user, `ai-keys.json`) implements new Core `IAiKeyStore`;
+  `CredentialStoreAiKeyResolver` (Login) = `IAiKeyResolver` over it + `{PROVIDER}_API_KEY` env fallback.
+  **`AddLogin` registers both (one shared edit)** ⇒ replaces `AddStrategyCodegen`'s Null resolver, so
+  OpenAI/DeepSeek/xAI/OpenRouter/Anthropic resolve once a key exists.
+- Settings → "AI providers": `AiProvidersSettingsViewModel` (shared) + `AiProvidersSettingsView` ×3
+  (per-provider key box + Save/Clear; agent CLIs shown detected). ×3 wiring: AddSettingsSurface +
+  `OpenAiProvidersSettings` + `_Settings` menu item. Public `5232f57`, Pro `a9308d5`. Smoke 9/9.
+
 ## 2026-07-12 (later+2) — #26 in-app AI pane (P2 UI) + daxalgo CLI (P4) + DaxAlgo.Codegen extraction
 - **In-app pane ×3 shells:** authoring window gained an AI Strategy Builder panel (provider picker +
   prompt + Generate). Shared `StrategyAuthoringViewModel` (Settings) drives it via `IAiStrategyBuilder`;

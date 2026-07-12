@@ -59,6 +59,21 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    32: public static string? Decrypt(string? cipherBase64)
 ```
 
+## src/windows/UI/TradingTerminal.Settings/Authoring/AiProvidersSettingsViewModel.cs
+```cs
+   16: public sealed partial class AiProvidersSettingsViewModel : ViewModelBase
+   20: public AiProvidersSettingsViewModel(IAiStrategyBuilder? builder = null, IAiKeyStore? keys = null)
+   33: public ObservableCollection<AiProviderRow> Providers { get; }
+   69: public sealed partial class AiProviderRow : ObservableObject
+   73: public AiProviderRow(IStrategyCodegenClient client, IAiKeyStore? keys)
+   81: public string ProviderId => _client.ProviderId;
+   82: public string DisplayName => _client.DisplayName;
+   83: public bool IsAvailable => _client.IsAvailable;
+   84: public bool NeedsKey { get; }
+   91: public string StatusText => IsAvailable
+   95: public void MarkStored(bool stored)
+```
+
 ## src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs
 ```cs
    25: public sealed partial class StrategyAuthoringViewModel : ViewModelBase

@@ -6,7 +6,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Tools/DaxAlgo.StrategyTool/ProcessRunner.cs
 ```cs
-    9: public static int Run(string fileName, string arguments, string? workingDir = null)
-   24: public static (int ExitCode, string Output) Capture(string fileName, string arguments, string? workingDir = null)
-   42: public static string PowerShell =>
+   10: public static int Run(string fileName, string arguments, string? workingDir = null)
+   25: public static (int ExitCode, string Output) Capture(string fileName, string arguments, string? workingDir = null)
+   46: public static string PowerShell =>
 ```
