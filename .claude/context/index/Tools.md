@@ -5,6 +5,18 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
+| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 152 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
+| `src/windows/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 43 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build, available or not — |
+| `src/windows/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 88 | win | DaxAlgo.Codegen | B I P | Y | Codegen over Anthropic's native POST {baseUrl}/v1/messages — the system pack goes in |
+| `src/windows/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 20 | win | DaxAlgo.Codegen | B I P | Y | Pulls the C# out of a model reply. Models usually wrap code |
+| `src/windows/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 64 | win | DaxAlgo.Codegen | B I P | Y | How many times the loop asked this client to generate — the |
+| `src/windows/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 101 | win | DaxAlgo.Codegen | B I P | Y | Codegen over the OpenAI POST {baseUrl}/chat/completions shape — which OpenAI, DeepSeek, xAI |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 82 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 95 | win | DaxAlgo.Codegen | B I P | Y | The result of a build-loop run: whether it produced a compiling strategy, |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 49 | win | DaxAlgo.Codegen | B I P | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | win | DaxAlgo.Codegen | B I P | Y | The pack text — the codegen system prompt. |
+| `src/windows/Tools/DaxAlgo.StrategyTool/ProcessRunner.cs` | 44 | win | DaxAlgo.StrategyTool | B I P | Y | Thin subprocess helper — runs a command, streams its output to the |
+| `src/windows/Tools/DaxAlgo.StrategyTool/Program.cs` | 226 | win | DaxAlgo.StrategyTool | B I P | N |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeServiceCollectionExtensions.cs` | 21 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y | DI registration for the Advanced Live Market Regime dashboard, including the |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml.cs` | 19 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml` | 291 | win | TradingTerminal.AdvancedMarketRegime | B I P | N | XAML |

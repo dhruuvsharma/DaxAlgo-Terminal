@@ -112,7 +112,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | win | TradingTerminal.Tests.Headless | dev | Y | Snapshot whose every timeframe column carries the trend score returned by |
 | `tests/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 160 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyClassificationTests.cs` | 98 | win | TradingTerminal.Tests.Headless | dev | Y | Guards the classification defaults on and the broker-capability |
-| `tests/TradingTerminal.Tests.Headless/Strategies/StrategyCodegenTests.cs` | 247 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the AI Strategy Builder backend: the code extractor, the build-loop orchestrator |
+| `tests/TradingTerminal.Tests.Headless/Strategies/StrategyCodegenTests.cs` | 280 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the AI Strategy Builder backend: the code extractor, the build-loop orchestrator |
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyParametersTests.cs` | 128 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/TestSupport/ImmediateDispatcher.cs` | 11 | win | TradingTerminal.Tests.Headless | dev | Y | UI dispatcher stand-in for tests; runs everything inline on the calling thread. |
 | `tests/TradingTerminal.Tests.Headless/Ui/PortedStrategyResolutionTests.cs` | 77 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the ported per-strategy view-models resolve from the same headless DI graph |

@@ -4,6 +4,14 @@ Generated 2026-07-12. Declaration lines only; multi-line signatures show their f
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
+## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs
+```cs
+    9: public interface IAiKeyResolver
+   13:     string? Resolve(string providerId);
+   16:     public static IAiKeyResolver Null { get; } = new NullAiKeyResolver();
+   21: public string? Resolve(string providerId) => null;
+```
+
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs
 ```cs
     4: public enum CodegenRole

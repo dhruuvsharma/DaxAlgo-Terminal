@@ -61,18 +61,26 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs
 ```cs
-   23: public sealed partial class StrategyAuthoringViewModel : ViewModelBase
-   29: public StrategyAuthoringViewModel(
-   52: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
-  115: public sealed class MyStrategy : IBacktestStrategy
-  117: public static StrategyParameterSchema Schema { get; } = new(
-  121: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
-  128: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
-  130: public MyStrategy(Contract contract, int lookback, double threshold)
-  137: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-  140: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
-  148: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
-  150: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+   25: public sealed partial class StrategyAuthoringViewModel : ViewModelBase
+   33: public StrategyAuthoringViewModel(
+   57: public bool AiEnabled => _ai is not null;
+   58: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
+   72: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
+   77: public ObservableCollection<AiProviderChoice> AiProviders { get; }
+  205: public sealed class MyStrategy : IBacktestStrategy
+  207: public static StrategyParameterSchema Schema { get; } = new(
+  211: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+  218: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+  220: public MyStrategy(Contract contract, int lookback, double threshold)
+  227: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+  230: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+  238: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+  240: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+  248: public sealed class AiProviderChoice(IStrategyCodegenClient client)
+  250: public IStrategyCodegenClient Client { get; } = client;
+  251: public string DisplayName => Client.DisplayName;
+  252: public bool IsAvailable => Client.IsAvailable;
+  253: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs

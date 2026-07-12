@@ -17,10 +17,10 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Basic/Archive/TelegramPromptDialog.xaml` | 52 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/Archive/WpfTelegramAuthPrompt.cs` | 53 | win | TradingTerminal.App.Basic | B | Y | WPF-side bridge for the Telegram MTProto login flow. WTelegramClient's Config callback |
 | `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml.cs` | 16 | win | TradingTerminal.App.Basic | B | Y | Strategy authoring pane: a C# editor, a Compile &amp; Register button, a |
-| `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml` | 73 | win | TradingTerminal.App.Basic | B | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml` | 105 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/BrokerMetering/BrokerApiChipViewModel.cs` | 95 | win | TradingTerminal.App.Basic | B | Y | Short three-letter-ish label shown on the chip ("IB", "NT", "CT", "AL"). |
 | `src/windows/Shell/TradingTerminal.App.Basic/BrokerMetering/BrokerApiMeterViewModel.cs` | 90 | win | TradingTerminal.App.Basic | B | Y | One chip per broker that has had at least one call recorded. |
-| `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 263 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
+| `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 269 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Basic | B | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml.cs` | 61 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 870 | win | TradingTerminal.App.Basic | B | N | XAML |
@@ -59,10 +59,10 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Archive/TelegramPromptDialog.xaml` | 52 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Archive/WpfTelegramAuthPrompt.cs` | 53 | win | TradingTerminal.App.Intermediate | I | Y | WPF-side bridge for the Telegram MTProto login flow. WTelegramClient's Config callback |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml.cs` | 16 | win | TradingTerminal.App.Intermediate | I | Y | Strategy authoring pane: a C# editor, a Compile &amp; Register button, a |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml` | 73 | win | TradingTerminal.App.Intermediate | I | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml` | 105 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/BrokerMetering/BrokerApiChipViewModel.cs` | 95 | win | TradingTerminal.App.Intermediate | I | Y | Short three-letter-ish label shown on the chip ("IB", "NT", "CT", "AL"). |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/BrokerMetering/BrokerApiMeterViewModel.cs` | 90 | win | TradingTerminal.App.Intermediate | I | Y | One chip per broker that has had at least one call recorded. |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 263 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 269 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Intermediate | I | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml.cs` | 61 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 871 | win | TradingTerminal.App.Intermediate | I | N | XAML |

@@ -85,13 +85,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs
 ```cs
-   42: public static class AppDependencyInjection
-   54: public static IServiceCollection AddCoreShell(this IServiceCollection services, IConfiguration configuration)
-  106: public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
-  192: public static IServiceCollection AddShell(this IServiceCollection services)
-  219: public static IServiceCollection AddSupport(this IServiceCollection services)
-  229: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
-  242: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
+   43: public static class AppDependencyInjection
+   55: public static IServiceCollection AddCoreShell(this IServiceCollection services, IConfiguration configuration)
+  107: public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
+  198: public static IServiceCollection AddShell(this IServiceCollection services)
+  225: public static IServiceCollection AddSupport(this IServiceCollection services)
+  235: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
+  248: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs

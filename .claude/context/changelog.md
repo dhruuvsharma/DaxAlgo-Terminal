@@ -1,5 +1,25 @@
 # context changelog — append-only session journal
 
+## 2026-07-12 (later+2) — #26 in-app AI pane (P2 UI) + daxalgo CLI (P4) + DaxAlgo.Codegen extraction
+- **In-app pane ×3 shells:** authoring window gained an AI Strategy Builder panel (provider picker +
+  prompt + Generate). Shared `StrategyAuthoringViewModel` (Settings) drives it via `IAiStrategyBuilder`;
+  context pack ships EMBEDDED (`StrategyContextPack`). Generate compiles + shows code but does NOT
+  register — the user's **Compile click is the consent for model-authored code** (#23 hook), already
+  scan-gated + DEV-badged. Keyless providers (agent CLIs, Ollama) work out of the box; keyed via
+  `IAiKeyResolver` (Core seam, Null fallback). `AddStrategyCodegen(configuration)` ×3 shells;
+  `AiCodegen` appsettings section. Public `769433c`, Pro `706ca23`.
+- **`daxalgo strategy` CLI** (`DaxAlgo.StrategyTool`, global tool, 7th lockstep NuGet package):
+  new/build/test/package/install/ai. `ai --provider fake` E2E verified (scaffold→build→test→package);
+  real providers read `{PROVIDER}_API_KEY`. `template-smoke.yml` `cli` job. `docs/ai-strategy-builder.md`.
+- **`DaxAlgo.Codegen` extraction:** Infrastructure is UseWPF=true, so the codegen pieces (clients,
+  orchestrator, factory, pack, builder, DI) moved to a lean new assembly (Core + MS.Extensions only) so
+  the CLI reuses them without WPF. **Types KEPT the `TradingTerminal.Infrastructure.Strategies.Authoring`
+  namespace ⇒ every consumer unchanged** (Infrastructure just adds a ProjectReference; transparent —
+  700 headless green via transitive ref, Pro smoke 9/9). Public `42a2dc2`, Pro pin `e0fde8a`.
+- **#26 remaining:** in-app Settings "AI providers" section (CLI-detection display + key entry into the
+  credential store + a credential-store `IAiKeyResolver`); Phase 3 template CLAUDE.md/AGENTS.md content
+  unification; live-key validation of the CLI `ai` real-provider path.
+
 ## 2026-07-12 (later+1) — #26 AI Strategy Builder: pack (P1) + codegen backend (P2)
 - **Phase 1 (context pack):** `build/gen-ai-context.ps1` GENERATES `sdk/ai-context/daxalgo-strategy-context.md`
   — the codegen system prompt (engine contract, 6 hard rules, params schema, DataRequirement, quant
