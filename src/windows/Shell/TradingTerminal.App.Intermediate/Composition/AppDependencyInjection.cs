@@ -12,6 +12,7 @@ using TradingTerminal.UI.Theming;
 using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
+using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
@@ -112,6 +113,11 @@ public static class AppDependencyInjection
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         services.AddFastBacktestRunner();
+        // AI Strategy Builder backend (codegen providers + build-loop orchestrator + context pack) — the
+        // authoring pane's AI panel resolves IAiStrategyBuilder from here. Keyless by default (installed
+        // agent CLIs + local Ollama); a shell that registers an IAiKeyResolver over its credential store
+        // unlocks the keyed providers.
+        services.AddStrategyCodegen(configuration);
 
         // Shared signal-strategy infrastructure used by every per-strategy project's VM.
         // Lives here once so the 22 Add<Name>Strategy() extensions stay one-liners.

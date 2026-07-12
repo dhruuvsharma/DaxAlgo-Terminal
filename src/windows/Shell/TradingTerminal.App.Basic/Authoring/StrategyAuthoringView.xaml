@@ -6,6 +6,9 @@
              xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="900">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V" />
+    </UserControl.Resources>
     <DockPanel Margin="8">
 
         <!-- Header: identity + compile -->
@@ -30,6 +33,35 @@
         <!-- Status line -->
         <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" Margin="0,0,0,6"
                    TextWrapping="Wrap" FontStyle="Italic" />
+
+        <!-- AI builder: describe a strategy; it writes, compiles, and auto-fixes it. Visible only when a
+             codegen provider is wired. The user reviews the generated code, then presses Compile to add
+             it (that click is the consent for running model-authored code; it's already scan-gated). -->
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="8" CornerRadius="3"
+                BorderThickness="1" BorderBrush="{DynamicResource Accent.Brush}"
+                Background="{DynamicResource Background.Secondary}"
+                Visibility="{Binding AiEnabled, Converter={StaticResource B2V}}">
+            <StackPanel>
+                <TextBlock Text="AI STRATEGY BUILDER" FontWeight="Bold" FontSize="11" Margin="0,0,0,4" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Margin="0,0,6,0" VerticalContentAlignment="Center"
+                             Text="{Binding AiPrompt, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Describe the strategy in plain English, e.g. 'a Bollinger-band mean reversion on 20-bar bands'." />
+                    <ComboBox Grid.Column="1" Margin="0,0,6,0"
+                              ItemsSource="{Binding AiProviders}" SelectedItem="{Binding SelectedAiProvider}"
+                              DisplayMemberPath="Label" />
+                    <Button Grid.Column="2" Content="Generate" Padding="14,4"
+                            Command="{Binding GenerateWithAiCommand}" />
+                </Grid>
+                <TextBlock Text="{Binding AiStatus}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Text.Secondary}" />
+            </StackPanel>
+        </Border>
 
         <!-- Body: editor | (diagnostics + parameters) -->
         <Grid>

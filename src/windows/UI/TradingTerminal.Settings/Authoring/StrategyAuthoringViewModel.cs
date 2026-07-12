@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Strategies;
 
@@ -25,17 +27,35 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase
     private readonly IStrategyCompiler _compiler;
     private readonly IBacktestStrategyRegistry _registry;
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
+    private readonly IAiStrategyBuilder? _ai;
+    private CancellationTokenSource? _generateCts;
 
     public StrategyAuthoringViewModel(
         IStrategyCompiler compiler,
         IBacktestStrategyRegistry registry,
-        ILogger<StrategyAuthoringViewModel> logger)
+        ILogger<StrategyAuthoringViewModel> logger,
+        IAiStrategyBuilder? ai = null)
     {
         _compiler = compiler;
         _registry = registry;
         _logger = logger;
+        _ai = ai;
         Diagnostics = new ObservableCollection<StrategyDiagnostic>();
+
+        // Provider picker — every provider the app can build; unavailable ones show disabled so the user
+        // sees "install Claude Code / add an API key". Null builder (AI not wired) ⇒ the pane hides.
+        AiProviders = new ObservableCollection<AiProviderChoice>(
+            (_ai?.Providers ?? []).Select(p => new AiProviderChoice(p)));
+        SelectedAiProvider = AiProviders.FirstOrDefault(p =>
+            _ai?.DefaultProvider is { } d && p.Client.ProviderId == d.ProviderId)
+            ?? AiProviders.FirstOrDefault(p => p.IsAvailable)
+            ?? AiProviders.FirstOrDefault();
     }
+
+    /// <summary>True when the AI builder is wired and at least one provider is usable — drives the pane's
+    /// visibility. When wired but nothing is usable, the pane shows setup guidance instead.</summary>
+    public bool AiEnabled => _ai is not null;
+    public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
 
     [ObservableProperty] private string _strategyId = "myStrategy";
     [ObservableProperty] private string _displayName = "My custom strategy";
@@ -50,6 +70,76 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase
 
     /// <summary>Errors + warnings from the most recent compile, mapped to a UI-friendly shape.</summary>
     public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
+
+    // ── AI builder ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The codegen providers offered in the picker (available and not).</summary>
+    public ObservableCollection<AiProviderChoice> AiProviders { get; }
+
+    [ObservableProperty] private AiProviderChoice? _selectedAiProvider;
+
+    /// <summary>The user's plain-English request, e.g. "a Bollinger-band mean reversion on 20-bar bands".</summary>
+    [ObservableProperty] private string _aiPrompt = string.Empty;
+
+    [ObservableProperty] private string? _aiStatus;
+    [ObservableProperty] private bool _isGenerating;
+
+    // Keep the Generate button in step with generation state (the command's CanExecute drives IsEnabled).
+    partial void OnIsGeneratingChanged(bool value) => GenerateWithAiCommand.NotifyCanExecuteChanged();
+
+    private bool CanGenerate => !IsGenerating;
+
+    /// <summary>Take an instruction to a compiling strategy: generate → compile → feed errors back →
+    /// retry (bounded), then drop the result into the editor. It does NOT register — the user reviews the
+    /// AI-written code and presses Compile to add it, which is the consent for running model-authored
+    /// code (it's already scan-gated, so a strategy that P/Invokes never even compiles).</summary>
+    [RelayCommand(CanExecute = nameof(CanGenerate))]
+    private async Task GenerateWithAiAsync()
+    {
+        if (_ai is null || SelectedAiProvider is not { } choice) return;
+        if (!choice.IsAvailable) { AiStatus = $"{choice.DisplayName} isn't set up — install it or add an API key in Settings."; return; }
+        if (string.IsNullOrWhiteSpace(AiPrompt)) { AiStatus = "Describe the strategy you want first."; return; }
+        if (string.IsNullOrWhiteSpace(StrategyId)) { AiStatus = "Give the strategy an id first."; return; }
+
+        IsGenerating = true;
+        AiStatus = $"Asking {choice.DisplayName}…";
+        Diagnostics.Clear();
+        CompiledOk = false;
+        _generateCts?.Cancel();
+        _generateCts = new CancellationTokenSource();
+
+        try
+        {
+            var result = await _ai.BuildAsync(choice.Client, AiPrompt.Trim(), StrategyId.Trim(), DisplayName.Trim(), _generateCts.Token);
+
+            if (result.Code is not null) SourceCode = result.Code;
+            foreach (var diagnostic in result.Compile?.Diagnostics ?? [])
+                Diagnostics.Add(diagnostic);
+
+            if (result.ProviderError is not null)
+                AiStatus = $"{choice.DisplayName} failed: {result.ProviderError}";
+            else if (result.Success)
+                AiStatus = $"Generated & compiled in {result.Attempts} attempt(s). Review it, then press Compile to add it to the catalog (it'll be marked DEV / unsigned).";
+            else
+                AiStatus = $"Couldn't get compiling code in {result.Attempts} attempts — the errors are below. Edit it, or try again with more detail.";
+
+            _logger.LogInformation("AI generate for {Id} via {Provider}: success={Success} attempts={Attempts}",
+                StrategyId, choice.Client.ProviderId, result.Success, result.Attempts);
+        }
+        catch (OperationCanceledException)
+        {
+            AiStatus = "Generation cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AI generate threw for {Id}", StrategyId);
+            AiStatus = $"Generation error: {ex.Message}";
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
 
     [RelayCommand]
     private void Compile()
@@ -151,4 +241,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase
                 => Task.CompletedTask;
         }
         """;
+}
+
+/// <summary>One row in the AI provider picker — wraps a codegen client with display + availability for
+/// binding, so an unavailable provider shows disabled with a hint rather than vanishing.</summary>
+public sealed class AiProviderChoice(IStrategyCodegenClient client)
+{
+    public IStrategyCodegenClient Client { get; } = client;
+    public string DisplayName => Client.DisplayName;
+    public bool IsAvailable => Client.IsAvailable;
+    public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
 }

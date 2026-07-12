@@ -225,6 +225,39 @@ public sealed class StrategyCodegenTests
         (selected is null || selected.ProviderId != "deepseek").Should().BeTrue();
     }
 
+    // ── context pack + builder facade ───────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_context_pack_is_embedded_and_states_the_contract()
+    {
+        var pack = StrategyContextPack.Load().SystemPrompt;
+
+        pack.Should().NotBeNullOrWhiteSpace();
+        pack.Should().Contain("IBacktestStrategy").And.Contain("IClock").And.Contain("OUTPUT CONTRACT (a)");
+    }
+
+    [Fact]
+    public async Task The_builder_facade_takes_an_instruction_to_a_compiling_strategy()
+    {
+        // End-to-end through the real facade: factory (for the provider list) + orchestrator + embedded
+        // pack. The generation itself is driven by an explicit fake provider (no network in CI).
+        var options = new TradingTerminal.Core.Configuration.AiCodegenOptions
+        {
+            MaxFixAttempts = 2,
+            Providers = { ["ollama"] = new() { BaseUrl = "http://localhost:11434/v1", Model = "llama3.1" } },
+        };
+        var factory = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => null);
+        var builder = new AiStrategyBuilder(factory, new StrategyCodegenOrchestrator(new RoslynStrategyCompiler()),
+            StrategyContextPack.Load(), options);
+
+        builder.Providers.Should().Contain(p => p.ProviderId == "ollama" && p.IsAvailable,
+            "the local keyless provider is available and offered in the picker");
+
+        var result = await builder.BuildAsync(new FakeCodegenClient(), "an EMA strategy", "gen.s", "Gen");
+        result.Success.Should().BeTrue();
+        result.Code.Should().NotBeNullOrWhiteSpace("the facade surfaces the final code for the editor");
+    }
+
     // ── stubs ──────────────────────────────────────────────────────────────────────────────────────
 
     private sealed class FailingClient : IStrategyCodegenClient

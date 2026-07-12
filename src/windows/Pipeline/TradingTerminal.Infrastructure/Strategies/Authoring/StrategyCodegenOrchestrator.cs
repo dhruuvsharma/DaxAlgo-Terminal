@@ -12,7 +12,8 @@ public sealed record StrategyBuildLoopResult(
     StrategyCompileResult? Compile,
     IReadOnlyList<CodegenMessage> Transcript,
     string? ProviderError,
-    int Attempts);
+    int Attempts,
+    string? Code = null);
 
 /// <summary>
 /// Drives the AI builder's core loop: generate source from the instruction, compile it through the SAME
@@ -45,6 +46,7 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
         var totalAttempts = Math.Max(1, maxFixAttempts + 1);
         var messages = new List<CodegenMessage> { new(CodegenRole.User, instruction) };
         StrategyCompileResult? lastCompile = null;
+        string? lastCode = null;
 
         for (var attempt = 1; attempt <= totalAttempts; attempt++)
         {
@@ -63,13 +65,14 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
             // Record the model's turn verbatim so the transcript reads naturally and the next call has context.
             messages.Add(new CodegenMessage(CodegenRole.Assistant, response.RawText ?? response.Code));
 
+            lastCode = response.Code;
             var compile = _compiler.Compile(new StrategyScript(strategyId, displayName, response.Code));
             lastCompile = compile;
             if (compile.Success)
             {
                 _logger?.LogInformation("AI-authored strategy {Id} compiled on attempt {Attempt}/{Total}",
                     strategyId, attempt, totalAttempts);
-                return new StrategyBuildLoopResult(true, compile, messages, null, attempt);
+                return new StrategyBuildLoopResult(true, compile, messages, null, attempt, response.Code);
             }
 
             if (attempt < totalAttempts)
@@ -77,7 +80,7 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
         }
 
         _logger?.LogWarning("AI-authored strategy {Id} did not compile after {Total} attempts", strategyId, totalAttempts);
-        return new StrategyBuildLoopResult(false, lastCompile, messages, null, totalAttempts);
+        return new StrategyBuildLoopResult(false, lastCompile, messages, null, totalAttempts, lastCode);
     }
 
     /// <summary>The auto-fix message: the compiler's own errors, verbatim, and a request for the whole
