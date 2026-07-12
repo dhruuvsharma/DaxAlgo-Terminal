@@ -51,4 +51,13 @@ public sealed class PluginsOptions
     /// scan is safe to enforce in every edition today (all nine first-party plugins scan clean of
     /// Block-level capabilities).</summary>
     public PluginScanMode ScanMode { get; set; } = PluginScanMode.Enforce;
+
+    /// <summary>URL of the signed marketplace index (<c>plugins-index.json</c>). Empty ⇒ no feed (the
+    /// catalog tab is empty). Fetched in the background, never on the startup path.</summary>
+    public string FeedUrl { get; set; } = string.Empty;
+
+    /// <summary>Base64-encoded SubjectPublicKeyInfo of the ECDSA P-256 public key the feed's detached
+    /// signature must verify against — pinned in the app. An index whose signature doesn't verify against
+    /// this key is ignored (Activity Log warning), so a tampered or unsigned feed can't inject plugins.</summary>
+    public string FeedPublicKey { get; set; } = string.Empty;
 }
