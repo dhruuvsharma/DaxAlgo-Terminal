@@ -48,7 +48,7 @@ public sealed record OrderRequest(
 ```
 
 Depth (`OnDepthAsync`) and the trade tape (`OnTradeAsync`) are opt-in â€” override them only if your
-strategy needs L2 or prints, and declare the matching `DataRequirement` (below).
+strategy needs L2 or prints, and declare the matching `DataRequirement`.
 
 ## Hard rules (a generated strategy that breaks any of these is wrong)
 

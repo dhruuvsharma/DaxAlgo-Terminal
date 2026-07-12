@@ -223,7 +223,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskManager.cs` | 117 | win | TradingTerminal.Core | B I P | Y | Current net signed position per symbol — exposed for telemetry / tests. |
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskOptions.cs` | 24 | win | TradingTerminal.Core | B I P | Y | Maximum absolute net position per symbol, in contracts/shares. 0 = disabled. |
 | `src/windows/Core/TradingTerminal.Core/Session/SessionContext.cs` | 32 | win | TradingTerminal.Core | B I P | Y | Mutable singleton populated by the login flow once the user is authenticated. |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs` | 22 | win | TradingTerminal.Core | B I P | Y | The API key for |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs` | 38 | win | TradingTerminal.Core | B I P | Y | The API key for |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs` | 59 | win | TradingTerminal.Core | B I P | Y | Who is speaking in a codegen conversation. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 21 | win | TradingTerminal.Core | B I P | Y | Compiles a user-authored into a runnable |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 26 | win | TradingTerminal.Core | B I P | Y | Outcome of compiling a . On success, |

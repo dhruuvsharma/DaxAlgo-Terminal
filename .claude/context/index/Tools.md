@@ -15,8 +15,8 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 95 | win | DaxAlgo.Codegen | B I P | Y | The result of a build-loop run: whether it produced a compiling strategy, |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 49 | win | DaxAlgo.Codegen | B I P | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | win | DaxAlgo.Codegen | B I P | Y | The pack text — the codegen system prompt. |
-| `src/windows/Tools/DaxAlgo.StrategyTool/ProcessRunner.cs` | 44 | win | DaxAlgo.StrategyTool | B I P | Y | Thin subprocess helper — runs a command, streams its output to the |
-| `src/windows/Tools/DaxAlgo.StrategyTool/Program.cs` | 226 | win | DaxAlgo.StrategyTool | B I P | N |  |
+| `src/windows/Tools/DaxAlgo.StrategyTool/ProcessRunner.cs` | 64 | win | DaxAlgo.StrategyTool | B I P | Y | Thin subprocess helper — runs a command, streams its output to the |
+| `src/windows/Tools/DaxAlgo.StrategyTool/Program.cs` | 228 | win | DaxAlgo.StrategyTool | B I P | N |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeServiceCollectionExtensions.cs` | 21 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y | DI registration for the Advanced Live Market Regime dashboard, including the |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml.cs` | 19 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml` | 291 | win | TradingTerminal.AdvancedMarketRegime | B I P | N | XAML |
