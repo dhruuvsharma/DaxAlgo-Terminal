@@ -18,6 +18,7 @@ using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.UI;
 // Common per-tool surfaces (Add…Surface extensions) — every edition ships these.
@@ -183,6 +184,11 @@ public static class AppDependencyInjection
         // Surface the plugin subsystem to the Plugin Manager UI + the header problem chip
         // (what loaded, what didn't and why, and the mutable lifecycle state).
         services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, pluginReport.Loaded, pluginReport, pluginState));
+
+        // Marketplace feed (issue #25): background-refreshing signed catalog + revocation sync, plus the
+        // HttpClient the catalog installer downloads through. Off until Plugins:FeedUrl/FeedPublicKey are
+        // set — the Plugin Manager's Catalog tab is then simply hidden.
+        services.AddPluginFeed(pluginOptions);
 
         // Plugin Manager tool window (View → "Manage strategy plugins…").
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();

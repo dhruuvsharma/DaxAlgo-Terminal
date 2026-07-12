@@ -41,6 +41,17 @@ public sealed record PluginCatalogItem(
 
     /// <summary>An update is offered only when an older build is installed and the new one isn't revoked.</summary>
     public bool CanUpdate => State == PluginInstallState.UpdateAvailable && !Revoked;
+
+    /// <summary>Short human-readable status the catalog card shows (Available / Installed / Update / Revoked).</summary>
+    public string StateLabel => Revoked
+        ? "Revoked"
+        : State switch
+        {
+            PluginInstallState.NotInstalled => $"Available · v{LatestVersion}",
+            PluginInstallState.UpToDate => $"Installed · v{InstalledVersion}",
+            PluginInstallState.UpdateAvailable => $"Update available · v{InstalledVersion} → v{LatestVersion}",
+            _ => string.Empty,
+        };
 }
 
 /// <summary>

@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.App.Plugins;
@@ -25,22 +29,33 @@ public sealed record PluginRow(
     bool CanUninstall);
 
 /// <summary>
-/// Plugin Manager view-model (View → "Manage strategy plugins…"). Shows every plugin the loader
-/// SAW — loaded ones and, crucially, every one that did not load with its classified reason
-/// (failed / quarantined / trust-rejected / SDK-incompatible / disabled) — and drives the lifecycle:
-/// install, enable/disable, re-enable after quarantine, uninstall. Lifecycle changes are persisted
-/// in <see cref="PluginStateStore"/> and take effect on the next start (a loaded plugin's assembly
-/// is file-locked by its rooted load context), so mutations raise the restart banner.
+/// Plugin Manager view-model (View → "Manage strategy plugins…"). Two tabs:
+/// <list type="bullet">
+/// <item><b>Installed</b> — every plugin the loader SAW: loaded ones and, crucially, every one that did
+/// not load with its classified reason (failed / quarantined / trust-rejected / SDK-incompatible /
+/// disabled), plus the lifecycle actions (install, enable/disable, re-enable, uninstall).</item>
+/// <item><b>Catalog</b> — the signed marketplace feed (issue #25): browse/search, Install, and Update
+/// through the same download → checksum → trust → scan → installer gate chain. Only shown when a feed is
+/// configured; offline-first from the last-good cached index.</item>
+/// </list>
+/// Lifecycle changes are persisted in <see cref="PluginStateStore"/> and take effect on the next start (a
+/// loaded plugin's assembly is file-locked by its rooted load context), so mutations raise the restart
+/// banner.
 /// </summary>
 public sealed partial class PluginManagerViewModel : ViewModelBase
 {
     private readonly PluginHostContext _context;
     private readonly PluginStateStore? _state;
+    private readonly PluginFeedClient _feed;
+    private readonly IHttpClientFactory _httpFactory;
+    private IReadOnlyList<PluginCatalogItem> _allCatalog = [];
 
-    public PluginManagerViewModel(PluginHostContext context)
+    public PluginManagerViewModel(PluginHostContext context, PluginFeedClient feed, IHttpClientFactory httpFactory)
     {
         _context = context;
         _state = context.State;
+        _feed = feed;
+        _httpFactory = httpFactory;
         PluginsRoot = context.PluginsRoot;
         TrustPolicySummary = context.TrustPolicy.RequireSignature
             ? "Curated mode — only plugins signed by a trusted publisher will load."
@@ -54,6 +69,15 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
             : problems == 0
                 ? $"{context.LoadedPlugins.Count} plugin(s) loaded."
                 : $"{context.LoadedPlugins.Count} plugin(s) loaded — {problems} problem(s) need attention below.";
+
+        // Show whatever the background refresh already cached; then check for a newer index (no-op /
+        // instant when the feed is off or unreachable). Fire-and-forget on the UI context.
+        RebuildCatalog();
+        if (_feed.IsConfigured)
+        {
+            CatalogStatus = "Checking the marketplace…";
+            _ = RefreshCatalogAsync();
+        }
     }
 
     public string PluginsRoot { get; }
@@ -65,6 +89,23 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     /// <summary>True once any lifecycle change (enable/disable/uninstall/install) is pending a
     /// restart — drives the banner. Loaded plugins are file-locked, so nothing applies live.</summary>
     [ObservableProperty] private bool _restartRequired;
+
+    // ── Catalog (marketplace feed) ──────────────────────────────────────────────────────────────────
+
+    /// <summary>The filtered marketplace catalog bound by the Catalog tab.</summary>
+    public ObservableCollection<PluginCatalogItem> CatalogItems { get; } = new();
+
+    /// <summary>Whether a feed is configured at all — the Catalog tab is hidden otherwise.</summary>
+    public bool FeedConfigured => _feed.IsConfigured;
+
+    [ObservableProperty] private string _catalogSearch = string.Empty;
+    [ObservableProperty] private string _catalogStatus = string.Empty;
+    [ObservableProperty] private bool _catalogBusy;
+
+    /// <summary>True when at least one installed plugin has a newer build in the feed — enables "Update all".</summary>
+    [ObservableProperty] private bool _hasUpdates;
+
+    partial void OnCatalogSearchChanged(string value) => ApplySearch();
 
     /// <summary>Pick a plugin package (.daxplugin, integrity-verified) or a raw main .dll (the dev
     /// drop-in), validate it against the active trust policy + SDK version, and copy it into the
@@ -80,20 +121,17 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
         };
         if (dialog.ShowDialog() != true) return;
 
-        IPluginSignatureInspector inspector = OperatingSystem.IsWindows()
-            ? new AuthenticodeSignatureInspector()
-            : new NullSignatureInspector();
-
         // Packages are sha256-verified and carry private deps; a raw .dll is the dev drop-in path.
         // Both go through the same manifest/SDK/trust gates.
         var result = dialog.FileName.EndsWith(DaxPluginPackage.Extension, StringComparison.OrdinalIgnoreCase)
             ? PluginInstaller.InstallFromPackage(
-                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, inspector, _state)
+                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, Inspector(), _state)
             : PluginInstaller.InstallFromDll(
-                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, inspector, _state);
+                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, Inspector(), _state);
         Status = result.Message;
         if (result.Success) RestartRequired = true;
         Rebuild();
+        RebuildCatalog();
     }
 
     /// <summary>Re-enable a disabled or quarantined plugin — it loads again on the next start.</summary>
@@ -129,6 +167,7 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
         Status = result.Message;
         if (result.Success) RestartRequired = true;
         Rebuild();
+        RebuildCatalog();
     }
 
     /// <summary>Open the plugins folder in the file explorer so a developer can drop a package in by hand.</summary>
@@ -137,6 +176,82 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     {
         Directory.CreateDirectory(_context.PluginsRoot);
         Process.Start(new ProcessStartInfo { FileName = _context.PluginsRoot, UseShellExecute = true });
+    }
+
+    /// <summary>Fetch the signed index (background, offline-first), sync revocations into the local
+    /// kill-list, and rebuild the catalog against what's installed.</summary>
+    [RelayCommand]
+    private async Task RefreshCatalogAsync()
+    {
+        if (!_feed.IsConfigured) { CatalogStatus = "No plugin feed is configured."; return; }
+
+        CatalogBusy = true;
+        try
+        {
+            var result = await _feed.RefreshAsync();
+            if (result.Index is { } index)
+                PluginRevocationSync.Apply(_context.PluginsRoot, index);
+            RebuildCatalog();
+            CatalogStatus = _feed.Current is null
+                ? "The marketplace could not be reached and there is no saved catalog yet."
+                : result.FromCache
+                    ? $"Showing the last saved catalog — {CatalogItems.Count} plugin(s)."
+                    : $"{_allCatalog.Count} plugin(s) available.";
+        }
+        finally { CatalogBusy = false; }
+    }
+
+    /// <summary>Install (or update to) the feed's latest build of a catalog plugin: download →
+    /// checksum-verify against the signed index → the standard manifest/SDK/trust/IL-scan gates.</summary>
+    [RelayCommand]
+    private async Task InstallFromCatalogAsync(PluginCatalogItem? item)
+    {
+        if (item is null || CatalogBusy) return;
+
+        CatalogBusy = true;
+        try
+        {
+            CatalogStatus = $"Downloading '{item.Name}' {item.LatestVersion}…";
+            var result = await PluginCatalogInstaller.InstallAsync(
+                _httpFactory.CreateClient(PluginFeedServiceCollectionExtensions.FeedHttpClientName),
+                item.Latest, _context.PluginsRoot, _context.TrustPolicy, Inspector(), _state);
+
+            CatalogStatus = result.Message;
+            Status = result.Message;
+            if (result.Success) RestartRequired = true;
+            Rebuild();
+            RebuildCatalog();
+        }
+        finally { CatalogBusy = false; }
+    }
+
+    /// <summary>Update every installed plugin that has a newer build in the feed.</summary>
+    [RelayCommand]
+    private async Task UpdateAllAsync()
+    {
+        if (CatalogBusy) return;
+
+        var updatable = PluginCatalog.Updatable(_allCatalog);
+        if (updatable.Count == 0) { CatalogStatus = "Everything is up to date."; return; }
+
+        CatalogBusy = true;
+        try
+        {
+            var updated = 0;
+            foreach (var item in updatable)
+            {
+                CatalogStatus = $"Updating '{item.Name}' → {item.LatestVersion}…";
+                var result = await PluginCatalogInstaller.InstallAsync(
+                    _httpFactory.CreateClient(PluginFeedServiceCollectionExtensions.FeedHttpClientName),
+                    item.Latest, _context.PluginsRoot, _context.TrustPolicy, Inspector(), _state);
+                if (result.Success) updated++;
+            }
+            if (updated > 0) RestartRequired = true;
+            Rebuild();
+            RebuildCatalog();
+            CatalogStatus = $"Updated {updated} of {updatable.Count} plugin(s). Restart to apply.";
+        }
+        finally { CatalogBusy = false; }
     }
 
     /// <summary>Rows = loaded plugins + every problem from the startup report, each overlaid with the
@@ -212,6 +327,26 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
                 CanUninstall: !pendingUninstall));
         }
     }
+
+    /// <summary>Recompute the catalog from the current verified index + what's installed, then re-apply
+    /// the search filter. Cheap and synchronous — safe to call after any install/uninstall.</summary>
+    private void RebuildCatalog()
+    {
+        _allCatalog = PluginCatalog.Build(_feed.Current, _context.PluginsRoot);
+        HasUpdates = _allCatalog.Any(i => i.CanUpdate);
+        ApplySearch();
+    }
+
+    private void ApplySearch()
+    {
+        CatalogItems.Clear();
+        foreach (var item in PluginCatalog.Search(_allCatalog, CatalogSearch))
+            CatalogItems.Add(item);
+    }
+
+    private IPluginSignatureInspector Inspector() => OperatingSystem.IsWindows()
+        ? new AuthenticodeSignatureInspector()
+        : new NullSignatureInspector();
 
     private bool IsPendingUninstall(string key) =>
         _state?.PendingUninstalls.Contains(key, StringComparer.OrdinalIgnoreCase) == true;
