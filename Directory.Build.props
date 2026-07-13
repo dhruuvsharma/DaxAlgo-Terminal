@@ -30,7 +30,7 @@
          nuget-publish workflow refuses to push on a mismatch. Independent of the app release
          VersionPrefix above: the SDK contract has its own cadence (pre-1.0, every minor bump is
          breaking for plugins — see PluginLoader.IsCompatible). -->
-    <DaxAlgoSdkVersion>0.1.0-alpha</DaxAlgoSdkVersion>
+    <DaxAlgoSdkVersion>0.1.1-alpha</DaxAlgoSdkVersion>
 
     <!-- Shared NuGet metadata for the packable projects (inert for everything never packed). -->
     <RepositoryUrl>https://github.com/dhruuvsharma/DaxAlgo-Terminal</RepositoryUrl>

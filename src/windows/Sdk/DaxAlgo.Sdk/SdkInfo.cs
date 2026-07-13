@@ -15,5 +15,5 @@ namespace DaxAlgo.Sdk;
 public static class SdkInfo
 {
     /// <summary>Semantic version of this SDK build. Bump on any breaking change to the plugin contract.</summary>
-    public const string Version = "0.1.0-alpha";
+    public const string Version = "0.1.1-alpha";
 }
