@@ -469,6 +469,132 @@ public sealed class StrategyCodegenTests
         return (body!, response);
     }
 
+    // ── streaming ──────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Anthropic_streams_text_deltas_and_usage_and_ends_with_the_assembled_files()
+    {
+        // The real SSE shape: usage up front (prompt + cache), text in fragments, output tokens at the end.
+        const string sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":5000}}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"```csharp\n"}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"public class Streamed {}\n```"}}
+
+            event: message_delta
+            data: {"type":"message_delta","usage":{"output_tokens":42}}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            """;
+        var handler = new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(sse),
+        }));
+        var client = new AnthropicCodegenClient(
+            new HttpClient(handler), "https://api.example.com", "claude-opus-4-8", apiKey: "sk-test");
+
+        var events = new List<CodegenEvent>();
+        await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest(Pack, [new(CodegenRole.User, "hi")])))
+            events.Add(evt);
+
+        events.OfType<CodegenEvent.TextDelta>().Select(d => d.Text)
+            .Should().HaveCount(2, "the reply arrives in fragments — that is the point of streaming");
+
+        var usage = events.OfType<CodegenEvent.UsageUpdate>().Last().Usage;
+        usage.InputTokens.Should().Be(6010,
+            "prompt tokens include what the cache served — reporting 10 for a 6k-token prompt would be a lie");
+        usage.OutputTokens.Should().Be(42);
+
+        var completed = events.OfType<CodegenEvent.Completed>().Should().ContainSingle().Subject.Response;
+        completed.Success.Should().BeTrue();
+        completed.FileList.Should().ContainSingle()
+            .Which.Content.Should().Be("public class Streamed {}");
+    }
+
+    [Fact]
+    public async Task A_streamed_reply_with_no_code_is_still_a_question()
+    {
+        const string sse = """
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Which instrument, and what tick size?"}}
+
+            data: {"type":"message_stop"}
+
+            """;
+        var client = new AnthropicCodegenClient(
+            new HttpClient(new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(sse),
+            }))),
+            "https://api.example.com", "claude-opus-4-8", apiKey: "sk-test");
+
+        var completed = await LastCompleted(client);
+
+        completed.Success.Should().BeTrue();
+        completed.HasFiles.Should().BeFalse();
+        completed.RawText.Should().Contain("tick size", "an under-specified brief should be asked about, not guessed at");
+    }
+
+    [Fact]
+    public async Task A_provider_that_cannot_stream_still_yields_one_completed()
+    {
+        // FakeCodegenClient overrides nothing — it gets the interface's default StreamAsync (which is why
+        // it is reached through the interface), so callers never branch on whether a provider streams.
+        IStrategyCodegenClient client = new FakeCodegenClient();
+
+        var events = new List<CodegenEvent>();
+        await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest(Pack, [new(CodegenRole.User, "hi")])))
+            events.Add(evt);
+
+        events.OfType<CodegenEvent.TextDelta>().Should().BeEmpty();
+        events.OfType<CodegenEvent.Completed>().Should().ContainSingle()
+            .Which.Response.Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task The_session_reports_deltas_as_they_arrive()
+    {
+        var session = Orchestrator().CreateSession(
+            new FakeCodegenClient(), Pack, "gen.stream", "Gen", maxFixAttempts: 0);
+
+        var streamed = new List<CodegenEvent>();
+        var turn = await session.SendAsync(
+            "make a strategy", activity: null, ct: default,
+            events: new Progress<CodegenEvent>(streamed.Add));
+
+        turn.Success.Should().BeTrue();
+        // The fake reports usage but no deltas; the session must forward whatever the provider gives it.
+        streamed.OfType<CodegenEvent.UsageUpdate>().Should().NotBeEmpty();
+        session.TotalUsage.TotalTokens.Should().BeGreaterThan(0, "the chat header shows what the session cost");
+    }
+
+    [Fact]
+    public void The_claude_cli_only_asks_for_stream_json_when_streaming()
+    {
+        AgentCliAdapter.ClaudeCode.ArgumentsFor("claude-opus-4-8", CodegenEffort.High, stream: true)
+            .Should().ContainInOrder("--output-format", "stream-json")
+            .And.Contain("--include-partial-messages");
+
+        AgentCliAdapter.ClaudeCode.ArgumentsFor("claude-opus-4-8", CodegenEffort.High, stream: false)
+            .Should().NotContain("--output-format", "the one-shot path stays plain text");
+
+        AgentCliAdapter.Codex.ArgumentsFor("gpt-x", CodegenEffort.High, stream: true)
+            .Should().NotContain("--output-format", "Codex has no stream-json mode — never invent a flag");
+    }
+
+    private static async Task<StrategyCodegenResponse> LastCompleted(IStrategyCodegenClient client)
+    {
+        StrategyCodegenResponse? last = null;
+        await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest(Pack, [new(CodegenRole.User, "hi")])))
+            if (evt is CodegenEvent.Completed completed) last = completed.Response;
+        return last!;
+    }
+
     // ── provider factory ───────────────────────────────────────────────────────────────────────────
 
     [Fact]

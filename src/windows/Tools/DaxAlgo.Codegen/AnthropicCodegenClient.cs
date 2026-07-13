@@ -65,11 +65,121 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         }
     }
 
+    /// <summary>
+    /// Streams <c>POST /v1/messages</c> with <c>stream: true</c>. Text arrives token by token and usage
+    /// as the API reports it, so a multi-minute generation shows its work instead of looking hung.
+    /// </summary>
+    public async IAsyncEnumerable<CodegenEvent> StreamAsync(
+        StrategyCodegenRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        if (!IsAvailable)
+        {
+            yield return new CodegenEvent.Completed(
+                StrategyCodegenResponse.Fail("Anthropic is not configured (model / API key)."));
+            yield break;
+        }
+
+        using var httpReq = BuildRequest(request, stream: true);
+
+        var (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+        if (failure is not null)
+        {
+            yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(failure));
+            yield break;
+        }
+
+        using (resp!)
+        {
+            if (!resp.IsSuccessStatusCode)
+            {
+                var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(HttpFailure(resp, payload)));
+                yield break;
+            }
+
+            var accumulator = new AnthropicEventAccumulator();
+            await using var body = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+
+            await foreach (var evt in ServerSentEvents.ReadAsync(body, ct).ConfigureAwait(false))
+            {
+                foreach (var streamed in accumulator.Consume(evt))
+                    yield return streamed;
+            }
+
+            yield return new CodegenEvent.Completed(Assemble(accumulator.Text, accumulator.Usage));
+        }
+    }
+
+    /// <summary>Sends and classifies the failure, because an iterator may not yield from a catch.</summary>
+    private async Task<(HttpResponseMessage? Response, string? Failure)> TrySendAsync(
+        HttpRequestMessage request, CancellationToken ct)
+    {
+        try
+        {
+            return (await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false), null);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // the user pressed Stop
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return (null, TransportFailure(ex));
+        }
+    }
+
+    /// <summary>Turns the assembled reply into a response: files if it wrote code, a plain reply if it
+    /// asked a question instead.</summary>
+    private static StrategyCodegenResponse Assemble(string text, CodegenUsage usage)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return StrategyCodegenResponse.Fail("Anthropic returned no text content.");
+
+        var files = CodegenCodeExtractor.ExtractFiles(text);
+        return files.Count == 0
+            ? StrategyCodegenResponse.Reply(text, usage)
+            : StrategyCodegenResponse.Ok(files, text, usage);
+    }
+
     public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
     {
         if (!IsAvailable)
             return StrategyCodegenResponse.Fail("Anthropic is not configured (model / API key).");
 
+        using var httpReq = BuildRequest(request, stream: false);
+
+        try
+        {
+            using var resp = await _http.SendAsync(httpReq, ct).ConfigureAwait(false);
+            var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+                return StrategyCodegenResponse.Fail(HttpFailure(resp, payload));
+
+            var parsed = JsonSerializer.Deserialize<MessagesResponse>(payload, Json);
+            var text = parsed?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
+            var usage = parsed?.Usage is { } u
+                ? new CodegenUsage(u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens, u.OutputTokens)
+                : CodegenUsage.None;
+
+            // No code is a legitimate turn — the model is asking something back. The session shows it in
+            // the chat and waits for the user, rather than treating it as a provider failure.
+            return Assemble(text ?? string.Empty, usage);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The user pressed Stop. That is not a provider failure — let it surface as cancellation.
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return StrategyCodegenResponse.Fail(TransportFailure(ex));
+        }
+    }
+
+    /// <summary>The request body, shared by both paths — the streaming one differs only by <c>stream</c>.</summary>
+    private HttpRequestMessage BuildRequest(StrategyCodegenRequest request, bool stream)
+    {
         var messages = request.Messages
             .Select(m => new WireMessage(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content))
             .ToList();
@@ -81,59 +191,32 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         var body = new MessagesRequest(
             _model, MaxTokens: 16384, request.SystemContext, messages,
             OutputConfig: effort is null ? null : new WireOutputConfig(effort),
-            Thinking: effort is null ? null : new WireThinking("adaptive"));
+            Thinking: effort is null ? null : new WireThinking("adaptive"),
+            Stream: stream ? true : null);
 
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/v1/messages")
+        var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/v1/messages")
         {
             Content = JsonContent.Create(body, options: Json),
         };
         httpReq.Headers.TryAddWithoutValidation("x-api-key", _apiKey);
         httpReq.Headers.TryAddWithoutValidation("anthropic-version", AnthropicVersion);
-
-        try
-        {
-            using var resp = await _http.SendAsync(httpReq, ct).ConfigureAwait(false);
-            var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (!resp.IsSuccessStatusCode)
-            {
-                // The commonest 400 here is an effort/thinking parameter on a model that doesn't take
-                // one. Say so, rather than making the user decode the raw API error.
-                var hint = effort is not null && payload.Contains("effort", StringComparison.OrdinalIgnoreCase)
-                    ? $" — '{_model}' may not support a reasoning effort; set Effort to 'Provider default' or pick a newer model."
-                    : string.Empty;
-                return StrategyCodegenResponse.Fail($"Anthropic returned {(int)resp.StatusCode}: {Trim(payload)}{hint}");
-            }
-
-            var parsed = JsonSerializer.Deserialize<MessagesResponse>(payload, Json);
-            var text = parsed?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
-            if (string.IsNullOrWhiteSpace(text))
-                return StrategyCodegenResponse.Fail("Anthropic returned no text content.");
-
-            var usage = parsed?.Usage is { } u ? new CodegenUsage(u.InputTokens, u.OutputTokens) : CodegenUsage.None;
-            var files = CodegenCodeExtractor.ExtractFiles(text);
-
-            // No code is a legitimate turn — the model is asking something back. The session shows it in
-            // the chat and waits for the user, rather than treating it as a provider failure.
-            return files.Count == 0
-                ? StrategyCodegenResponse.Reply(text, usage)
-                : StrategyCodegenResponse.Ok(files, text, usage);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            // The user pressed Stop. That is not a provider failure — let it surface as cancellation.
-            throw;
-        }
-        catch (TaskCanceledException)
-        {
-            return StrategyCodegenResponse.Fail(
-                $"Anthropic timed out after {_http.Timeout.TotalSeconds:0}s. A long brief at a high reasoning " +
-                "effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort.");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException)
-        {
-            return StrategyCodegenResponse.Fail($"Anthropic request failed: {ex.Message}");
-        }
+        return httpReq;
     }
+
+    /// <summary>The commonest 400 here is an effort/thinking parameter on a model that doesn't take one.
+    /// Say so, rather than making the user decode the raw API error.</summary>
+    private string HttpFailure(HttpResponseMessage resp, string payload)
+    {
+        var hint = _effort != CodegenEffort.Default && payload.Contains("effort", StringComparison.OrdinalIgnoreCase)
+            ? $" — '{_model}' may not support a reasoning effort; set Effort to 'Provider default' or pick a newer model."
+            : string.Empty;
+        return $"Anthropic returned {(int)resp.StatusCode}: {Trim(payload)}{hint}";
+    }
+
+    private string TransportFailure(Exception ex) => ex is TaskCanceledException
+        ? $"Anthropic timed out after {_http.Timeout.TotalSeconds:0}s. A long brief at a high reasoning " +
+          "effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort."
+        : $"Anthropic request failed: {ex.Message}";
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
@@ -145,7 +228,8 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
         [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireOutputConfig? OutputConfig = null,
-        [property: JsonPropertyName("thinking"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireThinking? Thinking = null);
+        [property: JsonPropertyName("thinking"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireThinking? Thinking = null,
+        [property: JsonPropertyName("stream"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Stream = null);
     private sealed record WireOutputConfig([property: JsonPropertyName("effort")] string Effort);
     private sealed record WireThinking([property: JsonPropertyName("type")] string Type);
     private sealed record MessagesResponse(
@@ -155,7 +239,9 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
                                        [property: JsonPropertyName("text")] string? Text);
     private sealed record WireUsage(
         [property: JsonPropertyName("input_tokens")] int InputTokens,
-        [property: JsonPropertyName("output_tokens")] int OutputTokens);
+        [property: JsonPropertyName("output_tokens")] int OutputTokens,
+        [property: JsonPropertyName("cache_creation_input_tokens")] int CacheCreationInputTokens = 0,
+        [property: JsonPropertyName("cache_read_input_tokens")] int CacheReadInputTokens = 0);
     private sealed record ModelsResponse([property: JsonPropertyName("data")] IReadOnlyList<ModelEntry>? Data);
     private sealed record ModelEntry([property: JsonPropertyName("id")] string Id);
 }

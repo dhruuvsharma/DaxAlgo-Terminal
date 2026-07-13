@@ -105,10 +105,14 @@ public sealed class StrategyBuildSession
     /// model's question.</param>
     /// <param name="activity">Progress for the UI's activity strip ("Asking Claude…", "Compiling 3
     /// file(s)…", "Fixing 2 error(s)…"). Reported on the calling context.</param>
+    /// <param name="events">Streamed events — text deltas as the model writes, usage as the provider
+    /// reports it. A provider that can't stream reports nothing here and the turn still returns normally,
+    /// so the caller never branches on it.</param>
     public async Task<StrategyBuildTurn> SendAsync(
         string userMessage,
         IProgress<string>? activity = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IProgress<CodegenEvent>? events = null)
     {
         _messages.Add(new CodegenMessage(CodegenRole.User, userMessage));
 
@@ -127,12 +131,38 @@ public sealed class StrategyBuildSession
                 ? $"Asking {Provider.DisplayName}…"
                 : $"Asking {Provider.DisplayName} to fix {Count(lastCompile)} error(s)…");
 
-            var response = await Provider
-                .GenerateAsync(new StrategyCodegenRequest(SystemContext, _messages), ct)
-                .ConfigureAwait(false);
+            // Stream it. A provider that can't yields one Completed and nothing else, so this is the only
+            // path — there is no non-streaming branch to keep in step.
+            StrategyCodegenResponse? response = null;
+            var generationUsage = CodegenUsage.None;
 
-            usage = usage.Add(response.Usage);
-            TotalUsage = TotalUsage.Add(response.Usage);
+            await foreach (var evt in Provider
+                .StreamAsync(new StrategyCodegenRequest(SystemContext, _messages), ct)
+                .ConfigureAwait(false))
+            {
+                switch (evt)
+                {
+                    case CodegenEvent.TextDelta:
+                        events?.Report(evt);
+                        break;
+
+                    case CodegenEvent.UsageUpdate update:
+                        // Absolute for THIS generation — replace it, then re-derive the running totals, so
+                        // an auto-fix retry doesn't double-count the generations before it.
+                        generationUsage = update.Usage;
+                        events?.Report(evt);
+                        break;
+
+                    case CodegenEvent.Completed completed:
+                        response = completed.Response;
+                        break;
+                }
+            }
+
+            response ??= StrategyCodegenResponse.Fail($"{Provider.DisplayName} returned nothing.");
+            var reported = response.Usage ?? generationUsage;
+            usage = usage.Add(reported);
+            TotalUsage = TotalUsage.Add(reported);
 
             if (!response.Success)
             {

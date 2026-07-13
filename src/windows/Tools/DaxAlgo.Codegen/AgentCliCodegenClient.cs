@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -24,7 +25,12 @@ public sealed record AgentCliAdapter(
     /// effort for the run.</summary>
     public static AgentCliAdapter ClaudeCode { get; } =
         new("claude-cli", "Claude Code (installed CLI)", "claude", ["-p"],
-            ModelFlag: "--model", EffortFlag: "--effort");
+            ModelFlag: "--model", EffortFlag: "--effort")
+        {
+            // --include-partial-messages is what turns the JSONL into token-by-token deltas rather than
+            // one lump at the end; --verbose is required by the CLI alongside stream-json.
+            StreamFlags = ["--output-format", "stream-json", "--include-partial-messages", "--verbose"],
+        };
 
     /// <summary>OpenAI Codex CLI: <c>codex exec</c> runs a one-shot prompt from stdin, ChatGPT sign-in
     /// handled by the CLI. No effort flag — it configures reasoning through its own config.</summary>
@@ -33,9 +39,15 @@ public sealed record AgentCliAdapter(
 
     public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
 
+    /// <summary>Flags that make the CLI emit its events as JSONL instead of plain text. Claude Code wraps
+    /// the very same Anthropic stream events (<c>{"type":"stream_event","event":{…}}</c>), so the API's
+    /// parser reads them unchanged. Null ⇒ this CLI cannot stream and the caller falls back to one shot.</summary>
+    public IReadOnlyList<string>? StreamFlags { get; init; }
+
     /// <summary>The argv for a run, with the model and effort flags inserted before the stdin marker (if
     /// any) so they parse as options and not as the prompt. Unset ⇒ the CLI uses its own defaults.</summary>
-    public IReadOnlyList<string> ArgumentsFor(string? model, CodegenEffort effort = CodegenEffort.Default)
+    public IReadOnlyList<string> ArgumentsFor(
+        string? model, CodegenEffort effort = CodegenEffort.Default, bool stream = false)
     {
         var flags = new List<string>();
         if (!string.IsNullOrWhiteSpace(model) && ModelFlag is not null)
@@ -48,6 +60,9 @@ public sealed record AgentCliAdapter(
             flags.Add(EffortFlag);
             flags.Add(level);
         }
+        if (stream && StreamFlags is { Count: > 0 } streaming)
+            flags.AddRange(streaming);
+
         if (flags.Count == 0) return Arguments;
 
         var before = Arguments.TakeWhile(a => a != StdinMarker);
@@ -94,14 +109,133 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     public CodegenEffort Effort => _effort;
     public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
 
-    public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Streams the CLI's <c>--output-format stream-json</c>: one JSON object per line, most of them
+    /// wrapping the very same Anthropic events the API's SSE stream carries — so the API parser reads them
+    /// unchanged. The CLI's own <c>result</c> line carries the authoritative final text.
+    /// <para>A CLI with no streaming mode (Codex) falls back to the one-shot path; the caller can't tell.</para>
+    /// </summary>
+    public async IAsyncEnumerable<CodegenEvent> StreamAsync(
+        StrategyCodegenRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var exe = _resolveOnPath(_adapter.Executable);
-        if (exe is null)
-            return StrategyCodegenResponse.Fail($"{_adapter.Executable} is not on PATH — install it, or pick a keyed provider.");
+        if (exe is null || _adapter.StreamFlags is null)
+        {
+            yield return new CodegenEvent.Completed(await GenerateAsync(request, ct).ConfigureAwait(false));
+            yield break;
+        }
 
-        var prompt = FlattenPrompt(request);
+        var psi = ProcessFor(exe, stream: true);
+        using var process = new Process { StartInfo = psi };
 
+        if (!process.Start())
+        {
+            yield return new CodegenEvent.Completed(
+                StrategyCodegenResponse.Fail($"Could not start {_adapter.Executable}."));
+            yield break;
+        }
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(_timeout);
+
+        await process.StandardInput.WriteAsync(FlattenPrompt(request).AsMemory(), timeoutCts.Token).ConfigureAwait(false);
+        process.StandardInput.Close();
+
+        var accumulator = new AnthropicEventAccumulator();
+        string? finalText = null;
+        string? cliError = null;
+
+        while (true)
+        {
+            var (line, failure) = await ReadLineAsync(process, timeoutCts.Token, ct).ConfigureAwait(false);
+            if (failure is not null)
+            {
+                yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(failure));
+                yield break;
+            }
+            if (line is null) break;
+            if (line.Length == 0 || line[0] != '{') continue;
+
+            JsonElement message;
+            try
+            {
+                message = JsonDocument.Parse(line).RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                continue; // the CLI also prints non-JSON chatter; it is not worth failing a run over
+            }
+
+            if (!message.TryGetProperty("type", out var type)) continue;
+
+            switch (type.GetString())
+            {
+                case "stream_event" when message.TryGetProperty("event", out var evt):
+                    foreach (var streamed in accumulator.Consume(evt))
+                        yield return streamed;
+                    break;
+
+                case "result":
+                    // The CLI's own summary line — authoritative for the final text and for failure.
+                    if (message.TryGetProperty("is_error", out var isError) &&
+                        isError.ValueKind == JsonValueKind.True)
+                    {
+                        cliError = message.TryGetProperty("result", out var errText) ? errText.GetString() : null;
+                    }
+                    else if (message.TryGetProperty("result", out var result))
+                    {
+                        finalText = result.GetString();
+                    }
+                    break;
+            }
+        }
+
+        await process.WaitForExitAsync(ct).ConfigureAwait(false);
+
+        if (cliError is not null)
+        {
+            yield return new CodegenEvent.Completed(
+                StrategyCodegenResponse.Fail($"{_adapter.DisplayName} failed: {Trim(cliError)}"));
+            yield break;
+        }
+
+        yield return new CodegenEvent.Completed(Assemble(finalText ?? accumulator.Text, accumulator.Usage));
+    }
+
+    /// <summary>Reads one line, turning a timeout into a message rather than an exception — an iterator
+    /// cannot yield from inside a try/catch, so the catching lives here.</summary>
+    private async Task<(string? Line, string? Failure)> ReadLineAsync(
+        Process process, CancellationToken timeoutToken, CancellationToken userToken)
+    {
+        try
+        {
+            return (await process.StandardOutput.ReadLineAsync(timeoutToken).ConfigureAwait(false), null);
+        }
+        catch (OperationCanceledException) when (userToken.IsCancellationRequested)
+        {
+            KillTree(process);
+            throw; // the user pressed Stop
+        }
+        catch (OperationCanceledException)
+        {
+            KillTree(process);
+            return (null, $"{_adapter.DisplayName} timed out after {_timeout.TotalSeconds:0}s. A long brief at a " +
+                          "high reasoning effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort.");
+        }
+    }
+
+    /// <summary>No code is a legitimate turn — the agent is asking something back.</summary>
+    private StrategyCodegenResponse Assemble(string text, CodegenUsage usage)
+    {
+        var files = CodegenCodeExtractor.ExtractFiles(text);
+        return files.Count == 0
+            ? StrategyCodegenResponse.Reply(text, usage)
+            : StrategyCodegenResponse.Ok(files, text, usage);
+    }
+
+    private ProcessStartInfo ProcessFor(string exe, bool stream)
+    {
         var psi = new ProcessStartInfo(exe)
         {
             RedirectStandardInput = true,
@@ -110,9 +244,19 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in _adapter.ArgumentsFor(_model, _effort)) psi.ArgumentList.Add(arg);
+        foreach (var arg in _adapter.ArgumentsFor(_model, _effort, stream)) psi.ArgumentList.Add(arg);
+        return psi;
+    }
 
-        using var process = new Process { StartInfo = psi };
+    public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
+    {
+        var exe = _resolveOnPath(_adapter.Executable);
+        if (exe is null)
+            return StrategyCodegenResponse.Fail($"{_adapter.Executable} is not on PATH — install it, or pick a keyed provider.");
+
+        var prompt = FlattenPrompt(request);
+
+        using var process = new Process { StartInfo = ProcessFor(exe, stream: false) };
         try
         {
             if (!process.Start())
@@ -146,11 +290,8 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             }
 
             // No code is a legitimate turn — the agent is asking something back; the session shows it in
-            // the chat and waits. (Agent CLIs report no token usage in print mode.)
-            var files = CodegenCodeExtractor.ExtractFiles(stdout);
-            return files.Count == 0
-                ? StrategyCodegenResponse.Reply(stdout)
-                : StrategyCodegenResponse.Ok(files, stdout);
+            // the chat and waits. (Plain print mode reports no token usage; the streaming path does.)
+            return Assemble(stdout, CodegenUsage.None);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

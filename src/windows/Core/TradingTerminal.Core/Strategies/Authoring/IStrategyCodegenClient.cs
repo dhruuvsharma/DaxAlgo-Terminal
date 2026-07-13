@@ -126,6 +126,27 @@ public sealed record StrategyCodegenResponse(
 }
 
 /// <summary>
+/// One thing that happened while the model was answering. A generation is minutes long on a hard brief,
+/// so the builder streams: text arrives token by token, usage lands as the provider reports it, and the
+/// turn ends with the assembled response. A provider that cannot stream still yields a single
+/// <see cref="Completed"/> — the caller never has to branch on whether streaming was available.
+/// </summary>
+public abstract record CodegenEvent
+{
+    private CodegenEvent() { }
+
+    /// <summary>A fragment of the model's reply, in order. Append it to what you already have.</summary>
+    public sealed record TextDelta(string Text) : CodegenEvent;
+
+    /// <summary>Tokens billed so far in this generation, as the provider reports them (input up front,
+    /// output as it writes). Absolute, not incremental — replace the running value, don't add to it.</summary>
+    public sealed record UsageUpdate(CodegenUsage Usage) : CodegenEvent;
+
+    /// <summary>The generation is over; carries the assembled reply, its files, and the final usage.</summary>
+    public sealed record Completed(StrategyCodegenResponse Response) : CodegenEvent;
+}
+
+/// <summary>
 /// Generates strategy source from a natural-language instruction — the seam behind the AI Strategy
 /// Builder. Implementations wrap a provider: an installed agent CLI (Claude Code, Codex — the user's
 /// own login lives in the vendor tool, never seen here), an OpenAI-compatible / Anthropic HTTP API with
@@ -169,4 +190,24 @@ public interface IStrategyCodegenClient
         Task.FromResult<IReadOnlyList<string>>([]);
 
     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// The same generation, streamed. Yields <see cref="CodegenEvent.TextDelta"/> as the model writes,
+    /// <see cref="CodegenEvent.UsageUpdate"/> as the provider reports tokens, and exactly one
+    /// <see cref="CodegenEvent.Completed"/> last.
+    /// <para>
+    /// The default implementation just runs <see cref="GenerateAsync"/> and yields its result — so a
+    /// provider that cannot stream (or a fake) needs no code, and callers never branch on whether
+    /// streaming was available. Providers that can stream override this; their
+    /// <see cref="GenerateAsync"/> stays the non-streaming path.
+    /// </para>
+    /// </summary>
+    async IAsyncEnumerable<CodegenEvent> StreamAsync(
+        StrategyCodegenRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var response = await GenerateAsync(request, ct).ConfigureAwait(false);
+        if (response.Usage is { IsReported: true } usage) yield return new CodegenEvent.UsageUpdate(usage);
+        yield return new CodegenEvent.Completed(response);
+    }
 }

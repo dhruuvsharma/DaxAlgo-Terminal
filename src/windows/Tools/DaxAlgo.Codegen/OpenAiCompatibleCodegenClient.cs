@@ -78,22 +78,137 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         }
     }
 
-    public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Streams <c>POST /chat/completions</c> with <c>stream: true</c>. <c>stream_options.include_usage</c>
+    /// asks for a final usage chunk — servers that don't know the option ignore it, so a token counter is
+    /// a bonus, never a requirement.
+    /// </summary>
+    public async IAsyncEnumerable<CodegenEvent> StreamAsync(
+        StrategyCodegenRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         if (!IsAvailable)
-            return StrategyCodegenResponse.Fail($"{DisplayName} is not configured (base URL / model / API key).");
+        {
+            yield return new CodegenEvent.Completed(
+                StrategyCodegenResponse.Fail($"{DisplayName} is not configured (base URL / model / API key)."));
+            yield break;
+        }
 
+        using var httpReq = BuildRequest(request, stream: true);
+
+        var (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+        if (failure is not null)
+        {
+            yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(failure));
+            yield break;
+        }
+
+        using (resp!)
+        {
+            if (!resp.IsSuccessStatusCode)
+            {
+                var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                yield return new CodegenEvent.Completed(
+                    StrategyCodegenResponse.Fail($"{DisplayName} returned {(int)resp.StatusCode}: {Trim(payload)}"));
+                yield break;
+            }
+
+            var text = new System.Text.StringBuilder();
+            var usage = CodegenUsage.None;
+            await using var body = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+
+            await foreach (var chunk in ServerSentEvents.ReadAsync(body, ct).ConfigureAwait(false))
+            {
+                if (chunk.TryGetProperty("choices", out var choices) &&
+                    choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0 &&
+                    choices[0].TryGetProperty("delta", out var delta) &&
+                    delta.TryGetProperty("content", out var content) &&
+                    content.ValueKind == JsonValueKind.String &&
+                    content.GetString() is { Length: > 0 } fragment)
+                {
+                    text.Append(fragment);
+                    yield return new CodegenEvent.TextDelta(fragment);
+                }
+
+                if (chunk.TryGetProperty("usage", out var reported) && reported.ValueKind == JsonValueKind.Object)
+                {
+                    usage = new CodegenUsage(
+                        Int(reported, "prompt_tokens"),
+                        Int(reported, "completion_tokens"));
+                    yield return new CodegenEvent.UsageUpdate(usage);
+                }
+            }
+
+            yield return new CodegenEvent.Completed(Assemble(text.ToString(), usage));
+        }
+    }
+
+    private static int Int(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.GetInt32()
+            : 0;
+
+    /// <summary>Sends and classifies the failure, because an iterator may not yield from a catch.</summary>
+    private async Task<(HttpResponseMessage? Response, string? Failure)> TrySendAsync(
+        HttpRequestMessage request, CancellationToken ct)
+    {
+        try
+        {
+            return (await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false), null);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // the user pressed Stop
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return (null, TransportFailure(ex));
+        }
+    }
+
+    /// <summary>Prose with no code is the model asking a clarifying question — a normal turn.</summary>
+    private StrategyCodegenResponse Assemble(string text, CodegenUsage usage)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return StrategyCodegenResponse.Fail($"{DisplayName} returned no message content.");
+
+        var files = CodegenCodeExtractor.ExtractFiles(text);
+        return files.Count == 0
+            ? StrategyCodegenResponse.Reply(text, usage)
+            : StrategyCodegenResponse.Ok(files, text, usage);
+    }
+
+    private HttpRequestMessage BuildRequest(StrategyCodegenRequest request, bool stream)
+    {
         var messages = new List<WireMessage> { new("system", request.SystemContext) };
         foreach (var m in request.Messages)
             messages.Add(new(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content));
 
-        var body = new ChatRequest(_model, messages, Temperature: 0.2, ReasoningEffort: ReasoningEffort());
-        using var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions")
+        var body = new ChatRequest(
+            _model, messages, Temperature: 0.2, ReasoningEffort: ReasoningEffort(),
+            Stream: stream ? true : null,
+            StreamOptions: stream ? new WireStreamOptions(true) : null);
+
+        var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions")
         {
             Content = JsonContent.Create(body, options: Json),
         };
         if (!string.IsNullOrWhiteSpace(_apiKey))
             httpReq.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+        return httpReq;
+    }
+
+    private string TransportFailure(Exception ex) => ex is TaskCanceledException
+        ? $"{DisplayName} timed out after {_http.Timeout.TotalSeconds:0}s. A long brief at a high reasoning " +
+          "effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort."
+        : $"{DisplayName} request failed: {ex.Message}";
+
+    public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
+    {
+        if (!IsAvailable)
+            return StrategyCodegenResponse.Fail($"{DisplayName} is not configured (base URL / model / API key).");
+
+        using var httpReq = BuildRequest(request, stream: false);
 
         try
         {
@@ -104,31 +219,18 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
             var parsed = JsonSerializer.Deserialize<ChatResponse>(payload, Json);
             var text = parsed?.Choices?.FirstOrDefault()?.Message?.Content;
-            if (string.IsNullOrWhiteSpace(text))
-                return StrategyCodegenResponse.Fail($"{DisplayName} returned no message content.");
-
             var usage = parsed?.Usage is { } u ? new CodegenUsage(u.PromptTokens, u.CompletionTokens) : CodegenUsage.None;
-            var files = CodegenCodeExtractor.ExtractFiles(text);
 
-            // Prose with no code is the model asking a clarifying question — a normal turn.
-            return files.Count == 0
-                ? StrategyCodegenResponse.Reply(text, usage)
-                : StrategyCodegenResponse.Ok(files, text, usage);
+            return Assemble(text ?? string.Empty, usage);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // The user pressed Stop — cancellation, not a provider failure.
             throw;
         }
-        catch (TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            return StrategyCodegenResponse.Fail(
-                $"{DisplayName} timed out after {_http.Timeout.TotalSeconds:0}s. A long brief at a high reasoning " +
-                "effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort.");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException)
-        {
-            return StrategyCodegenResponse.Fail($"{DisplayName} request failed: {ex.Message}");
+            return StrategyCodegenResponse.Fail(TransportFailure(ex));
         }
     }
 
@@ -157,7 +259,10 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
         [property: JsonPropertyName("temperature")] double Temperature,
-        [property: JsonPropertyName("reasoning_effort"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort = null);
+        [property: JsonPropertyName("reasoning_effort"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort = null,
+        [property: JsonPropertyName("stream"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Stream = null,
+        [property: JsonPropertyName("stream_options"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireStreamOptions? StreamOptions = null);
+    private sealed record WireStreamOptions([property: JsonPropertyName("include_usage")] bool IncludeUsage);
     private sealed record ChatResponse(
         [property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices,
         [property: JsonPropertyName("usage")] WireUsage? Usage);

@@ -254,6 +254,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// request; without a clock ticking, a working generation is indistinguishable from a hang.</summary>
     [ObservableProperty] private string? _elapsedText;
 
+    /// <summary>The model asked a question instead of writing code, and is waiting for the answer. It is
+    /// a normal turn — the strategy is under-specified and it wants to know, rather than guess.</summary>
+    [ObservableProperty] private bool _awaitingAnswer;
+
+    /// <summary>The assistant bubble currently being streamed into, or null between turns.</summary>
+    private AuthoringMessage? _streamingReply;
+
     [ObservableProperty] private int _inputTokens;
     [ObservableProperty] private int _outputTokens;
 
@@ -304,6 +311,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Activity.Clear();
         Diagnostics.Clear();
         CompiledOk = false;
+        AwaitingAnswer = false;
         IsGenerating = true;
 
         _generateCts?.Cancel();
@@ -311,17 +319,22 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _generateCts = new CancellationTokenSource();
 
         var ticking = TickElapsedAsync(_generateCts.Token);
+        var session = EnsureSession(choice);
+        var tokensBefore = session.TotalUsage;
+        _streamingReply = null;
 
         try
         {
-            var session = EnsureSession(choice);
             var turn = await session.SendAsync(
                 WithUserEdits(prompt),
                 new Progress<string>(step => PushActivity(step)),
-                _generateCts.Token);
+                _generateCts.Token,
+                new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)));
 
-            InputTokens += turn.Usage.InputTokens;
-            OutputTokens += turn.Usage.OutputTokens;
+            // The session's running total is authoritative: a turn can be several generations (the
+            // auto-fix retries), and the streamed updates are per-generation.
+            InputTokens = session.TotalUsage.InputTokens;
+            OutputTokens = session.TotalUsage.OutputTokens;
 
             if (turn.Kind == BuildTurnKind.ProviderError)
             {
@@ -330,7 +343,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 return;
             }
 
-            Append(new AuthoringMessage(CodegenRole.Assistant, turn.AssistantText));
+            // The reply was streamed into a bubble as it arrived; settle it on the final text (the
+            // provider's own assembled version). Nothing streamed ⇒ the provider doesn't stream, so the
+            // bubble appears now, whole.
+            if (_streamingReply is null) Append(new AuthoringMessage(CodegenRole.Assistant, turn.AssistantText));
+            else _streamingReply.Text = turn.AssistantText;
+
+            AwaitingAnswer = turn.Kind == BuildTurnKind.Question;
 
             if (turn.Files.Count > 0)
             {
@@ -371,9 +390,40 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         finally
         {
             IsGenerating = false;
+            _streamingReply = null;
             _generateCts?.Cancel();   // stops the elapsed ticker
             await ticking;
             ElapsedText = null;
+        }
+    }
+
+    /// <summary>
+    /// One streamed event, on the UI context (<see cref="Progress{T}"/> marshals it). Text grows the
+    /// assistant's bubble as it is written — this is the whole point of streaming, and the difference
+    /// between watching a strategy get written and staring at a spinner for four minutes.
+    /// </summary>
+    private void OnStreamed(CodegenEvent evt, CodegenUsage tokensBefore)
+    {
+        switch (evt)
+        {
+            case CodegenEvent.TextDelta delta:
+                if (_streamingReply is null)
+                {
+                    _streamingReply = new AuthoringMessage(CodegenRole.Assistant, delta.Text);
+                    Append(_streamingReply);
+                }
+                else
+                {
+                    _streamingReply.Text += delta.Text;
+                }
+                break;
+
+            case CodegenEvent.UsageUpdate update:
+                // The update is absolute for the CURRENT generation, so add it to what the session had
+                // banked before this turn. The exact total is set from the session when the turn ends.
+                InputTokens = tokensBefore.InputTokens + update.Usage.InputTokens;
+                OutputTokens = tokensBefore.OutputTokens + update.Usage.OutputTokens;
+                break;
         }
     }
 

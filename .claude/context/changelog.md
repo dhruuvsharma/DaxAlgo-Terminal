@@ -1,5 +1,23 @@
 # context changelog — append-only session journal
 
+## 2026-07-13 (later+2) — #26 AI Strategy Builder v2, phase 3: streaming, live tokens, reverse questions
+- **`IStrategyCodegenClient.StreamAsync` → `IAsyncEnumerable<CodegenEvent>`** (TextDelta / UsageUpdate /
+  Completed). It is a **default interface member** that aggregates `GenerateAsync`, so a provider that
+  can't stream (Fake, Codex) needs zero code and no caller ever branches on whether streaming exists.
+- **One parser, two transports.** Claude Code's `--output-format stream-json --include-partial-messages`
+  emits `{"type":"stream_event","event":{…}}` wrapping *the very same* Anthropic SSE events — verified by
+  running the CLI, not assumed — so `AnthropicEventAccumulator` reads both. Anthropic SSE + OpenAI
+  `stream:true` (+ `stream_options.include_usage`) round it out.
+- **Usage counts what was actually processed**: `input_tokens + cache_creation + cache_read`. Reporting
+  bare `input_tokens` showed a 2-token prompt for a 15k-token context pack.
+- **The chat grows token by token** (`AuthoringMessage.Text` was already `[ObservableProperty]` for
+  exactly this); token counters tick live, and settle to the session's authoritative total at turn end
+  (a turn can be several generations — the auto-fix retries).
+- **Reverse questions**: a no-code reply was already a `Question` turn; the pane now surfaces it as an
+  unmissable banner + `AwaitingAnswer`, so an under-specified brief gets asked about instead of guessed at.
+- Iterators can't yield from a catch — both HTTP clients send through a `TrySendAsync` that classifies the
+  failure first. 748 headless + 57 WPF + 10 Pro green. **#26 phases 1–3 done.**
+
 ## 2026-07-13 (later) — #26 AI Strategy Builder v2, phase 2: an authored strategy is a real plugin
 - **The catalog is mutable now.** `IStrategyFactory` gained `Register(strategy, registration)` +
   `Changed`; `StrategyFactory` (UI.Core) backs it with a locked list and replaces by id (a regenerate
