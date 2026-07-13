@@ -19,9 +19,10 @@ public interface IAiStrategyBuilder
     /// <summary>The provider to select by default (configured default if available, else first available).</summary>
     IStrategyCodegenClient? DefaultProvider { get; }
 
-    /// <summary>The same provider bound to a different model — what the model picker calls. Null when the
-    /// provider id is unknown. A blank model means "the configured / vendor default".</summary>
-    IStrategyCodegenClient? WithModel(string providerId, string? model);
+    /// <summary>The same provider bound to a different model + reasoning effort — what the pickers call.
+    /// Null when the provider id is unknown. A blank model means "the configured / vendor default";
+    /// <see cref="CodegenEffort.Default"/> sends no effort parameter at all.</summary>
+    IStrategyCodegenClient? WithSettings(string providerId, string? model, CodegenEffort effort);
 
     /// <summary>Models to offer for a provider without a network call (curated + configured). The UI can
     /// additionally ask the provider itself via <see cref="IStrategyCodegenClient.ListModelsAsync"/>.</summary>
@@ -50,7 +51,8 @@ public sealed class AiStrategyBuilder(
 
     public IStrategyCodegenClient? DefaultProvider => factory.SelectDefault();
 
-    public IStrategyCodegenClient? WithModel(string providerId, string? model) => factory.Build(providerId, model);
+    public IStrategyCodegenClient? WithSettings(string providerId, string? model, CodegenEffort effort) =>
+        factory.Build(providerId, model, effort);
 
     public IReadOnlyList<string> ModelsFor(string providerId) => factory.ModelsFor(providerId);
 

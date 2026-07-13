@@ -11,7 +11,8 @@ public sealed record AgentCliAdapter(
     string DisplayName,
     string Executable,
     IReadOnlyList<string> Arguments,
-    string? ModelFlag = null)
+    string? ModelFlag = null,
+    string? EffortFlag = null)
 {
     /// <summary>The stdin marker some CLIs take as a positional argument ("read the prompt from stdin").
     /// Flags must precede it, so <see cref="ArgumentsFor"/> inserts the model there.</summary>
@@ -19,26 +20,39 @@ public sealed record AgentCliAdapter(
 
     /// <summary>Claude Code in print mode: <c>claude -p</c> reads the prompt from stdin and prints the
     /// reply to stdout. The user's subscription/key lives in Claude Code itself — never seen here.
-    /// <c>--model</c> takes an alias (opus/sonnet/haiku) or a full model id.</summary>
+    /// <c>--model</c> takes a full model id (or a short alias); <c>--effort</c> sets the reasoning
+    /// effort for the run.</summary>
     public static AgentCliAdapter ClaudeCode { get; } =
-        new("claude-cli", "Claude Code (installed CLI)", "claude", ["-p"], ModelFlag: "--model");
+        new("claude-cli", "Claude Code (installed CLI)", "claude", ["-p"],
+            ModelFlag: "--model", EffortFlag: "--effort");
 
     /// <summary>OpenAI Codex CLI: <c>codex exec</c> runs a one-shot prompt from stdin, ChatGPT sign-in
-    /// handled by the CLI.</summary>
+    /// handled by the CLI. No effort flag — it configures reasoning through its own config.</summary>
     public static AgentCliAdapter Codex { get; } =
         new("codex-cli", "Codex (installed CLI)", "codex", ["exec", StdinMarker], ModelFlag: "-m");
 
     public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
 
-    /// <summary>The argv for a run, with the model flag inserted before the stdin marker (if any) so it
-    /// is parsed as an option and not as the prompt. No model ⇒ the CLI uses its own configured default.</summary>
-    public IReadOnlyList<string> ArgumentsFor(string? model)
+    /// <summary>The argv for a run, with the model and effort flags inserted before the stdin marker (if
+    /// any) so they parse as options and not as the prompt. Unset ⇒ the CLI uses its own defaults.</summary>
+    public IReadOnlyList<string> ArgumentsFor(string? model, CodegenEffort effort = CodegenEffort.Default)
     {
-        if (string.IsNullOrWhiteSpace(model) || ModelFlag is null) return Arguments;
+        var flags = new List<string>();
+        if (!string.IsNullOrWhiteSpace(model) && ModelFlag is not null)
+        {
+            flags.Add(ModelFlag);
+            flags.Add(model);
+        }
+        if (effort.Wire() is { } level && EffortFlag is not null)
+        {
+            flags.Add(EffortFlag);
+            flags.Add(level);
+        }
+        if (flags.Count == 0) return Arguments;
 
         var before = Arguments.TakeWhile(a => a != StdinMarker);
         var after = Arguments.SkipWhile(a => a != StdinMarker);
-        return [.. before, ModelFlag, model, .. after];
+        return [.. before, .. flags, .. after];
     }
 }
 
@@ -56,15 +70,17 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     private readonly Func<string, string?> _resolveOnPath;
     private readonly TimeSpan _timeout;
     private readonly string? _model;
+    private readonly CodegenEffort _effort;
 
     public AgentCliCodegenClient(
         AgentCliAdapter adapter, Func<string, string?>? resolveOnPath = null, TimeSpan? timeout = null,
-        string? model = null)
+        string? model = null, CodegenEffort effort = CodegenEffort.Default)
     {
         _adapter = adapter;
         _resolveOnPath = resolveOnPath ?? ResolveOnPath;
         _timeout = timeout ?? TimeSpan.FromMinutes(3);
         _model = model;
+        _effort = effort;
     }
 
     public string ProviderId => _adapter.ProviderId;
@@ -73,6 +89,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
 
     /// <summary>Empty ⇒ the vendor CLI uses whatever model it is configured for.</summary>
     public string Model => _model ?? string.Empty;
+    public CodegenEffort Effort => _effort;
     public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
 
     public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
@@ -91,7 +108,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in _adapter.ArgumentsFor(_model)) psi.ArgumentList.Add(arg);
+        foreach (var arg in _adapter.ArgumentsFor(_model, _effort)) psi.ArgumentList.Add(arg);
 
         using var process = new Process { StartInfo = psi };
         try

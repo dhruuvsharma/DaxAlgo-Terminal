@@ -7,9 +7,13 @@ public sealed class AiCodegenProvider
     /// endpoint — the client type is chosen by <see cref="Kind"/>.</summary>
     public string BaseUrl { get; set; } = string.Empty;
 
-    /// <summary>Default model id (e.g. <c>gpt-4o-mini</c>, <c>deepseek-chat</c>, <c>claude-sonnet-…</c>,
-    /// <c>llama3.1</c>).</summary>
+    /// <summary>Default model id (e.g. <c>claude-opus-4-8</c>, <c>deepseek-chat</c>, <c>llama3.1</c>).</summary>
     public string Model { get; set; } = string.Empty;
+
+    /// <summary>Reasoning effort for this provider — <c>low</c>/<c>medium</c>/<c>high</c>/<c>xhigh</c>/
+    /// <c>max</c>, or empty for the provider's own default. Empty is the only safe value for a model that
+    /// predates the parameter (it is then never sent).</summary>
+    public string Effort { get; set; } = string.Empty;
 
     /// <summary>Wire protocol. Keys are never stored here — they live in the DPAPI credential store,
     /// looked up by <see cref="AiCodegenOptions.SectionName"/> + provider id.</summary>

@@ -7,6 +7,54 @@ public enum CodegenRole
     Assistant,
 }
 
+/// <summary>
+/// How hard the model should think before answering — the reasoning/output effort dial. It trades
+/// latency and tokens for quality: a scalper with a subtle exit rule is worth <c>XHigh</c>; a rename is
+/// not. <see cref="Default"/> sends nothing and lets the provider (or the vendor CLI) choose, which is
+/// the only safe setting for a model that predates the parameter.
+/// </summary>
+public enum CodegenEffort
+{
+    /// <summary>Send no effort/thinking parameters — the provider's own default.</summary>
+    Default,
+    Low,
+    Medium,
+    High,
+
+    /// <summary>Between High and Max. The best setting for most coding work on current models.</summary>
+    XHigh,
+
+    /// <summary>Correctness over cost.</summary>
+    Max,
+}
+
+/// <summary>Wire values for <see cref="CodegenEffort"/> (<c>low</c>/<c>medium</c>/<c>high</c>/<c>xhigh</c>/<c>max</c>).</summary>
+public static class CodegenEfforts
+{
+    /// <summary>The wire value, or null for <see cref="CodegenEffort.Default"/> (send nothing).</summary>
+    public static string? Wire(this CodegenEffort effort) => effort switch
+    {
+        CodegenEffort.Low => "low",
+        CodegenEffort.Medium => "medium",
+        CodegenEffort.High => "high",
+        CodegenEffort.XHigh => "xhigh",
+        CodegenEffort.Max => "max",
+        _ => null,
+    };
+
+    /// <summary>Parses a configured/persisted value; anything unrecognized is
+    /// <see cref="CodegenEffort.Default"/> rather than an error.</summary>
+    public static CodegenEffort Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "low" => CodegenEffort.Low,
+        "medium" => CodegenEffort.Medium,
+        "high" => CodegenEffort.High,
+        "xhigh" or "x-high" => CodegenEffort.XHigh,
+        "max" => CodegenEffort.Max,
+        _ => CodegenEffort.Default,
+    };
+}
+
 /// <summary>One turn of the codegen conversation.</summary>
 public sealed record CodegenMessage(CodegenRole Role, string Content);
 
@@ -105,6 +153,10 @@ public interface IStrategyCodegenClient
     /// <summary>The model this client will call (empty when the provider picks its own — an agent CLI
     /// with no explicit model uses whatever the vendor tool is configured for).</summary>
     string Model => string.Empty;
+
+    /// <summary>How hard this client asks the model to think. <see cref="CodegenEffort.Default"/> sends
+    /// no effort/thinking parameters at all — required for models that predate them.</summary>
+    CodegenEffort Effort => CodegenEffort.Default;
 
     /// <summary>The models offered in the picker without asking the provider — the configured one plus a
     /// curated shortlist. The UI also allows a free-text model id, so this need not be exhaustive.</summary>

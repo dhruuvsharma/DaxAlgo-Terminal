@@ -41,7 +41,10 @@ public sealed class StrategyCodegenClientFactory
 
         // Installed agent CLIs — availability is "on PATH"; the vendor tool owns the login.
         foreach (var adapter in AgentCliAdapter.All)
-            clients.Add(new AgentCliCodegenClient(adapter, model: ModelOverrideFor(adapter.ProviderId)));
+            clients.Add(new AgentCliCodegenClient(
+                adapter,
+                model: ConfiguredModel(adapter.ProviderId),
+                effort: ConfiguredEffort(adapter.ProviderId)));
 
         // Keyed / local providers from config. An agent CLI may ALSO appear here (to pin its model), and
         // must not be built a second time as an HTTP provider — it has no BaseUrl or key.
@@ -55,20 +58,23 @@ public sealed class StrategyCodegenClientFactory
     }
 
     /// <summary>
-    /// The same provider, bound to a different model — what the builder's model picker calls when the
-    /// user switches model (or types one that isn't in the shortlist). An unknown provider id, or an
-    /// agent CLI, still resolves; a null/blank model means "the configured / vendor default".
+    /// The same provider, bound to a different model and reasoning effort — what the builder's pickers
+    /// call when the user switches either (a client is immutable in both). An unknown provider id
+    /// returns null; a blank model means "the configured / vendor default".
     /// </summary>
-    public IStrategyCodegenClient? Build(string providerId, string? model)
+    public IStrategyCodegenClient? Build(string providerId, string? model, CodegenEffort effort = CodegenEffort.Default)
     {
         var adapter = AgentCliAdapter.All.FirstOrDefault(a =>
             a.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
         if (adapter is not null)
-            return new AgentCliCodegenClient(adapter, model: Blank(model) ? ModelOverrideFor(providerId) : model);
+            return new AgentCliCodegenClient(
+                adapter,
+                model: Blank(model) ? ConfiguredModel(providerId) : model,
+                effort: effort);
 
         var configured = _options.Providers.FirstOrDefault(p =>
             p.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase));
-        return configured.Value is null ? null : BuildKeyed(configured.Key, configured.Value, model);
+        return configured.Value is null ? null : BuildKeyed(configured.Key, configured.Value, model, effort);
     }
 
     /// <summary>The models to offer for a provider without a network call (curated shortlist + whatever
@@ -91,29 +97,36 @@ public sealed class StrategyCodegenClientFactory
         return all.FirstOrDefault(c => c.IsAvailable);
     }
 
-    private IStrategyCodegenClient BuildKeyed(string id, AiCodegenProvider provider, string? model)
+    private IStrategyCodegenClient BuildKeyed(
+        string id, AiCodegenProvider provider, string? model, CodegenEffort effort = CodegenEffort.Default)
     {
         var key = _keyResolver(id);
         var isOllama = id.Equals("ollama", StringComparison.OrdinalIgnoreCase);
         var effectiveModel = Blank(model) ? provider.Model : model!;
+        var effectiveEffort = effort == CodegenEffort.Default ? CodegenEfforts.Parse(provider.Effort) : effort;
 
         return provider.Kind switch
         {
             AiCodegenProviderKind.Anthropic =>
-                new AnthropicCodegenClient(_httpFactory(), provider.BaseUrl, effectiveModel, key),
+                new AnthropicCodegenClient(_httpFactory(), provider.BaseUrl, effectiveModel, key, effectiveEffort),
             _ => new OpenAiCompatibleCodegenClient(
-                _httpFactory(), id, DisplayNameFor(id), provider.BaseUrl, effectiveModel, key, keyless: isOllama),
+                _httpFactory(), id, DisplayNameFor(id), provider.BaseUrl, effectiveModel, key,
+                keyless: isOllama, effort: effectiveEffort),
         };
     }
 
-    /// <summary>An agent CLI can also be pinned to a model in config (<c>AiCodegen:Providers:claude-cli:Model</c>)
-    /// even though it needs no BaseUrl/key — that is the only reason it appears in the provider map.</summary>
-    private string? ModelOverrideFor(string providerId) => ConfiguredModel(providerId);
-
+    /// <summary>An agent CLI can also be pinned to a model/effort in config
+    /// (<c>AiCodegen:Providers:claude-cli:Model</c>) even though it needs no BaseUrl/key — that is the
+    /// only reason it appears in the provider map.</summary>
     private string? ConfiguredModel(string providerId) =>
         _options.Providers.TryGetValue(providerId, out var provider) && !string.IsNullOrWhiteSpace(provider.Model)
             ? provider.Model
             : null;
+
+    private CodegenEffort ConfiguredEffort(string providerId) =>
+        _options.Providers.TryGetValue(providerId, out var provider)
+            ? CodegenEfforts.Parse(provider.Effort)
+            : CodegenEffort.Default;
 
     private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
 

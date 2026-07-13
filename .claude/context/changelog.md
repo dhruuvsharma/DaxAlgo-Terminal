@@ -25,8 +25,18 @@
   (0.1.0 vs SDK 0.1.1) *and* double-encoded (PS 5.1 read UTF-8 sources as ANSI). Generator + template
   kernel are now ASCII-only with an `Assert-Ascii` gate, `.gitignore` un-excludes `/build/`, and the
   pack's OUTPUT CONTRACT (a) is the multi-file + ask-questions contract.
+- **Model ids + reasoning effort (same-day fix).** The picker offered the Claude Code CLI's *aliases*
+  (`opus`/`sonnet`/`haiku`) instead of model ids, and had no effort control. `AiModelCatalog` now lists
+  real ids (`claude-opus-4-8`, `claude-sonnet-5`, `claude-opus-4-7`, `claude-haiku-4-5`,
+  `claude-fable-5`) for both `anthropic` and `claude-cli` (Claude Code's `--model` takes either), and
+  ships nothing for providers whose ids we'd have to guess — they use the live `/models` fetch.
+  New `CodegenEffort` (Default/Low/Medium/High/XHigh/Max) reaches each provider the way it actually
+  takes it: Anthropic `output_config.effort` + `thinking:{type:adaptive}`, OpenAI-compatible
+  `reasoning_effort` (xhigh/max clamp to high), Claude Code `--effort`, Codex nothing (it has no such
+  flag). **Default sends no parameter at all** — Haiku 4.5 and older reject both, so wire-silence is
+  what keeps them usable. Persisted per provider in `ai-codegen.json`.
 - Phases 2 (plugin emit + hot catalog/Plugin-Manager registration) and 3 (streaming + reverse questions)
-  follow. 737 headless + 8 Pro tests green.
+  follow. 741 headless + 8 Pro tests green.
 
 ## 2026-07-12 (later+4) — #26 phase 3: template CLAUDE/AGENTS generated from the pack source
 - `gen-ai-context.ps1` factors the engine contract + hard rules + parameters into canonical fragments

@@ -331,6 +331,72 @@ public sealed class StrategyCodegenTests
             .IsAvailable.Should().BeTrue("a local keyless endpoint needs only a base URL + model");
     }
 
+    // ── models + reasoning effort ──────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_model_shortlist_offers_real_model_ids_not_cli_aliases()
+    {
+        // The picker used to show "opus"/"sonnet"/"haiku" — the CLI's shorthand, not model ids. Both the
+        // API provider and the installed CLI must offer the same, real ids.
+        foreach (var provider in new[] { "anthropic", "claude-cli" })
+        {
+            var models = AiModelCatalog.For(provider);
+            models.Should().Contain("claude-opus-4-8").And.Contain("claude-sonnet-5");
+            models.Should().NotContain("opus").And.NotContain("sonnet").And.NotContain("haiku");
+        }
+    }
+
+    [Fact]
+    public async Task Effort_is_sent_only_when_the_user_picks_one()
+    {
+        // Default ⇒ no effort/thinking fields at all: a model that predates them (Haiku 4.5 and older)
+        // 400s on either, so "Provider default" has to be wire-silent.
+        var (body, _) = await CaptureAnthropicRequest(CodegenEffort.Default);
+        body.Should().NotContain("effort").And.NotContain("thinking");
+
+        var (withEffort, _) = await CaptureAnthropicRequest(CodegenEffort.XHigh);
+        withEffort.Should().Contain("\"effort\":\"xhigh\"")
+            .And.Contain("\"thinking\":{\"type\":\"adaptive\"}",
+                "effort controls thinking depth — the two go together on current models");
+    }
+
+    [Fact]
+    public void The_claude_cli_gets_model_and_effort_flags_before_the_prompt()
+    {
+        var args = AgentCliAdapter.ClaudeCode.ArgumentsFor("claude-opus-4-8", CodegenEffort.Max);
+
+        args.Should().ContainInOrder("--model", "claude-opus-4-8", "--effort", "max");
+
+        AgentCliAdapter.ClaudeCode.ArgumentsFor(model: null, CodegenEffort.Default)
+            .Should().NotContain("--effort", "no pick ⇒ the vendor CLI keeps its own default");
+    }
+
+    [Fact]
+    public void Codex_has_no_effort_flag_so_none_is_passed()
+    {
+        // Guessing a flag the CLI doesn't have would make every generation fail on an arg parse error.
+        AgentCliAdapter.Codex.ArgumentsFor("gpt-x", CodegenEffort.High)
+            .Should().Contain("-m").And.NotContain("--effort");
+    }
+
+    private static async Task<(string Body, StrategyCodegenResponse Response)> CaptureAnthropicRequest(CodegenEffort effort)
+    {
+        string? body = null;
+        var handler = new StubHandler(async req =>
+        {
+            body = await req.Content!.ReadAsStringAsync();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"content":[{"type":"text","text":"```csharp\npublic class Ok {}\n```"}],"usage":{"input_tokens":10,"output_tokens":5}}"""),
+            };
+        });
+        var client = new AnthropicCodegenClient(
+            new HttpClient(handler), "https://api.example.com", "claude-opus-4-8", apiKey: "sk-test", effort);
+
+        var response = await client.GenerateAsync(new StrategyCodegenRequest(Pack, [new(CodegenRole.User, "hi")]));
+        return (body!, response);
+    }
+
     // ── provider factory ───────────────────────────────────────────────────────────────────────────
 
     [Fact]

@@ -27,7 +27,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// depends only on a configured base URL.</param>
     public OpenAiCompatibleCodegenClient(
         HttpClient http, string providerId, string displayName, string baseUrl, string model,
-        string? apiKey, bool keyless = false)
+        string? apiKey, bool keyless = false, CodegenEffort effort = CodegenEffort.Default)
     {
         _http = http;
         ProviderId = providerId;
@@ -36,9 +36,11 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         _model = model;
         _apiKey = apiKey;
         _keyless = keyless;
+        _effort = effort;
     }
 
     private readonly bool _keyless;
+    private readonly CodegenEffort _effort;
 
     public string ProviderId { get; }
     public string DisplayName { get; }
@@ -48,6 +50,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         (_keyless || !string.IsNullOrWhiteSpace(_apiKey));
 
     public string Model => _model;
+    public CodegenEffort Effort => _effort;
     public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
 
     /// <summary>Every OpenAI-compatible endpoint (including Ollama) exposes <c>GET /models</c>, so the
@@ -84,7 +87,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         foreach (var m in request.Messages)
             messages.Add(new(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content));
 
-        var body = new ChatRequest(_model, messages, Temperature: 0.2);
+        var body = new ChatRequest(_model, messages, Temperature: 0.2, ReasoningEffort: ReasoningEffort());
         using var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions")
         {
             Content = JsonContent.Create(body, options: Json),
@@ -120,13 +123,30 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
+    /// <summary>OpenAI's <c>reasoning_effort</c> takes low/medium/high only, so the two Anthropic-only
+    /// levels clamp to high. Null (the "Default" pick, or a provider with no effort knob) omits the field
+    /// entirely — a server that doesn't know it would reject the request.</summary>
+    private string? ReasoningEffort()
+    {
+        if (!AiModelCatalog.SupportsEffort(ProviderId)) return null;
+
+        return _effort switch
+        {
+            CodegenEffort.Low => "low",
+            CodegenEffort.Medium => "medium",
+            CodegenEffort.High or CodegenEffort.XHigh or CodegenEffort.Max => "high",
+            _ => null,
+        };
+    }
+
     // ── wire shapes ───────────────────────────────────────────────────────────────────────────────
     private sealed record WireMessage([property: JsonPropertyName("role")] string Role,
                                       [property: JsonPropertyName("content")] string Content);
     private sealed record ChatRequest(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
-        [property: JsonPropertyName("temperature")] double Temperature);
+        [property: JsonPropertyName("temperature")] double Temperature,
+        [property: JsonPropertyName("reasoning_effort"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort = null);
     private sealed record ChatResponse(
         [property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices,
         [property: JsonPropertyName("usage")] WireUsage? Usage);

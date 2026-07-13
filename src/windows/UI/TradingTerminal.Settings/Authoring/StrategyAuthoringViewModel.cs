@@ -152,22 +152,47 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [ObservableProperty] private string? _selectedModel;
     [ObservableProperty] private bool _isRefreshingModels;
 
+    /// <summary>How hard the model thinks before answering. "Provider default" sends no effort parameter
+    /// at all, which is the only setting a model that predates the parameter will accept.</summary>
+    public IReadOnlyList<CodegenEffort> Efforts { get; } =
+        [CodegenEffort.Default, CodegenEffort.Low, CodegenEffort.Medium, CodegenEffort.High, CodegenEffort.XHigh, CodegenEffort.Max];
+
+    [ObservableProperty] private CodegenEffort _selectedEffort = CodegenEffort.Default;
+
+    /// <summary>False for a provider with no effort knob (Ollama, DeepSeek, the Codex CLI) — the picker
+    /// disables rather than sending a parameter the provider would reject.</summary>
+    public bool EffortSupported => SelectedAiProvider is { } choice && AiModelCatalog.SupportsEffort(choice.ProviderId);
+
     partial void OnSelectedAiProviderChanged(AiProviderChoice? value)
     {
         // A different provider is a different conversation — its context window holds none of this thread.
         ResetSession("Switched provider.");
         Models.Clear();
+        OnPropertyChanged(nameof(EffortSupported));
         if (value is null) return;
 
         foreach (var model in _ai?.ModelsFor(value.ProviderId) ?? []) Models.Add(model);
         SelectedModel = Models.FirstOrDefault();
+        SelectedEffort = value.Client.Effort;
     }
 
     partial void OnSelectedModelChanged(string? value)
     {
         ResetSession("Switched model.");
-        if (_ready && SelectedAiProvider is { } choice && !string.IsNullOrWhiteSpace(value))
-            PersistSelection(choice.ProviderId, value);
+        Persist();
+    }
+
+    partial void OnSelectedEffortChanged(CodegenEffort value)
+    {
+        // Effort changes how the model reasons, so the thread it produced is no longer representative.
+        ResetSession("Switched effort.");
+        Persist();
+    }
+
+    private void Persist()
+    {
+        if (_ready && SelectedAiProvider is { } choice)
+            PersistSelection(choice.ProviderId, SelectedModel, SelectedEffort);
     }
 
     /// <summary>Ask the provider what models this key/endpoint can actually call (OpenAI, Anthropic and
@@ -429,10 +454,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         return _session;
     }
 
-    /// <summary>The selected provider bound to the selected model (the factory rebuilds the client —
-    /// a client is immutable in its model).</summary>
+    /// <summary>The selected provider bound to the selected model + effort (the factory rebuilds the
+    /// client — a client is immutable in both).</summary>
     private IStrategyCodegenClient? ResolveClient(AiProviderChoice choice) =>
-        _ai?.WithModel(choice.ProviderId, SelectedModel);
+        _ai?.WithSettings(choice.ProviderId, SelectedModel, SelectedEffort);
 
     private void ResetSession(string? note)
     {
@@ -510,11 +535,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         while (Activity.Count > MaxActivityRows) Activity.RemoveAt(0);
     }
 
-    private void PersistSelection(string providerId, string? model)
+    private void PersistSelection(string providerId, string? model, CodegenEffort effort)
     {
         try
         {
-            AiCodegenUserFile.SaveSelection(providerId, model, _options);
+            AiCodegenUserFile.SaveSelection(providerId, model, effort, _options);
         }
         catch (Exception ex)
         {

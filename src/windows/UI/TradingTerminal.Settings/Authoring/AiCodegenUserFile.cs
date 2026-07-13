@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.App.Authoring;
 
@@ -21,11 +22,11 @@ public static class AiCodegenUserFile
         "ai-codegen.json");
 
     /// <summary>
-    /// Records the model the user picked for a provider, and makes that provider the default. Merges into
-    /// whatever the file already holds, so switching provider doesn't forget the model chosen for the
-    /// previous one (and never touches keys in other sections).
+    /// Records the model + reasoning effort the user picked for a provider, and makes that provider the
+    /// default. Merges into whatever the file already holds, so switching provider doesn't forget the
+    /// choices made for the previous one (and never touches keys in other sections).
     /// </summary>
-    public static void SaveSelection(string providerId, string? model, AiCodegenOptions current)
+    public static void SaveSelection(string providerId, string? model, CodegenEffort effort, AiCodegenOptions current)
     {
         if (string.IsNullOrWhiteSpace(providerId)) return;
 
@@ -74,6 +75,10 @@ public static class AiCodegenUserFile
         }
 
         provider["Model"] = string.IsNullOrWhiteSpace(model) ? null : model;
+
+        // Empty ⇒ "provider default", which means the effort parameter is never sent — the only setting
+        // a model that predates it will accept.
+        provider["Effort"] = effort.Wire();
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }

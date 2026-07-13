@@ -20,19 +20,24 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
     private readonly string _baseUrl;
     private readonly string _model;
     private readonly string? _apiKey;
+    private readonly CodegenEffort _effort;
 
-    public AnthropicCodegenClient(HttpClient http, string baseUrl, string model, string? apiKey)
+    public AnthropicCodegenClient(
+        HttpClient http, string baseUrl, string model, string? apiKey,
+        CodegenEffort effort = CodegenEffort.Default)
     {
         _http = http;
         _baseUrl = string.IsNullOrWhiteSpace(baseUrl) ? "https://api.anthropic.com" : baseUrl.TrimEnd('/');
         _model = model;
         _apiKey = apiKey;
+        _effort = effort;
     }
 
     public string ProviderId => "anthropic";
     public string DisplayName => "Anthropic (API key)";
     public bool IsAvailable => !string.IsNullOrWhiteSpace(_model) && !string.IsNullOrWhiteSpace(_apiKey);
     public string Model => _model;
+    public CodegenEffort Effort => _effort;
     public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
 
     /// <summary>The models this key can actually call. A failure here is not an error the user needs —
@@ -69,7 +74,15 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
             .Select(m => new WireMessage(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content))
             .ToList();
 
-        var body = new MessagesRequest(_model, MaxTokens: 16384, request.SystemContext, messages);
+        // Effort + adaptive thinking are sent ONLY when the user asked for an effort level. They are
+        // rejected by models that predate them (Haiku 4.5 and older), so "Default" has to mean "send
+        // neither" — that is what keeps an older model usable in the picker.
+        var effort = _effort.Wire();
+        var body = new MessagesRequest(
+            _model, MaxTokens: 16384, request.SystemContext, messages,
+            OutputConfig: effort is null ? null : new WireOutputConfig(effort),
+            Thinking: effort is null ? null : new WireThinking("adaptive"));
+
         using var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/v1/messages")
         {
             Content = JsonContent.Create(body, options: Json),
@@ -82,7 +95,14 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
             using var resp = await _http.SendAsync(httpReq, ct).ConfigureAwait(false);
             var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode)
-                return StrategyCodegenResponse.Fail($"Anthropic returned {(int)resp.StatusCode}: {Trim(payload)}");
+            {
+                // The commonest 400 here is an effort/thinking parameter on a model that doesn't take
+                // one. Say so, rather than making the user decode the raw API error.
+                var hint = effort is not null && payload.Contains("effort", StringComparison.OrdinalIgnoreCase)
+                    ? $" — '{_model}' may not support a reasoning effort; set Effort to 'Provider default' or pick a newer model."
+                    : string.Empty;
+                return StrategyCodegenResponse.Fail($"Anthropic returned {(int)resp.StatusCode}: {Trim(payload)}{hint}");
+            }
 
             var parsed = JsonSerializer.Deserialize<MessagesResponse>(payload, Json);
             var text = parsed?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
@@ -112,7 +132,11 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
         [property: JsonPropertyName("system")] string System,
-        [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages);
+        [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireOutputConfig? OutputConfig = null,
+        [property: JsonPropertyName("thinking"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireThinking? Thinking = null);
+    private sealed record WireOutputConfig([property: JsonPropertyName("effort")] string Effort);
+    private sealed record WireThinking([property: JsonPropertyName("type")] string Type);
     private sealed record MessagesResponse(
         [property: JsonPropertyName("content")] IReadOnlyList<ContentBlock>? Content,
         [property: JsonPropertyName("usage")] WireUsage? Usage);
