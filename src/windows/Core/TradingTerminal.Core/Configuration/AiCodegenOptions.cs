@@ -47,6 +47,18 @@ public sealed class AiCodegenOptions
     /// small — a provider that can't fix its own output in a few tries won't in ten.</summary>
     public int MaxFixAttempts { get; set; } = 3;
 
+    /// <summary>
+    /// How long ONE generation may take before it is abandoned — the agent-CLI subprocess wall clock and
+    /// the HTTP timeout for keyed providers alike.
+    /// <para>
+    /// Generous by design. A detailed strategy brief at a high reasoning effort is a multi-minute request:
+    /// the model reads the SDK context pack, thinks, and writes several files. The old defaults (an
+    /// HttpClient's 100s, the CLI adapter's 180s) killed exactly the requests worth waiting for. The user
+    /// can always press Stop; a wall clock is only there so a wedged provider can't hang the pane forever.
+    /// </para>
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 600;
+
     /// <summary>Per-provider endpoint/model config, keyed by provider id.</summary>
     public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
         new Dictionary<string, AiCodegenProvider>(StringComparer.OrdinalIgnoreCase);

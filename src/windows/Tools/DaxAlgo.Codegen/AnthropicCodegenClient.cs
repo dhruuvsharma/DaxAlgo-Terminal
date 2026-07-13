@@ -118,7 +118,18 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
                 ? StrategyCodegenResponse.Reply(text, usage)
                 : StrategyCodegenResponse.Ok(files, text, usage);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The user pressed Stop. That is not a provider failure — let it surface as cancellation.
+            throw;
+        }
+        catch (TaskCanceledException)
+        {
+            return StrategyCodegenResponse.Fail(
+                $"Anthropic timed out after {_http.Timeout.TotalSeconds:0}s. A long brief at a high reasoning " +
+                "effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
             return StrategyCodegenResponse.Fail($"Anthropic request failed: {ex.Message}");
         }

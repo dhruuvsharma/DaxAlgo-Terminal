@@ -78,7 +78,9 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     {
         _adapter = adapter;
         _resolveOnPath = resolveOnPath ?? ResolveOnPath;
-        _timeout = timeout ?? TimeSpan.FromMinutes(3);
+        // A long brief at a high effort is a multi-minute run; the old 3-minute wall killed exactly the
+        // generations worth waiting for. Configurable via AiCodegen:TimeoutSeconds.
+        _timeout = timeout ?? TimeSpan.FromMinutes(10);
         _model = model;
         _effort = effort;
     }
@@ -131,7 +133,9 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 KillTree(process);
-                return StrategyCodegenResponse.Fail($"{_adapter.DisplayName} timed out after {_timeout.TotalSeconds:0}s.");
+                return StrategyCodegenResponse.Fail(
+                    $"{_adapter.DisplayName} timed out after {_timeout.TotalSeconds:0}s. A long brief at a high " +
+                    "reasoning effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort.");
             }
 
             var stdout = await stdoutTask.ConfigureAwait(false);

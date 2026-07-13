@@ -115,7 +115,18 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                 ? StrategyCodegenResponse.Reply(text, usage)
                 : StrategyCodegenResponse.Ok(files, text, usage);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The user pressed Stop — cancellation, not a provider failure.
+            throw;
+        }
+        catch (TaskCanceledException)
+        {
+            return StrategyCodegenResponse.Fail(
+                $"{DisplayName} timed out after {_http.Timeout.TotalSeconds:0}s. A long brief at a high reasoning " +
+                "effort can take several minutes — raise AiCodegen:TimeoutSeconds, or lower Effort.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
             return StrategyCodegenResponse.Fail($"{DisplayName} request failed: {ex.Message}");
         }

@@ -247,6 +247,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [ObservableProperty] private string? _aiStatus;
     [ObservableProperty] private bool _isGenerating;
 
+    /// <summary>"1m 20s elapsed…" while a turn runs. A detailed brief at a high effort is a multi-minute
+    /// request; without a clock ticking, a working generation is indistinguishable from a hang.</summary>
+    [ObservableProperty] private string? _elapsedText;
+
     [ObservableProperty] private int _inputTokens;
     [ObservableProperty] private int _outputTokens;
 
@@ -302,6 +306,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _generateCts?.Cancel();
         _generateCts?.Dispose();
         _generateCts = new CancellationTokenSource();
+
+        var ticking = TickElapsedAsync(_generateCts.Token);
 
         try
         {
@@ -362,6 +368,31 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         finally
         {
             IsGenerating = false;
+            _generateCts?.Cancel();   // stops the elapsed ticker
+            await ticking;
+            ElapsedText = null;
+        }
+    }
+
+    /// <summary>Ticks the elapsed clock on the UI context until the turn ends or the user stops it.</summary>
+    private async Task TickElapsedAsync(CancellationToken ct)
+    {
+        var started = DateTime.UtcNow;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var elapsed = DateTime.UtcNow - started;
+                ElapsedText = elapsed.TotalSeconds < 60
+                    ? $"{elapsed.TotalSeconds:0}s elapsed…"
+                    : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds:00}s elapsed — a detailed brief at a high effort takes minutes.";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The turn finished (or was stopped) — nothing to report.
         }
     }
 

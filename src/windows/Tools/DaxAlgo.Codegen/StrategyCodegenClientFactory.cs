@@ -43,6 +43,7 @@ public sealed class StrategyCodegenClientFactory
         foreach (var adapter in AgentCliAdapter.All)
             clients.Add(new AgentCliCodegenClient(
                 adapter,
+                timeout: Timeout,
                 model: ConfiguredModel(adapter.ProviderId),
                 effort: ConfiguredEffort(adapter.ProviderId)));
 
@@ -69,6 +70,7 @@ public sealed class StrategyCodegenClientFactory
         if (adapter is not null)
             return new AgentCliCodegenClient(
                 adapter,
+                timeout: Timeout,
                 model: Blank(model) ? ConfiguredModel(providerId) : model,
                 effort: effort);
 
@@ -97,6 +99,11 @@ public sealed class StrategyCodegenClientFactory
         return all.FirstOrDefault(c => c.IsAvailable);
     }
 
+    /// <summary>One generation's wall clock, from config. Applied to BOTH transports — a keyed provider
+    /// would otherwise inherit <see cref="HttpClient"/>'s 100-second default and abandon exactly the long,
+    /// high-effort generations worth waiting for.</summary>
+    private TimeSpan Timeout => TimeSpan.FromSeconds(Math.Max(30, _options.TimeoutSeconds));
+
     private IStrategyCodegenClient BuildKeyed(
         string id, AiCodegenProvider provider, string? model, CodegenEffort effort = CodegenEffort.Default)
     {
@@ -105,12 +112,17 @@ public sealed class StrategyCodegenClientFactory
         var effectiveModel = Blank(model) ? provider.Model : model!;
         var effectiveEffort = effort == CodegenEffort.Default ? CodegenEfforts.Parse(provider.Effort) : effort;
 
+        // A fresh HttpClient per build (IHttpClientFactory pools the handler), so setting Timeout here is
+        // safe — it is only illegal to change it after the client has sent a request.
+        var http = _httpFactory();
+        http.Timeout = Timeout;
+
         return provider.Kind switch
         {
             AiCodegenProviderKind.Anthropic =>
-                new AnthropicCodegenClient(_httpFactory(), provider.BaseUrl, effectiveModel, key, effectiveEffort),
+                new AnthropicCodegenClient(http, provider.BaseUrl, effectiveModel, key, effectiveEffort),
             _ => new OpenAiCompatibleCodegenClient(
-                _httpFactory(), id, DisplayNameFor(id), provider.BaseUrl, effectiveModel, key,
+                http, id, DisplayNameFor(id), provider.BaseUrl, effectiveModel, key,
                 keyless: isOllama, effort: effectiveEffort),
         };
     }
