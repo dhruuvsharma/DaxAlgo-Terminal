@@ -208,15 +208,102 @@ public sealed class MyStrategy : IBacktestStrategy { ... }
 - Exactly **one** public class implementing `IBacktestStrategy`, with a public `(Contract)`
   constructor. Helper classes may live in any file. Optionally add a static `Schema` and a static
   `Create(Contract, StrategyParameters)` for tunable parameters.
-- **Do NOT** write a namespace or `using` directives - these are ambient (already imported):
-  `System`, `System.Collections.Generic`, `System.Linq`, `System.Threading`,
-  `System.Threading.Tasks`, `TradingTerminal.Core.Domain`, `TradingTerminal.Core.Trading`,
-  `TradingTerminal.Core.Time`, `TradingTerminal.Core.Backtest`, `TradingTerminal.Core.MarketData`,
-  `TradingTerminal.Core.Strategies.Parameters`.
+- **No namespace.** These namespaces are ambient (already imported) - you may write extra `using`
+  directives, but you will rarely need to: `System`, `System.Collections.Generic`, `System.Linq`,
+  `System.Threading`, `System.Threading.Tasks`, `TradingTerminal.Core.Domain`,
+  `TradingTerminal.Core.Trading`, `TradingTerminal.Core.Time`, `TradingTerminal.Core.Backtest`,
+  `TradingTerminal.Core.MarketData`, `TradingTerminal.Core.Strategies`,
+  `TradingTerminal.Core.Strategies.Parameters`, `TradingTerminal.Core.Notifications`,
+  `TradingTerminal.UI`, `Microsoft.Extensions.Logging`.
 - No file/network/process/reflection-emit APIs (they are blocked - the code will refuse to compile).
 - **Return the COMPLETE file set every time**, including files you did not change. The editor replaces
   its contents with what you send; a partial answer deletes the rest.
 - A short sentence of prose before the blocks is welcome. Keep it to what the user needs to know.
+
+### The kernel alone is backtest-only. Add three more files for a catalog entry.
+
+A kernel by itself registers in the backtester. To also get a **card in the Strategies catalog with a
+live window** - which is what the user almost always wants - add these three, and the host wires them in
+the moment the user presses Compile & Register:
+
+**1. The catalog descriptor** - an `ITradingStrategy` with a **public parameterless constructor**:
+
+```csharp
+// file: MyStrategyDescriptor.cs
+public sealed class MyStrategyDescriptor : ITradingStrategy
+{
+    public string Id => "myStrategy";                    // MUST equal the id in the builder's Id box
+    public string DisplayName => "My strategy";
+    public string Description => "One paragraph the catalog card shows.";
+    public StrategyDataRequirement DataRequirement =>
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;   // add Depth / TradeTape if you use them
+}
+```
+
+**2. The live view-model** - derives `LiveSignalStrategyViewModelBase`, which already owns the
+instrument picker, warm-up, start/stop, the market-data pumps, the signal feed, presets and the Activity
+Log. You supply the constructor (pass the host services straight through to `base`) and
+`BuildStrategy`, which returns **the same kernel the backtest runs** - that is what stops live and
+backtest from diverging:
+
+```csharp
+// file: MyStrategyViewModel.cs
+public sealed class MyStrategyViewModel : LiveSignalStrategyViewModelBase
+{
+    public MyStrategyViewModel(
+        LiveStrategyHostServices services,
+        INotificationPublisher notifications,
+        IClock clock,
+        ISignalGeneratorRouterFactory routerFactory,
+        ILogger<MyStrategyViewModel> logger)
+        : base("myStrategy", "My strategy", services, notifications, clock, routerFactory, logger)
+    {
+    }
+
+    protected override StrategyDataRequirement DataRequirement =>
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    protected override IBacktestStrategy BuildStrategy(Contract contract) => new MyStrategy(contract);
+}
+```
+
+**3. The view** - a WPF `UserControl`. **Roslyn cannot compile XAML**, so build the tree in C#. Keep it
+simple: the base view-model exposes `Signals` (an `ObservableCollection<SignalEntry>`, newest last)
+and `Bars`; the shared `StrategyChromeBar` control binds to the base by convention and gives you the
+instrument picker, start/stop and status for free:
+
+```csharp
+// file: MyStrategyView.cs
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using TradingTerminal.UI.Controls;
+
+public sealed class MyStrategyView : UserControl
+{
+    public MyStrategyView()
+    {
+        var root = new DockPanel { Margin = new Thickness(8) };
+
+        var chrome = new StrategyChromeBar();       // instrument picker + start/stop + status
+        DockPanel.SetDock(chrome, Dock.Top);
+        root.Children.Add(chrome);
+
+        var signals = new ListBox();
+        signals.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(Signals)));
+        root.Children.Add(signals);
+
+        Content = root;
+    }
+
+    private const string Signals = "Signals";
+}
+```
+
+Rules for the trio: the descriptor's `Id`, the view-model's `base(...)` id, and the id in the
+builder's Id box must be **the same string**. Write at most one class of each kind. If you write a
+view-model you must write a view (a card with no window would throw when clicked), and the host tells the
+user exactly which of the three is missing.
 
 ### Ask before you guess
 

@@ -1,5 +1,30 @@
 # context changelog — append-only session journal
 
+## 2026-07-13 (later) — #26 AI Strategy Builder v2, phase 2: an authored strategy is a real plugin
+- **The catalog is mutable now.** `IStrategyFactory` gained `Register(strategy, registration)` +
+  `Changed`; `StrategyFactory` (UI.Core) backs it with a locked list and replaces by id (a regenerate
+  updates the card, it doesn't duplicate it). The Pro shell's Strategies pane subscribes and shows the
+  card immediately — no restart. **Blast: Core seam + UI.Core impl + Pro shell.**
+- **`AuthoredStrategyInstaller`** (Infrastructure/Strategies/Authoring) is what "Compile & Register" now
+  means: backtest registry + catalog card + a real plugin written to `<pluginsRoot>/<id>/` (dll +
+  plugin.json, SdkInfo.Version) so the ordinary `PluginLoader` picks it up on the next start with zero
+  special-casing + a Plugin Manager row (`PluginHostContext.AddAuthored` / `AuthoredThisSession`, rows ×3
+  shells). The gate is unchanged: the image already went through the same `PluginPolicyScanner` the
+  plugin loader applies, and the user clicked the button.
+- **The AI writes the whole plugin.** `RoslynStrategyCompiler` reflects the emitted image into
+  `AuthoredStrategyAssembly` (kernel + optional ITradingStrategy descriptor + live VM + view); VM/view are
+  matched by base-type NAME (`TradingTerminal.UI.LiveSignalStrategyViewModelBase`,
+  `System.Windows.Controls.UserControl`) because Infrastructure must not reference UI.Core. Live-window
+  global usings are injected **only when UI.Core is in the reference set** — a headless host (backtest
+  CLI) has no WPF, and a global using of a missing namespace would fail every compile there.
+- Kernel-only ⇒ backtest-only, and the status line names exactly which of the three files is missing
+  rather than putting a card on the pane that throws when clicked. A view is code-built C# (Roslyn cannot
+  compile XAML); the pack now carries the exact descriptor / VM-ctor / view shapes.
+- Assembly is loaded from the byte[], never the file it writes — the DLL is never locked, so regenerating
+  overwrites cleanly.
+- Tests: 743 headless + 57 WPF + 10 Pro. The Pro pair is the real end-to-end — a 4-file plugin compiled
+  against the host's own UI assemblies, registered, opened via `catalog.Create()`, persisted, listed.
+
 ## 2026-07-13 — #26 AI Strategy Builder v2, phase 1: chat workspace, multi-file, models
 - **Multi-file authoring.** `StrategyScript` now carries `IReadOnlyList<StrategyFile>` (single-file ctor
   kept); `RoslynStrategyCompiler` parses one tree per file and `StrategyDiagnostic` gained `File`, so an

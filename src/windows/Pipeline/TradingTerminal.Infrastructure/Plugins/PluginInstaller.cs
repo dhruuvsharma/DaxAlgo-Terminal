@@ -18,6 +18,29 @@ public sealed record PluginHostContext(
     PluginLoadReport? Report = null,
     PluginStateStore? State = null)
 {
+    private readonly List<LoadedPlugin> _authored = [];
+
+    /// <summary>Plugins compiled and registered THIS session by the AI Strategy Builder — they were never
+    /// seen by the startup loader, but they are running, so the Plugin Manager must show them. On the next
+    /// start they are ordinary plugins (they were written to the plugins folder) and appear in
+    /// <see cref="LoadedPlugins"/> instead.</summary>
+    public IReadOnlyList<LoadedPlugin> AuthoredThisSession
+    {
+        get { lock (_authored) return [.. _authored]; }
+    }
+
+    /// <summary>Records a strategy the user just authored. Replaces an earlier one with the same assembly
+    /// path — regenerating a strategy updates its row rather than stacking duplicates.</summary>
+    public void AddAuthored(LoadedPlugin plugin)
+    {
+        ArgumentNullException.ThrowIfNull(plugin);
+        lock (_authored)
+        {
+            _authored.RemoveAll(p => string.Equals(p.AssemblyPath, plugin.AssemblyPath, StringComparison.OrdinalIgnoreCase));
+            _authored.Add(plugin);
+        }
+    }
+
     /// <summary>Full type names of the <c>ITradingStrategy</c> implementations contributed by plugins
     /// that loaded UNSIGNED (neither shipped-by-us nor from a pinned publisher). The shell maps these to
     /// catalog cards so an unsigned plugin's strategies wear the DEV badge, mirroring the Plugin

@@ -42,6 +42,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
+    private readonly AuthoredStrategyInstaller? _installer;
 
     private CancellationTokenSource? _generateCts;
     private StrategyBuildSession? _session;
@@ -56,13 +57,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IBacktestStrategyRegistry registry,
         ILogger<StrategyAuthoringViewModel> logger,
         IAiStrategyBuilder? ai = null,
-        IOptions<AiCodegenOptions>? options = null)
+        IOptions<AiCodegenOptions>? options = null,
+        AuthoredStrategyInstaller? installer = null)
     {
         _compiler = compiler;
         _registry = registry;
         _logger = logger;
         _ai = ai;
         _options = options?.Value ?? new AiCodegenOptions();
+        _installer = installer;
 
         Diagnostics = [];
         Messages = [];
@@ -433,10 +436,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return;
         }
 
+        var script = CurrentScript();
         StrategyCompileResult result;
         try
         {
-            result = _compiler.Compile(CurrentScript());
+            result = _compiler.Compile(script);
         }
         catch (Exception ex)
         {
@@ -456,17 +460,29 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return;
         }
 
-        _registry.Register(result.Option);
         CompiledOk = true;
         if (result.Option.HasParameters)
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 
-        // An authored strategy is unsigned by definition — the user (or an AI) just wrote it. Say so.
+        // The installer is what makes this a real strategy: the backtest registry, a card in the
+        // Strategies catalog (when the author wrote a descriptor + live VM + view), and a plugin written
+        // to the plugins folder so it is still there after a restart. Without it (Basic/Intermediate, or
+        // a test), fall back to the backtest registry alone.
         var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
-        var caveat = warnings > 0 ? $" ({warnings} capability warning(s) below)" : string.Empty;
-        Status = $"Compiled & registered '{result.Option.DisplayName}' from {Files.Count} file(s) — DEV (unsigned){caveat}.";
-        _logger.LogInformation("Authored strategy {Id} compiled and registered ({Files} file(s))",
-            result.Option.Id, Files.Count);
+        var caveat = warnings > 0 ? $" {warnings} capability warning(s) below." : string.Empty;
+
+        if (_installer is null)
+        {
+            _registry.Register(result.Option);
+            Status = $"Compiled & registered '{result.Option.DisplayName}' from {Files.Count} file(s) — DEV (unsigned).{caveat}";
+            return;
+        }
+
+        var install = _installer.Install(script, result);
+        Status = install.Message + caveat;
+        _logger.LogInformation(
+            "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog}",
+            result.Option.Id, Files.Count, install.InCatalog);
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────────────────

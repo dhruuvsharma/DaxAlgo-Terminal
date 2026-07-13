@@ -260,6 +260,22 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     {
         Rows.Clear();
 
+        // Strategies authored in the AI builder this session (Professional only, but the shell code is one
+        // copy in three places): running now, written to the plugins folder, and loaded like any other
+        // plugin on the next start. Unsigned by definition — the user or a model wrote them minutes ago.
+        foreach (var authored in _context.AuthoredThisSession)
+        {
+            var authoredKey = Path.GetFileNameWithoutExtension(authored.AssemblyPath);
+            Rows.Add(new PluginRow(
+                authoredKey, authored.Name,
+                $"SDK {authored.TargetSdkVersion} — compiled in the AI Strategy Builder",
+                "Running — DEV (unsigned) · authored",
+                IsProblem: false,
+                CanEnable: false,
+                CanDisable: false,
+                CanUninstall: true));
+        }
+
         foreach (var plugin in _context.LoadedPlugins)
         {
             var key = string.IsNullOrEmpty(plugin.AssemblyPath)

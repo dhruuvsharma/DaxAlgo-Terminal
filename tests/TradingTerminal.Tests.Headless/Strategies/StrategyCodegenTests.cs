@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -174,6 +176,76 @@ public sealed class StrategyCodegenTests
         result.Success.Should().BeFalse("a strategy that P/Invokes must never compile-and-register");
         result.Compile!.Errors.Should().Contain(e => e.Message.Contains("native"));
     }
+
+    // ── the compiled assembly is a plugin, not just a kernel ───────────────────────────────────────
+
+    [Fact]
+    public void A_kernel_plus_a_descriptor_is_recognized_as_a_catalog_strategy()
+    {
+        // The kernel alone is backtest-only. Adding an ITradingStrategy descriptor is what starts to make
+        // it a catalog entry — the compiler must reflect it out of the emitted assembly.
+        var script = new StrategyScript("gen.desc", "Gen", [
+            new StrategyFile("Kernel.cs", MinimalKernel("DescStrategy")),
+            new StrategyFile("Descriptor.cs", """
+                public sealed class DescStrategyDescriptor : ITradingStrategy
+                {
+                    public string Id => "gen.desc";
+                    public string DisplayName => "Gen";
+                    public string Description => "A generated strategy.";
+                }
+                """),
+        ]);
+
+        var result = new RoslynStrategyCompiler().Compile(script);
+
+        result.Success.Should().BeTrue();
+        result.Authored.Should().NotBeNull();
+        result.Authored!.KernelType.Name.Should().Be("DescStrategy");
+        result.Authored.DescriptorType!.Name.Should().Be("DescStrategyDescriptor");
+
+        // No view-model and no view ⇒ no live window, and the host must say precisely what's missing
+        // rather than putting a card on the pane that throws when clicked.
+        result.Authored.HasLiveWindow.Should().BeFalse();
+        result.Authored.MissingForCatalog.Should().HaveCount(2)
+            .And.Contain(m => m.Contains("view-model"))
+            .And.Contain(m => m.Contains("view"));
+    }
+
+    [Fact]
+    public void The_emitted_image_is_persistable_and_the_dll_is_never_locked()
+    {
+        // The installer writes this image to the plugins folder so the strategy survives a restart. It
+        // must be loaded from the byte[], never the file — otherwise regenerating would hit a locked DLL.
+        var result = new RoslynStrategyCompiler().Compile(
+            new StrategyScript("gen.img", "Gen", MinimalKernel("ImgStrategy")));
+
+        result.Authored!.Image.Should().NotBeEmpty();
+        result.Authored.Assembly.Location.Should().BeEmpty("loaded from memory — so nothing holds the file open");
+
+        var path = Path.Combine(Path.GetTempPath(), $"dax-authored-{Guid.NewGuid():N}.dll");
+        try
+        {
+            File.WriteAllBytes(path, result.Authored.Image);
+            File.WriteAllBytes(path, result.Authored.Image); // overwrite: a regenerate must not fail here
+            new FileInfo(path).Length.Should().BeGreaterThan(0);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>A kernel that compiles and does nothing — the fixture for the plugin-shape tests.</summary>
+    private static string MinimalKernel(string name) => $$"""
+        public sealed class {{name}}(Contract contract) : IBacktestStrategy
+        {
+            private readonly Contract _contract = contract;
+            public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+            public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+        }
+        """;
 
     // ── the conversation (multi-turn session) ──────────────────────────────────────────────────────
 
