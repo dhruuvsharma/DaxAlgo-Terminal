@@ -1,6 +1,6 @@
 # index/Core — per-file index (Windows tree)
 
-Generated 2026-07-12. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -70,7 +70,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Configuration/OkxOptions.cs` | 31 | win | TradingTerminal.Core | B I P | Y | REST base for historical candles + the connectivity check. No trailing slash. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/OrderFlowPressureMapOptions.cs` | 129 | win | TradingTerminal.Core | B I P | Y | No notable pressure this candle. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ParquetLakeOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the export service idles (one cheap timer tick |
-| `src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs` | 54 | win | TradingTerminal.Core | B I P | Y | How much the host trusts the plugins it finds in its plugins |
+| `src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs` | 63 | win | TradingTerminal.Core | B I P | Y | How much the host trusts the plugins it finds in its plugins |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the ingest client is Null and no jobs |
 | `src/windows/Core/TradingTerminal.Core/Configuration/SandboxOptions.cs` | 39 | win | TradingTerminal.Core | B I P | Y | Which runner implementation |
 | `src/windows/Core/TradingTerminal.Core/Configuration/SidecarOptions.cs` | 31 | win | TradingTerminal.Core | B I P | Y | Master switch. When true, the app auto-launches the sidecar on startup if |
@@ -224,11 +224,11 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskOptions.cs` | 24 | win | TradingTerminal.Core | B I P | Y | Maximum absolute net position per symbol, in contracts/shares. 0 = disabled. |
 | `src/windows/Core/TradingTerminal.Core/Session/SessionContext.cs` | 32 | win | TradingTerminal.Core | B I P | Y | Mutable singleton populated by the login flow once the user is authenticated. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs` | 38 | win | TradingTerminal.Core | B I P | Y | The API key for |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs` | 59 | win | TradingTerminal.Core | B I P | Y | Who is speaking in a codegen conversation. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs` | 120 | win | TradingTerminal.Core | B I P | Y | Who is speaking in a codegen conversation. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 21 | win | TradingTerminal.Core | B I P | Y | Compiles a user-authored into a runnable |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 26 | win | TradingTerminal.Core | B I P | Y | Outcome of compiling a . On success, |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Severity of a |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 16 | win | TradingTerminal.Core | B I P | Y | A user-authored strategy awaiting compilation: a stable id, a friendly display name, |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Severity of a |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 36 | win | TradingTerminal.Core | B I P | Y | The name given to a single unnamed file (the AI didn't label |
 | `src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 16 | win | TradingTerminal.Core | B I P | Y | Resolves a registered strategy into a (view, view-model) pair. The shell never |
 | `src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 72 | win | TradingTerminal.Core | B I P | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Whole number. Backed by |

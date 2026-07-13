@@ -1,5 +1,33 @@
 # context changelog — append-only session journal
 
+## 2026-07-13 — #26 AI Strategy Builder v2, phase 1: chat workspace, multi-file, models
+- **Multi-file authoring.** `StrategyScript` now carries `IReadOnlyList<StrategyFile>` (single-file ctor
+  kept); `RoslynStrategyCompiler` parses one tree per file and `StrategyDiagnostic` gained `File`, so an
+  error names the file it's in — and the auto-fix prompt can too. References widened to the full
+  trusted-platform set (host assemblies incl. UI/UI.Core/Sdk/WPF), deliberately NOT the loaded-assembly
+  list (plugin ALCs would bind a second Type identity).
+- **Conversation, not one-shot.** New `StrategyBuildSession` owns the message thread across turns
+  (follow-ups, the compiler's errors, and the model's own questions all land in one context);
+  `StrategyCodegenOrchestrator` becomes its factory and keeps `BuildAsync` for the CLI/tests. A reply
+  with **no code is a Question turn, not a failure** — the builder shows it and waits for the user.
+- **Multi-block extraction.** `CodegenCodeExtractor.ExtractFiles` splits `// file: X.cs`-headed fences
+  (skips non-C# fences; positional names; never collides). Prose stays prose.
+- **Models + tokens.** `IStrategyCodegenClient` gained `Model` / `KnownModels` / `ListModelsAsync`;
+  clients report `CodegenUsage` (OpenAI + Anthropic both return usage); `StrategyCodegenClientFactory.Build(providerId, model)`
+  rebuilds a client on a model switch; agent CLIs take `--model`/`-m`. `AiCodegenUserFile` persists the
+  choice (Pro shell layers it, like the Research file).
+- **Pane rewritten (Pro shell).** Tabbed **Chat | Code | Parameters**: real multi-line composer
+  (Ctrl+Enter) — the old single-line box hid everything past ~25 words and read as a length cap; the
+  model's reply is now shown at all (the transcript used to be discarded); file list + per-file editor;
+  live activity strip + token counter. `Tests.Pro` gained XAML smoke tests pinning both regressions.
+- **Context pack fixed + un-stale.** `build/gen-ai-context.ps1` was **gitignored** (`[Bb]uild/`), so the
+  `template-smoke` drift check ran a script that wasn't in the repo, and the committed pack was stale
+  (0.1.0 vs SDK 0.1.1) *and* double-encoded (PS 5.1 read UTF-8 sources as ANSI). Generator + template
+  kernel are now ASCII-only with an `Assert-Ascii` gate, `.gitignore` un-excludes `/build/`, and the
+  pack's OUTPUT CONTRACT (a) is the multi-file + ask-questions contract.
+- Phases 2 (plugin emit + hot catalog/Plugin-Manager registration) and 3 (streaming + reverse questions)
+  follow. 737 headless + 8 Pro tests green.
+
 ## 2026-07-12 (later+4) — #26 phase 3: template CLAUDE/AGENTS generated from the pack source
 - `gen-ai-context.ps1` factors the engine contract + hard rules + parameters into canonical fragments
   injected into BOTH the pack (`sdk/ai-context/`) AND the template's `CLAUDE.md` (== `AGENTS.md`) — one

@@ -1,6 +1,6 @@
 # index/UI — per-file index (Windows tree)
 
-Generated 2026-07-12. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -9,8 +9,9 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/UI/TradingTerminal.Settings/Archive/ArchiveSettingsViewModel.cs` | 243 | win | TradingTerminal.Settings | B I P | Y | Settings tab for the market-data archive. Three sections: Telegram credentials + login, |
 | `src/windows/UI/TradingTerminal.Settings/Archive/ArchiveUserFile.cs` | 69 | win | TradingTerminal.Settings | B I P | Y | Per-user JSON persistence for the archive settings tab. Layered into host configuration |
 | `src/windows/UI/TradingTerminal.Settings/Archive/TelegramArchiveCredentialProtection.cs` | 50 | win | TradingTerminal.Settings | B I P | Y | Protection helpers for Telegram archive credentials. On Windows the secret is encrypted |
+| `src/windows/UI/TradingTerminal.Settings/Authoring/AiCodegenUserFile.cs` | 80 | win | TradingTerminal.Settings | B I P | Y | Absolute path to |
 | `src/windows/UI/TradingTerminal.Settings/Authoring/AiProvidersSettingsViewModel.cs` | 100 | win | TradingTerminal.Settings | B I P | Y | Store (or clear, when blank) the pasted key for a provider, DPAPI-encrypted. |
-| `src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 254 | win | TradingTerminal.Settings | B I P | Y | True when the AI builder is wired and at least one provider |
+| `src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 636 | win | TradingTerminal.Settings | B I P | Y | Keeps the activity strip and the chat from growing without bound over |
 | `src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs` | 226 | win | TradingTerminal.Settings | B I P | Y | Per-provider default text/vision model ids, pre-filled when the user picks a provider |
 | `src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsUserFile.cs` | 84 | win | TradingTerminal.Settings | B I P | Y | Writes the notifications section, preserving any other keys that may exist. |
 | `src/windows/UI/TradingTerminal.Settings/Research/ResearchSettingsViewModel.cs` | 106 | win | TradingTerminal.Settings | B I P | Y | When on, the app launches the Python sidecar itself on startup (no |

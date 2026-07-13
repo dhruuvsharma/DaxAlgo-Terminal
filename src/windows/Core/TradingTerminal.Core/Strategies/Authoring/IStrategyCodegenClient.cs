@@ -11,6 +11,25 @@ public enum CodegenRole
 public sealed record CodegenMessage(CodegenRole Role, string Content);
 
 /// <summary>
+/// Tokens billed for one generation, as reported by the provider (both the OpenAI and Anthropic wire
+/// shapes return this on every reply; agent CLIs and local models may not, hence <see cref="None"/>).
+/// The builder sums it across a session so the user can see what a strategy cost to write.
+/// </summary>
+public sealed record CodegenUsage(int InputTokens, int OutputTokens)
+{
+    public static CodegenUsage None { get; } = new(0, 0);
+
+    public int TotalTokens => InputTokens + OutputTokens;
+
+    /// <summary>True when the provider actually reported usage (a CLI that doesn't is not "0 tokens").</summary>
+    public bool IsReported => InputTokens > 0 || OutputTokens > 0;
+
+    public CodegenUsage Add(CodegenUsage? other) => other is null
+        ? this
+        : new(InputTokens + other.InputTokens, OutputTokens + other.OutputTokens);
+}
+
+/// <summary>
 /// A request to generate strategy source. <paramref name="SystemContext"/> is the AI context pack (the
 /// SDK contract + rules + output contract); <paramref name="Messages"/> is the running conversation —
 /// the first is the user's instruction, and the auto-fix loop appends the model's last answer plus the
@@ -19,14 +38,42 @@ public sealed record CodegenMessage(CodegenRole Role, string Content);
 public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
 
 /// <summary>
-/// The outcome of one generation. <paramref name="Code"/> is the extracted C# (the single-file kernel),
-/// <paramref name="RawText"/> the full model reply (kept for the transcript), <paramref name="Error"/>
-/// a provider-level failure (auth, timeout, no CLI) — distinct from a compile failure, which the caller
-/// discovers by compiling <paramref name="Code"/>.
+/// The outcome of one generation. <paramref name="Files"/> is the extracted C# — one entry per file the
+/// model emitted (a strategy is usually several: kernel, helpers, plugin descriptor, view-model, view).
+/// <paramref name="Code"/> is the first file's source, kept for single-file callers.
+/// <paramref name="RawText"/> is the full model reply (the transcript the user reads), and
+/// <paramref name="Error"/> a provider-level failure (auth, timeout, no CLI) — distinct from a compile
+/// failure, which the caller discovers by compiling the files.
+/// <para>
+/// A successful response with NO files is a conversational reply — the model asking a clarifying
+/// question rather than writing code. That is a normal turn, not an error.
+/// </para>
 /// </summary>
-public sealed record StrategyCodegenResponse(bool Success, string? Code, string? RawText, string? Error)
+public sealed record StrategyCodegenResponse(
+    bool Success,
+    string? Code,
+    string? RawText,
+    string? Error,
+    IReadOnlyList<StrategyFile>? Files = null,
+    CodegenUsage? Usage = null)
 {
+    /// <summary>The generated files, never null — falls back to <see cref="Code"/> as a single file.</summary>
+    public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
+        ? []
+        : [new StrategyFile(StrategyFile.DefaultName, Code)]);
+
+    /// <summary>The model wrote code this turn.</summary>
+    public bool HasFiles => FileList.Count > 0;
+
     public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
+
+    public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
+        new(true, files.Count > 0 ? files[0].Content : null, rawText, null, files, usage);
+
+    /// <summary>A prose-only turn — the model answered or asked something instead of emitting code.</summary>
+    public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
+        new(true, null, rawText, null, [], usage);
+
     public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
 }
 
@@ -54,6 +101,20 @@ public interface IStrategyCodegenClient
     /// <summary>True when this provider can actually be used right now — its CLI is on PATH, or its API
     /// key is configured. A pane/CLI shows setup guidance instead of calling an unavailable provider.</summary>
     bool IsAvailable { get; }
+
+    /// <summary>The model this client will call (empty when the provider picks its own — an agent CLI
+    /// with no explicit model uses whatever the vendor tool is configured for).</summary>
+    string Model => string.Empty;
+
+    /// <summary>The models offered in the picker without asking the provider — the configured one plus a
+    /// curated shortlist. The UI also allows a free-text model id, so this need not be exhaustive.</summary>
+    IReadOnlyList<string> KnownModels => [];
+
+    /// <summary>Asks the provider what models this key can actually use (OpenAI/Anthropic both expose a
+    /// models endpoint). Returns empty when the provider has no such endpoint — the caller falls back to
+    /// <see cref="KnownModels"/>. Never throws: a failed lookup is an empty list.</summary>
+    Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<string>>([]);
 
     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
 }

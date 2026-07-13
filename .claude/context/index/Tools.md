@@ -1,18 +1,20 @@
 # index/Tools — per-file index (Windows tree)
 
-Generated 2026-07-12. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
-| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 152 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
-| `src/windows/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 43 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build, available or not — |
-| `src/windows/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 88 | win | DaxAlgo.Codegen | B I P | Y | Codegen over Anthropic's native POST {baseUrl}/v1/messages — the system pack goes in |
-| `src/windows/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 20 | win | DaxAlgo.Codegen | B I P | Y | Pulls the C# out of a model reply. Models usually wrap code |
-| `src/windows/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 64 | win | DaxAlgo.Codegen | B I P | Y | How many times the loop asked this client to generate — the |
-| `src/windows/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 101 | win | DaxAlgo.Codegen | B I P | Y | Codegen over the OpenAI POST {baseUrl}/chat/completions shape — which OpenAI, DeepSeek, xAI |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 82 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 95 | win | DaxAlgo.Codegen | B I P | Y | The result of a build-loop run: whether it produced a compiling strategy, |
+| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 180 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
+| `src/windows/Tools/DaxAlgo.Codegen/AiModelCatalog.cs` | 34 | win | DaxAlgo.Codegen | B I P | Y | The picker's list: what the provider suggests, plus the configured model, deduped |
+| `src/windows/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 64 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build, available or not — |
+| `src/windows/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 126 | win | DaxAlgo.Codegen | B I P | Y | The models this key can actually call. A failure here is not |
+| `src/windows/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 123 | win | DaxAlgo.Codegen | B I P | Y | A bare file name mentioned in prose/info strings — |
+| `src/windows/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 71 | win | DaxAlgo.Codegen | B I P | Y | How many times the loop asked this client to generate — the |
+| `src/windows/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 139 | win | DaxAlgo.Codegen | B I P | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 206 | win | DaxAlgo.Codegen | B I P | Y | What one turn of the conversation produced. |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 129 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 70 | win | DaxAlgo.Codegen | B I P | Y | The result of a one-shot build: whether it produced a compiling strategy, |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 49 | win | DaxAlgo.Codegen | B I P | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | win | DaxAlgo.Codegen | B I P | Y | The pack text — the codegen system prompt. |
 | `src/windows/Tools/DaxAlgo.StrategyTool/ProcessRunner.cs` | 64 | win | DaxAlgo.StrategyTool | B I P | Y | Thin subprocess helper — runs a command, streams its output to the |

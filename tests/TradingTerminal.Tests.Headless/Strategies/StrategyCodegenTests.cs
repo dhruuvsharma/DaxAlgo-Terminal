@@ -29,11 +29,61 @@ public sealed class StrategyCodegenTests
 
     [Theory]
     [InlineData("```csharp\npublic class X {}\n```", "public class X {}")]
-    [InlineData("Here you go:\n```cs\ncode\n```\nHope it helps!", "code")]
+    [InlineData("Here you go:\n```cs\nclass Code {}\n```\nHope it helps!", "class Code {}")]
     [InlineData("public class Bare {}", "public class Bare {}")]
     [InlineData("", "")]
     public void Extractor_pulls_the_fenced_block_or_the_bare_text(string reply, string expected) =>
         CodegenCodeExtractor.Extract(reply).Should().Be(expected);
+
+    [Fact]
+    public void Extractor_splits_a_multi_file_reply_and_reads_its_file_headers()
+    {
+        const string reply = """
+            Here's the strategy, split in two.
+
+            ```csharp
+            // file: MomentumKernel.cs
+            public sealed class MomentumKernel { }
+            ```
+
+            ```csharp
+            // file: Indicators.cs
+            public static class Indicators { }
+            ```
+
+            ```json
+            { "not": "csharp" }
+            ```
+            """;
+
+        var files = CodegenCodeExtractor.ExtractFiles(reply);
+
+        files.Should().HaveCount(2, "the json block is not C# and must not be compiled");
+        files[0].Name.Should().Be("MomentumKernel.cs");
+        files[0].Content.Should().Be("public sealed class MomentumKernel { }",
+            "the `// file:` marker is stripped so compiler line numbers match the editor");
+        files[1].Name.Should().Be("Indicators.cs");
+    }
+
+    [Fact]
+    public void Extractor_names_unlabelled_blocks_positionally_and_never_collides()
+    {
+        var files = CodegenCodeExtractor.ExtractFiles(
+            "```csharp\nclass A {}\n```\n```csharp\n// file: A.cs\nclass B {}\n```");
+
+        files.Should().HaveCount(2);
+        files[0].Name.Should().Be(StrategyFile.DefaultName);
+        files[1].Name.Should().NotBe(files[0].Name, "two files must never overwrite each other in the editor");
+    }
+
+    [Fact]
+    public void Prose_with_no_code_is_a_question_not_a_file()
+    {
+        // The model asking "which instrument? what timeframe?" must not be compiled as C#.
+        CodegenCodeExtractor.ExtractFiles(
+            "Before I write this: which instrument, and what timeframe are you trading?")
+            .Should().BeEmpty();
+    }
 
     // ── the loop ──────────────────────────────────────────────────────────────────────────────────
 
@@ -123,6 +173,108 @@ public sealed class StrategyCodegenTests
 
         result.Success.Should().BeFalse("a strategy that P/Invokes must never compile-and-register");
         result.Compile!.Errors.Should().Contain(e => e.Message.Contains("native"));
+    }
+
+    // ── the conversation (multi-turn session) ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_reply_with_no_code_is_a_question_the_user_answers_in_the_same_thread()
+    {
+        // Turn 1: the model asks what to trade. Turn 2 (after the user answers): it writes the kernel.
+        var client = new FakeCodegenClient(
+            "Which instrument, and what timeframe?",
+            FakeCodegenClient.DefaultKernel);
+        var session = Orchestrator().CreateSession(client, Pack, "gen.strat", "Gen", maxFixAttempts: 2);
+
+        var asked = await session.SendAsync("make me a scalper");
+
+        asked.Kind.Should().Be(BuildTurnKind.Question, "prose with no code is a question, not a failure");
+        asked.Files.Should().BeEmpty();
+        asked.Compile.Should().BeNull("nothing was compiled — there was no code");
+
+        var answered = await session.SendAsync("ES futures, 1-minute bars");
+
+        answered.Success.Should().BeTrue();
+        session.Transcript.Should().HaveCount(4, "user, question, user, code — one thread");
+        session.Transcript[0].Content.Should().Be("make me a scalper");
+        session.Transcript[2].Content.Should().Contain("ES futures",
+            "the answer lands in the SAME conversation, so the model keeps its context");
+    }
+
+    [Fact]
+    public async Task A_multi_file_answer_compiles_as_one_strategy()
+    {
+        const string twoFiles = """
+            ```csharp
+            // file: Kernel.cs
+            public sealed class TwoFileStrategy(Contract contract) : IBacktestStrategy
+            {
+                private readonly Contract _contract = contract;
+                private int _ticks;
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+                {
+                    _ticks++;
+                    Indicators.Ema(ref _ema, (tick.Bid + tick.Ask) / 2.0, 20);
+                    return Task.CompletedTask;
+                }
+                private double _ema;
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            ```
+
+            ```csharp
+            // file: Indicators.cs
+            public static class Indicators
+            {
+                public static void Ema(ref double ema, double x, int period)
+                {
+                    if (ema == 0) { ema = x; return; }
+                    ema += 2.0 / (period + 1) * (x - ema);
+                }
+            }
+            ```
+            """;
+        var session = Orchestrator().CreateSession(
+            new FakeCodegenClient(twoFiles), Pack, "gen.two", "Two", maxFixAttempts: 0);
+
+        var turn = await session.SendAsync("split the indicator out");
+
+        turn.Success.Should().BeTrue("a strategy is a small project — helpers may live in their own file");
+        turn.Files.Should().HaveCount(2);
+        turn.Compile!.Option!.Id.Should().Be("gen.two");
+    }
+
+    [Fact]
+    public async Task A_compile_error_names_the_file_it_is_in()
+    {
+        // Two files, the second broken: the diagnostic (and so the fix prompt) must say WHICH file.
+        const string broken = """
+            ```csharp
+            // file: Kernel.cs
+            public sealed class OkStrategy(Contract contract) : IBacktestStrategy
+            {
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            ```
+
+            ```csharp
+            // file: Helpers.cs
+            public static class Helpers { public static int Broken() { return "not an int"; } }
+            ```
+            """;
+        var session = Orchestrator().CreateSession(
+            new FakeCodegenClient(broken), Pack, "gen.broken", "Broken", maxFixAttempts: 0);
+
+        var turn = await session.SendAsync("add a helper");
+
+        turn.Kind.Should().Be(BuildTurnKind.CompileFailed);
+        turn.Compile!.Errors.Should().Contain(e => e.File == "Helpers.cs",
+            "the model can only fix an error it can locate");
     }
 
     // ── OpenAI-compatible client shaping ───────────────────────────────────────────────────────────

@@ -136,9 +136,18 @@ async Task<bool> GenerateKernelAsync(
     {
         Console.WriteLine($"[ai] generating kernel (attempt {attempt}/{maxAttempts}) via {client.DisplayName}…");
         var response = await client.GenerateAsync(new StrategyCodegenRequest(pack, messages));
-        if (!response.Success || string.IsNullOrWhiteSpace(response.Code))
+        if (!response.Success)
         {
             Console.Error.WriteLine($"[ai] provider failed: {response.Error}");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(response.Code))
+        {
+            // The model answered in prose — per the pack, that means it is asking something. The CLI is
+            // one-shot, so print the question and let the user re-run with a fuller --prompt.
+            Console.Error.WriteLine($"[ai] the model asked for more detail instead of writing code:{Environment.NewLine}{response.RawText}");
+            Console.Error.WriteLine("[ai] re-run with a more specific --prompt.");
             return false;
         }
 

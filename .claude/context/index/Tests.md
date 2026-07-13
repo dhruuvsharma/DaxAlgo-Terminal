@@ -1,6 +1,6 @@
 # index/Tests — per-file index (Windows tree)
 
-Generated 2026-07-12. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -70,7 +70,12 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Plugins/AuthenticodeSignatureInspectorTests.cs` | 81 | win | TradingTerminal.Tests.Headless | dev | Y | Embedded-signed (not catalog-signed) Microsoft binaries in the runtime folder. |
 | `tests/TradingTerminal.Tests.Headless/Plugins/DaxPluginPackageTests.cs` | 181 | win | TradingTerminal.Tests.Headless | dev | Y | Builds a source plugin folder (garbage main dll + manifest at the |
 | `tests/TradingTerminal.Tests.Headless/Plugins/ExternalPluginLoadTests.cs` | 65 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the loader's real file/ALC path: against a GENUINE |
+| `tests/TradingTerminal.Tests.Headless/Plugins/FeedSignatureVerifierTests.cs` | 107 | win | TradingTerminal.Tests.Headless | dev | Y | The marketplace feed's trust anchor: a real ECDSA P-256 keypair signs a |
+| `tests/TradingTerminal.Tests.Headless/Plugins/FeedSignerTests.cs` | 84 | win | TradingTerminal.Tests.Headless | dev | Y | The signer and verifier are a matched pair (issue #25): a key |
+| `tests/TradingTerminal.Tests.Headless/Plugins/PluginCatalogInstallerTests.cs` | 146 | win | TradingTerminal.Tests.Headless | dev | Y | Builds a valid .daxplugin (garbage assembly + manifest) and returns its bytes |
+| `tests/TradingTerminal.Tests.Headless/Plugins/PluginCatalogTests.cs` | 169 | win | TradingTerminal.Tests.Headless | dev | Y | The catalog projection (issue #25): a verified feed index joined to what's |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginConsentTests.cs` | 153 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the unsigned-plugin consent path: under Curated, a plugin that is neither |
+| `tests/TradingTerminal.Tests.Headless/Plugins/PluginFeedClientTests.cs` | 127 | win | TradingTerminal.Tests.Headless | dev | Y | The feed client: a correctly-signed fetch verifies + caches; a later outage |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginIntegrityTests.cs` | 254 | win | TradingTerminal.Tests.Headless | dev | Y | Creates |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginLifecycleTests.cs` | 233 | win | TradingTerminal.Tests.Headless | dev | Y | A plugin folder whose main "assembly" is garbage bytes — enumerable by |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginLoaderTests.cs` | 93 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the host plugin loader's discovery + version-gating + registration path |
@@ -112,7 +117,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | win | TradingTerminal.Tests.Headless | dev | Y | Snapshot whose every timeframe column carries the trend score returned by |
 | `tests/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 160 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyClassificationTests.cs` | 98 | win | TradingTerminal.Tests.Headless | dev | Y | Guards the classification defaults on and the broker-capability |
-| `tests/TradingTerminal.Tests.Headless/Strategies/StrategyCodegenTests.cs` | 280 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the AI Strategy Builder backend: the code extractor, the build-loop orchestrator |
+| `tests/TradingTerminal.Tests.Headless/Strategies/StrategyCodegenTests.cs` | 432 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the AI Strategy Builder backend: the code extractor, the build-loop orchestrator |
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyParametersTests.cs` | 128 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/TestSupport/ImmediateDispatcher.cs` | 11 | win | TradingTerminal.Tests.Headless | dev | Y | UI dispatcher stand-in for tests; runs everything inline on the calling thread. |
 | `tests/TradingTerminal.Tests.Headless/Ui/PortedStrategyResolutionTests.cs` | 77 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the ported per-strategy view-models resolve from the same headless DI graph |

@@ -47,6 +47,34 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         !string.IsNullOrWhiteSpace(_baseUrl) && !string.IsNullOrWhiteSpace(_model) &&
         (_keyless || !string.IsNullOrWhiteSpace(_apiKey));
 
+    public string Model => _model;
+    public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
+
+    /// <summary>Every OpenAI-compatible endpoint (including Ollama) exposes <c>GET /models</c>, so the
+    /// picker can list what this key/server actually has. A failure is an empty list, never an error.</summary>
+    public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(_baseUrl)) return [];
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/models");
+        if (!string.IsNullOrWhiteSpace(_apiKey))
+            req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+
+        try
+        {
+            using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode) return [];
+
+            var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var parsed = JsonSerializer.Deserialize<ModelsResponse>(payload, Json);
+            return parsed?.Data?.Select(m => m.Id).Where(id => !string.IsNullOrWhiteSpace(id)).Order(StringComparer.Ordinal).ToArray() ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return [];
+        }
+    }
+
     public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
     {
         if (!IsAvailable)
@@ -76,10 +104,13 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             if (string.IsNullOrWhiteSpace(text))
                 return StrategyCodegenResponse.Fail($"{DisplayName} returned no message content.");
 
-            var code = CodegenCodeExtractor.Extract(text);
-            return string.IsNullOrWhiteSpace(code)
-                ? StrategyCodegenResponse.Fail($"{DisplayName} returned no code.")
-                : StrategyCodegenResponse.Ok(code, text);
+            var usage = parsed?.Usage is { } u ? new CodegenUsage(u.PromptTokens, u.CompletionTokens) : CodegenUsage.None;
+            var files = CodegenCodeExtractor.ExtractFiles(text);
+
+            // Prose with no code is the model asking a clarifying question — a normal turn.
+            return files.Count == 0
+                ? StrategyCodegenResponse.Reply(text, usage)
+                : StrategyCodegenResponse.Ok(files, text, usage);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -96,6 +127,13 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
         [property: JsonPropertyName("temperature")] double Temperature);
-    private sealed record ChatResponse([property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices);
+    private sealed record ChatResponse(
+        [property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices,
+        [property: JsonPropertyName("usage")] WireUsage? Usage);
     private sealed record Choice([property: JsonPropertyName("message")] WireMessage? Message);
+    private sealed record WireUsage(
+        [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
+        [property: JsonPropertyName("completion_tokens")] int CompletionTokens);
+    private sealed record ModelsResponse([property: JsonPropertyName("data")] IReadOnlyList<ModelEntry>? Data);
+    private sealed record ModelEntry([property: JsonPropertyName("id")] string Id);
 }

@@ -10,19 +10,36 @@ public sealed record AgentCliAdapter(
     string ProviderId,
     string DisplayName,
     string Executable,
-    IReadOnlyList<string> Arguments)
+    IReadOnlyList<string> Arguments,
+    string? ModelFlag = null)
 {
+    /// <summary>The stdin marker some CLIs take as a positional argument ("read the prompt from stdin").
+    /// Flags must precede it, so <see cref="ArgumentsFor"/> inserts the model there.</summary>
+    private const string StdinMarker = "-";
+
     /// <summary>Claude Code in print mode: <c>claude -p</c> reads the prompt from stdin and prints the
-    /// reply to stdout. The user's subscription/key lives in Claude Code itself — never seen here.</summary>
+    /// reply to stdout. The user's subscription/key lives in Claude Code itself — never seen here.
+    /// <c>--model</c> takes an alias (opus/sonnet/haiku) or a full model id.</summary>
     public static AgentCliAdapter ClaudeCode { get; } =
-        new("claude-cli", "Claude Code (installed CLI)", "claude", ["-p"]);
+        new("claude-cli", "Claude Code (installed CLI)", "claude", ["-p"], ModelFlag: "--model");
 
     /// <summary>OpenAI Codex CLI: <c>codex exec</c> runs a one-shot prompt from stdin, ChatGPT sign-in
     /// handled by the CLI.</summary>
     public static AgentCliAdapter Codex { get; } =
-        new("codex-cli", "Codex (installed CLI)", "codex", ["exec", "-"]);
+        new("codex-cli", "Codex (installed CLI)", "codex", ["exec", StdinMarker], ModelFlag: "-m");
 
     public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
+
+    /// <summary>The argv for a run, with the model flag inserted before the stdin marker (if any) so it
+    /// is parsed as an option and not as the prompt. No model ⇒ the CLI uses its own configured default.</summary>
+    public IReadOnlyList<string> ArgumentsFor(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model) || ModelFlag is null) return Arguments;
+
+        var before = Arguments.TakeWhile(a => a != StdinMarker);
+        var after = Arguments.SkipWhile(a => a != StdinMarker);
+        return [.. before, ModelFlag, model, .. after];
+    }
 }
 
 /// <summary>
@@ -38,17 +55,25 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     private readonly AgentCliAdapter _adapter;
     private readonly Func<string, string?> _resolveOnPath;
     private readonly TimeSpan _timeout;
+    private readonly string? _model;
 
-    public AgentCliCodegenClient(AgentCliAdapter adapter, Func<string, string?>? resolveOnPath = null, TimeSpan? timeout = null)
+    public AgentCliCodegenClient(
+        AgentCliAdapter adapter, Func<string, string?>? resolveOnPath = null, TimeSpan? timeout = null,
+        string? model = null)
     {
         _adapter = adapter;
         _resolveOnPath = resolveOnPath ?? ResolveOnPath;
         _timeout = timeout ?? TimeSpan.FromMinutes(3);
+        _model = model;
     }
 
     public string ProviderId => _adapter.ProviderId;
     public string DisplayName => _adapter.DisplayName;
     public bool IsAvailable => _resolveOnPath(_adapter.Executable) is not null;
+
+    /// <summary>Empty ⇒ the vendor CLI uses whatever model it is configured for.</summary>
+    public string Model => _model ?? string.Empty;
+    public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
 
     public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
     {
@@ -66,7 +91,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in _adapter.Arguments) psi.ArgumentList.Add(arg);
+        foreach (var arg in _adapter.ArgumentsFor(_model)) psi.ArgumentList.Add(arg);
 
         using var process = new Process { StartInfo = psi };
         try
@@ -99,10 +124,12 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
                 return StrategyCodegenResponse.Fail($"{_adapter.DisplayName} exited {process.ExitCode}: {Trim(stderr)}");
             }
 
-            var code = CodegenCodeExtractor.Extract(stdout);
-            return string.IsNullOrWhiteSpace(code)
-                ? StrategyCodegenResponse.Fail($"{_adapter.DisplayName} returned no code.")
-                : StrategyCodegenResponse.Ok(code, stdout);
+            // No code is a legitimate turn — the agent is asking something back; the session shows it in
+            // the chat and waits. (Agent CLIs report no token usage in print mode.)
+            var files = CodegenCodeExtractor.ExtractFiles(stdout);
+            return files.Count == 0
+                ? StrategyCodegenResponse.Reply(stdout)
+                : StrategyCodegenResponse.Ok(files, stdout);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -118,7 +145,8 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         var sb = new StringBuilder(request.SystemContext).AppendLine().AppendLine();
         foreach (var m in request.Messages)
             sb.Append(m.Role == CodegenRole.Assistant ? "ASSISTANT: " : "USER: ").AppendLine(m.Content).AppendLine();
-        sb.AppendLine("Return only the single-file C# kernel, in a ```csharp fenced block.");
+        sb.AppendLine("Answer per the OUTPUT CONTRACT in the context above: one ```csharp fenced block per file, " +
+                      "each starting with a `// file: <Name>.cs` line. Ask a question instead if the request is ambiguous.");
         return sb.ToString();
     }
 

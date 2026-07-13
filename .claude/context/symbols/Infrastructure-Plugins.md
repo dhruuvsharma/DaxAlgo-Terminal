@@ -1,6 +1,6 @@
 # TradingTerminal.Infrastructure / Plugins — public API surface
 
-Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -33,6 +33,96 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    19: public const string IndexEntryName = "package.json";
    36: public static void Write(string pluginDirectory, string mainAssemblyFileName, string outputPath)
    70: public static (string ExtractedDir, string MainAssemblyName) ExtractAndVerify(string packagePath)
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSignatureVerifier.cs
+```cs
+    8: public enum FeedVerifyOutcome
+   18: public sealed record FeedVerifyResult(FeedVerifyOutcome Outcome, PluginIndex? Index, string? Detail)
+   20: public bool Success => Outcome == FeedVerifyOutcome.Ok && Index is not null;
+   31: public sealed class FeedSignatureVerifier
+   43: public FeedSignatureVerifier(string pinnedPublicKeyBase64) => _pinnedPublicKeyBase64 = pinnedPublicKeyBase64;
+   45: public bool IsConfigured => !string.IsNullOrWhiteSpace(_pinnedPublicKeyBase64);
+   50: public FeedVerifyResult Verify(byte[] indexBytes, byte[] signatureBytes)
+   88: public FeedVerifyResult Verify(byte[] indexBytes, string signatureBase64)
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSigner.cs
+```cs
+   18: public static class FeedSigner
+   24: public sealed record FeedKeyPair(string PrivateKeyBase64, string PublicKeyBase64);
+   27: public static FeedKeyPair GenerateKeyPair()
+   38: public static string Sign(byte[] indexBytes, string privateKeyBase64)
+   48: public static string SignIndexFile(string indexPath, string privateKeyBase64)
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginCatalog.cs
+```cs
+    6: public enum PluginInstallState
+   23: public sealed record PluginCatalogItem(
+   30: public string Id => Entry.Id;
+   31: public string Name => Entry.Name;
+   32: public string Publisher => Entry.Publisher;
+   33: public string Description => Entry.Description;
+   34: public string LatestVersion => Entry.Latest.Version;
+   35: public PluginFeedVersion Latest => Entry.Latest;
+   36: public IReadOnlyList<string> Tags => Entry.Tags ?? [];
+   37: public string? PaperUrl => Entry.PaperUrl;
+   40: public bool CanInstall => State == PluginInstallState.NotInstalled && !Revoked;
+   43: public bool CanUpdate => State == PluginInstallState.UpdateAvailable && !Revoked;
+   46: public string StateLabel => Revoked
+   63: public static class PluginCatalog
+   67: public static IReadOnlyList<PluginCatalogItem> Build(PluginIndex? index, string pluginsRoot)
+   92: public static IReadOnlyList<PluginCatalogItem> Search(IReadOnlyList<PluginCatalogItem> items, string? query)
+  103: public static IReadOnlyList<PluginCatalogItem> Updatable(IReadOnlyList<PluginCatalogItem> items) =>
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginCatalogInstaller.cs
+```cs
+   16: public static class PluginCatalogInstaller
+   21: public const long MaxPackageBytes = 64L * 1024 * 1024;
+   27: public static async Task<PluginInstallResult> InstallAsync(
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginFeedClient.cs
+```cs
+   14: public sealed record FeedRefreshResult(PluginIndex? Index, bool Updated, bool FromCache, string? Detail);
+   24: public sealed class PluginFeedClient
+   36: public PluginFeedClient(HttpClient http, FeedSignatureVerifier verifier, string feedUrl, string cacheDirectory, ILogger? logger = null)
+   46: public PluginIndex? Current { get; private set; }
+   49: public bool IsConfigured => !string.IsNullOrWhiteSpace(_feedUrl) && _verifier.IsConfigured;
+   53: public async Task<FeedRefreshResult> RefreshAsync(CancellationToken ct = default)
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginFeedRefreshService.cs
+```cs
+   13: public sealed class PluginFeedRefreshService : IHostedService
+   19: public PluginFeedRefreshService(PluginFeedClient feed, PluginHostContext host, ILogger? logger = null)
+   26: public Task StartAsync(CancellationToken cancellationToken)
+   33: public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginFeedServiceCollectionExtensions.cs
+```cs
+   10: public static class PluginFeedServiceCollectionExtensions
+   20: public static IServiceCollection AddPluginFeed(this IServiceCollection services, PluginsOptions options)
+   40: public const string FeedHttpClientName = "daxalgo-plugin-feed";
+   43: public static string FeedCacheDirectory() => Path.Combine(
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginIndex.cs
+```cs
+    6: public sealed record PluginFeedVersion(
+   16: public sealed record PluginFeedEntry(
+   27: public sealed record PluginFeedRevocation(
+   40: public sealed record PluginIndex(
+   48: public const int SupportedFeedVersion = 1;
+```
+
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginRevocationSync.cs
+```cs
+   10: public static class PluginRevocationSync
+   15: public static int Apply(string pluginsRoot, PluginIndex? index)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/GuardedServiceCollection.cs
@@ -163,10 +253,11 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    10: public sealed record RevokedPlugin(
    22: public sealed class PluginRevocationList
    24: public const string FileName = "revoked.json";
-   32: public static PluginRevocationList Empty { get; } = new([]);
-   34: public bool IsEmpty => _revoked.Count == 0;
-   36: public static PluginRevocationList Load(string pluginsRoot)
-   54: public bool IsRevoked(string sha256, string? pluginId, out string? reason)
+   33: public static PluginRevocationList Empty { get; } = new([]);
+   35: public bool IsEmpty => _revoked.Count == 0;
+   37: public static PluginRevocationList Load(string pluginsRoot)
+   55: public bool IsRevoked(string sha256, string? pluginId, out string? reason)
+   84: public static int Merge(string pluginsRoot, IEnumerable<RevokedPlugin> additional)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginSignature.cs

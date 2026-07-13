@@ -27,12 +27,19 @@ public sealed class FakeCodegenClient : IStrategyCodegenClient
     /// <summary>How many times the loop asked this client to generate — the auto-fix retry count + 1.</summary>
     public int CallCount { get; private set; }
 
+    /// <summary>Canned usage, so a test can assert the session sums tokens across generations.</summary>
+    public CodegenUsage Usage { get; init; } = new(100, 50);
+
     public Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
     {
         CallCount++;
         if (_replies.Count > 0) _last = _replies.Dequeue();
-        var code = CodegenCodeExtractor.Extract(_last);
-        return Task.FromResult(StrategyCodegenResponse.Ok(code, _last));
+
+        // A reply with no code is a question — same semantics as a real provider.
+        var files = CodegenCodeExtractor.ExtractFiles(_last);
+        return Task.FromResult(files.Count == 0
+            ? StrategyCodegenResponse.Reply(_last, Usage)
+            : StrategyCodegenResponse.Ok(files, _last, Usage));
     }
 
     /// <summary>A minimal always-compiling kernel that matches output contract (a): single class, no

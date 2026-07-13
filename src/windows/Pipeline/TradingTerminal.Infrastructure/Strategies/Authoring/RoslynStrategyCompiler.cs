@@ -46,13 +46,21 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
     {
         ArgumentNullException.ThrowIfNull(script);
 
-        var userTree = CSharpSyntaxTree.ParseText(
-            script.SourceCode, ParseOptions, path: $"{Sanitize(script.Id)}.cs");
-        var globalsTree = CSharpSyntaxTree.ParseText(GlobalUsings, ParseOptions, path: "GlobalUsings.g.cs");
+        if (script.Files.Count == 0)
+            return StrategyCompileResult.Failed([Error("DAX1002", "There is no source to compile.")]);
+
+        // One tree per authored file, keyed by its name — so a diagnostic points at the file the user is
+        // looking at (and the model can read its own errors back per file).
+        var trees = new List<SyntaxTree>(script.Files.Count + 1)
+        {
+            CSharpSyntaxTree.ParseText(GlobalUsings, ParseOptions, path: "GlobalUsings.g.cs"),
+        };
+        foreach (var file in script.Files)
+            trees.Add(CSharpSyntaxTree.ParseText(file.Content, ParseOptions, path: FileName(file, script)));
 
         var compilation = CSharpCompilation.Create(
             assemblyName: $"DaxAlgo.Authored.{Sanitize(script.Id)}.{Guid.NewGuid():N}",
-            syntaxTrees: new[] { globalsTree, userTree },
+            syntaxTrees: trees,
             references: BuildReferences(),
             options: new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
@@ -165,27 +173,50 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             (IBacktestStrategy)method.Invoke(null, new object[] { contract, parameters })!;
     }
 
-    /// <summary>Framework assemblies (from the trusted-platform set) plus the Core assembly that
-    /// defines the strategy contract. Core has zero third-party deps, so this is sufficient.</summary>
+    /// <summary>
+    /// The trusted-platform set — which for a .NET app is the framework AND every assembly the host
+    /// ships (its deps.json): Core (the strategy contract), UI / UI.Core (so an authored plugin can build
+    /// a live view-model + view), the SDK, MVVM, DI abstractions, WPF. Identity is preserved because the
+    /// authored assembly resolves them from the default load context.
+    /// <para>
+    /// Deliberately NOT the loaded-assembly list: strategy plugins live in their own
+    /// <c>AssemblyLoadContext</c>, so compiling against one and then loading into the default context
+    /// would bind two different <c>Type</c> identities for the same name. Authored code sees the host's
+    /// surface, not other plugins'.
+    /// </para>
+    /// </summary>
     private static IReadOnlyList<MetadataReference> BuildReferences()
     {
         var references = new List<MetadataReference>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         var tpa = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;
         foreach (var path in tpa.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            // Dedupe by simple name — the same assembly from two paths is a CS1704.
+            if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
+                seen.Add(Path.GetFileNameWithoutExtension(path)))
                 references.Add(MetadataReference.CreateFromFile(path));
         }
 
-        // Core (IBacktestStrategy, Contract, StrategyParameters, …). Identity is preserved
-        // because the loaded assembly resolves Core from the default load context.
-        references.Add(MetadataReference.CreateFromFile(typeof(IBacktestStrategy).Assembly.Location));
+        // Core (IBacktestStrategy, Contract, StrategyParameters, …) — belt and braces if it somehow
+        // wasn't in the platform set.
+        var core = typeof(IBacktestStrategy).Assembly;
+        if (!string.IsNullOrEmpty(core.Location) && seen.Add(Path.GetFileNameWithoutExtension(core.Location)))
+            references.Add(MetadataReference.CreateFromFile(core.Location));
+
         return references;
     }
 
+    /// <summary>The compilation path for a file — its authored name, sanitized, so diagnostics carry a
+    /// name the user recognizes from the editor's file list.</summary>
+    private static string FileName(StrategyFile file, StrategyScript script) =>
+        string.IsNullOrWhiteSpace(file.Name) ? $"{Sanitize(script.Id)}.cs" : file.Name;
+
     private static StrategyDiagnostic Map(Diagnostic diagnostic)
     {
-        var position = diagnostic.Location.GetLineSpan().StartLinePosition;
+        var span = diagnostic.Location.GetLineSpan();
+        var position = span.StartLinePosition;
         var severity = diagnostic.Severity switch
         {
             DiagnosticSeverity.Error => StrategyDiagnosticSeverity.Error,
@@ -194,7 +225,8 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         };
         return new StrategyDiagnostic(
             severity, diagnostic.Id, diagnostic.GetMessage(),
-            position.Line + 1, position.Character + 1);
+            position.Line + 1, position.Character + 1,
+            File: span.Path ?? string.Empty);
     }
 
     private static StrategyDiagnostic Error(string id, string message) =>

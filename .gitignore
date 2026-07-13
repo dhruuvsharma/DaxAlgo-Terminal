@@ -3,6 +3,10 @@ bin/
 obj/
 out/
 [Bb]uild/
+# ...but /build/ is OURS: the repo's build scripts (gen-ai-context.ps1, gen-trusted-plugins.ps1) live
+# there and CI runs them. The rule above swallowed the directory, so the scripts were never committed
+# and the template-smoke drift check ran against a script that didn't exist.
+!/build/
 [Pp]ublish/
 installer/Output/
 *.user

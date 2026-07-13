@@ -1,31 +1,32 @@
-using System.Text;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
-/// <summary>The result of a build-loop run: whether it produced a compiling strategy, the final compile
+/// <summary>The result of a one-shot build: whether it produced a compiling strategy, the final compile
 /// result (with its diagnostics — including any policy-scan block), the full conversation transcript for
-/// the UI, a provider-level error if the provider itself failed, and how many generations it took.</summary>
+/// the UI, a provider-level error if the provider itself failed, how many generations it took, and the
+/// files it produced.</summary>
 public sealed record StrategyBuildLoopResult(
     bool Success,
     StrategyCompileResult? Compile,
     IReadOnlyList<CodegenMessage> Transcript,
     string? ProviderError,
     int Attempts,
-    string? Code = null);
+    string? Code = null,
+    IReadOnlyList<StrategyFile>? Files = null,
+    CodegenUsage? Usage = null);
 
 /// <summary>
-/// Drives the AI builder's core loop: generate source from the instruction, compile it through the SAME
-/// <see cref="IStrategyCompiler"/> the manual pane uses (so the policy scan + version gates apply), and
-/// on a compile failure feed the diagnostics back to the model and retry — up to a bounded number of
-/// attempts. Both the in-app pane and the <c>daxalgo strategy ai</c> CLI drive this; it is provider- and
-/// UI-agnostic, so it tests end-to-end against a fake client + the real Roslyn compiler.
+/// Creates <see cref="StrategyBuildSession"/>s — a running conversation with one provider about one
+/// strategy — and offers the one-shot <see cref="BuildAsync"/> for callers that just want
+/// "instruction in, compiling strategy out" (the <c>daxalgo strategy ai</c> CLI, the tests).
 /// <para>
-/// It never registers anything: it returns the <see cref="StrategyCompileResult"/> and the caller
-/// decides whether to save it to the catalog — through the same scan + consent gate as a plugin. A
-/// generated strategy that uses blocked APIs (P/Invoke, Process, …) simply never compiles, so it can't
-/// leave this loop as a success.
+/// Every session compiles through the SAME <see cref="IStrategyCompiler"/> the manual editor uses, so
+/// the policy scan + version gates apply to model-written code exactly as they do to a pasted snippet.
+/// Nothing here registers anything: the caller decides what to do with a compiled result, through the
+/// same scan + consent gate as a plugin. Generated code that reaches for a blocked API (P/Invoke,
+/// Process, the registry, …) simply never compiles, so it cannot leave a session as a success.
 /// </para>
 /// </summary>
 public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILogger<StrategyCodegenOrchestrator>? logger = null)
@@ -33,6 +34,17 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
     private readonly IStrategyCompiler _compiler = compiler;
     private readonly ILogger? _logger = logger;
 
+    /// <summary>Opens a conversation. The caller drives it turn by turn with
+    /// <see cref="StrategyBuildSession.SendAsync"/> — which is what lets the model ask questions back.</summary>
+    public StrategyBuildSession CreateSession(
+        IStrategyCodegenClient client,
+        string systemContext,
+        string strategyId,
+        string displayName,
+        int maxFixAttempts) =>
+        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger);
+
+    /// <summary>One-shot: a single instruction taken as far as the auto-fix bound allows.</summary>
     public async Task<StrategyBuildLoopResult> BuildAsync(
         IStrategyCodegenClient client,
         string systemContext,
@@ -42,54 +54,17 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
         int maxFixAttempts,
         CancellationToken ct = default)
     {
-        // At least one generation; maxFixAttempts is the number of ADDITIONAL error-feedback retries.
-        var totalAttempts = Math.Max(1, maxFixAttempts + 1);
-        var messages = new List<CodegenMessage> { new(CodegenRole.User, instruction) };
-        StrategyCompileResult? lastCompile = null;
-        string? lastCode = null;
+        var session = CreateSession(client, systemContext, strategyId, displayName, maxFixAttempts);
+        var turn = await session.SendAsync(instruction, activity: null, ct).ConfigureAwait(false);
 
-        for (var attempt = 1; attempt <= totalAttempts; attempt++)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var response = await client.GenerateAsync(new StrategyCodegenRequest(systemContext, messages), ct)
-                .ConfigureAwait(false);
-            if (!response.Success || string.IsNullOrWhiteSpace(response.Code))
-            {
-                // A provider-level failure (auth, timeout, no CLI) — not a compile error. Stop; retrying
-                // won't fix a missing key.
-                _logger?.LogWarning("Codegen provider {Provider} failed: {Error}", client.ProviderId, response.Error);
-                return new StrategyBuildLoopResult(false, lastCompile, messages, response.Error ?? "The provider returned no code.", attempt - 1);
-            }
-
-            // Record the model's turn verbatim so the transcript reads naturally and the next call has context.
-            messages.Add(new CodegenMessage(CodegenRole.Assistant, response.RawText ?? response.Code));
-
-            lastCode = response.Code;
-            var compile = _compiler.Compile(new StrategyScript(strategyId, displayName, response.Code));
-            lastCompile = compile;
-            if (compile.Success)
-            {
-                _logger?.LogInformation("AI-authored strategy {Id} compiled on attempt {Attempt}/{Total}",
-                    strategyId, attempt, totalAttempts);
-                return new StrategyBuildLoopResult(true, compile, messages, null, attempt, response.Code);
-            }
-
-            if (attempt < totalAttempts)
-                messages.Add(new CodegenMessage(CodegenRole.User, FixPrompt(compile)));
-        }
-
-        _logger?.LogWarning("AI-authored strategy {Id} did not compile after {Total} attempts", strategyId, totalAttempts);
-        return new StrategyBuildLoopResult(false, lastCompile, messages, null, totalAttempts, lastCode);
-    }
-
-    /// <summary>The auto-fix message: the compiler's own errors, verbatim, and a request for the whole
-    /// corrected file (partial diffs confuse the single-file contract).</summary>
-    private static string FixPrompt(StrategyCompileResult compile)
-    {
-        var sb = new StringBuilder("The code did not compile. Fix these errors and return the COMPLETE corrected file:\n");
-        foreach (var error in compile.Errors)
-            sb.Append("- ").Append(error.Id).Append(" (line ").Append(error.Line).Append("): ").AppendLine(error.Message);
-        return sb.ToString();
+        return new StrategyBuildLoopResult(
+            Success: turn.Success,
+            Compile: turn.Compile,
+            Transcript: session.Transcript,
+            ProviderError: turn.Kind == BuildTurnKind.ProviderError ? turn.Error : null,
+            Attempts: turn.Generations,
+            Code: turn.Files.Count > 0 ? turn.Files[0].Content : null,
+            Files: turn.Files,
+            Usage: turn.Usage);
     }
 }

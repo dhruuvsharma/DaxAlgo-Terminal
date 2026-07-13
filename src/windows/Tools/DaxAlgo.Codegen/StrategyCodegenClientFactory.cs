@@ -11,6 +11,10 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// shell passes a <c>providerId → key</c> delegate). Building a client never touches the network;
 /// <see cref="IStrategyCodegenClient.IsAvailable"/> is a cheap PATH / key-present check, so the provider
 /// picker and the CLI can list what's ready without a round-trip.
+/// <para>
+/// A client is immutable in its model, so switching model in the UI rebuilds the client
+/// (<see cref="Build"/>) rather than mutating one — the same path the configured default takes.
+/// </para>
 /// </summary>
 public sealed class StrategyCodegenClientFactory
 {
@@ -37,24 +41,41 @@ public sealed class StrategyCodegenClientFactory
 
         // Installed agent CLIs — availability is "on PATH"; the vendor tool owns the login.
         foreach (var adapter in AgentCliAdapter.All)
-            clients.Add(new AgentCliCodegenClient(adapter));
+            clients.Add(new AgentCliCodegenClient(adapter, model: ModelOverrideFor(adapter.ProviderId)));
 
-        // Keyed / local providers from config.
+        // Keyed / local providers from config. An agent CLI may ALSO appear here (to pin its model), and
+        // must not be built a second time as an HTTP provider — it has no BaseUrl or key.
         foreach (var (id, provider) in _options.Providers)
         {
-            var key = _keyResolver(id);
-            var isOllama = id.Equals("ollama", StringComparison.OrdinalIgnoreCase);
-            clients.Add(provider.Kind switch
-            {
-                AiCodegenProviderKind.Anthropic =>
-                    new AnthropicCodegenClient(_httpFactory(), provider.BaseUrl, provider.Model, key),
-                _ => new OpenAiCompatibleCodegenClient(
-                    _httpFactory(), id, DisplayNameFor(id), provider.BaseUrl, provider.Model, key, keyless: isOllama),
-            });
+            if (AgentCliAdapter.All.Any(a => a.ProviderId.Equals(id, StringComparison.OrdinalIgnoreCase))) continue;
+            clients.Add(BuildKeyed(id, provider, model: null));
         }
 
         return clients;
     }
+
+    /// <summary>
+    /// The same provider, bound to a different model — what the builder's model picker calls when the
+    /// user switches model (or types one that isn't in the shortlist). An unknown provider id, or an
+    /// agent CLI, still resolves; a null/blank model means "the configured / vendor default".
+    /// </summary>
+    public IStrategyCodegenClient? Build(string providerId, string? model)
+    {
+        var adapter = AgentCliAdapter.All.FirstOrDefault(a =>
+            a.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
+        if (adapter is not null)
+            return new AgentCliCodegenClient(adapter, model: Blank(model) ? ModelOverrideFor(providerId) : model);
+
+        var configured = _options.Providers.FirstOrDefault(p =>
+            p.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase));
+        return configured.Value is null ? null : BuildKeyed(configured.Key, configured.Value, model);
+    }
+
+    /// <summary>The models to offer for a provider without a network call (curated shortlist + whatever
+    /// is configured). The UI adds a "refresh from provider" that calls
+    /// <see cref="IStrategyCodegenClient.ListModelsAsync"/> on top of this.</summary>
+    public IReadOnlyList<string> ModelsFor(string providerId) =>
+        AiModelCatalog.Offer(providerId, ConfiguredModel(providerId));
 
     /// <summary>The provider the app should use: the configured default if it's available, else the
     /// first available one (agent CLIs first — they need no key), else null (nothing set up).</summary>
@@ -69,6 +90,32 @@ public sealed class StrategyCodegenClientFactory
         }
         return all.FirstOrDefault(c => c.IsAvailable);
     }
+
+    private IStrategyCodegenClient BuildKeyed(string id, AiCodegenProvider provider, string? model)
+    {
+        var key = _keyResolver(id);
+        var isOllama = id.Equals("ollama", StringComparison.OrdinalIgnoreCase);
+        var effectiveModel = Blank(model) ? provider.Model : model!;
+
+        return provider.Kind switch
+        {
+            AiCodegenProviderKind.Anthropic =>
+                new AnthropicCodegenClient(_httpFactory(), provider.BaseUrl, effectiveModel, key),
+            _ => new OpenAiCompatibleCodegenClient(
+                _httpFactory(), id, DisplayNameFor(id), provider.BaseUrl, effectiveModel, key, keyless: isOllama),
+        };
+    }
+
+    /// <summary>An agent CLI can also be pinned to a model in config (<c>AiCodegen:Providers:claude-cli:Model</c>)
+    /// even though it needs no BaseUrl/key — that is the only reason it appears in the provider map.</summary>
+    private string? ModelOverrideFor(string providerId) => ConfiguredModel(providerId);
+
+    private string? ConfiguredModel(string providerId) =>
+        _options.Providers.TryGetValue(providerId, out var provider) && !string.IsNullOrWhiteSpace(provider.Model)
+            ? provider.Model
+            : null;
+
+    private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
 
     private static string DisplayNameFor(string id) => id switch
     {

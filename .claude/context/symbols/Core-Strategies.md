@@ -1,6 +1,6 @@
 # TradingTerminal.Core / Strategies — public API surface
 
-Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -21,15 +21,28 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
     4: public enum CodegenRole
    11: public sealed record CodegenMessage(CodegenRole Role, string Content);
-   19: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
-   27: public sealed record StrategyCodegenResponse(bool Success, string? Code, string? RawText, string? Error)
-   29: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
-   30: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
-   45: public interface IStrategyCodegenClient
-   49:     string ProviderId { get; }
-   52:     string DisplayName { get; }
-   56:     bool IsAvailable { get; }
-   58:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+   18: public sealed record CodegenUsage(int InputTokens, int OutputTokens)
+   20: public static CodegenUsage None { get; } = new(0, 0);
+   22: public int TotalTokens => InputTokens + OutputTokens;
+   25: public bool IsReported => InputTokens > 0 || OutputTokens > 0;
+   27: public CodegenUsage Add(CodegenUsage? other) => other is null
+   38: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
+   52: public sealed record StrategyCodegenResponse(
+   61: public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
+   66: public bool HasFiles => FileList.Count > 0;
+   68: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
+   70: public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
+   74: public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
+   77: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
+   92: public interface IStrategyCodegenClient
+   96:     string ProviderId { get; }
+   99:     string DisplayName { get; }
+  103:     bool IsAvailable { get; }
+  107:     string Model => string.Empty;
+  111:     IReadOnlyList<string> KnownModels => [];
+  116:     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
+  117:     Task.FromResult<IReadOnlyList<string>>([]);
+  119:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs
@@ -49,13 +62,17 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs
 ```cs
     4: public enum StrategyDiagnosticSeverity
-   16: public sealed record StrategyDiagnostic(
-   23: public override string ToString() =>
+   21: public sealed record StrategyDiagnostic(
+   30: public string Location => string.IsNullOrEmpty(File)
+   34: public override string ToString() =>
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs
 ```cs
-   13: public sealed record StrategyScript(
+   10: public sealed record StrategyFile(string Name, string Content)
+   13: public const string DefaultName = "Strategy.cs";
+   26: public sealed record StrategyScript(
+   32: public StrategyScript(string id, string displayName, string sourceCode)
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs

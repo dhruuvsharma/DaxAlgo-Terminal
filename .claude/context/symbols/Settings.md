@@ -1,6 +1,6 @@
 # TradingTerminal.Settings — public API surface
 
-Generated 2026-07-12. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -59,6 +59,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    32: public static string? Decrypt(string? cipherBase64)
 ```
 
+## src/windows/UI/TradingTerminal.Settings/Authoring/AiCodegenUserFile.cs
+```cs
+   14: public static class AiCodegenUserFile
+   18: public static string Path { get; } = System.IO.Path.Combine(
+   28: public static void SaveSelection(string providerId, string? model, AiCodegenOptions current)
+```
+
 ## src/windows/UI/TradingTerminal.Settings/Authoring/AiProvidersSettingsViewModel.cs
 ```cs
    16: public sealed partial class AiProvidersSettingsViewModel : ViewModelBase
@@ -76,26 +83,42 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs
 ```cs
-   25: public sealed partial class StrategyAuthoringViewModel : ViewModelBase
-   33: public StrategyAuthoringViewModel(
-   57: public bool AiEnabled => _ai is not null;
-   58: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
-   72: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
-   77: public ObservableCollection<AiProviderChoice> AiProviders { get; }
-  205: public sealed class MyStrategy : IBacktestStrategy
-  207: public static StrategyParameterSchema Schema { get; } = new(
-  211: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
-  218: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
-  220: public MyStrategy(Contract contract, int lookback, double threshold)
-  227: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-  230: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
-  238: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
-  240: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-  248: public sealed class AiProviderChoice(IStrategyCodegenClient client)
-  250: public IStrategyCodegenClient Client { get; } = client;
-  251: public string DisplayName => Client.DisplayName;
-  252: public bool IsAvailable => Client.IsAvailable;
-  253: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
+   34: public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposable
+   54: public StrategyAuthoringViewModel(
+   88: public bool AiEnabled => _ai is not null;
+   89: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
+  102: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
+  117: public ObservableCollection<AuthoredFile> Files { get; }
+  144: public ObservableCollection<AiProviderChoice> AiProviders { get; }
+  150: public ObservableCollection<string> Models { get; } = [];
+  213: public ObservableCollection<AuthoringMessage> Messages { get; }
+  217: public ObservableCollection<string> Activity { get; }
+  229: public string UsageText => InputTokens + OutputTokens == 0
+  526: public void Dispose()
+  547: public sealed class MyStrategy : IBacktestStrategy
+  549: public static StrategyParameterSchema Schema { get; } = new(
+  553: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+  560: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+  562: public MyStrategy(Contract contract, int lookback, double threshold)
+  569: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+  572: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+  580: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+  582: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+  590: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
+  598: public sealed partial class AuthoringMessage : ObservableObject
+  600: public AuthoringMessage(CodegenRole role, string text)
+  614: public static AuthoringMessage System(string? text) => new(text ?? string.Empty);
+  616: public CodegenRole Role { get; }
+  617: public bool IsSystem { get; }
+  618: public bool IsUser => !IsSystem && Role == CodegenRole.User;
+  619: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
+  624: public DateTime TimestampLocal { get; } = DateTime.Now;
+  629: public sealed class AiProviderChoice(IStrategyCodegenClient client)
+  631: public IStrategyCodegenClient Client { get; } = client;
+  632: public string ProviderId => Client.ProviderId;
+  633: public string DisplayName => Client.DisplayName;
+  634: public bool IsAvailable => Client.IsAvailable;
+  635: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs
