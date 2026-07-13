@@ -382,6 +382,10 @@
             </MenuItem>
 
             <MenuItem Header="_Plugins">
+                <MenuItem Header="AI _Strategy Builder…"
+                          Command="{Binding OpenStrategyAuthoringCommand}"
+                          ToolTip="Write or AI-generate a strategy, compile it, and add it to your catalog." />
+                <Separator />
                 <MenuItem Header="_Manage strategy plugins…"
                           Command="{Binding OpenPluginManagerCommand}" />
             </MenuItem>

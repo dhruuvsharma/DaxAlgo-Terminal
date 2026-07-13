@@ -41,6 +41,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string NotificationsWindowId = "settings.notifications";
     private const string AiProvidersSettingsWindowId = "settings.aiproviders";
     private const string PluginManagerWindowId = "plugins.manager";
+    private const string StrategyAuthoringWindowId = "authoring.strategy";
     private const string BacktestStudioWindowId = "tools.backtest-studio";
     private const string RecorderWindowId = "tools.recorder";
     private const string AdvancedRegimeWindowId = "tools.regime.advanced";
@@ -547,6 +548,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     public void OpenPluginManager() =>
         _host.OpenHostedTool<TradingTerminal.App.Plugins.PluginManagerViewModel, TradingTerminal.App.Plugins.PluginManagerView>(
             PluginManagerWindowId, "Strategy plugins", "Loading the plugin manager…");
+
+    [RelayCommand]
+    public void OpenStrategyAuthoring() =>
+        _host.OpenHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
+            StrategyAuthoringWindowId, "AI Strategy Builder", "Loading the strategy builder…");
 
     [RelayCommand]
     public void OpenBacktestStudio() =>

@@ -113,6 +113,7 @@ public static class AppDependencyInjection
         // write a strategy and register it into the catalog with no recompile of the host.
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
         services.AddFastBacktestRunner();
         // AI Strategy Builder backend (codegen providers + build-loop orchestrator + context pack) — the
         // authoring pane's AI panel resolves IAiStrategyBuilder from here. Keyless by default (installed
