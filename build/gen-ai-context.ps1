@@ -216,11 +216,12 @@ public sealed class MyStrategy : IBacktestStrategy { ... }
   its contents with what you send; a partial answer deletes the rest.
 - A short sentence of prose before the blocks is welcome. Keep it to what the user needs to know.
 
-### The kernel alone is backtest-only. Add three more files for a catalog entry.
+### WRITE ALL FOUR FILES. A kernel on its own is backtest-only.
 
-A kernel by itself registers in the backtester. To also get a **card in the Strategies catalog with a
-live window** - which is what the user almost always wants - add these three, and the host wires them in
-the moment the user presses Compile & Register:
+**Default to the complete plugin: kernel + descriptor + view-model + view.** A kernel alone registers in
+the backtester and gets **no card in the Strategies catalog and no window** - which is almost never what
+the user wanted. Write all four every time unless the user explicitly says they only want a backtest
+kernel. The host wires them in the moment they press Compile & Register.
 
 **1. The catalog descriptor** - an ``ITradingStrategy`` with a **public parameterless constructor**:
 
@@ -297,9 +298,12 @@ public sealed class MyStrategyView : UserControl
 ``````
 
 Rules for the trio: the descriptor's ``Id``, the view-model's ``base(...)`` id, and the id in the
-builder's Id box must be **the same string**. Write at most one class of each kind. If you write a
-view-model you must write a view (a card with no window would throw when clicked), and the host tells the
-user exactly which of the three is missing.
+builder's Id box must be **the same string**. Write at most one class of each kind. All three are needed
+for a card - a view-model with no view would be a card that throws when clicked - and the host tells the
+user exactly which of them is missing.
+
+You do NOT write the plugin entry point (``IStrategyPlugin``); the host generates it and discovers your
+four classes by shape. Do not write one - a second entry point would make the plugin ambiguous.
 
 ### Ask before you guess
 

@@ -7,8 +7,11 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -209,6 +212,44 @@ public sealed class StrategyCodegenTests
         result.Authored.MissingForCatalog.Should().HaveCount(2)
             .And.Contain(m => m.Contains("view-model"))
             .And.Contain(m => m.Contains("view"));
+    }
+
+    [Fact]
+    public void The_authored_assembly_is_a_real_plugin_the_loader_can_register()
+    {
+        // THE restart bug: an authored DLL with no IStrategyPlugin is found by the loader on the next
+        // start, rejected, and reported as "failed to load". The compiler must generate the entry point.
+        var script = new StrategyScript("gen.plugin", "Gen plugin", [
+            new StrategyFile("Kernel.cs", MinimalKernel("PluginKernel")),
+            new StrategyFile("Descriptor.cs", """
+                public sealed class PluginDescriptor : ITradingStrategy
+                {
+                    public string Id => "gen.plugin";
+                    public string DisplayName => "Gen plugin";
+                    public string Description => "A generated strategy.";
+                }
+                """),
+        ]);
+
+        var result = new RoslynStrategyCompiler().Compile(script);
+        result.Success.Should().BeTrue();
+
+        var services = new ServiceCollection();
+        var loaded = PluginLoader.RegisterFromAssembly(
+            result.Authored!.Assembly, services, DaxAlgo.Sdk.SdkInfo.Version);
+
+        loaded.Should().NotBeNull("the generated IStrategyPlugin is what makes this a plugin at all");
+        loaded!.Name.Should().Be("Gen plugin");
+
+        // And it contributed what a hand-written plugin's AddXxxStrategy() would.
+        var provider = services.BuildServiceProvider();
+        provider.GetServices<ITradingStrategy>().Should().ContainSingle().Which.Id.Should().Be("gen.plugin");
+        provider.GetServices<BacktestStrategyOption>().Should().ContainSingle().Which.Id.Should().Be("gen.plugin");
+
+        // Attribution: the loader reads ImplementationType to badge an unsigned plugin's strategies DEV,
+        // so the descriptor must be registered by type, not as an instance.
+        loaded.StrategyImplementationTypes.Should().ContainSingle()
+            .Which.Should().Contain("PluginDescriptor");
     }
 
     [Fact]

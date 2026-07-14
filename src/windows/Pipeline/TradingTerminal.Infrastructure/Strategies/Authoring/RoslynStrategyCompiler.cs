@@ -2,9 +2,9 @@ using System.IO;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using DaxAlgo.Sdk;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
-using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Parameters;
 using TradingTerminal.Infrastructure.Plugins;
@@ -67,10 +67,12 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             : KernelUsings;
 
         // One tree per authored file, keyed by its name — so a diagnostic points at the file the user is
-        // looking at (and the model can read its own errors back per file).
-        var trees = new List<SyntaxTree>(script.Files.Count + 1)
+        // looking at (and the model can read its own errors back per file). Plus two generated trees the
+        // user never sees: the ambient usings, and the plugin entry point.
+        var trees = new List<SyntaxTree>(script.Files.Count + 2)
         {
             CSharpSyntaxTree.ParseText(globals, ParseOptions, path: "GlobalUsings.g.cs"),
+            CSharpSyntaxTree.ParseText(PluginEntryPoint(script), ParseOptions, path: "Plugin.g.cs"),
         };
         foreach (var file in script.Files)
             trees.Add(CSharpSyntaxTree.ParseText(file.Content, ParseOptions, path: FileName(file, script)));
@@ -117,11 +119,14 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
                 return StrategyCompileResult.Failed(
                     Append(diagnostics, Error("DAX1000", bindError ?? "Could not bind the strategy type.")));
 
+            // Discovered by the SDK's own finder — the same code the plugin loader runs on the next start,
+            // so what the pane says is in the strategy and what actually loads can't disagree.
+            var found = AuthoredStrategyTypes.DiscoverIn(assembly);
             var authored = new AuthoredStrategyAssembly(
                 image, assembly, kernelType,
-                DescriptorType: FindDescriptor(assembly),
-                ViewModelType: FindLiveViewModel(assembly),
-                ViewType: FindView(assembly));
+                DescriptorType: found.Descriptor,
+                ViewModelType: found.ViewModel,
+                ViewType: found.View);
 
             return StrategyCompileResult.Succeeded(option, diagnostics, authored);
         }
@@ -133,37 +138,36 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
     }
 
     /// <summary>
-    /// The catalog descriptor, if the author wrote one. Matched by interface, not by name — Core's
-    /// <c>ITradingStrategy</c> is the same type in the authored assembly (it resolves from the default
-    /// load context).
+    /// The plugin entry point, generated into every authored assembly. Without it the assembly is not a
+    /// plugin at all: on the next start the loader finds the DLL, sees no <see cref="IStrategyPlugin"/>,
+    /// and reports it as failed — which is exactly what happened before this existed.
+    /// <para>
+    /// It names no types of its own. The SDK's <c>AuthoredPluginBootstrap</c> discovers the kernel,
+    /// descriptor, view-model and view by shape at load time, so this stays the same few lines whatever
+    /// the author wrote.
+    /// </para>
     /// </summary>
-    private static Type? FindDescriptor(Assembly assembly) => assembly.GetTypes().FirstOrDefault(t =>
-        t is { IsClass: true, IsAbstract: false } &&
-        typeof(ITradingStrategy).IsAssignableFrom(t) &&
-        t.GetConstructor(Type.EmptyTypes) is not null);
-
-    /// <summary>The live view-model, if written. Matched by base-type NAME: the base lives in
-    /// <c>TradingTerminal.UI.Core</c>, which Infrastructure does not (and must not) reference — but the
-    /// authored assembly compiles against it, because it is in the host's trusted-platform set.</summary>
-    private static Type? FindLiveViewModel(Assembly assembly) =>
-        assembly.GetTypes().FirstOrDefault(t => t is { IsClass: true, IsAbstract: false } &&
-            InheritsFrom(t, "TradingTerminal.UI.LiveSignalStrategyViewModelBase"));
-
-    /// <summary>The live view, if written — a code-built WPF control (Roslyn cannot compile XAML, so an
-    /// authored view builds its tree in C#). Matched by base-type name for the same layering reason.</summary>
-    private static Type? FindView(Assembly assembly) =>
-        assembly.GetTypes().FirstOrDefault(t => t is { IsClass: true, IsAbstract: false } &&
-            (InheritsFrom(t, "System.Windows.Controls.UserControl") ||
-             InheritsFrom(t, "System.Windows.Window")));
-
-    private static bool InheritsFrom(Type type, string baseFullName)
-    {
-        for (var current = type.BaseType; current is not null; current = current.BaseType)
+    private static string PluginEntryPoint(StrategyScript script) => $$"""
+        /// <summary>Generated. Makes this authored strategy a real plugin, so the host loads it on the
+        /// next start exactly like one built with `dotnet new daxalgo-strategy`.</summary>
+        public sealed class DaxAlgoAuthoredPlugin : DaxAlgo.Sdk.IStrategyPlugin
         {
-            if (string.Equals(current.FullName, baseFullName, StringComparison.Ordinal)) return true;
+            public string Name => {{Literal(script.DisplayName)}};
+            public string TargetSdkVersion => {{Literal(SdkInfo.Version)}};
+
+            public void Register(DaxAlgo.Sdk.IPluginRegistrar registrar) =>
+                DaxAlgo.Sdk.AuthoredPluginBootstrap.Register(
+                    registrar,
+                    typeof(DaxAlgoAuthoredPlugin).Assembly,
+                    {{Literal(script.Id)}},
+                    {{Literal(script.DisplayName)}});
         }
-        return false;
-    }
+        """;
+
+    /// <summary>A C# string literal — the id and display name are user input and land in generated source,
+    /// so they are escaped rather than interpolated raw.</summary>
+    private static string Literal(string value) =>
+        Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Literal(value).ToFullString();
 
     /// <summary>Resolves the single <see cref="IBacktestStrategy"/> class and wires its factory
     /// (and optional declarative-parameter members) into a <see cref="BacktestStrategyOption"/>.</summary>

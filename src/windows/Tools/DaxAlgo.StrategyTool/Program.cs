@@ -183,7 +183,7 @@ static AiCodegenOptions DefaultOptions() => new()
         ["openai"] = new() { BaseUrl = "https://api.openai.com/v1", Model = "gpt-4o-mini" },
         ["deepseek"] = new() { BaseUrl = "https://api.deepseek.com/v1", Model = "deepseek-chat" },
         ["xai"] = new() { BaseUrl = "https://api.x.ai/v1", Model = "grok-2-latest" },
-        ["openrouter"] = new() { BaseUrl = "https://openrouter.ai/api/v1", Model = "anthropic/claude-3.5-sonnet" },
+        ["openrouter"] = new() { BaseUrl = "https://openrouter.ai/api/v1", Model = "qwen/qwen3.7-plus" },
         ["ollama"] = new() { BaseUrl = "http://localhost:11434/v1", Model = "llama3.1" },
         ["anthropic"] = new() { BaseUrl = "https://api.anthropic.com", Model = "claude-3-5-sonnet-latest", Kind = AiCodegenProviderKind.Anthropic },
     },

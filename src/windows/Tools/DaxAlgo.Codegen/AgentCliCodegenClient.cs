@@ -307,8 +307,12 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         var sb = new StringBuilder(request.SystemContext).AppendLine().AppendLine();
         foreach (var m in request.Messages)
             sb.Append(m.Role == CodegenRole.Assistant ? "ASSISTANT: " : "USER: ").AppendLine(m.Content).AppendLine();
-        sb.AppendLine("Answer per the OUTPUT CONTRACT in the context above: one ```csharp fenced block per file, " +
-                      "each starting with a `// file: <Name>.cs` line. Ask a question instead if the request is ambiguous.");
+        sb.AppendLine(
+            "Answer per OUTPUT CONTRACT (a) above: one ```csharp fenced block per file, each starting with a " +
+            "`// file: <Name>.cs` line. Write the COMPLETE plugin — kernel + ITradingStrategy descriptor + " +
+            "live view-model + code-built view — unless the user explicitly asked for a backtest kernel only; " +
+            "a kernel on its own gets no catalog card and no window. Ask a question instead of guessing if the " +
+            "brief is ambiguous about the instrument, timeframe, sizing or risk.");
         return sb.ToString();
     }
 

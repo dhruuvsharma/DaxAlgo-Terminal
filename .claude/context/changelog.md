@@ -1,5 +1,23 @@
 # context changelog — append-only session journal
 
+## 2026-07-14 — #26 fix: an authored strategy had NO plugin entry point (so it died on restart)
+- **The restart bug.** `PluginLoader.RegisterFromAssembly` requires a public `IStrategyPlugin`. The
+  authored DLL had none, so on the next start the loader found it, rejected it, and the Plugin Manager
+  said *failed to load* — and the catalog card vanished with it. Phase 2 persisted a DLL that was not,
+  in fact, a plugin.
+- **Fix:** `RoslynStrategyCompiler` now emits a generated `Plugin.g.cs` into every authored assembly — a
+  4-line `IStrategyPlugin` that calls the new **`DaxAlgo.Sdk.AuthoredPluginBootstrap`**. The bootstrap
+  discovers kernel / descriptor / view-model / view **by shape** (`AuthoredStrategyTypes.DiscoverIn`) and
+  registers exactly what a hand-written `AddXxxStrategy()` would: `BacktestStrategyOption`,
+  `ITradingStrategy` (**by type**, so the loader's ImplementationType attribution still badges it DEV),
+  and the VM+view behind a `StrategyFactoryRegistration`. One discovery implementation now serves both
+  the in-app installer and the loader, so the pane and the restart can't disagree.
+- **The model wasn't writing the UI.** The pack framed the descriptor/VM/view as an optional extra; it now
+  says **write all four files** unless the user explicitly asks for a backtest kernel only, and tells the
+  model NOT to write an `IStrategyPlugin` (the host generates it — a second one would be ambiguous). The
+  agent-CLI prompt tail says the same.
+- Chat history is still **in-memory only** (session dies with the app) — known gap, not yet addressed.
+
 ## 2026-07-13 (later+2) — #26 AI Strategy Builder v2, phase 3: streaming, live tokens, reverse questions
 - **`IStrategyCodegenClient.StreamAsync` → `IAsyncEnumerable<CodegenEvent>`** (TextDelta / UsageUpdate /
   Completed). It is a **default interface member** that aggregates `GenerateAsync`, so a provider that
