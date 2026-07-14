@@ -41,8 +41,6 @@
     <!-- DaxAlgo logo shown on the NuGet.org listing (packed to the package root below). -->
     <PackageIcon>DaxAlgoLogo.png</PackageIcon>
 
-    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
-    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Platforms>AnyCPU</Platforms>
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
@@ -52,6 +50,25 @@
          (Windows dev). Plugin-staging targets use it to locate a sibling project's built output
          regardless of whether the redirect is active. -->
     <DaxAlgoOutputBase>$(MSBuildThisFileDirectory)</DaxAlgoOutputBase>
+  </PropertyGroup>
+
+  <!--
+    Identity, skipped for WPF's temporary pass-2 project.
+
+    A XAML file that references a type from its OWN assembly (a Window hosting a UserControl declared
+    next to it) can't be markup-compiled up front — the assembly doesn't exist yet. WPF's answer is to
+    build a throwaway copy of the project, named <Project>_<hash>_wpftmp, and resolve the local types
+    against that; pass 2 then looks the type up by ASSEMBLY NAME, since `clr-namespace:` without an
+    `assembly=` means "mine". WPF therefore keeps the original AssemblyName on the temp project.
+
+    Deriving AssemblyName from $(MSBuildProjectName) here would overwrite it with the _wpftmp name,
+    the name lookup would miss, and every local type would fail with "MC3074: the tag does not exist
+    in XML namespace" — with nothing in the error pointing back at this file. So leave the temp
+    project alone (the SDK defaults it to the project name anyway, which is all these lines did).
+  -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
   </PropertyGroup>
 
   <!-- Pack the DaxAlgo logo (referenced by PackageIcon above) into every package's root. Inert for a

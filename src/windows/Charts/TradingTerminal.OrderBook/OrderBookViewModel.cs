@@ -249,6 +249,15 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty] private bool _showMlForecast = true;
 
+    /// <summary>Whether this view-model may build a micro-forecaster at all — the panel's
+    /// <c>MlForecast</c> feature gate, set once before the first <see cref="Restart"/>.
+    /// <para>
+    /// <see cref="ShowMlForecast"/> only hides the output; this stops the work. False means
+    /// <see cref="InitializeMlAsync"/> never runs: no warm-start backfill, no per-tick training, no
+    /// inference. An embedded panel that doesn't show the forecast must not pay for one.
+    /// </para></summary>
+    public bool MlEnabled { get; set; } = true;
+
     /// <summary>Selectable learner algorithms for the direction (microprice) bank (Logistic is
     /// excluded — it fits the binary event heads). Switching retrains on the next restart.</summary>
     public IReadOnlyList<LearnerOption> Learners => Forecasters.DirectionChoices;
@@ -414,7 +423,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
             _ = RunDepthStreamAsync(id, _streamCts.Token);
             if (!_useSyntheticTape)
                 _ = RunTradeStreamAsync(id, _streamCts.Token);
-            _ = InitializeMlAsync(id, _streamCts.Token);
+            if (MlEnabled) _ = InitializeMlAsync(id, _streamCts.Token);
         }
         catch (Exception ex)
         {

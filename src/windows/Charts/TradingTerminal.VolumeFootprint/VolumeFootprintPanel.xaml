@@ -1,0 +1,445 @@
+﻿<UserControl x:Class="TradingTerminal.VolumeFootprint.VolumeFootprintPanel"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+                 mc:Ignorable="d"
+                 Background="{DynamicResource Background.Primary}"
+                 Foreground="{DynamicResource Text.Primary}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Single neat toolbar: primary data selectors inline, every toggle/tuner grouped into
+             dropdown menus (Regression · Overlays · Display) so the chrome stays compact. -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}"
+                Visibility="{Binding Features.Toolbar, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+            <Border.Resources>
+                <!-- Label in front of an inline control. -->
+                <Style x:Key="ToolLabel" TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                    <Setter Property="FontSize" Value="11" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Margin" Value="0,0,6,0" />
+                </Style>
+                <!-- Vertical separator between toolbar groups. -->
+                <Style x:Key="ToolDivider" TargetType="Border">
+                    <Setter Property="Width" Value="1" />
+                    <Setter Property="Background" Value="{DynamicResource Border.Brush}" />
+                    <Setter Property="Margin" Value="10,3" />
+                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                </Style>
+                <!-- Section caption inside a dropdown. -->
+                <Style x:Key="MenuCaption" TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                    <Setter Property="FontSize" Value="10" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Margin" Value="2,0,0,0" />
+                </Style>
+                <!-- Label inside a control-hosting menu item. -->
+                <Style x:Key="MenuItemLabel" TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                    <Setter Property="FontSize" Value="11" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Width" Value="78" />
+                </Style>
+            </Border.Resources>
+
+            <DockPanel LastChildFill="True">
+                <!-- ── Actions (right): presets · pause · export · help ── -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="120" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save" />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current view options (interval, tick, overlays, fits, ML) as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause the display — the tape keeps accumulating underneath, resume is instant" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportBarsCsvCommand}"
+                            ToolTip="Export the visible bars (POCs, value area, volumes, delta, stacked runs) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?" Margin="0"
+                                  ToolTip="What am I looking at?" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                <!-- ── Primary data selectors (kept inline; changed most often) ── -->
+                <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
+                <uic:InstrumentPicker Width="240"
+                                      ShowSearch="True"
+                                      ItemsSource="{Binding Instruments}"
+                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                      MaxDropDownHeight="460" Margin="0,0,12,0" />
+
+                <TextBlock Text="Interval" Style="{StaticResource ToolLabel}" />
+                <ComboBox Width="70" VerticalAlignment="Center"
+                          ItemsSource="{Binding Intervals}"
+                          SelectedItem="{Binding SelectedInterval}"
+                          DisplayMemberPath="Label" />
+
+                <Border Style="{StaticResource ToolDivider}" />
+
+                <!-- ── Grouped option menus ── -->
+                <Menu Background="Transparent" IsMainMenu="False" VerticalAlignment="Center"
+                      Foreground="{DynamicResource Text.Primary}">
+                    <!-- Prediction: one checkbox per POC-fit curve flavour, the regression forward
+                         prediction, and the online-learned ML forecast. -->
+                    <MenuItem Header="📈 Prediction ▾">
+                        <MenuItem Header="Regression fits" IsEnabled="False" />
+                        <Separator />
+                        <MenuItem Header="Linear" IsCheckable="True" IsChecked="{Binding ShowLinearFit}" />
+                        <MenuItem Header="Quadratic" IsCheckable="True" IsChecked="{Binding ShowQuadraticFit}" />
+                        <MenuItem Header="Cubic" IsCheckable="True" IsChecked="{Binding ShowCubicFit}" />
+                        <MenuItem Header="Theil–Sen" IsCheckable="True" IsChecked="{Binding ShowTheilSenFit}" />
+                        <MenuItem Header="Exponential" IsCheckable="True" IsChecked="{Binding ShowExponentialFit}" />
+                        <MenuItem Header="Logarithmic" IsCheckable="True" IsChecked="{Binding ShowLogarithmicFit}" />
+                        <MenuItem Header="LOWESS" IsCheckable="True" IsChecked="{Binding ShowLowessFit}" />
+                        <Separator />
+                        <MenuItem Header="Predicted candles" IsCheckable="True" IsChecked="{Binding ShowPredictedBars}" />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Bars ahead" Style="{StaticResource MenuItemLabel}" />
+                                    <mah:NumericUpDown Width="84" Minimum="1" Maximum="30"
+                                                       Value="{Binding PredictionBars}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Machine learning" IsEnabled="False" />
+                        <MenuItem Header="ML prediction (online)" IsCheckable="True" IsChecked="{Binding ShowMlPrediction}" />
+                        <MenuItem Header="Warm-start from history" IsCheckable="True" IsChecked="{Binding WarmStartFromHistory}"
+                                  ToolTip="Replay recent stored trade tape through the model on start so it isn't cold. Takes effect on the next restart (instrument/interval/tick change)." />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Model" Style="{StaticResource MenuItemLabel}" VerticalAlignment="Center" />
+                                    <ComboBox Width="150" Margin="8,0,0,0"
+                                              ItemsSource="{Binding Learners}"
+                                              SelectedItem="{Binding SelectedLearner}"
+                                              DisplayMemberPath="Name"
+                                              ToolTip="Online-learner algorithm for the ML bank. Switching retrains on the next restart (loads your saved model for that algorithm, or warm-starts fresh)." />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                    </MenuItem>
+
+                    <!-- Overlays: analytics drawn over the footprint cells. -->
+                    <MenuItem Header="◫ Overlays ▾">
+                        <MenuItem Header="Imbalances" IsCheckable="True" IsChecked="{Binding ShowImbalances}" />
+                        <MenuItem Header="Value area" IsCheckable="True" IsChecked="{Binding ShowValueArea}" />
+                        <MenuItem Header="Volume profile" IsCheckable="True" IsChecked="{Binding ShowVolumeProfile}" />
+                        <MenuItem Header="Cell volumes" IsCheckable="True" IsChecked="{Binding ShowCellText}" />
+                    </MenuItem>
+
+                    <!-- Display: cell rendering + sizing tuners hosted inline in the dropdown. -->
+                    <MenuItem Header="⚙ Display ▾">
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Cell mode" Style="{StaticResource MenuItemLabel}" />
+                                    <ComboBox Width="110" ItemsSource="{Binding DisplayModes}"
+                                              SelectedItem="{Binding SelectedDisplayMode}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Tick size" Style="{StaticResource MenuItemLabel}" />
+                                    <TextBox Width="84"
+                                             Text="{Binding TickSizeText, UpdateSourceTrigger=PropertyChanged, Delay=400}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Bars shown" Style="{StaticResource MenuItemLabel}" />
+                                    <mah:NumericUpDown Width="84" Minimum="2" Maximum="40"
+                                                       Value="{Binding MaxBars}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Zoom" Style="{StaticResource MenuItemLabel}" />
+                                    <Slider Width="120" Minimum="0.5" Maximum="3" Value="{Binding Zoom}"
+                                            TickFrequency="0.5" IsSnapToTickEnabled="False" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Zoom, StringFormat={}{0:0.0}×}" VerticalAlignment="Center"
+                                               Margin="8,0,0,0" Foreground="{DynamicResource Text.Secondary}"
+                                               FontSize="11" FontFamily="Consolas" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                    </MenuItem>
+                </Menu>
+
+                <Border Style="{StaticResource ToolDivider}" />
+
+                <!-- Live zoom read-out so the current scale is visible without opening Display. -->
+                <TextBlock Text="Zoom" Style="{StaticResource ToolLabel}" />
+                <TextBlock Text="{Binding Zoom, StringFormat={}{0:0.0}×}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Text.Primary}" FontSize="11" FontFamily="Consolas" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-350" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="400" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE FOOTPRINT" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Cells" /><Run Text=" — each bar is a price ladder for one interval: sell volume (red, left) × buy volume (green, right) per level, or net delta / total volume in the other cell modes." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="POC" /><Run Text=" — the amber-boxed level is the bar's point of control (most traded); connectors and regression fits track how total / buy / sell POCs migrate across bars." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Imbalances" /><Run Text=" — outlined cells mark 3:1 diagonal bid/ask imbalances; stacked runs of them flag initiative buying or selling." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Value area" /><Run Text=" — the shaded band holds ~70% of the bar's volume (VAH ↔ VAL); the right gutter is the composite session profile." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Predicted" /><Run Text=" — ghost candles extrapolate the enabled regression fits forward by the chosen horizon (consensus of the fits)." /><LineBreak />
+                        <Run FontWeight="SemiBold" Foreground="#B388FF" Text="ML ghosts (violet)" /><Run Text=" — an online-learned next-bar forecaster predicts POC, volume and delta per future bar; the stats panel scores its rolling MAE and hit-rate against the regression consensus, and warm-start pre-trains it from your stored tape." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <!-- Footprint cluster grid (drawn in code-behind onto the Canvas) + floating stats panel -->
+        <Grid Grid.Row="1">
+            <ScrollViewer x:Name="Scroll"
+                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                          Background="{DynamicResource Background.Primary}">
+                <Canvas x:Name="FootprintCanvas" Background="Transparent" />
+            </ScrollViewer>
+
+            <!-- Empty state until the first prints arrive -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="400"
+                        IsHitTestVisible="False">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Bars.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="▥" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                <TextBlock Text="Awaiting trades" FontSize="15" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Margin="0,6,0,4"
+                           Foreground="{DynamicResource Text.Primary}" />
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="Footprint bars build as prints stream in. IB, Binance and Ironbeam feed a real trade tape; every other broker falls back to synthetic L1-derived prints automatically, so the chart still fills." />
+            </StackPanel>
+
+            <!-- Floating analytics panel: POC-regression slope, CVD, ticks/sec and volume read-outs.
+                 Sits over the chart's top-right and does not scroll with the canvas. -->
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,18,0"
+                    Background="{DynamicResource Background.Elevated}" Opacity="0.96"
+                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="4"
+                    Padding="11,8" MinWidth="184"
+                    Visibility="{Binding Features.Stats, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                <Border.Resources>
+                    <Style x:Key="Lbl" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Margin" Value="0,1,14,1" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                    <Style x:Key="Val" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="FontFamily" Value="Consolas" />
+                        <Setter Property="TextAlignment" Value="Right" />
+                        <Setter Property="Margin" Value="0,1,0,1" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                    <Style x:Key="ValSlope" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PocSlopeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding PocSlopeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValBuySlope" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding BuyPocSlopeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding BuyPocSlopeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValSellSlope" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SellPocSlopeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SellPocSlopeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValMlEdge" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MlEdgeDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding MlEdgeDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                    <Style x:Key="ValCvd" TargetType="TextBlock" BasedOn="{StaticResource Val}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CvdDirection}" Value="1">
+                                <Setter Property="Foreground" Value="#4CAF50" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding CvdDirection}" Value="-1">
+                                <Setter Property="Foreground" Value="#E57373" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Resources>
+                <StackPanel>
+                    <TextBlock Text="FOOTPRINT STATS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,6" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="POC slope" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PocSlopeText}" Style="{StaticResource ValSlope}" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Buy POC slope" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BuyPocSlopeText}" Style="{StaticResource ValBuySlope}" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Sell POC slope" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SellPocSlopeText}" Style="{StaticResource ValSellSlope}" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Cumulative Δ" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SessionDelta, StringFormat={}{0:+#;-#;0}}" Style="{StaticResource ValCvd}" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Ticks / sec" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding TicksPerSecondText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Volume" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding VisibleVolumeText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Buy / Sell" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding BuySellText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="POC" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding CurrentPocText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Stacked ▲/▼" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding StackedText}" Style="{StaticResource Val}" />
+
+                        <TextBlock Grid.Row="9" Grid.Column="0" Text="ML MAE / hit" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource ValMlEdge}">
+                            <Run Text="{Binding MlMaeText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding MlHitRateText, Mode=OneWay}" />
+                        </TextBlock>
+
+                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Reg MAE / hit" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource Val}">
+                            <Run Text="{Binding RegMaeText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding RegHitRateText, Mode=OneWay}" />
+                        </TextBlock>
+
+                        <TextBlock Grid.Row="11" Grid.Column="0" Text="ML samples" Style="{StaticResource Lbl}" />
+                        <TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding MlSamplesText}" Style="{StaticResource Val}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Legend + status -->
+        <Border Grid.Row="2" Style="{StaticResource App.FooterBar}"
+                Visibility="{Binding Features.Legend, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,16,0">
+                    <Border Width="11" Height="11" Background="#2E7D32" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="buy vol" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" Background="#C62828" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="sell vol" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#FFD54F" BorderThickness="2" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#FFA726" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#00E676" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="Buy POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#FF5252" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="Sell POC" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="14" Height="2" Background="#29B6F6" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="fit curves (dash = kind)" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#4CAF50" BorderThickness="1" Background="#382E7D32" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="predicted" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Rectangle Width="11" Height="11" Stroke="#B388FF" StrokeThickness="1.2" StrokeDashArray="1 2" Fill="#30B388FF" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="ML predicted" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#69F0AE" BorderThickness="1.6" Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="buy imb" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,8,0" />
+                    <Border Width="11" Height="11" BorderBrush="#FF8A80" BorderThickness="1.6" Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="sell imb" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Margin="0,0,12,0" />
+                    <Border Width="11" Height="11" BorderBrush="#6690CAF9" BorderThickness="1" Background="#1490CAF9" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <TextBlock Text="value area" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11"
+                           Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center"
+                           TextAlignment="Right" />
+                <Border Grid.Column="2" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

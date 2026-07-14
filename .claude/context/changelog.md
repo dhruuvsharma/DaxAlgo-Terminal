@@ -1,5 +1,32 @@
 # context changelog — append-only session journal
 
+## 2026-07-14 (later+4) — #26 the three chart tools are now embeddable, feature-gated panels
+- **`OrderBookPanel` / `VolumeFootprintPanel` / `ChartsPanel`** (Charts group) — every window that an
+  authored strategy might want to *show* is now a `UserControl`; `OrderBookWindow` / `VolumeFootprintWindow`
+  / `ChartsWindow` are thin frames around them (`<local:XPanel Features="{x:Static X.Full}"/>` + disposing
+  the VM on close). Nothing about the tools changed: the standalone windows still get every feature.
+- **`XPanelFeatures` records** — build-time gates, not user toggles. Off is not "hidden": the section is
+  collapsed **and** the view-model toggle behind it is forced off, so the work is skipped. `MlEnabled` on
+  both ML-bearing VMs is the sharpest one: false means the predictor is **never created** — no warm-start
+  replay over stored tape, no per-tick/per-bar training, no inference. `Embedded` / `LadderOnly` /
+  `ChartOnly` presets are what strategy windows will be handed; a test pins that none of them train a
+  model or keep a toolbar (a panel toolbar would let the user point it at a different symbol than the
+  strategy trades).
+- **`Directory.Build.props` (both repos): `AssemblyName`/`RootNamespace` are no longer set for WPF's
+  `_wpftmp` project.** Deriving them from `$(MSBuildProjectName)` renamed the temporary pass-2 assembly
+  WPF builds to resolve same-assembly XAML types — so *any* window hosting a UserControl from its own
+  project died with `MC3074: the tag does not exist in XML namespace`, pointing at nothing. This had never
+  bitten because no XAML here had ever referenced a local type.
+- **`ChartsWindow` now disposes its view-model** (it never did — every open/close leaked the hub
+  subscriptions; the other two windows always disposed theirs).
+- Tests: `ChartPanelTests` realizes all three panels against the real theme dictionaries (XAML +
+  `RelativeSource AncestorType` gate bindings only break at runtime). `WpfTestApp` gives the
+  Application-dependent tests one owned STA thread — `[WpfFact]` gives each test a *fresh* thread, and
+  WPF's one-Application-per-AppDomain rule plus `ShutdownMode.OnLastWindowClose` made failures land on
+  whichever test happened to run second.
+- 757 headless + 61 WPF + 13 Pro green. Next: the DataRequirement-composed default UI, which now has
+  panels to compose.
+
 ## 2026-07-14 (later+3) — #26 domain skill packs (on-demand, session-stable)
 - **`sdk/ai-context/skills/*.md`** — five hand-written domain packs, embedded in DaxAlgo.Codegen:
   `order-flow` (footprint/imbalance/VPOC/depth, trade signing, the pitfalls), `quant-math` (stable

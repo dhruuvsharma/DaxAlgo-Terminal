@@ -1,0 +1,493 @@
+﻿<UserControl x:Class="TradingTerminal.OrderBook.OrderBookPanel"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+                 xmlns:conv="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
+                 mc:Ignorable="d"
+                 Background="{DynamicResource Background.Primary}"
+                 Foreground="{DynamicResource Text.Primary}">
+    <UserControl.Resources>
+        <conv:BarFractionToGridLengthConverter x:Key="BarToGrid" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <SolidColorBrush x:Key="BidBar" Color="#3326A69A" />
+        <SolidColorBrush x:Key="AskBar" Color="#33EF5350" />
+        <SolidColorBrush x:Key="BidText" Color="#26A69A" />
+        <SolidColorBrush x:Key="AskText" Color="#EF5350" />
+        <SolidColorBrush x:Key="UpText" Color="#4CAF50" />
+        <SolidColorBrush x:Key="DownText" Color="#E57373" />
+
+        <!-- One ladder row: a proportional depth bar behind right-aligned Price / Size / Cumulative.
+             Bar colour comes from DataContext set on the host ItemsControl (Tag carries the brush). -->
+        <DataTemplate x:Key="LevelRowTemplate">
+            <Grid Height="20">
+                <!-- Proportional depth bar -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding BarFraction, Converter={StaticResource BarToGrid}}" />
+                        <ColumnDefinition Width="{Binding BarFraction, Converter={StaticResource BarToGrid}, ConverterParameter=rest}" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            Background="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                </Grid>
+                <!-- Numbers on top of the bar -->
+                <Grid Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="78" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Price, StringFormat=N4}"
+                               FontFamily="Consolas" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Size, StringFormat=N0}"
+                               FontFamily="Consolas" VerticalAlignment="Center" Margin="0,0,14,0"
+                               Foreground="{DynamicResource Text.Primary}" />
+                    <TextBlock Grid.Column="2" Text="{Binding Cumulative, StringFormat=N0}"
+                               FontFamily="Consolas" VerticalAlignment="Center" TextAlignment="Right"
+                               Foreground="{DynamicResource Text.Secondary}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <Style x:Key="LadderHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="Margin" Value="6,0" />
+        </Style>
+
+        <!-- Stat chips ride the shared tool chrome (Components.xaml); local keys kept for brevity. -->
+        <Style x:Key="StatCaption" TargetType="TextBlock" BasedOn="{StaticResource App.StatCaption}" />
+        <Style x:Key="StatValue" TargetType="TextBlock" BasedOn="{StaticResource App.StatValue}" />
+
+        <!-- Cumulative-imbalance value, coloured by sign (ImbalanceDirection). -->
+        <Style x:Key="ImbalanceValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ImbalanceDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource BidText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ImbalanceDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource AskText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- Imbalance-trend slope, coloured by direction. -->
+        <Style x:Key="SlopeValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ImbalanceSlopeDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource UpText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ImbalanceSlopeDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource DownText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- Cumulative-delta value, coloured by direction. -->
+        <Style x:Key="CvdValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CvdDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource UpText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CvdDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource DownText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ML event-probability chips: value + mini-bar coloured by alert level (0 calm / 1 elevated / 2 hot). -->
+        <SolidColorBrush x:Key="MlText" Color="#B388FF" />
+        <Style x:Key="PSpreadValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PSpreadLevel}" Value="1">
+                    <Setter Property="Foreground" Value="#FFB300" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PSpreadLevel}" Value="2">
+                    <Setter Property="Foreground" Value="#FF5252" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PDepthValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PDepthLevel}" Value="1">
+                    <Setter Property="Foreground" Value="#FFB300" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PDepthLevel}" Value="2">
+                    <Setter Property="Foreground" Value="#FF5252" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PSweepValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PSweepLevel}" Value="1">
+                    <Setter Property="Foreground" Value="#FFB300" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PSweepLevel}" Value="2">
+                    <Setter Property="Foreground" Value="#FF5252" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ProbBar" TargetType="ProgressBar">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="4" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Foreground" Value="{StaticResource MlText}" />
+        </Style>
+        <!-- ML scoreboard value, coloured by whether the model beats the imbalance rule. -->
+        <Style x:Key="MlEdgeValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MlEdgeDirection}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource UpText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding MlEdgeDirection}" Value="-1">
+                    <Setter Property="Foreground" Value="{StaticResource DownText}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar: instrument + presets + actions (view options live in the ⚙ rail).
+             Off when something else owns the instrument — an embedded panel must not fight the strategy. -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}"
+                Visibility="{Binding Features.Toolbar, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="280" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Instrument" VerticalAlignment="Center" Margin="0,0,8,0"
+                           Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                <uic:InstrumentPicker Grid.Column="1"
+                                      ShowSearch="True"
+                                      ItemsSource="{Binding Instruments}"
+                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                      MaxDropDownHeight="460" />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <Border Style="{StaticResource App.ParamDivider}" />
+                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
+                    <ComboBox Width="140" IsEditable="True"
+                              ItemsSource="{Binding PresetNames}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="Pick a preset to apply it, or type a new name and press save" />
+                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
+                            Command="{Binding SavePresetCommand}"
+                            ToolTip="Save the current view options as a named preset" />
+                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Delete the selected preset" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
+                                  IsChecked="{Binding IsPaused}"
+                                  ToolTip="Pause the display — the stream keeps running underneath, resume is instant" />
+                    <Button Style="{StaticResource App.IconButton}" Content="▤"
+                            Command="{Binding ExportLadderCsvCommand}"
+                            ToolTip="Export the current ladder (side, price, size, cumulative) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="↧"
+                            Command="{Binding ExportSeriesCsvCommand}"
+                            ToolTip="Export the heatmap time series (best bid/ask, microprice, imbalance, flow) as CSV" />
+                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                            ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
+                                  ToolTip="What am I looking at?" />
+                    <ToggleButton x:Name="OptionsToggle" Style="{StaticResource App.IconToggle}" Content="⚙"
+                                  IsChecked="True" Margin="0"
+                                  ToolTip="Show / hide the options rail" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Contextual help (anchored to the ? toggle) -->
+        <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
+               HorizontalOffset="-330" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="380" Padding="16"
+                    Background="{DynamicResource Background.Elevated}">
+                <StackPanel>
+                    <TextBlock Text="READING THE ORDER BOOK" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
+                        <Run FontWeight="SemiBold" Text="Ladder" /><Run Text=" — live L2 levels with per-level and cumulative size; the bar length is size relative to the deepest visible level." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Heatmap" /><Run Text=" — time × price resting liquidity (teal bids / red asks, brighter = bigger). Solid lines track best bid/ask; the dotted amber line is the microprice." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Dots" /><Run Text=" — prints, sized by volume and coloured by aggressor (green buy / red sell). Tape-less brokers get synthetic mid-tick prints." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Bottom lane" /><Run Text=" — cumulative top-10 queue imbalance per column, with an OLS trend line: sustained slope = directional pressure." /><LineBreak />
+                        <Run FontWeight="SemiBold" Text="Sweep" /><Run Text=" — estimated fill price for a market order of the chosen size walking the book; ⚠ means the visible book is too thin to fill it." /><LineBreak />
+                        <Run FontWeight="SemiBold" Foreground="{StaticResource MlText}" Text="ML (violet)" /><Run Text=" — an online-learned micro-forecaster: the dotted path is the predicted microprice out to ~5 s, the chips are event probabilities in the next 2 s, and the scoreboard compares its rolling hit-rate to a queue-imbalance baseline." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <!-- Microstructure analytics strip -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource Background.Elevated}"
+                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1"
+                Padding="8,5"
+                Visibility="{Binding Features.Analytics, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+            <WrapPanel Orientation="Horizontal">
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="BID" Style="{StaticResource StatCaption}" Foreground="{StaticResource BidText}" />
+                    <TextBlock Text="{Binding BestBid, StringFormat=N4, TargetNullValue=—}"
+                               Style="{StaticResource StatValue}" Foreground="{StaticResource BidText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="ASK" Style="{StaticResource StatCaption}" Foreground="{StaticResource AskText}" />
+                    <TextBlock Text="{Binding BestAsk, StringFormat=N4, TargetNullValue=—}"
+                               Style="{StaticResource StatValue}" Foreground="{StaticResource AskText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="SPREAD" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding Spread, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="MID" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding Mid, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="MICROPRICE" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding Microprice, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="WGT MID" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding WeightedMid, StringFormat=N4, TargetNullValue=—}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="IMBALANCE" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding ImbalanceCumText}" Style="{StaticResource ImbalanceValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="IMB TREND" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding ImbalanceSlopeText}" Style="{StaticResource SlopeValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="BOOK SKEW" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding BookSkewText}" Style="{StaticResource StatValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Style="{StaticResource StatCaption}">
+                        <Run Text="BUY SWEEP " /><Run Text="{Binding SelectedSweepSize, Mode=OneWay, StringFormat=N0}" />
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding SweepCostBuy, StringFormat=N4, TargetNullValue=—}"
+                                   Style="{StaticResource StatValue}" Foreground="{StaticResource AskText}" />
+                        <TextBlock Text="  ⚠" FontSize="11" Foreground="#FFB300" VerticalAlignment="Center"
+                                   Visibility="{Binding SweepBuyShort, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Style="{StaticResource StatCaption}">
+                        <Run Text="SELL SWEEP " /><Run Text="{Binding SelectedSweepSize, Mode=OneWay, StringFormat=N0}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding SweepCostSell, StringFormat=N4, TargetNullValue=—}"
+                               Style="{StaticResource StatValue}" Foreground="{StaticResource BidText}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="CVD" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding CumulativeDelta, StringFormat='+#;-#;0'}" Style="{StaticResource CvdValue}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,18,0">
+                    <TextBlock Text="TAPE" Style="{StaticResource StatCaption}" />
+                    <TextBlock Text="{Binding TradeTapeText}" Style="{StaticResource StatValue}"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                </StackPanel>
+
+                <!-- ML micro-forecast: event-probability chips + the ML-vs-imbalance-rule scoreboard.
+                     One switch: off means the predictor is never even created (see the panel's Features). -->
+                <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding Features.MlForecast, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Margin="0,0,14,0">
+                        <TextBlock Text="P SPREAD↑ 2s" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                        <TextBlock Text="{Binding PSpreadText}" Style="{StaticResource PSpreadValue}" />
+                        <ProgressBar Style="{StaticResource ProbBar}" Value="{Binding PSpread, Mode=OneWay}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,14,0">
+                        <TextBlock Text="P DEPTH↓ 2s" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                        <TextBlock Text="{Binding PDepthText}" Style="{StaticResource PDepthValue}" />
+                        <ProgressBar Style="{StaticResource ProbBar}" Value="{Binding PDepth, Mode=OneWay}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Text="P SWEEP↑ 2s" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                        <TextBlock Text="{Binding PSweepText}" Style="{StaticResource PSweepValue}" />
+                        <ProgressBar Style="{StaticResource ProbBar}" Value="{Binding PSweep, Mode=OneWay}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,14,0">
+                        <TextBlock Text="ML 1s (hit·MAE)" Style="{StaticResource StatCaption}" Foreground="{StaticResource MlText}" />
+                        <TextBlock Style="{StaticResource MlEdgeValue}">
+                            <Run Text="{Binding MlHitRateText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding MlMaeText, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,14,0">
+                        <TextBlock Text="OBI 1s (hit·MAE)" Style="{StaticResource StatCaption}" />
+                        <TextBlock Style="{StaticResource StatValue}">
+                            <Run Text="{Binding BaseHitRateText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding BaseMaeText, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="ML SAMPLES" Style="{StaticResource StatCaption}" />
+                        <TextBlock Text="{Binding MlSamplesText}" Style="{StaticResource StatValue}"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                    </StackPanel>
+                </StackPanel>
+            </WrapPanel>
+        </Border>
+
+        <!-- Main area: liquidity heatmap (left) + classic ladder + collapsible options rail -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Heatmap: scrolling time × price liquidity, drawn in code-behind off BookChanged.
+                 The most expensive thing here — thousands of cells a frame — so it is switchable. -->
+            <Border Grid.Column="0" Margin="0" ClipToBounds="True"
+                    Background="#0F1115"
+                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,1,0"
+                    SizeChanged="HeatHost_SizeChanged"
+                    Visibility="{Binding Features.Heatmap, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Canvas x:Name="HeatCanvas" Background="Transparent" />
+
+                    <!-- Empty state until the first non-empty book arrives -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBook}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="◫" FontSize="42" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}" Opacity="0.5" />
+                        <TextBlock Text="Awaiting depth" FontSize="15" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" Margin="0,6,0,4"
+                                   Foreground="{DynamicResource Text.Primary}" />
+                        <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11.5"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="The liquidity heatmap fills as L2 snapshots stream in. If nothing arrives, the selected broker may not publish depth — the crypto feeds (Binance, Bybit, Kraken, OKX, Coinbase), cTrader, Ironbeam and Upstox do." />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Ladder: all ask levels (top), then all bid levels (bottom) -->
+            <Grid Grid.Column="1"
+                  Visibility="{Binding Features.Ladder, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- column captions -->
+                <Grid Grid.Row="0" Margin="6,4,6,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="78" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="PRICE" Style="{StaticResource LadderHeader}" />
+                    <TextBlock Grid.Column="1" Text="SIZE" Style="{StaticResource LadderHeader}" Margin="0,0,14,0" />
+                    <TextBlock Grid.Column="2" Text="CUMUL." Style="{StaticResource LadderHeader}" TextAlignment="Right" />
+                </Grid>
+
+                <!-- Asks (best ask nearest the spread, i.e. at the bottom of this panel) -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalAlignment="Bottom">
+                    <ItemsControl ItemsSource="{Binding Asks}"
+                                  Tag="{StaticResource AskBar}"
+                                  ItemTemplate="{StaticResource LevelRowTemplate}" />
+                </ScrollViewer>
+
+                <!-- Spread divider -->
+                <Border Grid.Row="2" Background="{DynamicResource Background.Elevated}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1" Padding="8,3">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Text.Secondary}">
+                        <Run Text="Spread " />
+                        <Run Text="{Binding Spread, StringFormat=N4, TargetNullValue=—, Mode=OneWay}" FontFamily="Consolas" />
+                        <Run Text="   ·   Mid " />
+                        <Run Text="{Binding Mid, StringFormat=N4, TargetNullValue=—, Mode=OneWay}" FontFamily="Consolas" />
+                    </TextBlock>
+                </Border>
+
+                <!-- Bids (best bid at the top) -->
+                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Bids}"
+                                  Tag="{StaticResource BidBar}"
+                                  ItemTemplate="{StaticResource LevelRowTemplate}" />
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Options rail (collapsible via the ⚙ toolbar toggle) -->
+            <Border Grid.Column="2" Style="{StaticResource App.OptionsRail}" Width="215"
+                    Visibility="{Binding IsChecked, ElementName=OptionsToggle, Converter={StaticResource BoolToVis}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="VIEW" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <CheckBox Content="Liquidity heatmap" IsChecked="{Binding ShowHeatmap}" Margin="0,0,0,4" />
+                        <CheckBox Content="Trade dots" IsChecked="{Binding ShowTrades}" Margin="0,0,0,4" />
+                        <CheckBox Content="Microprice line" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,0,4" />
+                        <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" Margin="0,0,0,12" />
+
+                        <TextBlock Text="HEAT WINDOW" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding HeatWindowOptions}"
+                                  SelectedItem="{Binding HeatWindowColumns}" />
+                        <TextBlock Text="columns kept · 250 ms each (600 ≈ 2.5 min)" FontSize="10"
+                                   Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
+                                   Margin="0,3,0,12" />
+
+                        <TextBlock Text="MICROSTRUCTURE" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <TextBlock Text="Sweep size (cost-to-fill)" FontSize="10"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <ComboBox ItemsSource="{Binding SweepSizes}"
+                                  SelectedItem="{Binding SelectedSweepSize}" Margin="0,2,0,12" />
+
+                        <TextBlock Text="ML FORECAST" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
+                        <CheckBox Content="Show forecast path" IsChecked="{Binding ShowMlForecast}"
+                                  Foreground="{StaticResource MlText}" Margin="0,0,0,4" />
+                        <CheckBox Content="Warm-start from history" IsChecked="{Binding WarmStartFromHistory}"
+                                  ToolTip="Replay recent stored depth through the model on start so it isn't cold. Takes effect on the next restart (instrument change)." />
+                        <TextBlock Text="Model" FontSize="10" Foreground="{DynamicResource Text.Secondary}" Margin="0,8,0,2" />
+                        <ComboBox ItemsSource="{Binding Learners}"
+                                  SelectedItem="{Binding SelectedLearner}"
+                                  DisplayMemberPath="Name"
+                                  ToolTip="Online-learner algorithm for the direction bank. Switching retrains on the next restart (loads your saved model for that algorithm, or warm-starts fresh)." />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Status line -->
+        <Border Grid.Row="3" Style="{StaticResource App.FooterBar}"
+                Visibility="{Binding Features.Status, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <Border DockPanel.Dock="Right" Style="{StaticResource Pill.Warn}" Margin="8,0,0,0"
+                        Visibility="{Binding IsPaused, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⏸ PAUSED" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

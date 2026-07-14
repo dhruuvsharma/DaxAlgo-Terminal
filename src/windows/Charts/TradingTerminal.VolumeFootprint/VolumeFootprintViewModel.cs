@@ -239,6 +239,15 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     // ── ML predictor (online-learned next-bar forecast; see FootprintNextBarPredictor) ────────
     [ObservableProperty] private bool _showMlPrediction = true;
 
+    /// <summary>Whether this view-model may build a next-bar forecaster at all — the panel's
+    /// <c>MlForecast</c> feature gate, set once before the first <see cref="Restart"/>.
+    /// <para>
+    /// <see cref="ShowMlPrediction"/> only hides the ghosts; this stops the work. False means no
+    /// warm-start replay over stored tape, no per-bar training, no inference — an embedded footprint
+    /// that never shows a forecast must not pay to train one.
+    /// </para></summary>
+    public bool MlEnabled { get; set; } = true;
+
     /// <summary>Selectable learner algorithms for the ML bank (Logistic is excluded — it only fits
     /// binary event heads, not the direction/POC targets). Switching retrains on the next restart.</summary>
     public IReadOnlyList<LearnerOption> Learners => Forecasters.DirectionChoices;
@@ -457,30 +466,33 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         // only published to _ml once training is done, so live seals can never race the backfill.
         // Prefer a saved checkpoint for this (instrument, timeframe): if one restores, the model is
         // already warm and we skip the cold backfill. Otherwise warm-start from stored tape as before.
-        var learner = SelectedLearner.Kind;
-        var ml = new FootprintNextBarPredictor(tickSize, new FootprintPredictorOptions(Learner: learner));
-        var instrumentKey = instrumentId.ToString();
-        var restored = TryRestoreModel(ml, instrumentKey, timeframe, learner);
-        if (!restored && WarmStartFromHistory)
+        if (MlEnabled)
         {
-            try
+            var learner = SelectedLearner.Kind;
+            var ml = new FootprintNextBarPredictor(tickSize, new FootprintPredictorOptions(Learner: learner));
+            var instrumentKey = instrumentId.ToString();
+            var restored = TryRestoreModel(ml, instrumentKey, timeframe, learner);
+            if (!restored && WarmStartFromHistory)
             {
-                await WarmStartAsync(instrumentId, broker, span, tickSize, ml, ct);
+                try
+                {
+                    await WarmStartAsync(instrumentId, broker, span, tickSize, ml, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Footprint: ML warm-start failed for {Symbol}; starting cold", contract.Symbol);
+                }
             }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Footprint: ML warm-start failed for {Symbol}; starting cold", contract.Symbol);
-            }
+            if (ct.IsCancellationRequested) return;
+            _ml = ml;
+            _mlInstrumentKey = instrumentKey;
+            _mlTimeframe = timeframe;
+            UpdateMlStats();
         }
-        if (ct.IsCancellationRequested) return;
-        _ml = ml;
-        _mlInstrumentKey = instrumentKey;
-        _mlTimeframe = timeframe;
-        UpdateMlStats();
 
         // Drain in batches: one UI-thread marshal per batch instead of one per trade. Aggregation
         // into the forming bucket is cheap; the (expensive) canvas rebuild is left to the render
