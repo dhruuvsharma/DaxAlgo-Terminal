@@ -29,10 +29,14 @@ public sealed record StrategyBuildLoopResult(
 /// Process, the registry, …) simply never compiles, so it cannot leave a session as a success.
 /// </para>
 /// </summary>
-public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILogger<StrategyCodegenOrchestrator>? logger = null)
+public sealed class StrategyCodegenOrchestrator(
+    IStrategyCompiler compiler,
+    ILogger<StrategyCodegenOrchestrator>? logger = null,
+    StrategySkillLibrary? skills = null)
 {
     private readonly IStrategyCompiler _compiler = compiler;
     private readonly ILogger? _logger = logger;
+    private readonly StrategySkillLibrary? _skills = skills;
 
     /// <summary>Opens a conversation — or resumes one, when <paramref name="history"/> carries a thread
     /// restored from disk. The caller drives it turn by turn with
@@ -45,7 +49,7 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
         int maxFixAttempts,
         IReadOnlyList<CodegenMessage>? history = null,
         CodegenUsage? priorUsage = null) =>
-        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history, priorUsage);
+        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history, priorUsage, _skills);
 
     /// <summary>One-shot: a single instruction taken as far as the auto-fix bound allows.</summary>
     public async Task<StrategyBuildLoopResult> BuildAsync(

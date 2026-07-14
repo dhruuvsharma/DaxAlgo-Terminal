@@ -28,6 +28,9 @@ public static class StrategyCodegenServiceCollectionExtensions
         services.AddHttpClient();
 
         services.AddSingleton(_ => StrategyContextPack.Load());
+        // On-demand domain packs (order flow, quant math, risk/exits, live window, instruments). Selected
+        // once per conversation from the brief, so the system prompt stays cacheable.
+        services.AddSingleton(_ => StrategySkillLibrary.Load());
         services.AddSingleton<StrategyCodegenOrchestrator>();
         services.AddSingleton(sp =>
         {

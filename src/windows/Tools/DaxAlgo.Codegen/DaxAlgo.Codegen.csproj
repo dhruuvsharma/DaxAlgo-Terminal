@@ -28,6 +28,13 @@
     <EmbeddedResource Include="..\..\..\..\sdk\ai-context\daxalgo-strategy-context.md">
       <LogicalName>DaxAlgo.AiContext.StrategyPack.md</LogicalName>
     </EmbeddedResource>
+
+    <!-- On-demand domain packs (order flow, quant math, risk/exits, the live window, instruments). Loaded
+         only when a brief calls for them, so the base prompt stays small AND the model gets depth on the
+         thing actually being built. Read via StrategySkillLibrary.Load(). -->
+    <EmbeddedResource Include="..\..\..\..\sdk\ai-context\skills\*.md">
+      <LogicalName>DaxAlgo.AiContext.Skill.%(Filename).md</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

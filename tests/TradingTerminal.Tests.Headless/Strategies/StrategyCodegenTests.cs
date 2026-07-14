@@ -511,6 +511,58 @@ public sealed class StrategyCodegenTests
         return (body!, response);
     }
 
+    // ── domain skill packs ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_skill_packs_are_embedded_and_parse()
+    {
+        var library = StrategySkillLibrary.Load();
+
+        library.All.Select(s => s.Id).Should().BeEquivalentTo(
+            ["order-flow", "quant-math", "risk-and-exits", "live-window", "instruments-and-data"]);
+        library.All.Should().OnlyContain(s => s.Triggers.Count > 0 && s.Body.Length > 500);
+    }
+
+    [Fact]
+    public void A_brief_pulls_in_the_packs_it_needs_and_leaves_the_rest()
+    {
+        var library = StrategySkillLibrary.Load();
+
+        var orderFlow = library.SelectFor(
+            "detect stacked imbalance in the footprint, a VPOC shift, and a liquidity vacuum in the order book");
+        orderFlow.Select(s => s.Id).Should().Contain("order-flow");
+        orderFlow.Should().HaveCountLessThanOrEqualTo(StrategySkillLibrary.MaxSkillsPerSession);
+
+        var emaCross = library.SelectFor("a simple EMA cross on 5-minute bars");
+        emaCross.Select(s => s.Id).Should().Contain("quant-math")
+            .And.NotContain("order-flow", "a bar-based cross must not pay for microstructure it never uses");
+
+        library.SelectFor("").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Skills_are_chosen_once_per_session_so_the_cached_prefix_never_moves()
+    {
+        // The system prompt is the cached prefix of every request in a conversation. Re-picking skills per
+        // turn would change those bytes each time and throw the cache away — costing far more than any
+        // skill saves. So: chosen once, from the brief, and fixed thereafter.
+        var client = new FakeCodegenClient();
+        var session = new StrategyCodegenOrchestrator(new RoslynStrategyCompiler(), null, StrategySkillLibrary.Load())
+            .CreateSession(client, Pack, "gen.skills", "Skills", maxFixAttempts: 0);
+
+        await session.SendAsync("build a footprint imbalance and VPOC strategy");
+
+        session.LoadedSkills.Select(s => s.Id).Should().Contain("order-flow");
+        var promptAfterFirstTurn = session.SystemContext;
+        promptAfterFirstTurn.Should().Contain(Pack).And.Contain("Loaded reference");
+
+        // A follow-up that mentions something else entirely must NOT swap the packs out.
+        await session.SendAsync("now add a Kalman filter and a Sharpe readout to the window");
+
+        session.SystemContext.Should().Be(promptAfterFirstTurn,
+            "the system prompt is byte-identical across the thread — that is what makes it cacheable");
+    }
+
     // ── what a turn actually costs ─────────────────────────────────────────────────────────────────
 
     [Fact]

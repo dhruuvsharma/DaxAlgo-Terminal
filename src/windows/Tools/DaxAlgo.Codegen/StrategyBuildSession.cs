@@ -79,11 +79,14 @@ public sealed class StrategyBuildSession
         int maxFixAttempts,
         ILogger? logger = null,
         IReadOnlyList<CodegenMessage>? history = null,
-        CodegenUsage? priorUsage = null)
+        CodegenUsage? priorUsage = null,
+        StrategySkillLibrary? skills = null)
     {
         _compiler = compiler;
         _logger = logger;
+        _skills = skills;
         Provider = provider;
+        BasePack = systemContext;
         SystemContext = systemContext;
         StrategyId = strategyId;
         DisplayName = displayName;
@@ -91,10 +94,26 @@ public sealed class StrategyBuildSession
 
         if (history is { Count: > 0 }) _messages.AddRange(history);
         TotalUsage = priorUsage ?? CodegenUsage.None;
+
+        // A resumed conversation already has a brief — resolve its skills now, from the same text, so the
+        // system prompt (and therefore the cached prefix) is identical to the one it had before.
+        if (_messages.Count > 0) ResolveSkills(BriefFrom(_messages));
     }
 
+    private readonly StrategySkillLibrary? _skills;
+
     public IStrategyCodegenClient Provider { get; }
-    public string SystemContext { get; }
+
+    /// <summary>The SDK contract, before any domain packs are added.</summary>
+    public string BasePack { get; }
+
+    /// <summary>The system prompt actually sent: the base pack plus the domain packs this strategy needs.
+    /// Fixed for the life of the session — it is the cached prefix of every request in the thread, so
+    /// changing it mid-conversation would throw the prompt cache away on every turn.</summary>
+    public string SystemContext { get; private set; }
+
+    /// <summary>The domain packs loaded for this strategy (empty until the first turn).</summary>
+    public IReadOnlyList<StrategySkill> LoadedSkills { get; private set; } = [];
     public string StrategyId { get; }
     public string DisplayName { get; }
     public int MaxFixAttempts { get; }
@@ -124,6 +143,11 @@ public sealed class StrategyBuildSession
         CancellationToken ct = default,
         IProgress<CodegenEvent>? events = null)
     {
+        // First turn: pick the domain packs this strategy needs, from the brief. Once only — the system
+        // prompt is the cached prefix for every later turn, and re-picking would invalidate it each time.
+        if (_messages.Count == 0 && ResolveSkills(userMessage) is { Count: > 0 } loaded)
+            activity?.Report($"Loaded reference: {string.Join(", ", loaded.Select(s => s.Name))}.");
+
         _messages.Add(new CodegenMessage(CodegenRole.User, userMessage));
 
         // One generation, plus MaxFixAttempts more that each get the compiler's errors fed back.
@@ -262,6 +286,29 @@ public sealed class StrategyBuildSession
 
         return wire;
     }
+
+    /// <summary>Picks the domain packs for this strategy and folds them into the system prompt. Idempotent
+    /// and stable: the same brief always yields the same prompt, which is what keeps it cacheable.</summary>
+    private IReadOnlyList<StrategySkill> ResolveSkills(string brief)
+    {
+        if (_skills is null || LoadedSkills.Count > 0) return LoadedSkills;
+
+        LoadedSkills = _skills.SelectFor(brief);
+        SystemContext = StrategySkillLibrary.Compose(BasePack, LoadedSkills);
+
+        if (LoadedSkills.Count > 0)
+        {
+            _logger?.LogInformation("AI builder loaded reference packs for {Id}: {Skills}",
+                StrategyId, string.Join(", ", LoadedSkills.Select(s => s.Id)));
+        }
+
+        return LoadedSkills;
+    }
+
+    /// <summary>The brief, for skill selection, when a session is resumed rather than started: everything
+    /// the USER has said (the model's replies would drag in whatever it happened to mention).</summary>
+    private static string BriefFrom(IEnumerable<CodegenMessage> messages) =>
+        string.Join('\n', messages.Where(m => m.Role == CodegenRole.User).Select(m => m.Content));
 
     /// <summary>The one authoritative copy of the code in the prompt.</summary>
     private string CurrentFilesBlock()

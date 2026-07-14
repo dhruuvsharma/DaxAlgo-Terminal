@@ -1,5 +1,22 @@
 # context changelog — append-only session journal
 
+## 2026-07-14 (later+3) — #26 domain skill packs (on-demand, session-stable)
+- **`sdk/ai-context/skills/*.md`** — five hand-written domain packs, embedded in DaxAlgo.Codegen:
+  `order-flow` (footprint/imbalance/VPOC/depth, trade signing, the pitfalls), `quant-math` (stable
+  estimator forms, OU half-life, VPIN/Kyle), `risk-and-exits`, `live-window` (base-VM surface +
+  memory-safety), `instruments-and-data` (Contract, DataRequirement, which feeds actually exist).
+- **`StrategySkillLibrary`** parses `---` front matter (id/name/triggers) and scores a brief by distinct
+  trigger hits; capped at 3 packs / 12k chars. An EMA-cross brief pulls `quant-math` and NOT `order-flow`
+  — it doesn't pay for microstructure it never uses.
+- **Chosen ONCE per session, never per turn.** The system prompt is the cached prefix of every request in
+  a thread; re-selecting mid-conversation would change those bytes and throw the cache away each turn,
+  costing far more than any pack saves. A resumed session re-resolves from the restored user turns, so it
+  lands on the same prompt. A test pins byte-identity across turns.
+- Base pack slimmed (the quant cheatsheet + memory-safety notes moved into packs where they can be deep
+  rather than squeezed) and gained a **scope guard**: this window builds DaxAlgo strategies and nothing
+  else.
+- 757 headless + 57 WPF + 13 Pro green. Next: the DataRequirement-composed default UI.
+
 ## 2026-07-14 (later+2) — #26 token economics: the files are STATE, not conversation
 - **The bug in the shape of the prompt.** Every rewrite emits the whole file set again, so the raw thread
   carried N superseded copies of the code and re-sent all of them on every turn — cost grew with the
