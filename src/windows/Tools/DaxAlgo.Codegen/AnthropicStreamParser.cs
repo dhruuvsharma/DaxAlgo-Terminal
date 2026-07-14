@@ -15,11 +15,12 @@ internal sealed class AnthropicEventAccumulator
     private readonly StringBuilder _text = new();
     private int _input;
     private int _output;
+    private int _cached;
 
     /// <summary>Everything the model has written so far.</summary>
     public string Text => _text.ToString();
 
-    public CodegenUsage Usage => new(_input, _output);
+    public CodegenUsage Usage => new(_input, _output, _cached);
 
     /// <summary>
     /// Folds one event in and returns what the UI should hear about it. Unknown event types are ignored
@@ -37,9 +38,10 @@ internal sealed class AnthropicEventAccumulator
                 if (evt.TryGetProperty("message", out var message) &&
                     message.TryGetProperty("usage", out var startUsage))
                 {
+                    _cached = Int(startUsage, "cache_read_input_tokens");
                     _input = Int(startUsage, "input_tokens")
                            + Int(startUsage, "cache_creation_input_tokens")
-                           + Int(startUsage, "cache_read_input_tokens");
+                           + _cached;
                     yield return new CodegenEvent.UsageUpdate(Usage);
                 }
                 break;

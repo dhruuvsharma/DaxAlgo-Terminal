@@ -277,14 +277,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     [ObservableProperty] private int _inputTokens;
     [ObservableProperty] private int _outputTokens;
+    [ObservableProperty] private int _cachedTokens;
 
-    /// <summary>Tokens billed this session — blank when the provider doesn't report them (agent CLIs).</summary>
+    /// <summary>Tokens billed this session. The cached share is called out because it is the difference
+    /// between a long conversation costing a little and costing a lot — and because a session where it
+    /// stays at zero is one paying full price to re-read the same context every turn.</summary>
     public string UsageText => InputTokens + OutputTokens == 0
         ? "tokens: not reported"
-        : $"tokens: {InputTokens:N0} in · {OutputTokens:N0} out";
+        : CachedTokens > 0
+            ? $"tokens: {InputTokens:N0} in ({CachedTokens:N0} cached) · {OutputTokens:N0} out"
+            : $"tokens: {InputTokens:N0} in · {OutputTokens:N0} out";
 
     partial void OnInputTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
     partial void OnOutputTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
+    partial void OnCachedTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
 
     partial void OnIsGeneratingChanged(bool value)
     {
@@ -337,10 +343,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var tokensBefore = session.TotalUsage;
         _streamingReply = null;
 
+        // The editor is the truth: hand-edits and all. The session ships exactly one copy of it with the
+        // turn, so the model always works from the code that is actually there.
+        session.SyncEditedFiles([.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
+        _filesEditedByUser = false;
+
         try
         {
             var turn = await session.SendAsync(
-                WithUserEdits(prompt),
+                prompt,
                 new Progress<string>(step => PushActivity(step)),
                 _generateCts.Token,
                 new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)));
@@ -349,6 +360,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // auto-fix retries), and the streamed updates are per-generation.
             InputTokens = session.TotalUsage.InputTokens;
             OutputTokens = session.TotalUsage.OutputTokens;
+            CachedTokens = session.TotalUsage.CachedInputTokens;
 
             if (turn.Kind == BuildTurnKind.ProviderError)
             {
@@ -438,6 +450,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 // banked before this turn. The exact total is set from the session when the turn ends.
                 InputTokens = tokensBefore.InputTokens + update.Usage.InputTokens;
                 OutputTokens = tokensBefore.OutputTokens + update.Usage.OutputTokens;
+                CachedTokens = tokensBefore.CachedInputTokens + update.Usage.CachedInputTokens;
                 break;
         }
     }
@@ -732,26 +745,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _session = null;
         if (note is not null && Messages.Count > 0)
             Append(AuthoringMessage.System($"{note} The model won't remember what was said above."));
-    }
-
-    /// <summary>When the user has hand-edited the code, the model must patch what they're actually
-    /// looking at — not the version it last emitted. Ship the current files with the turn.</summary>
-    private string WithUserEdits(string prompt)
-    {
-        if (!_filesEditedByUser || Files.Count == 0) return prompt;
-
-        var sb = new StringBuilder(prompt);
-        sb.AppendLine().AppendLine().AppendLine("I edited the code. This is its CURRENT state:");
-        foreach (var file in Files)
-        {
-            sb.AppendLine().AppendLine($"```csharp");
-            sb.AppendLine($"// file: {file.Name}");
-            sb.AppendLine(file.Content.TrimEnd());
-            sb.AppendLine("```");
-        }
-
-        _filesEditedByUser = false;
-        return sb.ToString();
     }
 
     private void SetFiles(IReadOnlyList<StrategyFile> files)

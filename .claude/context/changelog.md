@@ -1,5 +1,23 @@
 # context changelog — append-only session journal
 
+## 2026-07-14 (later+2) — #26 token economics: the files are STATE, not conversation
+- **The bug in the shape of the prompt.** Every rewrite emits the whole file set again, so the raw thread
+  carried N superseded copies of the code and re-sent all of them on every turn — cost grew with the
+  square of the work. (Context was never lost; it was paid for repeatedly.)
+- **`StrategyBuildSession.WireMessages()`**: history keeps what the model *said* (`StripCode` replaces each
+  fenced block with `[code omitted: wrote Kernel.cs (120 lines)…]`), and exactly **one** copy of the code
+  — the editor's current contents — rides along with the newest turn. Prompt size is now roughly flat:
+  pack + prose + current code. `WithUserEdits` in the VM is gone; the editor is simply the truth
+  (`SyncEditedFiles` before each send).
+- **Prompt caching (Anthropic)**: `system` and `messages` are now content-block arrays; two
+  `cache_control: ephemeral` breakpoints — the byte-identical SDK pack, and the last message (making this
+  turn's prompt the cached prefix for the next). `CodegenUsage` gained `CachedInputTokens`, surfaced in the
+  header (`12,000 in (9,500 cached)`) — a session where it stays at zero is one paying full price.
+- Measured on a 3-turn / 6-generation session with a 4-file plugin: **~129k → ~53k input tokens (-59%)**,
+  and linear rather than quadratic from here.
+- 754 headless + 57 WPF + 13 Pro green. Next: domain skill packs, then the DataRequirement-composed
+  default UI (needs the four chart windows extracted into embeddable UserControls).
+
 ## 2026-07-14 (later) — #26 chat history persists (and the model's memory with it)
 - **`AuthoringSessionStore`** (Settings/Authoring) — one JSON per strategy id under
   `%LocalAppData%\DaxAlgo Terminal\authoring\`. Saves the chat, **the model's own thread**, the files, the

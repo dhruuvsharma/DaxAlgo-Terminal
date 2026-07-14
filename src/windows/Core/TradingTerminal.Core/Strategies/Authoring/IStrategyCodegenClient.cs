@@ -63,7 +63,13 @@ public sealed record CodegenMessage(CodegenRole Role, string Content);
 /// shapes return this on every reply; agent CLIs and local models may not, hence <see cref="None"/>).
 /// The builder sums it across a session so the user can see what a strategy cost to write.
 /// </summary>
-public sealed record CodegenUsage(int InputTokens, int OutputTokens)
+/// <param name="InputTokens">The whole prompt, cached portion included.</param>
+/// <param name="OutputTokens">What the model wrote.</param>
+/// <param name="CachedInputTokens">How much of the prompt the provider served from its cache — billed at
+/// roughly a tenth. Surfacing it separately is the only way to see whether caching is actually working;
+/// a long session where this stays at zero is a session paying full price for the same context every
+/// turn.</param>
+public sealed record CodegenUsage(int InputTokens, int OutputTokens, int CachedInputTokens = 0)
 {
     public static CodegenUsage None { get; } = new(0, 0);
 
@@ -74,7 +80,9 @@ public sealed record CodegenUsage(int InputTokens, int OutputTokens)
 
     public CodegenUsage Add(CodegenUsage? other) => other is null
         ? this
-        : new(InputTokens + other.InputTokens, OutputTokens + other.OutputTokens);
+        : new(InputTokens + other.InputTokens,
+              OutputTokens + other.OutputTokens,
+              CachedInputTokens + other.CachedInputTokens);
 }
 
 /// <summary>

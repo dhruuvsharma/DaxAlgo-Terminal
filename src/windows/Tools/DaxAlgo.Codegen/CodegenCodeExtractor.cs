@@ -35,6 +35,31 @@ public static partial class CodegenCodeExtractor
     }
 
     /// <summary>
+    /// The model's words with its code taken out, each block replaced by a one-line note of what it wrote.
+    /// This is what keeps a long conversation affordable: a rewritten file is superseded the moment the
+    /// next version arrives, but the naive thread keeps every copy forever and re-sends all of them on
+    /// every turn. The prose is what a follow-up actually depends on; the code lives in the editor, and
+    /// the session ships one current copy of it.
+    /// </summary>
+    public static string StripCode(string? reply)
+    {
+        if (string.IsNullOrWhiteSpace(reply)) return string.Empty;
+
+        return FencedBlock().Replace(reply, match =>
+        {
+            var language = match.Groups["lang"].Value.Trim().ToLowerInvariant();
+            if (!CSharpLanguages.Contains(language)) return match.Value;   // leave json/pwsh alone; it's tiny
+
+            var body = match.Groups["body"].Value;
+            var header = FileHeader().Match(body);
+            var name = header.Success ? header.Groups["name"].Value : "a file";
+            var lines = body.Count(c => c == '\n');
+
+            return $"[code omitted: wrote {name} ({lines} lines) — the current version is below]";
+        }).Trim();
+    }
+
+    /// <summary>
     /// Every C# file in the reply, in order. Empty when the model wrote no code — which is a legitimate
     /// turn (it asked a question), not a failure.
     /// </summary>

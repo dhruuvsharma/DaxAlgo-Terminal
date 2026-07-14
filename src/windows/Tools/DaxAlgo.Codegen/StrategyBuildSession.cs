@@ -147,7 +147,7 @@ public sealed class StrategyBuildSession
             var generationUsage = CodegenUsage.None;
 
             await foreach (var evt in Provider
-                .StreamAsync(new StrategyCodegenRequest(SystemContext, _messages), ct)
+                .StreamAsync(new StrategyCodegenRequest(SystemContext, WireMessages()), ct)
                 .ConfigureAwait(false))
             {
                 switch (evt)
@@ -226,9 +226,56 @@ public sealed class StrategyBuildSession
             BuildTurnKind.CompileFailed, lastText, lastFiles, lastCompile, null, totalGenerations, usage);
     }
 
-    /// <summary>Push the user's hand-edits back into the thread, so a follow-up doesn't ask the model to
-    /// patch a version of the code that no longer exists.</summary>
+    /// <summary>Push the user's hand-edits into the session, so the next turn shows the model the code
+    /// that is actually in the editor rather than the version it last wrote.</summary>
     public void SyncEditedFiles(IReadOnlyList<StrategyFile> files) => Files = files;
+
+    /// <summary>
+    /// The prompt actually sent — and the reason a long session doesn't cost a fortune.
+    /// <para>
+    /// The naive thing is to replay the raw thread. But every time the model rewrites the files it emits
+    /// the WHOLE set again, so after three rewrites the thread carries three full copies of code that has
+    /// been superseded, and each turn re-sends all of them. Cost grows with the square of the work.
+    /// </para>
+    /// <para>
+    /// So: <b>the files are state, not conversation.</b> Code is stripped out of the history (leaving what
+    /// the model actually SAID, which is what a follow-up depends on), and exactly one copy — the current
+    /// contents of the editor — rides along with the newest turn. The prompt then stays roughly flat:
+    /// pack + prose + the code as it is right now.
+    /// </para>
+    /// </summary>
+    internal IReadOnlyList<CodegenMessage> WireMessages()
+    {
+        var wire = new List<CodegenMessage>(_messages.Count);
+
+        foreach (var message in _messages)
+        {
+            wire.Add(message.Role == CodegenRole.Assistant
+                ? message with { Content = CodegenCodeExtractor.StripCode(message.Content) }
+                : message);
+        }
+
+        // Attach the current file set to the last turn (which is always the user's — a generation is only
+        // ever kicked off by a user message or a fix prompt).
+        if (Files.Count > 0 && wire.Count > 0 && wire[^1].Role == CodegenRole.User)
+            wire[^1] = wire[^1] with { Content = $"{wire[^1].Content}\n\n{CurrentFilesBlock()}" };
+
+        return wire;
+    }
+
+    /// <summary>The one authoritative copy of the code in the prompt.</summary>
+    private string CurrentFilesBlock()
+    {
+        var sb = new StringBuilder("The strategy's files, as they stand right now (this is the code to work from):\n");
+        foreach (var file in Files)
+        {
+            sb.AppendLine().AppendLine("```csharp");
+            sb.Append("// file: ").AppendLine(file.Name);
+            sb.AppendLine(file.Content.TrimEnd());
+            sb.AppendLine("```");
+        }
+        return sb.ToString();
+    }
 
     private static int Count(StrategyCompileResult? compile) => compile?.Errors.Count() ?? 0;
 

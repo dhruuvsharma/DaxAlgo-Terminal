@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -508,6 +509,85 @@ public sealed class StrategyCodegenTests
 
         var response = await client.GenerateAsync(new StrategyCodegenRequest(Pack, [new(CodegenRole.User, "hi")]));
         return (body!, response);
+    }
+
+    // ── what a turn actually costs ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Superseded_code_is_stripped_from_the_thread_and_the_current_files_ride_along_once()
+    {
+        // The naive thread keeps every version of every file the model ever wrote and re-sends all of
+        // them on every turn — cost grows with the square of the work. The files are STATE: history keeps
+        // the prose, and exactly one copy of the code (the editor's) travels with the newest turn.
+        var client = new FakeCodegenClient(
+            "Here you go.\n```csharp\n// file: Kernel.cs\npublic sealed class V1 { }\n```",
+            "Tightened it.\n```csharp\n// file: Kernel.cs\npublic sealed class V2 { }\n```");
+        var session = Orchestrator().CreateSession(client, Pack, "gen.cost", "Cost", maxFixAttempts: 0);
+
+        await session.SendAsync("write it");            // model writes V1
+        await session.SendAsync("now tighten the stop"); // model replaces it with V2
+        await session.SendAsync("explain the exit");     // third turn: V1 is now truly superseded
+
+        var sent = client.LastRequest!.Messages;
+        var prompt = string.Join("\n", sent.Select(m => m.Content));
+
+        // V1 was replaced two turns ago. The naive thread would still be carrying it — and paying for it.
+        prompt.Should().NotContain("public sealed class V1",
+            "a superseded file must not be re-sent on every later turn");
+        prompt.Should().Contain("[code omitted", "but what the model SAID is kept — a follow-up depends on it");
+        prompt.Should().Contain("Tightened it.");
+
+        // The current code appears exactly once, attached to the newest turn.
+        Regex.Matches(prompt, "public sealed class V2").Should().HaveCount(1);
+        sent[^1].Role.Should().Be(CodegenRole.User);
+        sent[^1].Content.Should().Contain("as they stand right now").And.Contain("public sealed class V2");
+    }
+
+    [Fact]
+    public async Task A_hand_edit_in_the_editor_beats_whatever_the_model_last_wrote()
+    {
+        var client = new FakeCodegenClient(FakeCodegenClient.DefaultKernel);
+        var session = Orchestrator().CreateSession(client, Pack, "gen.edit", "Edit", maxFixAttempts: 0);
+        await session.SendAsync("write it");
+
+        session.SyncEditedFiles([new StrategyFile("Kernel.cs", "public sealed class EditedByHand { }")]);
+        await session.SendAsync("explain what I changed");
+
+        client.LastRequest!.Messages[^1].Content.Should().Contain("EditedByHand",
+            "the editor is the truth — the model must work from the code that is actually there");
+    }
+
+    [Fact]
+    public async Task Anthropic_marks_the_pack_and_the_last_turn_as_cacheable()
+    {
+        // The pack is byte-identical on every call and the conversation prefix repeats — without cache
+        // breakpoints, every turn re-bills all of it at full price.
+        var (body, _) = await CaptureAnthropicRequest(CodegenEffort.Default);
+
+        body.Should().Contain("\"cache_control\":{\"type\":\"ephemeral\"}");
+        Regex.Matches(body, "cache_control").Should().HaveCount(2,
+            "one breakpoint on the system pack, one on the last message (so it is the cached prefix next turn)");
+    }
+
+    [Fact]
+    public async Task The_cached_share_of_the_prompt_is_reported_separately()
+    {
+        const string json = """
+            {"content":[{"type":"text","text":"```csharp\npublic class Ok {}\n```"}],
+             "usage":{"input_tokens":200,"cache_creation_input_tokens":0,"cache_read_input_tokens":9000,"output_tokens":50}}
+            """;
+        var client = new AnthropicCodegenClient(
+            new HttpClient(new StubHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json),
+            }))),
+            "https://api.example.com", "claude-opus-4-8", apiKey: "sk-test");
+
+        var usage = (await client.GenerateAsync(new StrategyCodegenRequest(Pack, [new(CodegenRole.User, "hi")]))).Usage!;
+
+        usage.InputTokens.Should().Be(9_200, "the whole prompt, cached portion included");
+        usage.CachedInputTokens.Should().Be(9_000,
+            "surfaced separately — a session where this stays at zero is paying full price every turn");
     }
 
     // ── resuming a saved conversation ──────────────────────────────────────────────────────────────

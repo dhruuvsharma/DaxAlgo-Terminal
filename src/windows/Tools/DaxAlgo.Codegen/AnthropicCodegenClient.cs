@@ -159,7 +159,10 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
             var parsed = JsonSerializer.Deserialize<MessagesResponse>(payload, Json);
             var text = parsed?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
             var usage = parsed?.Usage is { } u
-                ? new CodegenUsage(u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens, u.OutputTokens)
+                ? new CodegenUsage(
+                    u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens,
+                    u.OutputTokens,
+                    CachedInputTokens: u.CacheReadInputTokens)
                 : CodegenUsage.None;
 
             // No code is a legitimate turn — the model is asking something back. The session shows it in
@@ -177,19 +180,41 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         }
     }
 
-    /// <summary>The request body, shared by both paths — the streaming one differs only by <c>stream</c>.</summary>
+    /// <summary>The request body, shared by both paths — the streaming one differs only by <c>stream</c>.
+    /// <para>
+    /// Two cache breakpoints. The SDK context pack is byte-identical on every call, so it is marked
+    /// cacheable and costs ~10% on every turn after the first. The last message is marked too: that makes
+    /// this turn's whole prompt the cached prefix for the NEXT turn, which is what stops an ongoing
+    /// conversation from re-billing its own history at full price. (A prefix under the model's minimum —
+    /// 4k tokens on Opus — silently doesn't cache; no error, just no saving.)
+    /// </para>
+    /// </summary>
     private HttpRequestMessage BuildRequest(StrategyCodegenRequest request, bool stream)
     {
         var messages = request.Messages
-            .Select(m => new WireMessage(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content))
+            .Select(m => new WireMessage(
+                m.Role == CodegenRole.Assistant ? "assistant" : "user",
+                [new WireText(m.Content)]))
             .ToList();
+
+        if (messages.Count > 0)
+        {
+            // Each message is one text block (built just above), so the breakpoint goes on that block.
+            var last = messages[^1];
+            messages[^1] = last with
+            {
+                Content = [last.Content[0] with { CacheControl = WireCacheControl.Ephemeral }],
+            };
+        }
 
         // Effort + adaptive thinking are sent ONLY when the user asked for an effort level. They are
         // rejected by models that predate them (Haiku 4.5 and older), so "Default" has to mean "send
         // neither" — that is what keeps an older model usable in the picker.
         var effort = _effort.Wire();
         var body = new MessagesRequest(
-            _model, MaxTokens: 16384, request.SystemContext, messages,
+            _model, MaxTokens: 16384,
+            System: [new WireText(request.SystemContext) { CacheControl = WireCacheControl.Ephemeral }],
+            Messages: messages,
             OutputConfig: effort is null ? null : new WireOutputConfig(effort),
             Thinking: effort is null ? null : new WireThinking("adaptive"),
             Stream: stream ? true : null);
@@ -220,12 +245,28 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
-    private sealed record WireMessage([property: JsonPropertyName("role")] string Role,
-                                      [property: JsonPropertyName("content")] string Content);
+    private sealed record WireMessage(
+        [property: JsonPropertyName("role")] string Role,
+        [property: JsonPropertyName("content")] IReadOnlyList<WireText> Content);
+
+    /// <summary>A text content block, optionally a cache breakpoint.</summary>
+    private sealed record WireText([property: JsonPropertyName("text")] string Text)
+    {
+        [JsonPropertyName("type")] public string Type => "text";
+
+        [JsonPropertyName("cache_control"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public WireCacheControl? CacheControl { get; init; }
+    }
+
+    private sealed record WireCacheControl([property: JsonPropertyName("type")] string Type)
+    {
+        public static WireCacheControl Ephemeral { get; } = new("ephemeral");
+    }
+
     private sealed record MessagesRequest(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
-        [property: JsonPropertyName("system")] string System,
+        [property: JsonPropertyName("system")] IReadOnlyList<WireText> System,
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
         [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireOutputConfig? OutputConfig = null,
         [property: JsonPropertyName("thinking"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireThinking? Thinking = null,

@@ -30,9 +30,14 @@ public sealed class FakeCodegenClient : IStrategyCodegenClient
     /// <summary>Canned usage, so a test can assert the session sums tokens across generations.</summary>
     public CodegenUsage Usage { get; init; } = new(100, 50);
 
+    /// <summary>The prompt the session actually built — what a test inspects to prove the thread was
+    /// compacted and the current files were attached.</summary>
+    public StrategyCodegenRequest? LastRequest { get; private set; }
+
     public Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
     {
         CallCount++;
+        LastRequest = request;
         if (_replies.Count > 0) _last = _replies.Dequeue();
 
         // A reply with no code is a question — same semantics as a real provider.
