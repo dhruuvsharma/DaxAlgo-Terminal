@@ -1,5 +1,22 @@
 # context changelog — append-only session journal
 
+## 2026-07-14 (later) — #26 chat history persists (and the model's memory with it)
+- **`AuthoringSessionStore`** (Settings/Authoring) — one JSON per strategy id under
+  `%LocalAppData%\DaxAlgo Terminal\authoring\`. Saves the chat, **the model's own thread**, the files, the
+  provider/model/effort, and the token totals. Written after every turn, every Compile & Register, and on
+  pane close (hand-edits aren't saved per keystroke).
+- **The thread is the point.** Restoring only the bubbles would give a transcript the model has never
+  seen — "now tighten the stop" would arrive with no idea what the stop is. `StrategyBuildSession` /
+  orchestrator / `IAiStrategyBuilder.StartSession` gained `history` + `priorUsage`, so a resumed session
+  replays the whole conversation (including the compiler's auto-fix prompts) and the token counter
+  continues rather than restarting.
+- Pane: a **Chat picker** (saved sessions, newest first, with age) + Delete chat (deletes the
+  conversation, never the registered strategy). The builder opens on the last session you were in.
+  `New chat` banks the outgoing conversation first — it can never cost you one.
+- The strategy id is user input and becomes a file name: every path separator is scrubbed, and a test
+  pins containment (not a spelling) so an id can't escape the folder.
+- 750 headless + 57 WPF + 13 Pro green.
+
 ## 2026-07-14 — #26 fix: an authored strategy had NO plugin entry point (so it died on restart)
 - **The restart bug.** `PluginLoader.RegisterFromAssembly` requires a public `IStrategyPlugin`. The
   authored DLL had none, so on the next start the loader found it, rejected it, and the Plugin Manager

@@ -510,6 +510,37 @@ public sealed class StrategyCodegenTests
         return (body!, response);
     }
 
+    // ── resuming a saved conversation ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_resumed_session_replays_the_thread_so_the_model_still_remembers_what_it_wrote()
+    {
+        // Restoring a chat has to restore the MODEL's memory too, not just the bubbles the user reads —
+        // otherwise "now tighten the stop" arrives with no idea what the stop is.
+        var yesterday = new List<CodegenMessage>
+        {
+            new(CodegenRole.User, "build me an EMA cross"),
+            new(CodegenRole.Assistant, FakeCodegenClient.DefaultKernel),
+        };
+
+        var client = new FakeCodegenClient();
+        var session = Orchestrator().CreateSession(
+            client, Pack, "gen.resume", "Resumed", maxFixAttempts: 0,
+            history: yesterday,
+            priorUsage: new CodegenUsage(1_000, 500));
+
+        session.Transcript.Should().HaveCount(2, "the thread came back with the session");
+        session.TotalUsage.TotalTokens.Should().Be(1_500, "and so did what it had already cost");
+
+        await session.SendAsync("now tighten the stop");
+
+        // The provider sees the whole thread — yesterday's turns, then today's follow-up.
+        session.Transcript.Should().HaveCount(4);
+        session.Transcript[0].Content.Should().Be("build me an EMA cross");
+        session.Transcript[2].Content.Should().Be("now tighten the stop");
+        session.TotalUsage.TotalTokens.Should().BeGreaterThan(1_500, "the counter continues, it doesn't restart");
+    }
+
     // ── streaming ──────────────────────────────────────────────────────────────────────────────────
 
     [Fact]

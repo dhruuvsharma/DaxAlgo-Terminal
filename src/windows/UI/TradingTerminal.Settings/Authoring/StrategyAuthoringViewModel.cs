@@ -48,6 +48,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private StrategyBuildSession? _session;
     private bool _filesEditedByUser;
 
+    /// <summary>The model thread restored from disk, handed to the next session so a resumed conversation
+    /// still remembers what it wrote. Cleared once used.</summary>
+    private IReadOnlyList<CodegenMessage>? _restoredThread;
+    private CodegenUsage? _restoredUsage;
+
+    /// <summary>True while a saved session is being loaded — suppresses the auto-save and the
+    /// "switched provider" notes that the restore itself would otherwise trigger.</summary>
+    private bool _restoring;
+
     /// <summary>Set once the constructor's own property assignments are done, so seeding the pickers
     /// doesn't write the user-config file back with the defaults it just read.</summary>
     private bool _ready;
@@ -84,6 +93,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
         _filesEditedByUser = false;
         _ready = true;
+
+        // A strategy is several sittings' work. Bring back the last one the user was on, and offer the
+        // rest in the picker — a chat that dies with the process is no use for anything serious.
+        RefreshSavedSessions();
+        if (SavedSessions.FirstOrDefault() is { } latest) Restore(latest);
     }
 
     /// <summary>True when the AI builder is wired at all — drives the chat pane's visibility. When wired
@@ -394,6 +408,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             _generateCts?.Cancel();   // stops the elapsed ticker
             await ticking;
             ElapsedText = null;
+            Save();   // a turn is expensive — never lose one to a crash or a restart
         }
     }
 
@@ -454,21 +469,169 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand(CanExecute = nameof(CanStop))]
     private void Stop() => _generateCts?.Cancel();
 
-    /// <summary>Start over: a fresh thread with the model, the starter template back in the editor.</summary>
+    /// <summary>Start over: a fresh thread with the model, the starter template back in the editor. The
+    /// previous chat is NOT deleted — it stays in the picker under its own strategy id, so "new chat" can
+    /// never cost the user a conversation. Give the new one a new id before sending, or it will overwrite
+    /// the old one's file on the first turn.</summary>
     [RelayCommand]
     private void NewChat()
     {
-        ResetSession(null);
-        Messages.Clear();
-        Activity.Clear();
-        Diagnostics.Clear();
-        InputTokens = OutputTokens = 0;
-        CompiledOk = false;
-        Parameters = null;
-        SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
-        _filesEditedByUser = false;
-        AiStatus = null;
-        Status = "New conversation. Describe the strategy you want.";
+        Save();   // bank the outgoing conversation before abandoning it
+
+        _restoring = true;
+        try
+        {
+            ResetSession(null);
+            _restoredThread = null;
+            _restoredUsage = null;
+            Messages.Clear();
+            Activity.Clear();
+            Diagnostics.Clear();
+            InputTokens = OutputTokens = 0;
+            CompiledOk = false;
+            AwaitingAnswer = false;
+            Parameters = null;
+            SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
+            _filesEditedByUser = false;
+            AiStatus = null;
+            Status = "New conversation. Give it a strategy id, then describe what you want.";
+        }
+        finally
+        {
+            _restoring = false;
+        }
+    }
+
+    // ── Saved sessions ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Every strategy the user has an authoring chat for, newest first.</summary>
+    public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
+
+    [ObservableProperty] private AuthoringSessionSnapshot? _selectedSavedSession;
+
+    partial void OnSelectedSavedSessionChanged(AuthoringSessionSnapshot? value)
+    {
+        if (_restoring || value is null || value.StrategyId == StrategyId) return;
+        Restore(value);
+    }
+
+    /// <summary>Forget a strategy's chat. The strategy itself (if it was registered) is untouched — this
+    /// deletes the conversation, not the plugin.</summary>
+    [RelayCommand]
+    private void DeleteSavedSession(AuthoringSessionSnapshot? session)
+    {
+        if (session is null) return;
+
+        AuthoringSessionStore.Delete(session.StrategyId);
+        RefreshSavedSessions();
+        Status = $"Deleted the chat for '{session.DisplayName}'. The strategy itself is untouched.";
+    }
+
+    private void RefreshSavedSessions()
+    {
+        var saved = AuthoringSessionStore.List();
+
+        _restoring = true;   // repopulating the list re-fires the selection binding
+        try
+        {
+            SavedSessions.Clear();
+            foreach (var session in saved) SavedSessions.Add(session);
+            SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == StrategyId);
+        }
+        finally
+        {
+            _restoring = false;
+        }
+    }
+
+    /// <summary>Loads a saved session back into the pane — the chat, the files, the provider setup, the
+    /// token total, AND the model's own thread, so a follow-up like "now tighten the stop" still works.</summary>
+    private void Restore(AuthoringSessionSnapshot session)
+    {
+        _restoring = true;
+        try
+        {
+            _session = null;
+            _restoredThread = session.Thread;
+            _restoredUsage = new CodegenUsage(session.InputTokens, session.OutputTokens);
+
+            StrategyId = session.StrategyId;
+            DisplayName = session.DisplayName;
+
+            if (session.ProviderId is { Length: > 0 } providerId &&
+                AiProviders.FirstOrDefault(p => p.ProviderId == providerId) is { } provider)
+            {
+                SelectedAiProvider = provider;
+                if (session.Model is { Length: > 0 } model)
+                {
+                    if (!Models.Contains(model)) Models.Insert(0, model);
+                    SelectedModel = model;
+                }
+                SelectedEffort = CodegenEfforts.Parse(session.Effort);
+            }
+
+            Messages.Clear();
+            foreach (var entry in session.Chat)
+            {
+                Append(entry.Role == AuthoringChatEntry.System
+                    ? AuthoringMessage.System(entry.Text)
+                    : new AuthoringMessage(
+                        entry.Role == AuthoringChatEntry.User ? CodegenRole.User : CodegenRole.Assistant,
+                        entry.Text));
+            }
+
+            if (session.Files.Count > 0) SetFiles(session.Files);
+
+            InputTokens = session.InputTokens;
+            OutputTokens = session.OutputTokens;
+            Diagnostics.Clear();
+            CompiledOk = false;
+            AwaitingAnswer = false;
+            _filesEditedByUser = false;
+
+            SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == session.StrategyId);
+            Status = Messages.Count > 0
+                ? $"Restored the chat for '{session.DisplayName}' ({session.Age}). Carry on where you left off."
+                : "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+        }
+        finally
+        {
+            _restoring = false;
+        }
+    }
+
+    /// <summary>Writes the current session out. Called after anything worth not losing: a turn, a compile,
+    /// an edit. Cheap — a chat is a few KB of JSON.</summary>
+    private void Save()
+    {
+        if (_restoring || !_ready || string.IsNullOrWhiteSpace(StrategyId)) return;
+        if (Messages.Count == 0 && !_filesEditedByUser) return;   // nothing worth a file yet
+
+        var snapshot = new AuthoringSessionSnapshot(
+            StrategyId: StrategyId.Trim(),
+            DisplayName: DisplayName.Trim(),
+            Chat: [.. Messages.Select(m => new AuthoringChatEntry(
+                m.IsSystem ? AuthoringChatEntry.System
+                    : m.IsUser ? AuthoringChatEntry.User : AuthoringChatEntry.Assistant,
+                m.Text,
+                m.TimestampLocal))],
+            // The MODEL's thread, not the chat: it also carries the compiler's auto-fix prompts, which are
+            // what let a resumed conversation pick up mid-repair.
+            Thread: _session?.Transcript ?? _restoredThread ?? [],
+            Files: [.. Files.Select(f => new StrategyFile(f.Name, f.Content))],
+            ProviderId: SelectedAiProvider?.ProviderId,
+            Model: SelectedModel,
+            Effort: SelectedEffort.Wire(),
+            InputTokens: InputTokens,
+            OutputTokens: OutputTokens);
+
+        if (!AuthoringSessionStore.Save(snapshot))
+        {
+            _logger.LogWarning("Could not save the authoring chat for {Id}", StrategyId);
+            return;
+        }
+
+        RefreshSavedSessions();
     }
 
     // ── Compile & register ──────────────────────────────────────────────────────────────────────────
@@ -533,6 +696,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _logger.LogInformation(
             "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog}",
             result.Option.Id, Files.Count, install.InCatalog);
+        Save();
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────────────────
@@ -547,7 +711,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (_session is not null) return _session;
 
         var client = ResolveClient(choice) ?? choice.Client;
-        _session = _ai!.StartSession(client, StrategyId.Trim(), DisplayName.Trim());
+
+        // Resume the restored thread exactly once: the model gets back everything it said, so a follow-up
+        // ("now tighten the stop") lands on the code it actually wrote rather than on an empty context.
+        _session = _ai!.StartSession(
+            client, StrategyId.Trim(), DisplayName.Trim(), _restoredThread, _restoredUsage);
+        _restoredThread = null;
+        _restoredUsage = null;
         return _session;
     }
 
@@ -647,6 +817,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     public void Dispose()
     {
+        // Hand-edits in the Code tab aren't saved per keystroke; catch them on the way out.
+        Save();
+
         _generateCts?.Cancel();
         _generateCts?.Dispose();
         _generateCts = null;

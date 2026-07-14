@@ -65,6 +65,11 @@ public sealed class StrategyBuildSession
     private readonly ILogger? _logger;
     private readonly List<CodegenMessage> _messages = [];
 
+    /// <param name="history">A thread to resume — the conversation as it stood when the app last closed.
+    /// Replaying it is what makes a restored chat more than a transcript: the model can still answer
+    /// "now tighten the stop" because it remembers what it wrote.</param>
+    /// <param name="priorUsage">Tokens already spent on this thread, so the counter continues rather than
+    /// restarting at zero.</param>
     internal StrategyBuildSession(
         IStrategyCompiler compiler,
         IStrategyCodegenClient provider,
@@ -72,7 +77,9 @@ public sealed class StrategyBuildSession
         string strategyId,
         string displayName,
         int maxFixAttempts,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        IReadOnlyList<CodegenMessage>? history = null,
+        CodegenUsage? priorUsage = null)
     {
         _compiler = compiler;
         _logger = logger;
@@ -81,6 +88,9 @@ public sealed class StrategyBuildSession
         StrategyId = strategyId;
         DisplayName = displayName;
         MaxFixAttempts = Math.Max(0, maxFixAttempts);
+
+        if (history is { Count: > 0 }) _messages.AddRange(history);
+        TotalUsage = priorUsage ?? CodegenUsage.None;
     }
 
     public IStrategyCodegenClient Provider { get; }

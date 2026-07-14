@@ -34,15 +34,18 @@ public sealed class StrategyCodegenOrchestrator(IStrategyCompiler compiler, ILog
     private readonly IStrategyCompiler _compiler = compiler;
     private readonly ILogger? _logger = logger;
 
-    /// <summary>Opens a conversation. The caller drives it turn by turn with
-    /// <see cref="StrategyBuildSession.SendAsync"/> — which is what lets the model ask questions back.</summary>
+    /// <summary>Opens a conversation — or resumes one, when <paramref name="history"/> carries a thread
+    /// restored from disk. The caller drives it turn by turn with
+    /// <see cref="StrategyBuildSession.SendAsync"/>, which is what lets the model ask questions back.</summary>
     public StrategyBuildSession CreateSession(
         IStrategyCodegenClient client,
         string systemContext,
         string strategyId,
         string displayName,
-        int maxFixAttempts) =>
-        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger);
+        int maxFixAttempts,
+        IReadOnlyList<CodegenMessage>? history = null,
+        CodegenUsage? priorUsage = null) =>
+        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history, priorUsage);
 
     /// <summary>One-shot: a single instruction taken as far as the auto-fix bound allows.</summary>
     public async Task<StrategyBuildLoopResult> BuildAsync(
