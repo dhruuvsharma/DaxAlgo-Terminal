@@ -31,6 +31,7 @@
       "src\\windows\\Tools\\TradingTerminal.Correlation\\TradingTerminal.Correlation.csproj",
       "src\\windows\\Tools\\TradingTerminal.Recording\\TradingTerminal.Recording.csproj",
       "src\\windows\\UI\\TradingTerminal.Settings\\TradingTerminal.Settings.csproj",
+      "src\\windows\\UI\\TradingTerminal.StrategyComposer\\TradingTerminal.StrategyComposer.csproj",
       "src\\windows\\UI\\TradingTerminal.UI.Core\\TradingTerminal.UI.Core.csproj"
     ]
   }

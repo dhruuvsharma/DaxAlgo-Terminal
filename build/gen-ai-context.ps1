@@ -215,12 +215,19 @@ public sealed class MyStrategy : IBacktestStrategy { ... }
   its contents with what you send; a partial answer deletes the rest.
 - A short sentence of prose before the blocks is welcome. Keep it to what the user needs to know.
 
-### WRITE ALL FOUR FILES. A kernel on its own is backtest-only.
+### WRITE THREE FILES: KERNEL + DESCRIPTOR + VIEW-MODEL. A kernel on its own is backtest-only.
 
-**Default to the complete plugin: kernel + descriptor + view-model + view.** A kernel alone registers in
-the backtester and gets **no card in the Strategies catalog and no window** - which is almost never what
-the user wanted. Write all four every time unless the user explicitly says they only want a backtest
-kernel. The host wires them in the moment they press Compile & Register.
+**Default to the trio: kernel + descriptor + view-model.** A kernel alone registers in the backtester
+and gets **no card in the Strategies catalog and no window** - which is almost never what the user
+wanted. Write all three every time unless the user explicitly says they only want a backtest kernel.
+The host wires them in the moment they press Compile & Register.
+
+**Do NOT write a view unless the user asks for a custom UI.** When you write none, the host composes
+the live window from the descriptor's ``DataRequirement``: ``Depth`` gets the order-book ladder +
+liquidity heatmap, ``TradeTape`` gets the volume footprint, ``Bars`` gets the price chart - the same
+panels the standalone chart tools use - plus the setup form, start/stop chrome and the signal feed.
+That composed window is better than a hand-rolled code-built view, so declaring the right
+``DataRequirement`` is also how you design the window.
 
 **1. The catalog descriptor** - an ``ITradingStrategy`` with a **public parameterless constructor**:
 
@@ -232,7 +239,7 @@ public sealed class MyStrategyDescriptor : ITradingStrategy
     public string DisplayName => "My strategy";
     public string Description => "One paragraph the catalog card shows.";
     public StrategyDataRequirement DataRequirement =>
-        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;   // add Depth / TradeTape if you use them
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;   // add Depth / TradeTape if you use them - this also decides which panels your composed window gets
 }
 ``````
 
@@ -263,10 +270,11 @@ public sealed class MyStrategyViewModel : LiveSignalStrategyViewModelBase
 }
 ``````
 
-**3. The view** - a WPF ``UserControl``. **Roslyn cannot compile XAML**, so build the tree in C#. Keep it
-simple: the base view-model exposes ``Signals`` (an ``ObservableCollection<SignalEntry>``, newest last)
-and ``Bars``; the shared ``StrategyChromeBar`` control binds to the base by convention and gives you the
-instrument picker, start/stop and status for free:
+**3. The view - only when the user explicitly wants bespoke UI** (otherwise skip this file and let
+the host compose the window). A WPF ``UserControl``; **Roslyn cannot compile XAML**, so build the tree
+in C#. Keep it simple: the base view-model exposes ``Signals`` (an ``ObservableCollection<SignalEntry>``,
+newest last) and ``Bars``; the shared ``StrategyChromeBar`` control binds to the base by convention and
+gives you the instrument picker, start/stop and status for free:
 
 ``````csharp
 // file: MyStrategyView.cs
@@ -297,12 +305,12 @@ public sealed class MyStrategyView : UserControl
 ``````
 
 Rules for the trio: the descriptor's ``Id``, the view-model's ``base(...)`` id, and the id in the
-builder's Id box must be **the same string**. Write at most one class of each kind. All three are needed
-for a card - a view-model with no view would be a card that throws when clicked - and the host tells the
-user exactly which of them is missing.
+builder's Id box must be **the same string**. Write at most one class of each kind. The descriptor and
+the view-model are what a catalog card needs (the host composes the window when you wrote none) - and
+the host tells the user exactly which of them is missing.
 
 You do NOT write the plugin entry point (``IStrategyPlugin``); the host generates it and discovers your
-four classes by shape. Do not write one - a second entry point would make the plugin ambiguous.
+classes by shape. Do not write one - a second entry point would make the plugin ambiguous.
 
 ### Ask before you guess
 

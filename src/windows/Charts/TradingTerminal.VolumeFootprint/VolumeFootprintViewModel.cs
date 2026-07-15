@@ -52,6 +52,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private readonly InMemoryLogSink _log;
     private readonly ILogger<VolumeFootprintViewModel> _logger;
 
+    /// <summary>Non-null when this view-model lives inside a strategy window rather than the
+    /// standalone tool — see <see cref="VolumeFootprintEmbedOptions"/>.</summary>
+    private readonly VolumeFootprintEmbedOptions? _embed;
+
     private IReadOnlyList<SignalInstrument> _allInstruments;
     private CancellationTokenSource? _streamCts;
     private IDisposable? _quoteHandle;
@@ -128,7 +132,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         IModelRegistry modelRegistry,
         IBrokerSelector selector,
         InMemoryLogSink log,
-        ILogger<VolumeFootprintViewModel> logger)
+        ILogger<VolumeFootprintViewModel> logger,
+        VolumeFootprintEmbedOptions? embed = null)
     {
         _repository = repository;
         _hub = hub;
@@ -138,6 +143,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _selector = selector;
         _log = log;
         _logger = logger;
+        _embed = embed;
 
         // Build every collection BEFORE assigning the selected values: the generated property
         // setters call the On*Changed handlers, which would otherwise fire Restart() (and touch
@@ -149,8 +155,14 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         Instruments = new ObservableCollection<SignalInstrument>();
         Intervals = new ObservableCollection<FootprintInterval>(AllIntervals);
 
-        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
-            () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
+        // Embedded (inside a strategy window): the host pins the instrument and decides about ML BEFORE
+        // the first Restart(), so a gated-off forecaster is never constructed and the persisted
+        // standalone-tool pick can't cause a ghost subscription to an unrelated symbol.
+        MlEnabled = embed?.MlEnabled ?? true;
+        SelectedInstrument = embed is not null
+            ? embed.Instrument
+            : InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
+                () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
         ApplyFilter();
         SelectedInterval = Intervals.First(i => i.Label == "1m");
         PresetNames = new ObservableCollection<string>(_presetStore.Names);
@@ -159,7 +171,9 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _renderTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(80), OnRenderTick);
 
         _ready = true;
-        _ = LoadInstrumentsAsync();
+        // The broker universe swap serves the toolbar's picker; an embedded panel has no picker and
+        // must keep the host-pinned selection.
+        if (embed is null) _ = LoadInstrumentsAsync();
         Restart();
     }
 
@@ -1046,13 +1060,25 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     public void Dispose()
     {
-        // Remember the instrument the user was last streaming so the window reopens on it.
-        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
+        // Remember the instrument the user was last streaming so the window reopens on it — but never
+        // from an embedded panel, whose instrument belongs to the strategy, not to the standalone tool.
+        if (_embed is null)
+            LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _renderTimer.Dispose();
         SaveModelCheckpoint();
         StopStream();
     }
 }
+
+/// <summary>
+/// How an embedding host — a composed strategy window — wants the <see cref="VolumeFootprintViewModel"/>
+/// born, passed as an <c>ActivatorUtilities</c> argument so the choices land <b>before</b> the first
+/// <c>Restart()</c>: the pinned instrument (null = wait for the host to assign one), and whether the ML
+/// ghost-bar forecaster may exist at all (default off — an embedded footprint should not pay to train a
+/// model). The standalone window resolves the view-model without this and keeps today's behaviour:
+/// persisted instrument, broker-universe picker swap, ML on.
+/// </summary>
+public sealed record VolumeFootprintEmbedOptions(SignalInstrument? Instrument = null, bool MlEnabled = false);
 
 /// <summary>A named snapshot of the Volume Footprint window's view options, persisted per user by
 /// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\volume-footprint.json).

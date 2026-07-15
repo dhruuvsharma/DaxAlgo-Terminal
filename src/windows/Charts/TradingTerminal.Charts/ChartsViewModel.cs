@@ -31,6 +31,10 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     private readonly IBrokerSelector _selector;
     private readonly ILogger<ChartsViewModel> _logger;
 
+    /// <summary>Non-null when this view-model lives inside a strategy window rather than the
+    /// standalone tool — see <see cref="ChartsEmbedOptions"/>.</summary>
+    private readonly ChartsEmbedOptions? _embed;
+
     private IReadOnlyList<TradableInstrument> _allInstruments = Array.Empty<TradableInstrument>();
     private bool _chartReady;
     private CancellationTokenSource? _loadCts;
@@ -60,19 +64,31 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         IMarketDataHub hub,
         IMarketDataIngest ingest,
         IBrokerSelector selector,
-        ILogger<ChartsViewModel> logger)
+        ILogger<ChartsViewModel> logger,
+        ChartsEmbedOptions? embed = null)
     {
         _repository = repository;
         _hub = hub;
         _ingest = ingest;
         _selector = selector;
         _logger = logger;
+        _embed = embed;
 
         Timeframes = new ObservableCollection<ChartTimeframe>(AllTimeframes);
-        SelectedTimeframe = Timeframes.First(t => t.BarSize == BarSize.OneHour);
+        // Embedded (inside a strategy window): the host pins the instrument; the timeframe defaults to
+        // the strategy warm-up granularity (1m) since the gated-off toolbar leaves nothing to change it
+        // with. Nothing loads either way until the WebView reports ready.
+        SelectedTimeframe =
+            Timeframes.FirstOrDefault(t => t.BarSize == (embed?.BarSize ?? BarSize.OneHour))
+            ?? Timeframes.First(t => t.BarSize == BarSize.OneMinute);
         Instruments = new ObservableCollection<TradableInstrument>();
         PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
+        if (embed is not null)
+        {
+            SelectedInstrument = embed.Instrument;
+            return; // no picker ⇒ no broker-universe swap; the host owns the selection
+        }
         _ = LoadInstrumentsAsync();
     }
 
@@ -467,8 +483,10 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        // Remember the instrument the user was last charting so the window reopens on it.
-        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
+        // Remember the instrument the user was last charting so the window reopens on it — but never
+        // from an embedded panel, whose instrument belongs to the strategy, not to the standalone tool.
+        if (_embed is null)
+            LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         StopLive();
@@ -477,6 +495,15 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
 /// <summary>A selectable timeframe — label, the canonical <see cref="BarSize"/>, and how much history to pull.</summary>
 public sealed record ChartTimeframe(string Label, BarSize BarSize, TimeSpan Lookback);
+
+/// <summary>
+/// How an embedding host — a composed strategy window — wants the <see cref="ChartsViewModel"/> born:
+/// the pinned instrument (null = wait for the host to assign one) and the fixed timeframe (default 1m,
+/// the strategy warm-up granularity). Passed as an <c>ActivatorUtilities</c> argument. The standalone
+/// window resolves the view-model without this and keeps today's behaviour: persisted instrument,
+/// broker-universe picker, 1h default.
+/// </summary>
+public sealed record ChartsEmbedOptions(TradableInstrument? Instrument = null, BarSize BarSize = BarSize.OneMinute);
 
 /// <summary>A named snapshot of the Charts window's setup, persisted per user by
 /// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\charts.json).

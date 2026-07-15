@@ -6,8 +6,10 @@ namespace TradingTerminal.Core.Strategies.Authoring;
 /// <summary>
 /// The compiled image and the types reflected out of it. A finished authored strategy is a plugin: an
 /// <c>IBacktestStrategy</c> kernel (required), plus — when the author wrote them — an
-/// <c>ITradingStrategy</c> descriptor, a live view-model and a view, which together are what let it
-/// appear in the strategy catalog rather than only in the backtester.
+/// <c>ITradingStrategy</c> descriptor and a live view-model, which together are what let it appear in
+/// the strategy catalog rather than only in the backtester. A view is optional: without one the host
+/// composes the default window from the descriptor's data requirement
+/// (<see cref="IAuthoredStrategyViewComposer"/>).
 /// </summary>
 /// <param name="Image">The emitted assembly bytes — what gets persisted to the plugins folder, and what
 /// the policy scanner already read. Loading is from this byte[], never from the file, so the DLL on disk
@@ -26,18 +28,22 @@ public sealed record AuthoredStrategyAssembly(
     Type? ViewModelType = null,
     Type? ViewType = null)
 {
-    /// <summary>True when the author supplied everything a catalog card needs: the descriptor, a
-    /// view-model to run it live, and a view to show. Without all three the strategy is still a perfectly
-    /// good backtest kernel — it just has no window to open.</summary>
+    /// <summary>True when the author supplied a complete hand-written window: the descriptor, a
+    /// view-model to run it live, and a view to show.</summary>
     public bool HasLiveWindow => DescriptorType is not null && ViewModelType is not null && ViewType is not null;
 
+    /// <summary>True when the host can put this in the catalog at all: descriptor + view-model. The view
+    /// is optional — when the author wrote none, an <see cref="IAuthoredStrategyViewComposer"/> builds
+    /// the default window from the descriptor's <see cref="ITradingStrategy.DataRequirement"/>.</summary>
+    public bool CanComposeLiveWindow => DescriptorType is not null && ViewModelType is not null;
+
     /// <summary>What is missing before this could be a catalog entry — for telling the user (and the
-    /// model) exactly what to add.</summary>
+    /// model) exactly what to add. A view is deliberately not in this list: with a composer registered
+    /// the host supplies the window itself.</summary>
     public IReadOnlyList<string> MissingForCatalog =>
     [
         .. DescriptorType is null ? new[] { "an ITradingStrategy descriptor" } : [],
         .. ViewModelType is null ? new[] { "a live view-model (LiveSignalStrategyViewModelBase)" } : [],
-        .. ViewType is null ? new[] { "a view (a code-built UserControl)" } : [],
     ];
 }
 

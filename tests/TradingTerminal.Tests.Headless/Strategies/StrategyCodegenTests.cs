@@ -207,12 +207,13 @@ public sealed class StrategyCodegenTests
         result.Authored!.KernelType.Name.Should().Be("DescStrategy");
         result.Authored.DescriptorType!.Name.Should().Be("DescStrategyDescriptor");
 
-        // No view-model and no view ⇒ no live window, and the host must say precisely what's missing
-        // rather than putting a card on the pane that throws when clicked.
+        // No view-model ⇒ nothing can run it live, and the host must say precisely what's missing
+        // rather than putting a card on the pane that throws when clicked. A view is deliberately NOT
+        // on the list: the host composes the default window from the descriptor's DataRequirement.
         result.Authored.HasLiveWindow.Should().BeFalse();
-        result.Authored.MissingForCatalog.Should().HaveCount(2)
-            .And.Contain(m => m.Contains("view-model"))
-            .And.Contain(m => m.Contains("view"));
+        result.Authored.CanComposeLiveWindow.Should().BeFalse("a descriptor alone still can't run live");
+        result.Authored.MissingForCatalog.Should().ContainSingle()
+            .Which.Should().Contain("view-model");
     }
 
     [Fact]

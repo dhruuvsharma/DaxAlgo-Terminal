@@ -36,6 +36,8 @@
     <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
     <ProjectReference Include="..\..\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
     <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
+    <!-- Composed default window for AI-authored strategies that ship no view -->
+    <ProjectReference Include="..\..\UI\TradingTerminal.StrategyComposer\TradingTerminal.StrategyComposer.csproj" />
     <!-- Core Tools-menu surfaces -->
     <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />

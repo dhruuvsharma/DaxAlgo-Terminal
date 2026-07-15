@@ -80,6 +80,10 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private readonly InMemoryLogSink _log;
     private readonly ILogger<OrderBookViewModel> _logger;
 
+    /// <summary>Non-null when this view-model lives inside a strategy window rather than the
+    /// standalone tool — see <see cref="OrderBookEmbedOptions"/>.</summary>
+    private readonly OrderBookEmbedOptions? _embed;
+
     private IReadOnlyList<SignalInstrument> _allInstruments;
     private CancellationTokenSource? _streamCts;
     private IDisposable? _ingestHandle;
@@ -142,7 +146,8 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         IModelRegistry modelRegistry,
         IBrokerSelector selector,
         InMemoryLogSink log,
-        ILogger<OrderBookViewModel> logger)
+        ILogger<OrderBookViewModel> logger,
+        OrderBookEmbedOptions? embed = null)
     {
         _repository = repository;
         _hub = hub;
@@ -152,6 +157,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         _selector = selector;
         _log = log;
         _logger = logger;
+        _embed = embed;
 
         _allInstruments = SignalInstrumentCatalog.All;
         // Hide-until-search: empty visible list; ApplyFilter (below) collapses it to the selection.
@@ -161,8 +167,14 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         HeatWindowOptions = new ObservableCollection<int> { 300, 600, 1_200, 2_400 };
         _heatWindowColumns = DefaultHeatColumns;
         PresetNames = new ObservableCollection<string>(_presetStore.Names);
-        SelectedInstrument = InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
-            () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
+        // Embedded (inside a strategy window): the host pins the instrument and decides about ML BEFORE
+        // the first Restart(), so a gated-off forecaster is never constructed and the persisted
+        // standalone-tool pick can't cause a ghost subscription to an unrelated symbol.
+        MlEnabled = embed?.MlEnabled ?? true;
+        SelectedInstrument = embed is not null
+            ? embed.Instrument
+            : InstrumentPickerFilter.InitialSelection(InstrumentPersistKey, _allInstruments,
+                () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
         ApplyFilter();
 
         // Coalesced capture/render tick via the portable timer seam (WPF Dispatcher / Avalonia
@@ -170,7 +182,9 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
         _captureTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(CaptureIntervalMs), OnCaptureTick);
 
         _ready = true;
-        _ = LoadInstrumentsAsync();
+        // The broker universe swap serves the toolbar's picker; an embedded panel has no picker and
+        // must keep the host-pinned selection.
+        if (embed is null) _ = LoadInstrumentsAsync();
         Restart();
     }
 
@@ -1107,13 +1121,25 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        // Remember the instrument the user was last streaming so the window reopens on it.
-        LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
+        // Remember the instrument the user was last streaming so the window reopens on it — but never
+        // from an embedded panel, whose instrument belongs to the strategy, not to the standalone tool.
+        if (_embed is null)
+            LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
         _captureTimer.Dispose();
         SaveModelCheckpoint();
         StopStream();
     }
 }
+
+/// <summary>
+/// How an embedding host — a composed strategy window — wants the <see cref="OrderBookViewModel"/>
+/// born, passed as an <c>ActivatorUtilities</c> argument so the choices land <b>before</b> the first
+/// <c>Restart()</c>: the pinned instrument (null = wait for the host to assign one), and whether the ML
+/// micro-forecaster may exist at all (default off — an embedded book should not pay to train a model).
+/// The standalone window resolves the view-model without this and keeps today's behaviour: persisted
+/// instrument, broker-universe picker swap, ML on.
+/// </summary>
+public sealed record OrderBookEmbedOptions(SignalInstrument? Instrument = null, bool MlEnabled = false);
 
 /// <summary>A named snapshot of the Order Book window's view options, persisted per user by
 /// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\order-book.json).</summary>

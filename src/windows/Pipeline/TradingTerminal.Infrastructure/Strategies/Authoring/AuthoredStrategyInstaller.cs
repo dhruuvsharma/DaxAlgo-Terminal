@@ -13,7 +13,8 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// catalog, is it on disk.</summary>
 /// <param name="Registered">The strategy is runnable in the backtester now.</param>
 /// <param name="InCatalog">It also has a card in the Strategies pane, openable now — that needs the
-/// author to have written a descriptor, a live view-model and a view.</param>
+/// author to have written a descriptor and a live view-model. A view is optional: without one the
+/// host composes the default window from the descriptor's data requirement.</param>
 /// <param name="Persisted">Absolute path of the plugin folder it was written to, or null when the plugin
 /// folder could not be written (it still ran this session).</param>
 /// <param name="Message">One line for the status bar.</param>
@@ -46,7 +47,8 @@ public sealed class AuthoredStrategyInstaller(
     IBacktestStrategyRegistry registry,
     IStrategyFactory catalog,
     PluginHostContext? plugins = null,
-    ILogger<AuthoredStrategyInstaller>? logger = null)
+    ILogger<AuthoredStrategyInstaller>? logger = null,
+    IAuthoredStrategyViewComposer? composer = null)
 {
     public AuthoredStrategyInstall Install(StrategyScript script, StrategyCompileResult compiled)
     {
@@ -58,10 +60,13 @@ public sealed class AuthoredStrategyInstaller(
         // 1. Backtestable immediately (this much already worked).
         registry.Register(compiled.Option);
 
-        // 2. Catalog card — only when the author wrote the whole live window. A descriptor with no view
-        //    would put a card on the pane that throws when clicked, which is worse than no card.
+        // 2. Catalog card — when the author wrote the whole live window, or wrote descriptor +
+        //    view-model and this host has a composer to build the default window from the descriptor's
+        //    DataRequirement. A card that would throw when clicked is worse than no card, so a
+        //    view-model-less strategy still stays out of the catalog.
         var inCatalog = false;
-        if (compiled.Authored is { HasLiveWindow: true } authored)
+        if (compiled.Authored is { CanComposeLiveWindow: true } authored &&
+            (authored.HasLiveWindow || composer is not null))
         {
             try
             {
@@ -82,11 +87,15 @@ public sealed class AuthoredStrategyInstaller(
 
         var missing = compiled.Authored?.MissingForCatalog ?? [];
         var message = inCatalog
-            ? $"'{compiled.Option.DisplayName}' is in the Strategies catalog and the backtester — DEV (unsigned)."
-            : missing.Count == 0
-                ? $"'{compiled.Option.DisplayName}' is registered for backtesting — DEV (unsigned)."
-                : $"'{compiled.Option.DisplayName}' is registered for backtesting. For a catalog card it also needs " +
-                  $"{string.Join(", ", missing)} — ask the builder to add them.";
+            ? compiled.Authored is { HasLiveWindow: true }
+                ? $"'{compiled.Option.DisplayName}' is in the Strategies catalog and the backtester — DEV (unsigned)."
+                : $"'{compiled.Option.DisplayName}' is in the Strategies catalog and the backtester — DEV (unsigned). " +
+                  "It shipped no view, so its window is host-composed from its data requirement."
+            : missing.Count > 0
+                ? $"'{compiled.Option.DisplayName}' is registered for backtesting. For a catalog card it also needs " +
+                  $"{string.Join(", ", missing)} — ask the builder to add them."
+                : $"'{compiled.Option.DisplayName}' is registered for backtesting — this host has no strategy " +
+                  "view composer, so a strategy without its own view gets no catalog card.";
 
         if (path is null)
             message += " (Could not write it to the plugins folder, so it will be gone after a restart.)";
@@ -99,18 +108,21 @@ public sealed class AuthoredStrategyInstaller(
 
     /// <summary>Instantiates the descriptor and wires factories for the view-model + view, resolving
     /// their constructor dependencies (LiveStrategyHostServices, IClock, …) out of the running container
-    /// — the same services an in-tree strategy plugin gets.</summary>
+    /// — the same services an in-tree strategy plugin gets. When the author wrote no view, the view
+    /// factory is the composer: the default window built from the descriptor's DataRequirement.</summary>
     private bool RegisterInCatalog(AuthoredStrategyAssembly authored)
     {
         if (Activator.CreateInstance(authored.DescriptorType!) is not ITradingStrategy descriptor)
             return false;
 
         var vmType = authored.ViewModelType!;
-        var viewType = authored.ViewType!;
+        var viewFactory = authored.ViewType is { } viewType
+            ? new Func<IServiceProvider, object>(sp => ActivatorUtilities.CreateInstance(sp, viewType))
+            : _ => composer!.ComposeView(descriptor);
 
         catalog.Register(descriptor, new StrategyFactoryRegistration(
             StrategyId: descriptor.Id,
-            ViewFactory: sp => ActivatorUtilities.CreateInstance(sp, viewType),
+            ViewFactory: viewFactory,
             ViewModelFactory: sp => ActivatorUtilities.CreateInstance(sp, vmType)));
 
         // Build the pair once, now, so a broken constructor surfaces at Compile & Register — not later,

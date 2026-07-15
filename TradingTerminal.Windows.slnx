@@ -15,6 +15,7 @@
   </Folder>
   <Folder Name="/UI/">
     <Project Path="src/windows/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />
+    <Project Path="src/windows/UI/TradingTerminal.StrategyComposer/TradingTerminal.StrategyComposer.csproj" />
     <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
   </Folder>
   <Folder Name="/Shell/">

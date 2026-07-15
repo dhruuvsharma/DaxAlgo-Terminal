@@ -22,8 +22,13 @@ public sealed record AuthoredStrategyTypes(
     Type? ViewModel = null,
     Type? View = null)
 {
-    /// <summary>Everything a catalog card needs: metadata, a view-model to run it, a view to show.</summary>
+    /// <summary>The author wrote a complete hand-written window: metadata, a view-model, a view.</summary>
     public bool HasLiveWindow => Descriptor is not null && ViewModel is not null && View is not null;
+
+    /// <summary>Enough for a catalog card: descriptor + view-model. The view is optional — a host with
+    /// an <c>IAuthoredStrategyViewComposer</c> registered composes the default window from the
+    /// descriptor's <c>DataRequirement</c> (depth → ladder, tape → footprint, bars → chart).</summary>
+    public bool CanComposeLiveWindow => Descriptor is not null && ViewModel is not null;
 
     /// <summary>
     /// Finds them by shape. The view-model and view are matched by base-type NAME on purpose: this SDK is
@@ -70,8 +75,9 @@ public sealed record AuthoredStrategyTypes(
 /// next start, can't see an entry point, and reports it as failed.
 /// <para>
 /// It registers exactly what a hand-written plugin's <c>AddXxxStrategy()</c> would: the backtest option,
-/// the catalog descriptor, and (when the author wrote them) the live view-model + view behind a
-/// <see cref="StrategyFactoryRegistration"/>.
+/// the catalog descriptor, and (when the author wrote a view-model) a
+/// <see cref="StrategyFactoryRegistration"/> whose view is either the author's own or — when none was
+/// written — the host-composed default window built from the descriptor's <c>DataRequirement</c>.
 /// </para>
 /// </summary>
 public static class AuthoredPluginBootstrap
@@ -92,15 +98,36 @@ public static class AuthoredPluginBootstrap
         // out which catalog entries came from which plugin (and so which wear the DEV badge).
         services.AddSingleton(typeof(ITradingStrategy), found.Descriptor);
 
-        if (!found.HasLiveWindow) return;       // no window to open ⇒ no factory registration
+        if (!found.CanComposeLiveWindow) return;  // no view-model ⇒ nothing can run it live
 
         var viewModel = found.ViewModel!;
-        var view = found.View!;
         services.AddTransient(viewModel);
-        services.AddTransient(view);
+
+        // The author wrote a view: use it. Otherwise the host's registered composer builds the default
+        // window from the descriptor's DataRequirement at open time — the same path the in-session
+        // installer takes, so a composed strategy looks identical before and after a restart. A host
+        // with no composer (headless) fails at click time with a reason, but headless hosts have no
+        // catalog to click in.
+        Func<IServiceProvider, object> viewFactory;
+        if (found.View is { } view)
+        {
+            services.AddTransient(view);
+            viewFactory = sp => ActivatorUtilities.CreateInstance(sp, view);
+        }
+        else
+        {
+            var descriptor = found.Descriptor!;
+            viewFactory = sp =>
+                sp.GetService(typeof(TradingTerminal.Core.Strategies.Authoring.IAuthoredStrategyViewComposer))
+                        is TradingTerminal.Core.Strategies.Authoring.IAuthoredStrategyViewComposer composer
+                    ? composer.ComposeView((ITradingStrategy)Activator.CreateInstance(descriptor)!)
+                    : throw new InvalidOperationException(
+                        $"'{displayName}' has no view of its own and this host has no strategy view composer registered.");
+        }
+
         services.AddSingleton(new StrategyFactoryRegistration(
             StrategyId: strategyId,
-            ViewFactory: sp => ActivatorUtilities.CreateInstance(sp, view),
+            ViewFactory: viewFactory,
             ViewModelFactory: sp => ActivatorUtilities.CreateInstance(sp, viewModel)));
     }
 

@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Description>Composes the default live window for an AI-authored strategy that shipped no view: the embeddable chart panels (order book / volume footprint / price chart) selected by the strategy's DataRequirement, plus the shared setup and signal-feed chrome.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
+    <ProjectReference Include="..\..\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

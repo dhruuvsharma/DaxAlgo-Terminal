@@ -25,6 +25,7 @@ using TradingTerminal.UI;
 using TradingTerminal.Login;
 using TradingTerminal.Charts;
 using TradingTerminal.OrderBook;
+using TradingTerminal.StrategyComposer;
 using TradingTerminal.VolumeFootprint;
 using TradingTerminal.Heatmap;
 using TradingTerminal.Correlation;
@@ -114,6 +115,10 @@ public static class AppDependencyInjection
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
+        // Composed default window for authored strategies that ship no view: built from the strategy's
+        // DataRequirement (depth → order-book ladder, tape → footprint, bars → chart; Embedded ML-off
+        // presets). Also what lets a plugin-loaded authored strategy open after a restart.
+        services.AddStrategyViewComposer();
         services.AddFastBacktestRunner();
         // AI Strategy Builder backend (codegen providers + build-loop orchestrator + context pack) — the
         // authoring pane's AI panel resolves IAiStrategyBuilder from here. Keyless by default (installed

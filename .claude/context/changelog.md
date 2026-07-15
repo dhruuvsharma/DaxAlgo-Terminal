@@ -1,5 +1,36 @@
 # context changelog — append-only session journal
 
+## 2026-07-15 — #26 the default-UI composer: a viewless authored strategy gets a composed live window
+- **The pack contract changed: the model writes THREE files (kernel + descriptor + view-model), not
+  four.** A view is optional and discouraged — when the author writes none, the host composes the live
+  window from the descriptor's `DataRequirement`: `Bars` → `ChartsPanel`, `Depth` → `OrderBookPanel`,
+  `TradeTape` → `VolumeFootprintPanel` (all in their `Embedded` ML-off presets), `L1`-only → a quote
+  card; plus the shared setup hero, chrome bar, Start/Stop/arm strip and a signal-feed grid.
+- **New project `src/windows/UI/TradingTerminal.StrategyComposer`** — `ComposedStrategyView` (the
+  window body; owns the panel VMs, pushes the strategy's instrument into them on `IsConfigured`/change,
+  relays pause, disposes them on window close) + `AuthoredStrategyViewComposer` +
+  `AddStrategyViewComposer()` (registered ×3 shells). Contract:
+  `Core/Strategies/Authoring/IAuthoredStrategyViewComposer` (UI-free so the SDK can name it).
+- **Panel VMs got explicit embed options** (`OrderBookEmbedOptions` / `VolumeFootprintEmbedOptions` /
+  `ChartsEmbedOptions`, passed via `ActivatorUtilities`): the pinned instrument and `MlEnabled` land
+  BEFORE the ctor's first `Restart()`, so an embedded panel never ghost-subscribes the standalone
+  tool's persisted instrument (SPY) and never trains a forecaster; embedded VMs also never write
+  `LastInstrumentStore`. The standalone windows resolve without options — behaviour unchanged.
+- **Both catalog paths compose.** In-session: `AuthoredStrategyInstaller` (optional
+  `IAuthoredStrategyViewComposer` ctor arg) registers the card when descriptor+VM exist and either a
+  view or a composer does. Restart: the SDK's `AuthoredPluginBootstrap` now registers a
+  `StrategyFactoryRegistration` whose `ViewFactory` resolves the composer at open time — a composed
+  strategy survives restarts like a hand-written one. `AuthoredStrategyAssembly.CanComposeLiveWindow`
+  is the new gate; `MissingForCatalog` no longer lists a view.
+- Pack regenerated (`build/gen-ai-context.ps1` → `sdk/ai-context/daxalgo-strategy-context.md`); the
+  template's CLAUDE.md/AGENTS.md (contract b) unchanged. `docs/ai-strategy-builder.md` gained "The
+  live window — composed by default".
+- Tests: `AuthoredStrategyComposerTests` (headless, 6 — compiler report / installer with+without
+  composer / bootstrap with+without composer, end-to-end through a real `StrategyFactory.Create`) +
+  `ComposedStrategyViewTests` (WPF, 5 — flag→panel mapping, Embedded presets + `MlEnabled=false`,
+  L1 quote card, instrument push incl. broker pinning, idempotent dispose that detaches). One old
+  codegen assertion updated to the new contract. **763 headless + 66 WPF green.**
+
 ## 2026-07-14 (later+4) — #26 the three chart tools are now embeddable, feature-gated panels
 - **`OrderBookPanel` / `VolumeFootprintPanel` / `ChartsPanel`** (Charts group) — every window that an
   authored strategy might want to *show* is now a `UserControl`; `OrderBookWindow` / `VolumeFootprintWindow`
