@@ -70,6 +70,8 @@ public sealed class StrategyBuildSession
     /// "now tighten the stop" because it remembers what it wrote.</param>
     /// <param name="priorUsage">Tokens already spent on this thread, so the counter continues rather than
     /// restarting at zero.</param>
+    /// <param name="profile">The build-effort profile: overrides <paramref name="maxFixAttempts"/>, caps
+    /// the skill budget, and turns on the self-review / backtest-smoke passes. Null ⇒ the defaults.</param>
     internal StrategyBuildSession(
         IStrategyCompiler compiler,
         IStrategyCodegenClient provider,
@@ -80,7 +82,8 @@ public sealed class StrategyBuildSession
         ILogger? logger = null,
         IReadOnlyList<CodegenMessage>? history = null,
         CodegenUsage? priorUsage = null,
-        StrategySkillLibrary? skills = null)
+        StrategySkillLibrary? skills = null,
+        StrategyBuildProfile? profile = null)
     {
         _compiler = compiler;
         _logger = logger;
@@ -90,7 +93,8 @@ public sealed class StrategyBuildSession
         SystemContext = systemContext;
         StrategyId = strategyId;
         DisplayName = displayName;
-        MaxFixAttempts = Math.Max(0, maxFixAttempts);
+        Profile = profile;
+        MaxFixAttempts = Math.Max(0, profile?.MaxFixAttempts ?? maxFixAttempts);
 
         if (history is { Count: > 0 }) _messages.AddRange(history);
         TotalUsage = priorUsage ?? CodegenUsage.None;
@@ -117,6 +121,9 @@ public sealed class StrategyBuildSession
     public string StrategyId { get; }
     public string DisplayName { get; }
     public int MaxFixAttempts { get; }
+
+    /// <summary>The build-effort profile this session runs under, or null for the defaults.</summary>
+    public StrategyBuildProfile? Profile { get; }
 
     /// <summary>The whole thread so far — user turns, model replies, and the auto-fix prompts.</summary>
     public IReadOnlyList<CodegenMessage> Transcript => _messages;
@@ -167,36 +174,8 @@ public sealed class StrategyBuildSession
 
             // Stream it. A provider that can't yields one Completed and nothing else, so this is the only
             // path — there is no non-streaming branch to keep in step.
-            StrategyCodegenResponse? response = null;
-            var generationUsage = CodegenUsage.None;
-
-            await foreach (var evt in Provider
-                .StreamAsync(new StrategyCodegenRequest(SystemContext, WireMessages()), ct)
-                .ConfigureAwait(false))
-            {
-                switch (evt)
-                {
-                    case CodegenEvent.TextDelta:
-                        events?.Report(evt);
-                        break;
-
-                    case CodegenEvent.UsageUpdate update:
-                        // Absolute for THIS generation — replace it, then re-derive the running totals, so
-                        // an auto-fix retry doesn't double-count the generations before it.
-                        generationUsage = update.Usage;
-                        events?.Report(evt);
-                        break;
-
-                    case CodegenEvent.Completed completed:
-                        response = completed.Response;
-                        break;
-                }
-            }
-
-            response ??= StrategyCodegenResponse.Fail($"{Provider.DisplayName} returned nothing.");
-            var reported = response.Usage ?? generationUsage;
+            var (response, reported) = await GenerateOnceAsync(events, ct).ConfigureAwait(false);
             usage = usage.Add(reported);
-            TotalUsage = TotalUsage.Add(reported);
 
             if (!response.Success)
             {
@@ -235,8 +214,31 @@ public sealed class StrategyBuildSession
                     "AI-authored strategy {Id} compiled on generation {Generation}/{Total} ({Files} file(s))",
                     StrategyId, generation, totalGenerations, lastFiles.Count);
                 activity?.Report($"Compiled {lastFiles.Count} file(s) cleanly.");
+
+                var generations = generation;
+
+                // Deep/Max effort: one extra generation critiquing the compiled strategy. A review that
+                // doesn't compile is discarded — the last good files always win.
+                if (Profile is { SelfReview: true })
+                {
+                    var review = await SelfReviewAsync(activity, events, ct).ConfigureAwait(false);
+                    usage = usage.Add(review.Usage);
+                    generations += review.Generations;
+                    if (review.Adopted)
+                    {
+                        lastText = review.Text;
+                        lastFiles = review.Files;
+                        compile = review.Compile!;
+                    }
+                }
+
+                // Deep/Max effort: catch the runtime throws a compiler can't. Advisory — a failure lands
+                // as a warning diagnostic, never a block; the user still reviews before registering.
+                if (Profile is { BacktestSmoke: true })
+                    compile = await SmokeAsync(compile, activity, ct).ConfigureAwait(false);
+
                 return new StrategyBuildTurn(
-                    BuildTurnKind.Compiled, lastText, lastFiles, compile, null, generation, usage);
+                    BuildTurnKind.Compiled, lastText, lastFiles, compile, null, generations, usage);
             }
 
             if (generation < totalGenerations)
@@ -253,6 +255,133 @@ public sealed class StrategyBuildSession
     /// <summary>Push the user's hand-edits into the session, so the next turn shows the model the code
     /// that is actually in the editor rather than the version it last wrote.</summary>
     public void SyncEditedFiles(IReadOnlyList<StrategyFile> files) => Files = files;
+
+    /// <summary>One generation against the current thread: streams deltas/usage to
+    /// <paramref name="events"/>, banks the reported tokens into <see cref="TotalUsage"/>, and returns
+    /// the assembled response — shared by the main loop and the self-review pass.</summary>
+    private async Task<(StrategyCodegenResponse Response, CodegenUsage Reported)> GenerateOnceAsync(
+        IProgress<CodegenEvent>? events, CancellationToken ct)
+    {
+        StrategyCodegenResponse? response = null;
+        var generationUsage = CodegenUsage.None;
+
+        await foreach (var evt in Provider
+            .StreamAsync(new StrategyCodegenRequest(SystemContext, WireMessages()), ct)
+            .ConfigureAwait(false))
+        {
+            switch (evt)
+            {
+                case CodegenEvent.TextDelta:
+                    events?.Report(evt);
+                    break;
+
+                case CodegenEvent.UsageUpdate update:
+                    // Absolute for THIS generation — replace it, then re-derive the running totals, so
+                    // an auto-fix retry doesn't double-count the generations before it.
+                    generationUsage = update.Usage;
+                    events?.Report(evt);
+                    break;
+
+                case CodegenEvent.Completed completed:
+                    response = completed.Response;
+                    break;
+            }
+        }
+
+        response ??= StrategyCodegenResponse.Fail($"{Provider.DisplayName} returned nothing.");
+        var reported = response.Usage ?? generationUsage;
+        TotalUsage = TotalUsage.Add(reported);
+        return (response, reported);
+    }
+
+    /// <summary>What the self-review pass asks. Improved code comes back per the same output contract as
+    /// any turn; a sound strategy earns a code-free sign-off, which is how the pass says "keep it".</summary>
+    private const string SelfReviewPrompt =
+        "The code compiles. Now review your own strategy as a skeptical senior quant: check the signal " +
+        "logic for correctness (warm-up, division by zero, look-ahead bias, unit mistakes), the order " +
+        "handling for unique idempotent client ids and a flatten in OnEndAsync, and the risk handling " +
+        "for unbounded position growth. If you find real problems, return the COMPLETE corrected file " +
+        "set (every file, each in its own fenced block with its `// file:` header). If the strategy is " +
+        "sound as written, reply briefly WITHOUT any code blocks.";
+
+    /// <summary>
+    /// The self-review pass (Deep/Max build effort): one extra generation over the SAME thread asking
+    /// the model to critique what it just wrote. Adopted only when the improved files compile; any other
+    /// outcome — a prose sign-off, a broken rewrite, a provider hiccup — keeps the last good files. The
+    /// pass can therefore only ever raise the floor, never lower it.
+    /// </summary>
+    private async Task<(bool Adopted, string Text, IReadOnlyList<StrategyFile> Files, StrategyCompileResult? Compile,
+        CodegenUsage Usage, int Generations)> SelfReviewAsync(
+        IProgress<string>? activity, IProgress<CodegenEvent>? events, CancellationToken ct)
+    {
+        activity?.Report("Self-review pass…");
+        _messages.Add(new CodegenMessage(CodegenRole.User, SelfReviewPrompt));
+
+        var (response, reported) = await GenerateOnceAsync(events, ct).ConfigureAwait(false);
+
+        if (!response.Success)
+        {
+            // Advisory: a provider hiccup must not fail a turn that already compiled. Drop the dangling
+            // prompt so the thread keeps alternating user → assistant.
+            _messages.RemoveAt(_messages.Count - 1);
+            activity?.Report("Self-review unavailable — keeping the compiled version.");
+            return (false, string.Empty, [], null, reported, 1);
+        }
+
+        _messages.Add(new CodegenMessage(CodegenRole.Assistant, response.RawText ?? string.Empty));
+
+        if (!response.HasFiles)
+        {
+            activity?.Report("Self-review: nothing to change.");
+            return (false, string.Empty, [], null, reported, 1);
+        }
+
+        activity?.Report($"Compiling {response.FileList.Count} self-reviewed file(s)…");
+        var compile = _compiler.Compile(new StrategyScript(StrategyId, DisplayName, response.FileList));
+        if (!compile.Success)
+        {
+            _logger?.LogInformation(
+                "Self-review of {Id} did not compile — keeping the last good files", StrategyId);
+            activity?.Report("The self-review didn't compile — keeping the last good version.");
+            return (false, string.Empty, [], null, reported, 1);
+        }
+
+        Files = response.FileList;
+        activity?.Report("Self-review improvements adopted.");
+        return (true, response.RawText ?? string.Empty, response.FileList, compile, reported, 1);
+    }
+
+    /// <summary>
+    /// The backtest-smoke pass (Deep/Max build effort): drive the compiled strategy's lifecycle over
+    /// synthetic ticks to catch runtime throws. A failure is appended as a WARNING diagnostic — the turn
+    /// stays <see cref="BuildTurnKind.Compiled"/>, because a smoke is advice, not a gate.
+    /// </summary>
+    private async Task<StrategyCompileResult> SmokeAsync(
+        StrategyCompileResult compile, IProgress<string>? activity, CancellationToken ct)
+    {
+        if (compile.Option is null) return compile;
+
+        activity?.Report("Backtest smoke: driving the compiled strategy over synthetic ticks…");
+        var failure = await StrategyBacktestSmoke.RunAsync(compile.Option, ct).ConfigureAwait(false);
+        if (failure is null)
+        {
+            activity?.Report("Backtest smoke passed.");
+            return compile;
+        }
+
+        _logger?.LogWarning("Backtest smoke failed for {Id}: {Failure}", StrategyId, failure);
+        activity?.Report($"Backtest smoke failed: {failure}");
+        return compile with
+        {
+            Diagnostics =
+            [
+                .. compile.Diagnostics,
+                new StrategyDiagnostic(
+                    StrategyDiagnosticSeverity.Warning, "SMOKE001",
+                    $"Backtest smoke (advisory): {failure}", 0, 0),
+            ],
+        };
+    }
 
     /// <summary>
     /// The prompt actually sent — and the reason a long session doesn't cost a fortune.
@@ -293,7 +422,7 @@ public sealed class StrategyBuildSession
     {
         if (_skills is null || LoadedSkills.Count > 0) return LoadedSkills;
 
-        LoadedSkills = _skills.SelectFor(brief);
+        LoadedSkills = _skills.SelectFor(brief, Profile?.MaxSkills ?? StrategySkillLibrary.MaxSkillsPerSession);
         SystemContext = StrategySkillLibrary.Compose(BasePack, LoadedSkills);
 
         if (LoadedSkills.Count > 0)

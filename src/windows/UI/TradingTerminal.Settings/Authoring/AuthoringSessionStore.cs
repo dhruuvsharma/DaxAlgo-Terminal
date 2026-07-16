@@ -29,6 +29,7 @@ public sealed record AuthoringSessionSnapshot(
     string? ProviderId = null,
     string? Model = null,
     string? Effort = null,
+    string? BuildEffort = null,
     int InputTokens = 0,
     int OutputTokens = 0,
     DateTime UpdatedUtc = default)

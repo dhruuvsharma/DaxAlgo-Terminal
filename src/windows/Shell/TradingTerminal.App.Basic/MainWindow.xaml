@@ -228,7 +228,7 @@
                     <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
                             Command="{Binding OpenPluginManagerCommand}"
                             Background="Transparent" BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
-                            ToolTip="Some strategy plugins did not load — click for details in the Plugin Manager.">
+                            ToolTip="Some strategy plugins did not load — click for details in the Strategy Manager.">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -245,7 +245,7 @@
                                        VerticalAlignment="Center" Margin="0,0,5,0" />
                             <TextBlock FontSize="10" FontWeight="Bold" VerticalAlignment="Center"
                                        Foreground="{DynamicResource Text.Header}"
-                                       Text="{Binding PluginProblemCount, StringFormat='{}{0} PLUGIN ISSUE(S)'}" />
+                                       Text="{Binding PluginProblemCount, StringFormat='{}{0} STRATEGY ISSUE(S)'}" />
                         </StackPanel>
                     </Button>
 
@@ -380,13 +380,28 @@
                           Command="{Binding OpenLiveCorrelationCommand}" />
             </MenuItem>
 
-            <MenuItem Header="_Plugins">
-                <MenuItem Header="AI _Strategy Builder…"
-                          Command="{Binding OpenStrategyAuthoringCommand}"
-                          ToolTip="Write or AI-generate a strategy, compile it, and add it to your catalog." />
+            <MenuItem Header="_Strategy Studio">
+                <MenuItem Header="_Vibe Code">
+                    <MenuItem Header="⚡ _Vibe Quant…"
+                              Command="{Binding OpenStrategyAuthoringCommand}"
+                              ToolTip="Describe a strategy in chat and watch the AI build, compile, and register it." />
+                    <Separator />
+                    <MenuItem Header="Launch _CLI"
+                              ItemsSource="{Binding CliLaunchChoices}"
+                              ToolTip="Open an installed agent CLI (Claude Code / Codex) in a terminal, pre-loaded with a strategy-authoring workspace.">
+                        <MenuItem.ItemContainerStyle>
+                            <Style TargetType="MenuItem">
+                                <Setter Property="Header" Value="{Binding MenuHeader}" />
+                                <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+                                <EventSetter Event="Click" Handler="LaunchCliMenuItem_Click" />
+                            </Style>
+                        </MenuItem.ItemContainerStyle>
+                    </MenuItem>
+                </MenuItem>
                 <Separator />
-                <MenuItem Header="_Manage strategy plugins…"
-                          Command="{Binding OpenPluginManagerCommand}" />
+                <MenuItem Header="_Strategy Manager…"
+                          Command="{Binding OpenPluginManagerCommand}"
+                          ToolTip="Enable, disable, or remove installed strategies and plugins." />
             </MenuItem>
 
             <MenuItem Header="_Charts">
@@ -464,78 +479,38 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- Section header -->
-            <Border Grid.Row="0"
-                    Background="{DynamicResource Gradient.Elevated}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="10,8">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="3" Height="13" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
-                        <TextBlock Text="STRATEGY CATALOG"
-                                   Foreground="{DynamicResource Text.Header}"
-                                   FontWeight="Bold"
-                                   FontSize="11"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="double-click to open"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   FontSize="10"
-                                   Margin="12,0,0,0"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               FontSize="10"
-                               VerticalAlignment="Center">
-                        <Run Text="N=" />
-                        <Run Text="{Binding Strategies.Count, Mode=OneWay}" />
-                    </TextBlock>
-                </Grid>
-            </Border>
+            <Grid.Resources>
+                <!-- Proxy so the Vibe card's right-click menu (which lives outside the visual tree) and the
+                     CompositeCollection can still reach the MainWindowViewModel. -->
+                <local:BindingProxy x:Key="CatalogProxy" Data="{Binding}" />
 
-            <ListBox x:Name="StrategiesList"
-                     Grid.Row="1"
-                     BorderThickness="0"
-                     Background="{DynamicResource Background.Surface}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.Strategies}"
-                     SelectedItem="{Binding ElementName=RootWindow, Path=DataContext.SelectedStrategy, Mode=TwoWay}"
-                     HorizontalContentAlignment="Stretch"
-                     MouseDoubleClick="StrategiesList_MouseDoubleClick">
-                <!-- Tile the catalog across the full width instead of a single tall column. -->
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal" />
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="Margin" Value="6" />
-                        <Setter Property="Padding" Value="0" />
-                    </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border Width="360"
-                                Background="{DynamicResource Gradient.Elevated}"
-                                BorderBrush="{DynamicResource Border.Brush}"
-                                BorderThickness="1"
-                                CornerRadius="4"
-                                Padding="10,8">
-                            <StackPanel>
+                <!-- Normal strategy tile. -->
+                <DataTemplate x:Key="StrategyCardTemplate">
+                    <!-- One list row, three columns: identity (name + tags + alpha formula) · description ·
+                         a UI screenshot (the app logo when none is set). Binds to a StrategyCatalogItemViewModel,
+                         which overlays the strategy's own metadata with the user's presentation edits. -->
+                    <Border Background="{DynamicResource Gradient.Elevated}"
+                            BorderBrush="{DynamicResource Border.Brush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340" />
+                                <ColumnDefinition Width="*" MinWidth="160" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ── Column 1 · name + id + DEV badge + pills + custom tags + alpha formula ── -->
+                            <StackPanel Grid.Column="0" Margin="0,0,14,0">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="▸ "
                                                Foreground="{DynamicResource Accent.Brush}"
                                                FontWeight="Bold" />
-                                    <TextBlock Text="{Binding DisplayName}"
+                                    <TextBlock Text="{Binding Name}"
                                                Foreground="{DynamicResource Text.Header}"
-                                               FontWeight="Bold" />
-                                    <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Plugin Manager). -->
+                                               FontWeight="Bold" FontSize="13" TextWrapping="Wrap" />
+                                    <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Strategy Manager). -->
                                     <Border CornerRadius="3" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
                                             Background="{DynamicResource Warning.Brush}">
                                         <Border.Visibility>
@@ -553,41 +528,11 @@
                                 <TextBlock Text="{Binding Id}"
                                            Foreground="{DynamicResource Text.Highlight}"
                                            FontSize="10"
-                                           Margin="12,0,0,2" />
-                                <TextBlock Text="{Binding Description}"
-                                           Foreground="{DynamicResource Text.Secondary}"
-                                           TextWrapping="Wrap"
-                                           FontSize="11"
-                                           Margin="12,0,0,0" />
+                                           Margin="12,1,0,0" />
                                 <!-- Data-requirement pills (L1 / BAR / L2 / TAPE) via the shared
-                                     StrategyTagsConverter — reads the strategy's DataRequirement. -->
-                                <ItemsControl ItemsSource="{Binding Converter={StaticResource StrategyTagsConverter}}"
-                                              Margin="12,4,0,0">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{Binding Background}"
-                                                    CornerRadius="3"
-                                                    Padding="5,1"
-                                                    Margin="0,0,3,0"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Text}"
-                                                           Foreground="{Binding Foreground}"
-                                                           FontSize="10"
-                                                           FontWeight="SemiBold" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <!-- Classification pills (asset class(es) / SINGLE-ASSET|MULTI-ASSET /
-                                     broker capability + supported broker chips) via the shared
-                                     StrategyClassConverter. -->
-                                <ItemsControl ItemsSource="{Binding Converter={StaticResource StrategyClassConverter}}"
-                                              Margin="12,3,0,0">
+                                     StrategyTagsConverter — reads the underlying strategy's DataRequirement. -->
+                                <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource StrategyTagsConverter}}"
+                                              Margin="12,5,0,0">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel Orientation="Horizontal" />
@@ -608,6 +553,51 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- Classification pills (asset class(es) / SINGLE-ASSET|MULTI-ASSET /
+                                     broker capability + supported broker chips) via StrategyClassConverter. -->
+                                <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource StrategyClassConverter}}"
+                                              Margin="12,0,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{Binding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="5,1"
+                                                    Margin="0,0,3,3"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Text}"
+                                                           Foreground="{Binding Foreground}"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <!-- User-added custom tags (from the card editor). -->
+                                <ItemsControl ItemsSource="{Binding CustomTags}"
+                                              Margin="12,0,0,0"
+                                              Visibility="{Binding HasCustomTags, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource Background.Surface}"
+                                                    BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1"
+                                                    CornerRadius="3" Padding="5,1" Margin="0,0,3,3"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding}" Foreground="{DynamicResource Accent.Brush}"
+                                                           FontSize="10" FontWeight="SemiBold" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                                 <!-- "Research paper" tag + info link — shown only for paper-derived
                                      strategies (ResearchPaperUrl set). Clicking opens the paper. -->
                                 <Border Margin="12,4,0,0"
@@ -615,25 +605,184 @@
                                         Background="#4527A0"
                                         CornerRadius="3"
                                         Padding="5,1"
-                                        Visibility="{Binding ResearchPaperUrl, Converter={StaticResource StringToVisibilityConverter}}">
+                                        Visibility="{Binding Strategy.ResearchPaperUrl, Converter={StaticResource StringToVisibilityConverter}}">
                                     <TextBlock FontSize="10" FontWeight="SemiBold">
-                                        <Hyperlink NavigateUri="{Binding ResearchPaperUrl}"
+                                        <Hyperlink NavigateUri="{Binding Strategy.ResearchPaperUrl}"
                                                    Foreground="#E8DEFF"
                                                    TextDecorations="None"
-                                                   ToolTip="{Binding ResearchPaperUrl}"
+                                                   ToolTip="{Binding Strategy.ResearchPaperUrl}"
                                                    RequestNavigate="ResearchPaper_RequestNavigate">📄 RESEARCH PAPER ⓘ</Hyperlink>
                                     </TextBlock>
                                 </Border>
+                                <!-- Alpha-generating formula — shown only when the user has added one. -->
+                                <Border Margin="12,6,0,0"
+                                        Background="{DynamicResource Background.Surface}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                        CornerRadius="3" Padding="7,4"
+                                        Visibility="{Binding HasFormula, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="ALPHA FORMULA" FontSize="8" FontWeight="Bold"
+                                                   Foreground="{DynamicResource Accent.Brush}" />
+                                        <TextBlock Text="{Binding Formula}" FontFamily="Consolas" FontSize="11"
+                                                   TextWrapping="Wrap" Margin="0,2,0,0"
+                                                   Foreground="{DynamicResource Text.Primary}" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
+
+                            <!-- ── Column 2 · description ── -->
+                            <TextBlock Grid.Column="1" Text="{Binding Description}"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       TextWrapping="Wrap" FontSize="12"
+                                       VerticalAlignment="Top" Margin="0,2,14,0" />
+
+                            <!-- ── Column 3 · UI image (app logo when none is set) ── -->
+                            <Border Grid.Column="2" Width="190" Height="112" VerticalAlignment="Top"
+                                    Background="{DynamicResource Background.Surface}"
+                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="4">
+                                <Image Stretch="Uniform" Margin="5"
+                                       Source="{Binding ImagePath, TargetNullValue='pack://application:,,,/Icon/DaxAlgoLogo.ico'}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+
+                <!-- Vibe Quant call-to-action tile — the last card in the catalog. Double-click opens
+                     Vibe Quant; right-click opens the Vibe Quant · Launch CLI menu. -->
+                <DataTemplate x:Key="VibeCardTemplate">
+                    <Border Width="360" Cursor="Hand"
+                            Background="{DynamicResource Gradient.Elevated}"
+                            BorderBrush="{DynamicResource Accent.Brush}"
+                            BorderThickness="1.5"
+                            CornerRadius="4"
+                            Padding="14,12"
+                            ToolTip="Double-click to open Vibe Quant. Right-click for options (Vibe Quant · Launch CLI).">
+                        <Border.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="⚡ Vibe Quant…"
+                                          Command="{Binding Data.OpenStrategyAuthoringCommand, Source={StaticResource CatalogProxy}}" />
+                                <Separator />
+                                <MenuItem Header="Launch CLI"
+                                          ItemsSource="{Binding Data.CliLaunchChoices, Source={StaticResource CatalogProxy}}">
+                                    <MenuItem.ItemContainerStyle>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Header" Value="{Binding MenuHeader}" />
+                                            <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+                                            <EventSetter Event="Click" Handler="LaunchCliMenuItem_Click" />
+                                        </Style>
+                                    </MenuItem.ItemContainerStyle>
+                                </MenuItem>
+                            </ContextMenu>
+                        </Border.ContextMenu>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚡" FontSize="30" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Accent.Brush}" Margin="0,0,10,0" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="15"
+                                               Foreground="{DynamicResource Text.Header}" />
+                                    <TextBlock Text="Build a strategy by chatting with AI"
+                                               FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Accent.Brush}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Margin="0,10,0,0" TextWrapping="Wrap"
+                                       FontSize="11" Foreground="{DynamicResource Text.Secondary}"
+                                       Text="Describe your idea in plain English — the AI writes, compiles, and registers a runnable strategy that lands right here in the catalog. Or launch an agent CLI (Claude Code / Codex) in a ready-made authoring workspace." />
+                            <Border Margin="0,10,0,0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource Accent.Brush}" CornerRadius="3" Padding="7,3">
+                                <TextBlock Text="Double-click to start  ·  Right-click for options"
+                                           FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Background.Primary}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+
+                <local:StrategyCatalogTemplateSelector x:Key="CatalogTemplateSelector"
+                                                       StrategyTemplate="{StaticResource StrategyCardTemplate}"
+                                                       VibeCardTemplate="{StaticResource VibeCardTemplate}" />
+            </Grid.Resources>
+
+            <!-- Section header -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource Gradient.Elevated}"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="3" Height="13" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
+                        <TextBlock Text="STRATEGY CATALOG"
+                                   Foreground="{DynamicResource Text.Header}"
+                                   FontWeight="Bold"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="double-click to open"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   FontSize="10"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Strategy editor. The Vibe-code entry point now lives as a call-to-action card at
+                         the END of the catalog below (double-click to open · right-click for options). -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <Button Content="✎ Edit strategies" Padding="10,5" Cursor="Hand"
+                                Command="{Binding OpenPluginManagerCommand}"
+                                ToolTip="Open the Strategy Manager to enable, disable, or remove strategies and plugins." />
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="2"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               FontSize="10"
+                               VerticalAlignment="Center">
+                        <Run Text="N=" />
+                        <Run Text="{Binding Strategies.Count, Mode=OneWay}" />
+                    </TextBlock>
+                </Grid>
+            </Border>
+
+            <ListBox x:Name="StrategiesList"
+                     Grid.Row="1"
+                     BorderThickness="0"
+                     Background="{DynamicResource Background.Surface}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     SelectedItem="{Binding ElementName=RootWindow, Path=DataContext.SelectedCatalogItem, Mode=TwoWay}"
+                     HorizontalContentAlignment="Stretch"
+                     ItemTemplateSelector="{StaticResource CatalogTemplateSelector}"
+                     MouseDoubleClick="StrategiesList_MouseDoubleClick">
+                <!-- Catalog rows (StrategyCatalogItemViewModel) plus a trailing Vibe Quant call-to-action tile. -->
+                <ListBox.ItemsSource>
+                    <CompositeCollection>
+                        <CollectionContainer Collection="{Binding Data.CatalogItems, Source={StaticResource CatalogProxy}}" />
+                        <local:VibeCardItem />
+                    </CompositeCollection>
+                </ListBox.ItemsSource>
+                <!-- One strategy per full-width row — a vertical list (default panel). -->
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Margin" Value="6,3" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <EventSetter Event="Selected" Handler="StrategyItem_Selected" />
+                        <EventSetter Event="PreviewMouseRightButtonDown" Handler="StrategyItem_RightClick" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
                 <ListBox.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Open"
                                   Click="OpenStrategy_Click" />
                         <MenuItem Header="Quick backtest (last 1 year)…"
                                   Click="QuickBacktest_Click" />
+                        <Separator />
+                        <MenuItem Header="Edit strategy card…"
+                                  Click="EditStrategy_Click" />
                     </ContextMenu>
                 </ListBox.ContextMenu>
             </ListBox>

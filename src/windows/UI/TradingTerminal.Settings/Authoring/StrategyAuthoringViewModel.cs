@@ -43,6 +43,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
     private readonly AuthoredStrategyInstaller? _installer;
+    private readonly ICliWorkspaceLauncher? _cliLauncher;
 
     private CancellationTokenSource? _generateCts;
     private StrategyBuildSession? _session;
@@ -67,7 +68,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ILogger<StrategyAuthoringViewModel> logger,
         IAiStrategyBuilder? ai = null,
         IOptions<AiCodegenOptions>? options = null,
-        AuthoredStrategyInstaller? installer = null)
+        AuthoredStrategyInstaller? installer = null,
+        ICliWorkspaceLauncher? cliLauncher = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -75,11 +77,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _ai = ai;
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
+        _cliLauncher = cliLauncher;
 
         Diagnostics = [];
         Messages = [];
         Activity = [];
         Files = [];
+        Tasks = [];
+
+        // Backing field, not the property — the change handler resets sessions and persists, neither of
+        // which applies to seeding the ctor's own default from config.
+        _buildEffort = StrategyBuildEfforts.Parse(_options.BuildEffort);
+
+        // The unified picker's rows — built BEFORE the provider selection below, so the initial
+        // provider/model choice can sync into it.
+        AllModels = new ObservableCollection<AiModelChoice>(_ai?.AllModels() ?? []);
 
         // Provider picker — every provider the app can build; unavailable ones show disabled so the user
         // sees "install Claude Code / add an API key". Null builder (AI not wired) ⇒ the chat pane hides.
@@ -186,17 +198,23 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ResetSession("Switched provider.");
         Models.Clear();
         OnPropertyChanged(nameof(EffortSupported));
-        if (value is null) return;
+        if (value is null)
+        {
+            SyncModelChoice();
+            return;
+        }
 
         foreach (var model in _ai?.ModelsFor(value.ProviderId) ?? []) Models.Add(model);
         SelectedModel = Models.FirstOrDefault();
         SelectedEffort = value.Client.Effort;
+        SyncModelChoice();
     }
 
     partial void OnSelectedModelChanged(string? value)
     {
         ResetSession("Switched model.");
         Persist();
+        SyncModelChoice();
     }
 
     partial void OnSelectedEffortChanged(CodegenEffort value)
@@ -210,6 +228,126 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         if (_ready && SelectedAiProvider is { } choice)
             PersistSelection(choice.ProviderId, SelectedModel, SelectedEffort);
+    }
+
+    // ── Unified model picker ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Every provider × its known models, flattened into one list ("claude-opus-4-8 · Claude
+    /// Code (installed CLI)") — a single dropdown over the provider/model machinery underneath.
+    /// Unavailable providers' rows are included, tagged via <see cref="AiModelChoice.IsAvailable"/>.</summary>
+    public ObservableCollection<AiModelChoice> AllModels { get; }
+
+    /// <summary>The unified picker's selection. Setting it drives <see cref="SelectedAiProvider"/> +
+    /// <see cref="SelectedModel"/>; changing those (the classic pickers, a restore) points it back at
+    /// the matching row, or null for a hand-typed model id with no row.</summary>
+    [ObservableProperty] private AiModelChoice? _selectedModelChoice;
+
+    /// <summary>Guards the two-way sync between the unified picker and the provider/model pair, so
+    /// neither setter can re-trigger the other.</summary>
+    private bool _syncingModelChoice;
+
+    partial void OnSelectedModelChoiceChanged(AiModelChoice? value)
+    {
+        if (_syncingModelChoice || value is null) return;
+
+        _syncingModelChoice = true;
+        try
+        {
+            if (SelectedAiProvider?.ProviderId != value.ProviderId &&
+                AiProviders.FirstOrDefault(p => p.ProviderId == value.ProviderId) is { } provider)
+            {
+                SelectedAiProvider = provider;   // repopulates Models and re-seeds SelectedModel/effort
+            }
+
+            if (value.ModelId.Length == 0)
+            {
+                // The "vendor default" row (a CLI with no pinned model): whatever the provider offers.
+                SelectedModel = Models.FirstOrDefault();
+            }
+            else
+            {
+                if (!Models.Contains(value.ModelId, StringComparer.OrdinalIgnoreCase))
+                    Models.Insert(0, value.ModelId);
+                SelectedModel = value.ModelId;
+            }
+        }
+        finally
+        {
+            _syncingModelChoice = false;
+        }
+    }
+
+    /// <summary>The reverse sync: after the provider/model pair moves (classic pickers, restore, model
+    /// refresh), point the unified picker at the row that matches — or null when none does.</summary>
+    private void SyncModelChoice()
+    {
+        if (_syncingModelChoice) return;
+
+        _syncingModelChoice = true;
+        try
+        {
+            SelectedModelChoice = AllModels.FirstOrDefault(c =>
+                c.ProviderId == SelectedAiProvider?.ProviderId &&
+                (string.IsNullOrEmpty(SelectedModel)
+                    ? c.ModelId.Length == 0
+                    : c.ModelId.Equals(SelectedModel, StringComparison.OrdinalIgnoreCase)));
+        }
+        finally
+        {
+            _syncingModelChoice = false;
+        }
+    }
+
+    // ── Build effort (the pipeline dial — separate from the model's reasoning effort) ───────────────
+
+    /// <summary>The four pipeline efforts, for the picker.</summary>
+    public IReadOnlyList<StrategyBuildEffort> BuildEfforts { get; } =
+        [StrategyBuildEffort.Quick, StrategyBuildEffort.Standard, StrategyBuildEffort.Deep, StrategyBuildEffort.Max];
+
+    /// <summary>How hard the BUILD works — skill budget, auto-fix retries, and whether the self-review /
+    /// backtest-smoke passes run (<see cref="StrategyBuildProfile.For"/>). Orthogonal to
+    /// <see cref="SelectedEffort"/>, which is how hard the model thinks inside one generation.</summary>
+    [ObservableProperty] private StrategyBuildEffort _buildEffort = StrategyBuildEffort.Standard;
+
+    partial void OnBuildEffortChanged(StrategyBuildEffort value)
+    {
+        // The profile is fixed at session creation (its skill budget shapes the cached system prompt),
+        // so a new effort needs a new session — the same rule as switching the model's own effort.
+        ResetSession("Switched build effort.");
+        Persist();
+    }
+
+    // ── Agent CLI hand-off ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The installed agent CLIs the workspace launcher can open. Empty when none are on PATH,
+    /// or when the launcher isn't wired — either way the UI hides the hand-off.</summary>
+    public IReadOnlyList<AgentCliAdapter> AvailableClis => _cliLauncher?.AvailableClis() ?? [];
+
+    /// <summary>Scaffolds this strategy's Vibe Quant workspace (context pack, skills, starter project)
+    /// and opens the CLI there in a real terminal — interactive, never headless.</summary>
+    [RelayCommand]
+    private void LaunchCli(AgentCliAdapter? adapter)
+    {
+        if (_cliLauncher is null || adapter is null) return;
+        if (string.IsNullOrWhiteSpace(StrategyId))
+        {
+            Status = "Give the strategy an id first — it names the workspace folder.";
+            return;
+        }
+
+        try
+        {
+            var result = _cliLauncher.Launch(adapter, StrategyId.Trim(), DisplayName.Trim(), BuildEffort);
+            Status = result.Message;
+            _logger.LogInformation(
+                "CLI workspace launch for {Id} via {Cli}: success={Success} at {Path}",
+                StrategyId, adapter.DisplayName, result.Success, result.WorkspacePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CLI workspace launch threw for {Id}", StrategyId);
+            Status = $"Couldn't launch {adapter.DisplayName}: {ex.Message}";
+        }
     }
 
     /// <summary>Ask the provider what models this key/endpoint can actually call (OpenAI, Anthropic and
@@ -257,6 +395,125 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>What the builder is doing right now ("Asking Claude…", "Compiling 3 file(s)…") — the
     /// live feedback that a long generation is actually progressing.</summary>
     public ObservableCollection<string> Activity { get; }
+
+    /// <summary>
+    /// The turn's pipeline as a structured checklist (Understand brief → Load skills → Generate →
+    /// Compile → Auto-fix → Self-review → Backtest smoke, the last two only at Deep/Max build effort) —
+    /// the right panel's "Tasks" row. Re-seeded at the start of every Send turn and advanced from the
+    /// same activity stream that feeds <see cref="Activity"/>; bounded by construction (one row per
+    /// step, at most seven).
+    /// </summary>
+    public ObservableCollection<BuildTask> Tasks { get; }
+
+    private BuildTask? _taskBrief, _taskSkills, _taskGenerate, _taskCompile, _taskAutoFix, _taskReview, _taskSmoke;
+
+    /// <summary>Fresh checklist for a new turn — the optional passes appear only when the profile buys them.</summary>
+    private void SeedTasks(StrategyBuildProfile profile)
+    {
+        Tasks.Clear();
+        Tasks.Add(_taskBrief = new BuildTask("Understand brief"));
+        Tasks.Add(_taskSkills = new BuildTask("Load skills"));
+        Tasks.Add(_taskGenerate = new BuildTask("Generate"));
+        Tasks.Add(_taskCompile = new BuildTask("Compile"));
+        Tasks.Add(_taskAutoFix = new BuildTask("Auto-fix"));
+        _taskReview = profile.SelfReview ? new BuildTask("Self-review") : null;
+        if (_taskReview is not null) Tasks.Add(_taskReview);
+        _taskSmoke = profile.BacktestSmoke ? new BuildTask("Backtest smoke") : null;
+        if (_taskSmoke is not null) Tasks.Add(_taskSmoke);
+
+        _taskBrief!.State = BuildTaskState.Running;
+    }
+
+    /// <summary>Maps the session's activity strings onto the checklist. Prefix matching against the
+    /// strings <see cref="StrategyBuildSession"/> reports — cosmetic by design: an unrecognized step
+    /// just doesn't advance the strip, it never breaks a turn.</summary>
+    private void AdvanceTasks(string step)
+    {
+        if (step.StartsWith("Loaded reference", StringComparison.Ordinal))
+        {
+            Done(_taskBrief);
+            Done(_taskSkills);
+        }
+        else if (step.StartsWith("Asking", StringComparison.Ordinal))
+        {
+            Done(_taskBrief);
+            Done(_taskSkills);
+            if (step.Contains("to fix", StringComparison.Ordinal)) Run(_taskAutoFix);
+            Run(_taskGenerate);
+        }
+        else if (step.StartsWith("Compiling", StringComparison.Ordinal))
+        {
+            Done(_taskGenerate);
+            Run(_taskCompile);
+        }
+        else if (step.StartsWith("Compiled", StringComparison.Ordinal))
+        {
+            Done(_taskCompile);
+            Done(_taskAutoFix);   // ran and won, or was never needed — either way it isn't outstanding
+        }
+        else if (step.StartsWith("Self-review", StringComparison.Ordinal) ||
+                 step.StartsWith("The self-review", StringComparison.Ordinal))
+        {
+            if (step.StartsWith("Self-review pass", StringComparison.Ordinal)) Run(_taskReview);
+            else Done(_taskReview);
+        }
+        else if (step.StartsWith("Backtest smoke", StringComparison.Ordinal))
+        {
+            if (step.Contains("passed", StringComparison.Ordinal)) Done(_taskSmoke);
+            else if (step.Contains("failed", StringComparison.Ordinal)) Fail(_taskSmoke);
+            else Run(_taskSmoke);
+        }
+        else if (step.StartsWith("Still", StringComparison.Ordinal))
+        {
+            Fail(_taskCompile);
+            Fail(_taskAutoFix);
+        }
+        else if (step.Contains("has a question", StringComparison.Ordinal))
+        {
+            Done(_taskGenerate);
+        }
+        else if (step.Contains("failed", StringComparison.OrdinalIgnoreCase))
+        {
+            Fail(_taskGenerate);
+        }
+    }
+
+    /// <summary>Settles the checklist when the turn ends: a compiled turn closes everything that didn't
+    /// fail; a question leaves the not-yet-applicable steps pending; anything running on a failure is
+    /// marked failed.</summary>
+    private void FinishTasks(BuildTurnKind kind)
+    {
+        var success = kind is BuildTurnKind.Compiled or BuildTurnKind.Question;
+        foreach (var task in Tasks)
+        {
+            if (task.State == BuildTaskState.Running)
+                task.State = success ? BuildTaskState.Done : BuildTaskState.Failed;
+            else if (kind == BuildTurnKind.Compiled && task.State == BuildTaskState.Pending)
+                task.State = BuildTaskState.Done;
+        }
+    }
+
+    /// <summary>A stopped/crashed turn: whatever was in flight didn't finish.</summary>
+    private void FailRunningTasks()
+    {
+        foreach (var task in Tasks)
+            if (task.State == BuildTaskState.Running) task.State = BuildTaskState.Failed;
+    }
+
+    private static void Run(BuildTask? task)
+    {
+        if (task is not null && task.State != BuildTaskState.Failed) task.State = BuildTaskState.Running;
+    }
+
+    private static void Done(BuildTask? task)
+    {
+        if (task is not null && task.State != BuildTaskState.Failed) task.State = BuildTaskState.Done;
+    }
+
+    private static void Fail(BuildTask? task)
+    {
+        if (task is not null) task.State = BuildTaskState.Failed;
+    }
 
     /// <summary>The chat composer. Multi-line: Enter adds a newline, Ctrl+Enter sends.</summary>
     [ObservableProperty] private string _composer = string.Empty;
@@ -334,12 +591,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AwaitingAnswer = false;
         IsGenerating = true;
 
+        // The pipeline's dial for this turn — and the checklist the right panel watches.
+        var profile = StrategyBuildProfile.For(BuildEffort);
+        SeedTasks(profile);
+
         _generateCts?.Cancel();
         _generateCts?.Dispose();
         _generateCts = new CancellationTokenSource();
 
         var ticking = TickElapsedAsync(_generateCts.Token);
-        var session = EnsureSession(choice);
+        var session = EnsureSession(choice, profile);
         var tokensBefore = session.TotalUsage;
         _streamingReply = null;
 
@@ -361,6 +622,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             InputTokens = session.TotalUsage.InputTokens;
             OutputTokens = session.TotalUsage.OutputTokens;
             CachedTokens = session.TotalUsage.CachedInputTokens;
+
+            FinishTasks(turn.Kind);
 
             if (turn.Kind == BuildTurnKind.ProviderError)
             {
@@ -406,12 +669,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             AiStatus = "Stopped.";
             PushActivity("Stopped by the user.");
+            FailRunningTasks();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "AI builder turn threw for {Id}", StrategyId);
             AiStatus = $"Generation error: {ex.Message}";
             Append(AuthoringMessage.System(AiStatus));
+            FailRunningTasks();
         }
         finally
         {
@@ -499,6 +764,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             _restoredUsage = null;
             Messages.Clear();
             Activity.Clear();
+            Tasks.Clear();
             Diagnostics.Clear();
             InputTokens = OutputTokens = 0;
             CompiledOk = false;
@@ -571,6 +837,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             StrategyId = session.StrategyId;
             DisplayName = session.DisplayName;
 
+            // Provider-independent: the pipeline effort comes back even when the provider doesn't.
+            // Absent on a pre-build-effort snapshot ⇒ Standard.
+            BuildEffort = StrategyBuildEfforts.Parse(session.BuildEffort);
+
             if (session.ProviderId is { Length: > 0 } providerId &&
                 AiProviders.FirstOrDefault(p => p.ProviderId == providerId) is { } provider)
             {
@@ -635,6 +905,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             ProviderId: SelectedAiProvider?.ProviderId,
             Model: SelectedModel,
             Effort: SelectedEffort.Wire(),
+            BuildEffort: BuildEffort.Wire(),
             InputTokens: InputTokens,
             OutputTokens: OutputTokens);
 
@@ -719,7 +990,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         DisplayName.Trim(),
         [.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
 
-    private StrategyBuildSession EnsureSession(AiProviderChoice choice)
+    private StrategyBuildSession EnsureSession(AiProviderChoice choice, StrategyBuildProfile profile)
     {
         if (_session is not null) return _session;
 
@@ -728,7 +999,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // Resume the restored thread exactly once: the model gets back everything it said, so a follow-up
         // ("now tighten the stop") lands on the code it actually wrote rather than on an empty context.
         _session = _ai!.StartSession(
-            client, StrategyId.Trim(), DisplayName.Trim(), _restoredThread, _restoredUsage);
+            client, StrategyId.Trim(), DisplayName.Trim(), _restoredThread, _restoredUsage, profile);
         _restoredThread = null;
         _restoredUsage = null;
         return _session;
@@ -793,13 +1064,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         Activity.Add(step);
         while (Activity.Count > MaxActivityRows) Activity.RemoveAt(0);
+        AdvanceTasks(step);
     }
 
     private void PersistSelection(string providerId, string? model, CodegenEffort effort)
     {
         try
         {
-            AiCodegenUserFile.SaveSelection(providerId, model, effort, _options);
+            AiCodegenUserFile.SaveSelection(providerId, model, effort, _options, BuildEffort.Wire());
         }
         catch (Exception ex)
         {
@@ -921,4 +1193,22 @@ public sealed class AiProviderChoice(IStrategyCodegenClient client)
     public string DisplayName => Client.DisplayName;
     public bool IsAvailable => Client.IsAvailable;
     public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
+}
+
+/// <summary>Where one step of the build pipeline stands.</summary>
+public enum BuildTaskState
+{
+    Pending,
+    Running,
+    Done,
+    Failed,
+}
+
+/// <summary>One row of the builder's Tasks strip — a pipeline step ("Generate", "Compile", "Backtest
+/// smoke") whose <see cref="State"/> advances live as the turn's activity stream arrives.</summary>
+public sealed partial class BuildTask(string title) : ObservableObject
+{
+    public string Title { get; } = title;
+
+    [ObservableProperty] private BuildTaskState _state = BuildTaskState.Pending;
 }

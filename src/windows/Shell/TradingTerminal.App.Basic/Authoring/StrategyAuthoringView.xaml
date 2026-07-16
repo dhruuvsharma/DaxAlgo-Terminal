@@ -5,101 +5,460 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
              mc:Ignorable="d"
-             d:DesignHeight="600" d:DesignWidth="900">
+             d:DesignHeight="760" d:DesignWidth="1320"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="B2V" />
+
+        <!-- Chat bubbles: the user's turn, the model's reply, and the builder's own notes (a provider
+             failure, a switched provider) — distinguished by background, not by a label. -->
+        <DataTemplate x:Key="ChatBubble">
+            <Border Margin="0,3" Padding="9,7" CornerRadius="6" BorderThickness="1"
+                    HorizontalAlignment="Stretch"
+                    Background="{DynamicResource Background.Elevated}"
+                    BorderBrush="{DynamicResource Border.Brush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsUser}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                <Setter Property="Margin" Value="56,3,0,3" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Warning.Brush}" />
+                                <Setter Property="Background" Value="Transparent" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                        <Border CornerRadius="3" Padding="5,0" Background="{DynamicResource Background.Surface}">
+                            <TextBlock FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Text.Secondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="ASSISTANT" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsUser}" Value="True">
+                                                <Setter Property="Text" Value="YOU" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                <Setter Property="Text" Value="BUILDER" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+                        <TextBlock FontSize="10" Opacity="0.55" Margin="8,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding TimestampLocal, StringFormat=HH:mm:ss, Mode=OneWay}" />
+                    </StackPanel>
+                    <!-- Selectable: the reply is the model's reasoning + code, and the user will want to
+                         copy from it. -->
+                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                             Background="Transparent" TextWrapping="Wrap"
+                             FontFamily="Consolas" FontSize="12"
+                             Foreground="{DynamicResource Text.Primary}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- One build task in the right-panel checklist. The glyph + colour track its live state. -->
+        <DataTemplate x:Key="TaskRow">
+            <Grid Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="○" />
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Running">
+                                    <Setter Property="Text" Value="◐" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Done">
+                                    <Setter Property="Text" Value="✓" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Failed">
+                                    <Setter Property="Text" Value="✕" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center"
+                           FontSize="11.5" Foreground="{DynamicResource Text.Primary}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Pending">
+                                    <Setter Property="Opacity" Value="0.55" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </DataTemplate>
+
+        <!-- One row in the "all models" picker: the model id (or a vendor-default note) plus a provider
+             pill. Unavailable providers (no key / CLI not installed) render dimmed. -->
+        <DataTemplate x:Key="ModelRow">
+            <Border x:Name="Root" Background="Transparent">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding ModelId}" VerticalAlignment="Center"
+                               FontFamily="Consolas" Foreground="{DynamicResource Text.Primary}" />
+                    <TextBlock Text="(provider default)" VerticalAlignment="Center" Opacity="0.7" FontStyle="Italic">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ModelId}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Border CornerRadius="3" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center"
+                            Background="{DynamicResource Background.Surface}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                        <TextBlock Text="{Binding ProviderLabel}" FontSize="9.5" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Accent.Brush}" />
+                    </Border>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                    <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
     </UserControl.Resources>
+
     <DockPanel Margin="8">
 
-        <!-- Header: identity + compile -->
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="160" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="Id:" VerticalAlignment="Center" Margin="0,0,4,0" />
-            <TextBox Grid.Column="1" Text="{Binding StrategyId, UpdateSourceTrigger=PropertyChanged}"
-                     VerticalAlignment="Center" />
-            <TextBlock Grid.Column="2" Text="Name:" VerticalAlignment="Center" Margin="12,0,4,0" />
-            <TextBox Grid.Column="3" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
-                     VerticalAlignment="Center" />
-            <Button Grid.Column="4" Content="Compile &amp; Register" Padding="12,4" Margin="12,0,0,0"
-                    Command="{Binding CompileCommand}" />
-        </Grid>
-
-        <!-- Status line -->
-        <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" Margin="0,0,0,6"
-                   TextWrapping="Wrap" FontStyle="Italic" />
-
-        <!-- AI builder: describe a strategy; it writes, compiles, and auto-fixes it. Visible only when a
-             codegen provider is wired. The user reviews the generated code, then presses Compile to add
-             it (that click is the consent for running model-authored code; it's already scan-gated). -->
-        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="8" CornerRadius="3"
-                BorderThickness="1" BorderBrush="{DynamicResource Accent.Brush}"
-                Background="{DynamicResource Background.Secondary}"
-                Visibility="{Binding AiEnabled, Converter={StaticResource B2V}}">
-            <StackPanel>
-                <TextBlock Text="AI STRATEGY BUILDER" FontWeight="Bold" FontSize="11" Margin="0,0,0,4" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="200" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Margin="0,0,6,0" VerticalContentAlignment="Center"
-                             Text="{Binding AiPrompt, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Describe the strategy in plain English, e.g. 'a Bollinger-band mean reversion on 20-bar bands'." />
-                    <ComboBox Grid.Column="1" Margin="0,0,6,0"
-                              ItemsSource="{Binding AiProviders}" SelectedItem="{Binding SelectedAiProvider}"
-                              DisplayMemberPath="Label" />
-                    <Button Grid.Column="2" Content="Generate" Padding="14,4"
-                            Command="{Binding GenerateWithAiCommand}" />
-                </Grid>
-                <TextBlock Text="{Binding AiStatus}" Margin="0,4,0,0" TextWrapping="Wrap"
-                           Foreground="{DynamicResource Text.Secondary}" />
-            </StackPanel>
+        <!-- ── Identity + the compile gate. Compile & Register is the consent click for running
+             model-authored code (already scan-gated by the plugin-loader policy). ────────────────── -->
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8" CornerRadius="6"
+                Background="{DynamicResource Gradient.Elevated}"
+                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Border Width="3" Height="15" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
+                    <TextBlock Text="VIBE QUANT" FontWeight="Bold" FontSize="13"
+                               Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
+                    <TextBlock Text="describe it · watch it get built" FontSize="10" Opacity="0.6"
+                               Margin="10,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Id:" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBox Grid.Column="2" Text="{Binding StrategyId, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="Name:" VerticalAlignment="Center" Margin="12,0,4,0" />
+                <TextBox Grid.Column="4" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center" />
+                <Button Grid.Column="5" Content="Compile &amp; Register" Padding="14,5" Margin="12,0,0,0"
+                        Command="{Binding CompileCommand}"
+                        ToolTip="Compile every file and add the strategy — it runs in-process, so review the code first." />
+            </Grid>
         </Border>
 
-        <!-- Body: editor | (diagnostics + parameters) -->
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" Margin="2,0,0,6"
+                   TextWrapping="Wrap" FontStyle="Italic" Foreground="{DynamicResource Text.Secondary}" />
+
+        <!-- ── The three panes: Projects · Chat · Tasks/Code/Parameters ───────────────────────────── -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="230" MinWidth="170" />
                 <ColumnDefinition Width="5" />
-                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="*" MinWidth="360" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="400" MinWidth="300" />
             </Grid.ColumnDefinitions>
 
-            <TextBox Grid.Column="0"
-                     Text="{Binding SourceCode, UpdateSourceTrigger=PropertyChanged}"
-                     FontFamily="Consolas" FontSize="12"
-                     AcceptsReturn="True" AcceptsTab="True"
-                     HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                     TextWrapping="NoWrap" />
+            <!-- ═══ LEFT · Projects (each saved strategy chat is a project) ═══════════════════════════ -->
+            <Border Grid.Column="0" CornerRadius="6" BorderThickness="1"
+                    Background="{DynamicResource Background.Surface}"
+                    BorderBrush="{DynamicResource Border.Brush}">
+                <DockPanel Margin="8">
+                    <Border DockPanel.Dock="Top" Padding="0,0,0,7" Margin="0,0,0,7"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <TextBlock Text="PROJECTS" FontWeight="Bold" FontSize="11"
+                                       Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
+                            <Button Content="+ New" Padding="8,2" HorizontalAlignment="Right"
+                                    Command="{Binding NewChatCommand}"
+                                    ToolTip="Start a fresh strategy. Give it a new id before sending." />
+                        </Grid>
+                    </Border>
 
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" />
+                    <Button DockPanel.Dock="Bottom" Content="Delete project" Padding="8,3" Margin="0,7,0,0"
+                            Command="{Binding DeleteSavedSessionCommand}"
+                            CommandParameter="{Binding SelectedSavedSession}"
+                            ToolTip="Forget this conversation. A registered strategy is untouched." />
 
-            <DockPanel Grid.Column="2" Margin="6,0,0,0">
-                <GroupBox DockPanel.Dock="Top" Header="Diagnostics" MaxHeight="220">
-                    <ListView ItemsSource="{Binding Diagnostics}">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Sev" Width="60"
-                                                DisplayMemberBinding="{Binding Severity}" />
-                                <GridViewColumn Header="Ln" Width="40"
-                                                DisplayMemberBinding="{Binding Line}" />
-                                <GridViewColumn Header="Message" Width="240"
-                                                DisplayMemberBinding="{Binding Message}" />
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </GroupBox>
+                    <ListBox ItemsSource="{Binding SavedSessions}"
+                             SelectedItem="{Binding SelectedSavedSession}"
+                             BorderThickness="0" Background="Transparent"
+                             HorizontalContentAlignment="Stretch"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="7,6" Margin="0,2" CornerRadius="4"
+                                        Background="{DynamicResource Background.Elevated}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource Text.Header}" />
+                                        <TextBlock Text="{Binding StrategyId}" FontSize="10"
+                                                   Foreground="{DynamicResource Text.Highlight}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Age}" FontSize="10" Opacity="0.6"
+                                                   Foreground="{DynamicResource Text.Secondary}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
 
-                <GroupBox Header="Parameters">
-                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
-                </GroupBox>
-            </DockPanel>
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
+                          Background="Transparent" />
+
+            <!-- ═══ MIDDLE · Chat ════════════════════════════════════════════════════════════════════ -->
+            <Border Grid.Column="2" CornerRadius="6" BorderThickness="1"
+                    Background="{DynamicResource Background.Surface}"
+                    BorderBrush="{DynamicResource Border.Brush}">
+                <DockPanel Margin="10" Visibility="{Binding AiEnabled, Converter={StaticResource B2V}}">
+
+                    <!-- Model + effort strip. Two rows so nothing is clipped. -->
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="150" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Model:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding AllModels}"
+                                      SelectedItem="{Binding SelectedModelChoice}"
+                                      ItemTemplate="{StaticResource ModelRow}"
+                                      ToolTip="Every model the app can reach, tagged by provider. Unavailable providers are dimmed — add a key or install the CLI in Settings → AI providers." />
+                            <TextBlock Grid.Column="2" Text="Custom id:" VerticalAlignment="Center" Margin="12,0,6,0"
+                                       Opacity="0.7" />
+                            <TextBox Grid.Column="3" Text="{Binding SelectedModel, UpdateSourceTrigger=LostFocus}"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Type any model id the selected provider accepts (overrides the picker)." />
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Build effort:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding BuildEfforts}"
+                                      SelectedItem="{Binding BuildEffort}"
+                                      ToolTip="How much the BUILDER puts in — not how hard the model thinks. Higher loads more domain skills, retries the compiler more, and (Deep/Max) runs a self-review + a backtest smoke pass." />
+                            <TextBlock Grid.Column="2" Text="Reasoning:" VerticalAlignment="Center" Margin="14,0,6,0" />
+                            <ComboBox Grid.Column="3" ItemsSource="{Binding Efforts}"
+                                      SelectedItem="{Binding SelectedEffort}"
+                                      IsEnabled="{Binding EffortSupported}"
+                                      ToolTip="How hard the MODEL thinks. 'Default' sends nothing — use it for models that reject the parameter." />
+                            <TextBlock Grid.Column="4" Text="{Binding UsageText}" VerticalAlignment="Center"
+                                       HorizontalAlignment="Right" Margin="12,0,8,0" Opacity="0.7" FontSize="11" />
+                            <Button Grid.Column="5" Content="New chat" Padding="10,3"
+                                    Command="{Binding NewChatCommand}" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Composer: multi-line (Enter = newline, Ctrl+Enter = send). -->
+                    <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" MinHeight="68" MaxHeight="220"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Text="{Binding Composer, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Describe the strategy — as much detail as you like. Ctrl+Enter to send.">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Return" Modifiers="Ctrl" Command="{Binding SendCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                            <Button Content="Send" Padding="20,6" Command="{Binding SendCommand}"
+                                    Visibility="{Binding IsGenerating, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                            <Button Content="Stop" Padding="20,6" Command="{Binding StopCommand}"
+                                    Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- The model asked something back rather than guessing — a good turn, made unmissable. -->
+                    <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="8,5" CornerRadius="4"
+                            BorderThickness="1" BorderBrush="{DynamicResource Accent.Brush}"
+                            Visibility="{Binding AwaitingAnswer, Converter={StaticResource B2V}}">
+                        <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
+                                   Text="The model needs an answer before it writes the strategy — reply below." />
+                    </Border>
+
+                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding AiStatus}" Margin="0,8,0,0"
+                               TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}" />
+
+                    <!-- Transcript. -->
+                    <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Messages}" ItemTemplate="{StaticResource ChatBubble}" />
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"
+                          Background="Transparent" />
+
+            <!-- ═══ RIGHT · Tasks / Code / Parameters (three stacked rows) ════════════════════════════ -->
+            <Grid Grid.Column="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="1.1*" MinHeight="120" />
+                    <RowDefinition Height="5" />
+                    <RowDefinition Height="2*" MinHeight="160" />
+                    <RowDefinition Height="5" />
+                    <RowDefinition Height="1.4*" MinHeight="120" />
+                </Grid.RowDefinitions>
+
+                <!-- Row 1 · Tasks -->
+                <Border Grid.Row="0" CornerRadius="6" BorderThickness="1"
+                        Background="{DynamicResource Background.Surface}"
+                        BorderBrush="{DynamicResource Border.Brush}">
+                    <DockPanel Margin="10">
+                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="TASKS" FontWeight="Bold" FontSize="11"
+                                           Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ElapsedText}" FontSize="10" Opacity="0.6" Margin="10,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ProgressBar Height="2" Width="70" HorizontalAlignment="Right" IsIndeterminate="True"
+                                         Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
+                        </Grid>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Tasks}" ItemTemplate="{StaticResource TaskRow}" />
+                                <TextBlock Text="Send a brief to see the build steps here."
+                                           FontSize="11" Opacity="0.5" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Foreground="{DynamicResource Text.Secondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Tasks.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="Transparent" />
+
+                <!-- Row 2 · Code (file picker + editor + diagnostics) -->
+                <Border Grid.Row="2" CornerRadius="6" BorderThickness="1"
+                        Background="{DynamicResource Background.Surface}"
+                        BorderBrush="{DynamicResource Border.Brush}">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- File selector: a strategy is a small project, so pick the file to view. -->
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="FILE" FontWeight="Bold" FontSize="11"
+                                       Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding Files}"
+                                      SelectedItem="{Binding SelectedFile}" DisplayMemberPath="Name" />
+                            <Button Grid.Column="2" Content="+" Padding="9,2" Margin="6,0,0,0"
+                                    Command="{Binding AddFileCommand}" ToolTip="Add a helper file" />
+                            <Button Grid.Column="3" Content="–" Padding="9,2" Margin="4,0,0,0"
+                                    Command="{Binding RemoveFileCommand}"
+                                    CommandParameter="{Binding SelectedFile}" ToolTip="Remove this file" />
+                        </Grid>
+
+                        <TextBox Grid.Row="1"
+                                 Text="{Binding SelectedFile.Content, UpdateSourceTrigger=PropertyChanged}"
+                                 FontFamily="Consolas" FontSize="12"
+                                 AcceptsReturn="True" AcceptsTab="True"
+                                 Background="{DynamicResource Background.Elevated}"
+                                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                 TextWrapping="NoWrap" />
+
+                        <!-- Diagnostics: click one to jump to its file. A policy-scan block appears here as an
+                             error — that is why unsafe generated code can never be registered. -->
+                        <GroupBox Grid.Row="2" Header="Diagnostics" MaxHeight="140" Margin="0,6,0,0">
+                            <ListView ItemsSource="{Binding Diagnostics}"
+                                      SelectedItem="{Binding SelectedDiagnostic}" BorderThickness="0">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Sev" Width="52"
+                                                        DisplayMemberBinding="{Binding Severity}" />
+                                        <GridViewColumn Header="File" Width="110"
+                                                        DisplayMemberBinding="{Binding File}" />
+                                        <GridViewColumn Header="Ln" Width="34"
+                                                        DisplayMemberBinding="{Binding Line}" />
+                                        <GridViewColumn Header="Message" Width="380"
+                                                        DisplayMemberBinding="{Binding Message}" />
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </GroupBox>
+                    </Grid>
+                </Border>
+
+                <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" Background="Transparent" />
+
+                <!-- Row 3 · Parameters -->
+                <Border Grid.Row="4" CornerRadius="6" BorderThickness="1"
+                        Background="{DynamicResource Background.Surface}"
+                        BorderBrush="{DynamicResource Border.Brush}">
+                    <DockPanel Margin="10">
+                        <TextBlock DockPanel.Dock="Top" Text="PARAMETERS" FontWeight="Bold" FontSize="11"
+                                   Foreground="{DynamicResource Text.Header}" Margin="0,0,0,6" />
+                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="A strategy that declares a static Schema gets this editor for free. Compile to populate it." />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
         </Grid>
     </DockPanel>
 </UserControl>

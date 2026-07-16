@@ -25,8 +25,11 @@ public static class AiCodegenUserFile
     /// Records the model + reasoning effort the user picked for a provider, and makes that provider the
     /// default. Merges into whatever the file already holds, so switching provider doesn't forget the
     /// choices made for the previous one (and never touches keys in other sections).
+    /// <paramref name="buildEffort"/> is the pipeline-wide build effort (<c>quick</c>/<c>standard</c>/
+    /// <c>deep</c>/<c>max</c>); null leaves whatever the file already records.
     /// </summary>
-    public static void SaveSelection(string providerId, string? model, CodegenEffort effort, AiCodegenOptions current)
+    public static void SaveSelection(
+        string providerId, string? model, CodegenEffort effort, AiCodegenOptions current, string? buildEffort = null)
     {
         if (string.IsNullOrWhiteSpace(providerId)) return;
 
@@ -53,6 +56,10 @@ public static class AiCodegenUserFile
         }
 
         section["DefaultProvider"] = providerId;
+
+        // Session-wide, not per-provider: the build pipeline's effort is about how hard the BUILDER
+        // works (skills, fix attempts, review, smoke), which doesn't change with the provider.
+        if (buildEffort is not null) section["BuildEffort"] = buildEffort;
 
         if (section["Providers"] is not JsonObject providers)
         {

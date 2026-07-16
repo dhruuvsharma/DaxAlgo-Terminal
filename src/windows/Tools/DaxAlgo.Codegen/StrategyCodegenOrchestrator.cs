@@ -40,7 +40,9 @@ public sealed class StrategyCodegenOrchestrator(
 
     /// <summary>Opens a conversation — or resumes one, when <paramref name="history"/> carries a thread
     /// restored from disk. The caller drives it turn by turn with
-    /// <see cref="StrategyBuildSession.SendAsync"/>, which is what lets the model ask questions back.</summary>
+    /// <see cref="StrategyBuildSession.SendAsync"/>, which is what lets the model ask questions back.
+    /// <paramref name="profile"/> sets the build effort (skill budget, fix attempts, self-review,
+    /// backtest smoke); null keeps today's defaults, so existing call sites are unchanged.</summary>
     public StrategyBuildSession CreateSession(
         IStrategyCodegenClient client,
         string systemContext,
@@ -48,8 +50,9 @@ public sealed class StrategyCodegenOrchestrator(
         string displayName,
         int maxFixAttempts,
         IReadOnlyList<CodegenMessage>? history = null,
-        CodegenUsage? priorUsage = null) =>
-        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history, priorUsage, _skills);
+        CodegenUsage? priorUsage = null,
+        StrategyBuildProfile? profile = null) =>
+        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history, priorUsage, _skills, profile);
 
     /// <summary>One-shot: a single instruction taken as far as the auto-fix bound allows.</summary>
     public async Task<StrategyBuildLoopResult> BuildAsync(

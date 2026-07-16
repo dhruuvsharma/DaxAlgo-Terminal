@@ -879,6 +879,187 @@ public sealed class StrategyCodegenTests
         result.Code.Should().NotBeNullOrWhiteSpace("the facade surfaces the final code for the editor");
     }
 
+    // ── build effort (the pipeline dial) ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_build_effort_profiles_scale_the_pipeline()
+    {
+        StrategyBuildProfile.For(StrategyBuildEffort.Quick)
+            .Should().Be(new StrategyBuildProfile(1, 1, SelfReview: false, BacktestSmoke: false));
+        StrategyBuildProfile.For(StrategyBuildEffort.Standard)
+            .Should().Be(new StrategyBuildProfile(3, 2, SelfReview: false, BacktestSmoke: false));
+        StrategyBuildProfile.For(StrategyBuildEffort.Deep)
+            .Should().Be(new StrategyBuildProfile(5, 4, SelfReview: true, BacktestSmoke: true));
+        StrategyBuildProfile.For(StrategyBuildEffort.Max)
+            .Should().Be(new StrategyBuildProfile(8, 6, SelfReview: true, BacktestSmoke: true));
+    }
+
+    [Fact]
+    public void A_profile_overrides_the_configured_fix_attempt_bound()
+    {
+        var session = Orchestrator().CreateSession(
+            new FakeCodegenClient(), Pack, "gen.profile", "Gen", maxFixAttempts: 3,
+            profile: StrategyBuildProfile.For(StrategyBuildEffort.Quick));
+
+        session.MaxFixAttempts.Should().Be(1, "Quick buys one retry regardless of the configured default");
+        session.Profile.Should().Be(StrategyBuildProfile.For(StrategyBuildEffort.Quick));
+    }
+
+    [Fact]
+    public void The_skill_cap_is_a_parameter_so_a_deep_build_can_load_more_packs()
+    {
+        var library = StrategySkillLibrary.Load();
+        const string everything =
+            "footprint imbalance VPOC delta and order book depth, an EMA cross with a Kalman filter and " +
+            "Sharpe readout, a trailing stop exit with position sizing, in a live window on ES futures ticks";
+
+        library.SelectFor(everything, maxSkills: 1).Should().HaveCount(1, "Quick caps the budget at one");
+        library.SelectFor(everything, maxSkills: 5).Count.Should().BeGreaterThan(
+            1, "a bigger budget actually buys more packs for a brief that warrants them");
+        library.SelectFor(everything).Should().HaveCountLessThanOrEqualTo(
+            StrategySkillLibrary.MaxSkillsPerSession, "the old overload keeps the old ceiling");
+    }
+
+    // ── the self-review pass ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Deep_effort_runs_a_self_review_and_adopts_an_improved_compiling_answer()
+    {
+        const string improved = """
+            Reviewed — tightened the warm-up guard.
+            ```csharp
+            // file: Strategy.cs
+            public sealed class ImprovedStrategy(Contract contract) : IBacktestStrategy
+            {
+                private readonly Contract _contract = contract;
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            ```
+            """;
+        var client = new FakeCodegenClient(FakeCodegenClient.DefaultKernel, improved);
+        var session = Orchestrator().CreateSession(
+            client, Pack, "gen.review", "Gen", maxFixAttempts: 3,
+            profile: new StrategyBuildProfile(3, 2, SelfReview: true, BacktestSmoke: false));
+
+        var turn = await session.SendAsync("make a strategy");
+
+        turn.Success.Should().BeTrue();
+        client.CallCount.Should().Be(2, "one generation + one self-review pass");
+        turn.Generations.Should().Be(2);
+        turn.Files.Should().ContainSingle().Which.Content.Should().Contain("ImprovedStrategy");
+        session.Transcript.Should().Contain(m =>
+            m.Role == CodegenRole.User && m.Content.Contains("review your own strategy"));
+    }
+
+    [Fact]
+    public async Task A_self_review_that_breaks_the_code_is_discarded()
+    {
+        const string broken = "```csharp\npublic sealed class Broken : IBacktestStrategy { }\n```";
+        var client = new FakeCodegenClient(FakeCodegenClient.DefaultKernel, broken);
+        var session = Orchestrator().CreateSession(
+            client, Pack, "gen.review2", "Gen", maxFixAttempts: 3,
+            profile: new StrategyBuildProfile(3, 2, SelfReview: true, BacktestSmoke: false));
+
+        var turn = await session.SendAsync("make a strategy");
+
+        turn.Success.Should().BeTrue("the review is advisory — the compiled version stands");
+        turn.Compile!.Success.Should().BeTrue();
+        turn.Files.Should().ContainSingle().Which.Content.Should().Contain("GeneratedStrategy",
+            "the last GOOD files are kept when the review doesn't compile");
+    }
+
+    // ── the backtest smoke ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task The_smoke_passes_a_well_behaved_strategy_and_names_the_throwing_stage_of_a_bad_one()
+    {
+        (await StrategyBacktestSmoke.RunAsync(CompileOption(MinimalKernel("SmokeOk"), "gen.smokeok")))
+            .Should().BeNull("a kernel that does nothing can't throw");
+
+        const string throws = """
+            public sealed class ThrowsOnTick(Contract contract) : IBacktestStrategy
+            {
+                private readonly Contract _contract = contract;
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+                {
+                    var boom = 1 / (int)(tick.Bid - tick.Bid);   // divide by zero on the very first tick
+                    return Task.CompletedTask;
+                }
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            """;
+        var failure = await StrategyBacktestSmoke.RunAsync(CompileOption(throws, "gen.smokebad"));
+
+        failure.Should().Contain("OnTickAsync").And.Contain("DivideByZeroException",
+            "the report names the lifecycle stage and the exception so the model can fix it");
+    }
+
+    [Fact]
+    public async Task A_smoke_failure_is_a_warning_diagnostic_not_a_block()
+    {
+        const string throwing = """
+            ```csharp
+            public sealed class ThrowsOnStart(Contract contract) : IBacktestStrategy
+            {
+                private readonly Contract _contract = contract;
+                public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+                    => throw new InvalidOperationException("bad warm-up");
+                public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+                public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+                public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            }
+            ```
+            """;
+        var session = Orchestrator().CreateSession(
+            new FakeCodegenClient(throwing), Pack, "gen.smoke", "Gen", maxFixAttempts: 0,
+            profile: new StrategyBuildProfile(3, 0, SelfReview: false, BacktestSmoke: true));
+
+        var turn = await session.SendAsync("make a strategy");
+
+        turn.Success.Should().BeTrue("the smoke is advice, not a gate — the user still reviews");
+        turn.Compile!.Success.Should().BeTrue();
+        turn.Compile.Diagnostics.Should().Contain(d =>
+            d.Id == "SMOKE001" && d.Severity == StrategyDiagnosticSeverity.Warning &&
+            d.Message.Contains("OnStartAsync"));
+    }
+
+    private static BacktestStrategyOption CompileOption(string source, string id)
+    {
+        var result = new RoslynStrategyCompiler().Compile(new StrategyScript(id, id, source));
+        result.Success.Should().BeTrue();
+        return result.Option!;
+    }
+
+    // ── the flattened model picker ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AllModels_gives_every_provider_at_least_one_tagged_row()
+    {
+        var options = new TradingTerminal.Core.Configuration.AiCodegenOptions
+        {
+            Providers = { ["ollama"] = new() { BaseUrl = "http://localhost:11434/v1", Model = "llama3.1" } },
+        };
+        var factory = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => null);
+        var builder = new AiStrategyBuilder(factory, new StrategyCodegenOrchestrator(new RoslynStrategyCompiler()),
+            StrategyContextPack.Load(), options);
+
+        var all = builder.AllModels();
+
+        // The curated Anthropic ids ride under the installed-CLI provider, tagged with its label.
+        var opus = all.Should().Contain(c => c.ProviderId == "claude-cli" && c.ModelId == "claude-opus-4-8").Subject;
+        opus.Display.Should().Be("claude-opus-4-8 · Claude Code (installed CLI)");
+
+        all.Single(c => c.ProviderId == "ollama").ModelId.Should().Be("llama3.1",
+            "a provider with no curated list still shows its configured model");
+        all.Should().Contain(c => c.ProviderId == "codex-cli",
+            "every provider gets a row — the vendor-default entry when nothing is known");
+    }
+
     // ── stubs ──────────────────────────────────────────────────────────────────────────────────────
 
     private sealed class FailingClient : IStrategyCodegenClient

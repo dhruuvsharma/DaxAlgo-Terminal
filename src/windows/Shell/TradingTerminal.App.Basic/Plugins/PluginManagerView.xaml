@@ -18,7 +18,7 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Strategy plugins" FontSize="18" FontWeight="Bold" />
+            <TextBlock Text="Strategy Manager" FontSize="18" FontWeight="Bold" />
             <TextBlock Text="{Binding TrustPolicySummary}" Opacity="0.8" Margin="0,4,0,0" TextWrapping="Wrap" />
         </StackPanel>
 

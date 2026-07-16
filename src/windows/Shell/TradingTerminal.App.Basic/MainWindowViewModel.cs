@@ -29,8 +29,11 @@ using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Theming;
 
 namespace TradingTerminal.App;
@@ -64,6 +67,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private readonly ILogger<MainWindowViewModel> _logger;
     private readonly DispatcherTimer _clockTimer;
     private readonly IThemeManager _themeManager;
+    private readonly ICliWorkspaceLauncher? _cliLauncher;
 
     public MainWindowViewModel(
         IStrategyFactory factory,
@@ -75,7 +79,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         Infrastructure.Plugins.PluginHostContext pluginContext,
         IShellWindowHost host,
         IServiceProvider services,
-        ILogger<MainWindowViewModel> logger)
+        ILogger<MainWindowViewModel> logger,
+        ICliWorkspaceLauncher? cliLauncher = null)
     {
         _factory = factory;
         _eventBus = eventBus;
@@ -87,10 +92,23 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _services = services;
         _logger = logger;
 
+        // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
+        // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
+        _cliLauncher = cliLauncher;
+        var installedClis = cliLauncher?.AvailableClis() ?? [];
+        CliLaunchChoices = AgentCliAdapter.All
+            .Select(adapter => new CliLaunchChoice(adapter, installedClis.Contains(adapter)))
+            .ToList();
+
         // Drive the shell "Opening…" curtain from the window host.
         _host.OverlayPresenter = this;
 
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
+        // Catalog rows: each strategy wrapped with its user presentation overrides (custom name /
+        // description / tags / alpha formula / UI image). The list binds to these; the underlying
+        // strategy stays reachable for Open / Quick-backtest / the pill converters.
+        CatalogItems = new ObservableCollection<StrategyCatalogItemViewModel>(
+            factory.All.Select(s => new StrategyCatalogItemViewModel(s)));
         // Strategies contributed by an UNSIGNED plugin (neither shipped-by-us nor from a pinned
         // publisher) wear the DEV badge on their catalog card, mirroring the Plugin Manager.
         UnsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
@@ -216,6 +234,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     public ObservableCollection<ITradingStrategy> Strategies { get; }
 
+    /// <summary>The catalog rows — each strategy wrapped with its user presentation overrides (custom
+    /// name / description / tags / alpha formula / UI image), editable from the card's right-click menu.
+    /// The list binds to this; <see cref="Strategies"/> stays the lookup for Open / backtest.</summary>
+    public ObservableCollection<StrategyCatalogItemViewModel> CatalogItems { get; }
+
     /// <summary>Ids of strategies contributed by unsigned plugins — the catalog card shows a DEV badge
     /// for these (see UnsignedStrategyConverter). Empty in a fully-curated install.</summary>
     public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
@@ -308,6 +331,25 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     [ObservableProperty]
     private ITradingStrategy? _selectedStrategy;
+
+    /// <summary>The selected catalog row (a <see cref="StrategyCatalogItemViewModel"/>, or the trailing
+    /// Vibe card). Bound to the list; it drives <see cref="SelectedStrategy"/> so the Open / Quick-backtest
+    /// / Edit actions keep working off the underlying strategy.</summary>
+    [ObservableProperty]
+    private object? _selectedCatalogItem;
+
+    partial void OnSelectedCatalogItemChanged(object? value) =>
+        SelectedStrategy = (value as StrategyCatalogItemViewModel)?.Strategy;
+
+    /// <summary>Catalog card right-click → Edit: opens the modal editor for the selected strategy's
+    /// presentation (name / tags / description / alpha formula / UI image). Saved overrides persist and
+    /// refresh the card in place — they never touch the strategy's compiled code.</summary>
+    [RelayCommand]
+    private void EditStrategy()
+    {
+        if (SelectedCatalogItem is not StrategyCatalogItemViewModel item) return;
+        StrategyPresentationEditor.ShowDialog(Application.Current.MainWindow, item);
+    }
 
     [ObservableProperty]
     private ConnectionState _connectionState = Core.Domain.ConnectionState.Disconnected;
@@ -547,12 +589,39 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [RelayCommand]
     public void OpenPluginManager() =>
         _host.OpenHostedTool<TradingTerminal.App.Plugins.PluginManagerViewModel, TradingTerminal.App.Plugins.PluginManagerView>(
-            PluginManagerWindowId, "Strategy plugins", "Loading the plugin manager…");
+            PluginManagerWindowId, "Strategy Manager", "Loading the strategy manager…");
 
     [RelayCommand]
     public void OpenStrategyAuthoring() =>
         _host.OpenHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
-            StrategyAuthoringWindowId, "AI Strategy Builder", "Loading the strategy builder…");
+            StrategyAuthoringWindowId, "Vibe Quant", "Loading Vibe Quant…");
+
+    /// <summary>The agent CLIs the "Launch CLI" menu offers — installed ones enabled, the rest shown
+    /// disabled with an "install it" hint. Built once from what resolved on PATH at start.</summary>
+    public IReadOnlyList<CliLaunchChoice> CliLaunchChoices { get; }
+
+    /// <summary>True when at least one agent CLI is installed — lets a shell hide the launcher entirely
+    /// where none is present, if it wants to.</summary>
+    public bool HasCliLaunchers => CliLaunchChoices.Any(choice => choice.IsAvailable);
+
+    /// <summary>Vibe Code → Launch CLI: scaffold a strategy-authoring workspace (CLAUDE.md / AGENTS.md,
+    /// skills, hooks, system prompt, a starter project) and open the chosen CLI in a terminal there. The
+    /// vendor CLI owns its own sign-in — no credentials pass through the app.</summary>
+    [RelayCommand]
+    public void LaunchCli(CliLaunchChoice? choice)
+    {
+        if (choice is null) return;
+        if (_cliLauncher is null || !choice.IsAvailable)
+        {
+            LogSink.Append("Vibe Quant", "Warning",
+                $"{choice.DisplayName} isn't available — install it and make sure it's on your PATH.");
+            return;
+        }
+
+        var result = _cliLauncher.Launch(choice.Adapter, "vibe-scratch", "Vibe scratch strategy", StrategyBuildEffort.Standard);
+        LogSink.Append("Vibe Quant", result.Success ? "Info" : "Warning", result.Message);
+        _logger.LogInformation("Launched CLI {Cli}: {Message}", choice.DisplayName, result.Message);
+    }
 
     [RelayCommand]
     public void OpenBacktestStudio() =>
@@ -661,4 +730,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         // Nothing to do here on shell load.
         return Task.CompletedTask;
     }
+}
+
+/// <summary>One entry in the Vibe Code → "Launch CLI" menu: an agent CLI (Claude Code / Codex) with
+/// whether it was found on PATH. An unavailable one is shown disabled with an "install it" hint rather
+/// than hidden, so the feature is discoverable before the CLI is set up.</summary>
+public sealed class CliLaunchChoice(AgentCliAdapter adapter, bool isAvailable)
+{
+    public AgentCliAdapter Adapter { get; } = adapter;
+    public bool IsAvailable { get; } = isAvailable;
+    public string DisplayName => Adapter.DisplayName;
+    public string MenuHeader => IsAvailable ? Adapter.DisplayName : $"{Adapter.DisplayName} — not installed";
 }

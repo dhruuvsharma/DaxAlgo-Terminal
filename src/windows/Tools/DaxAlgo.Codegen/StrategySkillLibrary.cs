@@ -74,9 +74,14 @@ public sealed class StrategySkillLibrary
     }
 
     /// <summary>The skills a brief warrants, best match first, bounded by count and characters.</summary>
-    public IReadOnlyList<StrategySkill> SelectFor(string? brief)
+    public IReadOnlyList<StrategySkill> SelectFor(string? brief) => SelectFor(brief, MaxSkillsPerSession);
+
+    /// <summary>Same selection under a caller-chosen count ceiling — the build-effort profile buys a
+    /// higher (or lower) skill budget than the default. The character ceiling still applies: a Max-effort
+    /// session must not rebuild the monolith the split exists to avoid.</summary>
+    public IReadOnlyList<StrategySkill> SelectFor(string? brief, int maxSkills)
     {
-        if (string.IsNullOrWhiteSpace(brief)) return [];
+        if (string.IsNullOrWhiteSpace(brief) || maxSkills <= 0) return [];
 
         var ranked = _skills
             .Select(skill => (skill, score: skill.Score(brief)))
@@ -90,7 +95,7 @@ public sealed class StrategySkillLibrary
 
         foreach (var skill in ranked)
         {
-            if (chosen.Count == MaxSkillsPerSession) break;
+            if (chosen.Count == maxSkills) break;
             if (skill.Body.Length > budget) continue;
 
             chosen.Add(skill);

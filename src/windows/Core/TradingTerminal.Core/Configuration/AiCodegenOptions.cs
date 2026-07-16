@@ -44,8 +44,15 @@ public sealed class AiCodegenOptions
     public string DefaultProvider { get; set; } = string.Empty;
 
     /// <summary>How many times the builder loop re-prompts with compiler errors before giving up. Kept
-    /// small — a provider that can't fix its own output in a few tries won't in ten.</summary>
+    /// small — a provider that can't fix its own output in a few tries won't in ten. A
+    /// <c>StrategyBuildProfile</c> supplied at session creation overrides this per-session.</summary>
     public int MaxFixAttempts { get; set; } = 3;
+
+    /// <summary>The BUILD-PIPELINE effort the user last picked (<c>quick</c>/<c>standard</c>/<c>deep</c>/
+    /// <c>max</c>) — how many skill packs, fix attempts, and whether the self-review / backtest-smoke
+    /// passes run. Distinct from a provider's reasoning <see cref="AiCodegenProvider.Effort"/>. Empty ⇒
+    /// <c>standard</c>. Persisted per user by the builder alongside the provider/model choice.</summary>
+    public string BuildEffort { get; set; } = string.Empty;
 
     /// <summary>
     /// How long ONE generation may take before it is abandoned — the agent-CLI subprocess wall clock and

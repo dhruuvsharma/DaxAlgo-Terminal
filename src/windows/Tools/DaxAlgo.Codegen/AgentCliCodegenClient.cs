@@ -324,8 +324,9 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     }
 
     /// <summary>Resolves an executable against PATH (with the platform's executable extensions), so
-    /// <see cref="IsAvailable"/> doesn't pay a process launch.</summary>
-    private static string? ResolveOnPath(string executable)
+    /// <see cref="IsAvailable"/> doesn't pay a process launch. Internal: the CLI workspace launcher
+    /// answers "which CLIs are installed?" with the same logic, so the two can never disagree.</summary>
+    internal static string? ResolveOnPath(string executable)
     {
         var paths = Environment.GetEnvironmentVariable("PATH")?.Split(Path.PathSeparator) ?? [];
         var extensions = OperatingSystem.IsWindows()
