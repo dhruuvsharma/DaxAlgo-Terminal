@@ -1,6 +1,7 @@
 <Window x:Class="TradingTerminal.UI.Strategies.StrategyPresentationEditorView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies"
         Title="Edit strategy card"
         Width="580" Height="680"
         MinWidth="460" MinHeight="480"
@@ -85,13 +86,10 @@
                            Foreground="{DynamicResource Text.Secondary}"
                            Text="No image? The card shows the DaxAlgo logo instead." />
 
-                <!-- Live preview -->
-                <Border Margin="0,8,0,0" Height="150" HorizontalAlignment="Left" Width="260"
-                        Background="{DynamicResource Background.Surface}"
-                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="4">
-                    <Image Stretch="Uniform" Margin="6"
-                           Source="{Binding ImagePath, TargetNullValue='pack://application:,,,/Icon/DaxAlgoLogo.ico'}" />
-                </Border>
+                <!-- Live preview — exactly what the catalog row will render. -->
+                <uistrat:StrategyImageTile Margin="0,8,0,0" Height="150" Width="260"
+                                           HorizontalAlignment="Left"
+                                           ImagePath="{Binding ImagePath}" />
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

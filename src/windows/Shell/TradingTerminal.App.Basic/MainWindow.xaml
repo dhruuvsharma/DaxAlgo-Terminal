@@ -8,6 +8,7 @@
                  xmlns:local="clr-namespace:TradingTerminal.App"
                  xmlns:ui="clr-namespace:TradingTerminal.UI;assembly=TradingTerminal.UI"
                  xmlns:ctl="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+                 xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Title="DaxAlgo Terminal · Basic"
                  Height="860" Width="1440"
@@ -480,11 +481,7 @@
             </Grid.RowDefinitions>
 
             <Grid.Resources>
-                <!-- Proxy so the Vibe card's right-click menu (which lives outside the visual tree) and the
-                     CompositeCollection can still reach the MainWindowViewModel. -->
-                <local:BindingProxy x:Key="CatalogProxy" Data="{Binding}" />
-
-                <!-- Normal strategy tile. -->
+                <!-- One row per strategy. -->
                 <DataTemplate x:Key="StrategyCardTemplate">
                     <!-- One list row, three columns: identity (name + tags + alpha formula) · description ·
                          a UI screenshot (the app logo when none is set). Binds to a StrategyCatalogItemViewModel,
@@ -636,72 +633,14 @@
                                        TextWrapping="Wrap" FontSize="12"
                                        VerticalAlignment="Top" Margin="0,2,14,0" />
 
-                            <!-- ── Column 3 · UI image (app logo when none is set) ── -->
-                            <Border Grid.Column="2" Width="190" Height="112" VerticalAlignment="Top"
-                                    Background="{DynamicResource Background.Surface}"
-                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="4">
-                                <Image Stretch="Uniform" Margin="5"
-                                       Source="{Binding ImagePath, TargetNullValue='pack://application:,,,/Icon/DaxAlgoLogo.ico'}" />
-                            </Border>
+                            <!-- ── Column 3 · UI image — the user's screenshot, else the DaxAlgo mark on a
+                                 lifted gradient (the mark is solid black, invisible on our surfaces bare). ── -->
+                            <uistrat:StrategyImageTile Grid.Column="2" Width="190" Height="112"
+                                                       VerticalAlignment="Top"
+                                                       ImagePath="{Binding ImagePath}" />
                         </Grid>
                     </Border>
                 </DataTemplate>
-
-                <!-- Vibe Quant call-to-action tile — the last card in the catalog. Double-click opens
-                     Vibe Quant; right-click opens the Vibe Quant · Launch CLI menu. -->
-                <DataTemplate x:Key="VibeCardTemplate">
-                    <Border Width="360" Cursor="Hand"
-                            Background="{DynamicResource Gradient.Elevated}"
-                            BorderBrush="{DynamicResource Accent.Brush}"
-                            BorderThickness="1.5"
-                            CornerRadius="4"
-                            Padding="14,12"
-                            ToolTip="Double-click to open Vibe Quant. Right-click for options (Vibe Quant · Launch CLI).">
-                        <Border.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="⚡ Vibe Quant…"
-                                          Command="{Binding Data.OpenStrategyAuthoringCommand, Source={StaticResource CatalogProxy}}" />
-                                <Separator />
-                                <MenuItem Header="Launch CLI"
-                                          ItemsSource="{Binding Data.CliLaunchChoices, Source={StaticResource CatalogProxy}}">
-                                    <MenuItem.ItemContainerStyle>
-                                        <Style TargetType="MenuItem">
-                                            <Setter Property="Header" Value="{Binding MenuHeader}" />
-                                            <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
-                                            <EventSetter Event="Click" Handler="LaunchCliMenuItem_Click" />
-                                        </Style>
-                                    </MenuItem.ItemContainerStyle>
-                                </MenuItem>
-                            </ContextMenu>
-                        </Border.ContextMenu>
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⚡" FontSize="30" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource Accent.Brush}" Margin="0,0,10,0" />
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="15"
-                                               Foreground="{DynamicResource Text.Header}" />
-                                    <TextBlock Text="Build a strategy by chatting with AI"
-                                               FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource Accent.Brush}" />
-                                </StackPanel>
-                            </StackPanel>
-                            <TextBlock Margin="0,10,0,0" TextWrapping="Wrap"
-                                       FontSize="11" Foreground="{DynamicResource Text.Secondary}"
-                                       Text="Describe your idea in plain English — the AI writes, compiles, and registers a runnable strategy that lands right here in the catalog. Or launch an agent CLI (Claude Code / Codex) in a ready-made authoring workspace." />
-                            <Border Margin="0,10,0,0" HorizontalAlignment="Left"
-                                    Background="{DynamicResource Accent.Brush}" CornerRadius="3" Padding="7,3">
-                                <TextBlock Text="Double-click to start  ·  Right-click for options"
-                                           FontSize="10" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Background.Primary}" />
-                            </Border>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
-
-                <local:StrategyCatalogTemplateSelector x:Key="CatalogTemplateSelector"
-                                                       StrategyTemplate="{StaticResource StrategyCardTemplate}"
-                                                       VibeCardTemplate="{StaticResource VibeCardTemplate}" />
             </Grid.Resources>
 
             <!-- Section header -->
@@ -753,24 +692,19 @@
                      BorderThickness="0"
                      Background="{DynamicResource Background.Surface}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.CatalogItems}"
                      SelectedItem="{Binding ElementName=RootWindow, Path=DataContext.SelectedCatalogItem, Mode=TwoWay}"
                      HorizontalContentAlignment="Stretch"
-                     ItemTemplateSelector="{StaticResource CatalogTemplateSelector}"
-                     MouseDoubleClick="StrategiesList_MouseDoubleClick">
-                <!-- Catalog rows (StrategyCatalogItemViewModel) plus a trailing Vibe Quant call-to-action tile. -->
-                <ListBox.ItemsSource>
-                    <CompositeCollection>
-                        <CollectionContainer Collection="{Binding Data.CatalogItems, Source={StaticResource CatalogProxy}}" />
-                        <local:VibeCardItem />
-                    </CompositeCollection>
-                </ListBox.ItemsSource>
-                <!-- One strategy per full-width row — a vertical list (default panel). -->
+                     ItemTemplate="{StaticResource StrategyCardTemplate}"
+                     MouseDoubleClick="StrategiesList_MouseDoubleClick"
+                     Padding="0,0,0,76">
+                <!-- One strategy per full-width row — a vertical list (default panel). The bottom padding
+                     keeps the last row clear of the floating Vibe Quant button. -->
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="Margin" Value="6,3" />
                         <Setter Property="Padding" Value="0" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <EventSetter Event="Selected" Handler="StrategyItem_Selected" />
                         <EventSetter Event="PreviewMouseRightButtonDown" Handler="StrategyItem_RightClick" />
                     </Style>
                 </ListBox.ItemContainerStyle>
@@ -786,6 +720,55 @@
                     </ContextMenu>
                 </ListBox.ContextMenu>
             </ListBox>
+
+            <!-- Floating Vibe Quant button — pinned bottom-right over the catalog. Left-click opens Vibe
+                 Quant; right-click drops the Vibe Quant · Launch CLI menu (the attached ContextMenu
+                 inherits this window's DataContext, so its bindings resolve without a proxy). -->
+            <Button x:Name="VibeFab"
+                    Grid.Row="1"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,28,28"
+                    Cursor="Hand"
+                    Click="VibeFab_Click"
+                    ToolTip="Vibe Quant — describe a strategy and let the AI build it. Right-click for options (Launch CLI).">
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="⚡ Vibe Quant…" Command="{Binding OpenStrategyAuthoringCommand}" />
+                        <Separator />
+                        <MenuItem Header="Launch CLI" ItemsSource="{Binding CliLaunchChoices}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding MenuHeader}" />
+                                    <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+                                    <EventSetter Event="Click" Handler="LaunchCliMenuItem_Click" />
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
+                    </ContextMenu>
+                </Button.ContextMenu>
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="24" Padding="18,11"
+                                Background="{DynamicResource Accent.Brush}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.55" Color="#000000" />
+                            </Border.Effect>
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⚡" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Background.Primary}" Margin="0,0,8,0" />
+                    <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Background.Primary}" />
+                </StackPanel>
+            </Button>
         </Grid>
 
         <!-- Activity-log drawer — collapsible, pinned at the bottom, closed by default.

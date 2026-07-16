@@ -1,0 +1,49 @@
+<UserControl x:Class="TradingTerminal.UI.Strategies.StrategyImageTile"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Name="Root"
+             d:DesignWidth="190" d:DesignHeight="112">
+    <UserControl.Resources>
+        <!-- The mark is solid black on transparency, so on the terminal's near-black surfaces it is
+             invisible without a lifted backdrop. Deliberately muted rather than white, so a long
+             catalog doesn't turn into a wall of glare. Palette-independent on purpose: the logo is
+             always black, so this must read the same under every theme (incl. the light Greek one). -->
+        <LinearGradientBrush x:Key="LogoBackdrop" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#D2D7E0" Offset="0" />
+            <GradientStop Color="#7E8798" Offset="1" />
+        </LinearGradientBrush>
+    </UserControl.Resources>
+
+    <Border CornerRadius="4" BorderThickness="1"
+            BorderBrush="{DynamicResource Border.Brush}"
+            ClipToBounds="True">
+        <Border.Style>
+            <Style TargetType="Border">
+                <!-- A real screenshot sits on the plain surface; only the fallback mark gets the lift. -->
+                <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsFallback, ElementName=Root}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource LogoBackdrop}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Image x:Name="Picture" Stretch="Uniform" SnapsToDevicePixels="True"
+               RenderOptions.BitmapScalingMode="HighQuality">
+            <Image.Style>
+                <Style TargetType="Image">
+                    <!-- A screenshot fills the tile; the mark is inset so it reads as a logo, not art. -->
+                    <Setter Property="Margin" Value="4" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFallback, ElementName=Root}" Value="True">
+                            <Setter Property="Margin" Value="16" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Image.Style>
+        </Image>
+    </Border>
+</UserControl>

@@ -332,14 +332,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [ObservableProperty]
     private ITradingStrategy? _selectedStrategy;
 
-    /// <summary>The selected catalog row (a <see cref="StrategyCatalogItemViewModel"/>, or the trailing
-    /// Vibe card). Bound to the list; it drives <see cref="SelectedStrategy"/> so the Open / Quick-backtest
-    /// / Edit actions keep working off the underlying strategy.</summary>
+    /// <summary>The selected catalog row. Bound to the list; it drives <see cref="SelectedStrategy"/> so
+    /// the Open / Quick-backtest / Edit actions keep working off the underlying strategy.</summary>
     [ObservableProperty]
-    private object? _selectedCatalogItem;
+    private StrategyCatalogItemViewModel? _selectedCatalogItem;
 
-    partial void OnSelectedCatalogItemChanged(object? value) =>
-        SelectedStrategy = (value as StrategyCatalogItemViewModel)?.Strategy;
+    partial void OnSelectedCatalogItemChanged(StrategyCatalogItemViewModel? value) =>
+        SelectedStrategy = value?.Strategy;
 
     /// <summary>Catalog card right-click → Edit: opens the modal editor for the selected strategy's
     /// presentation (name / tags / description / alpha formula / UI image). Saved overrides persist and
@@ -347,7 +346,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [RelayCommand]
     private void EditStrategy()
     {
-        if (SelectedCatalogItem is not StrategyCatalogItemViewModel item) return;
+        if (SelectedCatalogItem is not { } item) return;
         StrategyPresentationEditor.ShowDialog(Application.Current.MainWindow, item);
     }
 

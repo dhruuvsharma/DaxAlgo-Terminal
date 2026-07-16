@@ -27,6 +27,14 @@
     <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
   </ItemGroup>
 
+  <!-- Brand marks, linked from the repo-root assets folder (the single source of truth) so every
+       edition shell and this library render the SAME high-res logo. The per-shell .ico is a 32px
+       app/window icon — upscaling it onto a catalog tile is what made the mark look pixelated. -->
+  <ItemGroup>
+    <Resource Include="..\..\..\..\assets\DaxAlgoLogo-BackgroundLess.png" Link="Assets\DaxAlgoLogo-BackgroundLess.png" />
+    <Resource Include="..\..\..\..\assets\DaxAlgoLogo.png" Link="Assets\DaxAlgoLogo.png" />
+  </ItemGroup>
+
   <ItemGroup>
     <Page Update="Themes\Brushes.xaml">
       <Generator>MSBuild:Compile</Generator>
