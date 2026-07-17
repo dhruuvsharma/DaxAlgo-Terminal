@@ -41,7 +41,7 @@
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect Color="Black" BlurRadius="34" ShadowDepth="0" Opacity="0.55" />
+                <DropShadowEffect Color="Black" BlurRadius="24" ShadowDepth="0" Opacity="0.30" />
             </Setter.Value>
         </Setter>
     </Style>
@@ -64,9 +64,9 @@
 
     <Style x:Key="App.Brand" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
@@ -83,7 +83,7 @@
          with an "App.SectionBar" border for the left rule. -->
     <Style x:Key="App.SectionHeader" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -106,7 +106,7 @@
     <!-- ===== Toolbar buttons (flat, rounded, accent on hover) ===== -->
     <Style x:Key="App.ToolButton" TargetType="Button">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="Background" Value="#1C1C1C" />
+        <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="10,3" />
@@ -117,7 +117,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="b" CornerRadius="4" Background="{TemplateBinding Background}"
+                    <Border x:Name="b" CornerRadius="6" Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -195,9 +195,9 @@
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
     </Style>
 
-    <!-- Monospace stat value under an App.StatCaption. -->
+    <!-- Monospace stat value under an App.StatCaption (Font.Data = the data/numeric font). -->
     <Style x:Key="App.StatValue" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
         <Setter Property="FontSize" Value="13" />
     </Style>
 
@@ -205,7 +205,7 @@
          App.IconButton; checked = accent wash so active state is obvious at a glance. -->
     <Style x:Key="App.IconToggle" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="Background" Value="#1C1C1C" />
+        <Setter Property="Background" Value="{DynamicResource Surface.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Width" Value="28" />
@@ -218,7 +218,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="b" CornerRadius="4" Background="{TemplateBinding Background}"
+                    <Border x:Name="b" CornerRadius="6" Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />

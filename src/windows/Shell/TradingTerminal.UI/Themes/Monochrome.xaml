@@ -89,8 +89,31 @@
         <GradientStop Color="#E2E2E2" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Typographic constants -->
+    <!-- Typographic constants — kept mono throughout: this is the ink-on-black terminal theme. -->
+    <FontFamily x:Key="Font.Base">Consolas, Cascadia Mono, Lucida Console</FontFamily>
+    <FontFamily x:Key="Font.Data">Consolas, Cascadia Mono, Lucida Console</FontFamily>
     <FontFamily x:Key="Font.Mono">Consolas, Cascadia Mono, Lucida Console</FontFamily>
+
+    <!-- ═══ AI-native accent family (violet→cyan) — the one deliberate splash of colour in the
+         monochrome theme: AI features stay unmistakable. Consumed by Themes/AiStyles.xaml. ═══ -->
+    <Color x:Key="Ai.Accent.Color">#A855F7</Color>
+    <Color x:Key="Ai.Glow.Color">#8B5CF6</Color>
+    <Color x:Key="Ai.Text.Color">#C4B5FD</Color>
+
+    <SolidColorBrush x:Key="Ai.Accent.Brush" Color="{StaticResource Ai.Accent.Color}" />
+    <SolidColorBrush x:Key="Ai.Glow.Brush"   Color="{StaticResource Ai.Glow.Color}" />
+    <SolidColorBrush x:Key="Ai.Text.Brush"   Color="{StaticResource Ai.Text.Color}" />
+    <SolidColorBrush x:Key="Ai.Soft"         Color="#268B5CF6" />
+
+    <LinearGradientBrush x:Key="Gradient.Ai" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#7C3AED" Offset="0" />
+        <GradientStop Color="#A855F7" Offset="0.5" />
+        <GradientStop Color="#22D3EE" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.AiGlass" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#2E7C3AED" Offset="0" />
+        <GradientStop Color="#1F22D3EE" Offset="1" />
+    </LinearGradientBrush>
 
     <!-- ===================================================================================
          MahApps accent override (silver). The accent is near-white, so we also pin the MahApps

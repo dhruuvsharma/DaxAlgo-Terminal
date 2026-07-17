@@ -29,6 +29,7 @@
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Dark.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Components.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/StrategyShellStyles.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/AiStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

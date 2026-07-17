@@ -14,40 +14,41 @@
     <Style TargetType="{x:Type Window}">
         <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style TargetType="{x:Type UserControl}">
         <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style TargetType="{x:Type TextBlock}">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
     </Style>
 
-    <!-- Rounded, accent-focus text input (based on MahApps so CornerRadius + clear button work). -->
+    <!-- Rounded, accent-focus text input (based on MahApps so CornerRadius + clear button work).
+         ONE radius scale app-wide: 6 on controls, 10 on cards (see Components.xaml). -->
     <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource MahApps.Styles.TextBox}">
-        <Setter Property="mah:ControlsHelper.CornerRadius" Value="4" />
+        <Setter Property="mah:ControlsHelper.CornerRadius" Value="6" />
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="CaretBrush" Value="{DynamicResource Accent.Brush}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
-        <Setter Property="Padding" Value="6,3" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="MinHeight" Value="28" />
     </Style>
 
     <!-- Same treatment for password / numeric MahApps inputs. -->
     <Style TargetType="{x:Type PasswordBox}" BasedOn="{StaticResource MahApps.Styles.PasswordBox}">
-        <Setter Property="mah:ControlsHelper.CornerRadius" Value="4" />
+        <Setter Property="mah:ControlsHelper.CornerRadius" Value="6" />
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="MinHeight" Value="28" />
     </Style>
 
     <!-- Base on the MahApps dark ComboBox style so we inherit its ControlTemplate (and themed
@@ -55,47 +56,49 @@
          (Dark.xaml is merged after Controls.xaml) and fall back to the default WPF template, whose
          toggle chrome renders white regardless of the Background setter. -->
     <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource MahApps.Styles.ComboBox}">
-        <Setter Property="mah:ControlsHelper.CornerRadius" Value="4" />
+        <Setter Property="mah:ControlsHelper.CornerRadius" Value="6" />
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
+        <Setter Property="MinHeight" Value="28" />
     </Style>
 
     <!-- Amber checkbox (MahApps tick now reads amber via the accent override). -->
     <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource MahApps.Styles.CheckBox}">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
     </Style>
     <Style TargetType="{x:Type RadioButton}" BasedOn="{StaticResource MahApps.Styles.RadioButton}">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
     </Style>
 
-    <!-- ===== Button: rounded, gradient, amber hover-wash that animates in/out ===== -->
+    <!-- ===== Button: flat, rounded, neutral text; a quiet accent wash animates in on hover.
+         TradingView-style — the default button is calm, the accent appears on interaction.
+         Primary CTAs opt into the keyed Button.Primary below. ===== -->
     <Style TargetType="{x:Type Button}">
         <Setter Property="Background" Value="{DynamicResource Gradient.Elevated}" />
-        <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="12,4" />
-        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="MinHeight" Value="28" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="5"
+                    <Border x:Name="bd" CornerRadius="6"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="True">
                         <Grid>
-                            <!-- amber wash overlay, faded in on hover -->
-                            <Border x:Name="wash" CornerRadius="4" Background="{DynamicResource Accent.Brush}" Opacity="0" />
+                            <!-- accent wash overlay, faded in on hover -->
+                            <Border x:Name="wash" CornerRadius="5" Background="{DynamicResource Accent.Brush}" Opacity="0" />
                             <ContentPresenter x:Name="cp" Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="Center" VerticalAlignment="Center"
                                               RecognizesAccessKey="True" />
@@ -108,7 +111,7 @@
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="wash" Storyboard.TargetProperty="Opacity"
-                                                         To="0.16" Duration="0:0:0.15" />
+                                                         To="0.10" Duration="0:0:0.12" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
@@ -116,13 +119,13 @@
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="wash" Storyboard.TargetProperty="Opacity"
-                                                         To="0" Duration="0:0:0.18" />
+                                                         To="0" Duration="0:0:0.15" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="wash" Property="Opacity" Value="0.30" />
+                            <Setter TargetName="wash" Property="Opacity" Value="0.18" />
                             <Setter TargetName="cp" Property="RenderTransform">
                                 <Setter.Value>
                                     <ScaleTransform ScaleX="0.97" ScaleY="0.97" />
@@ -139,12 +142,20 @@
         </Setter>
     </Style>
 
+    <!-- Primary call-to-action: filled accent, ideal-foreground text. Opt-in via
+         Style="{DynamicResource Button.Primary}". -->
+    <Style x:Key="Button.Primary" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
     <!-- ===== ListBox + rounded, accent-rail items with smooth hover ===== -->
     <Style TargetType="{x:Type ListBox}">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
     </Style>
 
     <Style TargetType="{x:Type ListBoxItem}">
@@ -155,7 +166,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="bd" CornerRadius="4" Background="Transparent"
+                    <Border x:Name="bd" CornerRadius="6" Background="Transparent"
                             BorderBrush="Transparent" BorderThickness="2,0,0,0"
                             Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
                         <ContentPresenter />
@@ -182,7 +193,7 @@
     <Style TargetType="{x:Type StatusBar}">
         <Setter Property="Background" Value="{DynamicResource Gradient.Chrome}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontSize" Value="11" />
     </Style>
 
@@ -190,27 +201,27 @@
     <Style TargetType="{x:Type Menu}" BasedOn="{StaticResource MahApps.Styles.Menu}">
         <Setter Property="Background" Value="{DynamicResource Gradient.Chrome}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource MahApps.Styles.MenuItem}">
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
     </Style>
 
     <!-- Dark, rounded tooltip. -->
     <Style TargetType="{x:Type ToolTip}">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
-                    <Border CornerRadius="5" Background="{DynamicResource Background.Elevated}"
-                            BorderBrush="{DynamicResource Accent.Dim.Brush}" BorderThickness="1"
-                            Padding="9,6" SnapsToDevicePixels="True">
+                    <Border CornerRadius="8" Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                            Padding="10,7" SnapsToDevicePixels="True">
                         <Border.Effect>
-                            <DropShadowEffect Color="Black" BlurRadius="14" ShadowDepth="0" Opacity="0.55" />
+                            <DropShadowEffect Color="Black" BlurRadius="16" ShadowDepth="0" Opacity="0.35" />
                         </Border.Effect>
                         <ContentPresenter />
                     </Border>
@@ -222,7 +233,7 @@
     <!-- Bloomberg-style section header label (amber, uppercase, dense) -->
     <Style x:Key="BB.SectionHeader" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
-        <Setter Property="FontFamily" Value="{DynamicResource Font.Mono}" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Padding" Value="8,5" />

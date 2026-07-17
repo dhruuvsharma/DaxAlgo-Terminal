@@ -55,7 +55,8 @@
                                FontSize="13"
                                Margin="0,0,16,0" />
                     <Border Style="{StaticResource BB.FnKey}" VerticalAlignment="Center">
-                        <TextBlock Text="F1 HELP" Foreground="#000000" FontSize="10" FontWeight="Bold" />
+                        <TextBlock Text="F1 HELP" Foreground="{DynamicResource MahApps.Brushes.IdealForeground}"
+                                   FontSize="10" FontWeight="Bold" />
                     </Border>
                 </StackPanel>
 
@@ -97,13 +98,8 @@
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
                                     <Border x:Name="Bd" CornerRadius="9" Padding="9,3" BorderThickness="1"
-                                            BorderBrush="{DynamicResource Border.Strong}">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                <GradientStop Color="#2A2F3A" Offset="0" />
-                                                <GradientStop Color="#171B22" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
+                                            BorderBrush="{DynamicResource Border.Strong}"
+                                            Background="{DynamicResource Gradient.Elevated}">
                                         <ContentPresenter />
                                     </Border>
                                     <ControlTemplate.Triggers>
@@ -145,13 +141,8 @@
                                 </Border.Effect>
                                 <StackPanel>
                                     <!-- header -->
-                                    <Border CornerRadius="8,8,0,0" Padding="12,9">
-                                        <Border.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                <GradientStop Color="#2B3550" Offset="0" />
-                                                <GradientStop Color="#1B2030" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Border.Background>
+                                    <Border CornerRadius="8,8,0,0" Padding="12,9"
+                                            Background="{DynamicResource Gradient.Header}">
                                         <StackPanel Orientation="Horizontal">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="14" Margin="0,0,8,0">
                                                 <Rectangle Style="{StaticResource ApiAccent}" Width="3" Height="5"  Margin="0,0,2,0" VerticalAlignment="Bottom" />
@@ -634,13 +625,11 @@
                                      strategies (ResearchPaperUrl set). Clicking opens the paper. -->
                                 <Border Margin="12,4,0,0"
                                         HorizontalAlignment="Left"
-                                        Background="#4527A0"
-                                        CornerRadius="3"
-                                        Padding="5,1"
+                                        Style="{StaticResource Ai.Pill}"
                                         Visibility="{Binding Strategy.ResearchPaperUrl, Converter={StaticResource StringToVisibilityConverter}}">
                                     <TextBlock FontSize="10" FontWeight="SemiBold">
                                         <Hyperlink NavigateUri="{Binding Strategy.ResearchPaperUrl}"
-                                                   Foreground="#E8DEFF"
+                                                   Foreground="{DynamicResource Ai.Text.Brush}"
                                                    TextDecorations="None"
                                                    ToolTip="{Binding Strategy.ResearchPaperUrl}"
                                                    RequestNavigate="ResearchPaper_RequestNavigate">📄 RESEARCH PAPER ⓘ</Hyperlink>

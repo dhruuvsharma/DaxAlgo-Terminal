@@ -79,6 +79,9 @@ public sealed class ThemeManager : IThemeManager
 
     private static readonly ThemeDefinition[] _builtins =
     {
+        // First entry = the default for fresh installs (LoadSavedId falls back to it).
+        new("daxalgo-dark",  "DaxAlgo Dark", BaseUri + "TvDark.xaml"),
+        new("daxalgo-light", "DaxAlgo Light", BaseUri + "TvLight.xaml"),
         new("amber", "Bloomberg Amber", BaseUri + "Brushes.xaml"),
         new("mono",  "Monochrome (B&W)", BaseUri + "Monochrome.xaml"),
         new("greek-light", "Greek — Marble (light)", BaseUri + "GreekLight.xaml"),
@@ -306,6 +309,9 @@ public sealed class ThemeManager : IThemeManager
     private static string GroupOf(string key)
     {
         if (key.StartsWith("MahApps", StringComparison.Ordinal)) return "MahApps accent";
+        if (key.StartsWith("Ai.", StringComparison.Ordinal)
+            || key.StartsWith("Gradient.Ai", StringComparison.Ordinal))
+            return "AI (glass & gradients)";
         if (key.StartsWith("Gradient", StringComparison.Ordinal)) return "Gradients";
         if (key.StartsWith("Background", StringComparison.Ordinal)) return "Backgrounds";
         if (key.StartsWith("Border", StringComparison.Ordinal)) return "Borders";

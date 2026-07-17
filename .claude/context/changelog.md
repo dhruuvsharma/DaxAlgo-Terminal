@@ -1,5 +1,34 @@
 # context changelog — append-only session journal
 
+## 2026-07-17 — #28 AI-Native design system: DaxAlgo Dark default + the AI glass language
+- **Two new palettes**: `Themes/TvDark.xaml` (**DaxAlgo Dark** — new default builtin: `#131722`
+  canvas, `#1E222D` surfaces, `#2962FF` accent, `#089981`/`#F23645` P&L, sans `Font.Base`) and
+  `Themes/TvLight.xaml` (light counterpart; flips MahApps native surfaces like GreekLight).
+  Fresh installs default to daxalgo-dark; saved theme prefs win.
+- **Every palette gained the same additions** (key superset intact): `Font.Base` (UI chrome font —
+  amber/mono stay Consolas on purpose, Greek+TV go Segoe UI Variable), `Font.Data` (numeric
+  columns), and the **`Ai.*` family** (`Ai.Accent/Glow/Text` +.Color/.Brush pairs, `Ai.Soft`,
+  `Gradient.Ai` violet→cyan, `Gradient.AiGlass` translucent wash). Amber also gained
+  `MahApps.*.IdealForeground` (black). ThemeManager groups `Ai.*` as "AI (glass & gradients)".
+- **Structural consistency pass** (`Dark.xaml`/`Components.xaml`/`StrategyShellStyles.xaml`):
+  one radius scale (6 controls / 10 cards / 8 tooltips — `Strategy.SetupCard` was square),
+  `Font.Base` in all chrome styles, `Font.Data` replaces hardcoded Consolas, `Surface.Hover`
+  replaces hardcoded `#1C1C1C`, neutral minimal default Button (accent on interaction only,
+  wash 0.10) + new keyed `Button.Primary` CTA, softer shadows.
+- **NEW `Themes/AiStyles.xaml`** — the AI-native visual language (theme-agnostic): `Ai.Badge`/
+  `Ai.BadgeText`, drop-in `Ai.MenuIconChip` (x:Shared=False), `Ai.Pill`, `Ai.TextAccent`
+  (gradient ink), `Ai.GlassCard` (static glow) and `Ai.GlassPanel`/`Ai.HeroButton` with a
+  **sweeping animated gradient ring** (named RotateTransform in template, 24 fps, fixed brand
+  hues — DynamicResource stops in animated freezables are unreliable). Merged in App.xaml ×3.
+- **Shells ×3**: API-meter chrome tokenized (`Gradient.Elevated`/`Gradient.Header` replace inline
+  hexes), research-paper tag → `Ai.Pill`+`Ai.Text.Brush` (was `#4527A0`), F1 HELP →
+  IdealForeground. Pro additionally: Vibe Quant FAB → `Ai.HeroButton`, Strategy Studio menu
+  header → `Ai.TextAccent`+violet glow (white-blob DropShadow removed), AI menu chips on
+  Vibe Code / Vibe Quant / Paper Lab / Research settings / AI providers, AI-NATIVE brand chip.
+- Tests: 70/70 WPF + 8/8 Pro (one stale Pro test re-pinned: the Chat|Code|Parameters tabs died
+  in the 0b81ad2 Vibe-Quant redesign; now pins splitters + ChatScroll). Both slnx builds green.
+  Visual QA in DevSim pending. Tracker: **#28** (linked from #4).
+
 ## 2026-07-15 — #26 the default-UI composer: a viewless authored strategy gets a composed live window
 - **The pack contract changed: the model writes THREE files (kernel + descriptor + view-model), not
   four.** A view is optional and discouraged — when the author writes none, the host composes the live

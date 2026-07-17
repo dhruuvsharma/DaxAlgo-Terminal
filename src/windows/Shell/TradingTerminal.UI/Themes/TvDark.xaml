@@ -2,36 +2,35 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ═══════════════════════════════════════════════════════════════════════════════════════
-         GREEK — "Obsidian" (dark). The night-museum counterpart to GreekLight: warm basalt/obsidian
-         stone for the surfaces (never a flat pure black — everything is tinted toward aged bronze),
-         marble-ivory text, and the same terracotta/amphora accent, pushed a little brighter so it
-         glows against the stone. P&L keeps the thematic laurel-olive up / Pompeiian-red down, with an
-         antique-bronze-gold warning.
+         DAXALGO DARK — the default palette. TradingView-grade minimalism: a deep blue-grey canvas
+         (never pure black), flat panels one step lighter, restrained hairline borders, a single
+         electric-blue interactive accent, and classic green/red P&L. UI text is a proportional
+         sans (Font.Base); monospace is reserved for DATA (Font.Data / Font.Mono) so numeric
+         columns stay aligned without the whole app reading like a code editor.
 
-         Defines EXACTLY the same key set as Brushes.xaml so ThemeManager can hot-swap it in. The
-         MahApps base is already dark, so — like the other dark palettes — this only re-pins the
-         accent; the custom shell (fully token-driven) does the rest.
+         Defines EXACTLY the same key set as Brushes.xaml (plus the shared Ai.* / Font.* additions
+         every palette now carries) so ThemeManager can hot-swap it in.
          ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
-    <!-- Backgrounds — warm obsidian canvas, dark-stone panels, raised bronze-stone cards -->
-    <Color x:Key="Background.Primary.Color">#16130F</Color>
-    <Color x:Key="Background.Surface.Color">#1E1A15</Color>
-    <Color x:Key="Background.Elevated.Color">#27221B</Color>
-    <Color x:Key="Border.Color">#3A332A</Color>
+    <!-- Backgrounds — TV canvas #131722, panel #1E222D, raised chrome one step lighter -->
+    <Color x:Key="Background.Primary.Color">#131722</Color>
+    <Color x:Key="Background.Surface.Color">#1E222D</Color>
+    <Color x:Key="Background.Elevated.Color">#262B38</Color>
+    <Color x:Key="Border.Color">#2A2E39</Color>
 
-    <!-- Text — marble ivory, weathered-stone secondary, gold-ivory display headers -->
-    <Color x:Key="Text.Primary.Color">#EDE6D8</Color>
-    <Color x:Key="Text.Secondary.Color">#9C9081</Color>
-    <Color x:Key="Text.Header.Color">#F0E6CF</Color>
-    <Color x:Key="Text.Highlight.Color">#E8763F</Color>
+    <!-- Text — soft off-white primary, muted grey secondary, bright neutral headers -->
+    <Color x:Key="Text.Primary.Color">#D1D4DC</Color>
+    <Color x:Key="Text.Secondary.Color">#787B86</Color>
+    <Color x:Key="Text.Header.Color">#EAECEF</Color>
+    <Color x:Key="Text.Highlight.Color">#4C8FFF</Color>
 
-    <!-- Semantic — glowing terracotta accent; laurel/Pompeiian P&L; bronze-gold warning -->
-    <Color x:Key="Accent.Color">#E4652F</Color>
-    <Color x:Key="Accent.Dim.Color">#B14E22</Color>
-    <Color x:Key="Bullish.Color">#9CAA55</Color>
-    <Color x:Key="Bearish.Color">#C6493F</Color>
-    <Color x:Key="Danger.Color">#D34638</Color>
-    <Color x:Key="Warning.Color">#D0A24A</Color>
+    <!-- Semantic — TV blue accent; teal-green up / signal-red down; amber warning -->
+    <Color x:Key="Accent.Color">#2962FF</Color>
+    <Color x:Key="Accent.Dim.Color">#1E4BC8</Color>
+    <Color x:Key="Bullish.Color">#089981</Color>
+    <Color x:Key="Bearish.Color">#F23645</Color>
+    <Color x:Key="Danger.Color">#F23645</Color>
+    <Color x:Key="Warning.Color">#F7A600</Color>
 
     <!-- SolidColorBrush wrappers -->
     <SolidColorBrush x:Key="Background.Primary"  Color="{StaticResource Background.Primary.Color}" />
@@ -50,57 +49,59 @@
     <SolidColorBrush x:Key="Warning.Brush"       Color="{StaticResource Warning.Color}" />
 
     <!-- Extra flat colours -->
-    <Color x:Key="Surface.Hover.Color">#2C261E</Color>
-    <Color x:Key="Border.Strong.Color">#4A4136</Color>
-    <Color x:Key="Accent.Hover.Color">#F07B45</Color>
+    <Color x:Key="Surface.Hover.Color">#2A2E39</Color>
+    <Color x:Key="Border.Strong.Color">#3A404E</Color>
+    <Color x:Key="Accent.Hover.Color">#4C8FFF</Color>
 
     <SolidColorBrush x:Key="Surface.Hover" Color="{StaticResource Surface.Hover.Color}" />
     <SolidColorBrush x:Key="Border.Strong" Color="{StaticResource Border.Strong.Color}" />
     <SolidColorBrush x:Key="Accent.Hover.Brush" Color="{StaticResource Accent.Hover.Color}" />
 
     <!-- Soft (alpha) semantic fills — for pills / chips / cell washes -->
-    <SolidColorBrush x:Key="Accent.Soft"    Color="#26E4652F" />
-    <SolidColorBrush x:Key="Bullish.Soft"   Color="#269CAA55" />
-    <SolidColorBrush x:Key="Bearish.Soft"   Color="#26C6493F" />
-    <SolidColorBrush x:Key="Warning.Soft"   Color="#26D0A24A" />
-    <SolidColorBrush x:Key="Highlight.Soft" Color="#26E8763F" />
+    <SolidColorBrush x:Key="Accent.Soft"    Color="#262962FF" />
+    <SolidColorBrush x:Key="Bullish.Soft"   Color="#26089981" />
+    <SolidColorBrush x:Key="Bearish.Soft"   Color="#26F23645" />
+    <SolidColorBrush x:Key="Warning.Soft"   Color="#26F7A600" />
+    <SolidColorBrush x:Key="Highlight.Soft" Color="#264C8FFF" />
 
-    <!-- Vertical surface gradients (chrome bars, panels, cards) — warm obsidian -->
+    <!-- Vertical surface gradients — kept NEAR-FLAT on purpose: consumers of the gradient keys
+         get the minimal TradingView look without every window being rewritten. -->
     <LinearGradientBrush x:Key="Gradient.Chrome" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#221D17" Offset="0" />
-        <GradientStop Color="#14110D" Offset="1" />
+        <GradientStop Color="#1C202B" Offset="0" />
+        <GradientStop Color="#161A24" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="Gradient.Elevated" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#2A241C" Offset="0" />
-        <GradientStop Color="#1B1712" Offset="1" />
+        <GradientStop Color="#262B38" Offset="0" />
+        <GradientStop Color="#20242F" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="Gradient.Surface" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#1C1813" Offset="0" />
-        <GradientStop Color="#120F0B" Offset="1" />
+        <GradientStop Color="#1A1E29" Offset="0" />
+        <GradientStop Color="#151924" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Bronze-tinted header gradient (left→right) for card/section headers -->
+    <!-- Blue-washed header gradient (left→right) for card/section headers -->
     <LinearGradientBrush x:Key="Gradient.Header" StartPoint="0,0" EndPoint="1,0">
-        <GradientStop Color="#2A2117" Offset="0" />
-        <GradientStop Color="#16110B" Offset="1" />
+        <GradientStop Color="#223052" Offset="0" />
+        <GradientStop Color="#1A2030" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Terracotta gradients for primary buttons / active states -->
+    <!-- Blue gradients for primary buttons / active states -->
     <LinearGradientBrush x:Key="Gradient.Accent" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#F07B45" Offset="0" />
-        <GradientStop Color="#E4652F" Offset="1" />
+        <GradientStop Color="#3D74FF" Offset="0" />
+        <GradientStop Color="#2962FF" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="Gradient.AccentHover" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#F58C59" Offset="0" />
-        <GradientStop Color="#EC7038" Offset="1" />
+        <GradientStop Color="#5C8AFF" Offset="0" />
+        <GradientStop Color="#3D74FF" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Typographic constants — editorial sans for the museum chrome; mono for data columns. -->
+    <!-- Typographic constants — sans for UI chrome, mono strictly for data columns -->
     <FontFamily x:Key="Font.Base">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="Font.Data">Consolas, Cascadia Mono, Lucida Console</FontFamily>
     <FontFamily x:Key="Font.Mono">Consolas, Cascadia Mono, Lucida Console</FontFamily>
 
-    <!-- ═══ AI-native accent family (violet→cyan) — consumed by Themes/AiStyles.xaml. ═══ -->
+    <!-- ═══ AI-native accent family — the violet→cyan signature that marks AI features.
+         Consumed by Themes/AiStyles.xaml (badges, glass cards, hero button, animated borders). ═══ -->
     <Color x:Key="Ai.Accent.Color">#A855F7</Color>
     <Color x:Key="Ai.Glow.Color">#8B5CF6</Color>
     <Color x:Key="Ai.Text.Color">#C4B5FD</Color>
@@ -115,24 +116,25 @@
         <GradientStop Color="#A855F7" Offset="0.5" />
         <GradientStop Color="#22D3EE" Offset="1" />
     </LinearGradientBrush>
+    <!-- Translucent glass wash for AI panels — lets the surface beneath ghost through. -->
     <LinearGradientBrush x:Key="Gradient.AiGlass" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#2E7C3AED" Offset="0" />
         <GradientStop Color="#1F22D3EE" Offset="1" />
     </LinearGradientBrush>
 
     <!-- ═══════════════════════════════════════════════════════════════════════════════════════
-         MahApps accent override (terracotta). Lives in the palette so a hot-swap re-skins every
-         MahApps accent surface. White ideal foreground: white text on the terracotta accent is
-         legible; the dark base already supplies dark native surfaces.
+         MahApps accent override (electric blue). Lives in the palette so a hot-swap re-skins
+         every MahApps accent surface (selection, focus ring, checkbox tick, toggle, tab
+         underline, progress bar, scrollbar thumb). White ideal foreground on the blue accent.
          ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <SolidColorBrush x:Key="MahApps.Brushes.Accent"  Color="{StaticResource Accent.Color}" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Accent2" Color="#EC7038" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Accent2" Color="#3D74FF" />
     <SolidColorBrush x:Key="MahApps.Brushes.Accent3" Color="{StaticResource Accent.Dim.Color}" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Accent4" Color="#80E4652F" />
-    <SolidColorBrush x:Key="MahApps.Brushes.Highlight" Color="#F07B45" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Accent4" Color="#802962FF" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Highlight" Color="#1E53E5" />
     <SolidColorBrush x:Key="MahApps.Brushes.AccentBase" Color="{StaticResource Accent.Color}" />
-    <Color x:Key="MahApps.Colors.Accent">#E4652F</Color>
-    <Color x:Key="MahApps.Colors.Highlight">#F07B45</Color>
+    <Color x:Key="MahApps.Colors.Accent">#2962FF</Color>
+    <Color x:Key="MahApps.Colors.Highlight">#1E53E5</Color>
     <Color x:Key="MahApps.Colors.IdealForeground">#FFFFFF</Color>
     <SolidColorBrush x:Key="MahApps.Brushes.IdealForeground" Color="#FFFFFF" />
 

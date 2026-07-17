@@ -91,8 +91,32 @@
         <GradientStop Color="#FF9A1A" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Typographic constants -->
+    <!-- Typographic constants. Font.Base is the UI-chrome font (the structural layer uses it
+         everywhere); this palette keeps it MONO on purpose — that's the Bloomberg character.
+         Font.Data is for numeric/tabular columns in every theme. -->
+    <FontFamily x:Key="Font.Base">Consolas, Cascadia Mono, Lucida Console</FontFamily>
+    <FontFamily x:Key="Font.Data">Consolas, Cascadia Mono, Lucida Console</FontFamily>
     <FontFamily x:Key="Font.Mono">Consolas, Cascadia Mono, Lucida Console</FontFamily>
+
+    <!-- ═══ AI-native accent family (violet→cyan) — consumed by Themes/AiStyles.xaml. ═══ -->
+    <Color x:Key="Ai.Accent.Color">#A855F7</Color>
+    <Color x:Key="Ai.Glow.Color">#8B5CF6</Color>
+    <Color x:Key="Ai.Text.Color">#C4B5FD</Color>
+
+    <SolidColorBrush x:Key="Ai.Accent.Brush" Color="{StaticResource Ai.Accent.Color}" />
+    <SolidColorBrush x:Key="Ai.Glow.Brush"   Color="{StaticResource Ai.Glow.Color}" />
+    <SolidColorBrush x:Key="Ai.Text.Brush"   Color="{StaticResource Ai.Text.Color}" />
+    <SolidColorBrush x:Key="Ai.Soft"         Color="#268B5CF6" />
+
+    <LinearGradientBrush x:Key="Gradient.Ai" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#7C3AED" Offset="0" />
+        <GradientStop Color="#A855F7" Offset="0.5" />
+        <GradientStop Color="#22D3EE" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Gradient.AiGlass" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#2E7C3AED" Offset="0" />
+        <GradientStop Color="#1F22D3EE" Offset="1" />
+    </LinearGradientBrush>
 
     <!-- ===================================================================================
          MahApps accent override (amber). Lives in the PALETTE (not Dark.xaml) so that swapping
@@ -109,5 +133,8 @@
     <SolidColorBrush x:Key="MahApps.Brushes.AccentBase" Color="{StaticResource Accent.Color}" />
     <Color x:Key="MahApps.Colors.Accent">#FF8C00</Color>
     <Color x:Key="MahApps.Colors.Highlight">#FF9A1A</Color>
+    <!-- Black ideal foreground — text drawn ON the amber accent must be dark to stay legible. -->
+    <Color x:Key="MahApps.Colors.IdealForeground">#000000</Color>
+    <SolidColorBrush x:Key="MahApps.Brushes.IdealForeground" Color="#000000" />
 
 </ResourceDictionary>

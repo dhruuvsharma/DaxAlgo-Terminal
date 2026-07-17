@@ -21,13 +21,14 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Setup form card frame -->
+    <!-- Setup form card frame — same 10px card radius as App.Card so setup screens match. -->
     <Style x:Key="Strategy.SetupCard" TargetType="Border">
         <Setter Property="MaxWidth" Value="560" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Padding" Value="24" />
         <Setter Property="Margin" Value="0,24" />
     </Style>
@@ -50,6 +51,7 @@
 
     <Style x:Key="Strategy.SetupErrorBanner" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
+        <Setter Property="CornerRadius" Value="6" />
         <Setter Property="Padding" Value="10,6" />
         <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
@@ -60,7 +62,7 @@
     </Style>
 
     <Style x:Key="Strategy.DashValue" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 

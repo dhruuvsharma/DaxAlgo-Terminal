@@ -433,21 +433,21 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    69:     CustomThemeFile ImportThemeFile(string path);
    72:     bool TryGetCustomTheme(string id, out CustomThemeFile file);
    76: public sealed class ThemeManager : IThemeManager
-  105: public event EventHandler? ThemesChanged;
-  107: public IReadOnlyList<ThemeDefinition> Themes => _all;
-  109: public string CurrentThemeId { get; private set; } = _builtins[0].Id;
-  111: public string CurrentBaseThemeId =>
-  114: public void ApplySaved()
-  120: public void Apply(string themeId)
-  176: public Color? ReadColor(string key)
-  187: public LinearGradientBrush? ReadGradient(string key) =>
-  190: public void SetColorOverride(string key, Color value)
-  204: public void SetGradientOverride(string key, IReadOnlyList<Color> stops)
-  236: public IReadOnlyList<ThemeToken> EnumerateTokens()
-  332: public ThemeDefinition RegisterCustomTheme(CustomThemeFile file)
-  349: public void ExportThemeFile(CustomThemeFile file, string path) =>
-  352: public CustomThemeFile ImportThemeFile(string path) =>
-  356: public bool TryGetCustomTheme(string id, out CustomThemeFile file) => _customs.TryGetValue(id, out file!);
+  108: public event EventHandler? ThemesChanged;
+  110: public IReadOnlyList<ThemeDefinition> Themes => _all;
+  112: public string CurrentThemeId { get; private set; } = _builtins[0].Id;
+  114: public string CurrentBaseThemeId =>
+  117: public void ApplySaved()
+  123: public void Apply(string themeId)
+  179: public Color? ReadColor(string key)
+  190: public LinearGradientBrush? ReadGradient(string key) =>
+  193: public void SetColorOverride(string key, Color value)
+  207: public void SetGradientOverride(string key, IReadOnlyList<Color> stops)
+  239: public IReadOnlyList<ThemeToken> EnumerateTokens()
+  338: public ThemeDefinition RegisterCustomTheme(CustomThemeFile file)
+  355: public void ExportThemeFile(CustomThemeFile file, string path) =>
+  358: public CustomThemeFile ImportThemeFile(string path) =>
+  362: public bool TryGetCustomTheme(string id, out CustomThemeFile file) => _customs.TryGetValue(id, out file!);
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Theming/ThemeToken.cs
