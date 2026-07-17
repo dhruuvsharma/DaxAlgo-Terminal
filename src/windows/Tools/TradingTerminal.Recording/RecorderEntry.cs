@@ -108,5 +108,5 @@ public sealed partial class RecorderEntry : ObservableObject
         ActiveBroker = null;
     }
 
-    public RecorderWatchlistItem ToWatchlistItem() => new(Symbol, PinnedBroker?.ToString());
+    public RecorderWatchlistItem ToWatchlistItem() => RecorderWatchlistItem.From(Instrument, PinnedBroker);
 }

@@ -24,20 +24,33 @@ public static class InstrumentPickerFilter
         => Visible(all, term, selected, cap, i => i.DisplayName);
 
     /// <summary>
-    /// The rows a picker should display. An empty/whitespace <paramref name="term"/> yields just the
-    /// current <paramref name="selected"/> row (or nothing) — the predefined list stays hidden until the
-    /// user searches. A non-empty term yields case-insensitive <paramref name="name"/> matches, capped at
-    /// <paramref name="cap"/>, with the selection force-included so the picker never blanks mid-filter.
+    /// The rows a picker should display. An empty/whitespace <paramref name="term"/> yields the whole
+    /// universe (capped) so opening the dropdown lets the user browse what their broker offers; a
+    /// non-empty term yields case-insensitive <paramref name="name"/> matches. Either way the row count
+    /// is capped at <paramref name="cap"/> and the selection is force-included, so the picker never
+    /// blanks mid-filter (which is what keeps a bound ComboBox from dropping its selection).
+    ///
+    /// <para>Until 2026-07-17 an empty term showed <i>only</i> the selection — "hide until you search".
+    /// That made sense beside a separate search box, but the picker is now a single editable ComboBox:
+    /// clicking the arrow has to show the list, or the control reads as broken.</para>
+    ///
+    /// <para>A term equal to the selected row's own name counts as empty. That isn't a special case for
+    /// its own sake: an editable ComboBox <i>puts</i> the picked row's name in the text box, so after
+    /// any selection the term is never empty, and the arrow would otherwise drop open onto a
+    /// single-row list. Typing anything else filters normally.</para>
     /// </summary>
     public static List<T> Visible<T>(
         IReadOnlyList<T> all, string? term, T? selected, int cap, Func<T, string> name) where T : class
     {
         term = term?.Trim() ?? string.Empty;
-        if (term.Length == 0)
-            return selected is null ? new List<T>() : new List<T> { selected };
+        var browsing = term.Length == 0
+            || (selected is not null && string.Equals(term, name(selected), StringComparison.OrdinalIgnoreCase));
 
-        var shown = all.Where(i => name(i).Contains(term, StringComparison.OrdinalIgnoreCase))
-                       .Take(cap).ToList();
+        var matches = browsing
+            ? all
+            : all.Where(i => name(i).Contains(term, StringComparison.OrdinalIgnoreCase));
+
+        var shown = matches.Take(cap).ToList();
         if (selected is not null && !shown.Contains(selected)) shown.Insert(0, selected);
         return shown;
     }

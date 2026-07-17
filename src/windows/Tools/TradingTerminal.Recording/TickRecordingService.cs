@@ -106,15 +106,10 @@ public sealed partial class TickRecordingService : ObservableObject, IHostedServ
         AutoUploadTelegram = saved.AutoUploadTelegram;
         DeleteLocalAfterUpload = saved.DeleteLocalAfterUpload;
 
-        var universe = SignalInstrumentCatalog.All;
+        // Rebuilt straight from the persisted rows — deliberately NOT re-matched against a catalog.
+        // No broker is connected this early, so a lookup would drop every broker-sourced row.
         foreach (var item in saved.Items)
-        {
-            var instrument = universe.FirstOrDefault(i =>
-                string.Equals(i.Contract.Symbol, item.Symbol, StringComparison.OrdinalIgnoreCase));
-            if (instrument is null) continue; // the universe changed under us — drop the row quietly
-            BrokerKind? broker = Enum.TryParse<BrokerKind>(item.Broker, out var b) ? b : null;
-            Instruments.Add(new RecorderEntry(instrument, broker));
-        }
+            Instruments.Add(new RecorderEntry(item.ToInstrument(), item.PinnedBroker));
 
         if (Instruments.Count > 0)
             Status = $"Idle — {Instruments.Count} instrument(s) queued. Press Record.";

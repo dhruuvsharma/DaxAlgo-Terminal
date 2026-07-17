@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -11,9 +11,14 @@ namespace TradingTerminal.Tests.Controls;
 
 /// <summary>
 /// Unit tests for <see cref="InstrumentPickerFilter"/> — the shared logic behind every instrument
-/// dropdown: "hide the predefined list until you search", the in-place rebuild that never drops the
+/// dropdown: an empty term shows the whole (capped) universe, the in-place rebuild that never drops the
 /// current selection (which would null the ComboBox and, in tool windows, restart the stream), and the
 /// remembered-vs-default initial selection.
+///
+/// <para>The empty-term rule inverted on 2026-07-17. It used to be "hide the predefined list until you
+/// search", which suited a separate search box above a read-only ComboBox. The picker is now a single
+/// editable ComboBox, so an empty box must show the list — otherwise clicking the arrow shows one row
+/// and the control reads as broken.</para>
 /// </summary>
 public sealed class InstrumentPickerFilterTests
 {
@@ -21,26 +26,53 @@ public sealed class InstrumentPickerFilterTests
         new($"{symbol} — {symbol} name", "Stock", Contract.UsStock(symbol));
 
     [Fact]
-    public void Visible_with_no_search_term_shows_only_the_selection()
+    public void Visible_with_no_search_term_shows_the_whole_universe()
     {
         var all = new[] { Inst("AAPL"), Inst("MSFT"), Inst("NVDA") };
         var selected = all[1];
 
         InstrumentPickerFilter.Visible(all, "", selected, 500)
-            .Should().Equal(selected);
+            .Should().Equal(all, "an empty editable ComboBox must let the user browse the universe");
 
         // Whitespace counts as "no term" too.
         InstrumentPickerFilter.Visible(all, "   ", selected, 500)
-            .Should().Equal(selected);
+            .Should().Equal(all);
     }
 
     [Fact]
-    public void Visible_with_no_selection_and_no_term_is_empty()
+    public void Visible_with_no_selection_and_no_term_still_shows_the_universe()
     {
         var all = new[] { Inst("AAPL"), Inst("MSFT") };
 
         InstrumentPickerFilter.Visible(all, "", (SignalInstrument?)null, 500)
-            .Should().BeEmpty();
+            .Should().Equal(all);
+    }
+
+    [Fact]
+    public void Visible_treats_the_selections_own_name_as_browsing()
+    {
+        // The editable ComboBox writes the picked row's name into the text box, so after a selection
+        // the term is never empty. Without this rule, clicking the arrow would drop open onto a
+        // one-row list — the exact "the dropdown only shows what I already picked" complaint.
+        var all = new[] { Inst("AAPL"), Inst("MSFT"), Inst("NVDA") };
+        var selected = all[1];
+
+        InstrumentPickerFilter.Visible(all, selected.DisplayName, selected, 500)
+            .Should().Equal(all);
+
+        // ...but a real search term still filters.
+        InstrumentPickerFilter.Visible(all, "NVDA", selected, 500)
+            .Should().Contain(all[2]).And.NotContain(all[0]);
+    }
+
+    [Fact]
+    public void Visible_caps_an_empty_term_too()
+    {
+        // A broker universe runs to thousands of symbols, so the empty-term path has to honour the cap
+        // as strictly as the search path does.
+        var all = Enumerable.Range(0, 2000).Select(i => Inst($"SYM{i:D4}")).ToArray();
+
+        InstrumentPickerFilter.Visible(all, "", selected: null, cap: 500).Should().HaveCount(500);
     }
 
     [Fact]

@@ -1,10 +1,11 @@
-<UserControl x:Class="TradingTerminal.Backtest.QuickBacktestView"
+﻿<UserControl x:Class="TradingTerminal.Backtest.QuickBacktestView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
              xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
              mc:Ignorable="d"
              d:DesignHeight="640" d:DesignWidth="1000"
              Background="{DynamicResource Background.Primary}"
@@ -48,16 +49,12 @@
 
                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                         <TextBlock Text="Instrument / asset class" FontSize="11" Foreground="{DynamicResource Text.Secondary}" />
-                        <TextBox Text="{Binding InstrumentSearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
-                                 mah:TextBoxHelper.Watermark="Search symbols…"
-                                 mah:TextBoxHelper.ClearTextButton="True"
-                                 IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
-                                 Margin="0,2,0,0" />
-                        <ComboBox ItemsSource="{Binding Instruments}"
-                                  SelectedItem="{Binding SelectedInstrument}"
-                                  DisplayMemberPath="DisplayName"
-                                  IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
-                                  Margin="0,2,0,0" />
+                        <uic:InstrumentPicker ItemsSource="{Binding Instruments}"
+                                              SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                              SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                              IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
+                                              MaxDropDownHeight="420"
+                                              Margin="0,2,0,0" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Margin="0,0,8,0" MinWidth="150">

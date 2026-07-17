@@ -2,6 +2,10 @@ using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.Recording;
@@ -21,15 +25,36 @@ public sealed partial class RecorderPanelViewModel : ViewModelBase, IDisposable
     private const string InstrumentPersistKey = "tool.recorder";
 
     private readonly DispatcherTimer _refresh;
+    private readonly IMarketDataRepository _repository;
+    private readonly IInstrumentRegistry _registry;
+    private readonly IBrokerSelector _selector;
+    private readonly ILogger<RecorderPanelViewModel> _logger;
 
-    public RecorderPanelViewModel(TickRecordingService service)
+    public RecorderPanelViewModel(
+        TickRecordingService service,
+        IMarketDataRepository repository,
+        IInstrumentRegistry registry,
+        IBrokerSelector selector,
+        ILogger<RecorderPanelViewModel> logger)
     {
         Service = service;
+        _repository = repository;
+        _registry = registry;
+        _selector = selector;
+        _logger = logger;
+
+        // Seed with the registry rows so the picker is never empty, then swap in the connected
+        // brokers' own (broker-tagged) universe — same two-step every other window uses.
         AllInstruments = SignalInstrumentCatalog.All;
         Instruments = new ObservableCollection<SignalInstrument>();
         SelectedInstrument = InstrumentPickerFilter.InitialSelection(
             InstrumentPersistKey, AllInstruments, () => AllInstruments.FirstOrDefault());
         ApplyFilter();
+
+        _ = LoadInstrumentsAsync();
+        // The panel is usually opened before a broker has finished connecting; without this the
+        // broker-agnostic seed list would be pinned for the window's life.
+        _selector.StateChanged += OnBrokerStateChanged;
 
         _refresh = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -37,6 +62,22 @@ public sealed partial class RecorderPanelViewModel : ViewModelBase, IDisposable
         };
         _refresh.Tick += OnRefreshTick;
         _refresh.Start();
+    }
+
+    private async Task LoadInstrumentsAsync()
+    {
+        var universe = await BrokerInstrumentUniverse.LoadAsync(_repository, _registry, only: null, _logger);
+        if (universe.Count == 0) return;
+
+        AllInstruments = universe;
+        SelectedInstrument = BrokerInstrumentUniverse.Reselect(universe, SelectedInstrument);
+        ApplyFilter();
+    }
+
+    private void OnBrokerStateChanged(object? sender, BrokerStateChangedEventArgs e)
+    {
+        if (e.State != ConnectionState.Connected) return;
+        _ = UiThread.RunAsync(() => LoadInstrumentsAsync());
     }
 
     /// <summary>The recording service the whole panel binds to.</summary>
@@ -47,7 +88,7 @@ public sealed partial class RecorderPanelViewModel : ViewModelBase, IDisposable
     /// <summary>Filtered list behind the "+ Add" row's picker.</summary>
     public ObservableCollection<SignalInstrument> Instruments { get; }
 
-    public IReadOnlyList<SignalInstrument> AllInstruments { get; }
+    public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
 
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
@@ -99,8 +140,10 @@ public sealed partial class RecorderPanelViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        // The timer is the only thing this window owns — the recording deliberately keeps running.
+        // The timer and the broker-state handler are the only things this window owns — the recording
+        // itself deliberately keeps running.
         _refresh.Tick -= OnRefreshTick;
         _refresh.Stop();
+        _selector.StateChanged -= OnBrokerStateChanged;
     }
 }

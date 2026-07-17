@@ -27,19 +27,17 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.UI/Controls/InstrumentPicker.xaml.cs
 ```cs
-   15: public partial class InstrumentPicker : UserControl
-   19: public const string TagsConverterKey = "InstrumentTagsConverter";
-   21: public InstrumentPicker()
-   43: public static readonly DependencyProperty ItemsSourceProperty = DependencyProperty.Register(
-   47: public IEnumerable? ItemsSource
-   53: public static readonly DependencyProperty SelectedInstrumentProperty = DependencyProperty.Register(
-   57: public SignalInstrument? SelectedInstrument
-   63: public static readonly DependencyProperty SearchTextProperty = DependencyProperty.Register(
-   68: public string SearchText
-   74: public static readonly DependencyProperty ShowSearchProperty = DependencyProperty.Register(
-   78: public bool ShowSearch
-   84: public static readonly DependencyProperty MaxDropDownHeightProperty = DependencyProperty.Register(
-   87: public double MaxDropDownHeight
+   21: public partial class InstrumentPicker : UserControl
+   25: public const string TagsConverterKey = "InstrumentTagsConverter";
+   27: public InstrumentPicker()
+   62: public static readonly DependencyProperty ItemsSourceProperty = DependencyProperty.Register(
+   66: public IEnumerable? ItemsSource
+   72: public static readonly DependencyProperty SelectedInstrumentProperty = DependencyProperty.Register(
+   76: public SignalInstrument? SelectedInstrument
+   82: public static readonly DependencyProperty SearchTextProperty = DependencyProperty.Register(
+   87: public string SearchText
+   93: public static readonly DependencyProperty MaxDropDownHeightProperty = DependencyProperty.Register(
+   96: public double MaxDropDownHeight
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Controls/ParamSlider.xaml.cs

@@ -84,7 +84,6 @@
                 <!-- ── Primary data selectors (kept inline; changed most often) ── -->
                 <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
                 <uic:InstrumentPicker Width="240"
-                                      ShowSearch="True"
                                       ItemsSource="{Binding Instruments}"
                                       SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
                                       SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"

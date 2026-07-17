@@ -1,13 +1,48 @@
 using System.IO;
 using System.Text.Json;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.UI;
 
 namespace TradingTerminal.Recording;
 
-/// <summary>One remembered row of the recorder watchlist: the canonical <c>Contract.Symbol</c> plus the
-/// broker the user pinned it to (null = "whichever broker is connected"). Symbol-keyed for the same
-/// reason <see cref="TradingTerminal.UI.LastInstrumentStore"/> is: it re-matches against whatever
-/// universe is live at reload (registry, fallback, or a connected broker's list).</summary>
-public sealed record RecorderWatchlistItem(string Symbol, string? Broker);
+/// <summary>
+/// One remembered row of the recorder watchlist.
+///
+/// <para>The whole <see cref="SignalInstrument"/> is persisted — display name, category, contract and
+/// broker — rather than just a symbol to re-match at load. Symbol-matching (the
+/// <see cref="TradingTerminal.UI.LastInstrumentStore"/> approach) is right for a picker that reopens
+/// against whatever universe is live, but wrong here: the recorder's rows come from a <i>connected
+/// broker's</i> universe, and at app start no broker is connected yet, so a re-match would silently
+/// drop every broker-sourced row from the user's watchlist.</para>
+/// </summary>
+public sealed record RecorderWatchlistItem(
+    string Symbol,
+    string DisplayName,
+    string Category,
+    string SecType,
+    string Exchange,
+    string Currency,
+    string PrimaryExchange,
+    string? Broker)
+{
+    public static RecorderWatchlistItem From(SignalInstrument instrument, BrokerKind? pinned)
+    {
+        var c = instrument.Contract;
+        return new RecorderWatchlistItem(
+            c.Symbol, instrument.DisplayName, instrument.Category,
+            c.SecType, c.Exchange, c.Currency, c.PrimaryExchange,
+            pinned?.ToString());
+    }
+
+    public SignalInstrument ToInstrument() => new(
+        DisplayName,
+        Category,
+        new Contract(Symbol, SecType, Exchange, Currency, PrimaryExchange),
+        Enum.TryParse<BrokerKind>(Broker, out var b) ? b : null);
+
+    public BrokerKind? PinnedBroker => Enum.TryParse<BrokerKind>(Broker, out var b) ? b : null;
+}
 
 /// <summary>The whole persisted recorder state — what to record and the upload preferences.
 /// <c>IsRecording</c> is deliberately NOT persisted: pumps need a connected broker, and at app start

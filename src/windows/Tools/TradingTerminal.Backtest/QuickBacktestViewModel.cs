@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 #if WINDOWS
@@ -47,6 +47,8 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
     private readonly IBacktestStrategyRegistry _registry;
     private readonly IBacktestSession _session;
     private readonly IBrokerSelector _brokers;
+    private readonly IMarketDataRepository _repository;
+    private readonly IInstrumentRegistry _instruments;
     private readonly ILogger<QuickBacktestViewModel> _logger;
     private CancellationTokenSource? _runCts;
 
@@ -64,11 +66,15 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
         IBacktestStrategyRegistry registry,
         IBacktestSession session,
         IBrokerSelector brokers,
+        IMarketDataRepository repository,
+        IInstrumentRegistry instruments,
         ILogger<QuickBacktestViewModel> logger)
     {
         _registry = registry;
         _session = session;
         _brokers = brokers;
+        _repository = repository;
+        _instruments = instruments;
         _logger = logger;
 
         BarSizes = new ObservableCollection<BarSize>(new[]
@@ -205,10 +211,32 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
         return Brokers.FirstOrDefault();
     }
 
-    /// <summary>Binance shows the crypto universe; every other broker uses the shared signal catalog.</summary>
+    /// <summary>Binance shows the curated crypto universe (the tape endpoint is symbol-specific);
+    /// every other broker shows its OWN instruments, scoped to the broker the replay will pull history
+    /// from. Falls back to the registry's broker-agnostic rows when that broker listed nothing.</summary>
     private void RebuildInstrumentsFor(BrokerKind broker)
     {
-        _backtestUniverse = broker == BrokerKind.Binance ? CryptoInstruments() : SignalInstrumentCatalog.All;
+        if (broker == BrokerKind.Binance)
+        {
+            SetUniverse(CryptoInstruments());
+            return;
+        }
+
+        SetUniverse(SignalInstrumentCatalog.All);   // seed: never leave the picker empty
+        _ = LoadBrokerUniverseAsync(broker);
+    }
+
+    private async Task LoadBrokerUniverseAsync(BrokerKind broker)
+    {
+        var universe = await BrokerInstrumentUniverse.LoadAsync(_repository, _instruments, broker, _logger);
+        // A slow list can land after the user switched brokers again — ignore a stale reply.
+        if (universe.Count == 0 || SelectedBroker != broker) return;
+        SetUniverse(universe);
+    }
+
+    private void SetUniverse(IReadOnlyList<SignalInstrument> universe)
+    {
+        _backtestUniverse = universe;
         SelectedInstrument =
             (SelectedInstrument?.Contract.Symbol is { } prev
                 ? _backtestUniverse.FirstOrDefault(i => i.Contract.Symbol == prev) : null)

@@ -19,6 +19,14 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   151: public static double[] BarCloses(IReadOnlyList<Bar> bars)
 ```
 
+## src/windows/UI/TradingTerminal.UI.Core/BrokerInstrumentUniverse.cs
+```cs
+   24: public static class BrokerInstrumentUniverse
+   33: public static async Task<IReadOnlyList<SignalInstrument>> LoadAsync(
+   66: public static string BrokerLabel(BrokerKind broker) => broker switch
+   78: public static SignalInstrument? Reselect(
+```
+
 ## src/windows/UI/TradingTerminal.UI.Core/BusyState.cs
 ```cs
    28: public sealed partial class BusyState : ObservableObject
@@ -56,13 +64,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    19: public static class InstrumentPickerFilter
    22: public static List<SignalInstrument> Visible(
-   32: public static List<T> Visible<T>(
-   49: public static List<SignalInstrument> Visible(
-   69: public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
-   86: public static SignalInstrument? Remembered(string key, IReadOnlyList<SignalInstrument> all)
-   92: public static T? Remembered<T>(string key, IReadOnlyList<T> all, Func<T, string> symbolOf) where T : class
-  104: public static SignalInstrument? InitialSelection(
-  109: public static T? InitialSelection<T>(
+   42: public static List<T> Visible<T>(
+   62: public static List<SignalInstrument> Visible(
+   82: public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
+   99: public static SignalInstrument? Remembered(string key, IReadOnlyList<SignalInstrument> all)
+  105: public static T? Remembered<T>(string key, IReadOnlyList<T> all, Func<T, string> symbolOf) where T : class
+  117: public static SignalInstrument? InitialSelection(
+  122: public static T? InitialSelection<T>(
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/LastInstrumentStore.cs

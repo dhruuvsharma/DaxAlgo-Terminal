@@ -1,16 +1,22 @@
 using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using TradingTerminal.UI.Converters;
 
 namespace TradingTerminal.UI.Controls;
 
 /// <summary>
 /// The shared instrument dropdown used everywhere — every strategy window and the App tools
-/// (regime / recorder). Bundles a search box + a ComboBox whose rows show the clean
-/// symbol plus coloured pills (broker · asset class · data types). The owning view-model still
-/// owns the data and filtering; this control just binds to <see cref="ItemsSource"/> (the
-/// filtered list), <see cref="SelectedInstrument"/>, and <see cref="SearchText"/>.
+/// (charts / order book / footprint / regime / recorder / backtest). One editable ComboBox: the user
+/// types an instrument name and the drop-down filters as they type; each row shows the clean symbol
+/// plus coloured pills (broker · asset class · data types). The owning view-model still owns the data
+/// and the filtering; this control just binds <see cref="ItemsSource"/> (the filtered list),
+/// <see cref="SelectedInstrument"/>, and <see cref="SearchText"/> (the term to filter by).
+///
+/// <para>Before 2026-07-17 this was a separate search TextBox stacked above a read-only ComboBox.
+/// Merging them is why <see cref="InstrumentPickerFilter.Visible{T}"/> now returns the full universe
+/// for an empty term: with one control, clicking the arrow must show the list.</para>
 /// </summary>
 public partial class InstrumentPicker : UserControl
 {
@@ -22,6 +28,19 @@ public partial class InstrumentPicker : UserControl
     {
         EnsureConverterRegistered();
         InitializeComponent();
+        Combo.KeyUp += OnComboKeyUp;
+    }
+
+    /// <summary>Typing has to drop the list open — otherwise the filter runs against a list the user
+    /// can't see and the control looks dead. View mechanics only: what to show is the view-model's
+    /// call, via <see cref="SearchText"/>.</summary>
+    private void OnComboKeyUp(object sender, KeyEventArgs e)
+    {
+        // Navigation/commit keys drive the ComboBox itself; only text entry should force it open.
+        if (e.Key is Key.Enter or Key.Escape or Key.Tab or Key.Up or Key.Down
+            or Key.LeftAlt or Key.RightAlt or Key.System)
+            return;
+        if (!Combo.IsDropDownOpen) Combo.IsDropDownOpen = true;
     }
 
     /// <summary>
@@ -69,16 +88,6 @@ public partial class InstrumentPicker : UserControl
     {
         get => (string)GetValue(SearchTextProperty);
         set => SetValue(SearchTextProperty, value);
-    }
-
-    public static readonly DependencyProperty ShowSearchProperty = DependencyProperty.Register(
-        nameof(ShowSearch), typeof(bool), typeof(InstrumentPicker), new PropertyMetadata(true));
-
-    /// <summary>When false the integrated search box is hidden (e.g. a toolbar that has its own).</summary>
-    public bool ShowSearch
-    {
-        get => (bool)GetValue(ShowSearchProperty);
-        set => SetValue(ShowSearchProperty, value);
     }
 
     public static readonly DependencyProperty MaxDropDownHeightProperty = DependencyProperty.Register(

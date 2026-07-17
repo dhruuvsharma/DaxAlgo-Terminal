@@ -21,7 +21,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    64: public bool SupportsTape => ActiveBroker is { } b && StrategyBrokerCapability.TapeBrokers.Contains(b);
    67: public bool SupportsDepth => ActiveBroker is { } b && StrategyBrokerCapability.DepthBrokers.Contains(b);
    72: public static bool SupportsL3 => false;
-  111: public RecorderWatchlistItem ToWatchlistItem() => new(Symbol, PinnedBroker?.ToString());
+  111: public RecorderWatchlistItem ToWatchlistItem() => RecorderWatchlistItem.From(Instrument, PinnedBroker);
 ```
 
 ## src/windows/Tools/TradingTerminal.Recording/RecorderPanelView.xaml.cs
@@ -32,22 +32,25 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Tools/TradingTerminal.Recording/RecorderPanelViewModel.cs
 ```cs
-   19: public sealed partial class RecorderPanelViewModel : ViewModelBase, IDisposable
-   25: public RecorderPanelViewModel(TickRecordingService service)
-   43: public TickRecordingService Service { get; }
-   48: public ObservableCollection<SignalInstrument> Instruments { get; }
-   50: public IReadOnlyList<SignalInstrument> AllInstruments { get; }
-  100: public void Dispose()
+   23: public sealed partial class RecorderPanelViewModel : ViewModelBase, IDisposable
+   33: public RecorderPanelViewModel(
+   84: public TickRecordingService Service { get; }
+   89: public ObservableCollection<SignalInstrument> Instruments { get; }
+   91: public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+  141: public void Dispose()
 ```
 
 ## src/windows/Tools/TradingTerminal.Recording/RecorderWatchlistStore.cs
 ```cs
-   10: public sealed record RecorderWatchlistItem(string Symbol, string? Broker);
-   15: public sealed record RecorderWatchlist(
-   20: public static RecorderWatchlist Empty { get; } = new(Array.Empty<RecorderWatchlistItem>(), false, false);
-   29: public static class RecorderWatchlistStore
-   37: public static RecorderWatchlist Load()
-   54: public static void Save(RecorderWatchlist watchlist)
+   19: public sealed record RecorderWatchlistItem(
+   29: public static RecorderWatchlistItem From(SignalInstrument instrument, BrokerKind? pinned)
+   38: public SignalInstrument ToInstrument() => new(
+   44: public BrokerKind? PinnedBroker => Enum.TryParse<BrokerKind>(Broker, out var b) ? b : null;
+   50: public sealed record RecorderWatchlist(
+   55: public static RecorderWatchlist Empty { get; } = new(Array.Empty<RecorderWatchlistItem>(), false, false);
+   64: public static class RecorderWatchlistStore
+   72: public static RecorderWatchlist Load()
+   89: public static void Save(RecorderWatchlist watchlist)
 ```
 
 ## src/windows/Tools/TradingTerminal.Recording/RecordingServiceCollectionExtensions.cs
@@ -63,12 +66,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    83: public ObservableCollection<RecorderEntry> Instruments { get; } = new();
    99: public bool HasInstruments => Instruments.Count > 0;
   103: public Task StartAsync(CancellationToken cancellationToken)
-  125: public Task StopAsync(CancellationToken cancellationToken)
-  135: public void Add(SignalInstrument instrument)
-  148: public void Remove(RecorderEntry entry)
-  159: public void ToggleRecording()
-  165: public void StartRecording()
-  193: public void StopRecording(string reason)
-  385: public void RefreshElapsed() =>
-  393: public void Dispose()
+  120: public Task StopAsync(CancellationToken cancellationToken)
+  130: public void Add(SignalInstrument instrument)
+  143: public void Remove(RecorderEntry entry)
+  154: public void ToggleRecording()
+  160: public void StartRecording()
+  188: public void StopRecording(string reason)
+  380: public void RefreshElapsed() =>
+  388: public void Dispose()
 ```

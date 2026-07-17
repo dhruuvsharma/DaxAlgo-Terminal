@@ -172,7 +172,6 @@
                 <TextBlock Grid.Column="0" Text="Instrument" VerticalAlignment="Center" Margin="0,0,8,0"
                            Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
                 <uic:InstrumentPicker Grid.Column="1"
-                                      ShowSearch="True"
                                       ItemsSource="{Binding Instruments}"
                                       SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
                                       SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"

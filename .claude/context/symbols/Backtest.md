@@ -48,21 +48,21 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    22: public enum QuickBacktestDataMode
    45: public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
-   63: public QuickBacktestViewModel(
-  106: public ObservableCollection<SignalInstrument> Instruments { get; }
-  107: public ObservableCollection<BarSize> BarSizes { get; }
-  108: public ObservableCollection<LookbackOption> Lookbacks { get; }
-  109: public ObservableCollection<QuickBacktestDataMode> DataModes { get; }
-  110: public ObservableCollection<BrokerKind> Brokers { get; }
-  111: public ObservableCollection<Trade> Trades { get; }
-  112: public ObservableCollection<EquityPoint> EquityCurve { get; }
-  140: public bool IsFullTape => SelectedDataMode == QuickBacktestDataMode.FullTapeRealTrades;
-  141: public bool IsBarSynthetic => SelectedDataMode == QuickBacktestDataMode.BarSynthetic;
-  159: public event EventHandler? EquityCurveUpdated;
-  167: public bool Initialize(string? backtestStrategyId, string displayName, bool preferFullTape)
-  234: public async Task RunAsync()
-  362: public void Cancel() => _runCts?.Cancel();
-  365: public void Dispose()
-  445: public sealed record LookbackOption(string Label, TimeSpan Duration)
-  447: public override string ToString() => Label;
+   65: public QuickBacktestViewModel(
+  112: public ObservableCollection<SignalInstrument> Instruments { get; }
+  113: public ObservableCollection<BarSize> BarSizes { get; }
+  114: public ObservableCollection<LookbackOption> Lookbacks { get; }
+  115: public ObservableCollection<QuickBacktestDataMode> DataModes { get; }
+  116: public ObservableCollection<BrokerKind> Brokers { get; }
+  117: public ObservableCollection<Trade> Trades { get; }
+  118: public ObservableCollection<EquityPoint> EquityCurve { get; }
+  146: public bool IsFullTape => SelectedDataMode == QuickBacktestDataMode.FullTapeRealTrades;
+  147: public bool IsBarSynthetic => SelectedDataMode == QuickBacktestDataMode.BarSynthetic;
+  165: public event EventHandler? EquityCurveUpdated;
+  173: public bool Initialize(string? backtestStrategyId, string displayName, bool preferFullTape)
+  262: public async Task RunAsync()
+  390: public void Cancel() => _runCts?.Cancel();
+  393: public void Dispose()
+  473: public sealed record LookbackOption(string Label, TimeSpan Duration)
+  475: public override string ToString() => Label;
 ```
