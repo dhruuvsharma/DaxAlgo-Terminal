@@ -33,12 +33,12 @@ The repo is **forked into two fully independent codebases with zero shared proje
 
 ## ⚠️ Open-core split — Professional code is in a PRIVATE repo (2026-07-09)
 
-This repo is the **open-source core** (AGPL-3.0; the `src/windows/Sdk/` plugin SDK stays MIT). The **Professional edition** lives in the private overlay repo **[DaxAlgo-Terminal-Pro](https://github.com/dhruuvsharma/DaxAlgo-Terminal-Pro)**, which consumes this repo as its `public/` git submodule. Moved there (Windows tree only): the `TradingTerminal.App` Professional shell, the AI tool windows (`Ai.MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`/`PaperLab`), the `Ml.*` Machine Learning windows, `SurfaceLab`, `BubbleChart`, `LseBacktest`, `QuantConnect`, `Backtest.Cli`, the installer, and `TradingTerminal.Tests.Pro`.
+This repo is the **open-source core** (AGPL-3.0; the `src/windows/Sdk/` plugin SDK stays MIT). The **Professional edition** lives in the private overlay repo **[DaxAlgo-Terminal-Pro](https://github.com/dhruuvsharma/DaxAlgo-Terminal-Pro)**, which consumes this repo as its `public/` git submodule. Moved there (Windows tree only): the `TradingTerminal.App` Professional shell, `Ai.PaperLab`, `SurfaceLab`, `BubbleChart`, `Backtest.Cli`, the installer, and `TradingTerminal.Tests.Pro`. (The Pro repo **archived** its AI panels, `Ml.*` windows, `LseBacktest` and `QuantConnect` on 2026-07-17 — they're out of its solution, being redeployed elsewhere. Their math lives here and is untouched.)
 
 - **Never copy code from the Pro repo into this one** — this repo is world-readable.
 - Shared/backend work happens **here**; the Pro repo pins a commit of this repo via the submodule.
 - Shell fixes are now **×3 across two repos**: `App.Basic` + `App.Intermediate` here, `TradingTerminal.App` in the Pro repo.
-- The Linux/Avalonia tree still carries ports of some Pro windows (Ai.*, LseBacktest, QuantConnect) — pruning them is an open decision.
+- The Linux/Avalonia tree still carries ports of some Pro windows (Ai.*, LseBacktest, QuantConnect) — pruning them is an open decision, now also the last copy of the ones the Pro repo archived on 2026-07-17.
 
 ## Stack
 
@@ -79,10 +79,10 @@ Core           → (nothing)
 | ViewModelBase, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI.Core` (`src/windows/UI/`) |
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
-| AI tool windows (`Ai.MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis`/`PaperLab`) | **Private Pro repo** (Windows tree; Avalonia ports remain under `src/linux/AI/`) |
+| AI tool windows — only `Ai.PaperLab` still ships; the `MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis` panels were archived there 2026-07-17 | **Private Pro repo** (Windows tree; Avalonia ports remain under `src/linux/AI/`) |
 | Per-strategy live windows (9) | `TradingTerminal.Strategies.<Name>` |
-| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` — Charts group: `Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap` (Bookmap+VolBook); Tools group: `Correlation`/`Backtest`/`BacktestStudio`/`Recording`/`AdvancedMarketRegime`. (`BubbleChart`/`SurfaceLab`/`LseBacktest`/`QuantConnect` → private Pro repo; MarketRegime/InstrumentRegime windows removed.) |
-| Machine Learning menu windows (`Ml.Stationarity`/`ArimaGarch`/`KalmanFilter`) | **Private Pro repo** (their math stays here in `Core/Quant/TimeSeries/`) |
+| Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` — Charts group: `Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap` (Bookmap+VolBook); Tools group: `Correlation`/`Backtest`/`BacktestStudio`/`Recording` (the background recorder + its header panel — no menu entry; the shell's REC chip opens it)/`AdvancedMarketRegime`. (`BubbleChart`/`SurfaceLab`/`LseBacktest`/`QuantConnect` → private Pro repo; MarketRegime/InstrumentRegime windows removed.) |
+| Machine Learning menu windows (`Ml.Stationarity`/`ArimaGarch`/`KalmanFilter`) | **Archived in the private Pro repo** 2026-07-17 — slated to return as chart indicators/panels. Their math stays here in `Core/Quant/TimeSeries/` and is untouched. |
 | Shell, MainWindow, inline menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | **Independent edition shells** (see “Edition shells” below): `TradingTerminal.App.Basic` / `TradingTerminal.App.Intermediate` here; `TradingTerminal.App` (Professional) in the **private Pro repo** |
 | Headless backtest CLI (`daxalgo-backtest`) | **Private Pro repo** (Windows copy; the Linux tree's copy remains here) |
 
@@ -119,7 +119,7 @@ Per-tool projects: the shells don't host tool windows — each tool is its own `
 | `market-data-pipeline` | Touching `TradingTerminal.MarketData` (hub/store/ingest/registry/archive). |
 | `regime-cube-strategy` | Any 3D regime-cube/surface strategy from `ideas.md`. |
 | `archive-offloader` | The Telegram archive offloader. |
-| `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`); the AI market-analyst window lives in the private Pro repo (`TradingTerminal.Ai.MarketAnalyst`). |
+| `ai-analyst` | The Python sidecar, `IAiAnalystClient`, the enricher (shared seam in `TradingTerminal.Ai`, still used by the notification enricher). The AI market-analyst window was archived in the Pro repo 2026-07-17. |
 | `wpf-mvvm-rules` | Writing/editing VMs, code-behind, threading, async/Dispatcher, XAML (the shell is plain MahApps windows — no docking framework). |
 | `memory-safety` | Adding/editing any tool/chart/strategy/AI window or streaming VM — bounded channels, batch-drain, coalesced redraw, IDisposable teardown so a feed can't pile up RAM. The `leakcheck-on-stop` hook enforces a subset. |
 | `software-architecture` | Planning multi-project work — decomposition, design-pattern catalog, the plan contract. The `manager` agent loads this. |

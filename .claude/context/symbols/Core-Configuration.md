@@ -1,6 +1,6 @@
 # TradingTerminal.Core / Configuration — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -8,14 +8,17 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
     4: public sealed class AiCodegenProvider
     8: public string BaseUrl { get; set; } = string.Empty;
-   12: public string Model { get; set; } = string.Empty;
-   16: public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
-   20: public enum AiCodegenProviderKind
-   34: public sealed class AiCodegenOptions
-   36: public const string SectionName = "AiCodegen";
-   40: public string DefaultProvider { get; set; } = string.Empty;
-   44: public int MaxFixAttempts { get; set; } = 3;
-   47: public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
+   11: public string Model { get; set; } = string.Empty;
+   16: public string Effort { get; set; } = string.Empty;
+   20: public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
+   24: public enum AiCodegenProviderKind
+   38: public sealed class AiCodegenOptions
+   40: public const string SectionName = "AiCodegen";
+   44: public string DefaultProvider { get; set; } = string.Empty;
+   49: public int MaxFixAttempts { get; set; } = 3;
+   55: public string BuildEffort { get; set; } = string.Empty;
+   67: public int TimeoutSeconds { get; set; } = 600;
+   70: public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs

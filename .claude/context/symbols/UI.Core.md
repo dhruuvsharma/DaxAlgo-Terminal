@@ -1,6 +1,6 @@
 # TradingTerminal.UI.Core — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -179,11 +179,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/Strategies/StrategyFactory.cs
 ```cs
-   14: public sealed class StrategyFactory : IStrategyFactory
-   22: public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
-   27: public StrategyFactory(
-   37: public IReadOnlyList<ITradingStrategy> All { get; }
-   39: public StrategyHost Create(string strategyId)
+   20: public sealed class StrategyFactory : IStrategyFactory
+   28: public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
+   35: public StrategyFactory(
+   45: public IReadOnlyList<ITradingStrategy> All
+   50: public event EventHandler<StrategyCatalogChange>? Changed;
+   52: public void Register(ITradingStrategy strategy, StrategyFactoryRegistration registration)
+   76: public StrategyHost Create(string strategyId)
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/Strategies/StrategyParametersViewModel.cs

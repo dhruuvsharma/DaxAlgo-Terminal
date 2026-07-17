@@ -1,6 +1,6 @@
 # index/Shell — per-file index (Windows tree)
 
-Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-17. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -18,29 +18,29 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Basic/Archive/WpfTelegramAuthPrompt.cs` | 53 | win | TradingTerminal.App.Basic | B | Y | WPF-side bridge for the Telegram MTProto login flow. WTelegramClient's Config callback |
 | `src/windows/Shell/TradingTerminal.App.Basic/Authoring/AiProvidersSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Authoring/AiProvidersSettingsView.xaml` | 58 | win | TradingTerminal.App.Basic | B | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml.cs` | 16 | win | TradingTerminal.App.Basic | B | Y | Strategy authoring pane: a C# editor, a Compile &amp; Register button, a |
-| `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml` | 105 | win | TradingTerminal.App.Basic | B | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml.cs` | 48 | win | TradingTerminal.App.Basic | B | Y | AI Strategy Builder pane: a chat with the model, the files it |
+| `src/windows/Shell/TradingTerminal.App.Basic/Authoring/StrategyAuthoringView.xaml` | 464 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/BrokerMetering/BrokerApiChipViewModel.cs` | 95 | win | TradingTerminal.App.Basic | B | Y | Short three-letter-ish label shown on the chip ("IB", "NT", "CT", "AL"). |
 | `src/windows/Shell/TradingTerminal.App.Basic/BrokerMetering/BrokerApiMeterViewModel.cs` | 90 | win | TradingTerminal.App.Basic | B | Y | One chip per broker that has had at least one call recorded. |
-| `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 278 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
+| `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 283 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Basic | B | Y | Serilog sink that forwards rendered messages into an |
-| `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml.cs` | 61 | win | TradingTerminal.App.Basic | B | Y |  |
-| `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 877 | win | TradingTerminal.App.Basic | B | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs` | 664 | win | TradingTerminal.App.Basic | B | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
+| `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml.cs` | 99 | win | TradingTerminal.App.Basic | B | Y |  |
+| `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 1043 | win | TradingTerminal.App.Basic | B | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs` | 754 | win | TradingTerminal.App.Basic | B | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginConsentDialog.xaml.cs` | 81 | win | TradingTerminal.App.Basic | B | Y | Shows the dialog modally and returns the user's decision. Static so the |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginConsentDialog.xaml` | 80 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerView.xaml.cs` | 11 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerView.xaml` | 224 | win | TradingTerminal.App.Basic | B | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerViewModel.cs` | 353 | win | TradingTerminal.App.Basic | B | Y | One row in the plugins list — a loaded plugin OR one |
+| `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerViewModel.cs` | 369 | win | TradingTerminal.App.Basic | B | Y | One row in the plugins list — a loaded plugin OR one |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/IShellFactory.cs` | 25 | win | TradingTerminal.App.Basic | B | Y | Builds the login window with its view-model wired in. |
-| `src/windows/Shell/TradingTerminal.App.Basic/Shell/IShellWindowHost.cs` | 59 | win | TradingTerminal.App.Basic | B | Y | The presenter that paints the shell "Opening…" curtain. Wired by the shell |
+| `src/windows/Shell/TradingTerminal.App.Basic/Shell/IShellWindowHost.cs` | 60 | win | TradingTerminal.App.Basic | B | Y | The presenter that paints the shell "Opening…" curtain. Wired by the shell |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/LoginShellFactory.cs` | 21 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/MainShellFactory.cs` | 19 | win | TradingTerminal.App.Basic | B | Y |  |
-| `src/windows/Shell/TradingTerminal.App.Basic/Shell/ShellWindowHost.cs` | 102 | win | TradingTerminal.App.Basic | B | Y | Default : owns the single-instance window registry and the generic |
+| `src/windows/Shell/TradingTerminal.App.Basic/Shell/ShellWindowHost.cs` | 103 | win | TradingTerminal.App.Basic | B | Y | Default : owns the single-instance window registry and the generic |
 | `src/windows/Shell/TradingTerminal.App.Basic/Shell/ThemeMenuOption.cs` | 20 | win | TradingTerminal.App.Basic | B | Y | One entry in the View → Theme menu — the theme id |
-| `src/windows/Shell/TradingTerminal.App.Basic/Shell/ToolHostWindow.cs` | 38 | win | TradingTerminal.App.Basic | B | Y | Builds a themed host window around an already-DataContext'd tool view. |
+| `src/windows/Shell/TradingTerminal.App.Basic/Shell/ToolHostWindow.cs` | 44 | win | TradingTerminal.App.Basic | B | Y | Builds a themed host window around an already-DataContext'd tool view. |
 | `src/windows/Shell/TradingTerminal.App.Basic/Support/ISupportPrompt.cs` | 19 | win | TradingTerminal.App.Basic | B | Y | Called once after the main window appears. Honours the once-per-launch + random |
 | `src/windows/Shell/TradingTerminal.App.Basic/Support/SupportPrompt.cs` | 74 | win | TradingTerminal.App.Basic | B | Y | Default . Shows the thank-you / feedback window at most once per |
 | `src/windows/Shell/TradingTerminal.App.Basic/Support/SupportWindow.xaml.cs` | 29 | win | TradingTerminal.App.Basic | B | Y | The "Support the developer" dialog. Code-behind does nothing but bridge the view-model's |
@@ -62,29 +62,29 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Archive/WpfTelegramAuthPrompt.cs` | 53 | win | TradingTerminal.App.Intermediate | I | Y | WPF-side bridge for the Telegram MTProto login flow. WTelegramClient's Config callback |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/AiProvidersSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/AiProvidersSettingsView.xaml` | 58 | win | TradingTerminal.App.Intermediate | I | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml.cs` | 16 | win | TradingTerminal.App.Intermediate | I | Y | Strategy authoring pane: a C# editor, a Compile &amp; Register button, a |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml` | 105 | win | TradingTerminal.App.Intermediate | I | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml.cs` | 48 | win | TradingTerminal.App.Intermediate | I | Y | AI Strategy Builder pane: a chat with the model, the files it |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Authoring/StrategyAuthoringView.xaml` | 464 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/BrokerMetering/BrokerApiChipViewModel.cs` | 95 | win | TradingTerminal.App.Intermediate | I | Y | Short three-letter-ish label shown on the chip ("IB", "NT", "CT", "AL"). |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/BrokerMetering/BrokerApiMeterViewModel.cs` | 90 | win | TradingTerminal.App.Intermediate | I | Y | One chip per broker that has had at least one call recorded. |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 278 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 283 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Intermediate | I | Y | Serilog sink that forwards rendered messages into an |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml.cs` | 61 | win | TradingTerminal.App.Intermediate | I | Y |  |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 878 | win | TradingTerminal.App.Intermediate | I | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindowViewModel.cs` | 664 | win | TradingTerminal.App.Intermediate | I | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml.cs` | 99 | win | TradingTerminal.App.Intermediate | I | Y |  |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 1044 | win | TradingTerminal.App.Intermediate | I | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindowViewModel.cs` | 754 | win | TradingTerminal.App.Intermediate | I | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginConsentDialog.xaml.cs` | 81 | win | TradingTerminal.App.Intermediate | I | Y | Shows the dialog modally and returns the user's decision. Static so the |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginConsentDialog.xaml` | 80 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerView.xaml.cs` | 11 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerView.xaml` | 224 | win | TradingTerminal.App.Intermediate | I | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerViewModel.cs` | 353 | win | TradingTerminal.App.Intermediate | I | Y | One row in the plugins list — a loaded plugin OR one |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginManagerViewModel.cs` | 369 | win | TradingTerminal.App.Intermediate | I | Y | One row in the plugins list — a loaded plugin OR one |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/IShellFactory.cs` | 25 | win | TradingTerminal.App.Intermediate | I | Y | Builds the login window with its view-model wired in. |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/IShellWindowHost.cs` | 59 | win | TradingTerminal.App.Intermediate | I | Y | The presenter that paints the shell "Opening…" curtain. Wired by the shell |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/IShellWindowHost.cs` | 60 | win | TradingTerminal.App.Intermediate | I | Y | The presenter that paints the shell "Opening…" curtain. Wired by the shell |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/LoginShellFactory.cs` | 21 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/MainShellFactory.cs` | 19 | win | TradingTerminal.App.Intermediate | I | Y |  |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/ShellWindowHost.cs` | 102 | win | TradingTerminal.App.Intermediate | I | Y | Default : owns the single-instance window registry and the generic |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/ShellWindowHost.cs` | 103 | win | TradingTerminal.App.Intermediate | I | Y | Default : owns the single-instance window registry and the generic |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/ThemeMenuOption.cs` | 20 | win | TradingTerminal.App.Intermediate | I | Y | One entry in the View → Theme menu — the theme id |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/ToolHostWindow.cs` | 38 | win | TradingTerminal.App.Intermediate | I | Y | Builds a themed host window around an already-DataContext'd tool view. |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/Shell/ToolHostWindow.cs` | 44 | win | TradingTerminal.App.Intermediate | I | Y | Builds a themed host window around an already-DataContext'd tool view. |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Support/ISupportPrompt.cs` | 19 | win | TradingTerminal.App.Intermediate | I | Y | Called once after the main window appears. Honours the once-per-launch + random |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Support/SupportPrompt.cs` | 74 | win | TradingTerminal.App.Intermediate | I | Y | Default . Shows the thank-you / feedback window at most once per |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Support/SupportWindow.xaml.cs` | 29 | win | TradingTerminal.App.Intermediate | I | Y | The "Support the developer" dialog. Code-behind does nothing but bridge the view-model's |
@@ -179,8 +179,17 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.UI/SimulatedDataState.cs` | 32 | win | TradingTerminal.UI | B I P | Y | True while the Simulated broker is among the connected set. |
 | `src/windows/Shell/TradingTerminal.UI/Strategies/NullToVisibilityConverter.cs` | 21 | win | TradingTerminal.UI | B I P | Y | Collapses an element when its bound value is null or an empty/whitespace |
 | `src/windows/Shell/TradingTerminal.UI/Strategies/ParameterTemplateSelector.cs` | 31 | win | TradingTerminal.UI | B I P | Y | Chooses the editor for a |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyCatalogItemViewModel.cs` | 59 | win | TradingTerminal.UI | B I P | Y | The underlying strategy — the catalog's pill converters, Open and Quick-backtest all |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyImageTile.xaml.cs` | 92 | win | TradingTerminal.UI | B I P | Y | Decoded once per process — every catalog row shares the one mark. |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyImageTile.xaml` | 49 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyParameterEditorView.xaml.cs` | 26 | win | TradingTerminal.UI | B I P | Y | Auto-generated parameter editor. Set its DataContext to a |
 | `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyParameterEditorView.xaml` | 81 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentation.cs` | 19 | win | TradingTerminal.UI | B I P | Y | User-authored presentation overrides for a strategy's catalog card — how it is |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditor.cs` | 23 | win | TradingTerminal.UI | B I P | Y | Shows the modal presentation editor for a catalog item; on Save it |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditorView.xaml.cs` | 12 | win | TradingTerminal.UI | B I P | Y | Modal editor for a strategy card's presentation overrides. The only code-behind is |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditorView.xaml` | 96 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditorViewModel.cs` | 85 | win | TradingTerminal.UI | B I P | Y | Clears every field back to the strategy's own compiled metadata (persisted as |
+| `src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationStore.cs` | 81 | win | TradingTerminal.UI | B I P | Y | The overrides for a strategy, or |
 | `src/windows/Shell/TradingTerminal.UI/StrategyChartHelpers.cs` | 33 | win | TradingTerminal.UI | B I P | Y | Apply the standard dark style to a ScottPlot WPF host. |
 | `src/windows/Shell/TradingTerminal.UI/StrategyWindowBase.cs` | 129 | win | TradingTerminal.UI | B I P | Y | The WpfPlot hosts that should receive the dark-theme treatment. |
 | `src/windows/Shell/TradingTerminal.UI/StrategyWindowPlacementStore.cs` | 128 | win | TradingTerminal.UI | B I P | Y | One strategy window's remembered placement: the normal (restore) bounds plus whether it |

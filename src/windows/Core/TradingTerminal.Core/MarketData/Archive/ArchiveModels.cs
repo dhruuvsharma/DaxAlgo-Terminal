@@ -16,8 +16,9 @@ public enum ArchiveTables
     Bars = 1 << 1,
     Trades = 1 << 2,
 
-    /// <summary>L2 order-book snapshots. Only present when the store backend persists depth
-    /// (QuestDB); on SQLite/Postgres there's nothing to export so this flag is a no-op there.</summary>
+    /// <summary>L2 order-book snapshots. Present on the backends that persist depth: the default
+    /// per-broker SQLite store (its <c>…-l2.db</c> stream file) and QuestDB. The single-file SQLite
+    /// and Postgres backends drop depth on write, so this flag is a no-op there.</summary>
     Depth = 1 << 3,
 }
 

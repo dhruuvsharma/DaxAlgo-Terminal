@@ -1,6 +1,6 @@
 # index/Pipeline — per-file index (Windows tree)
 
-Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-17. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -81,7 +81,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginRevocationSync.cs` | 23 | win | TradingTerminal.Infrastructure | B I P | Y | Merges the feed's revocations into |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/GuardedServiceCollection.cs` | 172 | win | TradingTerminal.Infrastructure | B I P | Y | Service types a plugin may legitimately contribute an ADDITIONAL registration of — |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginConsent.cs` | 29 | win | TradingTerminal.Infrastructure | B I P | Y | Everything the user needs in order to decide whether to run an |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 267 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 290 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs` | 146 | win | TradingTerminal.Infrastructure | B I P | Y | Whether a plugin folder matches the hashes the host pins for it. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs` | 63 | win | TradingTerminal.Infrastructure | B I P | Y | True for assemblies whose type identity MUST be shared between host and |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 70 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
@@ -119,7 +119,8 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Sidecar/SidecarHostService.cs` | 294 | win | TradingTerminal.Infrastructure | B I P | Y | Walks up from |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Sidecar/SidecarServiceCollectionExtensions.cs` | 26 | win | TradingTerminal.Infrastructure | B I P | Y | Registers the managed Python sidecar launcher: binds , registers the |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Simulation/SimulatedBrokerClient.cs` | 446 | win | TradingTerminal.Infrastructure | B I P | Y | Find the stored |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/RoslynStrategyCompiler.cs` | 266 | win | TradingTerminal.Infrastructure | B I P | Y | Ambient namespaces every script gets for free (kept in a dedicated tree |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/AuthoredStrategyInstaller.cs` | 182 | win | TradingTerminal.Infrastructure | B I P | Y | What an install did, in the terms the user cares about: is |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/RoslynStrategyCompiler.cs` | 333 | win | TradingTerminal.Infrastructure | B I P | Y | Ambient namespaces every script gets for free (kept in a dedicated tree |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Threading/WpfDispatcher.cs` | 26 | win | TradingTerminal.Infrastructure | B I P | Y | WPF-backed dispatcher. Posts onto |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Time/SystemClock.cs` | 9 | win | TradingTerminal.Infrastructure | B I P | Y | Production |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Upstox/RealUpstoxClient.cs` | 589 | win | TradingTerminal.Infrastructure | B I P | Y | Parses |
@@ -138,7 +139,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.MarketData/Archive/Telegram/TelegramAuthPrompt.cs` | 19 | win | TradingTerminal.MarketData | B I P | Y | Trivial prompt that always returns null — used in headless contexts where |
 | `src/windows/Pipeline/TradingTerminal.MarketData/InstrumentDiscoveryService.cs` | 128 | win | TradingTerminal.MarketData | B I P | Y | Hosted background service that loads each connected broker's full tradable universe once |
 | `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataHub.cs` | 46 | win | TradingTerminal.MarketData | B I P | Y | In-memory built on Rx subjects, one per instrument/stream. The |
-| `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataIngestService.cs` | 249 | win | TradingTerminal.MarketData | B I P | Y | Brokers that stamp ticks with local arrival time rather than exchange time, |
+| `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataIngestService.cs` | 251 | win | TradingTerminal.MarketData | B I P | Y | Brokers that stamp ticks with local arrival time rather than exchange time, |
 | `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataPipelineServiceCollectionExtensions.cs` | 199 | win | TradingTerminal.MarketData | B I P | Y | Best-effort startup probe — opens and closes a connection to decide availability. |
 | `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataRepository.cs` | 219 | win | TradingTerminal.MarketData | B I P | Y | Default . Routes per-request to the broker named in the |
 | `src/windows/Pipeline/TradingTerminal.MarketData/Store/CompositeMarketDataStore.cs` | 87 | win | TradingTerminal.MarketData | B I P | Y | Routes the canonical store seam across two backends by data kind: the |

@@ -1,10 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: portable VM on net9.0 (Avalonia view; save dialog via UiFile); the WPF view
-         stays on the windows leg. See Strategies.CumulativeDelta for the template. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
-    <Description>Tick Recorder tool: captures the canonical tick stream to the store/parquet for a chosen instrument.</Description>
+    <Description>Market-data recorder: an app-lifetime background service that captures L1 / L2 / bars / trade tape for a watchlist of instruments through the canonical pipeline, plus the small panel window that drives it.</Description>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
@@ -16,26 +14,21 @@
     <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <ProjectReference Include="..\..\..\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
+    <!-- ArchiveUserFile: the recorder's auto-upload writes archive prefs through the same per-user
+         file the Archive Settings dialog owns, so the change is visible there and IOptionsMonitor
+         picks it up live. Settings is WPF-free and doesn't reference this project — no cycle. -->
+    <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
     <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
-    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
-    <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <Compile Remove="TickRecorderView.xaml.cs" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
 
 </Project>

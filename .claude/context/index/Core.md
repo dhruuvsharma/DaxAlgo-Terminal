@@ -1,6 +1,6 @@
 # index/Core — per-file index (Windows tree)
 
-Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-17. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -49,7 +49,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Brokers/IBrokerLoginFormFactory.cs` | 15 | win | TradingTerminal.Core | B I P | Y | Every form whose broker is currently available (i.e. its SDK was present |
 | `src/windows/Core/TradingTerminal.Core/Brokers/IBrokerSelector.cs` | 55 | win | TradingTerminal.Core | B I P | Y | Brokers that have a registered |
 | `src/windows/Core/TradingTerminal.Core/Brokers/Upstox/IUpstoxAuthService.cs` | 31 | win | TradingTerminal.Core | B I P | Y | One-shot helper for the Upstox login form's OAuth2 authorization-code flow. The interface |
-| `src/windows/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs` | 49 | win | TradingTerminal.Core | B I P | Y | Config for one BYO-key / local codegen provider. |
+| `src/windows/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs` | 72 | win | TradingTerminal.Core | B I P | Y | Config for one BYO-key / local codegen provider. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | API key id (shown on the dashboard, prefixed with "PK" for paper |
 | `src/windows/Core/TradingTerminal.Core/Configuration/AppEdition.cs` | 22 | win | TradingTerminal.Core | B I P | Y | Keyless brokers only, core charts/tools/strategies. No ML / AI / LSE / |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ArchiveOptions.cs` | 51 | win | TradingTerminal.Core | B I P | Y | Master switch — when false the schedule service idles and the offload |
@@ -105,7 +105,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/MarketData/AdvancedRegime/AdvancedRegimeSettings.cs` | 106 | win | TradingTerminal.Core | B I P | Y | Whether the given row is enabled, by enum value. |
 | `src/windows/Core/TradingTerminal.Core/MarketData/AdvancedRegime/BarTimeframeAggregator.cs` | 87 | win | TradingTerminal.Core | B I P | Y | Pure bar-to-bar timeframe aggregator. Resamples a time-ascending base bar series into wider |
 | `src/windows/Core/TradingTerminal.Core/MarketData/AdvancedRegime/IAdvancedRegimeProvider.cs` | 24 | win | TradingTerminal.Core | B I P | Y | Multi-timeframe regime dashboard provider. Mirrors IInstrumentRegimeProvider in shape: |
-| `src/windows/Core/TradingTerminal.Core/MarketData/Archive/ArchiveModels.cs` | 148 | win | TradingTerminal.Core | B I P | Y | How often the schedule rolls over and produces a new archive. |
+| `src/windows/Core/TradingTerminal.Core/MarketData/Archive/ArchiveModels.cs` | 149 | win | TradingTerminal.Core | B I P | Y | How often the schedule rolls over and produces a new archive. |
 | `src/windows/Core/TradingTerminal.Core/MarketData/Archive/IArchiveTransport.cs` | 35 | win | TradingTerminal.Core | B I P | Y | Human-readable name of this transport, persisted into manifests so the right |
 | `src/windows/Core/TradingTerminal.Core/MarketData/Archive/IMarketDataArchiver.cs` | 40 | win | TradingTerminal.Core | B I P | Y | Export, upload, verify, and (per options) prune local rows for the range. |
 | `src/windows/Core/TradingTerminal.Core/MarketData/Archive/ITelegramArchiveLogin.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Outcome of a |
@@ -223,13 +223,16 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskManager.cs` | 117 | win | TradingTerminal.Core | B I P | Y | Current net signed position per symbol — exposed for telemetry / tests. |
 | `src/windows/Core/TradingTerminal.Core/Risk/RiskOptions.cs` | 24 | win | TradingTerminal.Core | B I P | Y | Maximum absolute net position per symbol, in contracts/shares. 0 = disabled. |
 | `src/windows/Core/TradingTerminal.Core/Session/SessionContext.cs` | 32 | win | TradingTerminal.Core | B I P | Y | Mutable singleton populated by the login flow once the user is authenticated. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/AiModelChoice.cs` | 23 | win | TradingTerminal.Core | B I P | Y | False when the provider isn't usable right now (CLI not installed, no |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs` | 38 | win | TradingTerminal.Core | B I P | Y | The API key for |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs` | 120 | win | TradingTerminal.Core | B I P | Y | Who is speaking in a codegen conversation. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAuthoredStrategyViewComposer.cs` | 24 | win | TradingTerminal.Core | B I P | Y | Composes the default live view for |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs` | 221 | win | TradingTerminal.Core | B I P | Y | Who is speaking in a codegen conversation. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs` | 21 | win | TradingTerminal.Core | B I P | Y | Compiles a user-authored into a runnable |
-| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 26 | win | TradingTerminal.Core | B I P | Y | Outcome of compiling a . On success, |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyBuildEffort.cs` | 70 | win | TradingTerminal.Core | B I P | Y | Sketch fast: one skill pack, one fix attempt, no review, no smoke. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 73 | win | TradingTerminal.Core | B I P | Y | True when the author supplied a complete hand-written window: the descriptor, a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Severity of a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 36 | win | TradingTerminal.Core | B I P | Y | The name given to a single unnamed file (the AI didn't label |
-| `src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 16 | win | TradingTerminal.Core | B I P | Y | Resolves a registered strategy into a (view, view-model) pair. The shell never |
+| `src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Fires when a strategy is added after startup, so a bound catalog |
 | `src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 72 | win | TradingTerminal.Core | B I P | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Whole number. Backed by |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameter.cs` | 100 | win | TradingTerminal.Core | B I P | Y | Stable machine key, used to read the value back. Unique within a |

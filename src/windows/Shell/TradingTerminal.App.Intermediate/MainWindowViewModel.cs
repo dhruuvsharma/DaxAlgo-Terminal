@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Windows;
@@ -91,6 +91,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host = host;
         _services = services;
         _logger = logger;
+        // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
+        // chip only observes, and this ctor is already at its parameter budget.
+        Recorder = services.GetRequiredService<TickRecordingService>();
 
         // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
         // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
@@ -626,9 +629,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     public void OpenBacktestStudio() =>
         _host.OpenHostedTool<BacktestStudioViewModel, BacktestStudioView>(BacktestStudioWindowId, "Backtest Studio", "Loading the backtest studio…");
 
+    /// <summary>The app-lifetime recording service, exposed so the header REC chip can light while a
+    /// background recording is running. The panel window is only a view onto it — closing the panel
+    /// does not stop the recording.</summary>
+    public TickRecordingService Recorder { get; }
+
+    /// <summary>Header REC chip → the recorder panel. Small window: it's a watchlist + a toggle, not
+    /// a workspace.</summary>
     [RelayCommand]
     public void OpenRecorder() =>
-        _host.OpenHostedTool<TickRecorderViewModel, TickRecorderView>(RecorderWindowId, "Record ticks", "Preparing the tick recorder…");
+        _host.OpenHostedTool<RecorderPanelViewModel, RecorderPanelView>(
+            RecorderWindowId, "Market data recorder", "Preparing the recorder…", width: 470, height: 600);
 
     [RelayCommand]
     public void OpenCorrelation() =>

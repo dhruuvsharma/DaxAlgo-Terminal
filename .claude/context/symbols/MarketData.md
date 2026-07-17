@@ -1,6 +1,6 @@
 # TradingTerminal.MarketData — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -182,20 +182,20 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Pipeline/TradingTerminal.MarketData/MarketDataIngestService.cs
 ```cs
-   39: public required CancellationTokenSource Cts { get; init; }
-   40: public int RefCount;
-   41: public long Sequence;
-   61: public double Bid;
-   62: public double Ask;
-   63: public double PriorTradePrice;
-   64: public AggressorSide PriorClassification = AggressorSide.Unknown;
-   68: public MarketDataIngestService(
-   82: public InstrumentId Resolve(Contract contract, BrokerKind broker) =>
-   85: public IDisposable Subscribe(Contract contract, BrokerKind broker)
-   97: public IDisposable SubscribeBars(Contract contract, BrokerKind broker, BarSize size)
-  106: public IDisposable SubscribeTrades(Contract contract, BrokerKind broker)
-  238: public Handle(MarketDataIngestService owner, (int, BrokerKind, string) key, Entry _)
-  244: public void Dispose()
+   40: public required CancellationTokenSource Cts { get; init; }
+   41: public int RefCount;
+   42: public long Sequence;
+   62: public double Bid;
+   63: public double Ask;
+   64: public double PriorTradePrice;
+   65: public AggressorSide PriorClassification = AggressorSide.Unknown;
+   69: public MarketDataIngestService(
+   83: public InstrumentId Resolve(Contract contract, BrokerKind broker) =>
+   86: public IDisposable Subscribe(Contract contract, BrokerKind broker)
+   98: public IDisposable SubscribeBars(Contract contract, BrokerKind broker, BarSize size)
+  107: public IDisposable SubscribeTrades(Contract contract, BrokerKind broker)
+  240: public Handle(MarketDataIngestService owner, (int, BrokerKind, string) key, Entry _)
+  246: public void Dispose()
 ```
 
 ## src/windows/Pipeline/TradingTerminal.MarketData/MarketDataPipelineServiceCollectionExtensions.cs

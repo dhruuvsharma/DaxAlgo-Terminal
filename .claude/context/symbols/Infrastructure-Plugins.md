@@ -1,6 +1,6 @@
 # TradingTerminal.Infrastructure / Plugins — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -160,12 +160,14 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs
 ```cs
    14: public sealed record PluginHostContext(
-   25: public IReadOnlySet<string> UnsignedStrategyTypeNames { get; } =
-   33: public sealed record PluginInstallResult(bool Success, string Message, string? InstalledPath = null);
-   47: public static class PluginInstaller
-   55: public static PluginInstallResult InstallFromDll(
-   86: public static PluginInstallResult InstallFromPackage(
-  126: public static PluginInstallResult Uninstall(
+   27: public IReadOnlyList<LoadedPlugin> AuthoredThisSession
+   34: public void AddAuthored(LoadedPlugin plugin)
+   48: public IReadOnlySet<string> UnsignedStrategyTypeNames { get; } =
+   56: public sealed record PluginInstallResult(bool Success, string Message, string? InstalledPath = null);
+   70: public static class PluginInstaller
+   78: public static PluginInstallResult InstallFromDll(
+  109: public static PluginInstallResult InstallFromPackage(
+  149: public static PluginInstallResult Uninstall(
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs

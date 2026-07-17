@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using MahApps.Metro.Controls;
 using TradingTerminal.UI.Controls;
@@ -16,13 +16,19 @@ public sealed class ToolHostWindow : MetroWindow
     private ToolHostWindow() { }
 
     /// <summary>Builds a themed host window around an already-DataContext'd tool view.</summary>
-    public static ToolHostWindow Create(string title, FrameworkElement content)
+    /// <summary>The size a full workspace tool opens at. Small panels (e.g. the recorder) pass their
+    /// own; everything else inherits these.</summary>
+    public const double DefaultWidth = 1100;
+    public const double DefaultHeight = 760;
+
+    public static ToolHostWindow Create(string title, FrameworkElement content,
+        double width = DefaultWidth, double height = DefaultHeight)
     {
         var window = new ToolHostWindow
         {
             Title = title,
-            Width = 1100,
-            Height = 760,
+            Width = width,
+            Height = height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             // Top an amber "SIMULATED DATA" strip above the tool view — collapsed unless the
             // Simulated broker is connected, so a synthetic feed is never mistaken for a live one.

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 
 namespace TradingTerminal.App.Shell;
 
@@ -34,7 +34,8 @@ public interface IShellWindowHost
 
     /// <summary>Opens (or focuses) a single-instance tool whose view is a <see cref="FrameworkElement"/>
     /// (a UserControl), wrapped in a themed <see cref="ToolHostWindow"/>. VM disposed on close.</summary>
-    void OpenHostedTool<TVm, TView>(string windowId, string title, string detail)
+    void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
+        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
         where TVm : class
         where TView : FrameworkElement;
 

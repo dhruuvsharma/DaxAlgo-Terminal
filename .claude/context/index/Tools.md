@@ -1,24 +1,28 @@
 # index/Tools — per-file index (Windows tree)
 
-Generated 2026-07-13. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated 2026-07-17. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
-| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 180 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
-| `src/windows/Tools/DaxAlgo.Codegen/AiModelCatalog.cs` | 34 | win | DaxAlgo.Codegen | B I P | Y | The picker's list: what the provider suggests, plus the configured model, deduped |
-| `src/windows/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 64 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build, available or not — |
-| `src/windows/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 126 | win | DaxAlgo.Codegen | B I P | Y | The models this key can actually call. A failure here is not |
-| `src/windows/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 123 | win | DaxAlgo.Codegen | B I P | Y | A bare file name mentioned in prose/info strings — |
-| `src/windows/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 71 | win | DaxAlgo.Codegen | B I P | Y | How many times the loop asked this client to generate — the |
-| `src/windows/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 139 | win | DaxAlgo.Codegen | B I P | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 206 | win | DaxAlgo.Codegen | B I P | Y | What one turn of the conversation produced. |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 129 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 70 | win | DaxAlgo.Codegen | B I P | Y | The result of a one-shot build: whether it produced a compiling strategy, |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 49 | win | DaxAlgo.Codegen | B I P | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
+| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 347 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
+| `src/windows/Tools/DaxAlgo.Codegen/AiModelCatalog.cs` | 60 | win | DaxAlgo.Codegen | B I P | Y | Anthropic model ids — the same strings Claude Code's |
+| `src/windows/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 106 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build, available or not — |
+| `src/windows/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 288 | win | DaxAlgo.Codegen | B I P | Y | The models this key can actually call. A failure here is not |
+| `src/windows/Tools/DaxAlgo.Codegen/AnthropicStreamParser.cs` | 111 | win | DaxAlgo.Codegen | B I P | Y | Everything the model has written so far. |
+| `src/windows/Tools/DaxAlgo.Codegen/CliWorkspaceLauncher.cs` | 345 | win | DaxAlgo.Codegen | B I P | Y | What |
+| `src/windows/Tools/DaxAlgo.Codegen/CodegenCodeExtractor.cs` | 148 | win | DaxAlgo.Codegen | B I P | Y | A bare file name mentioned in prose/info strings — |
+| `src/windows/Tools/DaxAlgo.Codegen/FakeCodegenClient.cs` | 76 | win | DaxAlgo.Codegen | B I P | Y | How many times the loop asked this client to generate — the |
+| `src/windows/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 275 | win | DaxAlgo.Codegen | B I P | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs` | 112 | win | DaxAlgo.Codegen | B I P | Y | Ticks fed through |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 469 | win | DaxAlgo.Codegen | B I P | Y | What one turn of the conversation produced. |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 154 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 80 | win | DaxAlgo.Codegen | B I P | Y | The result of a one-shot build: whether it produced a compiling strategy, |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 56 | win | DaxAlgo.Codegen | B I P | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | win | DaxAlgo.Codegen | B I P | Y | The pack text — the codegen system prompt. |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategySkillLibrary.cs` | 163 | win | DaxAlgo.Codegen | B I P | Y | One on-demand domain pack: what it knows, and the words that mean |
 | `src/windows/Tools/DaxAlgo.StrategyTool/ProcessRunner.cs` | 64 | win | DaxAlgo.StrategyTool | B I P | Y | Thin subprocess helper — runs a command, streams its output to the |
-| `src/windows/Tools/DaxAlgo.StrategyTool/Program.cs` | 228 | win | DaxAlgo.StrategyTool | B I P | N |  |
+| `src/windows/Tools/DaxAlgo.StrategyTool/Program.cs` | 237 | win | DaxAlgo.StrategyTool | B I P | N |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeServiceCollectionExtensions.cs` | 21 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y | DI registration for the Advanced Live Market Regime dashboard, including the |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml.cs` | 19 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml` | 291 | win | TradingTerminal.AdvancedMarketRegime | B I P | N | XAML |
@@ -54,8 +58,10 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/TradingTerminal.Correlation/LiveCorrelationMatrixViewModel.cs` | 246 | win | TradingTerminal.Correlation | B I P | Y | Changing the cadence live just re-paces the running sampler; the rolling window |
 | `src/windows/Tools/TradingTerminal.Correlation/LiveCorrelationMatrixWindow.xaml.cs` | 36 | win | TradingTerminal.Correlation | B I P | Y | Standalone window hosting the Live Correlation Matrix tool. Pure view — all |
 | `src/windows/Tools/TradingTerminal.Correlation/LiveCorrelationMatrixWindow.xaml` | 276 | win | TradingTerminal.Correlation | B I P | N | XAML |
-| `src/windows/Tools/TradingTerminal.Recording/AvaloniaUi/TickRecorderAvaloniaWindow.axaml.cs` | 10 | win | TradingTerminal.Recording | B I P | Y | Avalonia (cross-platform) view for the live tick recorder — net9.0-leg counterpart to |
-| `src/windows/Tools/TradingTerminal.Recording/RecordingServiceCollectionExtensions.cs` | 16 | win | TradingTerminal.Recording | B I P | Y | DI registration for the live tick recorder tab. |
-| `src/windows/Tools/TradingTerminal.Recording/TickRecorderView.xaml.cs` | 16 | win | TradingTerminal.Recording | B I P | Y |  |
-| `src/windows/Tools/TradingTerminal.Recording/TickRecorderView.xaml` | 175 | win | TradingTerminal.Recording | B I P | N | XAML |
-| `src/windows/Tools/TradingTerminal.Recording/TickRecorderViewModel.cs` | 206 | win | TradingTerminal.Recording | B I P | Y | Full instrument universe; the search box filters this into |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderEntry.cs` | 112 | win | TradingTerminal.Recording | B I P | Y | Live subscriptions: the ingest pumps (which do the persisting) plus the hub |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderPanelView.xaml.cs` | 11 | win | TradingTerminal.Recording | B I P | Y |  |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderPanelView.xaml` | 521 | win | TradingTerminal.Recording | B I P | N | XAML |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderPanelViewModel.cs` | 106 | win | TradingTerminal.Recording | B I P | Y | The recording service the whole panel binds to. |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderWatchlistStore.cs` | 70 | win | TradingTerminal.Recording | B I P | Y | One remembered row of the recorder watchlist: the canonical |
+| `src/windows/Tools/TradingTerminal.Recording/RecordingServiceCollectionExtensions.cs` | 21 | win | TradingTerminal.Recording | B I P | Y | DI registration for the live market-data recorder. |
+| `src/windows/Tools/TradingTerminal.Recording/TickRecordingService.cs` | 398 | win | TradingTerminal.Recording | B I P | Y | How often auto-upload asks the archiver to ship whatever is pending. The |

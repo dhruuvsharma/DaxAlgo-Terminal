@@ -1,8 +1,15 @@
 # TradingTerminal.Core / Strategies — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
+
+## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/AiModelChoice.cs
+```cs
+   14: public sealed record AiModelChoice(string ProviderId, string ProviderLabel, string ModelId)
+   18: public bool IsAvailable { get; init; } = true;
+   22: public string Display => string.IsNullOrEmpty(ModelId) ? ProviderLabel : $"{ModelId} · {ProviderLabel}";
+```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAiKeyResolver.cs
 ```cs
@@ -17,32 +24,52 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    36:     void Remove(string providerId);
 ```
 
+## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IAuthoredStrategyViewComposer.cs
+```cs
+   18: public interface IAuthoredStrategyViewComposer
+   23:     object ComposeView(ITradingStrategy descriptor);
+```
+
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCodegenClient.cs
 ```cs
     4: public enum CodegenRole
-   11: public sealed record CodegenMessage(CodegenRole Role, string Content);
-   18: public sealed record CodegenUsage(int InputTokens, int OutputTokens)
-   20: public static CodegenUsage None { get; } = new(0, 0);
-   22: public int TotalTokens => InputTokens + OutputTokens;
-   25: public bool IsReported => InputTokens > 0 || OutputTokens > 0;
-   27: public CodegenUsage Add(CodegenUsage? other) => other is null
-   38: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
-   52: public sealed record StrategyCodegenResponse(
-   61: public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
-   66: public bool HasFiles => FileList.Count > 0;
-   68: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
-   70: public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
-   74: public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
-   77: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
-   92: public interface IStrategyCodegenClient
-   96:     string ProviderId { get; }
-   99:     string DisplayName { get; }
-  103:     bool IsAvailable { get; }
-  107:     string Model => string.Empty;
-  111:     IReadOnlyList<string> KnownModels => [];
-  116:     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
-  117:     Task.FromResult<IReadOnlyList<string>>([]);
-  119:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+   16: public enum CodegenEffort
+   32: public static class CodegenEfforts
+   35: public static string? Wire(this CodegenEffort effort) => effort switch
+   47: public static CodegenEffort Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+   59: public sealed record CodegenMessage(CodegenRole Role, string Content);
+   72: public sealed record CodegenUsage(int InputTokens, int OutputTokens, int CachedInputTokens = 0)
+   74: public static CodegenUsage None { get; } = new(0, 0);
+   76: public int TotalTokens => InputTokens + OutputTokens;
+   79: public bool IsReported => InputTokens > 0 || OutputTokens > 0;
+   81: public CodegenUsage Add(CodegenUsage? other) => other is null
+   94: public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
+  108: public sealed record StrategyCodegenResponse(
+  117: public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
+  122: public bool HasFiles => FileList.Count > 0;
+  124: public static StrategyCodegenResponse Ok(string code, string rawText) => new(true, code, rawText, null);
+  126: public static StrategyCodegenResponse Ok(IReadOnlyList<StrategyFile> files, string rawText, CodegenUsage? usage = null) =>
+  130: public static StrategyCodegenResponse Reply(string rawText, CodegenUsage? usage = null) =>
+  133: public static StrategyCodegenResponse Fail(string error) => new(false, null, null, error);
+  142: public abstract record CodegenEvent
+  147: public sealed record TextDelta(string Text) : CodegenEvent;
+  151: public sealed record UsageUpdate(CodegenUsage Usage) : CodegenEvent;
+  154: public sealed record Completed(StrategyCodegenResponse Response) : CodegenEvent;
+  169: public interface IStrategyCodegenClient
+  173:     string ProviderId { get; }
+  176:     string DisplayName { get; }
+  180:     bool IsAvailable { get; }
+  184:     string Model => string.Empty;
+  188:     CodegenEffort Effort => CodegenEffort.Default;
+  192:     IReadOnlyList<string> KnownModels => [];
+  197:     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
+  198:     Task.FromResult<IReadOnlyList<string>>([]);
+  200:     Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default);
+  213:     async IAsyncEnumerable<CodegenEvent> StreamAsync(
+  214:     StrategyCodegenRequest request,
+  217:     var response = await GenerateAsync(request, ct).ConfigureAwait(false);
+  218:     if (response.Usage is { IsReported: true } usage) yield return new CodegenEvent.UsageUpdate(usage);
+  219:     yield return new CodegenEvent.Completed(response);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/IStrategyCompiler.cs
@@ -51,12 +78,26 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    20:     StrategyCompileResult Compile(StrategyScript script);
 ```
 
+## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyBuildEffort.cs
+```cs
+   10: public enum StrategyBuildEffort
+   27: public static class StrategyBuildEfforts
+   31: public static string Wire(this StrategyBuildEffort effort) => effort switch
+   41: public static StrategyBuildEffort Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+   60: public sealed record StrategyBuildProfile(int MaxSkills, int MaxFixAttempts, bool SelfReview, bool BacktestSmoke)
+   63: public static StrategyBuildProfile For(StrategyBuildEffort effort) => effort switch
+```
+
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs
 ```cs
-   12: public sealed record StrategyCompileResult(
-   17: public IEnumerable<StrategyDiagnostic> Errors =>
-   20: public static StrategyCompileResult Failed(IReadOnlyList<StrategyDiagnostic> diagnostics) =>
-   23: public static StrategyCompileResult Succeeded(
+   23: public sealed record AuthoredStrategyAssembly(
+   33: public bool HasLiveWindow => DescriptorType is not null && ViewModelType is not null && ViewType is not null;
+   38: public bool CanComposeLiveWindow => DescriptorType is not null && ViewModelType is not null;
+   43: public IReadOnlyList<string> MissingForCatalog =>
+   57: public sealed record StrategyCompileResult(
+   63: public IEnumerable<StrategyDiagnostic> Errors =>
+   66: public static StrategyCompileResult Failed(IReadOnlyList<StrategyDiagnostic> diagnostics) =>
+   69: public static StrategyCompileResult Succeeded(
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs
@@ -77,9 +118,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs
 ```cs
-    7: public interface IStrategyFactory
-    9:     IReadOnlyList<ITradingStrategy> All { get; }
-   15:     StrategyHost Create(string strategyId);
+   13: public interface IStrategyFactory
+   15:     IReadOnlyList<ITradingStrategy> All { get; }
+   21:     StrategyHost Create(string strategyId);
+   28:     void Register(ITradingStrategy strategy, StrategyFactoryRegistration registration);
+   31:     event EventHandler<StrategyCatalogChange>? Changed;
+   36: public sealed record StrategyCatalogChange(ITradingStrategy Strategy, bool Replaced);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs

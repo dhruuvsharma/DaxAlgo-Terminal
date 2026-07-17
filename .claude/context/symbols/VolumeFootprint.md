@@ -1,6 +1,6 @@
 # TradingTerminal.VolumeFootprint — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -36,6 +36,30 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   136: public FeedQuality Quality => Core.Quality;
 ```
 
+## src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanel.xaml.cs
+```cs
+   27: public partial class VolumeFootprintPanel : UserControl
+   31: public static readonly DependencyProperty FeaturesProperty = DependencyProperty.Register(
+   35: public VolumeFootprintPanelFeatures Features
+  128: public VolumeFootprintPanel()
+```
+
+## src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanelFeatures.cs
+```cs
+   17: public sealed record VolumeFootprintPanelFeatures
+   22: public bool Toolbar { get; init; } = true;
+   25: public bool Stats { get; init; } = true;
+   28: public bool Legend { get; init; } = true;
+   32: public bool Regression { get; init; } = true;
+   37: public bool MlForecast { get; init; } = true;
+   40: public bool Imbalances { get; init; } = true;
+   43: public bool ValueArea { get; init; } = true;
+   46: public bool VolumeProfile { get; init; } = true;
+   49: public static VolumeFootprintPanelFeatures Full { get; } = new();
+   53: public static VolumeFootprintPanelFeatures ChartOnly { get; } = new()
+   67: public static VolumeFootprintPanelFeatures Embedded { get; } = new()
+```
+
 ## src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintServiceCollectionExtensions.cs
 ```cs
     7: public static class VolumeFootprintServiceCollectionExtensions
@@ -46,35 +70,38 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    31: public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposable
    33: public const int MaxInstrumentsDisplayed = 500;
-  113: public sealed record FootprintInterval(string Label, TimeSpan Span);
-  123: public VolumeFootprintViewModel(
-  166: public ObservableCollection<SignalInstrument> Instruments { get; }
-  167: public ObservableCollection<FootprintInterval> Intervals { get; }
-  170: public IReadOnlyList<CellDisplayMode> DisplayModes { get; } =
-  174: public ObservableCollection<RenderBar> Bars { get; }
-  177: public ObservableCollection<string> PresetNames { get; }
-  244: public IReadOnlyList<LearnerOption> Learners => Forecasters.DirectionChoices;
-  261: public IReadOnlyList<PocFitCurve> FitCurves { get; private set; } = Array.Empty<PocFitCurve>();
-  265: public IReadOnlyList<PredictedBar> Predicted { get; private set; } = Array.Empty<PredictedBar>();
-  270: public IReadOnlyList<MlPredictedBar> MlPredicted { get; private set; } = Array.Empty<MlPredictedBar>();
-  274: public double PocSlope { get; private set; }
-  277: public double PocIntercept { get; private set; }
-  280: public bool HasRegression { get; private set; }
-  283: public double BuyPocSlope { get; private set; }
-  284: public double BuyPocIntercept { get; private set; }
-  285: public bool HasBuyRegression { get; private set; }
-  288: public double SellPocSlope { get; private set; }
-  289: public double SellPocIntercept { get; private set; }
-  290: public bool HasSellRegression { get; private set; }
-  293: public event EventHandler? FootprintChanged;
- 1035: public void Dispose()
- 1048: public sealed record FootprintPreset(
- 1080: public TradePrint? Synthesize(Quote q)
- 1092: public void Reset() => _prev = null;
+  117: public sealed record FootprintInterval(string Label, TimeSpan Span);
+  127: public VolumeFootprintViewModel(
+  180: public ObservableCollection<SignalInstrument> Instruments { get; }
+  181: public ObservableCollection<FootprintInterval> Intervals { get; }
+  184: public IReadOnlyList<CellDisplayMode> DisplayModes { get; } =
+  188: public ObservableCollection<RenderBar> Bars { get; }
+  191: public ObservableCollection<string> PresetNames { get; }
+  263: public bool MlEnabled { get; set; } = true;
+  267: public IReadOnlyList<LearnerOption> Learners => Forecasters.DirectionChoices;
+  284: public IReadOnlyList<PocFitCurve> FitCurves { get; private set; } = Array.Empty<PocFitCurve>();
+  288: public IReadOnlyList<PredictedBar> Predicted { get; private set; } = Array.Empty<PredictedBar>();
+  293: public IReadOnlyList<MlPredictedBar> MlPredicted { get; private set; } = Array.Empty<MlPredictedBar>();
+  297: public double PocSlope { get; private set; }
+  300: public double PocIntercept { get; private set; }
+  303: public bool HasRegression { get; private set; }
+  306: public double BuyPocSlope { get; private set; }
+  307: public double BuyPocIntercept { get; private set; }
+  308: public bool HasBuyRegression { get; private set; }
+  311: public double SellPocSlope { get; private set; }
+  312: public double SellPocIntercept { get; private set; }
+  313: public bool HasSellRegression { get; private set; }
+  316: public event EventHandler? FootprintChanged;
+ 1061: public void Dispose()
+ 1081: public sealed record VolumeFootprintEmbedOptions(SignalInstrument? Instrument = null, bool MlEnabled = false);
+ 1086: public sealed record FootprintPreset(
+ 1118: public TradePrint? Synthesize(Quote q)
+ 1130: public void Reset() => _prev = null;
 ```
 
 ## src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintWindow.xaml.cs
 ```cs
-   24: public partial class VolumeFootprintWindow : MetroWindow
-  113: public VolumeFootprintWindow()
+   12: public partial class VolumeFootprintWindow : MetroWindow
+   14: public VolumeFootprintWindow() => InitializeComponent();
+   16: protected override void OnClosed(EventArgs e)
 ```

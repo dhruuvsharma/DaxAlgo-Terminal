@@ -1,6 +1,6 @@
 # TradingTerminal.Core / MarketData — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -109,20 +109,20 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
     4: public enum ArchivePeriod
    12: public enum ArchiveTables
-   25: public sealed record ArchiveTarget(string Kind, string? ChatRef)
-   27: public static ArchiveTarget SavedMessages { get; } = new("saved", null);
-   28: public static ArchiveTarget Chat(string chatRef) => new("chat", chatRef);
-   29: public bool IsSavedMessages => Kind == "saved";
-   35: public sealed record ArchiveBlobRef(
-   44: public sealed record ArchiveManifestEntry(
-   62: public sealed record ArchiveResult(
-   69: public sealed record ArchiveCoverageWindow(
-   77: public sealed record InstantOffloadResult(
-   85: public static class ArchivePeriodMath
-   87: public static (DateTime FromUtc, DateTime ToUtc) ClosedPeriod(DateTime nowUtc, ArchivePeriod period) =>
-  111: public static DateTime PeriodStart(DateTime utc, ArchivePeriod period)
-  123: public static (DateTime FromUtc, DateTime ToUtc) PeriodWindow(DateTime startUtc, ArchivePeriod period) =>
-  135: public static IEnumerable<(DateTime FromUtc, DateTime ToUtc)> ClosedWindows(
+   26: public sealed record ArchiveTarget(string Kind, string? ChatRef)
+   28: public static ArchiveTarget SavedMessages { get; } = new("saved", null);
+   29: public static ArchiveTarget Chat(string chatRef) => new("chat", chatRef);
+   30: public bool IsSavedMessages => Kind == "saved";
+   36: public sealed record ArchiveBlobRef(
+   45: public sealed record ArchiveManifestEntry(
+   63: public sealed record ArchiveResult(
+   70: public sealed record ArchiveCoverageWindow(
+   78: public sealed record InstantOffloadResult(
+   86: public static class ArchivePeriodMath
+   88: public static (DateTime FromUtc, DateTime ToUtc) ClosedPeriod(DateTime nowUtc, ArchivePeriod period) =>
+  112: public static DateTime PeriodStart(DateTime utc, ArchivePeriod period)
+  124: public static (DateTime FromUtc, DateTime ToUtc) PeriodWindow(DateTime startUtc, ArchivePeriod period) =>
+  136: public static IEnumerable<(DateTime FromUtc, DateTime ToUtc)> ClosedWindows(
 ```
 
 ## src/windows/Core/TradingTerminal.Core/MarketData/Archive/IArchiveTransport.cs

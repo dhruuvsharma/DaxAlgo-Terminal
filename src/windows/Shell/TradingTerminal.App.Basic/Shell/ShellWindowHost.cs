@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -49,7 +49,8 @@ internal sealed class ShellWindowHost : IShellWindowHost
         }));
     }
 
-    public void OpenHostedTool<TVm, TView>(string windowId, string title, string detail)
+    public void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
+        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
         where TVm : class
         where TView : FrameworkElement
     {
@@ -61,7 +62,7 @@ internal sealed class ShellWindowHost : IShellWindowHost
             var view = _services.GetRequiredService<TView>();
             view.DataContext = vm;
 
-            var window = ToolHostWindow.Create(title, view);
+            var window = ToolHostWindow.Create(title, view, width, height);
             window.Owner = Application.Current.MainWindow;
             window.Closed += (_, _) =>
             {

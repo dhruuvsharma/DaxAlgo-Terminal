@@ -1,6 +1,6 @@
 # TradingTerminal.UI — public API surface
 
-Generated 2026-07-13. Declaration lines only; multi-line signatures show their first line;
+Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -315,10 +315,70 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    20: public override DataTemplate? SelectTemplate(object? item, DependencyObject container) =>
 ```
 
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyCatalogItemViewModel.cs
+```cs
+   14: public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
+   16: public StrategyCatalogItemViewModel(ITradingStrategy strategy)
+   19: public StrategyCatalogItemViewModel(ITradingStrategy strategy, StrategyPresentation presentation)
+   29: public ITradingStrategy Strategy { get; }
+   31: public string Id => Strategy.Id;
+   39: public ObservableCollection<string> CustomTags { get; } = [];
+   41: public bool HasFormula => !string.IsNullOrWhiteSpace(Formula);
+   42: public bool HasCustomTags => CustomTags.Count > 0;
+   47: public void Apply(StrategyPresentation presentation)
+```
+
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyImageTile.xaml.cs
+```cs
+   20: public partial class StrategyImageTile : UserControl
+   25: public static readonly DependencyProperty ImagePathProperty = DependencyProperty.Register(
+   32: public static readonly DependencyProperty IsFallbackProperty = IsFallbackKey.DependencyProperty;
+   37: public StrategyImageTile()
+   44: public string? ImagePath
+   52: public bool IsFallback
+```
+
 ## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyParameterEditorView.xaml.cs
 ```cs
    12: public partial class StrategyParameterEditorView : UserControl
    14: public StrategyParameterEditorView()
+```
+
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentation.cs
+```cs
+   11: public sealed record StrategyPresentation(
+   18: public static readonly StrategyPresentation Empty = new();
+```
+
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditor.cs
+```cs
+   10: public static class StrategyPresentationEditor
+   12: public static bool ShowDialog(Window? owner, StrategyCatalogItemViewModel item)
+```
+
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditorView.xaml.cs
+```cs
+    7: public partial class StrategyPresentationEditorView : Window
+    9: public StrategyPresentationEditorView() => InitializeComponent();
+```
+
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditorViewModel.cs
+```cs
+   14: public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
+   18: public StrategyPresentationEditorViewModel(StrategyCatalogItemViewModel item)
+   31: public string StrategyId => _item.Id;
+   32: public string DefaultName { get; }
+   33: public string DefaultDescription { get; }
+   41: public bool HasImage => !string.IsNullOrWhiteSpace(ImagePath);
+   72: public StrategyPresentation Build()
+```
+
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationStore.cs
+```cs
+   14: public static class StrategyPresentationStore
+   24: public static StrategyPresentation Get(string strategyId) =>
+   29: public static void Save(string strategyId, StrategyPresentation presentation)
+   40: public static void Remove(string strategyId)
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/StrategyChartHelpers.cs
