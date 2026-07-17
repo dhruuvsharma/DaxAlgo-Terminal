@@ -143,8 +143,8 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.UI/Controls/BusyOverlay.xaml.cs` | 56 | win | TradingTerminal.UI | B I P | Y | When true the curtain is shown and blocks input; when false it |
 | `src/windows/Shell/TradingTerminal.UI/Controls/BusyOverlay.xaml` | 57 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Controls/InjectedFormHost.cs` | 36 | win | TradingTerminal.UI | B I P | Y | Builds the view for a given view-model. Assigned once at runtime by |
-| `src/windows/Shell/TradingTerminal.UI/Controls/InstrumentPicker.xaml.cs` | 92 | win | TradingTerminal.UI | B I P | Y | Resource key under which the shared |
-| `src/windows/Shell/TradingTerminal.UI/Controls/InstrumentPicker.xaml` | 51 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Controls/InstrumentPicker.xaml.cs` | 101 | win | TradingTerminal.UI | B I P | Y | Resource key under which the shared |
+| `src/windows/Shell/TradingTerminal.UI/Controls/InstrumentPicker.xaml` | 65 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Controls/ParamSlider.xaml.cs` | 73 | win | TradingTerminal.UI | B I P | Y | Compact labeled slider with a live value readout, used for continuous tunables |
 | `src/windows/Shell/TradingTerminal.UI/Controls/ParamSlider.xaml` | 22 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Controls/ParamSpinner.xaml.cs` | 87 | win | TradingTerminal.UI | B I P | Y | Caption shown above the spinner. Bake any unit suffix into the text |

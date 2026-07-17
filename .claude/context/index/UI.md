@@ -23,11 +23,12 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/UI/TradingTerminal.StrategyComposer/ComposedStrategyView.xaml.cs` | 297 | win | TradingTerminal.StrategyComposer | B I P | Y | The panels this composition holds, in display order — for tests and |
 | `src/windows/UI/TradingTerminal.StrategyComposer/ComposedStrategyView.xaml` | 177 | win | TradingTerminal.StrategyComposer | B I P | N | XAML |
 | `src/windows/UI/TradingTerminal.UI.Core/BarIndicators.cs` | 157 | win | TradingTerminal.UI.Core | B I P | Y | Returns (mean, stdev, upper, lower) arrays aligned with bars. |
+| `src/windows/UI/TradingTerminal.UI.Core/BrokerInstrumentUniverse.cs` | 83 | win | TradingTerminal.UI.Core | B I P | Y | Short broker label appended to instrument rows so users can disambiguate the |
 | `src/windows/UI/TradingTerminal.UI.Core/BusyState.cs` | 74 | win | TradingTerminal.UI.Core | B I P | Y | True while at least one |
 | `src/windows/UI/TradingTerminal.UI.Core/Catalog/StrategyCatalogViewModel.cs` | 53 | win | TradingTerminal.UI.Core | B I P | Y | Human-readable detail block for the currently selected strategy. |
 | `src/windows/UI/TradingTerminal.UI.Core/Diagnostics/PluginFaultTracker.cs` | 31 | win | TradingTerminal.UI.Core | B I P | Y | Records one fault for |
 | `src/windows/UI/TradingTerminal.UI.Core/ISignalGeneratorRouterFactory.cs` | 18 | win | TradingTerminal.UI.Core | B I P | Y | Default impl — vanilla |
-| `src/windows/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs` | 114 | win | TradingTerminal.UI.Core | B I P | Y | Rows to show for a |
+| `src/windows/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs` | 127 | win | TradingTerminal.UI.Core | B I P | Y | Rows to show for a |
 | `src/windows/UI/TradingTerminal.UI.Core/LastInstrumentStore.cs` | 75 | win | TradingTerminal.UI.Core | B I P | Y | The canonical symbol last selected under |
 | `src/windows/UI/TradingTerminal.UI.Core/LiveSignalStrategyViewModelBase.cs` | 940 | win | TradingTerminal.UI.Core | B I P | Y | Cap on how many instruments the picker shows at once. The broker |
 | `src/windows/UI/TradingTerminal.UI.Core/LiveStrategyHostServices.cs` | 41 | win | TradingTerminal.UI.Core | B I P | Y | Bundle of canonical-pipeline dependencies that every live strategy host needs. Passed as |

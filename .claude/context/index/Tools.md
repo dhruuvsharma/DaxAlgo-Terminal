@@ -25,7 +25,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/DaxAlgo.StrategyTool/Program.cs` | 237 | win | DaxAlgo.StrategyTool | B I P | N |  |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeServiceCollectionExtensions.cs` | 21 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y | DI registration for the Advanced Live Market Regime dashboard, including the |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml.cs` | 19 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y |  |
-| `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml` | 291 | win | TradingTerminal.AdvancedMarketRegime | B I P | N | XAML |
+| `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeView.xaml` | 284 | win | TradingTerminal.AdvancedMarketRegime | B I P | N | XAML |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AdvancedMarketRegimeViewModel.cs` | 476 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y | Key under which this window remembers the last selected instrument (see |
 | `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AvaloniaUi/AdvancedMarketRegimeAvaloniaWindow.axaml.cs` | 11 | win | TradingTerminal.AdvancedMarketRegime | B I P | Y | Avalonia (cross-platform) view for the Advanced Market Regime dashboard — net9.0-leg |
 | `src/windows/Tools/TradingTerminal.Backtest/AvaloniaUi/BacktestAvaloniaWindow.axaml.cs` | 58 | win | TradingTerminal.Backtest | B I P | Y | Avalonia (cross-platform) view for the Backtest tool — net9.0-leg counterpart to the |
@@ -34,8 +34,8 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/TradingTerminal.Backtest/BacktestView.xaml` | 228 | win | TradingTerminal.Backtest | B I P | N | XAML |
 | `src/windows/Tools/TradingTerminal.Backtest/BacktestViewModel.cs` | 295 | win | TradingTerminal.Backtest | B I P | Y | Exports the trade list of the last run. |
 | `src/windows/Tools/TradingTerminal.Backtest/QuickBacktestView.xaml.cs` | 37 | win | TradingTerminal.Backtest | B I P | Y |  |
-| `src/windows/Tools/TradingTerminal.Backtest/QuickBacktestView.xaml` | 219 | win | TradingTerminal.Backtest | B I P | N | XAML |
-| `src/windows/Tools/TradingTerminal.Backtest/QuickBacktestViewModel.cs` | 448 | win | TradingTerminal.Backtest | B I P | Y | How the Quick-backtest sources its replay data. |
+| `src/windows/Tools/TradingTerminal.Backtest/QuickBacktestView.xaml` | 216 | win | TradingTerminal.Backtest | B I P | N | XAML |
+| `src/windows/Tools/TradingTerminal.Backtest/QuickBacktestViewModel.cs` | 476 | win | TradingTerminal.Backtest | B I P | Y | How the Quick-backtest sources its replay data. |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/AvaloniaUi/BacktestStudioAvaloniaWindow.axaml.cs` | 12 | win | TradingTerminal.BacktestStudio | B I P | Y | Avalonia (cross-platform) view for Backtest Studio — net9.0-leg counterpart to the WPF |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/AxisRowViewModel.cs` | 28 | win | TradingTerminal.BacktestStudio | B I P | Y | One row in the optimization axis editor: a parameter the user can |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioServiceCollectionExtensions.cs` | 40 | win | TradingTerminal.BacktestStudio | B I P | Y | DI registration for the Backtest Studio. Seeds the kernel registry from the |
@@ -61,7 +61,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/TradingTerminal.Recording/RecorderEntry.cs` | 112 | win | TradingTerminal.Recording | B I P | Y | Live subscriptions: the ingest pumps (which do the persisting) plus the hub |
 | `src/windows/Tools/TradingTerminal.Recording/RecorderPanelView.xaml.cs` | 11 | win | TradingTerminal.Recording | B I P | Y |  |
 | `src/windows/Tools/TradingTerminal.Recording/RecorderPanelView.xaml` | 521 | win | TradingTerminal.Recording | B I P | N | XAML |
-| `src/windows/Tools/TradingTerminal.Recording/RecorderPanelViewModel.cs` | 106 | win | TradingTerminal.Recording | B I P | Y | The recording service the whole panel binds to. |
-| `src/windows/Tools/TradingTerminal.Recording/RecorderWatchlistStore.cs` | 70 | win | TradingTerminal.Recording | B I P | Y | One remembered row of the recorder watchlist: the canonical |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderPanelViewModel.cs` | 149 | win | TradingTerminal.Recording | B I P | Y | The recording service the whole panel binds to. |
+| `src/windows/Tools/TradingTerminal.Recording/RecorderWatchlistStore.cs` | 105 | win | TradingTerminal.Recording | B I P | Y | The whole persisted recorder state — what to record and the upload |
 | `src/windows/Tools/TradingTerminal.Recording/RecordingServiceCollectionExtensions.cs` | 21 | win | TradingTerminal.Recording | B I P | Y | DI registration for the live market-data recorder. |
-| `src/windows/Tools/TradingTerminal.Recording/TickRecordingService.cs` | 398 | win | TradingTerminal.Recording | B I P | Y | How often auto-upload asks the archiver to ship whatever is pending. The |
+| `src/windows/Tools/TradingTerminal.Recording/TickRecordingService.cs` | 393 | win | TradingTerminal.Recording | B I P | Y | How often auto-upload asks the archiver to ship whatever is pending. The |
