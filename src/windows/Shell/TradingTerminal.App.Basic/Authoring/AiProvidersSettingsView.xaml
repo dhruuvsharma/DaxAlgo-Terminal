@@ -1,4 +1,4 @@
-<UserControl x:Class="TradingTerminal.App.Authoring.AiProvidersSettingsView"
+﻿<UserControl x:Class="TradingTerminal.App.Authoring.AiProvidersSettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2006"
@@ -19,7 +19,7 @@
             <ItemsControl ItemsSource="{Binding Providers}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,0,8" Padding="10" CornerRadius="3"
+                        <Border Margin="0,0,0,8" Padding="10" CornerRadius="0"
                                 BorderThickness="1" BorderBrush="{DynamicResource Border.Brush}"
                                 Background="{DynamicResource Background.Secondary}">
                             <StackPanel>

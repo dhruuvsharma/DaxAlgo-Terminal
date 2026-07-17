@@ -1,4 +1,4 @@
-<UserControl x:Class="TradingTerminal.Backtest.BacktestView"
+﻿<UserControl x:Class="TradingTerminal.Backtest.BacktestView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -41,7 +41,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="{Binding Background}" CornerRadius="3"
+                                            <Border Background="{Binding Background}" CornerRadius="0"
                                                     Padding="5,1" Margin="3,0,0,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
                                                            FontSize="10" FontWeight="SemiBold" />

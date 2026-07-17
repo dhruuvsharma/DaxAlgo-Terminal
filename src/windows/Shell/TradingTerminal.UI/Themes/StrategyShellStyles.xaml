@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls">
 
@@ -21,14 +21,14 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Setup form card frame — same 10px card radius as App.Card so setup screens match. -->
+    <!-- Setup form card frame — sharp, matching App.Card and the app-wide geometry rule. -->
     <Style x:Key="Strategy.SetupCard" TargetType="Border">
         <Setter Property="MaxWidth" Value="560" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Padding" Value="24" />
         <Setter Property="Margin" Value="0,24" />
     </Style>
@@ -51,7 +51,7 @@
 
     <Style x:Key="Strategy.SetupErrorBanner" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Danger.Brush}" />
-        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Padding" Value="10,6" />
         <Setter Property="Margin" Value="0,0,0,12" />
     </Style>

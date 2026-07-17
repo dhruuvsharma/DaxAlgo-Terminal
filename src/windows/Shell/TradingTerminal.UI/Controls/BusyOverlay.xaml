@@ -1,4 +1,4 @@
-<UserControl x:Class="TradingTerminal.UI.Controls.BusyOverlay"
+﻿<UserControl x:Class="TradingTerminal.UI.Controls.BusyOverlay"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Name="Root">
@@ -10,7 +10,7 @@
     <Grid Background="#C8050608"
           Visibility="{Binding IsActive, ElementName=Root, Converter={StaticResource BoolToVis}}">
         <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                CornerRadius="10" Padding="30,24" MinWidth="320"
+                CornerRadius="0" Padding="30,24" MinWidth="320"
                 Background="{DynamicResource Background.Surface}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
             <Border.Effect>

@@ -1,4 +1,4 @@
-<mah:MetroWindow x:Class="TradingTerminal.App.Plugins.PluginConsentDialog"
+﻿<mah:MetroWindow x:Class="TradingTerminal.App.Plugins.PluginConsentDialog"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
@@ -29,7 +29,7 @@
                 Background="{DynamicResource Background.Secondary}"
                 BorderBrush="{DynamicResource Accent.Warning}"
                 BorderThickness="1"
-                CornerRadius="3"
+                CornerRadius="0"
                 Padding="10"
                 Margin="0,0,0,12">
             <TextBlock Text="A strategy plugin runs inside the terminal with full access to this process. It cannot be sandboxed: it can read your broker session, your saved credentials, and your market-data store. Only run plugins from a source you trust."

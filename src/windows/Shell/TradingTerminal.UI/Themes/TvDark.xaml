@@ -138,4 +138,30 @@
     <Color x:Key="MahApps.Colors.IdealForeground">#FFFFFF</Color>
     <SolidColorBrush x:Key="MahApps.Brushes.IdealForeground" Color="#FFFFFF" />
 
+    <!-- Menus, context menus, window titles, DataGrid selection — MahApps templates read these
+         via DynamicResource; without pinning them the dropdowns stay MahApps-native black and
+         ignore the theme. Key names verified against MahApps.Metro 2.4.10 Dark.Blue.xaml. -->
+    <SolidColorBrush x:Key="MahApps.Brushes.Menu.Background" Color="#161A24" />
+    <SolidColorBrush x:Key="MahApps.Brushes.MenuItem.Background" Color="Transparent" />
+    <SolidColorBrush x:Key="MahApps.Brushes.SubMenu.Background" Color="#262B38" />
+    <SolidColorBrush x:Key="MahApps.Brushes.SubMenu.Border" Color="#3A404E" />
+    <SolidColorBrush x:Key="MahApps.Brushes.ContextMenu.Background" Color="#262B38" />
+    <SolidColorBrush x:Key="MahApps.Brushes.ContextMenu.Border" Color="#3A404E" />
+    <SolidColorBrush x:Key="MahApps.Brushes.MenuItem.SelectionFill" Color="#262962FF" />
+    <SolidColorBrush x:Key="MahApps.Brushes.MenuItem.SelectionStroke" Color="Transparent" />
+    <SolidColorBrush x:Key="MahApps.Brushes.TopMenuItem.PressedFill" Color="#2A2E39" />
+    <SolidColorBrush x:Key="MahApps.Brushes.TopMenuItem.PressedStroke" Color="Transparent" />
+    <SolidColorBrush x:Key="MahApps.Brushes.TopMenuItem.SelectionStroke" Color="Transparent" />
+    <SolidColorBrush x:Key="MahApps.Brushes.MenuItem.Foreground.Disabled" Color="#50535E" />
+    <SolidColorBrush x:Key="MahApps.Brushes.MenuItem.GlyphPanel.Disabled" Color="#50535E" />
+    <SolidColorBrush x:Key="MahApps.Brushes.Separator" Color="#2A2E39" />
+    <SolidColorBrush x:Key="MahApps.Brushes.WindowTitle" Color="#161A24" />
+    <SolidColorBrush x:Key="MahApps.Brushes.WindowTitle.NonActive" Color="#131722" />
+    <SolidColorBrush x:Key="MahApps.Brushes.DataGrid.Selection.Background" Color="#262962FF" />
+    <SolidColorBrush x:Key="MahApps.Brushes.DataGrid.Selection.Background.MouseOver" Color="#332962FF" />
+    <SolidColorBrush x:Key="MahApps.Brushes.DataGrid.Selection.Background.Inactive" Color="#1A2962FF" />
+    <SolidColorBrush x:Key="MahApps.Brushes.DataGrid.Selection.Text" Color="#D1D4DC" />
+    <SolidColorBrush x:Key="MahApps.Brushes.DataGrid.Selection.Text.MouseOver" Color="#D1D4DC" />
+    <SolidColorBrush x:Key="MahApps.Brushes.DataGrid.Selection.Text.Inactive" Color="#D1D4DC" />
+
 </ResourceDictionary>

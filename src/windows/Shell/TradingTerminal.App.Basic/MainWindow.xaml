@@ -97,7 +97,7 @@
                                       ToolTip="API tracker — calls vs rate limits. Click for the per-broker breakdown.">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Bd" CornerRadius="9" Padding="9,3" BorderThickness="1"
+                                    <Border x:Name="Bd" CornerRadius="0" Padding="9,3" BorderThickness="1"
                                             BorderBrush="{DynamicResource Border.Strong}"
                                             Background="{DynamicResource Gradient.Elevated}">
                                         <ContentPresenter />
@@ -135,13 +135,13 @@
                                HorizontalOffset="-6" VerticalOffset="6">
                             <Border Background="{DynamicResource Background.Surface}"
                                     BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
-                                    CornerRadius="8" Margin="8" Width="330">
+                                    CornerRadius="0" Margin="8" Width="330">
                                 <Border.Effect>
                                     <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.55" Color="#000000" />
                                 </Border.Effect>
                                 <StackPanel>
                                     <!-- header -->
-                                    <Border CornerRadius="8,8,0,0" Padding="12,9"
+                                    <Border CornerRadius="0" Padding="12,9"
                                             Background="{DynamicResource Gradient.Header}">
                                         <StackPanel Orientation="Horizontal">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="14" Margin="0,0,8,0">
@@ -205,7 +205,7 @@
                                     </TextBlock>
 
                                     <!-- footer -->
-                                    <Border CornerRadius="0,0,8,8" Padding="12,7" Background="#14FFFFFF"
+                                    <Border CornerRadius="0" Padding="12,7" Background="#14FFFFFF"
                                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
                                         <TextBlock Text="{Binding ApiMeter.SummaryText}" FontSize="10"
                                                    Foreground="{DynamicResource Text.Secondary}" />
@@ -278,11 +278,11 @@
                     </Button>
 
                     <!-- Market session badges (approximate; no DST/holiday calendar) -->
-                    <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center"
+                    <Border CornerRadius="0" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center"
                             Background="{DynamicResource Bullish.Soft}" BorderBrush="{DynamicResource Bullish.Brush}" BorderThickness="1">
                         <TextBlock Text="CRYPTO 24/7" Foreground="{DynamicResource Bullish.Brush}" FontSize="9" FontWeight="Bold" />
                     </Border>
-                    <Border CornerRadius="3" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1">
+                    <Border CornerRadius="0" Padding="5,1" Margin="0,0,4,0" VerticalAlignment="Center" BorderThickness="1">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="#1AFFFFFF" />
@@ -308,7 +308,7 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Border>
-                    <Border CornerRadius="3" Padding="5,1" Margin="0,0,12,0" VerticalAlignment="Center" BorderThickness="1">
+                    <Border CornerRadius="0" Padding="5,1" Margin="0,0,12,0" VerticalAlignment="Center" BorderThickness="1">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background" Value="#1AFFFFFF" />
@@ -362,23 +362,23 @@
               BorderThickness="0,0,0,1">
 
             <MenuItem Header="_File">
-                <MenuItem Header="_Reconnect to broker"
+                <MenuItem Icon="🔄" Header="_Reconnect to broker"
                           Command="{Binding ReconnectCommand}" />
-                <MenuItem Header="Start _QuestDB"
+                <MenuItem Icon="🗃️" Header="Start _QuestDB"
                           Command="{Binding StartQuestDbCommand}"
                           ToolTip="Launch Docker Desktop (if needed) and the QuestDB container, then enable tick persistence without restarting." />
                 <Separator />
-                <MenuItem Header="E_xit"
+                <MenuItem Icon="🚪" Header="E_xit"
                           Command="{Binding ExitCommand}"
                           InputGestureText="Alt+F4" />
             </MenuItem>
 
             <MenuItem Header="_View">
-                <MenuItem Header="Activity _log"
+                <MenuItem Icon="📋" Header="Activity _log"
                           IsCheckable="True"
                           IsChecked="{Binding IsLogVisible, Mode=TwoWay}" />
                 <Separator />
-                <MenuItem Header="_Theme" ItemsSource="{Binding Themes}">
+                <MenuItem Icon="🎨" Header="_Theme" ItemsSource="{Binding Themes}">
                     <MenuItem.ItemContainerStyle>
                         <Style TargetType="MenuItem">
                             <Setter Property="Header" Value="{Binding Name}" />
@@ -390,29 +390,45 @@
                         </Style>
                     </MenuItem.ItemContainerStyle>
                 </MenuItem>
-                <MenuItem Header="_Customize theme… (Theme Studio)"
+                <MenuItem Icon="🖌️" Header="_Customize theme… (Theme Studio)"
                           Command="{Binding OpenThemeStudioCommand}"
                           ToolTip="Open the live colour editor — tweak any palette token, then save and share custom themes." />
             </MenuItem>
 
             <MenuItem Header="_Tools">
-                <MenuItem Header="_Backtest Studio…"
+                <MenuItem Icon="📊" Header="_Backtest Studio…"
                           Command="{Binding OpenBacktestStudioCommand}" />
-                <MenuItem Header="_Advanced market regime…"
+                <MenuItem Icon="🌡️" Header="_Advanced market regime…"
                           Command="{Binding OpenAdvancedRegimeCommand}" />
-                <MenuItem Header="_Correlation matrix…"
+                <MenuItem Icon="🔗" Header="_Correlation matrix…"
                           Command="{Binding OpenCorrelationCommand}" />
-                <MenuItem Header="_Live correlation matrix…"
+                <MenuItem Icon="📡" Header="_Live correlation matrix…"
                           Command="{Binding OpenLiveCorrelationCommand}" />
             </MenuItem>
 
-            <MenuItem Header="_Strategy Studio">
+            <MenuItem>
+                <MenuItem.Header>
+                    <!-- AI-native feature: gradient-ink title + soft violet glow (shared AI language). -->
+                    <TextBlock Text="Strategy Studio" Style="{StaticResource Ai.TextAccent}">
+                        <TextBlock.Effect>
+                            <!-- fixed brand violet — resource lookups inside Effects are unreliable -->
+                            <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.55" Color="#8B5CF6" />
+                        </TextBlock.Effect>
+                    </TextBlock>
+                </MenuItem.Header>
                 <MenuItem Header="_Vibe Code">
+                    <MenuItem.Icon>
+                        <StaticResource ResourceKey="Ai.MenuIconChip" />
+                    </MenuItem.Icon>
                     <MenuItem Header="⚡ _Vibe Quant…"
                               Command="{Binding OpenStrategyAuthoringCommand}"
-                              ToolTip="Describe a strategy in chat and watch the AI build, compile, and register it." />
+                              ToolTip="Describe a strategy in chat and watch the AI build, compile, and register it.">
+                        <MenuItem.Icon>
+                            <StaticResource ResourceKey="Ai.MenuIconChip" />
+                        </MenuItem.Icon>
+                    </MenuItem>
                     <Separator />
-                    <MenuItem Header="Launch _CLI"
+                    <MenuItem Icon="⌨️" Header="Launch _CLI"
                               ItemsSource="{Binding CliLaunchChoices}"
                               ToolTip="Open an installed agent CLI (Claude Code / Codex) in a terminal, pre-loaded with a strategy-authoring workspace.">
                         <MenuItem.ItemContainerStyle>
@@ -425,45 +441,49 @@
                     </MenuItem>
                 </MenuItem>
                 <Separator />
-                <MenuItem Header="_Strategy Manager…"
+                <MenuItem Icon="🧩" Header="_Strategy Manager…"
                           Command="{Binding OpenPluginManagerCommand}"
                           ToolTip="Enable, disable, or remove installed strategies and plugins." />
             </MenuItem>
 
             <MenuItem Header="_Charts">
-                <MenuItem Header="C_harts…"
+                <MenuItem Icon="📈" Header="C_harts…"
                           Command="{Binding OpenChartsCommand}" />
-                <MenuItem Header="_Order book…"
+                <MenuItem Icon="📚" Header="_Order book…"
                           Command="{Binding OpenOrderBookCommand}" />
-                <MenuItem Header="_Volume footprint…"
+                <MenuItem Icon="👣" Header="_Volume footprint…"
                           Command="{Binding OpenFootprintCommand}" />
-                <MenuItem Header="_Bookmap + VolBook…"
+                <MenuItem Icon="🗺️" Header="_Bookmap + VolBook…"
                           Command="{Binding OpenBookmapCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Data">
-                <MenuItem Header="_Market data archive…"
+                <MenuItem Icon="📦" Header="_Market data archive…"
                           Command="{Binding OpenArchiveSettingsCommand}" />
-                <MenuItem Header="Archive _history…"
+                <MenuItem Icon="🕘" Header="Archive _history…"
                           Command="{Binding OpenArchiveActivityCommand}" />
                 <Separator />
-                <MenuItem Header="_Instant offload (all pending)…"
+                <MenuItem Icon="📤" Header="_Instant offload (all pending)…"
                           Command="{Binding InstantOffloadCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Settings">
-                <MenuItem Header="_Notifications…"
+                <MenuItem Icon="🔔" Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />
                 <MenuItem Header="_AI providers…"
                           Command="{Binding OpenAiProvidersSettingsCommand}"
-                          ToolTip="Set up the AI Strategy Builder — installed agent CLIs and API keys." />
+                          ToolTip="Set up the AI Strategy Builder — installed agent CLIs and API keys.">
+                    <MenuItem.Icon>
+                        <StaticResource ResourceKey="Ai.MenuIconChip" />
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="_Help">
-                <MenuItem Header="_Support the developer…"
+                <MenuItem Icon="❤️" Header="_Support the developer…"
                           Command="{Binding OpenSupportCommand}"
                           ToolTip="Send feedback to the developer and learn how to support the project." />
-                <MenuItem Header="_About DaxAlgo Terminal…"
+                <MenuItem Icon="ℹ️" Header="_About DaxAlgo Terminal…"
                           Command="{Binding OpenSupportCommand}" />
             </MenuItem>
         </Menu>
@@ -514,7 +534,7 @@
                     <Border Background="{DynamicResource Gradient.Elevated}"
                             BorderBrush="{DynamicResource Border.Brush}"
                             BorderThickness="1"
-                            CornerRadius="4"
+                            CornerRadius="0"
                             Padding="12,10">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -533,7 +553,7 @@
                                                Foreground="{DynamicResource Text.Header}"
                                                FontWeight="Bold" FontSize="13" TextWrapping="Wrap" />
                                     <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Strategy Manager). -->
-                                    <Border CornerRadius="3" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
+                                    <Border CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
                                             Background="{DynamicResource Warning.Brush}">
                                         <Border.Visibility>
                                             <MultiBinding Converter="{StaticResource UnsignedStrategyConverter}">
@@ -563,7 +583,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Background="{Binding Background}"
-                                                    CornerRadius="3"
+                                                    CornerRadius="0"
                                                     Padding="5,1"
                                                     Margin="0,0,3,3"
                                                     VerticalAlignment="Center">
@@ -587,7 +607,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Background="{Binding Background}"
-                                                    CornerRadius="3"
+                                                    CornerRadius="0"
                                                     Padding="5,1"
                                                     Margin="0,0,3,3"
                                                     VerticalAlignment="Center">
@@ -612,7 +632,7 @@
                                         <DataTemplate>
                                             <Border Background="{DynamicResource Background.Surface}"
                                                     BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1"
-                                                    CornerRadius="3" Padding="5,1" Margin="0,0,3,3"
+                                                    CornerRadius="0" Padding="5,1" Margin="0,0,3,3"
                                                     VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding}" Foreground="{DynamicResource Accent.Brush}"
                                                            FontSize="10" FontWeight="SemiBold" />
@@ -638,7 +658,7 @@
                                 <Border Margin="12,6,0,0"
                                         Background="{DynamicResource Background.Surface}"
                                         BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                                        CornerRadius="3" Padding="7,4"
+                                        CornerRadius="0" Padding="7,4"
                                         Visibility="{Binding HasFormula, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <StackPanel>
                                         <TextBlock Text="ALPHA FORMULA" FontSize="8" FontWeight="Bold"
@@ -733,12 +753,12 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="Open"
+                        <MenuItem Icon="▶️" Header="Open"
                                   Click="OpenStrategy_Click" />
-                        <MenuItem Header="Quick backtest (last 1 year)…"
+                        <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
                                   Click="QuickBacktest_Click" />
                         <Separator />
-                        <MenuItem Header="Edit strategy card…"
+                        <MenuItem Icon="✏️" Header="Edit strategy card…"
                                   Click="EditStrategy_Click" />
                     </ContextMenu>
                 </ListBox.ContextMenu>
@@ -769,27 +789,15 @@
                         </MenuItem>
                     </ContextMenu>
                 </Button.ContextMenu>
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="24" Padding="18,11"
-                                Background="{DynamicResource Accent.Brush}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.55" Color="#000000" />
-                            </Border.Effect>
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
-                <StackPanel Orientation="Horizontal">
+                <Button.Style>
+                    <!-- The AI hero treatment — the one rounded element in the sharp system. -->
+                    <StaticResource ResourceKey="Ai.HeroButton" />
+                </Button.Style>
+                <StackPanel Orientation="Horizontal" Background="Transparent">
                     <TextBlock Text="⚡" FontSize="15" VerticalAlignment="Center"
-                               Foreground="{DynamicResource Background.Primary}" Margin="0,0,8,0" />
+                               Foreground="{DynamicResource Text.Primary}" Margin="0,0,8,0" />
                     <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
-                               Foreground="{DynamicResource Background.Primary}" />
+                               Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
             </Button>
         </Grid>
@@ -869,7 +877,7 @@
                                                Foreground="{DynamicResource Text.Secondary}"
                                                Margin="0,0,8,0" VerticalAlignment="Center" />
                                     <!-- colour-coded level pill -->
-                                    <Border CornerRadius="3" Padding="5,0" Margin="0,0,8,0" MinWidth="46"
+                                    <Border CornerRadius="0" Padding="5,0" Margin="0,0,8,0" MinWidth="46"
                                             VerticalAlignment="Center">
                                         <Border.Style>
                                             <Style TargetType="Border">

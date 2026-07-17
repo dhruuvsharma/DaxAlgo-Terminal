@@ -25,7 +25,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Basic/Composition/AppDependencyInjection.cs` | 283 | win | TradingTerminal.App.Basic | B | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Basic | B | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml.cs` | 99 | win | TradingTerminal.App.Basic | B | Y |  |
-| `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 1032 | win | TradingTerminal.App.Basic | B | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 1020 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs` | 754 | win | TradingTerminal.App.Basic | B | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Basic | B | N | XAML |
@@ -69,7 +69,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Composition/AppDependencyInjection.cs` | 283 | win | TradingTerminal.App.Intermediate | I | Y | Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Intermediate | I | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml.cs` | 99 | win | TradingTerminal.App.Intermediate | I | Y |  |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 1033 | win | TradingTerminal.App.Intermediate | I | N | XAML |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 1041 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindowViewModel.cs` | 754 | win | TradingTerminal.App.Intermediate | I | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Intermediate | I | N | XAML |
@@ -193,15 +193,15 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.UI/StrategyChartHelpers.cs` | 33 | win | TradingTerminal.UI | B I P | Y | Apply the standard dark style to a ScottPlot WPF host. |
 | `src/windows/Shell/TradingTerminal.UI/StrategyWindowBase.cs` | 129 | win | TradingTerminal.UI | B I P | Y | The WpfPlot hosts that should receive the dark-theme treatment. |
 | `src/windows/Shell/TradingTerminal.UI/StrategyWindowPlacementStore.cs` | 128 | win | TradingTerminal.UI | B I P | Y | One strategy window's remembered placement: the normal (restore) bounds plus whether it |
-| `src/windows/Shell/TradingTerminal.UI/Themes/AiStyles.xaml` | 220 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/Brushes.xaml` | 140 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/AiStyles.xaml` | 221 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/Brushes.xaml` | 164 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/Components.xaml` | 254 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/Dark.xaml` | 250 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/GreekDark.xaml` | 139 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/GreekLight.xaml` | 152 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/Monochrome.xaml` | 134 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/Dark.xaml` | 406 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/GreekDark.xaml` | 163 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/GreekLight.xaml` | 176 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/Monochrome.xaml` | 158 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/StrategyShellStyles.xaml` | 117 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/TvDark.xaml` | 141 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/TvLight.xaml` | 148 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/TvDark.xaml` | 167 | win | TradingTerminal.UI | B I P | N | XAML |
+| `src/windows/Shell/TradingTerminal.UI/Themes/TvLight.xaml` | 172 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Theming/ThemeManager.cs` | 446 | win | TradingTerminal.UI | B I P | Y | A selectable app theme — an id, a display name, and the |
 | `src/windows/Shell/TradingTerminal.UI/Theming/ThemeToken.cs` | 58 | win | TradingTerminal.UI | B I P | Y | Whether a |

@@ -1,5 +1,30 @@
 # context changelog — append-only session journal
 
+## 2026-07-17 (later) — #28 round 2: sharp geometry, real tabs, themed menus, emoji life
+- **GEOMETRY RULE (Dhruv's call): everything is SQUARE** — scripted sweep zeroed **200 corner
+  radii** (178 attribute-form + 22 setter-form) across 50+ XAML files in both repos; the **only
+  rounded element left is the Vibe Quant hero button** (AiStyles radii 24/25). Badges, pills,
+  cards, popups, tooltips, inputs: all sharp. Comments updated to state the rule.
+- **Menus finally follow the theme.** Root cause: MahApps' menu templates read
+  `MahApps.Brushes.SubMenu/ContextMenu/MenuItem.*` + `WindowTitle` keys our palettes never
+  defined → dropdowns stayed MahApps-native black. Key names **verified empirically** (scratch
+  dumper over MahApps 2.4.10 Dark.Blue.xaml + Controls.xaml), then pinned in **all 6 palettes**
+  (submenu/context bg+border, selection fill, top-level pressed, disabled fg, separator,
+  window title active/inactive, DataGrid selection family).
+- **Tabs look like tabs**: implicit `TabControl`/`TabItem` in Dark.xaml — TV-style text tabs,
+  2px accent underline + soft accent wash on selected, hover hint, hairline between tab row and
+  content. (No TabStripPlacement≠Top usage anywhere — verified.)
+- **New implicit styles kill the last native-grey chrome**: GroupBox (sharp hairline frame +
+  small-caps header), GridViewColumnHeader (flat, hover, keeps PART_HeaderGripper resize),
+  DataGrid + DataGridColumnHeader (flat surface, horizontal hairlines), ContextMenu (Font.Base).
+- **Emoji iconography ×3 shells** — `MenuItem Icon="…"` across File/View/Tools/Charts/Data/
+  Settings/Help + the strategy-card context menu (🔄🗃️🚪📋🎨🖌️📊🌡️🔗📡⌨️🧩📈📚👣🗺️🧊🧪📦🕘📤🔔❤️ℹ️▶️⏱️✏️);
+  AI features keep the gradient AI chip as their icon.
+- **Basic + Intermediate caught up with Pro** (missed in round 1): Vibe Quant FAB →
+  `Ai.HeroButton`, Strategy Studio menu header → gradient ink + violet glow, AI chips on
+  Vibe Code / Vibe Quant / AI providers.
+- Builds green ×2 repos; 70/70 WPF + 8/8 Pro tests. Visual QA in DevSim pending.
+
 ## 2026-07-17 — #28 AI-Native design system: DaxAlgo Dark default + the AI glass language
 - **Two new palettes**: `Themes/TvDark.xaml` (**DaxAlgo Dark** — new default builtin: `#131722`
   canvas, `#1E222D` surfaces, `#2962FF` accent, `#089981`/`#F23645` P&L, sans `Font.Base`) and

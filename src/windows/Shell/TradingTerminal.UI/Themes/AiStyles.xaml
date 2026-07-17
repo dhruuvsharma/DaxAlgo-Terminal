@@ -14,10 +14,11 @@
          DropShadowEffect on single Borders (never inside virtualized list rows).
          =================================================================================== -->
 
-    <!-- ===== AI badge: small gradient pill, e.g. next to a feature title ===== -->
+    <!-- ===== AI badge: small gradient tag, e.g. next to a feature title. Sharp like the rest
+         of the app — the Vibe Quant hero button below is the ONLY rounded element. ===== -->
     <Style x:Key="Ai.Badge" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Gradient.Ai}" />
-        <Setter Property="CornerRadius" Value="7" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Padding" Value="6,1" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -49,7 +50,7 @@
         <Setter Property="Background" Value="{DynamicResource Ai.Soft}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Padding" Value="5,1" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -60,7 +61,7 @@
         <Setter Property="Background" Value="{DynamicResource Gradient.AiGlass}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Gradient.Ai}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#8B5CF6" BlurRadius="18" ShadowDepth="0" Opacity="0.30" />
@@ -75,7 +76,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
-                    <Border CornerRadius="10" BorderThickness="1.2"
+                    <Border CornerRadius="0" BorderThickness="1.2"
                             Background="{DynamicResource Gradient.AiGlass}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">

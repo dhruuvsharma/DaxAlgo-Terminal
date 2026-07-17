@@ -1,4 +1,4 @@
-<UserControl x:Class="TradingTerminal.UI.Controls.StrategySetupHost"
+﻿<UserControl x:Class="TradingTerminal.UI.Controls.StrategySetupHost"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -12,7 +12,7 @@
                 HorizontalAlignment="Center" VerticalAlignment="Center"
                 Background="{DynamicResource Background.Surface}"
                 BorderBrush="{DynamicResource Border.Brush}"
-                BorderThickness="1" CornerRadius="14"
+                BorderThickness="1" CornerRadius="0"
                 SnapsToDevicePixels="True">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.5" Color="#000000" />
@@ -26,14 +26,14 @@
 
                 <!-- Left: branding / description / capability pills, with an accent spine. -->
                 <Border Grid.Column="0" Background="{DynamicResource Background.Elevated}"
-                        CornerRadius="14,0,0,14">
+                        CornerRadius="0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Background="{DynamicResource Accent.Brush}"
-                                CornerRadius="14,0,0,14" />
+                                CornerRadius="0" />
                         <StackPanel Grid.Column="1" Margin="22,28,20,24" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Subtitle, ElementName=Root}"
                                        Foreground="{DynamicResource Accent.Brush}"
@@ -53,7 +53,7 @@
                                     <DataTemplate>
                                         <Border Background="{DynamicResource Background.Surface}"
                                                 BorderBrush="{DynamicResource Accent.Brush}"
-                                                BorderThickness="1" CornerRadius="10"
+                                                BorderThickness="1" CornerRadius="0"
                                                 Padding="9,2" Margin="0,6,6,0">
                                             <TextBlock Text="{Binding}" FontSize="10.5" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource Accent.Brush}" />

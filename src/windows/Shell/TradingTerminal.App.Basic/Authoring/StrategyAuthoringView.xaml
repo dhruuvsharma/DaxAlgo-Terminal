@@ -1,4 +1,4 @@
-<UserControl x:Class="TradingTerminal.App.Authoring.StrategyAuthoringView"
+﻿<UserControl x:Class="TradingTerminal.App.Authoring.StrategyAuthoringView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2006"
@@ -14,7 +14,7 @@
         <!-- Chat bubbles: the user's turn, the model's reply, and the builder's own notes (a provider
              failure, a switched provider) — distinguished by background, not by a label. -->
         <DataTemplate x:Key="ChatBubble">
-            <Border Margin="0,3" Padding="9,7" CornerRadius="6" BorderThickness="1"
+            <Border Margin="0,3" Padding="9,7" CornerRadius="0" BorderThickness="1"
                     HorizontalAlignment="Stretch"
                     Background="{DynamicResource Background.Elevated}"
                     BorderBrush="{DynamicResource Border.Brush}">
@@ -34,7 +34,7 @@
                 </Border.Style>
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                        <Border CornerRadius="3" Padding="5,0" Background="{DynamicResource Background.Surface}">
+                        <Border CornerRadius="0" Padding="5,0" Background="{DynamicResource Background.Surface}">
                             <TextBlock FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Text.Secondary}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -122,7 +122,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Border CornerRadius="3" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center"
+                    <Border CornerRadius="0" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center"
                             Background="{DynamicResource Background.Surface}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                         <TextBlock Text="{Binding ProviderLabel}" FontSize="9.5" FontWeight="SemiBold"
@@ -142,7 +142,7 @@
 
         <!-- ── Identity + the compile gate. Compile & Register is the consent click for running
              model-authored code (already scan-gated by the plugin-loader policy). ────────────────── -->
-        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8" CornerRadius="6"
+        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8" CornerRadius="0"
                 Background="{DynamicResource Gradient.Elevated}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
             <Grid>
@@ -187,7 +187,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- ═══ LEFT · Projects (each saved strategy chat is a project) ═══════════════════════════ -->
-            <Border Grid.Column="0" CornerRadius="6" BorderThickness="1"
+            <Border Grid.Column="0" CornerRadius="0" BorderThickness="1"
                     Background="{DynamicResource Background.Surface}"
                     BorderBrush="{DynamicResource Border.Brush}">
                 <DockPanel Margin="8">
@@ -214,7 +214,7 @@
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="7,6" Margin="0,2" CornerRadius="4"
+                                <Border Padding="7,6" Margin="0,2" CornerRadius="0"
                                         Background="{DynamicResource Background.Elevated}"
                                         BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                                     <StackPanel>
@@ -238,7 +238,7 @@
                           Background="Transparent" />
 
             <!-- ═══ MIDDLE · Chat ════════════════════════════════════════════════════════════════════ -->
-            <Border Grid.Column="2" CornerRadius="6" BorderThickness="1"
+            <Border Grid.Column="2" CornerRadius="0" BorderThickness="1"
                     Background="{DynamicResource Background.Surface}"
                     BorderBrush="{DynamicResource Border.Brush}">
                 <DockPanel Margin="10" Visibility="{Binding AiEnabled, Converter={StaticResource B2V}}">
@@ -312,7 +312,7 @@
                     </Grid>
 
                     <!-- The model asked something back rather than guessing — a good turn, made unmissable. -->
-                    <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="8,5" CornerRadius="4"
+                    <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="8,5" CornerRadius="0"
                             BorderThickness="1" BorderBrush="{DynamicResource Accent.Brush}"
                             Visibility="{Binding AwaitingAnswer, Converter={StaticResource B2V}}">
                         <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
@@ -343,7 +343,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Row 1 · Tasks -->
-                <Border Grid.Row="0" CornerRadius="6" BorderThickness="1"
+                <Border Grid.Row="0" CornerRadius="0" BorderThickness="1"
                         Background="{DynamicResource Background.Surface}"
                         BorderBrush="{DynamicResource Border.Brush}">
                     <DockPanel Margin="10">
@@ -381,7 +381,7 @@
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="Transparent" />
 
                 <!-- Row 2 · Code (file picker + editor + diagnostics) -->
-                <Border Grid.Row="2" CornerRadius="6" BorderThickness="1"
+                <Border Grid.Row="2" CornerRadius="0" BorderThickness="1"
                         Background="{DynamicResource Background.Surface}"
                         BorderBrush="{DynamicResource Border.Brush}">
                     <Grid Margin="10">
@@ -444,7 +444,7 @@
                 <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" Background="Transparent" />
 
                 <!-- Row 3 · Parameters -->
-                <Border Grid.Row="4" CornerRadius="6" BorderThickness="1"
+                <Border Grid.Row="4" CornerRadius="0" BorderThickness="1"
                         Background="{DynamicResource Background.Surface}"
                         BorderBrush="{DynamicResource Border.Brush}">
                     <DockPanel Margin="10">
