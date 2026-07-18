@@ -9,6 +9,9 @@
 # been silently dead since the 2026-06-27 two-tree fork. Projects are now located by glob under
 # src/ (covers src/windows AND src/linux), and the lower-layer path regex matches the forked
 # layout including the DaxAlgo.Sdk projects.
+# 2026-07-18: Infrastructure allowlist gains DaxAlgo.Codegen -- the lean AI-codegen assembly split
+# out of Infrastructure (42a2dc2, #26 phase 4). It depends only on Core, so the reference is
+# downward; Codegen itself is now gate-guarded to Core-only.
 # ASCII-only on purpose -- Windows PowerShell 5.1 reads no-BOM files as ANSI and mangles non-ASCII.
 
 $ErrorActionPreference = 'Continue'
@@ -40,8 +43,9 @@ if ($csprojChanged) {
         'TradingTerminal.MarketData'     = @('TradingTerminal.Core')
         'TradingTerminal.UI.Core'        = @('TradingTerminal.Core')
         'TradingTerminal.UI'             = @('TradingTerminal.Core','TradingTerminal.UI.Core')
-        'TradingTerminal.Infrastructure' = @('TradingTerminal.Core','TradingTerminal.MarketData','DaxAlgo.Sdk')
+        'TradingTerminal.Infrastructure' = @('TradingTerminal.Core','TradingTerminal.MarketData','DaxAlgo.Sdk','DaxAlgo.Codegen')
         'DaxAlgo.Sdk'                    = @('TradingTerminal.Core')
+        'DaxAlgo.Codegen'                = @('TradingTerminal.Core')
         'DaxAlgo.Sdk.Wpf'                = @('DaxAlgo.Sdk','TradingTerminal.UI','TradingTerminal.UI.Core')
     }
     foreach ($proj in $allowed.Keys) {
