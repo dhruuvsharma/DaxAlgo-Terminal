@@ -12,7 +12,6 @@
     <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.App.Intermediate\TradingTerminal.App.Intermediate.csproj" />
-    <ProjectReference Include="..\..\src\windows\Strategies\TradingTerminal.Strategies.OrderFlowPressureMap\TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
   </ItemGroup>
 
   <ItemGroup>

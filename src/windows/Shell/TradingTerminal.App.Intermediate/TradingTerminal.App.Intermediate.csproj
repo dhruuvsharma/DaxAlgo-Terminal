@@ -46,11 +46,6 @@
     <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
   </ItemGroup>
 
-  <!-- Strategy plug-ins staged as external DLLs into {OutDir}/plugins. This shell owns its own
-       copy of the targets file (no cross-edition sharing). Every edition ships the full
-       strategies catalog. -->
-  <Import Project="StrategyPlugins.targets" />
-
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />

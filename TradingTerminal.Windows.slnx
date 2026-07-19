@@ -31,17 +31,6 @@
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
   </Folder>
-  <Folder Name="/Strategies/">
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.CumulativeDelta/TradingTerminal.Strategies.CumulativeDelta.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.FilteredOrderFlow/TradingTerminal.Strategies.FilteredOrderFlow.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.ImbalanceHeatFront/TradingTerminal.Strategies.ImbalanceHeatFront.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.IndexKScoreSurface/TradingTerminal.Strategies.IndexKScoreSurface.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.IndexRegimeGraph/TradingTerminal.Strategies.IndexRegimeGraph.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowCube/TradingTerminal.Strategies.OrderFlowCube.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowPressureMap/TradingTerminal.Strategies.OrderFlowPressureMap.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.OrderFlowSurfaceSpike/TradingTerminal.Strategies.OrderFlowSurfaceSpike.csproj" />
-    <Project Path="src/windows/Strategies/TradingTerminal.Strategies.SigmaIcFlow/TradingTerminal.Strategies.SigmaIcFlow.csproj" />
-  </Folder>
   <Folder Name="/AI/">
     <Project Path="src/windows/AI/TradingTerminal.Ai/TradingTerminal.Ai.csproj" />
   </Folder>

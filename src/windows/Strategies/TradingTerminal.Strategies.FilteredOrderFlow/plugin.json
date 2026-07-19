@@ -1,7 +1,0 @@
-{
-  "id": "filtered.orderflow.imbalance",
-  "name": "Filtered Order-Flow Imbalance",
-  "version": "1.0.0",
-  "targetSdkVersion": "0.1.0-alpha",
-  "publisher": "DaxAlgo"
-}

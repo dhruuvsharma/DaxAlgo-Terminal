@@ -1,8 +1,0 @@
-{
-  "id": "orderflow.cube",
-  "name": "Order-Flow Cube",
-  "version": "1.0.0",
-  "targetSdkVersion": "0.1.0-alpha",
-  "publisher": "DaxAlgo",
-  "permissions": ["fileIo"]
-}
