@@ -809,7 +809,35 @@
               <!-- Primary · Vibe Quant (the AI hero treatment) -->
               <Button Command="{Binding DataContext.OpenStrategyAuthoringCommand, ElementName=RootWindow}"
                       ToolTip="Vibe Quant — describe a strategy and let the AI build it.">
-                <Button.Style><StaticResource ResourceKey="Ai.HeroButton" /></Button.Style>
+                <!-- Static glass-hero look (NOT Ai.HeroButton): this button lives in the empty-state
+                     Grid, which COLLAPSES when the catalog fills. A collapsed Ai.HeroButton crashes on
+                     resize — its Loaded sweep storyboard can't resolve 'HeroSweep' in a collapsed
+                     namescope. Same glass fill + gradient ring + glow, just no animation. -->
+                <Button.Style>
+                  <Style TargetType="Button">
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                          <Border CornerRadius="24" BorderThickness="1.5" Padding="18,11"
+                                  Background="{DynamicResource Gradient.AiGlass}"
+                                  BorderBrush="{DynamicResource Gradient.Ai}">
+                            <Border.Effect>
+                              <DropShadowEffect Color="#8B5CF6" BlurRadius="22" ShadowDepth="0" Opacity="0.5" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="0.9" />
+                      </Trigger>
+                    </Style.Triggers>
+                  </Style>
+                </Button.Style>
                 <StackPanel Orientation="Horizontal" Background="Transparent">
                   <TextBlock Text="⚡" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"
                              Foreground="{DynamicResource Text.Primary}" />
@@ -877,7 +905,8 @@
                 <Style TargetType="Grid">
                   <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.CatalogItems.Count, ElementName=RootWindow}" Value="0">
-                      <Setter Property="Visibility" Value="Collapsed" />
+                      <Setter Property="Opacity" Value="0" />
+                      <Setter Property="IsHitTestVisible" Value="False" />
                     </DataTrigger>
                   </Style.Triggers>
                 </Style>
