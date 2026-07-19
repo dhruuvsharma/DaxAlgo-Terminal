@@ -869,10 +869,21 @@
             <!-- Floating Vibe Quant button — pinned bottom-right over the catalog. Left-click opens Vibe
                  Quant; right-click drops the Vibe Quant · Launch CLI menu (the attached ContextMenu
                  inherits this window's DataContext, so its bindings resolve without a proxy). -->
+            <!-- Bottom-right FAB, wrapped so the empty-catalog check gates the WRAPPER's visibility.
+                 Do NOT gate via a style derived (BasedOn) from Ai.HeroButton: that template runs a
+                 Loaded storyboard targeting a template part, and a BasedOn style fires it in the
+                 container namescope → InvalidOperationException 'HeroSweep' not found. -->
+            <Grid Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,28,28">
+              <Grid.Style>
+                <Style TargetType="Grid">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.CatalogItems.Count, ElementName=RootWindow}" Value="0">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Grid.Style>
             <Button x:Name="VibeFab"
-                    Grid.Row="1"
-                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                    Margin="0,0,28,28"
                     Cursor="Hand"
                     Click="VibeFab_Click"
                     ToolTip="Vibe Quant — describe a strategy and let the AI build it. Right-click for options (Launch CLI).">
@@ -892,15 +903,8 @@
                     </ContextMenu>
                 </Button.ContextMenu>
                 <Button.Style>
-                    <!-- The AI hero treatment — the one rounded element in the sharp system.
-                         Hidden while the catalog is empty — the empty-state above carries the Vibe Quant CTA. -->
-                    <Style TargetType="Button" BasedOn="{StaticResource Ai.HeroButton}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding DataContext.CatalogItems.Count, ElementName=RootWindow}" Value="0">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
+                    <!-- The AI hero treatment — the one rounded element in the sharp system. -->
+                    <StaticResource ResourceKey="Ai.HeroButton" />
                 </Button.Style>
                 <StackPanel Orientation="Horizontal" Background="Transparent">
                     <TextBlock Text="⚡" FontSize="15" VerticalAlignment="Center"
@@ -909,6 +913,7 @@
                                Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
             </Button>
+            </Grid>
         </Grid>
 
         <!-- Activity-log drawer — collapsible, pinned at the bottom, closed by default.
