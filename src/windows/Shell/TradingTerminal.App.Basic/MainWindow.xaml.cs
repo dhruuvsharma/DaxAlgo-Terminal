@@ -96,4 +96,18 @@ public partial class MainWindow : MetroWindow
         catch { /* best-effort: a missing/blocked browser shouldn't crash the shell */ }
         e.Handled = true;
     }
+
+    // The strategy marketplace WEBSITE isn't built yet — this opens a placeholder URL so the
+    // empty-state's "Browse Marketplace" button is wired end to end. Swap MarketplaceUrl when the
+    // site ships. (This is the public storefront, NOT the in-app plugin catalog in Strategy Manager.)
+    private const string MarketplaceUrl = "https://daxalgo.com/marketplace";
+
+    private void Marketplace_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(MarketplaceUrl) { UseShellExecute = true });
+        }
+        catch { /* best-effort: a missing/blocked browser shouldn't crash the shell */ }
+    }
 }

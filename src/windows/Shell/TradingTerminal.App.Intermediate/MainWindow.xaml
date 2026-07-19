@@ -765,6 +765,107 @@
                 </ListBox.ContextMenu>
             </ListBox>
 
+        <!-- ── Empty-catalog sandbox state ─────────────────────────────────────────────────────
+             Shown only when the catalog is empty (a fresh install ships with no strategies). Two
+             ways forward: build one with Vibe Quant (the AI hero), or get one from the marketplace
+             (placeholder until the site ships). The floating VibeFab hides while this is up so its
+             Vibe Quant CTA doesn't duplicate the one here. -->
+        <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Margin="24">
+          <Grid.Style>
+            <Style TargetType="Grid">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.CatalogItems.Count, ElementName=RootWindow}" Value="0">
+                  <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Grid.Style>
+
+          <StackPanel HorizontalAlignment="Center">
+            <!-- gradient hero mark -->
+            <Border Width="62" Height="62" Background="{DynamicResource Gradient.Ai}"
+                    HorizontalAlignment="Center" SnapsToDevicePixels="True">
+              <Border.Effect>
+                <DropShadowEffect Color="#8B5CF6" BlurRadius="24" ShadowDepth="0" Opacity="0.45" />
+              </Border.Effect>
+              <TextBlock Text="⚡" FontSize="32" Foreground="White"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+
+            <Border Style="{StaticResource Ai.Badge}" HorizontalAlignment="Center" Margin="0,16,0,0">
+              <TextBlock Style="{StaticResource Ai.BadgeText}" Text="AI-NATIVE STRATEGY SANDBOX" />
+            </Border>
+
+            <TextBlock Text="No strategies yet — this is your sandbox"
+                       Foreground="{DynamicResource Text.Header}" FontSize="21" FontWeight="Bold"
+                       TextAlignment="Center" TextWrapping="Wrap" Margin="0,14,0,0" />
+
+            <TextBlock Foreground="{DynamicResource Text.Secondary}" FontSize="12.5"
+                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="450" Margin="0,8,0,0"
+                       Text="Describe a strategy and Vibe Quant writes, compiles and backtests it for you — or install a ready-made one from the marketplace. Everything you build lands right here." />
+
+            <!-- the two paths -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+              <!-- Primary · Vibe Quant (the AI hero treatment) -->
+              <Button Command="{Binding DataContext.OpenStrategyAuthoringCommand, ElementName=RootWindow}"
+                      ToolTip="Vibe Quant — describe a strategy and let the AI build it.">
+                <Button.Style><StaticResource ResourceKey="Ai.HeroButton" /></Button.Style>
+                <StackPanel Orientation="Horizontal" Background="Transparent">
+                  <TextBlock Text="⚡" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"
+                             Foreground="{DynamicResource Text.Primary}" />
+                  <TextBlock Text="Build with Vibe Quant" FontWeight="Bold" FontSize="13"
+                             VerticalAlignment="Center" Foreground="{DynamicResource Text.Primary}" />
+                </StackPanel>
+              </Button>
+
+              <!-- Secondary · Marketplace (sharp; placeholder until the site ships) -->
+              <Button Click="Marketplace_Click" Cursor="Hand" Margin="14,0,0,0"
+                      ToolTip="Browse the DaxAlgo strategy marketplace (coming soon).">
+                <Button.Style>
+                  <Style TargetType="Button">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                          <Border x:Name="MpBorder" Background="{DynamicResource Background.Elevated}"
+                                  BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                  Padding="16,12" SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="MpBorder" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+                </Button.Style>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="🛒" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0" />
+                  <TextBlock Text="Browse Marketplace" FontWeight="SemiBold" FontSize="13"
+                             VerticalAlignment="Center" Foreground="{DynamicResource Text.Primary}" />
+                  <Border Background="{DynamicResource Ai.Soft}" Margin="8,0,0,0" Padding="4,1" VerticalAlignment="Center">
+                    <TextBlock Text="SOON" FontSize="8" FontWeight="Bold"
+                               Foreground="{DynamicResource Text.Secondary}" />
+                  </Border>
+                </StackPanel>
+              </Button>
+            </StackPanel>
+
+            <!-- tertiary · install an existing plugin (the runtime path for the packs you build) -->
+            <TextBlock HorizontalAlignment="Center" Margin="0,18,0,0" FontSize="11.5">
+              <Hyperlink Command="{Binding DataContext.OpenPluginManagerCommand, ElementName=RootWindow}"
+                         Foreground="{DynamicResource Text.Secondary}" TextDecorations="{x:Null}"
+                         ToolTip="Open the Strategy Manager to install a .daxplugin or manage plugins.">
+                Already have a .daxplugin? Install it in Strategy Manager →
+              </Hyperlink>
+            </TextBlock>
+          </StackPanel>
+        </Grid>
+
             <!-- Floating Vibe Quant button — pinned bottom-right over the catalog. Left-click opens Vibe
                  Quant; right-click drops the Vibe Quant · Launch CLI menu (the attached ContextMenu
                  inherits this window's DataContext, so its bindings resolve without a proxy). -->
@@ -791,8 +892,15 @@
                     </ContextMenu>
                 </Button.ContextMenu>
                 <Button.Style>
-                    <!-- The AI hero treatment — the one rounded element in the sharp system. -->
-                    <StaticResource ResourceKey="Ai.HeroButton" />
+                    <!-- The AI hero treatment — the one rounded element in the sharp system.
+                         Hidden while the catalog is empty — the empty-state above carries the Vibe Quant CTA. -->
+                    <Style TargetType="Button" BasedOn="{StaticResource Ai.HeroButton}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.CatalogItems.Count, ElementName=RootWindow}" Value="0">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
                 </Button.Style>
                 <StackPanel Orientation="Horizontal" Background="Transparent">
                     <TextBlock Text="⚡" FontSize="15" VerticalAlignment="Center"
