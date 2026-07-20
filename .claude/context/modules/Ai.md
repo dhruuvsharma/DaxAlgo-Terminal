@@ -1,11 +1,11 @@
 # TradingTerminal.Ai — AI analyst seam (shared seam ONLY)
 
-**Path** `src/windows/AI/TradingTerminal.Ai/` · 347 LOC / 4 files · **Editions** B I P · **Blast: med**
+**Path** `src/windows/AI/TradingTerminal.Ai/` · **Editions** B I P · **Blast: med**
 
-**Purpose.** The thin seam to the Python sidecar: `AddAiAnalyst()` DI, the
+**Purpose.** The thin seam to the Python sidecar: `AddAiAnalyst` DI, the
 `AiAnalystEnricher` (notification pipeline), Null↔Http client swap via `IOptionsMonitor`.
-The `IAiAnalystClient` interface itself lives in `Core/AiAnalyst/`; the AI tool WINDOWS live in
-the private Pro repo (Windows tree) — not here.
+The `IAiAnalystClient` interface itself lives in `Core/AiAnalyst/`. This shared Windows tree
+contains the seam, not the removed first-party AI tool-window projects.
 
 **Depends on** Core, Infrastructure (actual csproj refs — CLAUDE.md's "Ai → UI, MarketData" is stale).
 **Depended by** both shells.

@@ -1,6 +1,6 @@
 ---
 name: market-data-pipeline
-description: Canonical broker-neutral market-data pipeline — InstrumentId / InstrumentRegistry, IMarketDataHub (Rx fanout), IMarketDataIngest (ref-counted subscriptions, normalization, persistence), IMarketDataStore (SQLite default, Postgres/TimescaleDB optional, batched non-blocking writes). Use when adding store tables, changing ingest normalization, wiring trade-tape into a new broker, debugging "no data" / "duplicate ticks" / "wrong timestamps", or touching anything under src/TradingTerminal.MarketData/.
+description: Canonical broker-neutral market-data pipeline — InstrumentId/Registry, IMarketDataHub, ref-counted IMarketDataIngest, persistence, normalization, and store backends. Use when adding store tables, changing ingest, wiring broker trade tape, debugging missing/duplicate/mis-timestamped data, or editing src/windows/Pipeline/TradingTerminal.MarketData/.
 ---
 
 # Market-Data Pipeline
@@ -68,7 +68,7 @@ Historical bars (e.g. warm-up reads) DO go through the store, but they come from
 1. Implement `IBrokerClient.SubscribeTradesAsync` — return `IAsyncEnumerable<TradeTick>` with `[EnumeratorCancellation]`.
 2. Stamp the aggressor flag at the source if the broker exposes it (e.g. Alpaca `taker_side`). Otherwise leave `Aggressor=Unknown` and let `MarketDataIngestService.PumpTradesAsync` infer via Lee-Ready (`Microstructure.ClassifyAggressor` against the per-instrument `TradeContext` cache of recent bid/ask).
 3. Test against `IMarketDataStore.trades` — confirm rows land with non-null aggressor and provenance.
-4. Update the capability matrix in [[project-strategy-ideas]] (memory) and [regime-cube-strategy](../regime-cube-strategy/SKILL.md) — flip the broker from `false` to `true` in `BrokerSupportsTradeTape`.
+4. Update focused tests and any current chart/UI capability predicates that enumerate native tape support; do not add or edit an in-tree strategy project.
 
 ## Per-instrument facade
 
@@ -84,11 +84,11 @@ Historical bars (e.g. warm-up reads) DO go through the store, but they come from
 
 ## Reference reads
 
-- `src/TradingTerminal.MarketData/MarketDataPipelineServiceCollectionExtensions.cs` — DI wiring.
-- `src/TradingTerminal.MarketData/MarketDataHub.cs` — Rx fanout.
-- `src/TradingTerminal.MarketData/MarketDataIngestService.cs` — ref-counted subscriptions + normalization + persistence.
-- `src/TradingTerminal.MarketData/Store/SqliteMarketDataStore.cs` + `NpgsqlMarketDataStore.cs`.
-- `src/TradingTerminal.MarketData/InstrumentDiscoveryService.cs`.
+- `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataPipelineServiceCollectionExtensions.cs` — DI wiring.
+- `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataHub.cs` — Rx fanout.
+- `src/windows/Pipeline/TradingTerminal.MarketData/MarketDataIngestService.cs` — ref-counted subscriptions + normalization + persistence.
+- `src/windows/Pipeline/TradingTerminal.MarketData/Store/SqliteMarketDataStore.cs` + `NpgsqlMarketDataStore.cs`.
+- `src/windows/Pipeline/TradingTerminal.MarketData/InstrumentDiscoveryService.cs`.
 - `docs/market-data.md` — user-facing prose.
 
-See also: [archive-offloader](../archive-offloader/SKILL.md), [add-broker](../add-broker/SKILL.md), [regime-cube-strategy](../regime-cube-strategy/SKILL.md).
+See also: [archive-offloader](../archive-offloader/SKILL.md) and [add-broker](../add-broker/SKILL.md).

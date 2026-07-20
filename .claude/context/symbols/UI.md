@@ -1,6 +1,6 @@
 # TradingTerminal.UI — public API surface
 
-Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
+Generated from the current source tree. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -14,6 +14,14 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    36: public string Title
    42: public static readonly DependencyProperty MessageProperty = DependencyProperty.Register(
    47: public string Message
+```
+
+## src/windows/Shell/TradingTerminal.UI/Controls/CodeEditor.cs
+```cs
+   16: public sealed class CodeEditor : TextEditor
+   21: public static readonly DependencyProperty CodeProperty = DependencyProperty.Register(
+   35: public CodeEditor()
+   44: public string Code
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Controls/InjectedFormHost.cs
@@ -252,6 +260,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
     8: public sealed class StringToVisibilityConverter : IValueConverter
    10: public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
    13: public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+```
+
+## src/windows/Shell/TradingTerminal.UI/Converters/StripCodeFencesConverter.cs
+```cs
+   13: public sealed class StripCodeFencesConverter : IValueConverter
+   17: public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+   54: public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Converters/UnsignedStrategyConverter.cs

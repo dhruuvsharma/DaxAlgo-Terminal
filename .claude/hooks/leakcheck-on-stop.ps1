@@ -37,7 +37,7 @@ if ($All) {
                  ForEach-Object { $_.FullName }
     }
 } else {
-    $status = & git status --porcelain 2>$null
+    $status = & git status --porcelain --untracked-files=all 2>$null
     if (-not $status) { exit 0 }
     $changed = $status | ForEach-Object { ($_ -replace '^...').Trim() }
     $files = $changed |

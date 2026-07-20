@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Text;
 using System.Threading;
@@ -85,6 +86,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Files = [];
         Tasks = [];
 
+        // The hero empty state ↔ transcript switch watches the count; the VM owns the collection,
+        // so the self-subscription cannot outlive it.
+        Messages.CollectionChanged += OnMessagesCollectionChanged;
+
         // Backing field, not the property — the change handler resets sessions and persists, neither of
         // which applies to seeding the ctor's own default from config.
         _buildEffort = StrategyBuildEfforts.Parse(_options.BuildEffort);
@@ -117,8 +122,58 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     public bool AiEnabled => _ai is not null;
     public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
 
+    /// <summary>False until the first message lands — the canvas shows the hero empty state (brand
+    /// mark, tagline, suggestion briefs) instead of an empty transcript.</summary>
+    public bool HasConversation => Messages.Count > 0;
+
+    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+        OnPropertyChanged(nameof(HasConversation));
+
+    /// <summary>Canned first briefs for the empty state, seeded from strategy families the terminal
+    /// already ships — one click puts a real, well-formed brief in the composer to edit or send.</summary>
+    public IReadOnlyList<string> SuggestionBriefs { get; } =
+    [
+        "Fade liquidity sweeps at the prior day's low: enter when a stop-run through the level reverses within 3 bars on tape absorption, exit at VWAP with a stop below the sweep extreme.",
+        "Momentum breakout on 5-minute bars: enter on a close above the last 20-bar high with a volume surge of at least 1.5× average, trail an ATR(14) stop.",
+        "Cumulative-delta divergence reversal: when price prints a new session low but cumulative delta holds above its own low, fade the move with a fixed 1.5R target.",
+    ];
+
+    [RelayCommand]
+    private void UseSuggestion(string? brief)
+    {
+        if (!string.IsNullOrWhiteSpace(brief)) Composer = brief;
+    }
+
+    /// <summary>Collapses the session rail to an icon strip — the workspace's only chrome toggle.</summary>
+    [ObservableProperty] private bool _railCollapsed;
+
+    [RelayCommand]
+    private void ToggleRail() => RailCollapsed = !RailCollapsed;
+
+    /// <summary>Selected workbench tab: 0 Code · 1 Parameters · 2 Activity. A file chip in the chat
+    /// sets it back to Code so the click always lands on the file it names.</summary>
+    [ObservableProperty] private int _workbenchTab;
+
+    [RelayCommand]
+    private void FocusFile(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return;
+        if (Files.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } file)
+        {
+            SelectedFile = file;
+            WorkbenchTab = 0;
+        }
+    }
+
     [ObservableProperty] private string _strategyId = "myStrategy";
     [ObservableProperty] private string _displayName = "My custom strategy";
+
+    private const string DefaultStrategyId = "myStrategy";
+    private const string DefaultDisplayName = "My custom strategy";
+
+    /// <summary>True once this strategy has been registered (this session, or per the saved snapshot) —
+    /// drives the DRAFT/REGISTERED chip and the rail's status line.</summary>
+    [ObservableProperty] private bool _isRegistered;
 
     [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
     [ObservableProperty] private bool _compiledOk;
@@ -215,7 +270,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ResetSession("Switched model.");
         Persist();
         SyncModelChoice();
+        OnPropertyChanged(nameof(ModelPillText));
     }
+
+    /// <summary>What the composer's model pill reads: the unified row's label, a hand-typed id, or the
+    /// setup nudge when nothing is selectable yet.</summary>
+    public string ModelPillText =>
+        SelectedModelChoice?.Display
+        ?? (string.IsNullOrEmpty(SelectedModel)
+            ? (SelectedAiProvider?.DisplayName ?? "choose a model")
+            : SelectedModel!);
 
     partial void OnSelectedEffortChanged(CodegenEffort value)
     {
@@ -296,6 +360,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             _syncingModelChoice = false;
         }
+
+        OnPropertyChanged(nameof(ModelPillText));
     }
 
     // ── Build effort (the pipeline dial — separate from the model's reasoning effort) ───────────────
@@ -407,6 +473,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private BuildTask? _taskBrief, _taskSkills, _taskGenerate, _taskCompile, _taskAutoFix, _taskReview, _taskSmoke;
 
+    /// <summary>One-shot guards so a repeated activity string can't append the same tool card twice
+    /// within a turn. Reset by <see cref="SeedTasks"/>.</summary>
+    private bool _reviewCardEmitted, _smokeCardEmitted;
+
     /// <summary>Fresh checklist for a new turn — the optional passes appear only when the profile buys them.</summary>
     private void SeedTasks(StrategyBuildProfile profile)
     {
@@ -422,6 +492,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (_taskSmoke is not null) Tasks.Add(_taskSmoke);
 
         _taskBrief!.State = BuildTaskState.Running;
+        _reviewCardEmitted = _smokeCardEmitted = false;
+        RefreshWorkStatus();
     }
 
     /// <summary>Maps the session's activity strings onto the checklist. Prefix matching against the
@@ -454,14 +526,36 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         else if (step.StartsWith("Self-review", StringComparison.Ordinal) ||
                  step.StartsWith("The self-review", StringComparison.Ordinal))
         {
-            if (step.StartsWith("Self-review pass", StringComparison.Ordinal)) Run(_taskReview);
-            else Done(_taskReview);
+            if (step.StartsWith("Self-review pass", StringComparison.Ordinal))
+            {
+                Run(_taskReview);
+            }
+            else
+            {
+                Done(_taskReview);
+                if (!_reviewCardEmitted)
+                {
+                    _reviewCardEmitted = true;
+                    Append(AuthoringMessage.Tool("Ok", "Self-review", step));
+                }
+            }
         }
         else if (step.StartsWith("Backtest smoke", StringComparison.Ordinal))
         {
-            if (step.Contains("passed", StringComparison.Ordinal)) Done(_taskSmoke);
-            else if (step.Contains("failed", StringComparison.Ordinal)) Fail(_taskSmoke);
-            else Run(_taskSmoke);
+            if (step.Contains("passed", StringComparison.Ordinal))
+            {
+                Done(_taskSmoke);
+                EmitSmokeCard("Ok", step);
+            }
+            else if (step.Contains("failed", StringComparison.Ordinal))
+            {
+                Fail(_taskSmoke);
+                EmitSmokeCard("Fail", step);
+            }
+            else
+            {
+                Run(_taskSmoke);
+            }
         }
         else if (step.StartsWith("Still", StringComparison.Ordinal))
         {
@@ -476,6 +570,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             Fail(_taskGenerate);
         }
+
+        RefreshWorkStatus();
+    }
+
+    private void EmitSmokeCard(string state, string step)
+    {
+        if (_smokeCardEmitted) return;
+        _smokeCardEmitted = true;
+        Append(AuthoringMessage.Tool(state, "Backtest smoke", step));
     }
 
     /// <summary>Settles the checklist when the turn ends: a compiled turn closes everything that didn't
@@ -491,6 +594,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             else if (kind == BuildTurnKind.Compiled && task.State == BuildTaskState.Pending)
                 task.State = BuildTaskState.Done;
         }
+
+        RefreshWorkStatus();
     }
 
     /// <summary>A stopped/crashed turn: whatever was in flight didn't finish.</summary>
@@ -498,6 +603,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         foreach (var task in Tasks)
             if (task.State == BuildTaskState.Running) task.State = BuildTaskState.Failed;
+
+        RefreshWorkStatus();
     }
 
     private static void Run(BuildTask? task)
@@ -524,6 +631,42 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>"1m 20s elapsed…" while a turn runs. A detailed brief at a high effort is a multi-minute
     /// request; without a clock ticking, a working generation is indistinguishable from a hang.</summary>
     [ObservableProperty] private string? _elapsedText;
+
+    /// <summary>"2:41" — the session header's compact clock while a turn runs.</summary>
+    [ObservableProperty] private string? _elapsedCompact;
+
+    /// <summary>The shimmering status verb ("Writing the strategy…") — the current pipeline step,
+    /// phrased as what the agent is doing rather than as a checklist label.</summary>
+    [ObservableProperty] private string? _workingVerb;
+
+    /// <summary>"step 3 of 6" next to the verb.</summary>
+    [ObservableProperty] private string? _stepText;
+
+    /// <summary>Re-derives the verb + step counter from the checklist. Called whenever a task state
+    /// moves; null when nothing is running (which stops the shimmer).</summary>
+    private void RefreshWorkStatus()
+    {
+        var running = Tasks.FirstOrDefault(t => t.State == BuildTaskState.Running);
+        if (running is null)
+        {
+            WorkingVerb = null;
+            StepText = null;
+            return;
+        }
+
+        StepText = $"step {Tasks.IndexOf(running) + 1} of {Tasks.Count}";
+        WorkingVerb = running.Title switch
+        {
+            "Understand brief" => "Reading the brief…",
+            "Load skills" => "Loading skills…",
+            "Generate" => "Writing the strategy…",
+            "Compile" => "Compiling…",
+            "Auto-fix" => "Fixing compile errors…",
+            "Self-review" => "Self-reviewing the code…",
+            "Backtest smoke" => "Running the backtest smoke…",
+            _ => running.Title + "…",
+        };
+    }
 
     /// <summary>The model asked a question instead of writing code, and is waiting for the answer. It is
     /// a normal turn — the strategy is under-specified and it wants to know, rather than guess.</summary>
@@ -562,7 +705,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>
     /// One turn: send what the user typed (plus their hand-edits, if any), let the session generate →
     /// compile → auto-fix, and land the result in the chat, the file list and the diagnostics. It does
-    /// NOT register — the user reviews the code and presses Compile & Register, which is the consent for
+    /// NOT register — the user reviews the code and presses Compile &amp; Register, which is the consent for
     /// running model-authored code (it's already scan-gated, so a strategy that P/Invokes never compiles).
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanSend))]
@@ -583,6 +726,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var prompt = Composer.Trim();
         if (prompt.Length == 0) return;
 
+        // First brief on an untouched identity: name the strategy after what it does, not "myStrategy".
+        if (Messages.Count == 0) DeriveIdentityFrom(prompt);
+
         Composer = string.Empty;
         Append(new AuthoringMessage(CodegenRole.User, prompt));
         Activity.Clear();
@@ -594,6 +740,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // The pipeline's dial for this turn — and the checklist the right panel watches.
         var profile = StrategyBuildProfile.For(BuildEffort);
         SeedTasks(profile);
+
+        // The turn's plan, pinned into the transcript. It snapshots THIS turn's task instances, so an
+        // older card keeps its final states when the next turn re-seeds the checklist.
+        Append(AuthoringMessage.Plan([.. Tasks]));
 
         _generateCts?.Cancel();
         _generateCts?.Dispose();
@@ -628,7 +778,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             if (turn.Kind == BuildTurnKind.ProviderError)
             {
                 AiStatus = $"{choice.DisplayName} failed: {turn.Error}";
-                Append(AuthoringMessage.System(AiStatus));
+                Append(AuthoringMessage.Tool("Fail", $"{choice.DisplayName} failed", turn.Error ?? "The provider returned an error."));
                 return;
             }
 
@@ -642,12 +792,30 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             if (turn.Files.Count > 0)
             {
+                var prior = Files.ToDictionary(f => f.Name, f => f.Content, StringComparer.OrdinalIgnoreCase);
                 SetFiles(turn.Files);
                 _filesEditedByUser = false;
+                AppendFileChanges(prior, turn.Files);
             }
 
             foreach (var diagnostic in turn.Compile?.Diagnostics ?? [])
                 Diagnostics.Add(diagnostic);
+
+            // The turn's compile verdict as a card — the numbers the user actually wants at a glance.
+            if (turn.Kind == BuildTurnKind.Compiled)
+            {
+                var warnings = turn.Compile?.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning) ?? 0;
+                Append(AuthoringMessage.Tool(
+                    "Ok", "Compiled",
+                    $"{turn.Files.Count} file(s) · {turn.Generations} generation(s)" +
+                    (warnings > 0 ? $" · {warnings} warning(s)" : string.Empty)));
+            }
+            else if (turn.Kind != BuildTurnKind.Question)
+            {
+                Append(AuthoringMessage.Tool(
+                    "Fail", "Compile failed",
+                    $"{turn.Compile?.Errors.Count() ?? 0} error(s) after {turn.Generations} generation(s) — see Diagnostics"));
+            }
 
             AiStatus = turn.Kind switch
             {
@@ -685,6 +853,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             _generateCts?.Cancel();   // stops the elapsed ticker
             await ticking;
             ElapsedText = null;
+            ElapsedCompact = null;
             Save();   // a turn is expensive — never lose one to a crash or a restart
         }
     }
@@ -731,6 +900,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             while (await timer.WaitForNextTickAsync(ct))
             {
                 var elapsed = DateTime.UtcNow - started;
+                ElapsedCompact = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
                 ElapsedText = elapsed.TotalSeconds < 60
                     ? $"{elapsed.TotalSeconds:0}s elapsed…"
                     : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds:00}s elapsed — a detailed brief at a high effort takes minutes.";
@@ -769,6 +939,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             InputTokens = OutputTokens = 0;
             CompiledOk = false;
             AwaitingAnswer = false;
+            IsRegistered = false;
+            CloseReview();
+            _registeredBaseline.Clear();
+            RefreshWorkStatus();
             Parameters = null;
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
             _filesEditedByUser = false;
@@ -855,13 +1029,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             Messages.Clear();
             foreach (var entry in session.Chat)
-            {
-                Append(entry.Role == AuthoringChatEntry.System
-                    ? AuthoringMessage.System(entry.Text)
-                    : new AuthoringMessage(
-                        entry.Role == AuthoringChatEntry.User ? CodegenRole.User : CodegenRole.Assistant,
-                        entry.Text));
-            }
+                Append(FromChatEntry(entry));
 
             if (session.Files.Count > 0) SetFiles(session.Files);
 
@@ -870,6 +1038,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Diagnostics.Clear();
             CompiledOk = false;
             AwaitingAnswer = false;
+            IsRegistered = session.Registered;
+            CloseReview();
+            _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
 
             SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == session.StrategyId);
@@ -893,11 +1064,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var snapshot = new AuthoringSessionSnapshot(
             StrategyId: StrategyId.Trim(),
             DisplayName: DisplayName.Trim(),
-            Chat: [.. Messages.Select(m => new AuthoringChatEntry(
-                m.IsSystem ? AuthoringChatEntry.System
-                    : m.IsUser ? AuthoringChatEntry.User : AuthoringChatEntry.Assistant,
-                m.Text,
-                m.TimestampLocal))],
+            Chat: [.. Messages.Select(ToChatEntry)],
             // The MODEL's thread, not the chat: it also carries the compiler's auto-fix prompts, which are
             // what let a resumed conversation pick up mid-repair.
             Thread: _session?.Transcript ?? _restoredThread ?? [],
@@ -907,7 +1074,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Effort: SelectedEffort.Wire(),
             BuildEffort: BuildEffort.Wire(),
             InputTokens: InputTokens,
-            OutputTokens: OutputTokens);
+            OutputTokens: OutputTokens,
+            Registered: IsRegistered);
 
         if (!AuthoringSessionStore.Save(snapshot))
         {
@@ -918,14 +1086,36 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         RefreshSavedSessions();
     }
 
-    // ── Compile & register ──────────────────────────────────────────────────────────────────────────
+    // ── Compile & register (the review gate) ────────────────────────────────────────────────────────
 
+    /// <summary>What the review overlay shows per file. The diff baseline is the last content this
+    /// process registered for that file (empty ⇒ everything reads as added — honest for new code).</summary>
+    public ObservableCollection<ReviewFileEntry> ReviewFiles { get; } = [];
+
+    [ObservableProperty] private ReviewFileEntry? _selectedReviewFile;
+    [ObservableProperty] private bool _reviewOpen;
+    [ObservableProperty] private string? _reviewSummary;
+
+    /// <summary>Held between a clean compile and the Register click, so registering never re-compiles
+    /// different code than the user just reviewed.</summary>
+    private StrategyCompileResult? _pendingCompile;
+    private StrategyScript? _pendingScript;
+
+    /// <summary>File contents as of the last successful register (per process). Keys are file names.</summary>
+    private readonly Dictionary<string, string> _registeredBaseline = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Step 1 of consent: compile everything and, if clean, open the review overlay — per-file diffs
+    /// against what was last registered, plus the diagnostics. Registration itself only happens from
+    /// <see cref="ConfirmRegisterCommand"/> inside the overlay; there is no path around the review.
+    /// </summary>
     [RelayCommand]
     private void Compile()
     {
         Diagnostics.Clear();
         CompiledOk = false;
         Parameters = null;
+        CloseReview();
 
         if (string.IsNullOrWhiteSpace(StrategyId))
         {
@@ -961,26 +1151,81 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (result.Option.HasParameters)
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 
-        // The installer is what makes this a real strategy: the backtest registry, a card in the
-        // Strategies catalog (when the author wrote a descriptor + live VM + view), and a plugin written
-        // to the plugins folder so it is still there after a restart. Without it (Basic/Intermediate, or
-        // a test), fall back to the backtest registry alone.
-        var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
-        var caveat = warnings > 0 ? $" {warnings} capability warning(s) below." : string.Empty;
-
-        if (_installer is null)
+        ReviewFiles.Clear();
+        foreach (var file in script.Files)
         {
-            _registry.Register(result.Option);
-            Status = $"Compiled & registered '{result.Option.DisplayName}' from {Files.Count} file(s) — DEV (unsigned).{caveat}";
+            var baseline = _registeredBaseline.GetValueOrDefault(file.Name, string.Empty);
+            ReviewFiles.Add(new ReviewFileEntry(file.Name, LineDiff.Build(baseline, file.Content)));
+        }
+
+        SelectedReviewFile = ReviewFiles.FirstOrDefault();
+
+        var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
+        ReviewSummary =
+            $"{script.Files.Count} file(s), compiled clean" +
+            (warnings > 0 ? $" with {warnings} warning(s)" : string.Empty) +
+            ". It runs in-process once registered — read it first.";
+
+        _pendingCompile = result;
+        _pendingScript = script;
+        ReviewOpen = true;
+        Status = "Compiled clean — review the code, then press Register.";
+    }
+
+    /// <summary>Step 2 of consent: the actual registration, only reachable from the review overlay.
+    /// The installer makes this a real strategy (backtest registry, catalog card, plugin on disk);
+    /// without one (Basic/Intermediate, tests) it falls back to the backtest registry alone.</summary>
+    [RelayCommand]
+    private void ConfirmRegister()
+    {
+        if (_pendingCompile is not { Option: not null } result || _pendingScript is not { } script)
+        {
+            CloseReview();
             return;
         }
 
-        var install = _installer.Install(script, result);
-        Status = install.Message + caveat;
-        _logger.LogInformation(
-            "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog}",
-            result.Option.Id, Files.Count, install.InCatalog);
+        var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
+        var caveat = warnings > 0 ? $" {warnings} capability warning(s) in Diagnostics." : string.Empty;
+
+        if (_installer is null)
+        {
+            _registry.Register(result.Option!);
+            Status = $"Registered '{result.Option!.DisplayName}' from {script.Files.Count} file(s) — DEV (unsigned).{caveat}";
+        }
+        else
+        {
+            var install = _installer.Install(script, result);
+            Status = install.Message + caveat;
+            _logger.LogInformation(
+                "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog}",
+                result.Option!.Id, script.Files.Count, install.InCatalog);
+        }
+
+        _registeredBaseline.Clear();
+        foreach (var file in script.Files) _registeredBaseline[file.Name] = file.Content;
+
+        IsRegistered = true;
+        Append(AuthoringMessage.Tool("Ok", "Registered", Status ?? "The strategy is registered."));
+        CloseReview();
         Save();
+    }
+
+    /// <summary>Backs out of the review — nothing was registered, the compile result is discarded.</summary>
+    [RelayCommand]
+    private void CancelReview()
+    {
+        CloseReview();
+        Status = "Review dismissed — the strategy was NOT registered.";
+    }
+
+    private void CloseReview()
+    {
+        ReviewOpen = false;
+        ReviewFiles.Clear();
+        SelectedReviewFile = null;
+        ReviewSummary = null;
+        _pendingCompile = null;
+        _pendingScript = null;
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────────────────
@@ -1066,6 +1311,93 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         while (Activity.Count > MaxActivityRows) Activity.RemoveAt(0);
         AdvanceTasks(step);
     }
+
+    /// <summary>Per-turn "what changed" chips: line counts for every file the model wrote, against what
+    /// was in the editor before the turn. Skipped when nothing actually changed (a pure-question turn
+    /// re-sending identical files).</summary>
+    private void AppendFileChanges(IReadOnlyDictionary<string, string> prior, IReadOnlyList<StrategyFile> files)
+    {
+        var changes = new List<FileChangeSummary>(files.Count);
+        foreach (var file in files)
+        {
+            var (added, removed) = LineDiff.Count(prior.GetValueOrDefault(file.Name, string.Empty), file.Content);
+            if (added > 0 || removed > 0)
+                changes.Add(new FileChangeSummary(file.Name, added, removed));
+        }
+
+        if (changes.Count > 0) Append(AuthoringMessage.FilesChanged(changes));
+    }
+
+    /// <summary>Names an untouched strategy after its first brief: "Fade liquidity sweeps on ES…" ⇒
+    /// id <c>fadeLiquiditySweeps</c>, display name = the brief's first clause. Never fires once the
+    /// user has typed their own id or name.</summary>
+    private void DeriveIdentityFrom(string brief)
+    {
+        if (StrategyId != DefaultStrategyId || DisplayName != DefaultDisplayName) return;
+
+        var firstLine = brief.ReplaceLineEndings("\n").Split('\n')[0].Trim();
+        if (firstLine.Length == 0) return;
+
+        // Display name: the first sentence/clause, cut at a word boundary around 60 chars.
+        var clause = firstLine.Split(':', '.', ';')[0].Trim().TrimEnd(',');
+        if (clause.Length == 0) clause = firstLine;
+        if (clause.Length > 60)
+        {
+            var cut = clause.LastIndexOf(' ', 60);
+            clause = clause[..(cut > 20 ? cut : 60)].TrimEnd() + "…";
+        }
+
+        // Id: the first three meaningful words, lowerCamelCase, alphanumeric only.
+        string[] stop = ["a", "an", "the", "on", "in", "at", "of", "to", "for", "with", "and", "or", "that", "when", "using"];
+        var words = clause
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(w => new string(w.Where(char.IsLetterOrDigit).ToArray()))
+            .Where(w => w.Length > 1 && !stop.Contains(w, StringComparer.OrdinalIgnoreCase))
+            .Take(3)
+            .ToArray();
+        if (words.Length == 0) return;
+
+        var id = string.Concat(words.Select((w, i) => i == 0
+            ? w.ToLowerInvariant()
+            : char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+
+        StrategyId = id;
+        DisplayName = char.ToUpperInvariant(clause[0]) + clause[1..];
+    }
+
+    /// <summary>Chat → snapshot. Rich kinds flatten into the entry's optional fields; the expandable
+    /// tool output is intentionally dropped (summaries restore, transcripts don't bloat).</summary>
+    private static AuthoringChatEntry ToChatEntry(AuthoringMessage m) => m.Kind switch
+    {
+        AuthoringMessage.KindTool => new AuthoringChatEntry(
+            AuthoringChatEntry.System, m.ToolTitle ?? string.Empty, m.TimestampLocal,
+            Kind: m.Kind, State: m.ToolState, Detail: m.ToolDetail),
+        AuthoringMessage.KindPlan or AuthoringMessage.KindPlanText => new AuthoringChatEntry(
+            AuthoringChatEntry.System, m.PlanSnapshotText(), m.TimestampLocal, Kind: AuthoringMessage.KindPlanText),
+        AuthoringMessage.KindFiles => new AuthoringChatEntry(
+            AuthoringChatEntry.System, m.Text, m.TimestampLocal,
+            Kind: m.Kind, Detail: FileChangeSummary.Pack(m.FileChanges ?? [])),
+        _ => new AuthoringChatEntry(
+            m.IsSystem ? AuthoringChatEntry.System
+                : m.IsUser ? AuthoringChatEntry.User : AuthoringChatEntry.Assistant,
+            m.Text, m.TimestampLocal),
+    };
+
+    /// <summary>Snapshot → chat. Entries from pre-redesign files carry no Kind and restore exactly as
+    /// they always did.</summary>
+    private static AuthoringMessage FromChatEntry(AuthoringChatEntry entry) => entry.Kind switch
+    {
+        AuthoringMessage.KindTool => AuthoringMessage.Tool(entry.State ?? "Info", entry.Text, entry.Detail ?? string.Empty),
+        AuthoringMessage.KindPlanText => AuthoringMessage.PlanText(entry.Text),
+        AuthoringMessage.KindFiles when FileChangeSummary.Unpack(entry.Detail) is { Count: > 0 } changes =>
+            AuthoringMessage.FilesChanged(changes),
+        AuthoringMessage.KindFiles => AuthoringMessage.System(entry.Text),
+        _ => entry.Role == AuthoringChatEntry.System
+            ? AuthoringMessage.System(entry.Text)
+            : new AuthoringMessage(
+                entry.Role == AuthoringChatEntry.User ? CodegenRole.User : CodegenRole.Assistant,
+                entry.Text),
+    };
 
     private void PersistSelection(string providerId, string? model, CodegenEffort effort)
     {
@@ -1153,35 +1485,134 @@ public sealed partial class AuthoredFile(string name, string content) : Observab
     [ObservableProperty] private string _content = content;
 }
 
-/// <summary>One bubble in the chat: what the user asked, what the model answered, or a note from the
-/// builder itself (a provider failure, a switched provider).</summary>
+/// <summary>
+/// One element of the agent-workspace transcript. <see cref="Kind"/> is a string (not an enum) on
+/// purpose: the shared XAML templates live in TradingTerminal.UI, which cannot reference this
+/// assembly, so every template trigger is duck-typed against these values:
+/// <c>User</c> / <c>Assistant</c> / <c>Note</c> (a builder aside) / <c>Tool</c> (a one-line action
+/// card) / <c>Plan</c> (the live turn checklist) / <c>PlanText</c> (a restored plan snapshot) /
+/// <c>Files</c> (per-file change chips).
+/// </summary>
 public sealed partial class AuthoringMessage : ObservableObject
 {
+    public const string KindUser = "User";
+    public const string KindAssistant = "Assistant";
+    public const string KindNote = "Note";
+    public const string KindTool = "Tool";
+    public const string KindPlan = "Plan";
+    public const string KindPlanText = "PlanText";
+    public const string KindFiles = "Files";
+
     public AuthoringMessage(CodegenRole role, string text)
     {
         Role = role;
+        Kind = role == CodegenRole.User ? KindUser : KindAssistant;
         _text = text;
     }
 
-    private AuthoringMessage(string text)
+    private AuthoringMessage(string kind, string text)
     {
         Role = CodegenRole.Assistant;
-        IsSystem = true;
+        IsSystem = kind is not (KindUser or KindAssistant);
+        Kind = kind;
         _text = text;
     }
 
     /// <summary>A builder-generated note, styled apart from the model's own words.</summary>
-    public static AuthoringMessage System(string? text) => new(text ?? string.Empty);
+    public static AuthoringMessage System(string? text) => new(KindNote, text ?? string.Empty);
+
+    /// <summary>An action card: <paramref name="state"/> is "Ok" / "Fail" / "Run" / "Info" (duck-typed
+    /// by the templates), <paramref name="detail"/> the numbers worth reading at a glance,
+    /// <paramref name="more"/> the expandable full output.</summary>
+    public static AuthoringMessage Tool(string state, string title, string detail, string? more = null) =>
+        new(KindTool, title)
+        {
+            ToolState = state,
+            ToolTitle = title,
+            ToolDetail = detail,
+            ToolMore = string.IsNullOrWhiteSpace(more) ? null : more,
+        };
+
+    /// <summary>The turn's live checklist — holds THIS turn's task instances, whose states keep
+    /// animating in place while the pipeline runs and then freeze as history.</summary>
+    public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
+        new(KindPlan, string.Empty) { PlanTasks = tasks };
+
+    /// <summary>A plan restored from disk — glyph lines, no live states.</summary>
+    public static AuthoringMessage PlanText(string text) => new(KindPlanText, text);
+
+    public static AuthoringMessage FilesChanged(IReadOnlyList<FileChangeSummary> changes) =>
+        new(KindFiles, string.Join(" · ", changes.Select(c => $"{c.Name} {c.Counts}")))
+        {
+            FileChanges = changes,
+        };
 
     public CodegenRole Role { get; }
     public bool IsSystem { get; }
+    public string Kind { get; }
     public bool IsUser => !IsSystem && Role == CodegenRole.User;
     public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
 
-    /// <summary>Observable so Phase 3's streaming can grow the bubble token by token.</summary>
+    public string? ToolState { get; private init; }
+    public string? ToolTitle { get; private init; }
+    public string? ToolDetail { get; private init; }
+    public string? ToolMore { get; private init; }
+    public bool HasMore => !string.IsNullOrEmpty(ToolMore);
+
+    public IReadOnlyList<BuildTask>? PlanTasks { get; private init; }
+    public IReadOnlyList<FileChangeSummary>? FileChanges { get; private init; }
+
+    /// <summary>The live plan flattened to glyph lines for persistence (and for a restored render).</summary>
+    public string PlanSnapshotText() => PlanTasks is null
+        ? Text
+        : string.Join("\n", PlanTasks.Select(t => t.State switch
+        {
+            BuildTaskState.Done => $"✓ {t.Title}",
+            BuildTaskState.Failed => $"✕ {t.Title}",
+            BuildTaskState.Running => $"◐ {t.Title}",
+            _ => $"○ {t.Title}",
+        }));
+
+    /// <summary>Observable so streaming can grow the bubble token by token.</summary>
     [ObservableProperty] private string _text;
 
     public DateTime TimestampLocal { get; } = DateTime.Now;
+}
+
+/// <summary>One file's change counts for the per-turn chips ("SweepDetector.cs +64 −8").</summary>
+public sealed record FileChangeSummary(string Name, int Added, int Removed)
+{
+    public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+
+    /// <summary>Machine form for the session snapshot ("name|added|removed;…").</summary>
+    public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
+        string.Join(";", changes.Select(c => $"{c.Name}|{c.Added}|{c.Removed}"));
+
+    public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
+    {
+        if (string.IsNullOrWhiteSpace(packed)) return null;
+
+        var changes = new List<FileChangeSummary>();
+        foreach (var part in packed.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = part.Split('|');
+            if (fields.Length == 3 && int.TryParse(fields[1], out var added) && int.TryParse(fields[2], out var removed))
+                changes.Add(new FileChangeSummary(fields[0], added, removed));
+        }
+
+        return changes.Count > 0 ? changes : null;
+    }
+}
+
+/// <summary>One file in the review overlay: its full diff against the last registered content, plus
+/// the +/− counts for the file strip.</summary>
+public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
+{
+    public string Name { get; } = name;
+    public IReadOnlyList<DiffLine> Lines { get; } = lines;
+    public int Added { get; } = lines.Count(l => l.Kind == "add");
+    public int Removed { get; } = lines.Count(l => l.Kind == "del");
+    public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
 }
 
 /// <summary>One row in the AI provider picker — wraps a codegen client with display + availability for

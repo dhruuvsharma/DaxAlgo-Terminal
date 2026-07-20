@@ -1,6 +1,6 @@
 # index/UI — per-file index (Windows tree)
 
-Generated 2026-07-17. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated from the current source tree. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -11,8 +11,9 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/UI/TradingTerminal.Settings/Archive/TelegramArchiveCredentialProtection.cs` | 50 | win | TradingTerminal.Settings | B I P | Y | Protection helpers for Telegram archive credentials. On Windows the secret is encrypted |
 | `src/windows/UI/TradingTerminal.Settings/Authoring/AiCodegenUserFile.cs` | 92 | win | TradingTerminal.Settings | B I P | Y | Absolute path to |
 | `src/windows/UI/TradingTerminal.Settings/Authoring/AiProvidersSettingsViewModel.cs` | 100 | win | TradingTerminal.Settings | B I P | Y | Store (or clear, when blank) the pasted key for a provider, DPAPI-encrypted. |
-| `src/windows/UI/TradingTerminal.Settings/Authoring/AuthoringSessionStore.cs` | 152 | win | TradingTerminal.Settings | B I P | Y | One bubble as the user saw it. Kept separately from the model |
-| `src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 1214 | win | TradingTerminal.Settings | B I P | Y | Keeps the activity strip and the chat from growing without bound over |
+| `src/windows/UI/TradingTerminal.Settings/Authoring/AuthoringSessionStore.cs` | 161 | win | TradingTerminal.Settings | B I P | Y | One bubble as the user saw it. Kept separately from the model |
+| `src/windows/UI/TradingTerminal.Settings/Authoring/LineDiff.cs` | 94 | win | TradingTerminal.Settings | B I P | Y | One line of a rendered diff: |
+| `src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs` | 1645 | win | TradingTerminal.Settings | B I P | Y | Keeps the activity strip and the chat from growing without bound over |
 | `src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs` | 226 | win | TradingTerminal.Settings | B I P | Y | Per-provider default text/vision model ids, pre-filled when the user picks a provider |
 | `src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsUserFile.cs` | 84 | win | TradingTerminal.Settings | B I P | Y | Writes the notifications section, preserving any other keys that may exist. |
 | `src/windows/UI/TradingTerminal.Settings/Research/ResearchSettingsViewModel.cs` | 106 | win | TradingTerminal.Settings | B I P | Y | When on, the app launches the Python sidecar itself on startup (no |

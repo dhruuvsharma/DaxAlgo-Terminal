@@ -1,12 +1,12 @@
 # TradingTerminal.OrderBook — DOM window + micro-ML forecaster
 
-**Path** `src/windows/Charts/TradingTerminal.OrderBook/` · 2,088 LOC / 6 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Charts/TradingTerminal.OrderBook/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** Depth-of-market ladder with the online-RLS micro-forecaster (microprice path
 250ms–5s + spread/depth/sweep event probabilities vs queue-imbalance baseline; violet gutter
 path + chips; warm-start from stored L2 via `DepthStepSampler`).
 
-**Key files.** `OrderBookViewModel.cs` (1,119 LOC — grep + ranged reads only),
+**Key files.** `OrderBookViewModel.cs` (grep + ranged reads only),
 `OrderBookWindow.xaml(.cs)` (485/415). ML math: `Core/Ml/OrderBookMicroPredictor.cs` (527) —
 surface in `symbols/Core-Ml.md`. **DI** `Add…Surface` ext in project. **Surface** `symbols/OrderBook.md`.
 

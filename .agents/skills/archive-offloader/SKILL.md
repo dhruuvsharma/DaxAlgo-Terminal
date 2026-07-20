@@ -1,6 +1,6 @@
 ---
 name: archive-offloader
-description: Telegram-backed archive offloader for the canonical market-data store — parquet bundling, 2 GB split-binary parts, sha256 verification, manifest store, retention pruning. Use when touching src/TradingTerminal.MarketData/Archive/, adding store tables to the bundle, changing the archive schedule, swapping the Telegram transport for another backend, or debugging archive/restore round-trips.
+description: Telegram-backed archive offloader for the canonical market-data store — parquet bundling, 2 GB split-binary parts, sha256 verification, manifest store, retention pruning. Use when touching src/windows/Pipeline/TradingTerminal.MarketData/Archive/, adding store tables to the bundle, changing the archive schedule, swapping the Telegram transport for another backend, or debugging archive/restore round-trips.
 ---
 
 # Archive Offloader
@@ -47,10 +47,11 @@ When [market-data-pipeline](../market-data-pipeline/SKILL.md) gains a new table:
 
 ## Reference reads
 
-- `src/TradingTerminal.MarketData/Archive/ArchiveBundleBuilder.cs`
-- `src/TradingTerminal.MarketData/Archive/MarketDataArchiver.cs`
-- `src/TradingTerminal.MarketData/Archive/Telegram/TelegramArchiveTransport.cs`
-- `src/TradingTerminal.MarketData/Archive/ArchiveScheduleService.cs`
-- `src/TradingTerminal.App/Archive/` — settings + activity views.
+- `src/windows/Pipeline/TradingTerminal.MarketData/Archive/ArchiveBundleBuilder.cs`
+- `src/windows/Pipeline/TradingTerminal.MarketData/Archive/MarketDataArchiver.cs`
+- `src/windows/Pipeline/TradingTerminal.MarketData/Archive/Telegram/TelegramArchiveTransport.cs`
+- `src/windows/Pipeline/TradingTerminal.MarketData/Archive/ArchiveScheduleService.cs`
+- `src/windows/UI/TradingTerminal.Settings/Archive/` — shared settings/activity view-models.
+- `src/windows/Shell/TradingTerminal.App.Basic/Archive/` and `TradingTerminal.App.Intermediate/Archive/` — edition views and Telegram auth plumbing.
 
 See also: [market-data-pipeline](../market-data-pipeline/SKILL.md), [[project-market-data-archive]] (memory).

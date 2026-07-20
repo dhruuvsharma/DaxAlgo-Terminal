@@ -25,7 +25,7 @@ our own words and tailored to this repo's conventions. **No external skill is ve
   - weak: "Conventions for the market-data pipeline."
   - strong: "…Use when adding store tables, changing ingest normalization, wiring trade-tape into
     a broker, or debugging 'no data'/'duplicate ticks'/'wrong timestamps', or touching anything
-    under src/TradingTerminal.MarketData/."
+    under src/windows/Pipeline/TradingTerminal.MarketData/."
 - **Body** — the recipe: terse, imperative, example-driven. The *why* only where non-obvious.
 
 ## House style for DaxAlgo skills

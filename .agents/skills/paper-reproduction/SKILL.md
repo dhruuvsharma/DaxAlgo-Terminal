@@ -1,78 +1,58 @@
 ---
 name: paper-reproduction
-description: The recipe for the Paper Lab pipeline — turn a research paper into a queued, sandboxed reproduction whose outputs bridge into the backtest engine as a paper-tagged strategy (autoarxiv-style, scoped to quant/trading papers). Use when touching src/TradingTerminal.Core/Research/, src/TradingTerminal.Infrastructure/Research/, the TradingTerminal.Ai.PaperLab window, IReproOrchestrator/IReproJobStore/IReproSignalBridge/ReproducedSignalStrategyKernel, or whenever the user asks to read/implement/experiment/test/reproduce/replicate a paper as a tradeable strategy. Pair with untrusted-execution (sandbox) and paper-ingestion (arXiv seam).
+description: "Implement or maintain research-paper reproduction in DaxAlgo Terminal: paper ingestion, queued sandbox jobs, provenance-preserving signal bridges, confidence scoring, and backtest integration. Use for Windows backend work under src/windows/Core/TradingTerminal.Core/Research/ or src/windows/Pipeline/TradingTerminal.Infrastructure/Research/, or for the separate Linux PaperLab UI. Always load paper-ingestion and untrusted-execution; never assume the Windows and Linux trees share UI or implementations."
 ---
 
-# Paper Reproduction (Paper Lab)
+# Paper Reproduction
 
-Turn a paper URL into a **queued, sandboxed reproduction job** whose outputs (signals / weights /
-predictions) bridge into the canonical backtest engine as a **paper-tagged strategy**. The desktop
-app is a thin client over a scalable reproduction backend. Precedent for the *output* shape: the
-clean-room FilteredOrderFlow strategy (arXiv:2507.22712) — the bridged result is signal data + our
-kernel, **not** vendored paper code.
+Turn a research paper into a queued, sandboxed reproduction whose validated outputs can feed the
+backtest engine. Bridge signals and provenance; never vendor or execute paper code inside the host.
 
-## The pipeline (4 stages, hardest last)
+## Choose the tree first
 
-1. **Ingest** — paper URL → `PaperRef` + candidate `RepoRef[]`. Seam `IPaperIngestClient` (Null/Http,
-   subprocess + HTTP/JSON, `127.0.0.1` only). See the `paper-ingestion` skill.
-2. **Resolve + run** — clone the repo at a pinned commit, resolve its environment, run a **minimal
-   reproduction**, estimate **full replication cost**. Runs ONLY inside a sandbox — see the
-   `untrusted-execution` skill. Seam `ISandboxRunner`.
-3. **Bridge** — map the reproduced outputs onto `InstrumentId`-keyed `ReproducedSignal`s, replayed
-   through a `ReproducedSignalStrategyKernel : IStrategyKernel`. Seam `IReproSignalBridge`.
-4. **Score + save** — `IReplicationConfidenceScorer` → `ReplicationConfidence`; register a paper-repro
-   `BacktestStrategyOption` (with `ResearchPaperUrl`) so it shows in the Studio catalog with the
-   clickable paper pill.
+- Windows backend: `src/windows/Core/TradingTerminal.Core/Research/` and
+  `src/windows/Pipeline/TradingTerminal.Infrastructure/Research/`.
+- Linux backend: the equivalent `src/linux/Core/` and `src/linux/Pipeline/` paths; verify independently.
+- PaperLab UI: `src/linux/AI/TradingTerminal.Ai.PaperLab/` only, composed by the Avalonia shell.
 
-## Layer placement (do not break the graph)
+There is no Windows PaperLab project. A Windows backend change does not authorize Linux UI changes,
+and a Linux UI change must use the Linux context layer and Avalonia contracts.
 
-- **All domain types + seams in `Core/Research/`** — records/enums + interfaces only, SDK-free.
-  `PaperRef`, `RepoRef`, `EnvHash`, `ReproSpec`, `ReproJob`(+`ReproStatus`), `ReproResult`,
-  `ReplicationConfidence`, `ReplicationCostEstimate`, `SandboxKind`, `SandboxQuota`, `SandboxPolicy`,
-  `ReproducedSignal`. Options in `Core/Configuration/` (`ResearchReproOptions`, `SandboxOptions`).
-- **Concretes in `Infrastructure/Research/`** — SQLite store, HTTP/process clients, the sandbox
-  runner, the bridge, the confidence scorer, the `ReproducedSignalStrategyKernel`. Third-party paper
-  code NEVER touches the C# build — it runs inside the container/VM.
-- **Window `TradingTerminal.Ai.PaperLab/`** — mirrors `TradingTerminal.Ai.MarketAnalyst` (transient
-  VM+View, `AddPaperLab()`, opened via `OpenHostedTool<…>` from `MainWindowViewModel`). References
-  Core/UI/Infrastructure only.
-- **`App` wires concretes** — `AddPaperResearch(config)` + `AddPaperLab()` + one menu command. No
-  shell `switch` edits (OCP).
+## Pipeline
 
-## Patterns to clone (don't re-derive)
+1. Ingest a paper URL into `PaperRef` and pinned `RepoRef` candidates through
+   `IPaperIngestClient`; keep sidecars on `127.0.0.1`.
+2. Resolve the environment and run a minimal reproduction only through `ISandboxRunner`; enforce
+   quotas, cancellation and deny-by-default egress.
+3. Validate declared artifacts and map them to `InstrumentId`-keyed `ReproducedSignal`s through
+   `IReproSignalBridge`.
+4. Score confidence, retain paper/repository/environment provenance, and expose a paper-tagged
+   backtest option through the existing strategy/backtest seams.
 
-| Need | Clone from |
-|---|---|
-| Null/Http seam, never-throw contract | `IAiAnalystClient` / `HttpAiAnalystClient` |
-| SQLite manifest + sha256 + retention + cache lookup | `ArchiveManifestStore` (namespace `TradingTerminal.Infrastructure.MarketData.Archive`, lives in Infrastructure) |
-| Process spawn / timeout / kill-process-tree | `LeanProcessRunner` (`src/TradingTerminal.QuantConnect/`) |
-| Strategy reaches the engine | `IStrategyKernel` + `StrategyKernelRegistry` + `BacktestStrategyOption.BacktestBuild`/`CreateForBacktest` |
-| Runtime "save as strategy" into the catalog | `StrategyAuthoringViewModel` registration path |
-| Status without polling | `IObservable<ReproJob>` (Rx), like `IObservable<ConnectionState>` |
+## Layer placement
 
-## Scalability contract (the point of this feature)
+- Put records, enums, options and interfaces in that tree's Core Research/Configuration folders.
+- Put stores, clients, orchestrators, sandbox runners, bridges and scorers in that tree's
+  Infrastructure Research folder.
+- Keep Python/native environment logic in `tools/python-ml/`; C# orchestrates over process or
+  loopback HTTP boundaries.
+- Keep Linux PaperLab as a thin client over those seams. Do not move UI types into Core or Pipeline.
 
-- **Job model**: async, queued, cancellable, status-streamed; `LocalReproOrchestrator` requeues
-  unfinished jobs from `IReproJobStore` on startup (survives app restart).
-- **Cache**: keyed by `(arXiv id, repo commit, config hash)` — `FindCovering`-style lookup before
-  submit; identical spec returns the cached `ReproResult`, no new container.
-- **Pluggable backend**: `ISandboxRunner` (Docker now; WSL2 / `HttpReproOrchestrator` remote-pool
-  later) — the orchestrator/runner seams already abstract local-vs-remote so the backend can move
-  off-machine with **no UI change**.
-- **Budget**: `ReplicationCostEstimate` gates the "run full replication" button; quotas enforced.
-- **Provenance everywhere**: paper id + repo commit + env hash + confidence ride on `ReproResult`
-  and every `ReproducedSignal` — never strip (same discipline as canonical market-data records).
+## Reliability and scale
 
-## What NOT to do
+- Queue jobs asynchronously; stream status; make cancellation idempotent; requeue unfinished work
+  from `IReproJobStore` after restart.
+- Cache by paper identity, pinned repository commit and configuration hash before launching a runner.
+- Run a minimal reproduction before a budget-approved full replication.
+- Preserve paper ID, commit, environment hash, artifacts and confidence on results and signals.
+- Fold expected external failures into explicit failed/unavailable results rather than crashing the UI.
 
-- Don't run paper code in-process or let it reach the canonical store / credentials — only via
-  `ISandboxRunner` (see `untrusted-execution`).
-- Don't add Python/native deps to the C# build — env-resolution + LLM logic live in the sidecar
-  (`tools/python-ml/`); C# only orchestrates over HTTP/JSON.
-- Don't add a live order path — the reproduced strategy reaches the engine only through
-  `IStrategyKernel`; data/signals only.
-- Don't silently trust a low-fidelity run — surface `ReplicationConfidence`; fail loudly when the
-  reproduced signal needs data the engine feed can't supply (depth / full tape), mirroring the
-  trade-tape capability check.
-- Don't vendor the paper's repo code into the tree — bridge the *signal*, credit the source, keep
-  the clean-room rule.
+## Security invariants
+
+- Execute untrusted code only in the configured container/VM/WSL boundary.
+- Never mount credentials, the canonical store, user profiles or broad host paths.
+- Apply CPU, memory, process, disk and wall-clock limits; kill the complete process tree.
+- Accept output only through declared, validated artifacts.
+- Never add a live order path; reproduced output is data/signals for backtesting.
+
+When cloning process-lifetime behavior, verify the implementation in the selected tree first.

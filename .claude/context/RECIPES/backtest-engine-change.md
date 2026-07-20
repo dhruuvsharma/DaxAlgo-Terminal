@@ -15,7 +15,8 @@ Checklist:
    strategy + every plugin's engine kernel recompiles — check `deps.json` blast radius first.
 3. UI consumers: Tools→Backtest window (`TradingTerminal.Backtest`, incl. Quick backtest) and
    `TradingTerminal.BacktestStudio`.
-4. The headless CLI's Windows copy lives in the PRIVATE Pro repo — flag CLI impact for Dhruv;
+4. A consuming overlay may add a headless CLI; use the active workspace context to identify and
+   report that downstream impact without copying overlay implementation here.
    the Linux tree still carries its own CLI copy.
 5. Fees/fills/risk changes need numeric tests: `--filter "FullyQualifiedName~Backtest"`.
 

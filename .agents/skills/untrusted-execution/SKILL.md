@@ -1,6 +1,6 @@
 ---
 name: untrusted-execution
-description: Security playbook for running third-party / untrusted code (research-paper repos, user-supplied scripts) inside DaxAlgo Terminal. Deny-by-default sandbox (Docker / WSL2 / VM), egress allowlist, CPU/RAM/pids/disk/wall-clock quotas, no host mounts of the canonical store or credentials, kill-the-process-tree, never exec in-process. Use whenever editing src/TradingTerminal.Infrastructure/Research/Sandbox/, ISandboxRunner, SandboxPolicy/SandboxQuota, the Paper Lab repro engine, or designing ANY feature that executes code the user did not write. This is a security subsystem, not a feature — read it before weakening any isolation.
+description: Security playbook for running third-party or user-supplied code inside DaxAlgo Terminal. Use when editing src/windows/Pipeline/TradingTerminal.Infrastructure/Research/Sandbox/, the tree-equivalent Linux sandbox, ISandboxRunner, SandboxPolicy/SandboxQuota, paper reproduction, or any feature that executes untrusted code. Enforces deny-by-default isolation, egress controls, quotas, safe process-tree termination, and no access to host stores or credentials.
 ---
 
 # Untrusted Execution (the sandbox)

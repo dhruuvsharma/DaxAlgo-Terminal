@@ -1,6 +1,6 @@
 # TradingTerminal.AdvancedMarketRegime — regime composite window
 
-**Path** `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/` · 818 LOC / 5 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** The advanced market-regime tool (the old MarketRegime/InstrumentRegime windows were
 removed): composite of FRED + Yahoo + Fear&Greed + AAII + per-instrument analyzers; grid of

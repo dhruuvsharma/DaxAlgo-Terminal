@@ -1,464 +1,658 @@
-﻿<UserControl x:Class="TradingTerminal.App.Authoring.StrategyAuthoringView"
+<UserControl x:Class="TradingTerminal.App.Authoring.StrategyAuthoringView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2006"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
+             xmlns:uicontrols="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+             xmlns:converters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
              mc:Ignorable="d"
-             d:DesignHeight="760" d:DesignWidth="1320"
+             d:DesignHeight="800" d:DesignWidth="1380"
              Background="{DynamicResource Background.Primary}"
              Foreground="{DynamicResource Text.Primary}">
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════
+         VIBE QUANT — the agent workspace (issue #29). Three regions: session rail · agent
+         canvas (document transcript + cockpit composer) · workbench (identity, review gate,
+         Code/Parameters/Activity). All VQ.* styles/templates come from the app-merged
+         TradingTerminal.UI/Themes/VibeQuantStyles.xaml; this file is layout + typed wiring.
+         ═══════════════════════════════════════════════════════════════════════════════════ -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="B2V" />
+        <converters:StringToVisibilityConverter x:Key="S2V" />
+    </UserControl.Resources>
 
-        <!-- Chat bubbles: the user's turn, the model's reply, and the builder's own notes (a provider
-             failure, a switched provider) — distinguished by background, not by a label. -->
-        <DataTemplate x:Key="ChatBubble">
-            <Border Margin="0,3" Padding="9,7" CornerRadius="0" BorderThickness="1"
-                    HorizontalAlignment="Stretch"
-                    Background="{DynamicResource Background.Elevated}"
-                    BorderBrush="{DynamicResource Border.Brush}">
-                <Border.Style>
-                    <Style TargetType="Border">
+    <Grid>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="390" MinWidth="320" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ═══ Session rail ═══════════════════════════════════════════════════════════ -->
+            <Border Grid.Column="0">
+                <Border.Resources>
+                    <Style x:Key="RailPanel" TargetType="FrameworkElement">
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsUser}" Value="True">
-                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
-                                <Setter Property="Margin" Value="56,3,0,3" />
+                            <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding IsSystem}" Value="True">
-                                <Setter Property="BorderBrush" Value="{DynamicResource Warning.Brush}" />
-                                <Setter Property="Background" Value="Transparent" />
+                        </Style.Triggers>
+                    </Style>
+                </Border.Resources>
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource VQ.RailBorder}">
+                        <Setter Property="Width" Value="234" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
+                                <Setter Property="Width" Value="48" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                        <Border CornerRadius="0" Padding="5,0" Background="{DynamicResource Background.Surface}">
-                            <TextBlock FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Text.Secondary}">
+
+                <DockPanel Margin="10,12,10,10">
+                    <!-- Brand + collapse toggle -->
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource VQ.HeroMark}" Width="26" Height="26">
+                                <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="10"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Margin="9,0,0,0" VerticalAlignment="Center"
+                                        Style="{StaticResource RailPanel}">
+                                <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13"
+                                           Foreground="{DynamicResource Text.Header}" />
+                                <TextBlock Text="AI strategy builder" FontSize="9"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Padding="4,0"
+                                Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                                Command="{Binding ToggleRailCommand}"
+                                ToolTip="Collapse / expand the session rail">
+                            <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="ASSISTANT" />
+                                        <Setter Property="Text" Value="⟨" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsUser}" Value="True">
-                                                <Setter Property="Text" Value="YOU" />
-                                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" /></DataTrigger>
-                                            <DataTrigger Binding="{Binding IsSystem}" Value="True">
-                                                <Setter Property="Text" Value="BUILDER" />
-                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
+                                                <Setter Property="Text" Value="⟩" />
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                        </Button>
+                    </Grid>
+
+                    <Button DockPanel.Dock="Top" Style="{StaticResource VQ.NewButton}" Margin="0,0,0,10"
+                            Command="{Binding NewChatCommand}"
+                            ToolTip="Start a fresh strategy conversation — the current one stays in the rail.">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="＋  New strategy" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
+                                            <Setter Property="Text" Value="＋" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+
+                    <!-- Provider health footer -->
+                    <StackPanel DockPanel.Dock="Bottom" Style="{StaticResource RailPanel}"
+                                Margin="0,8,0,0">
+                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
+                                Padding="0,7,0,0">
+                            <StackPanel>
+                                <TextBlock Text="PROVIDERS" Style="{StaticResource VQ.SectionLabel}"
+                                           Margin="0,0,0,4" />
+                                <ItemsControl ItemsSource="{Binding AiProviders}"
+                                              ItemTemplate="{StaticResource VQ.ProviderRow}" />
+                            </StackPanel>
                         </Border>
-                        <TextBlock FontSize="10" Opacity="0.55" Margin="8,0,0,0" VerticalAlignment="Center"
-                                   Text="{Binding TimestampLocal, StringFormat=HH:mm:ss, Mode=OneWay}" />
                     </StackPanel>
-                    <!-- Selectable: the reply is the model's reasoning + code, and the user will want to
-                         copy from it. -->
-                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                             Background="Transparent" TextWrapping="Wrap"
-                             FontFamily="Consolas" FontSize="12"
-                             Foreground="{DynamicResource Text.Primary}" />
-                </StackPanel>
-            </Border>
-        </DataTemplate>
 
-        <!-- One build task in the right-panel checklist. The glyph + colour track its live state. -->
-        <DataTemplate x:Key="TaskRow">
-            <Grid Margin="0,2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="20" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="○" />
-                            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding State}" Value="Running">
-                                    <Setter Property="Text" Value="◐" />
-                                    <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" /></DataTrigger>
-                                <DataTrigger Binding="{Binding State}" Value="Done">
-                                    <Setter Property="Text" Value="✓" />
-                                    <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger>
-                                <DataTrigger Binding="{Binding State}" Value="Failed">
-                                    <Setter Property="Text" Value="✕" />
-                                    <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" /></DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-                <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center"
-                           FontSize="11.5" Foreground="{DynamicResource Text.Primary}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding State}" Value="Pending">
-                                    <Setter Property="Opacity" Value="0.55" /></DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Grid>
-        </DataTemplate>
-
-        <!-- One row in the "all models" picker: the model id (or a vendor-default note) plus a provider
-             pill. Unavailable providers (no key / CLI not installed) render dimmed. -->
-        <DataTemplate x:Key="ModelRow">
-            <Border x:Name="Root" Background="Transparent">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding ModelId}" VerticalAlignment="Center"
-                               FontFamily="Consolas" Foreground="{DynamicResource Text.Primary}" />
-                    <TextBlock Text="(provider default)" VerticalAlignment="Center" Opacity="0.7" FontStyle="Italic">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ModelId}" Value="">
-                                        <Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <Border CornerRadius="0" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center"
-                            Background="{DynamicResource Background.Surface}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                        <TextBlock Text="{Binding ProviderLabel}" FontSize="9.5" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource Accent.Brush}" />
-                    </Border>
-                </StackPanel>
-            </Border>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding IsAvailable}" Value="False">
-                    <Setter TargetName="Root" Property="Opacity" Value="0.45" />
-                </DataTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
-    </UserControl.Resources>
-
-    <DockPanel Margin="8">
-
-        <!-- ── Identity + the compile gate. Compile & Register is the consent click for running
-             model-authored code (already scan-gated by the plugin-loader policy). ────────────────── -->
-        <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="10,8" CornerRadius="0"
-                Background="{DynamicResource Gradient.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="150" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <Border Width="3" Height="15" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
-                    <TextBlock Text="VIBE QUANT" FontWeight="Bold" FontSize="13"
-                               Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
-                    <TextBlock Text="describe it · watch it get built" FontSize="10" Opacity="0.6"
-                               Margin="10,0,0,0" VerticalAlignment="Center" />
-                </StackPanel>
-                <TextBlock Grid.Column="1" Text="Id:" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <TextBox Grid.Column="2" Text="{Binding StrategyId, UpdateSourceTrigger=PropertyChanged}"
-                         VerticalAlignment="Center" />
-                <TextBlock Grid.Column="3" Text="Name:" VerticalAlignment="Center" Margin="12,0,4,0" />
-                <TextBox Grid.Column="4" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
-                         VerticalAlignment="Center" />
-                <Button Grid.Column="5" Content="Compile &amp; Register" Padding="14,5" Margin="12,0,0,0"
-                        Command="{Binding CompileCommand}"
-                        ToolTip="Compile every file and add the strategy — it runs in-process, so review the code first." />
-            </Grid>
-        </Border>
-
-        <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" Margin="2,0,0,6"
-                   TextWrapping="Wrap" FontStyle="Italic" Foreground="{DynamicResource Text.Secondary}" />
-
-        <!-- ── The three panes: Projects · Chat · Tasks/Code/Parameters ───────────────────────────── -->
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="230" MinWidth="170" />
-                <ColumnDefinition Width="5" />
-                <ColumnDefinition Width="*" MinWidth="360" />
-                <ColumnDefinition Width="5" />
-                <ColumnDefinition Width="400" MinWidth="300" />
-            </Grid.ColumnDefinitions>
-
-            <!-- ═══ LEFT · Projects (each saved strategy chat is a project) ═══════════════════════════ -->
-            <Border Grid.Column="0" CornerRadius="0" BorderThickness="1"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}">
-                <DockPanel Margin="8">
-                    <Border DockPanel.Dock="Top" Padding="0,0,0,7" Margin="0,0,0,7"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
-                        <Grid>
-                            <TextBlock Text="PROJECTS" FontWeight="Bold" FontSize="11"
-                                       Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
-                            <Button Content="+ New" Padding="8,2" HorizontalAlignment="Right"
-                                    Command="{Binding NewChatCommand}"
-                                    ToolTip="Start a fresh strategy. Give it a new id before sending." />
-                        </Grid>
-                    </Border>
-
-                    <Button DockPanel.Dock="Bottom" Content="Delete project" Padding="8,3" Margin="0,7,0,0"
-                            Command="{Binding DeleteSavedSessionCommand}"
-                            CommandParameter="{Binding SelectedSavedSession}"
-                            ToolTip="Forget this conversation. A registered strategy is untouched." />
-
+                    <!-- Saved sessions -->
                     <ListBox ItemsSource="{Binding SavedSessions}"
                              SelectedItem="{Binding SelectedSavedSession}"
-                             BorderThickness="0" Background="Transparent"
                              HorizontalContentAlignment="Stretch"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Border Padding="7,6" Margin="0,2" CornerRadius="0"
-                                        Background="{DynamicResource Background.Elevated}"
-                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource Text.Header}" />
-                                        <TextBlock Text="{Binding StrategyId}" FontSize="10"
-                                                   Foreground="{DynamicResource Text.Highlight}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding Age}" FontSize="10" Opacity="0.6"
-                                                   Foreground="{DynamicResource Text.Secondary}" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ItemContainerStyle="{StaticResource VQ.SessionItem}"
+                             ItemTemplate="{StaticResource VQ.SessionTemplate}">
+                        <ListBox.Style>
+                            <Style TargetType="ListBox">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.Style>
                     </ListBox>
                 </DockPanel>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
-                          Background="Transparent" />
-
-            <!-- ═══ MIDDLE · Chat ════════════════════════════════════════════════════════════════════ -->
-            <Border Grid.Column="2" CornerRadius="0" BorderThickness="1"
-                    Background="{DynamicResource Background.Surface}"
-                    BorderBrush="{DynamicResource Border.Brush}">
-                <DockPanel Margin="10" Visibility="{Binding AiEnabled, Converter={StaticResource B2V}}">
-
-                    <!-- Model + effort strip. Two rows so nothing is clipped. -->
-                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="150" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Model:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding AllModels}"
-                                      SelectedItem="{Binding SelectedModelChoice}"
-                                      ItemTemplate="{StaticResource ModelRow}"
-                                      ToolTip="Every model the app can reach, tagged by provider. Unavailable providers are dimmed — add a key or install the CLI in Settings → AI providers." />
-                            <TextBlock Grid.Column="2" Text="Custom id:" VerticalAlignment="Center" Margin="12,0,6,0"
-                                       Opacity="0.7" />
-                            <TextBox Grid.Column="3" Text="{Binding SelectedModel, UpdateSourceTrigger=LostFocus}"
-                                     VerticalAlignment="Center"
-                                     ToolTip="Type any model id the selected provider accepts (overrides the picker)." />
-                        </Grid>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="120" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="120" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Build effort:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding BuildEfforts}"
-                                      SelectedItem="{Binding BuildEffort}"
-                                      ToolTip="How much the BUILDER puts in — not how hard the model thinks. Higher loads more domain skills, retries the compiler more, and (Deep/Max) runs a self-review + a backtest smoke pass." />
-                            <TextBlock Grid.Column="2" Text="Reasoning:" VerticalAlignment="Center" Margin="14,0,6,0" />
-                            <ComboBox Grid.Column="3" ItemsSource="{Binding Efforts}"
-                                      SelectedItem="{Binding SelectedEffort}"
-                                      IsEnabled="{Binding EffortSupported}"
-                                      ToolTip="How hard the MODEL thinks. 'Default' sends nothing — use it for models that reject the parameter." />
-                            <TextBlock Grid.Column="4" Text="{Binding UsageText}" VerticalAlignment="Center"
-                                       HorizontalAlignment="Right" Margin="12,0,8,0" Opacity="0.7" FontSize="11" />
-                            <Button Grid.Column="5" Content="New chat" Padding="10,3"
-                                    Command="{Binding NewChatCommand}" />
-                        </Grid>
-                    </StackPanel>
-
-                    <!-- Composer: multi-line (Enter = newline, Ctrl+Enter = send). -->
-                    <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox Grid.Column="0" MinHeight="68" MaxHeight="220"
-                                 AcceptsReturn="True" TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 Text="{Binding Composer, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Describe the strategy — as much detail as you like. Ctrl+Enter to send.">
-                            <TextBox.InputBindings>
-                                <KeyBinding Key="Return" Modifiers="Ctrl" Command="{Binding SendCommand}" />
-                            </TextBox.InputBindings>
-                        </TextBox>
-                        <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
-                            <Button Content="Send" Padding="20,6" Command="{Binding SendCommand}"
-                                    Visibility="{Binding IsGenerating, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                            <Button Content="Stop" Padding="20,6" Command="{Binding StopCommand}"
-                                    Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- The model asked something back rather than guessing — a good turn, made unmissable. -->
-                    <Border DockPanel.Dock="Bottom" Margin="0,8,0,0" Padding="8,5" CornerRadius="0"
-                            BorderThickness="1" BorderBrush="{DynamicResource Accent.Brush}"
-                            Visibility="{Binding AwaitingAnswer, Converter={StaticResource B2V}}">
-                        <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
-                                   Text="The model needs an answer before it writes the strategy — reply below." />
-                    </Border>
-
-                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding AiStatus}" Margin="0,8,0,0"
-                               TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}" />
-
-                    <!-- Transcript. -->
-                    <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding Messages}" ItemTemplate="{StaticResource ChatBubble}" />
-                    </ScrollViewer>
-                </DockPanel>
-            </Border>
-
-            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"
-                          Background="Transparent" />
-
-            <!-- ═══ RIGHT · Tasks / Code / Parameters (three stacked rows) ════════════════════════════ -->
-            <Grid Grid.Column="4">
+            <!-- ═══ Agent canvas ═══════════════════════════════════════════════════════════ -->
+            <Grid Grid.Column="1" Margin="16,10,12,12">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="1.1*" MinHeight="120" />
-                    <RowDefinition Height="5" />
-                    <RowDefinition Height="2*" MinHeight="160" />
-                    <RowDefinition Height="5" />
-                    <RowDefinition Height="1.4*" MinHeight="120" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Row 1 · Tasks -->
-                <Border Grid.Row="0" CornerRadius="0" BorderThickness="1"
-                        Background="{DynamicResource Background.Surface}"
-                        BorderBrush="{DynamicResource Border.Brush}">
-                    <DockPanel Margin="10">
-                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="TASKS" FontWeight="Bold" FontSize="11"
-                                           Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding ElapsedText}" FontSize="10" Opacity="0.6" Margin="10,0,0,0"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <ProgressBar Height="2" Width="70" HorizontalAlignment="Right" IsIndeterminate="True"
-                                         Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
-                        </Grid>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel>
-                                <ItemsControl ItemsSource="{Binding Tasks}" ItemTemplate="{StaticResource TaskRow}" />
-                                <TextBlock Text="Send a brief to see the build steps here."
-                                           FontSize="11" Opacity="0.5" TextWrapping="Wrap" Margin="0,4,0,0"
-                                           Foreground="{DynamicResource Text.Secondary}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Tasks.Count}" Value="0">
-                                                    <Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </DockPanel>
+                <!-- Session header -->
+                <DockPanel Grid.Row="0" Margin="2,0,2,8"
+                           Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
+                    <Border DockPanel.Dock="Right" Style="{StaticResource VQ.StateChip}" Padding="8,2"
+                            Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
+                        <TextBlock FontSize="10" Foreground="{DynamicResource Ai.Text.Brush}"
+                                   FontFamily="{DynamicResource Font.Data}">
+                            <Run Text="⏱ " /><Run Text="{Binding ElapsedCompact, Mode=OneWay}" />
+                        </TextBlock>
+                    </Border>
+                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" FontSize="13"
+                             Foreground="{DynamicResource Text.Header}" /><Run Text="   " /><Run
+                             Text="{Binding ModelPillText, Mode=OneWay}" FontSize="10.5"
+                             Foreground="{DynamicResource Text.Secondary}" />
+                    </TextBlock>
+                </DockPanel>
+
+                <!-- Transcript / hero empty state -->
+                <Grid Grid.Row="1">
+                    <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
+                        <ItemsControl ItemsSource="{Binding Messages}" Margin="0,0,6,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <ContentControl Style="{StaticResource VQ.MessageSwitch}"
+                                                    Content="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Hero: first-run and every New strategy. -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560"
+                                Visibility="{Binding HasConversation, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                        <Border Style="{StaticResource VQ.HeroMark}" Width="46" Height="46"
+                                HorizontalAlignment="Center">
+                            <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="16"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="Describe the strategy. Watch it get built."
+                                   FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Header}" />
+                        <TextBlock Text="Vibe Quant plans, writes, compiles and smoke-tests it — you review and register."
+                                   FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+
+                        <!-- Suggestion briefs (when a provider is usable)… -->
+                        <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,18,0,0"
+                                      HorizontalAlignment="Center"
+                                      Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource VQ.SuggestionChip}" Margin="0,3"
+                                            HorizontalAlignment="Stretch"
+                                            Command="{Binding DataContext.UseSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Put this brief in the composer — edit it, then send.">
+                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="500" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- …or the setup nudge when none is. -->
+                        <Border Style="{StaticResource VQ.QuestionCard}" Margin="0,18,0,0"
+                                Visibility="{Binding AiHasProvider, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                            <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                       Foreground="{DynamicResource Text.Primary}">
+                                <Run Text="No AI provider is set up yet." FontWeight="SemiBold" />
+                                <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or write the strategy yourself in the workbench and press Compile &amp; Register." />
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- The model asked something back — a good turn, made unmissable. -->
+                <Border Grid.Row="2" Style="{StaticResource VQ.QuestionCard}" Margin="0,8,0,0"
+                        Visibility="{Binding AwaitingAnswer, Converter={StaticResource B2V}}">
+                    <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" FontSize="11.5"
+                               Foreground="{DynamicResource Text.Primary}"
+                               Text="The model needs an answer before it writes the strategy — reply below." />
                 </Border>
 
-                <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="Transparent" />
+                <!-- Working status + outcome lines -->
+                <StackPanel Grid.Row="3" Margin="4,8,4,0">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
+                            <ContentControl Style="{StaticResource VQ.ShimmerLabel}"
+                                            Content="{Binding WorkingVerb}" />
+                            <TextBlock Style="{StaticResource VQ.GhostText}" Margin="10,0,0,0"
+                                       Text="{Binding StepText}" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource VQ.GhostText}" HorizontalAlignment="Right"
+                                   FontFamily="{DynamicResource Font.Data}"
+                                   Text="{Binding UsageText}" />
+                    </Grid>
+                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Text="{Binding AiStatus}"
+                               Visibility="{Binding AiStatus, Converter={StaticResource S2V}}" />
+                </StackPanel>
 
-                <!-- Row 2 · Code (file picker + editor + diagnostics) -->
-                <Border Grid.Row="2" CornerRadius="0" BorderThickness="1"
-                        Background="{DynamicResource Background.Surface}"
-                        BorderBrush="{DynamicResource Border.Brush}">
-                    <Grid Margin="10">
+                <!-- Cockpit composer -->
+                <ContentControl Grid.Row="4" Style="{StaticResource VQ.ComposerShell}" Margin="0,10,0,0"
+                                Padding="12,10" Tag="{Binding IsGenerating}">
+                    <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- File selector: a strategy is a small project, so pick the file to view. -->
-                        <Grid Grid.Row="0" Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="FILE" FontWeight="Bold" FontSize="11"
-                                       Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center"
-                                       Margin="0,0,8,0" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding Files}"
-                                      SelectedItem="{Binding SelectedFile}" DisplayMemberPath="Name" />
-                            <Button Grid.Column="2" Content="+" Padding="9,2" Margin="6,0,0,0"
-                                    Command="{Binding AddFileCommand}" ToolTip="Add a helper file" />
-                            <Button Grid.Column="3" Content="–" Padding="9,2" Margin="4,0,0,0"
-                                    Command="{Binding RemoveFileCommand}"
-                                    CommandParameter="{Binding SelectedFile}" ToolTip="Remove this file" />
+                        <Grid Grid.Row="0">
+                            <TextBox MinHeight="52" MaxHeight="200" AcceptsReturn="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     Background="Transparent" BorderThickness="0" Padding="2,2"
+                                     FontSize="12.5"
+                                     Foreground="{DynamicResource Text.Primary}"
+                                     Text="{Binding Composer, UpdateSourceTrigger=PropertyChanged}">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Return" Modifiers="Ctrl" Command="{Binding SendCommand}" />
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <TextBlock Margin="4,4,0,0" FontSize="12.5" IsHitTestVisible="False"
+                                       Foreground="{DynamicResource Text.Secondary}" Opacity="0.55"
+                                       Text="Describe the strategy — or refine what's there. Ctrl+Enter sends.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Composer}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </Grid>
 
-                        <TextBox Grid.Row="1"
-                                 Text="{Binding SelectedFile.Content, UpdateSourceTrigger=PropertyChanged}"
-                                 FontFamily="Consolas" FontSize="12"
-                                 AcceptsReturn="True" AcceptsTab="True"
-                                 Background="{DynamicResource Background.Elevated}"
-                                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                 TextWrapping="NoWrap" />
+                        <!-- Pill row: model · build effort · reasoning · send -->
+                        <DockPanel Grid.Row="1" Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource VQ.SendButton}"
+                                    Command="{Binding SendCommand}" Content="Send  ⌃⏎"
+                                    Visibility="{Binding IsGenerating, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource VQ.StopButton}"
+                                    Command="{Binding StopCommand}" Content="■  Stop"
+                                    Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
 
-                        <!-- Diagnostics: click one to jump to its file. A policy-scan block appears here as an
-                             error — that is why unsafe generated code can never be registered. -->
-                        <GroupBox Grid.Row="2" Header="Diagnostics" MaxHeight="140" Margin="0,6,0,0">
-                            <ListView ItemsSource="{Binding Diagnostics}"
-                                      SelectedItem="{Binding SelectedDiagnostic}" BorderThickness="0">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Sev" Width="52"
-                                                        DisplayMemberBinding="{Binding Severity}" />
-                                        <GridViewColumn Header="File" Width="110"
-                                                        DisplayMemberBinding="{Binding File}" />
-                                        <GridViewColumn Header="Ln" Width="34"
-                                                        DisplayMemberBinding="{Binding Line}" />
-                                        <GridViewColumn Header="Message" Width="380"
-                                                        DisplayMemberBinding="{Binding Message}" />
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
-                        </GroupBox>
+                            <StackPanel Orientation="Horizontal">
+                                <ToggleButton x:Name="ModelPill" Style="{StaticResource VQ.PillButton.Ai}"
+                                              ToolTip="Every model the app can reach, tagged by provider — plus a custom-id box.">
+                                    <TextBlock>
+                                        <Run Text="◇ " /><Run Text="{Binding ModelPillText, Mode=OneWay}" /><Run Text="  ▾" />
+                                    </TextBlock>
+                                </ToggleButton>
+                                <ToggleButton x:Name="BuildPill" Style="{StaticResource VQ.PillButton}" Margin="6,0,0,0"
+                                              ToolTip="How much the BUILDER puts in — skills, auto-fix retries, self-review + backtest smoke at Deep/Max.">
+                                    <TextBlock>
+                                        <Run Text="Build: " /><Run Text="{Binding BuildEffort, Mode=OneWay}" /><Run Text="  ▾" />
+                                    </TextBlock>
+                                </ToggleButton>
+                                <ToggleButton x:Name="ReasonPill" Style="{StaticResource VQ.PillButton}" Margin="6,0,0,0"
+                                              IsEnabled="{Binding EffortSupported}"
+                                              ToolTip="How hard the MODEL thinks. 'Default' sends nothing — for models that reject the parameter.">
+                                    <TextBlock>
+                                        <Run Text="Reasoning: " /><Run Text="{Binding SelectedEffort, Mode=OneWay}" /><Run Text="  ▾" />
+                                    </TextBlock>
+                                </ToggleButton>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Flyouts -->
+                        <Popup IsOpen="{Binding IsChecked, ElementName=ModelPill, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=ModelPill}" Placement="Top"
+                               StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
+                            <Border Style="{StaticResource VQ.FlyoutCard}" MinWidth="340" MaxWidth="440">
+                                <StackPanel>
+                                    <ListBox x:Name="ModelList" ItemsSource="{Binding AllModels}"
+                                             SelectedItem="{Binding SelectedModelChoice}"
+                                             MaxHeight="260" BorderThickness="0" Background="Transparent"
+                                             SelectionChanged="OnFlyoutSelectionChanged">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock x:Name="Row" FontSize="11.5"
+                                                           FontFamily="{DynamicResource Font.Data}"
+                                                           Foreground="{DynamicResource Text.Primary}"
+                                                           Text="{Binding Display, Mode=OneWay}" />
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                        <Setter TargetName="Row" Property="Opacity" Value="0.4" />
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
+                                            Margin="0,6,0,0" Padding="0,7,0,0">
+                                        <DockPanel>
+                                            <TextBlock Text="Custom id:" VerticalAlignment="Center" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Secondary}" Margin="0,0,6,0" />
+                                            <Button DockPanel.Dock="Right" Content="↻" Padding="7,1" Margin="6,0,0,0"
+                                                    ToolTip="Ask the provider what models this key can actually call"
+                                                    Command="{Binding RefreshModelsCommand}" />
+                                            <TextBox FontSize="11" FontFamily="{DynamicResource Font.Data}"
+                                                     Text="{Binding SelectedModel, UpdateSourceTrigger=LostFocus}"
+                                                     ToolTip="Type any model id the selected provider accepts (overrides the picker)." />
+                                        </DockPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=BuildPill, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=BuildPill}" Placement="Top"
+                               StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
+                            <Border Style="{StaticResource VQ.FlyoutCard}" MinWidth="150">
+                                <ListBox x:Name="BuildList" ItemsSource="{Binding BuildEfforts}"
+                                         SelectedItem="{Binding BuildEffort}"
+                                         BorderThickness="0" Background="Transparent"
+                                         SelectionChanged="OnFlyoutSelectionChanged" />
+                            </Border>
+                        </Popup>
+                        <Popup IsOpen="{Binding IsChecked, ElementName=ReasonPill, Mode=TwoWay}"
+                               PlacementTarget="{Binding ElementName=ReasonPill}" Placement="Top"
+                               StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
+                            <Border Style="{StaticResource VQ.FlyoutCard}" MinWidth="150">
+                                <ListBox x:Name="ReasonList" ItemsSource="{Binding Efforts}"
+                                         SelectedItem="{Binding SelectedEffort}"
+                                         BorderThickness="0" Background="Transparent"
+                                         SelectionChanged="OnFlyoutSelectionChanged" />
+                            </Border>
+                        </Popup>
                     </Grid>
-                </Border>
-
-                <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" Background="Transparent" />
-
-                <!-- Row 3 · Parameters -->
-                <Border Grid.Row="4" CornerRadius="0" BorderThickness="1"
-                        Background="{DynamicResource Background.Surface}"
-                        BorderBrush="{DynamicResource Border.Brush}">
-                    <DockPanel Margin="10">
-                        <TextBlock DockPanel.Dock="Top" Text="PARAMETERS" FontWeight="Bold" FontSize="11"
-                                   Foreground="{DynamicResource Text.Header}" Margin="0,0,0,6" />
-                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   Text="A strategy that declares a static Schema gets this editor for free. Compile to populate it." />
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
+                </ContentControl>
             </Grid>
+
+            <GridSplitter Grid.Column="2" Width="4" HorizontalAlignment="Stretch"
+                          Background="Transparent" />
+
+            <!-- ═══ Workbench ══════════════════════════════════════════════════════════════ -->
+            <Border Grid.Column="3" Style="{StaticResource VQ.WorkbenchBorder}">
+                <DockPanel>
+                    <!-- Identity + the review gate's entry point -->
+                    <Border DockPanel.Dock="Top" Padding="12,12,12,10"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="3*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="ID" FontSize="8.5" FontWeight="Bold" Margin="1,0,0,2"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                    <TextBox FontFamily="{DynamicResource Font.Data}" FontSize="11.5"
+                                             Text="{Binding StrategyId, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="NAME" FontSize="8.5" FontWeight="Bold" Margin="1,0,0,2"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                    <TextBox FontSize="11.5"
+                                             Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+                            <Button Style="{StaticResource VQ.CtaButton}" Content="⚡  Compile &amp; Register"
+                                    Command="{Binding CompileCommand}"
+                                    ToolTip="Compile every file, then review the code before it is registered — it runs in-process." />
+                            <Grid Margin="0,7,0,0">
+                                <Border Style="{StaticResource VQ.StateChip}" HorizontalAlignment="Left">
+                                    <TextBlock FontSize="9" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="DRAFT" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRegistered}" Value="True">
+                                                        <Setter Property="Text" Value="REGISTERED" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                           FontSize="9.5" Foreground="{DynamicResource Text.Secondary}"
+                                           Opacity="0.8" Text="reviewed code runs in-process" />
+                            </Grid>
+                            <TextBlock Margin="1,7,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       Text="{Binding Status}"
+                                       Visibility="{Binding Status, Converter={StaticResource S2V}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Agent-CLI hand-off (Vibe Code): only when a CLI resolved on PATH. -->
+                    <Border DockPanel.Dock="Bottom" Padding="12,6"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AvailableClis.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Open workspace in" Style="{StaticResource VQ.GhostText}"
+                                       Margin="0,0,8,0" />
+                            <ItemsControl ItemsSource="{Binding AvailableClis}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="0,0,6,0" Padding="8,2" FontSize="10.5" Cursor="Hand"
+                                                Command="{Binding DataContext.LaunchCliCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="{Binding DisplayName}"
+                                                ToolTip="Scaffold this strategy's workspace and open the agent CLI there" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <TabControl SelectedIndex="{Binding WorkbenchTab}" Margin="12,4,12,8"
+                                Background="Transparent">
+                        <TabItem Header="Code">
+                            <DockPanel Margin="0,6,0,0">
+                                <DockPanel DockPanel.Dock="Top">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Content="＋" Padding="7,1" FontSize="11"
+                                                Command="{Binding AddFileCommand}" ToolTip="Add a helper file" />
+                                        <Button Content="—" Padding="7,1" FontSize="11" Margin="4,0,0,0"
+                                                Command="{Binding RemoveFileCommand}"
+                                                CommandParameter="{Binding SelectedFile}" ToolTip="Remove this file" />
+                                    </StackPanel>
+                                    <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}"
+                                             Background="Transparent" BorderThickness="0"
+                                             ItemContainerStyle="{StaticResource VQ.FileTab}"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" FontSize="10.5"
+                                                           FontFamily="{DynamicResource Font.Data}" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+
+                                <!-- Diagnostics drawer -->
+                                <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Diagnostics.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <DockPanel>
+                                        <ToggleButton x:Name="DiagToggle" DockPanel.Dock="Top" IsChecked="True"
+                                                      Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                      HorizontalContentAlignment="Left" Padding="0,5,0,3">
+                                            <TextBlock FontSize="10.5" Foreground="{DynamicResource Warning.Brush}">
+                                                <Run Text="⚠ Diagnostics · " /><Run Text="{Binding Diagnostics.Count, Mode=OneWay}" /><Run Text="  (click a row to jump to its file)" Foreground="{DynamicResource Text.Secondary}" />
+                                            </TextBlock>
+                                        </ToggleButton>
+                                        <ListView ItemsSource="{Binding Diagnostics}" MaxHeight="130"
+                                                  SelectedItem="{Binding SelectedDiagnostic}" BorderThickness="0"
+                                                  Visibility="{Binding IsChecked, ElementName=DiagToggle, Converter={StaticResource B2V}}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Sev" Width="52"
+                                                                    DisplayMemberBinding="{Binding Severity}" />
+                                                    <GridViewColumn Header="File" Width="104"
+                                                                    DisplayMemberBinding="{Binding File}" />
+                                                    <GridViewColumn Header="Ln" Width="34"
+                                                                    DisplayMemberBinding="{Binding Line}" />
+                                                    <GridViewColumn Header="Message" Width="360"
+                                                                    DisplayMemberBinding="{Binding Message}" />
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                    </DockPanel>
+                                </Border>
+
+                                <uicontrols:CodeEditor Margin="0,6,0,0"
+                                                       Code="{Binding SelectedFile.Content}"
+                                                       FontFamily="{DynamicResource Font.Data}" FontSize="12"
+                                                       Background="{DynamicResource Background.Elevated}"
+                                                       Foreground="{DynamicResource Text.Primary}"
+                                                       LineNumbersForeground="{DynamicResource Text.Secondary}"
+                                                       HorizontalScrollBarVisibility="Auto"
+                                                       VerticalScrollBarVisibility="Auto" />
+                            </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="Parameters">
+                            <DockPanel Margin="0,6,0,0">
+                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource Text.Secondary}"
+                                           Text="A strategy that declares a static Schema gets this editor for free. Compile to populate it." />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
+                                </ScrollViewer>
+                            </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="Activity">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                                <ItemsControl ItemsSource="{Binding Activity}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="10.5" Margin="0,1"
+                                                       TextWrapping="Wrap"
+                                                       FontFamily="{DynamicResource Font.Data}"
+                                                       Foreground="{DynamicResource Text.Secondary}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </DockPanel>
+            </Border>
         </Grid>
-    </DockPanel>
+
+        <!-- ═══ Review gate overlay — the ONLY path to registration ════════════════════════ -->
+        <Grid Visibility="{Binding ReviewOpen, Converter={StaticResource B2V}}">
+            <Border Style="{StaticResource VQ.OverlayDim}" />
+            <Border Style="{StaticResource VQ.OverlayCard}" MaxWidth="880" MaxHeight="620"
+                    Margin="40" Padding="18,14" VerticalAlignment="Center">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <TextBlock Text="Review before registering" FontSize="15" FontWeight="Bold"
+                                   Foreground="{DynamicResource Text.Header}" />
+                        <TextBlock Text="{Binding ReviewSummary}" FontSize="11" Margin="0,3,0,0"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}" />
+                    </StackPanel>
+
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="Back" Padding="14,5" Margin="0,0,8,0"
+                                    Command="{Binding CancelReviewCommand}" />
+                            <Button Style="{StaticResource VQ.CtaButton}" Content="Register strategy"
+                                    Command="{Binding ConfirmRegisterCommand}" />
+                        </StackPanel>
+                        <TextBlock VerticalAlignment="Center" FontSize="10" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="Registering runs this code in-process. The policy scan already rejected P/Invoke, processes and the registry." />
+                    </DockPanel>
+
+                    <ListBox DockPanel.Dock="Top" ItemsSource="{Binding ReviewFiles}"
+                             SelectedItem="{Binding SelectedReviewFile}"
+                             Background="Transparent" BorderThickness="0"
+                             ItemContainerStyle="{StaticResource VQ.FileTab}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock FontSize="10.5" FontFamily="{DynamicResource Font.Data}">
+                                    <Run Text="{Binding Name, Mode=OneWay}" /><Run Text="  " /><Run
+                                         Text="{Binding Counts, Mode=OneWay}"
+                                         Foreground="{DynamicResource Bullish.Brush}" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Border Background="{DynamicResource Background.Surface}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            CornerRadius="{StaticResource VQ.Radius.S}" Margin="0,6,0,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Auto" Padding="0,4">
+                            <ItemsControl ItemsSource="{Binding SelectedReviewFile.Lines}"
+                                          ItemTemplate="{StaticResource VQ.DiffLine}" />
+                        </ScrollViewer>
+                    </Border>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </UserControl>

@@ -1,6 +1,6 @@
 # TradingTerminal.Correlation — correlation / PCA tool window
 
-**Path** `src/windows/Tools/TradingTerminal.Correlation/` · 1,761 LOC / 10 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Tools/TradingTerminal.Correlation/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** Multi-instrument correlation matrix + PCA/EWMA views over hub/store data.
 Math lives in `Core/Quant/` (`symbols/Core-Quant.md`) — this project is presentation + orchestration.

@@ -1,11 +1,11 @@
 # TradingTerminal.Charts — TradingView-style charts window (WebView2)
 
-**Path** `src/windows/Charts/TradingTerminal.Charts/` · 805 LOC / 4 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Charts/TradingTerminal.Charts/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** The Charts menu's candlestick window hosting a WebView2 chart (TradingView-style),
 fed from the hub/store. Windows-only tech (no Linux mirror of WebView2).
 
-**DI** `AddChartsSurface()` — `ChartsServiceCollectionExtensions.cs:9`. **Surface** `symbols/Charts.md`.
+**DI** `AddChartsSurface` — `ChartsServiceCollectionExtensions.cs`. **Surface** `symbols/Charts.md`.
 **Depends on** Core, Infrastructure, UI, UI.Core. **Consumed by** both shells (Charts menu).
 
 **Invariants.** VM subscribes via `IMarketDataHub` only; bounded channel + coalesced redraw

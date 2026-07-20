@@ -1,20 +1,17 @@
-# TradingTerminal.App.Basic — Basic edition shell (keyless)
+# TradingTerminal.App.Basic — Basic edition shell
 
-**Path** `src/windows/Shell/TradingTerminal.App.Basic/` · 4,545 LOC / 40 files · **Edition** Basic only · **Blast: low (leaf) but ×3 rule**
+**Path** `src/windows/Shell/TradingTerminal.App.Basic/` · **Edition** Basic · **Blast** leaf shell
 
-**Purpose.** Independent WinExe shell (RootNamespace `TradingTerminal.App`): MainWindow strategy
-catalog + activity-log drawer, inline menus, DI composition, CrashGuard, notifications/archive UI.
-**Keyless brokers only**: calls `AddKeylessBrokers()` (never `AddCredentialedBrokers()` /
-`AddCredentialedLoginForms()`), keyless login forms, no `DevLive` profile.
+Independent WPF composition root for the keyless edition: main window, strategy/plugin catalog,
+activity log, archive UI, notifications, and tool wiring. It registers keyless brokers and login
+forms only; do not add credentialed broker or `DevLive` composition here.
 
-**Key files.** `Composition/AppDependencyInjection.cs` (AddStrategyPlugins:105,
-AddSettingsSurface:213, AddArchiveSurface:226) · `MainWindow.xaml` (830) ·
-`MainWindowViewModel.cs` (632) · `App.xaml.cs` · `Properties/launchSettings.json` (DevSim/DevReplay).
+Shared shell behavior is paired with `App.Intermediate`; follow
+`RECIPES/shell-fix-editions.md`. A consuming overlay owns any additional shell copy and must be
+handled under that workspace's guide.
 
-**THE RULE.** Shell code is copied ×3 — any fix here must also land in App.Intermediate and the
-Pro shell: `RECIPES/shell-fix-triple.md`. Surface: `symbols/App.Basic.md`.
+**Build** `dotnet build TradingTerminal.Windows.Basic.slnf`
 
-**Build** `dotnet build TradingTerminal.Windows.Basic.slnf` · **Run**
-`dotnet run --project src/windows/Shell/TradingTerminal.App.Basic`.
-**Common changes.** Menu/DI wiring for a new tool (reference + `Add…Surface` call), catalog UX,
-edition gating (composition-only — never `#if`).
+**Run** `dotnet run --project src/windows/Shell/TradingTerminal.App.Basic`
+
+**Surface** `symbols/App.Basic.md`

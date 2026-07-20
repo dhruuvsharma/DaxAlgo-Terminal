@@ -11,7 +11,7 @@ The app already has twelve backends: IB / NT / cTrader / Alpaca / Ironbeam (REST
 
 ## Recipe
 
-1. **New folder** under `src/TradingTerminal.Infrastructure/<Broker>/` (e.g. `Tradovate/`).
+1. **New folder** under `src/windows/Pipeline/TradingTerminal.Infrastructure/<Broker>/` (e.g. `Tradovate/`).
 2. **Implement `Real<Broker>Client : IBrokerClient`** — talks to the actual SDK. If the SDK is a private DLL (not on NuGet), gate the file with `#if HAS_<BROKER>API` and add the resolution logic to `Infrastructure.csproj` (mirror the `HAS_IBAPI` / `HAS_NTAPI` blocks); the client is then simply not registered when the DLL is absent. If the SDK is a NuGet package, always wire it (mirror cTrader). **There is no `Fake<Broker>Client`** — the project dropped per-broker synthetic fallbacks in favour of one always-registered `Simulated` broker (`SimulatedBrokerClient`) that covers all offline runs. Don't add a fake; if you need offline data, that's what `Simulated` is for.
 3. **Options class** — `<Broker>Options` in `Core/Configuration/`. Read from `appsettings.json` via `IOptions<XxxOptions>`. `ConnectAsync` takes no parameters — it reads its own options.
 4. **DI block** in `Infrastructure/DependencyInjection.cs` (not `App.xaml.cs` — that only `Configure`s the options section):
@@ -26,7 +26,7 @@ The app already has twelve backends: IB / NT / cTrader / Alpaca / Ironbeam (REST
        BrokerKind.Tradovate, IsLive: true, DisplayName: "Tradovate", Description: "…"));
    ```
    Register alongside the existing IB/NT/cTrader/Alpaca/Simulated blocks. In `App.xaml.cs`, add the matching `services.Configure<TradovateOptions>(ctx.Configuration.GetSection(TradovateOptions.SectionName));`.
-5. **Login form** — add a new `<Broker>LoginFormViewModel : IBrokerLoginForm` in `src/TradingTerminal.Login/Forms/`. Register it twice in `LoginServiceCollectionExtensions.AddLogin` (in `TradingTerminal.Login`) (as concrete + as `IBrokerLoginForm` factory delegate, mirroring the four existing forms). It pushes user-supplied creds into `<Broker>Options` before flipping `IBrokerSelector`.
+5. **Login form** — add a new `<Broker>LoginFormViewModel : IBrokerLoginForm` in `src/windows/Shell/TradingTerminal.Login/Forms/`. Register it twice in `LoginServiceCollectionExtensions.AddLogin` (in `TradingTerminal.Login`) (as concrete + as `IBrokerLoginForm` factory delegate, mirroring the existing forms). It pushes user-supplied creds into `<Broker>Options` before flipping `IBrokerSelector`.
 6. **appsettings.json** — add a `"Tradovate": { ... }` section (no `UseRealClient` switch — availability is decided by SDK/DLL presence at build time).
 7. **Trade tape** — `SubscribeTradesAsync` returns `IAsyncEnumerable<TradeTick>`. If the SDK exposes per-print trade flow with an aggressor flag, wire it (mirror IB's `reqTickByTickData("AllLast")` pattern). Otherwise throw `NotSupportedException` and add the broker to the no-trade-tape capability matrix in [[project-strategy-ideas]].
 8. **Instrument discovery** — if the broker has a symbol search / contract universe endpoint, register an `IInstrumentDiscoveryService` impl so the universe tab + dropdown can resolve canonical `InstrumentId`s.
@@ -49,9 +49,9 @@ The app already has twelve backends: IB / NT / cTrader / Alpaca / Ironbeam (REST
 
 ## Reference impls (read these first)
 
-- `src/TradingTerminal.Infrastructure/Ib/` — `RealIbClient.cs` (socket, EWrapper threading, `HAS_IBAPI` gating).
-- `src/TradingTerminal.Infrastructure/NinjaTrader/` — P/Invoke pattern, polling loops, `HAS_NTAPI` gating, history synth.
-- `src/TradingTerminal.Infrastructure/CTrader/` — async TLS+protobuf, OAuth, `clientMsgId` correlation, depth events.
-- `src/TradingTerminal.Infrastructure/Alpaca/` — REST + WebSocket via NuGet, eager stream auth, IEX feed pinning, multi-asset routing by `Contract.SecType`.
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/Ib/` — `RealIbClient.cs` (socket, EWrapper threading, `HAS_IBAPI` gating).
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/NinjaTrader/` — P/Invoke pattern, polling loops, `HAS_NTAPI` gating, history synth.
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/CTrader/` — async TLS+protobuf, OAuth, `clientMsgId` correlation, depth events.
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/Alpaca/` — REST + WebSocket via NuGet, eager stream auth, IEX feed pinning, multi-asset routing by `Contract.SecType`.
 
 See also: [broker-gotchas](../broker-gotchas/SKILL.md) for the quirks of each existing backend.

@@ -1,49 +1,59 @@
 ---
 name: navigator
-description: Codebase map for DaxAlgo Terminal — which project owns what, where key seams/files live, and which skill to load next. Load this FIRST for orientation ("where is X?", "which project owns Y?", "where do I add Z?") instead of grepping blind. Cheap one-shot map; saves repeated searches.
+description: Route DaxAlgo Terminal work to the correct Windows or Linux project, context shard, and specialist skill. Use first for codebase orientation, ownership questions, locating a feature, choosing a build target, or deciding whether a change belongs in Core, Pipeline, Shell, UI, AI, Charts, Tools, SDK, templates, or an external strategy plugin.
 ---
 
-# Navigator — where things live
+# Navigator
 
-Layer graph (acyclic): `Core ← MarketData ← Infrastructure ← {Login, Ai, Ai.*, Ml.*, Strategies.*, QuantConnect, <tool projects>} ← App`. `UI ← Core`; App also → UI/MarketData. Never make `Core` or `MarketData` depend upward. **Tool projects, ML projects and AI tool projects sit at the same layer as `Strategies.*` — App is the only thing that references them, and no tool references another tool.**
+Route before reading source. Load `.claude/context/index.md`, `symbols.md`, and `deps.json`, then grep
+the matching generated shard. For Linux/Avalonia work, use `.claude/context/linux/`; Windows and Linux
+are independent trees and matching type names are not evidence of matching behavior.
 
-**Shell model (2026-06-18):** no docking framework. Every tool/strategy/chart opens as its own `Window`; the `MainWindow` is a full-width strategy catalog with a collapsible bottom activity-log drawer. `MainWindowViewModel` opens single-instance windows via `OpenHostedTool`/`OpenWindowTool` (tracked in `_openWindows`); UserControl-view tools are wrapped in `App/Shell/ToolHostWindow`.
+## Windows routes
 
-## Project ownership
+| Area | Path | Owns |
+|---|---|---|
+| Domain and seams | `src/windows/Core/TradingTerminal.Core/` | Domain records, contracts, options, quant, research, strategy and backtest seams |
+| Broker and service implementations | `src/windows/Pipeline/TradingTerminal.Infrastructure/` | Brokers, notifications, research runners, composition below shells |
+| Canonical market data | `src/windows/Pipeline/TradingTerminal.MarketData/` | Hub, ingest, repository, stores, discovery, archive |
+| Edition shells | `src/windows/Shell/TradingTerminal.App.Basic/`, `TradingTerminal.App.Intermediate/` | Composition roots, menus, window hosting |
+| Login | `src/windows/Shell/TradingTerminal.Login/` | Credentialed login forms and broker selection |
+| Shared Windows UI | `src/windows/Shell/TradingTerminal.UI/`, `src/windows/UI/TradingTerminal.UI.Core/` | Themes, shell UI and reusable strategy-window support |
+| Settings and authoring | `src/windows/UI/TradingTerminal.Settings/`, `TradingTerminal.StrategyComposer/` | Settings and strategy-composer UI |
+| AI seam | `src/windows/AI/TradingTerminal.Ai/` | AI analyst clients/enricher only; no Windows AI tool-window projects |
+| Charts | `src/windows/Charts/` | Charts, heatmap, order book and volume footprint |
+| Tools | `src/windows/Tools/` | Backtest surfaces, recording, correlation, regimes, Codegen and StrategyTool |
+| Backtest engine | `src/windows/Backtest/TradingTerminal.Backtest.Engine/` | Event replay, kernels, optimization and reports |
+| Plugin SDK | `src/windows/Sdk/`, `templates/`, `samples/` | Public plugin contracts, canonical template and minimal sample |
 
-| Project | Owns |
-|---|---|
-| `TradingTerminal.Core` | Domain types + **all interfaces/options**. `Brokers/` (`IBrokerClient`, `IBrokerSelector`, `BrokerKind`, `IBrokerLoginForm[Factory]`), `MarketData/` (`InstrumentId`, `Quote`/`TradePrint`/`OhlcvBar`, `IMarketDataHub|Store|Ingest|Repository|Registry`, `Indicators`, `Microstructure`), `Backtest/` (`IBacktestStrategy`, `IOrderRouter`, `IFeeModel`, `IRiskManager`, `TransactionCostAnalysis`), `Notifications/` (`INotificationPublisher|Transport|Enricher`, `ISignalGate`), `AiAnalyst/` (`IAiAnalystClient`), `Strategies/` (`IStrategyFactory`, `Parameters/`, `Authoring/`), `Regime/`, `Session/`, `Configuration/`. |
-| `TradingTerminal.MarketData` | Pipeline **impls** (below Infrastructure, Core-only): `MarketDataHub`, `MarketDataIngestService`, `MarketDataRepository`, `InstrumentDiscoveryService`, `MarketDataPipelineServiceCollectionExtensions`, `Store/` (**4 backends**: `PerBrokerSqlite` (default) + single-file `Sqlite` + `Npgsql`/Timescale + `QuestDb`/`Composite`; schema + registry; per-broker + QuestDB persist L2 depth), `Archive/` (Telegram offloader), `Threading/IUiDispatcher`. |
-| `TradingTerminal.Infrastructure` | Broker clients (behind `IBrokerClient`): `Ib/ Ninja/ CTrader/ Alpaca/ IronBeam/ Binance/ Coinbase/ Bybit/ Kraken/ Okx/` + LSE + Upstox + `Simulation/`, `Backtest/` (engine + `Strategies/` engine-side impls + `BacktestStrategyCatalog` + `WalkForwardGridBuilders`), `Notifications/` (dispatcher + Telegram/Discord/Ollama transports + `NotificationsOptions`/`AiAnalystOptions`), `Regime/`, `Threading/WpfDispatcher`, `DependencyInjection.cs`. |
-| `TradingTerminal.UI` | `ViewModelBase`, `Themes/`, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices` (DI bundle), `Logging/InMemoryLogSink` (**the universal Activity Log**), `Strategies/` (parameter-editor controls), converters. |
-| `TradingTerminal.Login` | `LoginWindow`, `LoginViewModel`, `CredentialStore`, `Forms/` (Ib/Ninja/CTrader/Alpaca login forms), `BrokerLoginFormFactory`, `AddLogin()`. Namespaces stay `TradingTerminal.App.Login[.Forms]`. |
-| `TradingTerminal.Ai` | **Shared seam only**: `Analyst/` (`Http`/`Null`AiAnalystClient, `AiAnalystServiceCollectionExtensions` → `AddAiAnalyst()`, `AiAnalystEnricher`). UI tools moved out (see below). |
-| `TradingTerminal.Ai.<Name>` | One AI tool window per project + its `Add<Name>()` extension: `Ai.MarketAnalyst`, `Ai.FactorResearch`, `Ai.MlFeatures`, `Ai.BacktestAnalysis`. |
-| `TradingTerminal.Ml.<Name>` | One ML window per project (time-series stats over historical bars; math in `Core/Quant/TimeSeries/`): `Ml.Stationarity`, `Ml.ArimaGarch`, `Ml.KalmanFilter`. |
-| `TradingTerminal.Strategies.<Name>` | Per-strategy live window + VM + `ITradingStrategy` descriptor + `Add<Name>Strategy()`. **12 of them** (incl. OrderFlowPressureMap — a multi-ticker monitor strategy; strategy-shaped things NEVER become tool projects). |
-| `TradingTerminal.<Name>` (tool projects) | One tool window per project + its `Add…Surface` extension: `Charts`, `OrderBook`, `VolumeFootprint`, `Heatmap` (Bookmap + VolBook), `Correlation`, `MarketRegime`, `InstrumentRegime`, `AdvancedMarketRegime`, `Backtest`, `Recording`, plus `QuantConnect`. Each refs Core/UI/Infrastructure; opened from App via `IServiceProvider`. |
-| `TradingTerminal.App` | `App.xaml.cs` (composition root + `OnStartup`), `Composition/AppDependencyInjection.cs` (`AddStrategyPlugins`/`AddShell`/`AddSettingsSurface`/`AddArchiveSurface` — tool surfaces now live in their own projects), `Shell/` (MainWindow, factories, **`ToolHostWindow`** — generic host for UserControl-view tools; AvalonDock + DockTab removed), `MainWindow.xaml(.cs)` (top menu incl. **Charts** menu; full-width strategy catalog + bottom activity-log drawer), `MainWindowViewModel`, `Notifications/`, `Archive/`, broker-meter. Thin shell — tools moved out. |
-| `TradingTerminal.Backtest.Cli` | `daxalgo-backtest` headless CLI (`Program.cs`: run/synth/sweep/walkforward/mc/tca/features). |
+First-party Windows strategies are not projects in this repository. They are external runtime plugins.
+Flat pre-grouped Windows paths and in-tree Windows strategy-project paths are stale.
 
-## "Where do I…" quick answers
+## Dependency direction
 
-- **Add a strategy** → new `Strategies.<Name>` project + engine impl in `Infrastructure/Backtest/Strategies/` + catalog entry + CLI arm + `AddStrategyPlugins()` line + `App.csproj` ref + `.sln`. Skill: `add-strategy` (cube/surface: `regime-cube-strategy`).
-- **Add a broker** → `Infrastructure/<Broker>/` impl + login form in `Login/Forms/` (`AddLogin`). Skills: `add-broker`, `broker-gotchas`.
-- **Add a notifier** → `Infrastructure/Notifications/<X>/` + `AddNotifications`. Skill: `add-notifier`.
-- **Touch the data pipeline / store / archive** → `TradingTerminal.MarketData`. Skills: `market-data-pipeline`, `archive-offloader`.
-- **Touch AI/ML** → the seam is in `TradingTerminal.Ai`; the UI tools are in `TradingTerminal.Ai.<Name>`. Skill: `ai-analyst`.
-- **Add/edit a tool window** → its own `TradingTerminal.<Name>` project (flat under `src/`, grouped in the `.sln` Charts/Tools/AI folders). New tool = new project + its `Add…Surface` extension + `App.csproj` ref + `App.xaml.cs` call + `.sln` (`dotnet sln add --solution-folder <Folder> --include-references false`).
-- **Touch the backtest engine / CLI** → `Infrastructure/Backtest/`. Skill: `backtest-engine`.
-- **Log from a strategy/tool** → `_services.ActivityLog.Append(source, level, msg)` (live VMs) or `InMemoryLogSink`; the MainWindow bottom `ACTIVITY LOG` drawer shows it. Never add a per-window log panel.
-- **Register a service** → `Composition/AppDependencyInjection.cs` (App-side) or the owning project's `Add*` extension, called from `App.xaml.cs`.
+Keep `Core` dependency-free. Keep `MarketData` below `Infrastructure`. Broker SDK types stay in
+Infrastructure. Shells compose factories and selectors; view-models consume broker-neutral seams.
+Tool and chart projects do not reference sibling tools. Strategy plugins reference only the published
+`DaxAlgo.Sdk` or `DaxAlgo.Sdk.Wpf` package, never host projects.
 
-## DI entry points (called from `App.xaml.cs`)
+## Route by task
 
-Infrastructure/pipeline: `AddInfrastructure` · `AddMarketDataPipeline` · `AddMarketDataArchive` · `AddMarketRegime` (provider/refresh, Infrastructure) · `AddNotifications` · `AddStrategyPlugins` · `AddLogin` · `AddShell` · `AddSettingsSurface` · `AddArchiveSurface`.
-Tool surfaces (each defined in its own project): `AddBacktestSurface` · `AddRecordingSurface` · `AddCorrelationSurface` · `AddChartsSurface` · `AddOrderBookSurface` · `AddFootprintSurface` · `AddMarketRegimeSurface` · `AddInstrumentRegimeSurface`.
-AI (shared seam + per-tool): `AddAiAnalyst` (seam, in `TradingTerminal.Ai`) · `AddMarketAnalyst` · `AddFactorResearch` · `AddMlFeatures` · `AddBacktestAnalysis`.
+- Add a broker: load `add-broker` and `broker-gotchas`.
+- Change market-data flow or storage: load `market-data-pipeline`; add `archive-offloader` for archive work.
+- Author a strategy: load `add-strategy`; create an external SDK plugin, not an in-tree strategy project.
+- Change backtesting: load `backtest-engine` and `quant-math` as needed.
+- Work on research reproduction: load `paper-reproduction`, `paper-ingestion`, and
+  `untrusted-execution`. The Windows backend is under Core/Pipeline Research; PaperLab UI is Linux-only.
+- Change WPF lifetime or binding behavior: load `wpf-mvvm-rules` and `memory-safety`.
+- Change architecture or boundaries: load `software-architecture`.
 
-## Build / test
+## Build routing
 
-`dotnet build` · `dotnet test` · `dotnet run --project src/TradingTerminal.App`. A Stop hook auto-surfaces build errors. The **12 live strategies**: SigmaIcFlow (Σ⁻¹·IC Order-Flow Optimizer, `sigma.ic.flow`; formerly ApexScalper; engine class still `ApexScalperStrategy`), CumulativeDelta, FilteredOrderFlow (`filtered.orderflow.imbalance`, research-paper), ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph (`index.regime.graph`), OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike, OrderFlowToxicity (vpin), OrnsteinUhlenbeck, VolatilityTargeted (+ buyAndHold/meanReversion/donchian engine demos). Removed strategies — don't reference them: Bollinger, Rsi, Macd, Microprice, Twap, AnomalyDetector, ConnorsRsi2, EodMomentum, GapFade, LondonOpenBreakout, MaCrossover, TrendFilter, AvellanedaStoikov, BookPressure, IcebergDetection, LiquiditySweep, OnlineRegressionAlpha, PullbackContinuation, ThinBookFilter.
+- Windows edition-local: `TradingTerminal.Windows.Basic.slnf` or
+  `TradingTerminal.Windows.Intermediate.slnf`.
+- Windows shared signature/cross-edition: `TradingTerminal.Windows.slnx`.
+- Linux only when explicitly in scope: `TradingTerminal.Linux.slnx`.
+- External strategy plugin: build and test its scaffold solution, then run its `pack-plugin.ps1`.
+
+Open source only after the context shard identifies the symbol and line. Never infer one tree's
+implementation from the other.

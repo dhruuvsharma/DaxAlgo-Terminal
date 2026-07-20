@@ -12,6 +12,8 @@ code (`RootNamespace` stays `TradingTerminal.App` in all three): `TradingTermina
 (Professional) in the private Pro repo. Tier gating is composition-only (`AddKeylessBrokers()`
 vs `AddCredentialedBrokers()`, login-form registration, project references).
 
-**Consequences.** Every shell-code fix is applied ×3 (`RECIPES/shell-fix-triple.md`). Basic never
+**Consequences.** Every shared public shell-code fix is applied to both public editions
+(`RECIPES/shell-fix-editions.md`); a consuming overlay applies its own shell copy under its
+workspace guide. Basic never
 references Pro-only projects. `AddCredentialedLoginForms()` must always pair with
 `AddCredentialedBrokers()` or the login window crashes. Per-edition `.slnf` filters at repo root.

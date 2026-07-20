@@ -11,7 +11,7 @@ Adding a transport = one new file + a few config touch-points. The dispatcher au
 
 ## Recipe
 
-1. **New folder** `src/TradingTerminal.Infrastructure/Notifications/<Channel>/` (e.g. `Slack/`).
+1. **New folder** `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/<Channel>/` (e.g. `Slack/`).
 2. **Implement `INotificationTransport`** — see `TelegramTransport.cs` and `DiscordTransport.cs` for shape. The contract is async, takes a `StrategyNotification`, returns `Task`. Failures must be caught and logged — never throw out of `SendAsync`; one bad transport must not block the others.
 3. **Options class** — `<Channel>Options` (e.g. `SlackOptions { string WebhookUrl, bool Enabled }`).
 4. **Add to `NotificationsOptions`** — the parent record/class that groups all transport configs. Add a `SlackOptions Slack` property.
@@ -38,7 +38,7 @@ Adding a transport = one new file + a few config touch-points. The dispatcher au
 
 ## Reference reads
 
-- `src/TradingTerminal.Infrastructure/Notifications/Telegram/TelegramTransport.cs` — Bot API (HttpClient + JSON).
-- `src/TradingTerminal.Infrastructure/Notifications/Discord/DiscordTransport.cs` — webhook (HttpClient + JSON).
-- `src/TradingTerminal.Infrastructure/Notifications/NotificationDispatcher.cs` — the background worker draining the Channel.
-- `src/TradingTerminal.Core/Notifications/INotificationTransport.cs` — the contract.
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/Telegram/TelegramTransport.cs` — Bot API (HttpClient + JSON).
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/Discord/DiscordTransport.cs` — webhook (HttpClient + JSON).
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/NotificationDispatcher.cs` — the background worker draining the Channel.
+- `src/windows/Core/TradingTerminal.Core/Notifications/INotificationTransport.cs` — the contract.

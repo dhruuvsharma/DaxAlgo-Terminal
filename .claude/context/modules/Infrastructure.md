@@ -1,6 +1,6 @@
 # TradingTerminal.Infrastructure — brokers, engine, plugins, research
 
-**Path** `src/windows/Pipeline/TradingTerminal.Infrastructure/` · 14,855 LOC / 103 files · **Editions** B I P · **Blast: HIGH**
+**Path** `src/windows/Pipeline/TradingTerminal.Infrastructure/` · **Editions** B I P · **Blast: high**
 
 **Purpose.** All concrete integrations: 12 broker clients + Simulated, backtest engine internals,
 notifications, regime services, plugin loader, research sandbox, `WpfDispatcher`.
@@ -17,7 +17,7 @@ guard** — a plugin may not replace a host service) → `Infrastructure-Plugins
 **Depends on** Core, MarketData, DaxAlgo.Sdk. **Depended by** all tools/charts, Ai, Settings, both shells, tests.
 
 **Invariants.** SDK types never leak upward (hook-enforced); broker callbacks never touch the UI
-thread (repository marshals); `ConnectAsync()` reads own options; reconnect backoff 1s→30s;
+thread (repository marshals); `ConnectAsync` reads own options; reconnect backoff 1s→30s;
 IB/NT wired purely by build-time DLL resolution (`HAS_IBAPI`/`HAS_NTAPI`).
 
 **Tests** Tests.Headless `~<Broker>` / `~Backtest` / `~Research`. **Common changes.**

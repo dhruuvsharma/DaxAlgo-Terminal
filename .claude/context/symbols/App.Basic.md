@@ -1,6 +1,6 @@
 # TradingTerminal.App.Basic — public API surface
 
-Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
+Generated from the current source tree. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -184,8 +184,8 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    37: public string HashText { get; }
    38: public IReadOnlyList<string> Capabilities { get; }
    42: public static bool Ask(PluginConsentRequest request)
-   78: public sealed class PluginConsentPrompt : IPluginConsentPrompt
-   80: public bool RequestConsent(PluginConsentRequest request) => PluginConsentDialog.Ask(request);
+   80: public sealed class PluginConsentPrompt : IPluginConsentPrompt
+   82: public bool RequestConsent(PluginConsentRequest request) => PluginConsentDialog.Ask(request);
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginManagerView.xaml.cs

@@ -1,13 +1,16 @@
 {
+  "description": "Codex lifecycle hooks use one adapter over the canonical .claude hook chain.",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "",
+        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\session-start.ps1\"",
-            "timeout": 15
+            "command": "pwsh -NoProfile -File \"$(git rev-parse --show-toplevel)/.codex/hooks/adapter.ps1\" -Event SessionStart",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { & (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/adapter.ps1') -Event 'SessionStart' }\"",
+            "timeout": 20,
+            "statusMessage": "Loading repository orientation"
           }
         ]
       }
@@ -17,23 +20,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\build-on-stop.ps1\"",
-            "timeout": 90
-          },
-          {
-            "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\verify-on-stop.ps1\"",
-            "timeout": 20
-          },
-          {
-            "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\leakcheck-on-stop.ps1\"",
-            "timeout": 20
-          },
-          {
-            "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\docsync-on-stop.ps1\"",
-            "timeout": 20
+            "command": "pwsh -NoProfile -File \"$(git rev-parse --show-toplevel)/.codex/hooks/adapter.ps1\" -Event Stop",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { & (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/adapter.ps1') -Event 'Stop' }\"",
+            "timeout": 180,
+            "statusMessage": "Running repository verification"
           }
         ]
       }

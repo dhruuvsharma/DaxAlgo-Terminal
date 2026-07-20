@@ -20,9 +20,9 @@ if (-not $projectDir) { $projectDir = (Get-Location).Path }
 Set-Location -Path $projectDir
 
 # Skip if not a git repo or no relevant changes
-$gitChanged = & git status --porcelain 2>$null
+$gitChanged = & git status --porcelain --untracked-files=all 2>$null
 if (-not $gitChanged) { exit 0 }
-$relevant = ($gitChanged | Where-Object { $_ -match '\.(cs|xaml|csproj|props)\b' })
+$relevant = ($gitChanged | Where-Object { $_ -match '\.(cs|xaml|axaml|csproj|props|targets|slnx|slnf)\b' })
 if (-not $relevant) { exit 0 }
 
 # Two independent trees (2026-06-27 fork): build each solution explicitly — a bare
@@ -47,7 +47,11 @@ $errorLines = $buildOutput -split "`r?`n" |
 # File-lock errors (MSB3027/MSB3021) mean the user has the app running — not a code defect.
 # Don't block turn-end on these.
 $realErrors = $errorLines | Where-Object { $_ -notmatch '\bMSB30(21|26|27)\b' }
-if (-not $realErrors) { exit 0 }
+if (-not $realErrors -and $errorLines) { exit 0 }
+if (-not $realErrors) {
+    $realErrors = $buildOutput -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 25
+}
+if (-not $realErrors) { $realErrors = @("dotnet build exited $buildExit without diagnostic output") }
 
 $summary = $realErrors -join "`n"
 

@@ -1,6 +1,6 @@
 # TradingTerminal.Recording — tick recorder window
 
-**Path** `src/windows/Tools/TradingTerminal.Recording/` · 423 LOC / 5 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Tools/TradingTerminal.Recording/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** Records live streams to disk for later replay/analysis. Still writes parquet —
 standing follow-up: drop parquet after AI/ML/Research consumers migrate off `ParquetTickReader`

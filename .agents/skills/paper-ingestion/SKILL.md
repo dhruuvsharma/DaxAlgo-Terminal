@@ -1,6 +1,6 @@
 ---
 name: paper-ingestion
-description: How the arXiv/paper-to-repo ingestion seam and the reproduction job/manifest cache work in DaxAlgo Terminal. Covers IPaperIngestClient (Null/Http, subprocess + HTTP/JSON, 127.0.0.1 only) resolving a paper URL to PaperRef + candidate RepoRef[], and the SQLite ReproJobStore cloned from ArchiveManifestStore (cache keyed by arXiv id + repo commit + config hash, sha256 artifact refs, retention). Use when touching IPaperIngestClient, ReproJobStore, HttpPaperIngestClient, the repro sidecar endpoints, or wiring AddPaperResearch().
+description: "Maintain the tree-scoped paper ingestion and reproduction-job cache: IPaperIngestClient, Null/Http clients, loopback sidecar protocol, pinned repositories, ReproJobStore, artifact hashes, retention, and AddPaperResearch. Use for Windows Core/Pipeline Research or the independently verified Linux equivalents; this skill does not imply a Windows PaperLab UI."
 ---
 
 # Paper Ingestion + Job Cache
@@ -40,12 +40,14 @@ Persisted in SQLite, **cloned from `ArchiveManifestStore`** (namespace
 - `AddPaperResearch(config)` (in `ResearchReproServiceCollectionExtensions`) registers the store +
   ingest client (Null by default, Http when `ResearchReproOptions` points at a sidecar) + the
   orchestrator + the runner (by `SandboxOptions.Kind`).
-- Called from `App.xaml.cs` alongside `AddPaperLab()`.
+- Wire `AddPaperResearch(config)` only in the selected tree's composition root. Linux composes the
+  separate Avalonia PaperLab UI; Windows currently exposes the backend seams without a PaperLab project.
 
 ## Layer placement
 
-- `IPaperIngestClient`, `PaperRef`, `RepoRef`, `ReproJob`, `ReproSpec`, `ReproResult` → `Core/Research/`.
-- `HttpPaperIngestClient`, `NullPaperIngestClient`, `ReproJobStore` → `Infrastructure/Research/`.
+- Windows contracts: `src/windows/Core/TradingTerminal.Core/Research/`.
+- Windows implementations: `src/windows/Pipeline/TradingTerminal.Infrastructure/Research/`.
+- For Linux, load the Linux context and use the equivalent `src/linux/` paths without inferring parity.
 
 ## What NOT to do
 

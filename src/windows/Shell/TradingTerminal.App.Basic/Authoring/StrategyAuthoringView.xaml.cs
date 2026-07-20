@@ -5,10 +5,10 @@ using System.Windows.Controls;
 namespace TradingTerminal.App.Authoring;
 
 /// <summary>
-/// AI Strategy Builder pane: a chat with the model, the files it writes, and the parameter editor.
-/// No behaviour here — it all lives in <see cref="StrategyAuthoringViewModel"/>. The only code-behind is
-/// keeping the transcript scrolled to the newest message, which is a pure view concern (and is unhooked
-/// on unload so a closed window doesn't keep the view-model's collection alive).
+/// The Vibe Quant agent workspace. No behaviour here — it all lives in
+/// <see cref="StrategyAuthoringViewModel"/>. The only code-behind is pure view plumbing: keeping the
+/// transcript scrolled to the newest message (unhooked on unload so a closed window doesn't keep the
+/// view-model's collection alive), and closing the composer's pill flyouts after a pick.
 /// </summary>
 public partial class StrategyAuthoringView : UserControl
 {
@@ -37,6 +37,15 @@ public partial class StrategyAuthoringView : UserControl
     {
         if (e.Action is NotifyCollectionChangedAction.Add or NotifyCollectionChangedAction.Reset)
             ChatScroll.ScrollToEnd();
+    }
+
+    /// <summary>A pick in any composer flyout closes it — the popups are IsOpen-bound to the pill
+    /// toggles. Sync-driven selection changes while everything is closed just re-assert unchecked.</summary>
+    private void OnFlyoutSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ModelPill.IsChecked = false;
+        BuildPill.IsChecked = false;
+        ReasonPill.IsChecked = false;
     }
 
     private void Detach()

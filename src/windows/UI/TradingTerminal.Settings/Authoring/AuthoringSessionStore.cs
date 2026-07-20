@@ -8,7 +8,15 @@ namespace TradingTerminal.App.Authoring;
 /// <summary>One bubble as the user saw it. Kept separately from the model thread because they are not the
 /// same thing: the thread also carries the compiler's auto-fix prompts, which the user never typed and
 /// should not have to read.</summary>
-public sealed record AuthoringChatEntry(string Role, string Text, DateTime TimestampLocal)
+public sealed record AuthoringChatEntry(
+    string Role,
+    string Text,
+    DateTime TimestampLocal,
+    // The agent-workspace transcript kinds (issue #29). All optional so pre-redesign session files
+    // keep deserializing: a null Kind is a plain user/assistant/system bubble.
+    string? Kind = null,
+    string? State = null,
+    string? Detail = null)
 {
     public const string User = "user";
     public const string Assistant = "assistant";
@@ -32,6 +40,7 @@ public sealed record AuthoringSessionSnapshot(
     string? BuildEffort = null,
     int InputTokens = 0,
     int OutputTokens = 0,
+    bool Registered = false,
     DateTime UpdatedUtc = default)
 {
     /// <summary>"2 hours ago" — what the session picker shows next to the name.</summary>

@@ -1,13 +1,14 @@
 # MAINTENANCE — keeping the context layer honest
 
 ## Regeneration (mechanical parts)
-`bash .claude/context/gen-context.sh` from the repo root (Git Bash; ~2 min) rebuilds
-`index/*.md`, `symbols/*.md`, and a fresh `deps.tsv` in a temp dir. Hand-written files
+`bash .claude/context/gen-context.sh` from the repo root (Git Bash; several minutes) stages and
+replaces `index/*.md` and `symbols/*.md`, pruning orphans, and reports a fresh `deps.tsv`.
+Use `bash .claude/context/gen-context.sh --check` for a non-mutating byte-for-byte check. Hand-written files
 (`index.md`, `symbols.md`, `deps.json`, `modules/`, `adr/`, `RECIPES/`, `PROTOCOL.md`,
 `glossary.md`) are never touched by the script — update those by hand when the graph changes.
 
 ## When
-- **Every ~10 sessions, or when index.md feels stale**: rerun gen-context.sh; if `deps.tsv`
+- **Every ~10 sessions, or when index.md feels stale**: rerun `gen-context.sh`; if `deps.tsv`
   differs from `deps.json`, update deps.json + the module docs of the changed projects.
 - **On any structural change** (project added/removed/renamed, ProjectReference change): rerun
   immediately — the `docsync-on-stop` hook fires on exactly these, use it as the reminder.
@@ -24,9 +25,20 @@
 
 ## Size discipline
 - Keep `PROTOCOL.md` < 150 lines; split if it grows. Keep every context file small + greppable.
-- Prune `tasks/` entries older than a month. Prune orphaned symbols only via regeneration (never hand-edit `symbols/`).
+- Retain completed task records as durable history; archive or remove abandoned scratchpads only after review.
+  Prune orphaned symbols only via regeneration (never hand-edit `symbols/`).
 
-## Extending to the Linux tree (not done — Windows-only per 2026-07-10 scope)
-Clone the three path lists in gen-context.sh (`src/windows` → `src/linux`, tests →
-`tests/linux`), emit into `index-linux/` + `symbols-linux/`, add a `"tree": "linux"` block to
-deps.json. Do NOT merge trees into one file — they are independent codebases.
+## Linux tree (isolated lazy slice)
+Linux/Avalonia context lives under `linux/` and is intentionally separate from the Windows
+masters. Load `linux/index.md`, `linux/symbols.md`, and `linux/deps.json` only for Linux work.
+Regenerate with `bash .claude/context/gen-context-linux.sh`; verify without writes using
+`bash .claude/context/gen-context-linux.sh --check`. The generator stages and replaces only the
+Linux subtree, indexes `.cs`/`.xaml`/`.axaml` under `src/linux` + `tests/linux`, removes orphaned
+generated files, and leaves the existing Windows context untouched.
+
+## Public context manager
+
+`powershell -File .claude/context/manage-context.ps1 summary` gives a low-cost tree/project
+overview. `... check` validates both dependency graphs, exact index path coverage, and symbol
+anchors. `... deep-check` additionally runs byte-for-byte Windows and Linux generator checks; use
+it after changing context machinery or generated artifacts, not on every session start.

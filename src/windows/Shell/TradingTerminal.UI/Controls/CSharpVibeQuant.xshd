@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- C# highlighting for the Vibe Quant workbench editor. One palette that stays legible on both
+     the dark (#1E222D) and light (#F0F3FA) editor surfaces — mid-luminance hues, no theme switch. -->
+<SyntaxDefinition name="C#-VibeQuant" extensions=".cs"
+                  xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+
+  <Color name="Comment" foreground="#6A9955" exampleText="// comment" />
+  <Color name="String" foreground="#C88E5E" exampleText="&quot;text&quot;" />
+  <Color name="Char" foreground="#C88E5E" exampleText="'c'" />
+  <Color name="Number" foreground="#7FA968" exampleText="3.14" />
+  <Color name="Keyword" foreground="#4E94D8" exampleText="public static" />
+  <Color name="Type" foreground="#3FA99B" exampleText="StrategyParameterSchema" />
+  <Color name="Preprocessor" foreground="#8A8FA0" exampleText="#region" />
+
+  <RuleSet>
+    <Span color="Comment" begin="//" />
+    <Span color="Comment" multiline="true" begin="/\*" end="\*/" />
+
+    <Span color="String" multiline="true" begin="@&quot;" end="&quot;" />
+    <Span color="String" begin="&quot;" end="&quot;">
+      <RuleSet>
+        <Span begin="\\" end="." />
+      </RuleSet>
+    </Span>
+    <Span color="Char" begin="'" end="'">
+      <RuleSet>
+        <Span begin="\\" end="." />
+      </RuleSet>
+    </Span>
+
+    <Span color="Preprocessor" begin="^\s*#" />
+
+    <Keywords color="Keyword">
+      <Word>abstract</Word><Word>as</Word><Word>async</Word><Word>await</Word><Word>base</Word>
+      <Word>bool</Word><Word>break</Word><Word>byte</Word><Word>case</Word><Word>catch</Word>
+      <Word>char</Word><Word>checked</Word><Word>class</Word><Word>const</Word><Word>continue</Word>
+      <Word>decimal</Word><Word>default</Word><Word>delegate</Word><Word>do</Word><Word>double</Word>
+      <Word>else</Word><Word>enum</Word><Word>event</Word><Word>explicit</Word><Word>extern</Word>
+      <Word>false</Word><Word>finally</Word><Word>fixed</Word><Word>float</Word><Word>for</Word>
+      <Word>foreach</Word><Word>get</Word><Word>goto</Word><Word>if</Word><Word>implicit</Word>
+      <Word>in</Word><Word>init</Word><Word>int</Word><Word>interface</Word><Word>internal</Word>
+      <Word>is</Word><Word>lock</Word><Word>long</Word><Word>nameof</Word><Word>namespace</Word>
+      <Word>new</Word><Word>null</Word><Word>object</Word><Word>operator</Word><Word>out</Word>
+      <Word>override</Word><Word>params</Word><Word>partial</Word><Word>private</Word>
+      <Word>protected</Word><Word>public</Word><Word>readonly</Word><Word>record</Word>
+      <Word>ref</Word><Word>return</Word><Word>sbyte</Word><Word>sealed</Word><Word>set</Word>
+      <Word>short</Word><Word>sizeof</Word><Word>stackalloc</Word><Word>static</Word>
+      <Word>string</Word><Word>struct</Word><Word>switch</Word><Word>this</Word><Word>throw</Word>
+      <Word>true</Word><Word>try</Word><Word>typeof</Word><Word>uint</Word><Word>ulong</Word>
+      <Word>unchecked</Word><Word>unsafe</Word><Word>ushort</Word><Word>using</Word><Word>var</Word>
+      <Word>virtual</Word><Word>void</Word><Word>volatile</Word><Word>when</Word><Word>where</Word>
+      <Word>while</Word><Word>with</Word><Word>yield</Word>
+    </Keywords>
+
+    <!-- PascalCase heuristic for type names — runs after keywords so 'String' wins over 'string'
+         only when actually capitalized. -->
+    <Rule color="Type">\b[A-Z][A-Za-z0-9_]*\b</Rule>
+
+    <Rule color="Number">\b\d[\d_]*(\.[\d_]+)?([eE][+-]?\d+)?[fFdDmMuUlL]{0,2}\b</Rule>
+  </RuleSet>
+</SyntaxDefinition>

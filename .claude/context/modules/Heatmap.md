@@ -1,10 +1,10 @@
 # TradingTerminal.Heatmap — combined Bookmap + VolBook window
 
-**Path** `src/windows/Charts/TradingTerminal.Heatmap/` · 1,813 LOC / 7 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Charts/TradingTerminal.Heatmap/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** ONE combined window (the 6 old ScottPlot heatmaps were deleted): liquidity heatmap +
 trade dots / large-lot / iceberg detection + volume profile / VWAP / value area + CVD panel + DOM +
-playback/zoom. Custom `BookmapSurface` renderer (725 LOC — WriteableBitmap-style hot path).
+playback/zoom. Custom `BookmapSurface` renderer (WriteableBitmap-style hot path).
 
 **Depends on** Core, Infrastructure, UI, UI.Core. **Surface** `symbols/Heatmap.md`.
 

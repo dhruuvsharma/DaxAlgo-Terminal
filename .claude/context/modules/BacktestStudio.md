@@ -1,6 +1,6 @@
 # TradingTerminal.BacktestStudio — studio over the engine rewrite
 
-**Path** `src/windows/Tools/TradingTerminal.BacktestStudio/` · 1,338 LOC / 12 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Tools/TradingTerminal.BacktestStudio/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** The richer backtest workbench over `TradingTerminal.Backtest.Engine` (the rewrite):
 runs, sweeps, comparisons; also the landing surface for paper-tagged reproduced strategies
@@ -8,7 +8,7 @@ runs, sweeps, comparisons; also the landing surface for paper-tagged reproduced 
 
 **Depends on** Backtest.Engine, Core, Infrastructure, MarketData, UI, UI.Core (the only tool that
 references the engine + MarketData directly). **Surface** `symbols/BacktestStudio.md`
-(`BacktestStudioViewModel.cs` 580 LOC).
+(`BacktestStudioViewModel.cs` ).
 
 **Tests** Tests.Headless `~BacktestStudio`. **Common changes.** New run configuration, result
 visualizations, repro-strategy integration. Load `backtest-engine`; Paper-Lab-touching work loads

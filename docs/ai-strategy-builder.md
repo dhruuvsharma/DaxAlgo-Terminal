@@ -1,6 +1,6 @@
 # AI Strategy Builder
 
-> Last updated: 2026-07-15
+> Last updated: 2026-07-18
 
 Describe a strategy in plain English and have it written, compiled, and auto-fixed for you — in the app
 or from the command line. This page covers what runs where, what leaves your machine, and what the
@@ -10,7 +10,7 @@ generated code can and can't do.
 
 | Tier | Where | Output |
 |---|---|---|
-| **In-app pane** | The Strategy Authoring window's *AI Strategy Builder* panel | A working strategy (kernel + catalog descriptor + live view-model) dropped into the editor, compiled and ready to review — the host composes its live window |
+| **Vibe Quant** (in-app) | Strategy Studio → Vibe Quant — an agent workspace: session rail, a transcript that shows the build plan, tool cards and per-file change chips as the agent works, and a workbench with the code editor | A working strategy (kernel + catalog descriptor + live view-model) in the workbench, compiled and ready to review — the host composes its live window |
 | **`dotnet new` + your own agent** | `dotnet new daxalgo-strategy` then open Claude Code / Codex / Cursor in the folder | A full plugin — the scaffold's `CLAUDE.md`/`AGENTS.md` carry the same context pack |
 | **`daxalgo strategy ai` CLI** | The `daxalgo` global tool | A full plugin: scaffold → AI-write the kernel → build → test → package |
 
@@ -51,9 +51,11 @@ plugin**:
 - **The policy scan is in the compile step.** A generated strategy that P/Invokes, starts a process, or
   otherwise trips the scan **fails to compile** — it can never reach your catalog. This isn't a separate
   check you can skip; it's the compiler everyone uses.
-- **You review before you save.** In the app, Generate puts the code in the editor and shows the
-  diagnostics but does **not** register it — you read it, then press **Compile** to add it. That press is
-  your consent for running model-authored code.
+- **You review before you save — through a diff.** In the app, a turn puts the code in the workbench
+  and shows the diagnostics but does **not** register it. **Compile & Register** compiles and then opens
+  a review overlay: per-file line diffs against what was last registered, the warning count, and an
+  explicit **Register** button. Registration only happens from inside that review — there is no path
+  around it, and backing out registers nothing.
 - **The DEV (unsigned) badge.** An AI-authored strategy is unsigned by definition and wears the
   **DEV (unsigned)** badge in the catalog, the same as any authored or unsigned-plugin strategy. See
   [plugin-security.md](plugin-security.md).

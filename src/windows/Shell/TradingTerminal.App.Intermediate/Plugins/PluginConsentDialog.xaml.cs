@@ -41,9 +41,11 @@ public partial class PluginConsentDialog : MetroWindow
     /// holds a half-answered dialog.</summary>
     public static bool Ask(PluginConsentRequest request)
     {
+        // WPF promotes the first constructed Window to MainWindow, so capture the real owner first.
+        var owner = Application.Current?.MainWindow;
         var dialog = new PluginConsentDialog(request)
         {
-            Owner = Application.Current?.MainWindow,
+            Owner = owner,
         };
         return dialog.ShowDialog() == true;
     }

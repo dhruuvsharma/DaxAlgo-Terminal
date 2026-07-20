@@ -1,8 +1,8 @@
 # TradingTerminal.UI — themes + shared WPF controls
 
-**Path** `src/windows/Shell/TradingTerminal.UI/` · 4,045 LOC / 50 files · **Editions** B I P · **Blast: HIGH (13 dependents)**
+**Path** `src/windows/Shell/TradingTerminal.UI/` · **Editions** B I P · **Blast: high**
 
-**Purpose.** Shared WPF layer ABOVE UI.Core: MahApps dark theme + `ThemeManager` (440 LOC,
+**Purpose.** Shared WPF layer ABOVE UI.Core: MahApps dark theme + `ThemeManager` (,
 custom-theme JSON import/export for Theme Studio), reusable controls (`InstrumentPicker`,
 `BusyOverlay`, `BannerHost`, `SimulatedDataBanner`/`SimulatedDataState`, param controls),
 value-converter suite, `CrashGuard`.

@@ -1,6 +1,6 @@
 # TradingTerminal.Settings — public API surface
 
-Generated 2026-07-17. Declaration lines only; multi-line signatures show their first line;
+Generated from the current source tree. Declaration lines only; multi-line signatures show their first line;
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
@@ -83,69 +83,111 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.Settings/Authoring/AuthoringSessionStore.cs
 ```cs
-   11: public sealed record AuthoringChatEntry(string Role, string Text, DateTime TimestampLocal)
-   13: public const string User = "user";
-   14: public const string Assistant = "assistant";
-   15: public const string System = "system";
-   23: public sealed record AuthoringSessionSnapshot(
-   38: public string Age
-   50: public string Label => $"{DisplayName} ({StrategyId}) · {Age}";
-   63: public static class AuthoringSessionStore
-   71: public static string Directory { get; } = Path.Combine(
-   78: public static bool Save(AuthoringSessionSnapshot session)
-   99: public static IReadOnlyList<AuthoringSessionSnapshot> List()
-  112: public static AuthoringSessionSnapshot? Load(string strategyId) =>
-  115: public static void Delete(string strategyId)
+   11: public sealed record AuthoringChatEntry(
+   21: public const string User = "user";
+   22: public const string Assistant = "assistant";
+   23: public const string System = "system";
+   31: public sealed record AuthoringSessionSnapshot(
+   47: public string Age
+   59: public string Label => $"{DisplayName} ({StrategyId}) · {Age}";
+   72: public static class AuthoringSessionStore
+   80: public static string Directory { get; } = Path.Combine(
+   87: public static bool Save(AuthoringSessionSnapshot session)
+  108: public static IReadOnlyList<AuthoringSessionSnapshot> List()
+  121: public static AuthoringSessionSnapshot? Load(string strategyId) =>
+  124: public static void Delete(string strategyId)
+```
+
+## src/windows/UI/TradingTerminal.Settings/Authoring/LineDiff.cs
+```cs
+    5: public sealed record DiffLine(string Kind, string Text);
+   14: public static class LineDiff
+   19: public static (int Added, int Removed) Count(string before, string after)
+   34: public static IReadOnlyList<DiffLine> Build(string before, string after)
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Authoring/StrategyAuthoringViewModel.cs
 ```cs
-   34: public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposable
-   65: public StrategyAuthoringViewModel(
-  117: public bool AiEnabled => _ai is not null;
-  118: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
-  131: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
-  146: public ObservableCollection<AuthoredFile> Files { get; }
-  173: public ObservableCollection<AiProviderChoice> AiProviders { get; }
-  179: public ObservableCollection<string> Models { get; } = [];
-  186: public IReadOnlyList<CodegenEffort> Efforts { get; } =
-  193: public bool EffortSupported => SelectedAiProvider is { } choice && AiModelCatalog.SupportsEffort(choice.ProviderId);
-  238: public ObservableCollection<AiModelChoice> AllModels { get; }
-  304: public IReadOnlyList<StrategyBuildEffort> BuildEfforts { get; } =
-  324: public IReadOnlyList<AgentCliAdapter> AvailableClis => _cliLauncher?.AvailableClis() ?? [];
-  393: public ObservableCollection<AuthoringMessage> Messages { get; }
-  397: public ObservableCollection<string> Activity { get; }
-  406: public ObservableCollection<BuildTask> Tasks { get; }
-  542: public string UsageText => InputTokens + OutputTokens == 0
-  787: public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
- 1083: public void Dispose()
- 1107: public sealed class MyStrategy : IBacktestStrategy
- 1109: public static StrategyParameterSchema Schema { get; } = new(
- 1113: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
- 1120: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
- 1122: public MyStrategy(Contract contract, int lookback, double threshold)
- 1129: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
- 1132: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
- 1140: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
- 1142: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
- 1150: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
- 1158: public sealed partial class AuthoringMessage : ObservableObject
- 1160: public AuthoringMessage(CodegenRole role, string text)
- 1174: public static AuthoringMessage System(string? text) => new(text ?? string.Empty);
- 1176: public CodegenRole Role { get; }
- 1177: public bool IsSystem { get; }
- 1178: public bool IsUser => !IsSystem && Role == CodegenRole.User;
- 1179: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
- 1184: public DateTime TimestampLocal { get; } = DateTime.Now;
- 1189: public sealed class AiProviderChoice(IStrategyCodegenClient client)
- 1191: public IStrategyCodegenClient Client { get; } = client;
- 1192: public string ProviderId => Client.ProviderId;
- 1193: public string DisplayName => Client.DisplayName;
- 1194: public bool IsAvailable => Client.IsAvailable;
- 1195: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
- 1199: public enum BuildTaskState
- 1209: public sealed partial class BuildTask(string title) : ObservableObject
- 1211: public string Title { get; } = title;
+   35: public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposable
+   66: public StrategyAuthoringViewModel(
+  122: public bool AiEnabled => _ai is not null;
+  123: public bool AiHasProvider => AiProviders.Any(p => p.IsAvailable);
+  127: public bool HasConversation => Messages.Count > 0;
+  134: public IReadOnlyList<string> SuggestionBriefs { get; } =
+  186: public ObservableCollection<StrategyDiagnostic> Diagnostics { get; }
+  201: public ObservableCollection<AuthoredFile> Files { get; }
+  228: public ObservableCollection<AiProviderChoice> AiProviders { get; }
+  234: public ObservableCollection<string> Models { get; } = [];
+  241: public IReadOnlyList<CodegenEffort> Efforts { get; } =
+  248: public bool EffortSupported => SelectedAiProvider is { } choice && AiModelCatalog.SupportsEffort(choice.ProviderId);
+  278: public string ModelPillText =>
+  302: public ObservableCollection<AiModelChoice> AllModels { get; }
+  370: public IReadOnlyList<StrategyBuildEffort> BuildEfforts { get; } =
+  390: public IReadOnlyList<AgentCliAdapter> AvailableClis => _cliLauncher?.AvailableClis() ?? [];
+  459: public ObservableCollection<AuthoringMessage> Messages { get; }
+  463: public ObservableCollection<string> Activity { get; }
+  472: public ObservableCollection<BuildTask> Tasks { get; }
+  685: public string UsageText => InputTokens + OutputTokens == 0
+  961: public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
+ 1093: public ObservableCollection<ReviewFileEntry> ReviewFiles { get; } = [];
+ 1415: public void Dispose()
+ 1439: public sealed class MyStrategy : IBacktestStrategy
+ 1441: public static StrategyParameterSchema Schema { get; } = new(
+ 1445: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+ 1452: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+ 1454: public MyStrategy(Contract contract, int lookback, double threshold)
+ 1461: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+ 1464: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+ 1472: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+ 1474: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+ 1482: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
+ 1496: public sealed partial class AuthoringMessage : ObservableObject
+ 1498: public const string KindUser = "User";
+ 1499: public const string KindAssistant = "Assistant";
+ 1500: public const string KindNote = "Note";
+ 1501: public const string KindTool = "Tool";
+ 1502: public const string KindPlan = "Plan";
+ 1503: public const string KindPlanText = "PlanText";
+ 1504: public const string KindFiles = "Files";
+ 1506: public AuthoringMessage(CodegenRole role, string text)
+ 1522: public static AuthoringMessage System(string? text) => new(KindNote, text ?? string.Empty);
+ 1527: public static AuthoringMessage Tool(string state, string title, string detail, string? more = null) =>
+ 1538: public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
+ 1542: public static AuthoringMessage PlanText(string text) => new(KindPlanText, text);
+ 1544: public static AuthoringMessage FilesChanged(IReadOnlyList<FileChangeSummary> changes) =>
+ 1550: public CodegenRole Role { get; }
+ 1551: public bool IsSystem { get; }
+ 1552: public string Kind { get; }
+ 1553: public bool IsUser => !IsSystem && Role == CodegenRole.User;
+ 1554: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
+ 1556: public string? ToolState { get; private init; }
+ 1557: public string? ToolTitle { get; private init; }
+ 1558: public string? ToolDetail { get; private init; }
+ 1559: public string? ToolMore { get; private init; }
+ 1560: public bool HasMore => !string.IsNullOrEmpty(ToolMore);
+ 1562: public IReadOnlyList<BuildTask>? PlanTasks { get; private init; }
+ 1563: public IReadOnlyList<FileChangeSummary>? FileChanges { get; private init; }
+ 1566: public string PlanSnapshotText() => PlanTasks is null
+ 1579: public DateTime TimestampLocal { get; } = DateTime.Now;
+ 1583: public sealed record FileChangeSummary(string Name, int Added, int Removed)
+ 1585: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 1588: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
+ 1591: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
+ 1609: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
+ 1611: public string Name { get; } = name;
+ 1612: public IReadOnlyList<DiffLine> Lines { get; } = lines;
+ 1613: public int Added { get; } = lines.Count(l => l.Kind == "add");
+ 1614: public int Removed { get; } = lines.Count(l => l.Kind == "del");
+ 1615: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 1620: public sealed class AiProviderChoice(IStrategyCodegenClient client)
+ 1622: public IStrategyCodegenClient Client { get; } = client;
+ 1623: public string ProviderId => Client.ProviderId;
+ 1624: public string DisplayName => Client.DisplayName;
+ 1625: public bool IsAvailable => Client.IsAvailable;
+ 1626: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
+ 1630: public enum BuildTaskState
+ 1640: public sealed partial class BuildTask(string title) : ObservableObject
+ 1642: public string Title { get; } = title;
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs

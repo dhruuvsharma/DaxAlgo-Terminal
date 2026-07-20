@@ -25,7 +25,7 @@ $projectDir = $env:CLAUDE_PROJECT_DIR
 if (-not $projectDir) { $projectDir = (Get-Location).Path }
 Set-Location -Path $projectDir
 
-$status = & git status --porcelain 2>$null
+$status = & git status --porcelain --untracked-files=all 2>$null
 if (-not $status) { exit 0 }
 $changed = @($status) | ForEach-Object { ($_ -replace '^...').Trim() }
 $relevant = $changed | Where-Object { $_ -match '\.(cs|csproj)$' }

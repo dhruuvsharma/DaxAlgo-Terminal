@@ -1,6 +1,6 @@
 # TradingTerminal.Core — domain types, seams, options
 
-**Path** `src/windows/Core/TradingTerminal.Core/` · 17,221 LOC / 241 files / 403 public types · **Editions** B I P · **Blast: HIGH (22 dependents — everything)**
+**Path** `src/windows/Core/TradingTerminal.Core/` · **Editions** B I P · **Blast: high**
 
 **Purpose.** Broker-/UI-free domain layer: every cross-project type, interface, and options record.
 **Depends on** nothing (hard invariant). **Depended by** every other project.

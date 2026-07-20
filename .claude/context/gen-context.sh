@@ -5,28 +5,35 @@
 #   <scratch>/deps.tsv                 (project -> ProjectReference list; feeds deps.json by hand)
 # Hand-written files (index.md, symbols.md, deps.json, modules/, adr/, RECIPES/, PROTOCOL.md,
 # glossary.md) are NOT touched. Run from the repo root:  bash .claude/context/gen-context.sh
+# Add --check to compare a staged regeneration without changing committed output.
 # See MAINTENANCE.md for when to run. Git Bash on Windows is fine; needs rg + coreutils.
-set -u
+set -euo pipefail
 # rg shim: Claude Code exposes ripgrep as a shell function (not on PATH for child shells).
 if ! command -v rg >/dev/null 2>&1; then
   _cc_bin="${CLAUDE_CODE_EXECPATH:-$HOME/.local/bin/claude.exe}"
   if [ -x "$_cc_bin" ]; then rg() { ARGV0=rg "$_cc_bin" "$@"; }
   else echo "gen-context.sh: ripgrep (rg) not found" >&2; exit 1; fi
 fi
-S="${1:-$(mktemp -d)}"
+MODE="write"
+if [ "${1:-}" = "--check" ]; then MODE="check"; shift; fi
+S="$(mktemp -d)"
+trap 'rm -rf "$S"' EXIT
 [ -d src/windows ] || { echo "gen-context.sh: run from the repo root" >&2; exit 1; }
-DATE=$(date +%F)
 mkdir -p .claude/context/index .claude/context/symbols
+OUT="$S/output"
+INDEX_OUT="$OUT/index"
+SYMBOLS_OUT="$OUT/symbols"
+mkdir -p "$INDEX_OUT" "$SYMBOLS_OUT"
 
 # ---------- 0 · project list + LOC ----------
 rg --files -g '*.csproj' src/windows tests samples | tr '\\' '/' | grep -v 'tests/linux' | sort > "$S/csprojs.txt"
 awk -F/ '{n=$NF; sub(/[.]csproj$/,"",n); d=$0; sub(/\/[^\/]*$/,"",d); print n "\t" d}' "$S/csprojs.txt" > "$S/projlist.txt"
-rg -c '^' -g '*.cs' -g '*.xaml' src/windows tests/TradingTerminal.Tests tests/TradingTerminal.Tests.Headless samples | tr '\\' '/' > "$S/locn.txt"
+rg -c '^' -g '*.cs' -g '*.xaml' -g '*.axaml' src/windows tests/TradingTerminal.Tests tests/TradingTerminal.Tests.Headless samples | tr '\\' '/' > "$S/locn.txt"
 
 # ---------- 1 · deps.tsv ----------
 : > "$S/deps.tsv"
 while IFS=$'\t' read -r name dir; do
-  refs=$(rg -o 'ProjectReference Include="[^"]*"' -g '*.csproj' "$dir" --no-filename 2>/dev/null \
+  refs=$({ rg -o 'ProjectReference Include="[^"]*"' -g '*.csproj' "$dir" --no-filename 2>/dev/null || true; } \
         | tr '\\' '/' | sed 's|.*/||; s|[.]csproj"$||; s|.*"||' | sort -u | paste -sd, -)
   printf '%s\t%s\n' "$name" "${refs:-}" >> "$S/deps.tsv"
 done < "$S/projlist.txt"
@@ -35,52 +42,54 @@ done < "$S/projlist.txt"
 gen_symbols() { # $1=dir  $2=out.md  $3=title  $4="1" => project-root files only
   local dir="$1" out="$2" title="$3" depth="${4:-}" list
   if [ "$depth" = "1" ]; then
-    list=$(rg --files -g '*.cs' --max-depth 1 "$dir" 2>/dev/null | tr '\\' '/' | sort)
+    list=$({ rg --files -g '*.cs' --max-depth 1 "$dir" 2>/dev/null || true; } | tr '\\' '/' | sort)
   else
-    list=$(rg --files -g '*.cs' "$dir" 2>/dev/null | tr '\\' '/' | sort)
+    list=$({ rg --files -g '*.cs' "$dir" 2>/dev/null || true; } | tr '\\' '/' | sort)
   fi
   [ -z "$list" ] && return 0
   {
     echo "# $title — public API surface"
     echo
-    echo "Generated $DATE. Declaration lines only; multi-line signatures show their first line;"
+    echo "Generated from the current source tree. Declaration lines only; multi-line signatures show their first line;"
     echo 'note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.'
     echo 'Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.'
   } > "$out"
-  echo "$list" | while read -r f; do
-    [ -n "$f" ] || continue
-    awk -v fn="$f" '
+  printf '%s\n' "$list" | awk '
       function emit(s,  o) {
         o=s; if (length(o) > 168) o = substr(o,1,165) "..."
         if (!printed) { printf "\n## %s\n```cs\n", fn; printed=1 }
-        printf "%5d: %s\n", FNR, o
+        printf "%5d: %s\n", lineno, o
       }
-      BEGIN { printed=0; inif=0; started=0; depth=0 }
-      {
-        raw=$0; line=raw
-        gsub(/^[[:space:]]+/,"",line); gsub(/[[:space:]]+$/,"",line)
-        # inside a public interface: members carry no modifier -> print everything meaningful
-        if (inif) {
-          if (line != "" && line !~ /^[{}]/ && line !~ /^\[/ && line !~ /^\// && line !~ /^#/) emit("    " line)
-          depth += split(raw,_a,"{") - 1; depth -= split(raw,_b,"}") - 1
-          if (index(raw,"{") > 0) started=1
-          if (started && depth <= 0) inif=0
-          next
-        }
-        if (line ~ /^(public|protected)[[:space:]]/) {
-          if (line ~ /^(public|protected)[[:space:]]*(get|set)[;{ ]/) next
-          emit(line)
-          if (line ~ /^(public|protected)[[:space:]]+(partial[[:space:]]+)?interface[[:space:]]/) {
-            inif=1; started=0; depth=0
+      function scan_file(path) {
+        fn=path; printed=0; inif=0; started=0; depth=0; lineno=0
+        while ((getline raw < path) > 0) {
+          lineno++
+          line=raw
+          gsub(/^[[:space:]]+/,"",line); gsub(/[[:space:]]+$/,"",line)
+          # inside a public interface: members carry no modifier -> print everything meaningful
+          if (inif) {
+            if (line != "" && line !~ /^[{}]/ && line !~ /^\[/ && line !~ /^\// && line !~ /^#/) emit("    " line)
             depth += split(raw,_a,"{") - 1; depth -= split(raw,_b,"}") - 1
             if (index(raw,"{") > 0) started=1
             if (started && depth <= 0) inif=0
+            continue
+          }
+          if (line ~ /^(public|protected)[[:space:]]/) {
+            if (line ~ /^(public|protected)[[:space:]]*(get|set)[;{ ]/) continue
+            emit(line)
+            if (line ~ /^(public|protected)[[:space:]]+(partial[[:space:]]+)?interface[[:space:]]/) {
+              inif=1; started=0; depth=0
+              depth += split(raw,_a,"{") - 1; depth -= split(raw,_b,"}") - 1
+              if (index(raw,"{") > 0) started=1
+              if (started && depth <= 0) inif=0
+            }
           }
         }
+        close(path)
+        if (printed) print "```"
       }
-      END { if (printed) print "```" }
-    ' "$f" >> "$out"
-  done
+      NF { scan_file($0) }
+    ' >> "$out"
 }
 
 while IFS=$'\t' read -r name dir; do
@@ -88,73 +97,104 @@ while IFS=$'\t' read -r name dir; do
   short="${name#TradingTerminal.}"
   case "$name" in
     TradingTerminal.Core|TradingTerminal.Infrastructure)
-      gen_symbols "$dir" ".claude/context/symbols/$short-Root.md" "$name (project-root files)" 1
+      gen_symbols "$dir" "$SYMBOLS_OUT/$short-Root.md" "$name (project-root files)" 1
       for sub in "$dir"/*/; do
         [ -d "$sub" ] || continue
         sb=$(basename "$sub")
         case "$sb" in bin|obj|Properties) continue;; esac
-        gen_symbols "$sub" ".claude/context/symbols/$short-$sb.md" "$name / $sb"
+        gen_symbols "$sub" "$SYMBOLS_OUT/$short-$sb.md" "$name / $sb"
       done
       ;;
-    *) gen_symbols "$dir" ".claude/context/symbols/$short.md" "$name";;
+    *) gen_symbols "$dir" "$SYMBOLS_OUT/$short.md" "$name";;
   esac
 done < "$S/projlist.txt"
 # drop header-only outputs
-for f in .claude/context/symbols/*.md; do
+for f in "$SYMBOLS_OUT"/*.md; do
   [ -e "$f" ] || continue
   if [ "$(grep -c '^## ' "$f")" = "0" ]; then rm -f "$f"; fi
 done
 
 # ---------- 3 · index ----------
-rm -f .claude/context/index/*.tmp
-sort -t: -k1,1 "$S/locn.txt" | while IFS=: read -r path loc; do
-  case "$path" in
-    src/windows/*) group=$(printf '%s' "$path" | cut -d/ -f3); proj=$(printf '%s' "$path" | cut -d/ -f4);;
-    tests/*)       group="Tests"; proj=$(printf '%s' "$path" | cut -d/ -f2);;
-    samples/*)     group="Samples"; proj=$(printf '%s' "$path" | cut -d/ -f2);;
-    *) continue;;
-  esac
-  case "$proj" in
-    TradingTerminal.App.Basic) ed="B";;
-    TradingTerminal.App.Intermediate) ed="I";;
-    TradingTerminal.Tests*|DaxAlgo.SamplePlugin) ed="dev";;
-    *) ed="B I P";;
-  esac
-  pub="N"; grep -qE '^[[:space:]]*public' "$path" 2>/dev/null && pub="Y"
-  purpose=""
-  case "$path" in
-    *.cs)
-      purpose=$(rg -m1 -oP '(?<=<summary>)[^<]{3,}' "$path" 2>/dev/null | head -1)
-      if [ -z "$purpose" ]; then
-        purpose=$(rg -m1 -A1 -N '/// <summary>' "$path" 2>/dev/null | tail -1 | sed 's|.*///||; s|<[^>]*>||g')
-      fi
-      if [ -z "$purpose" ]; then
-        purpose=$(rg -m1 -oE '(class|record|interface|enum|struct) [A-Za-z_][A-Za-z0-9_]*' "$path" 2>/dev/null | head -1)
-      fi;;
-    *.xaml)
-      purpose=$(rg -m1 -oE 'x:Class="[^"]+"' "$path" 2>/dev/null | sed 's|x:Class=||; s|"||g')
-      purpose="XAML $purpose";;
-  esac
-  purpose=$(printf '%s' "$purpose" | tr -d '\r|`' | awk '{for(i=1;i<=12&&i<=NF;i++) printf "%s ",$i}' | sed 's/[[:space:]]*$//')
-  printf '| `%s` | %s | win | %s | %s | %s | %s |\n' "$path" "$loc" "$proj" "$ed" "$pub" "$purpose" >> ".claude/context/index/$group.tmp"
-done
-for t in .claude/context/index/*.tmp; do
+sort -t: -k1,1 "$S/locn.txt" | awk -v out="$INDEX_OUT" '
+  function normalize_purpose(value,  words,n,i,result) {
+    gsub(/[\r|`]/,"",value)
+    gsub(/^[[:space:]]+|[[:space:]]+$/,"",value)
+    n=split(value,words,/[[:space:]]+/)
+    result=""
+    for (i=1; i<=n && i<=12; i++) if (words[i] != "") result=result (result == "" ? "" : " ") words[i]
+    return result
+  }
+  function inspect(path,  raw,line,next_is_summary) {
+    pub="N"; same_summary=""; block_summary=""; next_is_summary=0
+    while ((getline raw < path) > 0) {
+      line=raw
+      if (line ~ /^[[:space:]]*public/) pub="Y"
+      if (same_summary == "" && match(line,/<summary>[^<][^<][^<]+/))
+        same_summary=substr(line,RSTART+9,RLENGTH-9)
+      if (next_is_summary && block_summary == "") {
+        block_summary=line
+        sub(/^.*\/\/\//,"",block_summary)
+        gsub(/<[^>]*>/,"",block_summary)
+        next_is_summary=0
+      }
+      if (block_summary == "" && line ~ /\/\/\/ <summary>/) next_is_summary=1
+    }
+    close(path)
+  }
+  {
+    sep=index($0,":"); if (!sep) next
+    path=substr($0,1,sep-1); loc=substr($0,sep+1)
+    split(path,parts,"/")
+    if (parts[1] == "src" && parts[2] == "windows") { group=parts[3]; proj=parts[4] }
+    else if (parts[1] == "tests") { group="Tests"; proj=parts[2] }
+    else if (parts[1] == "samples") { group="Samples"; proj=parts[2] }
+    else next
+
+    if (proj == "TradingTerminal.App.Basic") ed="B"
+    else if (proj == "TradingTerminal.App.Intermediate") ed="I"
+    else if (proj ~ /^TradingTerminal.Tests/ || proj == "DaxAlgo.SamplePlugin") ed="dev"
+    else ed="B I P"
+
+    inspect(path)
+    if (path ~ /[.]cs$/) purpose=(same_summary != "" ? same_summary : block_summary)
+    else purpose="XAML"
+    purpose=normalize_purpose(purpose)
+    target=out "/" group ".tmp"
+    printf "| `%s` | %s | win | %s | %s | %s | %s |\n", path,loc,proj,ed,pub,purpose >> target
+    close(target)
+  }
+'
+for t in "$INDEX_OUT"/*.tmp; do
   [ -e "$t" ] || continue
   g=$(basename "$t" .tmp)
   {
     echo "# index/$g — per-file index (Windows tree)"
     echo
-    echo "Generated $DATE. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads."
+    echo "Generated from the current source tree. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads."
     echo "Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only."
     echo
     echo "| File | LOC | Tree | Project | Ed | Pub | Purpose |"
     echo "|---|---|---|---|---|---|---|"
     sort -t'|' -k5,5 -k2,2 "$t"
-  } > ".claude/context/index/$g.md"
+  } > "$INDEX_OUT/$g.md"
   rm -f "$t"
 done
 
 # ---------- 4 · report ----------
+if [ "$MODE" = "check" ]; then
+  if ! diff -qr .claude/context/index "$INDEX_OUT" >/dev/null ||
+     ! diff -qr .claude/context/symbols "$SYMBOLS_OUT" >/dev/null; then
+    echo "gen-context.sh: generated context is stale" >&2
+    diff -qr .claude/context/index "$INDEX_OUT" || true
+    diff -qr .claude/context/symbols "$SYMBOLS_OUT" || true
+    exit 1
+  fi
+else
+  rm -f .claude/context/index/*.md .claude/context/symbols/*.md
+  cp "$INDEX_OUT"/*.md .claude/context/index/
+  cp "$SYMBOLS_OUT"/*.md .claude/context/symbols/
+fi
+
 echo "== deps.tsv =="; cat "$S/deps.tsv"
-echo; echo "== symbols files (lines) =="; wc -l .claude/context/symbols/*.md | sort -nr | head -45
-echo; echo "== index files (rows) =="; for f in .claude/context/index/*.md; do echo "$(grep -c '^| ' "$f") $f"; done
+echo; echo "== symbols files (lines) =="; wc -l "$SYMBOLS_OUT"/*.md | sort -nr | head -45
+echo; echo "== index files (rows) =="; for f in "$INDEX_OUT"/*.md; do echo "$(grep -c '^| ' "$f") $f"; done

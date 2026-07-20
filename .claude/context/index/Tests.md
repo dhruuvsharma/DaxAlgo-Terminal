@@ -1,6 +1,6 @@
 # index/Tests — per-file index (Windows tree)
 
-Generated 2026-07-17. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
+Generated from the current source tree. Grep by filename/keyword. LOC > 400 => never read whole; rg then ranged reads.
 Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=test-only.
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
@@ -9,6 +9,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests/AiAnalyst/HttpAiAnalystClientTests.cs` | 140 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/AiAnalyst/NullAiAnalystClientTests.cs` | 37 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/AssemblyInfo.cs` | 7 | win | TradingTerminal.Tests | dev | N |  |
+| `tests/TradingTerminal.Tests/Authoring/VibeQuantTranscriptTests.cs` | 137 | win | TradingTerminal.Tests | dev | Y | The pure logic under the Vibe Quant agent workspace (issue #29): the |
 | `tests/TradingTerminal.Tests/Backtest/DuckDbParquetQueryServiceTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y | Exercises against real Parquet files produced by |
 | `tests/TradingTerminal.Tests/Controls/ChartPanelTests.cs` | 103 | win | TradingTerminal.Tests | dev | Y | The three chart tools are now embeddable UserControls (an authored strategy composes |
 | `tests/TradingTerminal.Tests/Controls/ComposedStrategyViewTests.cs` | 197 | win | TradingTerminal.Tests | dev | Y | Panel view-models resolve their pipeline seams from here; with no instrument pinned |
@@ -18,7 +19,6 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests/Controls/WpfTestApp.cs` | 84 | win | TradingTerminal.Tests | dev | N | Any style the panels resolve by StaticResource — its presence means the |
 | `tests/TradingTerminal.Tests/Login/LoginFormEditionCompositionTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y | The broker-neutral services every edition provides before AddLogin. |
 | `tests/TradingTerminal.Tests/MarketData/LocalParquetLakeExporterTests.cs` | 132 | win | TradingTerminal.Tests | dev | Y | Minimal hand-rolled |
-| `tests/TradingTerminal.Tests/OrderFlowPressureMap/PressureMapCalculatorTests.cs` | 154 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Strategies/StrategyFactoryTests.cs` | 65 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Analytics/CorrelationCalculatorTests.cs` | 103 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Backtest/BacktestSessionTests.cs` | 106 | win | TradingTerminal.Tests.Headless | dev | Y |  |
@@ -118,7 +118,6 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Research/ReproducedSignalKernelTests.cs` | 86 | win | TradingTerminal.Tests.Headless | dev | Y | Engine smoke test for the Phase-3 bridge endpoint: a canned |
 | `tests/TradingTerminal.Tests.Headless/Research/SandboxPolicyTests.cs` | 57 | win | TradingTerminal.Tests.Headless | dev | Y | The sandbox policy is a security boundary: it must deny by default. |
 | `tests/TradingTerminal.Tests.Headless/Risk/RiskManagerTests.cs` | 110 | win | TradingTerminal.Tests.Headless | dev | Y |  |
-| `tests/TradingTerminal.Tests.Headless/Strategies/ApexScalperWarmupTests.cs` | 147 | win | TradingTerminal.Tests.Headless | dev | Y | A noisy upward trend so the line fits have non-zero residuals (else |
 | `tests/TradingTerminal.Tests.Headless/Strategies/AuthoredStrategyComposerTests.cs` | 261 | win | TradingTerminal.Tests.Headless | dev | Y | Kernel + descriptor + live view-model, no view — the shape the |
 | `tests/TradingTerminal.Tests.Headless/Strategies/IndexRegimeAggregatorTests.cs` | 103 | win | TradingTerminal.Tests.Headless | dev | Y | Snapshot whose every timeframe column carries the trend score returned by |
 | `tests/TradingTerminal.Tests.Headless/Strategies/RoslynStrategyCompilerTests.cs` | 160 | win | TradingTerminal.Tests.Headless | dev | Y |  |
@@ -126,5 +125,4 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyCodegenTests.cs` | 1082 | win | TradingTerminal.Tests.Headless | dev | Y | A kernel that compiles and does nothing — the fixture for the |
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyParametersTests.cs` | 128 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/TestSupport/ImmediateDispatcher.cs` | 11 | win | TradingTerminal.Tests.Headless | dev | Y | UI dispatcher stand-in for tests; runs everything inline on the calling thread. |
-| `tests/TradingTerminal.Tests.Headless/Ui/PortedStrategyResolutionTests.cs` | 77 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the ported per-strategy view-models resolve from the same headless DI graph |
 | `tests/TradingTerminal.Tests.Headless/Ui/StrategyCatalogViewModelTests.cs` | 38 | win | TradingTerminal.Tests.Headless | dev | Y | Tests the portable strategy-catalog VM (shared by the WPF + Avalonia heads). |

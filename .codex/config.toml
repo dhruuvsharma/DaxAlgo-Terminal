@@ -1,0 +1,14 @@
+# Repository guidance in AGENTS.md remains authoritative. These settings only enable Codex
+# capabilities and bound local multi-agent fan-out for this trusted project.
+
+[features]
+hooks = true
+memories = true
+
+[memories]
+generate_memories = true
+use_memories = true
+
+[agents]
+max_threads = 4
+max_depth = 2

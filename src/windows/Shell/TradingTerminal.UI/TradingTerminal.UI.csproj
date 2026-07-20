@@ -23,8 +23,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- AvalonEdit (MIT) backs the Vibe Quant workbench editor (Controls/CodeEditor). It rides the
+         SDK contract chain like everything else in this package — small and license-compatible. -->
+    <PackageReference Include="AvalonEdit" Version="6.3.0.90" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
     <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The editor's theme-neutral C# highlighting (colors legible on dark AND light surfaces). -->
+    <EmbeddedResource Include="Controls\CSharpVibeQuant.xshd" />
   </ItemGroup>
 
   <!-- Brand marks, linked from the repo-root assets folder (the single source of truth) so every

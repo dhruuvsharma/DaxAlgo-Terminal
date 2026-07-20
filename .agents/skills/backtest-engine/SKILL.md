@@ -1,19 +1,17 @@
 ---
 name: backtest-engine
-description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBacktestStrategy seam, IOrderRouter, SimulatedOrderBook, L1FillModel, IFeeModel (Zero/MakerTaker/Bps), IRiskManager, ParquetTickReader/Writer, StatisticsCalculator, and the live/backtest router split. Use when touching fee models, risk caps, fill simulation, OMS stubs, the Backtest CLI (daxalgo-backtest.exe), or the Tools → Backtest window. Skip for pure UI work or for adding strategies (use add-strategy instead).
+description: Internals of DaxAlgo Terminal's tick/event backtest stack — Core contracts, TradingTerminal.Backtest.Engine replay and optimization, Infrastructure persistence adapters, and the Backtest/BacktestStudio tools. Use for fee/risk/fill simulation, event ordering, reports, optimization, or backtest surfaces. Skip strategy authoring; use add-strategy for external plugins.
 ---
 
 # Backtest Engine
 
 ## Layout
 
-- `Core/Backtest/` — `IBacktestStrategy` (engine seam: `OnStartAsync` / `OnTickAsync(Tick)` / `OnTradeAsync(TradePrint)` / `OnOrderEventAsync` / `OnEndAsync`), `BacktestConfig`, `BacktestResult`.
-- `Core/Trading/` — `IOrderRouter`, `IFeeModel`, `IRiskManager`, `OrderEvent`, `Liquidity` enum.
-- `Infrastructure/Backtest/` — `BacktestSession`, `SimulatedOrderBook`, `L1FillModel`, `TradeLedger`, `StatisticsCalculator`, `Fast/` (parallel sweeps).
-- `Infrastructure/Backtest/Persistence/` — `BacktestTickSource` (k-way merge over the store), `ParquetTickReader` / `ParquetTickWriter` (row-group buffered; epoch-microsecond timestamps; **read-path being migrated off — prefer `IMarketDataStore` for new code**).
-- `Infrastructure/Backtest/Strategies/` — engine-side strategy impls.
-- `src/TradingTerminal.Backtest/` — Tools → Backtest window (own project; `AddBacktestSurface` DI extension, called from `App.xaml.cs`).
-- `src/TradingTerminal.Backtest.Cli/` — headless `daxalgo-backtest.exe` (`run` / `synth` / `sweep` subcommands; data source = parquet OR store via `--symbol --from --to`).
+- `src/windows/Core/TradingTerminal.Core/Backtest/` and `Trading/` — public contracts, configuration, results, fees and order routing seams.
+- `src/windows/Backtest/TradingTerminal.Backtest.Engine/` — event replay, simulation clock/context, kernels, reports, optimization and polyglot adapters.
+- `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/` — persistence/feed adapters and remaining infrastructure integration.
+- `src/windows/Tools/TradingTerminal.Backtest/` — quick backtest surface.
+- `src/windows/Tools/TradingTerminal.BacktestStudio/` — catalog, data-source, optimization and walk-forward UI.
 
 ## Order routing
 
@@ -27,7 +25,6 @@ description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBac
 - Built-ins: `ZeroFeeModel`, `MakerTakerFeeModel`, `BpsFeeModel`.
 - `SimulatedOrderBook` tags each fill: Limit ⇒ Maker, Market/Stop ⇒ Taker — set on `OrderEvent.Liquidity`.
 - `TradeLedger` charges fees per fill, surfaces total on `BacktestResult.TotalFees`.
-- CLI flags: `--taker-fee`, `--maker-rebate`, `--fee-bps`.
 - Pass via `BacktestConfig.FeeModel`.
 
 ## Risk (`IRiskManager`)
@@ -41,7 +38,7 @@ description: Internals of DaxAlgo Terminal's tick-level backtest engine — IBac
 
 - Parquet, epoch-microsecond timestamps, row-group buffered. **New code reads through `IMarketDataStore`** ([market-data-pipeline](../market-data-pipeline/SKILL.md)); parquet stays only for the recorder + a few AI/ML/Research tabs that haven't been migrated.
 - `BacktestTickSource` does a k-way merge of quote and trade streams via `BacktestEvent` so `OnTickAsync` and `OnTradeAsync` fire in event-time order.
-- Synth subcommand generates a mean-reverting random walk with variable L1 sizes and occasional spread-bursts — so microstructure / market-maker strategies actually exercise their logic.
+- Use the Studio or plugin harness synthetic feeds to exercise quotes, trades and depth deterministically.
 
 ## Stats
 
@@ -66,17 +63,10 @@ Equity is sampled at most once per minute of simulated time.
 - **L2 strategies compute on L1 sizes today.** Swap to `DepthSnapshot` via the `Microstructure` multi-level helpers when L2 ticks land in the backtest engine. (Engine currently L1-only.)
 - **OMS seam**: `IBrokerClient.PlaceOrderAsync` / `CancelOrderAsync` / `OrderEvents` exist but throw. Don't pretend they work yet.
 
-## Quick commands
+## Verification
 
-```powershell
-# Generate synthetic ticks
-src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe synth --output bt-data.parquet --ticks 10000
-
-# Run a strategy
-src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe run --strategy meanReversion --symbol TEST --data bt-data.parquet
-
-# Sweep parameters in parallel
-src\TradingTerminal.Backtest.Cli\bin\Debug\net9.0-windows\daxalgo-backtest.exe sweep --strategy bollinger --data bt-data.parquet
-```
+Build the affected Windows edition filter for tool-only work; build `TradingTerminal.Windows.slnx` for
+Core/engine signatures. Run focused engine/tool tests and the external plugin harness when strategy
+compatibility changes.
 
 See also: [add-strategy](../add-strategy/SKILL.md) for the strategy authoring recipe.

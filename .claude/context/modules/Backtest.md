@@ -1,9 +1,9 @@
 # TradingTerminal.Backtest — Tools→Backtest window + Quick backtest
 
-**Path** `src/windows/Tools/TradingTerminal.Backtest/` · 1,358 LOC / 8 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Tools/TradingTerminal.Backtest/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** The Backtest window over the legacy tick engine (`Infrastructure/Backtest/`) plus the
-strategy-catalog right-click **Quick backtest** (`QuickBacktestViewModel.cs` 448 LOC): Binance
+strategy-catalog right-click **Quick backtest** (`QuickBacktestViewModel.cs` ): Binance
 full-tape mode (real aggTrades → synth L1) or bar-synthetic; maps `ITradingStrategy.
 BacktestStrategyId` → engine strategy. Depth/OBI can't be backtested (no historical L2).
 

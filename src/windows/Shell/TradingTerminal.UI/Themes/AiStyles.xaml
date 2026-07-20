@@ -15,7 +15,8 @@
          =================================================================================== -->
 
     <!-- ===== AI badge: small gradient tag, e.g. next to a feature title. Sharp like the rest
-         of the app — the Vibe Quant hero button below is the ONLY rounded element. ===== -->
+         of the app — rounding is sanctioned only INSIDE the Vibe Quant window (the hero button
+         below + everything in VibeQuantStyles.xaml, issue #29). ===== -->
     <Style x:Key="Ai.Badge" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Gradient.Ai}" />
         <Setter Property="CornerRadius" Value="0" />

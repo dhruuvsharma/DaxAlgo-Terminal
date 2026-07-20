@@ -1,11 +1,11 @@
 # DaxAlgo.Sdk / DaxAlgo.Sdk.Wpf / DaxAlgo.SamplePlugin — plugin SDK (MIT)
 
-**Paths** `src/windows/Sdk/DaxAlgo.Sdk/` (74 LOC), `src/windows/Sdk/DaxAlgo.Sdk.Wpf/`
+**Paths** `src/windows/Sdk/DaxAlgo.Sdk/` , `src/windows/Sdk/DaxAlgo.Sdk.Wpf/`
 (**zero source — facade csproj** bundling Sdk + UI + UI.Core), `samples/DaxAlgo.SamplePlugin/`
-(61 LOC reference plugin) · **Editions** B I P (SamplePlugin dev-only) · **Blast: HIGH via Sdk.Wpf (all 9 strategies)**
+(reference plugin) · **Editions** B I P (SamplePlugin dev-only) · **Blast: HIGH via Sdk.Wpf (installed UI strategy plugins)**
 
 **Purpose.** The strategy-plugin contract (ADR-0008): `IStrategyPlugin`
-(`DaxAlgo.Sdk/IStrategyPlugin.cs:16`) + version compatibility. Strategy projects reference
+(`DaxAlgo.Sdk/IStrategyPlugin.cs`) + version compatibility. Strategy projects reference
 Sdk.Wpf ONLY; the loader (`Infrastructure/Plugins/PluginLoader.cs`) enforces
 `IsCompatible(pluginVersion, hostVersion)`, `plugin.json` manifest, Authenticode trust policy.
 

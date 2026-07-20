@@ -1,6 +1,6 @@
 ---
 name: broker-gotchas
-description: Per-broker quirks for DaxAlgo Terminal's four SDK-based IBrokerClient backends — Interactive Brokers (TWS API), NinjaTrader 8 (NTDirect P/Invoke), cTrader (Spotware Open API 2.0 protobuf), and Alpaca (REST + WebSocket via Alpaca.Markets NuGet). (The no-SDK REST/WS backends — Ironbeam, LSE, Upstox, Binance, Coinbase, Bybit, Kraken, OKX — aren't covered here; mirror Infrastructure/Binance or /IronBeam.) Use BEFORE editing anything under src/TradingTerminal.Infrastructure/Ib/, /Ninja/, /CTrader/, or /Alpaca/, or when diagnosing connection/threading/error-code issues against a specific broker. Skip for broker-neutral code (Core, UI, repository layer).
+description: Per-broker quirks for DaxAlgo Terminal's SDK-based IBrokerClient backends — Interactive Brokers, NinjaTrader 8, cTrader, and Alpaca. Use before editing their implementations under src/windows/Pipeline/TradingTerminal.Infrastructure/, or when diagnosing broker-specific connection, threading, protocol, or error-code behavior. Skip for broker-neutral Core, UI, and market-data pipeline work.
 ---
 
 # Broker Gotchas

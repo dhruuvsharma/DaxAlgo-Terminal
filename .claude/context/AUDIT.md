@@ -1,5 +1,9 @@
 # AUDIT — token-leak audit of the existing setup (Phase 1)
 
+> Historical baseline from 2026-07-10. Current topology is authoritative only in the generated
+> Windows/Linux masters and dependency graphs; removed project paths below are retained as audit
+> evidence, not navigation guidance.
+
 Date: 2026-07-10 · Scope: **Windows tree** (`src/windows/` + `tests/`, excluding `tests/linux/`) per Phase-0 answer; edition focus **Intermediate**.
 Method: read-only — `rg`/`awk` LOC census; public-type extraction diffed against the full markdown corpus (44 files: `docs/*.md`, `.claude/**/*.md`, `CLAUDE.md`, `README.md`); hook headers + `settings.json`. No whole-file source reads; nothing modified.
 

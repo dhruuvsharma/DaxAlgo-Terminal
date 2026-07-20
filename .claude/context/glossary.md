@@ -20,4 +20,5 @@
 - **Quick backtest** — strategy-catalog right-click; maps `ITradingStrategy.BacktestStrategyId` → engine strategy; Binance full-tape or bar-synthetic mode.
 - **DROPS chip / FeedDropMeter** — feed-drop diagnostics surfaced in strategy chrome (MarketData).
 - **CrashGuard** — shell-level unhandled-exception trap (each shell owns a copy).
-- **edition shells ×3** — App.Basic + App.Intermediate (this repo) + TradingTerminal.App (private Pro repo); zero shared shell code; every shell fix applies to all three.
+- **edition shells** — App.Basic + App.Intermediate are independent public copies; consuming overlays
+  may own another copy. Apply shared behavior to every copy authorized in the active workspace.

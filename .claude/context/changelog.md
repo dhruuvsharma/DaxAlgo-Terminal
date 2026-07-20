@@ -1,5 +1,57 @@
 # context changelog — append-only session journal
 
+## 2026-07-20 — context integrity and Codex parity
+- Repaired the active Windows layer: 28 projects / 911 `.cs`+XAML-family files; removed orphaned
+  Windows strategy indexes/symbols, added Codegen/StrategyTool/StrategyComposer to the graph, and
+  made the generator staged, orphan-pruning, date-stable, `.axaml`-aware, and `--check` capable.
+- Added an isolated lazy Linux layer (`linux/`): 35 projects / 732 files with its own masters,
+  dependency graph, group indexes, symbol shards, staged generator, and byte-for-byte check mode.
+- Replaced stale Codex guidance with a concise `AGENTS.md`; added trusted-project Codex config for
+  bounded agents/local memories and a schema adapter that runs the canonical repository hooks.
+- Context prose now treats Windows first-party strategies as external runtime plugins and routes
+  Linux, authoring/codegen, top-level tooling, and minified assets explicitly.
+- Added a public-only `manage-context.ps1` with summary, structural check, and completion-grade
+  deep check; added standalone task-memory guidance and simplified the mandatory protocol.
+- Removed dead strategy/AI/CLI agents, duplicate inactive Codex hooks, and obsolete Windows strategy
+  module docs; refreshed surviving agents, skills, recipes, and shell/module routes to current
+  grouped paths and the external SDK-plugin workflow.
+- Optimized the Windows generator without changing output: `--check` fell from about 308 seconds
+  to 23.5 seconds by batching symbol and index extraction.
+- Replaced volatile module LOC/line anchors with durable routing and compressed the Windows symbol
+  and dependency masters; detailed generated shards remain lazy and authoritative for navigation.
+
+## 2026-07-18 — #29: Vibe Quant rebuilt as an agent workspace (#28 round 3)
+- **The shared Windows authoring window is new** (`StrategyAuthoringView` in both public edition
+  shells): session rail
+  (cards + delete-on-hover + provider health + collapse) | agent canvas (document transcript,
+  hero empty state with suggestion briefs, cockpit composer with model/build/reasoning pill
+  flyouts, shimmer status + compact clock while generating) | workbench (ID/NAME + gradient
+  **Compile & Register** + DRAFT/REGISTERED chip; underline tabs Code/Parameters/Activity).
+  Patterns researched from Cursor 2/3, the Codex app, Claude Code desktop, claude.ai, Kimi —
+  plan artifact linked from issue #29.
+- **Transcript kinds**: `AuthoringMessage.Kind` (string, duck-typed contract with the shared
+  templates) — User/Assistant/Note/**Tool** (compile · self-review · backtest smoke · provider
+  error · registered, expandable output)/**Plan** (per-turn live checklist card holding that
+  turn's `BuildTask` instances)/**Files** (per-file `+N −M` chips → click focuses the workbench
+  editor). Persistence: `AuthoringChatEntry` +`Kind/State/Detail`, snapshot +`Registered` —
+  old JSON still loads. Assistant code fences render as a marker (`StripCodeFencesConverter`);
+  the code lives in the workbench.
+- **Review gate (P4)**: `Compile & Register` → compile → **review overlay** (per-file line
+  diffs vs last registered content via new bespoke `LineDiff` LCS in Settings — no package —
+  + consent line); `ConfirmRegister` is the only path to registration.
+- **VibeQuantStyles.xaml** (TradingTerminal.UI, merged by both public edition shells): the ONE
+  sanctioned soft
+  zone — radii 7/10/14, glass, gradient budget (mark/CTA/Send), composer ring + shimmer gated
+  on IsGenerating/IsVisible at 24fps (idle = fully static). Duck-typed by design: Settings is
+  WPF-free, so templates bind by name and trigger on the Kind/State string constants.
+- **CodeEditor** (AvalonEdit 6.3.0.90, MIT, added to TradingTerminal.UI → note: rides the SDK
+  contract chain): bindable `Code` DP, line numbers, embedded theme-neutral C# .xshd.
+- **VM additions (shared, portable)**: HasConversation, suggestion briefs, auto-derive id+name
+  from the first brief (only while both are untouched defaults), WorkingVerb/StepText/
+  ElapsedCompact, rail collapse, WorkbenchTab + FocusFile, IsRegistered, review-gate state.
+- Tests: +12 unit tests (`VibeQuantTranscriptTests` — LineDiff, chip pack/unpack, kind-string
+  contract, plan snapshot glyphs) → **82/82** public WPF. Both public edition solutions green.
+
 ## 2026-07-17 (later) — #28 round 2: sharp geometry, real tabs, themed menus, emoji life
 - **GEOMETRY RULE (Dhruv's call): everything is SQUARE** — scripted sweep zeroed **200 corner
   radii** (178 attribute-form + 22 setter-form) across 50+ XAML files in both repos; the **only

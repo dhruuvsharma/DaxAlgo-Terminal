@@ -1,6 +1,6 @@
 # TradingTerminal.VolumeFootprint — footprint chart + next-bar ML ghosts
 
-**Path** `src/windows/Charts/TradingTerminal.VolumeFootprint/` · 2,518 LOC / 6 files · **Editions** B I P · **Blast: med (leaf window)**
+**Path** `src/windows/Charts/TradingTerminal.VolumeFootprint/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** Volume-footprint chart with the online-RLS next-bar forecaster (POC/vol/delta ghost
 projections vs regression baseline, warm-start from store).
