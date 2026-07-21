@@ -2,8 +2,11 @@ using FluentAssertions;
 using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Engine.Feeds;
 using TradingTerminal.Backtest.Engine.Kernels;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Time;
+using TradingTerminal.Core.Trading;
 using TradingTerminal.Infrastructure.Backtest.Strategies;
 using Xunit;
 
@@ -38,5 +41,39 @@ public sealed class LegacyBridgeTests
 
         report.Summary.EventsProcessed.Should().Be(1000);
         report.Trades.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_forwards_async_disposal_to_legacy_strategy_exactly_once()
+    {
+        var strategy = new AsyncDisposableStrategy();
+        var adapter = new BacktestStrategyKernelAdapter(strategy);
+
+        await adapter.DisposeAsync();
+        await adapter.DisposeAsync();
+
+        strategy.DisposeCount.Should().Be(1);
+    }
+
+    private sealed class AsyncDisposableStrategy : IBacktestStrategy, IAsyncDisposable
+    {
+        public int DisposeCount { get; private set; }
+
+        public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+
+        public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
     }
 }

@@ -418,16 +418,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
         var input = await CreateWorkerInputAsync(ct);
         var jobId = $"studio-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}";
-        var request = BacktestJobRequest.Create(jobId, spec, input, Seed);
         var engineAssemblyPath = typeof(BacktestEngine).Assembly.Location;
-        if (!string.IsNullOrWhiteSpace(engineAssemblyPath) && File.Exists(engineAssemblyPath))
-        {
-            var expectedHash = await BacktestProtocolHash.ComputeFileSha256Async(engineAssemblyPath, ct);
-            request = request with
-            {
-                Strategy = request.Strategy with { ExpectedAssemblySha256 = expectedHash },
-            };
-        }
+        if (string.IsNullOrWhiteSpace(engineAssemblyPath) || !File.Exists(engineAssemblyPath))
+            throw new InvalidOperationException("The host backtest engine assembly could not be fingerprinted.");
+        var expectedHash = await BacktestProtocolHash.ComputeFileSha256Async(engineAssemblyPath, ct);
+        var request = BacktestJobRequest.Create(jobId, spec, input, expectedHash, Seed);
         var progress = new Progress<BacktestJobProgress>(OnWorkerProgress);
         _activeWorkerJobId = jobId;
         BacktestJobOutcome outcome;

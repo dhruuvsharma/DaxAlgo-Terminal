@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using TradingTerminal.Backtest.Protocol;
 
 namespace TradingTerminal.Infrastructure.Backtest.Worker;
@@ -23,6 +24,14 @@ internal static class AbandonedWorkerStagingCleaner
         var cutoffUtc = utcNow - minimumAge;
         var removed = 0;
 
+        foreach (var rootStaging in Directory.EnumerateDirectories(
+                     root,
+                     ".staging-*",
+                     SearchOption.TopDirectoryOnly))
+        {
+            if (TryDeleteOwnedStaging(root, rootStaging, cutoffUtc)) removed++;
+        }
+
         foreach (var jobDirectory in Directory.EnumerateDirectories(root, "*", SearchOption.TopDirectoryOnly))
         {
             if (!IsDirectChild(root, jobDirectory) || IsReparsePoint(jobDirectory)) continue;
@@ -39,22 +48,25 @@ internal static class AbandonedWorkerStagingCleaner
 
             foreach (var candidate in candidates)
             {
-                try
-                {
-                    if (!IsDirectChild(Path.GetFullPath(jobDirectory), candidate) || IsReparsePoint(candidate)) continue;
-                    var name = Path.GetFileName(candidate);
-                    if (!IsWorkerStagingName(name)) continue;
-                    if (Directory.GetLastWriteTimeUtc(candidate) > cutoffUtc) continue;
-
-                    Directory.Delete(candidate, recursive: true);
-                    removed++;
-                }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                if (TryDeleteOwnedStaging(Path.GetFullPath(jobDirectory), candidate, cutoffUtc)) removed++;
             }
         }
 
         return removed;
+    }
+
+    private static bool TryDeleteOwnedStaging(string parent, string candidate, DateTime cutoffUtc)
+    {
+        try
+        {
+            if (!IsDirectChild(parent, candidate) || IsReparsePoint(candidate)) return false;
+            if (!IsWorkerStagingName(Path.GetFileName(candidate))) return false;
+            if (Directory.GetLastWriteTimeUtc(candidate) > cutoffUtc) return false;
+            Directory.Delete(candidate, recursive: true);
+            return true;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 
     private static bool IsDirectChild(string parent, string candidate)
@@ -101,9 +113,15 @@ internal static class AbandonedWorkerStagingCleaner
             if (stream.Length is <= 0 or > BacktestProtocolLimits.MaxRequestBytes) return false;
             var bytes = GC.AllocateUninitializedArray<byte>(checked((int)stream.Length));
             stream.ReadExactly(bytes);
-            var request = BacktestProtocolJson.Deserialize<BacktestJobRequest>(bytes);
-            return request.ProtocolVersion == BacktestProtocolVersions.Current &&
-                   string.Equals(request.JobId, Path.GetFileName(jobDirectory), StringComparison.Ordinal);
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            return root.ValueKind == JsonValueKind.Object &&
+                   root.TryGetProperty("protocol_version", out var protocol) &&
+                   protocol.TryGetInt32(out var protocolVersion) &&
+                   protocolVersion is >= 1 && protocolVersion <= BacktestProtocolVersions.Current &&
+                   root.TryGetProperty("job_id", out var job) &&
+                   job.ValueKind == JsonValueKind.String &&
+                   string.Equals(job.GetString(), Path.GetFileName(jobDirectory), StringComparison.Ordinal);
         }
         catch
         {

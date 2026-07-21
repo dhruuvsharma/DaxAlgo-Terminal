@@ -39,16 +39,16 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Backtesting/GpuFallbackTests.cs` | 62 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the C# side of the GPU accelerator: the support gate and |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/GpuParityTests.cs` | 67 | win | TradingTerminal.Tests.Headless | dev | Y | Validates the CUDA accelerator against the CPU optimizer: the GPU's net profit |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/KernelRegistryTests.cs` | 73 | win | TradingTerminal.Tests.Headless | dev | Y | Covers kernel discovery by id, schema-driven defaults/clamping, and that a registry-built |
-| `tests/TradingTerminal.Tests.Headless/Backtesting/LegacyBridgeTests.cs` | 42 | win | TradingTerminal.Tests.Headless | dev | Y | Cutover check: a legacy |
+| `tests/TradingTerminal.Tests.Headless/Backtesting/LegacyBridgeTests.cs` | 79 | win | TradingTerminal.Tests.Headless | dev | Y | Cutover check: a legacy |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/OptimizerTests.cs` | 74 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the grid optimizer: Cartesian expansion, that it evaluates every combination, |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/PythonStrategyTests.cs` | 72 | win | TradingTerminal.Tests.Headless | dev | Y | End-to-end check that a Python-authored strategy (daxalgo_bt example) runs on the new |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/StoreFeedAndPortfolioTests.cs` | 95 | win | TradingTerminal.Tests.Headless | dev | Y | Exercises the store-backed feed's k-way merge and the engine's multi-instrument (portfolio) |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/VisualTimelineTests.cs` | 63 | win | TradingTerminal.Tests.Headless | dev | Y | Verifies the engine captures a visual timeline only when asked, with OHLC |
 | `tests/TradingTerminal.Tests.Headless/Backtesting/WalkForwardGridTests.cs` | 66 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the pluggable walk-forward grid seam: grids live on each strategy's |
-| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerCleanupTests.cs` | 118 | win | TradingTerminal.Tests.Headless | dev | Y |  |
-| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerClientTests.cs` | 299 | win | TradingTerminal.Tests.Headless | dev | Y |  |
-| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerProtocolTests.cs` | 125 | win | TradingTerminal.Tests.Headless | dev | Y |  |
-| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerTestData.cs` | 65 | win | TradingTerminal.Tests.Headless | dev | Y |  |
+| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerCleanupTests.cs` | 155 | win | TradingTerminal.Tests.Headless | dev | Y |  |
+| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerClientTests.cs` | 485 | win | TradingTerminal.Tests.Headless | dev | Y |  |
+| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerProtocolTests.cs` | 230 | win | TradingTerminal.Tests.Headless | dev | Y |  |
+| `tests/TradingTerminal.Tests.Headless/Backtesting/WorkerTestData.cs` | 68 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Infrastructure/BinanceParsingTests.cs` | 207 | win | TradingTerminal.Tests.Headless | dev | Y | Offline tests for the Binance public-feed JSON parsers. No network — they |
 | `tests/TradingTerminal.Tests.Headless/Infrastructure/ConnectionManagerTests.cs` | 209 | win | TradingTerminal.Tests.Headless | dev | Y | ConnectAsync returns normally but reports Failed every time (never Connected) — |
 | `tests/TradingTerminal.Tests.Headless/Infrastructure/IronBeamParsingTests.cs` | 180 | win | TradingTerminal.Tests.Headless | dev | Y | Offline tests for the Ironbeam WebSocket JSON parsers and symbol mapping. No |
@@ -82,7 +82,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Ml/TripleBarrierLabelerTests.cs` | 77 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Plugins/AuthenticodeSignatureInspectorTests.cs` | 81 | win | TradingTerminal.Tests.Headless | dev | Y | Embedded-signed (not catalog-signed) Microsoft binaries in the runtime folder. |
 | `tests/TradingTerminal.Tests.Headless/Plugins/DaxPluginPackageTests.cs` | 528 | win | TradingTerminal.Tests.Headless | dev | Y | Builds a source plugin folder (garbage main dll + manifest at the |
-| `tests/TradingTerminal.Tests.Headless/Plugins/DaxStrategyBundleTests.cs` | 624 | win | TradingTerminal.Tests.Headless | dev | Y |  |
+| `tests/TradingTerminal.Tests.Headless/Plugins/DaxStrategyBundleTests.cs` | 766 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Plugins/ExternalPluginLoadTests.cs` | 65 | win | TradingTerminal.Tests.Headless | dev | Y | Proves the loader's real file/ALC path: against a GENUINE |
 | `tests/TradingTerminal.Tests.Headless/Plugins/FeedSignatureVerifierTests.cs` | 107 | win | TradingTerminal.Tests.Headless | dev | Y | The marketplace feed's trust anchor: a real ECDSA P-256 keypair signs a |
 | `tests/TradingTerminal.Tests.Headless/Plugins/FeedSignerTests.cs` | 84 | win | TradingTerminal.Tests.Headless | dev | Y | The signer and verifier are a matched pair (issue #25): a key |
@@ -96,6 +96,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginPolicyScannerTests.cs` | 223 | win | TradingTerminal.Tests.Headless | dev | Y | The plugin's private dependencies ship in its folder, so they are scanned |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginRegistrarGuardTests.cs` | 359 | win | TradingTerminal.Tests.Headless | dev | Y | A host collection shaped like the real one: a credential store plus |
 | `tests/TradingTerminal.Tests.Headless/Plugins/PluginSecurityTests.cs` | 135 | win | TradingTerminal.Tests.Headless | dev | Y | Covers the curated-marketplace trust gate: the decisions, the |
+| `tests/TradingTerminal.Tests.Headless/Plugins/StrategyBundleStoreTests.cs` | 297 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Quant/CurveFittingTests.cs` | 177 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Quant/DeflatedSharpeTests.cs` | 101 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Quant/EwRegressionTests.cs` | 143 | win | TradingTerminal.Tests.Headless | dev | Y |  |

@@ -71,13 +71,27 @@ public sealed class SampleBacktestStrategy(Contract contract) : IBacktestStrateg
 /// <summary>Deterministic activation point named by a <c>.daxstrategy</c> manifest.</summary>
 public sealed class SampleStrategyEngineFactory : IStrategyEngineFactory
 {
-    public StrategyParameterSchema Schema => StrategyParameterSchema.Empty;
+    public StrategyParameterSchema Schema { get; } = new(
+        StrategyParameter.Int("lookback", "Lookback", 20, min: 2, max: 500),
+        StrategyParameter.Number("threshold", "Threshold", 1.25, min: 0.01, max: 10),
+        StrategyParameter.Bool("enabled", "Enabled", true),
+        StrategyParameter.Choice("mode", "Mode", "balanced", ["fast", "balanced", "slow"]),
+        StrategyParameter.Text("label", "Run label", "sample"));
 
     public StrategyDataRequirement DataRequirement =>
         StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
 
     public IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
 
-    public IBacktestStrategy Create(Contract contract, StrategyParameters parameters) =>
-        new SampleBacktestStrategy(contract);
+    public IBacktestStrategy Create(Contract contract, StrategyParameters parameters)
+    {
+        // Reading each natural CLR kind keeps the sample useful as an end-to-end bundle activation
+        // fixture: protocol, worker schema validation, and factory conversion must all agree.
+        _ = parameters.GetLong("lookback");
+        _ = parameters.GetDouble("threshold");
+        _ = parameters.GetBool("enabled");
+        _ = parameters.GetString("mode");
+        _ = parameters.GetString("label");
+        return new SampleBacktestStrategy(contract);
+    }
 }

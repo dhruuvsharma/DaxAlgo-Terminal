@@ -23,6 +23,35 @@ There are three ways to run a backtest:
 - **CLI** (`daxalgo-backtest`) — headless and scriptable, for sweeps, walk-forward, and CI. Subcommands: `synth`, `run`, `sweep`, `walkforward`, `mc`, `tca`, `features`.
 - **C++ Fast engine** (optional) — a "Use C++ Fast engine" checkbox when the C++ binary is built; only `meanReversion` is wired on the C++ side today. See [polyglot.md](polyglot.md).
 
+## Isolated worker and packaged strategies
+
+Supported Studio single runs execute in a one-shot `TradingTerminal.Backtest.Worker` process. The UI
+writes a versioned request, receives bounded progress, and accepts results only after the worker publishes
+a hashed terminal manifest. Cancellation, timeout, process failure, and malformed output terminate the
+whole worker process tree rather than leaving heavy work inside the WPF shell.
+
+Protocol v2 also accepts an immutable installed `.daxstrategy`. The client re-verifies the selected
+installation under current trust policy and stages only its canonical manifest and headless engine
+dependency closure. The worker validates those exact bytes again, creates the manifest-named
+`IStrategyEngineFactory`, validates typed parameters against its schema, and runs the resulting
+`IBacktestStrategy` through the same `TradingTerminal.Backtest.Engine` used by built-in strategies. No
+second backtest implementation is required. See [strategy-bundles.md](strategy-bundles.md) for the trust,
+store, and same-user containment boundaries.
+
+Each request pins the deployed host `Backtest.Engine` assembly hash separately from the selected strategy
+assembly hash. For installed bundles it also retains the host's closed trust evidence: either unsigned
+local development, or a verified publisher key id plus the SHA-256 fingerprint of its trusted SPKI. The
+worker reports both actual assembly hashes and the same trust evidence, and the client verifies them
+against the request before accepting a successful result.
+
+The worker's collectible load context and one-shot process tree provide cleanup and fault isolation, not
+an OS sandbox: external strategy code still runs with the user's permissions. A verified signature proves
+publisher endorsement of the signed content, while the archive hash records the exact store/client
+selection; neither proves that code is safe. Marketplace strategies must remain trusted-publisher-only
+until execution is constrained by a restricted token/AppContainer or VM, or by a separate constrained
+strategy child with signal-only IPC. Result `StrategyAssemblyClosure` data describes the verified staged
+engine closure, not proof that every listed assembly was loaded.
+
 > 🖼️ **Screenshot:** `images/tool-backteststudio.png` — Backtest Studio with an equity curve and the stats panel populated.
 > 🎬 **Video:** `images/video/backtest-studio.mp4` — a backtest run end-to-end.
 

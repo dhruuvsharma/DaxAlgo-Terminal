@@ -12,6 +12,7 @@
     <Project Path="src/windows/Pipeline/TradingTerminal.MarketData/TradingTerminal.MarketData.csproj" />
   </Folder>
   <Folder Name="/Backtest/">
+    <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Client/TradingTerminal.Backtest.Client.csproj" />
     <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Engine/TradingTerminal.Backtest.Engine.csproj" />
     <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Protocol/TradingTerminal.Backtest.Protocol.csproj" />
     <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Worker/TradingTerminal.Backtest.Worker.csproj" />

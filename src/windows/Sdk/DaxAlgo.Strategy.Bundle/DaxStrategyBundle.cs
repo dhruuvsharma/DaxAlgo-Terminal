@@ -64,6 +64,7 @@ public static class DaxStrategyBundle
 
         var managedAssemblies = StrategyBundlePayloadPolicy.DescribeManagedAssemblies(payloadBytes);
         var manifest = StrategyBundleManifestCodec.Create(request, descriptors, managedAssemblies, checkedLimits);
+        _ = ResolveEngineClosure(manifest);
         StrategyBundleEnginePolicy.Validate(manifest.Engine, payloadBytes[manifest.Engine.AssemblyPath]);
         var manifestBytes = StrategyBundleManifestCodec.WriteCanonical(manifest);
         if (manifestBytes.LongLength > checkedLimits.MaxManifestBytes)
@@ -193,7 +194,12 @@ public static class DaxStrategyBundle
             if (key is null) throw new ArgumentException("Trusted publisher keys must not contain null entries.", nameof(trustedPublisherKeys));
             var publisherId = NormalizePublisherId(key.PublisherId, nameof(trustedPublisherKeys));
             var keyId = NormalizeKeyId(key.KeyId, nameof(trustedPublisherKeys));
-            var normalizedKey = key with { PublisherId = publisherId, KeyId = keyId };
+            var normalizedKey = key with
+            {
+                PublisherId = publisherId,
+                KeyId = keyId,
+                SubjectPublicKeyInfo = key.SubjectPublicKeyInfo.ToArray(),
+            };
             if (!keys.TryAdd((publisherId, keyId), normalizedKey))
                 throw new ArgumentException(
                     $"Duplicate trusted publisher/key binding '{publisherId}' / '{keyId}'.",
@@ -213,11 +219,13 @@ public static class DaxStrategyBundle
         }
 
         StrategyBundleSignatureEvidence evidence;
+        var trustedKeyBytes = trustedKey.SubjectPublicKeyInfo.ToArray();
+        var keyFingerprintSha256 = Convert.ToHexStringLower(SHA256.HashData(trustedKeyBytes));
         try
         {
             using var key = ECDsa.Create();
-            key.ImportSubjectPublicKeyInfo(trustedKey.SubjectPublicKeyInfo.Span, out var bytesRead);
-            if (bytesRead != trustedKey.SubjectPublicKeyInfo.Length)
+            key.ImportSubjectPublicKeyInfo(trustedKeyBytes, out var bytesRead);
+            if (bytesRead != trustedKeyBytes.Length)
                 throw new CryptographicException("The publisher public key contains trailing data.");
             EnsureP256(key, nameof(trustedPublisherKeys));
             var pae = StrategyBundleArchive.CreatePreAuthenticationEncoding(read.ManifestBytes);
@@ -231,7 +239,10 @@ public static class DaxStrategyBundle
                 read.Envelope.KeyId,
                 StrategyBundleArchive.PublisherPayloadType,
                 StrategyBundleSignatureEvidence.PublisherAlgorithm,
-                valid ? null : "The publisher signature does not verify for the canonical manifest.");
+                valid ? null : "The publisher signature does not verify for the canonical manifest.")
+            {
+                KeyFingerprintSha256 = keyFingerprintSha256,
+            };
         }
         catch (Exception ex) when (ex is CryptographicException or ArgumentException)
         {
@@ -240,10 +251,25 @@ public static class DaxStrategyBundle
                 read.Envelope.KeyId,
                 StrategyBundleArchive.PublisherPayloadType,
                 StrategyBundleSignatureEvidence.PublisherAlgorithm,
-                $"The publisher key or signature is invalid: {ex.Message}");
+                $"The publisher key or signature is invalid: {ex.Message}")
+            {
+                KeyFingerprintSha256 = keyFingerprintSha256,
+            };
         }
 
         return new StrategyBundleVerification(read.ToInspection(evidence), evidence);
+    }
+
+    /// <summary>
+    /// Resolves the exact managed load set for the headless engine without loading an assembly.
+    /// The engine is first and reachable private dependencies are ordered by ordinal payload path.
+    /// Windows UI payloads are never valid members of this closure.
+    /// </summary>
+    public static IReadOnlyList<StrategyBundleEngineAssemblyDescriptor> ResolveEngineClosure(
+        StrategyBundleManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        return StrategyBundlePayloadPolicy.ResolveEngineClosure(manifest);
     }
 
     private static byte[] ReadPayload(Stream source, long maximumBytes, string path)

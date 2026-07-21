@@ -12,6 +12,57 @@ public enum BacktestInputKind
 public enum BacktestStrategySource
 {
     Native = 0,
+    InstalledBundle = 1,
+}
+
+public enum BacktestStrategyParameterKind
+{
+    Integer = 0,
+    Number = 1,
+    Boolean = 2,
+    Choice = 3,
+    Text = 4,
+}
+
+public enum BacktestBundleTrustKind
+{
+    UnsignedLocalDevelopment = 0,
+    VerifiedPublisher = 1,
+}
+
+/// <summary>Publisher evidence accepted by the host for one exact installed archive.</summary>
+public sealed record BacktestBundleTrustEvidence
+{
+    public const string PublisherSignatureAlgorithm = "ECDSA-P256-SHA256-IEEE-P1363";
+
+    public required BacktestBundleTrustKind Kind { get; init; }
+    public string? PublisherKeyId { get; init; }
+    public string? PublisherKeyFingerprintSha256 { get; init; }
+    public string SignatureAlgorithm { get; init; } = PublisherSignatureAlgorithm;
+}
+
+/// <summary>Typed, canonical activation value for an installed strategy factory.</summary>
+public sealed record BacktestStrategyParameter
+{
+    public required string Key { get; init; }
+    public required BacktestStrategyParameterKind Kind { get; init; }
+    public long? IntegerValue { get; init; }
+    public double? NumberValue { get; init; }
+    public bool? BooleanValue { get; init; }
+    public string? StringValue { get; init; }
+}
+
+/// <summary>
+/// Immutable install evidence selected by the host. Store paths are deliberately absent: the client
+/// stages the verified engine closure into the fixed worker-job strategy directory.
+/// </summary>
+public sealed record BacktestInstalledBundleReference
+{
+    public required string PublisherId { get; init; }
+    public required string StrategyVersion { get; init; }
+    public required string ContentRootSha256 { get; init; }
+    public required string ArchiveSha256 { get; init; }
+    public required BacktestBundleTrustEvidence TrustEvidence { get; init; }
 }
 
 public enum BacktestWorkerPhase
@@ -43,7 +94,7 @@ public enum BacktestArtifactKind
     Report = 0,
 }
 
-/// <summary>Exact executable strategy identity. P2 deliberately permits built-in kernels only.</summary>
+/// <summary>Exact executable strategy identity for either a built-in kernel or an installed bundle.</summary>
 public sealed record BacktestStrategyReference
 {
     public required string Id { get; init; }
@@ -52,10 +103,18 @@ public sealed record BacktestStrategyReference
     public string ContractVersion { get; init; } = BacktestProtocolVersions.StrategyContract;
 
     /// <summary>
-    /// Optional expected SHA-256 of the engine assembly that owns the native registry. When supplied,
-    /// the worker must match it before executing; external assembly loading is intentionally absent.
+    /// Optional for native kernels and required for installed bundles. The worker hashes the exact
+    /// assembly bytes it executes and must match this value before constructing strategy code.
     /// </summary>
     public string? ExpectedAssemblySha256 { get; init; }
+
+    public BacktestInstalledBundleReference? InstalledBundle { get; init; }
+
+    /// <summary>
+    /// Complete typed factory parameter bag for installed bundles. Native kernels continue using
+    /// <see cref="RunSpec.Parameters"/> so their optimizer contract remains unchanged.
+    /// </summary>
+    public IReadOnlyList<BacktestStrategyParameter> ActivationParameters { get; init; } = [];
 }
 
 /// <summary>Deterministic synthetic generator settings carried entirely in the immutable request.</summary>
@@ -134,6 +193,7 @@ public sealed record BacktestJobRequest
     public string SdkVersion { get; init; } = BacktestProtocolVersions.Sdk;
     [JsonRequired]
     public string StrategyContractVersion { get; init; } = BacktestProtocolVersions.StrategyContract;
+    public required string ExpectedHostEngineAssemblySha256 { get; init; }
     public int DeterministicSeed { get; init; } = 1;
     public required BacktestStrategyReference Strategy { get; init; }
     public required string ParametersSha256 { get; init; }
@@ -147,16 +207,54 @@ public sealed record BacktestJobRequest
         string jobId,
         RunSpec run,
         BacktestInputReference input,
+        string hostEngineAssemblySha256,
         int deterministicSeed = 1) =>
         new()
         {
             JobId = jobId,
             DeterministicSeed = deterministicSeed,
-            Strategy = new BacktestStrategyReference { Id = run.StrategyId },
+            ExpectedHostEngineAssemblySha256 = hostEngineAssemblySha256,
+            Strategy = new BacktestStrategyReference
+            {
+                Id = run.StrategyId,
+                ExpectedAssemblySha256 = hostEngineAssemblySha256,
+            },
             ParametersSha256 = BacktestProtocolHash.ComputeParametersSha256(run.ParametersOrEmpty),
             Run = run,
             Input = input,
         };
+
+    public static BacktestJobRequest CreateInstalledBundle(
+        string jobId,
+        RunSpec run,
+        BacktestInputReference input,
+        BacktestInstalledBundleReference bundle,
+        string hostEngineAssemblySha256,
+        string strategyAssemblySha256,
+        IReadOnlyList<BacktestStrategyParameter> activationParameters,
+        int deterministicSeed = 1)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        ArgumentNullException.ThrowIfNull(activationParameters);
+        var strategy = new BacktestStrategyReference
+        {
+            Id = run.StrategyId,
+            Source = BacktestStrategySource.InstalledBundle,
+            ExpectedAssemblySha256 = strategyAssemblySha256,
+            InstalledBundle = bundle,
+            ActivationParameters = activationParameters,
+        };
+        return new BacktestJobRequest
+        {
+            JobId = jobId,
+            DeterministicSeed = deterministicSeed,
+            ExpectedHostEngineAssemblySha256 = hostEngineAssemblySha256,
+            Strategy = strategy,
+            ParametersSha256 = BacktestProtocolHash.ComputeActivationParametersSha256(activationParameters),
+            Run = run,
+            Input = input,
+        };
+    }
 }
 
 /// <summary>One coarse NDJSON status message. Market events never cross the control stream.</summary>
@@ -211,14 +309,27 @@ public sealed record BacktestResultManifest
     [JsonRequired]
     public required string StrategyContractVersion { get; init; }
     public required string EngineFingerprint { get; init; }
+    public required string HostEngineAssemblySha256 { get; init; }
     public required string BackendFingerprint { get; init; }
     public required string StrategyId { get; init; }
     public required string StrategyAssemblySha256 { get; init; }
+    public string? StrategyContentRootSha256 { get; init; }
+    public string? StrategyArchiveSha256 { get; init; }
+    public BacktestBundleTrustEvidence? StrategyTrustEvidence { get; init; }
+    /// <summary>
+    /// Exact manifest-resolved engine closure staged and revalidated by the worker. This is not a
+    /// claim that every dependency was loaded on the executed code path.
+    /// </summary>
+    public IReadOnlyList<BacktestLoadedAssemblyFingerprint> StrategyAssemblyClosure { get; init; } = [];
     public required string ParametersSha256 { get; init; }
     public required string InputSha256 { get; init; }
     public required IReadOnlyList<BacktestArtifactDescriptor> Artifacts { get; init; }
     public BacktestJobError? Error { get; init; }
 }
+
+public sealed record BacktestLoadedAssemblyFingerprint(
+    string Name,
+    string Sha256);
 
 /// <summary>Host-side terminal outcome, including failures that occur before a worker can publish.</summary>
 public sealed record BacktestJobOutcome(

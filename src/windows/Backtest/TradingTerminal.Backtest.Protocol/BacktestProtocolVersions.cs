@@ -3,7 +3,7 @@ namespace TradingTerminal.Backtest.Protocol;
 /// <summary>Independent compatibility versions for the worker control and artifact boundary.</summary>
 public static class BacktestProtocolVersions
 {
-    public const int Current = 1;
+    public const int Current = 2;
     public const int ReportArtifact = 1;
     public const string ManagedEngine = "1.0";
     public const string StrategyContract = "1.0";
@@ -18,6 +18,8 @@ public static class BacktestJobFiles
     public const string ReportArtifact = "report.json";
     public const string ResultManifest = "result.manifest.json";
     public const string ResultManifestHash = "result.manifest.sha256";
+    public const string StrategyDirectory = "strategy";
+    public const string StrategyManifest = "bundle.manifest.json";
 }
 
 /// <summary>Hard protocol ceilings. Requests may choose smaller values but never expand these.</summary>
@@ -27,6 +29,9 @@ public static class BacktestProtocolLimits
     public const int MaxProgressLineCharacters = 16 * 1024;
     public const int MaxCapturedErrorCharacters = 64 * 1024;
     public const int MaxJobIdCharacters = 64;
+    public const int MaxStrategyParameters = 256;
+    public const int MaxStrategyParameterKeyCharacters = 128;
+    public const int MaxStrategyParameterStringCharacters = 4096;
     public const int MaxSyntheticEvents = 50_000_000;
     public const int MaxProgressMessages = 10_000;
     public const long MaxInputBytes = 1L * 1024 * 1024 * 1024 * 1024;

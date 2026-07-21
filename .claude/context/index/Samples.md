@@ -5,4 +5,4 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
-| `samples/DaxAlgo.SamplePlugin/SamplePlugin.cs` | 83 | win | DaxAlgo.SamplePlugin | dev | Y | Catalog descriptor — the metadata the Strategies pane renders. |
+| `samples/DaxAlgo.SamplePlugin/SamplePlugin.cs` | 97 | win | DaxAlgo.SamplePlugin | dev | Y | Catalog descriptor — the metadata the Strategies pane renders. |

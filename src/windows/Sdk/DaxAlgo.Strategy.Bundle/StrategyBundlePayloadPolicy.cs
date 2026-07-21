@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Security.Cryptography;
 
 namespace DaxAlgo.Strategy.Bundle;
 
@@ -104,40 +106,50 @@ internal static class StrategyBundlePayloadPolicy
         IReadOnlyDictionary<string, byte[]> payloads)
     {
         var identities = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var descriptors = new List<StrategyBundleManagedAssemblyDescriptor>();
+        var metadataEntries = new List<ManagedAssemblyMetadata>();
         foreach (var payload in payloads.OrderBy(static payload => payload.Key, StringComparer.Ordinal))
         {
             if (!IsManagedPayloadPath(payload.Key))
                 continue;
 
-            var descriptor = ReadManagedAssemblyDescriptor(payload.Key, payload.Value);
+            var metadata = ReadManagedAssemblyMetadata(payload.Key, payload.Value);
+            var descriptor = metadata.Descriptor;
             if (!identities.TryAdd(descriptor.Name, payload.Key))
                 Reject(
                     payload.Key,
                     $"duplicates managed assembly identity '{descriptor.Name}' from payload '{identities[descriptor.Name]}'.");
-            descriptors.Add(descriptor);
+            metadataEntries.Add(metadata);
         }
 
-        ValidateManagedDependencyClosure(descriptors);
-        return descriptors;
+        ValidateManagedDependencyClosure(metadataEntries);
+        return metadataEntries.Select(static entry => entry.Descriptor).ToArray();
     }
 
     private static void ValidateManagedDependencyClosure(
-        IReadOnlyList<StrategyBundleManagedAssemblyDescriptor> assemblies)
+        IReadOnlyList<ManagedAssemblyMetadata> assemblies)
     {
-        var bundledNames = assemblies
-            .Select(static assembly => assembly.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var bundledByName = assemblies.ToDictionary(
+            static assembly => assembly.Definition.Name,
+            StringComparer.OrdinalIgnoreCase);
 
         foreach (var assembly in assemblies)
         {
             foreach (var reference in assembly.References)
             {
-                if (bundledNames.Contains(reference) || StrategyBundleExternalAssemblyPolicy.IsAllowed(reference))
+                if (bundledByName.TryGetValue(reference.Name, out var dependency))
+                {
+                    if (!AssemblyIdentityMatches(reference, dependency.Definition))
+                    {
+                        RejectGraph(
+                            $"entry '{assembly.Descriptor.Path}' requests '{FormatIdentity(reference)}', " +
+                            $"but bundled payload '{dependency.Descriptor.Path}' defines '{FormatIdentity(dependency.Definition)}'.");
+                    }
                     continue;
+                }
+                if (StrategyBundleExternalAssemblyPolicy.IsAllowed(reference.Name)) continue;
 
                 RejectGraph(
-                    $"entry '{assembly.Path}' references private assembly '{reference}', but that assembly is not bundled.");
+                    $"entry '{assembly.Descriptor.Path}' references private assembly '{reference.Name}', but that assembly is not bundled.");
             }
         }
     }
@@ -161,6 +173,108 @@ internal static class StrategyBundlePayloadPolicy
             }
         }
     }
+
+    public static IReadOnlyList<StrategyBundleEngineAssemblyDescriptor> ResolveEngineClosure(
+        StrategyBundleManifest manifest)
+    {
+        if (manifest.Engine is null)
+            RejectGraph("has no engine entry point.");
+
+        var payloadsByPath = new Dictionary<string, StrategyBundlePayloadDescriptor>(StringComparer.Ordinal);
+        foreach (var payload in manifest.Payloads ?? [])
+        {
+            if (payload is null)
+                RejectGraph("contains a null payload descriptor.");
+            if (!payloadsByPath.TryAdd(payload.Path, payload))
+                RejectGraph($"contains duplicate payload path '{payload.Path}'.");
+        }
+
+        var assembliesByPath = new Dictionary<string, StrategyBundleManagedAssemblyDescriptor>(StringComparer.Ordinal);
+        var assembliesByName = new Dictionary<string, StrategyBundleManagedAssemblyDescriptor>(StringComparer.OrdinalIgnoreCase);
+        foreach (var assembly in manifest.ManagedAssemblies ?? [])
+        {
+            if (assembly is null)
+                RejectGraph("contains a null managed assembly descriptor.");
+            if (!assembliesByPath.TryAdd(assembly.Path, assembly))
+                RejectGraph($"contains duplicate managed assembly path '{assembly.Path}'.");
+            if (!assembliesByName.TryAdd(assembly.Name, assembly))
+                RejectGraph($"contains duplicate managed assembly identity '{assembly.Name}'.");
+            if (!payloadsByPath.ContainsKey(assembly.Path))
+                RejectGraph($"entry '{assembly.Path}' has no matching payload descriptor.");
+        }
+
+        if (!assembliesByPath.TryGetValue(manifest.Engine.AssemblyPath, out var engine))
+            RejectGraph($"has no managed assembly descriptor for engine '{manifest.Engine.AssemblyPath}'.");
+
+        var enginePayload = payloadsByPath[engine.Path];
+        if (enginePayload.Role != StrategyBundlePayloadRole.Engine)
+            RejectGraph($"engine entry '{engine.Path}' has invalid role '{RoleName(enginePayload.Role)}'.");
+
+        var reachable = new Dictionary<string, StrategyBundleManagedAssemblyDescriptor>(StringComparer.Ordinal);
+        var pending = new Stack<StrategyBundleManagedAssemblyDescriptor>();
+        pending.Push(engine);
+        while (pending.Count > 0)
+        {
+            var assembly = pending.Pop();
+            if (!reachable.TryAdd(assembly.Path, assembly))
+                continue;
+
+            foreach (var reference in (assembly.References ?? [])
+                         .Distinct(StringComparer.Ordinal)
+                         .OrderByDescending(static value => value, StringComparer.Ordinal))
+            {
+                if (!assembliesByName.TryGetValue(reference, out var dependency))
+                {
+                    if (StrategyBundleExternalAssemblyPolicy.IsAllowed(reference))
+                        continue;
+                    RejectGraph(
+                        $"entry '{assembly.Path}' references private assembly '{reference}', but that assembly is not bundled.");
+                }
+
+                var payload = payloadsByPath[dependency.Path];
+                if (payload.Role == StrategyBundlePayloadRole.WindowsUi)
+                {
+                    RejectGraph(
+                        $"engine closure reaches Windows UI assembly '{dependency.Name}' at '{dependency.Path}' from '{assembly.Path}'.");
+                }
+                if (payload.Role != StrategyBundlePayloadRole.ManagedDependency &&
+                    !string.Equals(dependency.Path, engine.Path, StringComparison.Ordinal))
+                {
+                    RejectGraph(
+                        $"engine closure reaches assembly '{dependency.Name}' at '{dependency.Path}' with invalid role '{RoleName(payload.Role)}'.");
+                }
+
+                pending.Push(dependency);
+            }
+        }
+
+        var ordered = reachable.Values
+            .Where(assembly => !string.Equals(assembly.Path, engine.Path, StringComparison.Ordinal))
+            .OrderBy(static assembly => assembly.Path, StringComparer.Ordinal)
+            .Prepend(engine);
+        return ordered
+            .Select(assembly =>
+            {
+                var payload = payloadsByPath[assembly.Path];
+                var references = (assembly.References ?? [])
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(static value => value, StringComparer.Ordinal)
+                    .ToArray();
+                return new StrategyBundleEngineAssemblyDescriptor(
+                    assembly.Path,
+                    payload.Role,
+                    assembly.Name,
+                    references,
+                    payload.Length,
+                    payload.Sha256);
+            })
+            .ToArray();
+    }
+
+    private static string RoleName(StrategyBundlePayloadRole role) =>
+        Enum.IsDefined(role)
+            ? StrategyBundleManifestCodec.RoleToWire(role)
+            : ((int)role).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private static void ValidateEngineSafeReferences(
         string path,
@@ -187,7 +301,7 @@ internal static class StrategyBundlePayloadPolicy
         }
     }
 
-    private static StrategyBundleManagedAssemblyDescriptor ReadManagedAssemblyDescriptor(
+    private static ManagedAssemblyMetadata ReadManagedAssemblyMetadata(
         string path,
         byte[] content)
     {
@@ -196,14 +310,23 @@ internal static class StrategyBundlePayloadPolicy
             using var stream = new MemoryStream(content, writable: false);
             using var pe = new PEReader(stream, PEStreamOptions.LeaveOpen);
             var metadata = pe.GetMetadataReader();
-            var name = metadata.GetString(metadata.GetAssemblyDefinition().Name);
+            var definition = ReadIdentity(metadata, metadata.GetAssemblyDefinition());
             var references = metadata.AssemblyReferences
                 .Select(metadata.GetAssemblyReference)
-                .Select(reference => metadata.GetString(reference.Name))
+                .Select(reference => ReadIdentity(metadata, reference))
+                .OrderBy(static reference => reference.Name, StringComparer.Ordinal)
+                .ThenBy(static reference => reference.Version)
+                .ThenBy(static reference => reference.PublicKeyToken, StringComparer.Ordinal)
+                .ToArray();
+            var referenceNames = references
+                .Select(static reference => reference.Name)
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static reference => reference, StringComparer.Ordinal)
                 .ToArray();
-            return new StrategyBundleManagedAssemblyDescriptor(path, name, references);
+            return new ManagedAssemblyMetadata(
+                new StrategyBundleManagedAssemblyDescriptor(path, definition.Name, referenceNames),
+                definition,
+                references);
         }
         catch (Exception ex) when (ex is BadImageFormatException or InvalidOperationException or IOException or ArgumentException or OverflowException)
         {
@@ -213,6 +336,68 @@ internal static class StrategyBundlePayloadPolicy
                 ex);
         }
     }
+
+    private static ManagedAssemblyIdentity ReadIdentity(
+        MetadataReader metadata,
+        AssemblyDefinition definition) => new(
+        metadata.GetString(definition.Name),
+        definition.Version,
+        definition.Culture.IsNil ? string.Empty : metadata.GetString(definition.Culture),
+        PublicKeyToken(
+            definition.PublicKey.IsNil ? [] : metadata.GetBlobBytes(definition.PublicKey),
+            (definition.Flags & AssemblyFlags.PublicKey) != 0),
+        (definition.Flags & AssemblyFlags.WindowsRuntime) != 0,
+        (definition.Flags & AssemblyFlags.Retargetable) != 0);
+
+    private static ManagedAssemblyIdentity ReadIdentity(
+        MetadataReader metadata,
+        AssemblyReference reference) => new(
+        metadata.GetString(reference.Name),
+        reference.Version,
+        reference.Culture.IsNil ? string.Empty : metadata.GetString(reference.Culture),
+        PublicKeyToken(
+            reference.PublicKeyOrToken.IsNil ? [] : metadata.GetBlobBytes(reference.PublicKeyOrToken),
+            (reference.Flags & AssemblyFlags.PublicKey) != 0),
+        (reference.Flags & AssemblyFlags.WindowsRuntime) != 0,
+        (reference.Flags & AssemblyFlags.Retargetable) != 0);
+
+    private static string PublicKeyToken(byte[] keyOrToken, bool containsPublicKey)
+    {
+        if (keyOrToken.Length == 0) return string.Empty;
+        if (!containsPublicKey) return Convert.ToHexStringLower(keyOrToken);
+        var hash = SHA1.HashData(keyOrToken);
+        Span<byte> token = stackalloc byte[8];
+        for (var index = 0; index < token.Length; index++) token[index] = hash[hash.Length - 1 - index];
+        return Convert.ToHexStringLower(token);
+    }
+
+    private static bool AssemblyIdentityMatches(
+        ManagedAssemblyIdentity requested,
+        ManagedAssemblyIdentity resolved) =>
+        string.Equals(requested.Name, resolved.Name, StringComparison.OrdinalIgnoreCase) &&
+        requested.Version == resolved.Version &&
+        string.Equals(requested.Culture, resolved.Culture, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(requested.PublicKeyToken, resolved.PublicKeyToken, StringComparison.Ordinal) &&
+        requested.IsWindowsRuntime == resolved.IsWindowsRuntime &&
+        requested.IsRetargetable == resolved.IsRetargetable;
+
+    private static string FormatIdentity(ManagedAssemblyIdentity identity) =>
+        $"{identity.Name}, Version={identity.Version}, Culture=" +
+        $"{(identity.Culture.Length == 0 ? "neutral" : identity.Culture)}, PublicKeyToken=" +
+        $"{(identity.PublicKeyToken.Length == 0 ? "null" : identity.PublicKeyToken)}";
+
+    private sealed record ManagedAssemblyMetadata(
+        StrategyBundleManagedAssemblyDescriptor Descriptor,
+        ManagedAssemblyIdentity Definition,
+        IReadOnlyList<ManagedAssemblyIdentity> References);
+
+    private sealed record ManagedAssemblyIdentity(
+        string Name,
+        Version Version,
+        string Culture,
+        string PublicKeyToken,
+        bool IsWindowsRuntime,
+        bool IsRetargetable);
 
     private static bool IsManagedPayloadPath(string path) =>
         path.StartsWith("payload/engine/", StringComparison.Ordinal) ||

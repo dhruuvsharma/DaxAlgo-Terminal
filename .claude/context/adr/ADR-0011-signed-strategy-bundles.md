@@ -56,9 +56,13 @@ Verification is passive. It parses ZIP, canonical JSON, and managed PE metadata,
 publisher evidence without loading an assembly or executing bundle code. Archive/resource limits, unsafe
 or aliased paths, payload mismatches, native/mixed-mode/ReadyToRun executable payloads, bundled host SDK
 assemblies, duplicate identities, managed-graph mismatches, invalid factory metadata, and WPF/UI
-references anywhere in the engine dependency closure fail closed. Host compatibility and policy-required
-evidence are enforced later by installer/runtime integration. Inspection can report a structurally valid
-unsigned bundle, but inspection is not approval to install or run it.
+references anywhere in the engine dependency closure fail closed. For every bundled private dependency,
+the verifier matches each reference to the full assembly definition identity: version, culture, public-key
+token, Windows Runtime content type, and retargetable flag. The v1 manifest still serializes the stable
+simple-name graph; the stronger identity comparison is derived passively from PE metadata. Host
+compatibility and policy-required evidence are enforced by ADR-0012's installer/runtime integration.
+Inspection can report a structurally valid unsigned bundle, but inspection is not approval to install or
+run it.
 
 This decision makes no sandbox claim. A valid signature establishes origin and integrity only. If a
 future runtime loads a strategy in-process, ADR-0009 still applies: it runs with the host process's
@@ -69,6 +73,7 @@ without duplicating strategy logic. One manifest digest aligns packaging, signin
 installation, and revocation. V1 requires pack/sign/verify/inspect tooling, managed-only validation,
 tests, and an explicit migration path.
 
-Runtime loading, installation, update/uninstall, feed integration, and marketplace UI are deferred.
+Immutable installation and isolated backtest loading are specified by ADR-0012. Update/uninstall, feed
+integration, live-host loading, and marketplace UI remain deferred.
 Legacy `.daxplugin` remains distinct and is never accepted by changing its extension. Linux/Avalonia is
 out of scope; a WPF-free engine does not itself create a Linux compatibility promise.

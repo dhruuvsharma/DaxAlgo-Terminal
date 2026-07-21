@@ -53,6 +53,18 @@ public sealed record StrategyBundleManagedAssemblyDescriptor(
     string Name,
     IReadOnlyList<string> References);
 
+/// <summary>
+/// One verified manifest entry in the headless engine's managed assembly closure. The engine is
+/// always the first resolved entry; reachable private dependencies follow in ordinal path order.
+/// </summary>
+public sealed record StrategyBundleEngineAssemblyDescriptor(
+    string Path,
+    StrategyBundlePayloadRole Role,
+    string Name,
+    IReadOnlyList<string> References,
+    long Length,
+    string Sha256);
+
 public sealed record StrategyBundleManifest(
     string Format,
     int FormatVersion,
@@ -159,6 +171,9 @@ public sealed record StrategyBundleSignatureEvidence(
     string? Detail = null)
 {
     public const string PublisherAlgorithm = "ECDSA-P256-SHA256-IEEE-P1363";
+
+    /// <summary>SHA-256 of the accepted publisher SubjectPublicKeyInfo bytes.</summary>
+    public string? KeyFingerprintSha256 { get; init; }
 }
 
 public sealed record StrategyBundleInspection(

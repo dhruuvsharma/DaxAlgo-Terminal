@@ -38,6 +38,9 @@ public static class BacktestProtocolValidator
         RequireNonEmpty(request.EngineVersion, "invalid_engine_version", 64);
         RequireNonEmpty(request.SdkVersion, "invalid_sdk_version", 64);
         RequireNonEmpty(request.StrategyContractVersion, "invalid_strategy_contract_version", 64);
+        RequireLowerSha256(
+            request.ExpectedHostEngineAssemblySha256,
+            "invalid_host_engine_hash");
         Require(string.Equals(request.EngineVersion, BacktestProtocolVersions.ManagedEngine, StringComparison.Ordinal),
             "unsupported_engine_version",
             $"Engine version '{request.EngineVersion}' is unsupported; expected '{BacktestProtocolVersions.ManagedEngine}'.");
@@ -47,8 +50,6 @@ public static class BacktestProtocolValidator
         Require(string.Equals(request.StrategyContractVersion, BacktestProtocolVersions.StrategyContract, StringComparison.Ordinal),
             "unsupported_strategy_contract_version",
             $"Strategy contract version '{request.StrategyContractVersion}' is unsupported; expected '{BacktestProtocolVersions.StrategyContract}'.");
-        Require(strategy.Source == BacktestStrategySource.Native, "unsupported_strategy_source",
-            "P2 workers execute canonical native kernels only.");
         RequireNonEmpty(strategy.Id, "invalid_strategy_id", 128);
         Require(strategy.ContractVersion == request.StrategyContractVersion, "strategy_contract_mismatch",
             "The strategy reference and request declare different contract versions.");
@@ -56,15 +57,48 @@ public static class BacktestProtocolValidator
             Require(BacktestProtocolHash.IsSha256(strategy.ExpectedAssemblySha256), "invalid_strategy_hash",
                 "ExpectedAssemblySha256 must be a 64-character hexadecimal SHA-256.");
 
+        var activationParameters = strategy.ActivationParameters
+                                   ?? throw new BacktestProtocolException(
+                                       "missing_activation_parameters",
+                                       "Strategy.ActivationParameters is required.");
+        switch (strategy.Source)
+        {
+            case BacktestStrategySource.Native:
+                Require(strategy.InstalledBundle is null, "unexpected_bundle_reference",
+                    "Native strategies cannot carry an installed-bundle reference.");
+                Require(activationParameters.Count == 0, "unexpected_activation_parameters",
+                    "Native strategies use Run.Parameters and cannot carry factory activation parameters.");
+                break;
+
+            case BacktestStrategySource.InstalledBundle:
+                ValidateInstalledBundle(strategy, activationParameters);
+                Require(run.ParametersOrEmpty.Values.Count == 0, "ambiguous_bundle_parameters",
+                    "Installed bundles use Strategy.ActivationParameters; Run.Parameters must be empty.");
+                break;
+
+            default:
+                throw new BacktestProtocolException(
+                    "unsupported_strategy_source",
+                    $"Strategy source '{strategy.Source}' is unsupported.");
+        }
+
         Require(!string.IsNullOrWhiteSpace(run.StrategyId), "missing_run_strategy",
             "Run.StrategyId is required for worker dispatch.");
-        Require(string.Equals(run.StrategyId, strategy.Id, StringComparison.OrdinalIgnoreCase),
+        Require(string.Equals(
+                run.StrategyId,
+                strategy.Id,
+                strategy.Source == BacktestStrategySource.Native
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal),
             "strategy_id_mismatch", "Run.StrategyId and Strategy.Id must match.");
         Require(BacktestProtocolHash.IsSha256(request.ParametersSha256), "invalid_parameters_hash",
             "ParametersSha256 must be a 64-character hexadecimal SHA-256.");
+        var expectedParametersHash = strategy.Source == BacktestStrategySource.Native
+            ? BacktestProtocolHash.ComputeParametersSha256(run.ParametersOrEmpty)
+            : BacktestProtocolHash.ComputeActivationParametersSha256(activationParameters);
         Require(string.Equals(
                 request.ParametersSha256,
-                BacktestProtocolHash.ComputeParametersSha256(run.ParametersOrEmpty),
+                expectedParametersHash,
                 StringComparison.OrdinalIgnoreCase),
             "parameters_hash_mismatch", "The parameter bag does not match ParametersSha256.");
 
@@ -102,6 +136,133 @@ public static class BacktestProtocolValidator
         Require(jobId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'), "invalid_job_id",
             "JobId may contain only ASCII letters, digits, '-' and '_'.");
     }
+
+    private static void ValidateInstalledBundle(
+        BacktestStrategyReference strategy,
+        IReadOnlyList<BacktestStrategyParameter> parameters)
+    {
+        var bundle = strategy.InstalledBundle
+                     ?? throw new BacktestProtocolException(
+                         "missing_bundle_reference",
+                         "Installed bundle strategies require Strategy.InstalledBundle.");
+        RequirePortableIdentifier(strategy.Id, "invalid_strategy_id");
+        Require(strategy.ExpectedAssemblySha256 is not null, "missing_strategy_hash",
+            "Installed bundle strategies require ExpectedAssemblySha256.");
+        RequirePortableIdentifier(bundle.PublisherId, "invalid_bundle_publisher");
+        RequireNonEmpty(bundle.StrategyVersion, "invalid_bundle_version", 64);
+        RequireLowerSha256(bundle.ContentRootSha256, "invalid_bundle_content_root");
+        RequireLowerSha256(bundle.ArchiveSha256, "invalid_bundle_archive_hash");
+        RequireLowerSha256(strategy.ExpectedAssemblySha256!, "invalid_strategy_hash");
+        ValidateBundleTrustEvidence(bundle.TrustEvidence);
+
+        Require(parameters.Count <= BacktestProtocolLimits.MaxStrategyParameters,
+            "too_many_activation_parameters",
+            $"At most {BacktestProtocolLimits.MaxStrategyParameters} activation parameters are allowed.");
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var parameter in parameters)
+        {
+            if (parameter is null)
+                throw new BacktestProtocolException(
+                    "invalid_activation_parameter",
+                    "Activation parameters cannot contain null entries.");
+            RequireNonEmpty(parameter.Key, "invalid_activation_parameter_key",
+                BacktestProtocolLimits.MaxStrategyParameterKeyCharacters);
+            Require(keys.Add(parameter.Key), "duplicate_activation_parameter",
+                $"Activation parameter '{parameter.Key}' is duplicated.");
+
+            var hasInteger = parameter.IntegerValue is not null;
+            var hasNumber = parameter.NumberValue is not null;
+            var hasBoolean = parameter.BooleanValue is not null;
+            var hasString = parameter.StringValue is not null;
+            switch (parameter.Kind)
+            {
+                case BacktestStrategyParameterKind.Integer:
+                    Require(hasInteger && !hasNumber && !hasBoolean && !hasString,
+                        "invalid_activation_parameter_value",
+                        $"Parameter '{parameter.Key}' must carry only IntegerValue.");
+                    break;
+                case BacktestStrategyParameterKind.Number:
+                    Require(hasNumber && !hasInteger && !hasBoolean && !hasString &&
+                            double.IsFinite(parameter.NumberValue!.Value),
+                        "invalid_activation_parameter_value",
+                        $"Parameter '{parameter.Key}' must carry only a finite NumberValue.");
+                    break;
+                case BacktestStrategyParameterKind.Boolean:
+                    Require(hasBoolean && !hasInteger && !hasNumber && !hasString,
+                        "invalid_activation_parameter_value",
+                        $"Parameter '{parameter.Key}' must carry only BooleanValue.");
+                    break;
+                case BacktestStrategyParameterKind.Choice:
+                case BacktestStrategyParameterKind.Text:
+                    Require(hasString && !hasInteger && !hasNumber && !hasBoolean &&
+                            parameter.StringValue!.Length <= BacktestProtocolLimits.MaxStrategyParameterStringCharacters,
+                        "invalid_activation_parameter_value",
+                        $"Parameter '{parameter.Key}' must carry only a bounded StringValue.");
+                    break;
+                default:
+                    throw new BacktestProtocolException(
+                        "unsupported_activation_parameter_kind",
+                        $"Parameter '{parameter.Key}' has unsupported kind '{parameter.Kind}'.");
+            }
+        }
+    }
+
+    private static void ValidateBundleTrustEvidence(BacktestBundleTrustEvidence? evidence)
+    {
+        if (evidence is null)
+            throw new BacktestProtocolException(
+                "missing_bundle_trust_evidence",
+                "Installed bundle strategies require accepted publisher trust evidence.");
+        Require(
+            string.Equals(
+                evidence.SignatureAlgorithm,
+                BacktestBundleTrustEvidence.PublisherSignatureAlgorithm,
+                StringComparison.Ordinal),
+            "unsupported_bundle_signature_algorithm",
+            "The installed bundle uses an unsupported publisher signature algorithm.");
+        switch (evidence.Kind)
+        {
+            case BacktestBundleTrustKind.UnsignedLocalDevelopment:
+                Require(
+                    evidence.PublisherKeyId is null &&
+                    evidence.PublisherKeyFingerprintSha256 is null,
+                    "invalid_local_bundle_trust_evidence",
+                    "Unsigned local-development evidence cannot name a publisher key.");
+                break;
+            case BacktestBundleTrustKind.VerifiedPublisher:
+                RequireNonEmpty(
+                    evidence.PublisherKeyId ?? string.Empty,
+                    "invalid_bundle_publisher_key",
+                    200);
+                RequireLowerSha256(
+                    evidence.PublisherKeyFingerprintSha256!,
+                    "invalid_bundle_publisher_key_fingerprint");
+                break;
+            default:
+                throw new BacktestProtocolException(
+                    "unsupported_bundle_trust_kind",
+                    $"Bundle trust kind '{evidence.Kind}' is unsupported.");
+        }
+    }
+
+    private static void RequirePortableIdentifier(string value, string code)
+    {
+        RequireNonEmpty(value, code, 128);
+        Require(value.All(static character =>
+                char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character is '.' or '_' or '-'),
+            code,
+            "The value must be a lowercase portable identifier.");
+        Require(char.IsAsciiLetterOrDigit(value[0]),
+            code,
+            "The value must start with an ASCII letter or digit.");
+    }
+
+    private static void RequireLowerSha256(string value, string code) =>
+        Require(
+            BacktestProtocolHash.IsSha256(value) &&
+            string.Equals(value, value.ToLowerInvariant(), StringComparison.Ordinal),
+            code,
+            "The value must be a lowercase 64-character hexadecimal SHA-256.");
 
     private static void ValidateInput(BacktestInputReference input)
     {

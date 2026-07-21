@@ -97,7 +97,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
-    <ProjectReference Include="..\..\Backtest\TradingTerminal.Backtest.Protocol\TradingTerminal.Backtest.Protocol.csproj" />
     <!-- Lean AI-codegen assembly (clients / orchestrator / factory / pack / DI). Split out so the
          `daxalgo strategy` CLI can reuse it without Infrastructure's WPF + broker graph; the types keep
          their TradingTerminal.Infrastructure.Strategies.Authoring namespace, so consumers are unchanged. -->

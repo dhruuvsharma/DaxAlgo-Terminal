@@ -19,12 +19,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    12: public const string PublisherSignaturePayloadType = "application/vnd.daxalgo.strategy-manifest.v1+json";
    14: public static StrategyBundlePackResult Pack(
    26: public static StrategyBundlePackResult Pack(
-   86: public static StrategyBundleSignResult Sign(
-  102: public static StrategyBundleSignResult Sign(
-  139: public static StrategyBundleInspection Inspect(
-  148: public static StrategyBundleInspection Inspect(
-  158: public static StrategyBundleVerification Verify(
-  168: public static StrategyBundleVerification Verify(
+   87: public static StrategyBundleSignResult Sign(
+  103: public static StrategyBundleSignResult Sign(
+  140: public static StrategyBundleInspection Inspect(
+  149: public static StrategyBundleInspection Inspect(
+  159: public static StrategyBundleVerification Verify(
+  169: public static StrategyBundleVerification Verify(
+  268: public static IReadOnlyList<StrategyBundleEngineAssemblyDescriptor> ResolveEngineClosure(
 ```
 
 ## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleArchive.cs
@@ -35,8 +36,8 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    44: public const string PublisherPayloadType = DaxStrategyBundle.PublisherSignaturePayloadType;
    49: public static byte[] Write(
    96: public static StrategyBundleReadResult Read(Stream input, StrategyBundleLimitOptions limits)
-  196: public static byte[] CreateEnvelope(string keyId, byte[] manifestBytes, byte[] signature)
-  216: public static byte[] CreatePreAuthenticationEncoding(ReadOnlySpan<byte> payload)
+  197: public static byte[] CreateEnvelope(string keyId, byte[] manifestBytes, byte[] signature)
+  217: public static byte[] CreatePreAuthenticationEncoding(ReadOnlySpan<byte> payload)
 ```
 
 ## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleEnginePolicy.cs
@@ -99,31 +100,33 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    38: public const string CurrentActivation = "public-parameterless-constructor";
    41: public sealed record StrategyBundlePayloadDescriptor(
    51: public sealed record StrategyBundleManagedAssemblyDescriptor(
-   56: public sealed record StrategyBundleManifest(
-   66: public const string CurrentFormat = "daxstrategy";
-   67: public const int CurrentFormatVersion = 1;
-   71: public sealed class StrategyBundlePayloadSource
-   75: public StrategyBundlePayloadSource(
-   85: public string Path { get; }
-   86: public StrategyBundlePayloadRole Role { get; }
-   88: public static StrategyBundlePayloadSource FromFile(
-  100: public static StrategyBundlePayloadSource FromBytes(
-  126: public sealed record StrategyBundlePackRequest(
-  133: public sealed record StrategyBundlePublisherKey(
-  138: public static StrategyBundlePublisherKey FromEcdsa(string publisherId, string keyId, ECDsa key)
-  145: public enum StrategyBundleSignatureStatus
-  154: public sealed record StrategyBundleSignatureEvidence(
-  161: public const string PublisherAlgorithm = "ECDSA-P256-SHA256-IEEE-P1363";
-  164: public sealed record StrategyBundleInspection(
-  171: public sealed record StrategyBundleVerification(
-  175: public bool IsPublisherVerified => PublisherSignature.Status == StrategyBundleSignatureStatus.Verified;
-  178: public sealed record StrategyBundlePackResult(
-  183: public sealed record StrategyBundleSignResult(
-  189: public enum StrategyBundleValidationError
-  203: public sealed class StrategyBundleValidationException : Exception
-  205: public StrategyBundleValidationException(StrategyBundleValidationError error, string message)
-  208: public StrategyBundleValidationException(
-  214: public StrategyBundleValidationError Error { get; }
+   60: public sealed record StrategyBundleEngineAssemblyDescriptor(
+   68: public sealed record StrategyBundleManifest(
+   78: public const string CurrentFormat = "daxstrategy";
+   79: public const int CurrentFormatVersion = 1;
+   83: public sealed class StrategyBundlePayloadSource
+   87: public StrategyBundlePayloadSource(
+   97: public string Path { get; }
+   98: public StrategyBundlePayloadRole Role { get; }
+  100: public static StrategyBundlePayloadSource FromFile(
+  112: public static StrategyBundlePayloadSource FromBytes(
+  138: public sealed record StrategyBundlePackRequest(
+  145: public sealed record StrategyBundlePublisherKey(
+  150: public static StrategyBundlePublisherKey FromEcdsa(string publisherId, string keyId, ECDsa key)
+  157: public enum StrategyBundleSignatureStatus
+  166: public sealed record StrategyBundleSignatureEvidence(
+  173: public const string PublisherAlgorithm = "ECDSA-P256-SHA256-IEEE-P1363";
+  176: public string? KeyFingerprintSha256 { get; init; }
+  179: public sealed record StrategyBundleInspection(
+  186: public sealed record StrategyBundleVerification(
+  190: public bool IsPublisherVerified => PublisherSignature.Status == StrategyBundleSignatureStatus.Verified;
+  193: public sealed record StrategyBundlePackResult(
+  198: public sealed record StrategyBundleSignResult(
+  204: public enum StrategyBundleValidationError
+  218: public sealed class StrategyBundleValidationException : Exception
+  220: public StrategyBundleValidationException(StrategyBundleValidationError error, string message)
+  223: public StrategyBundleValidationException(
+  229: public StrategyBundleValidationError Error { get; }
 ```
 
 ## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundlePath.cs
@@ -135,8 +138,69 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundlePayloadPolicy.cs
 ```cs
-   30: public static void Validate(
-   98: public static void ValidateManagedAssemblyIdentities(IReadOnlyDictionary<string, byte[]> payloads)
-  103: public static IReadOnlyList<StrategyBundleManagedAssemblyDescriptor> DescribeManagedAssemblies(
-  145: public static void ValidateManagedAssemblyGraph(
+   32: public static void Validate(
+  100: public static void ValidateManagedAssemblyIdentities(IReadOnlyDictionary<string, byte[]> payloads)
+  105: public static IReadOnlyList<StrategyBundleManagedAssemblyDescriptor> DescribeManagedAssemblies(
+  157: public static void ValidateManagedAssemblyGraph(
+  177: public static IReadOnlyList<StrategyBundleEngineAssemblyDescriptor> ResolveEngineClosure(
+```
+
+## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleRuntimePolicy.cs
+```cs
+   10: public static class StrategyBundleRuntimePolicy
+   12: public static StrategyBundleManifest ParseCanonicalManifest(
+   19: public static string ComputeContentRoot(ReadOnlySpan<byte> canonicalManifestBytes) =>
+   26: public static IReadOnlyList<StrategyBundleEngineAssemblyDescriptor> ValidateEngineImage(
+   72: public static bool IsExternalAssemblyAllowed(string simpleName) =>
+```
+
+## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleSemanticVersion.cs
+```cs
+    9: public static string Normalize(string? value, string parameterName)
+   18: public static StrategyBundleSemanticVersion Parse(string value, string parameterName)
+   40: public int CompareTo(StrategyBundleSemanticVersion other)
+```
+
+## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStore.cs
+```cs
+   11: public sealed class StrategyBundleStore
+   25: public StrategyBundleStore(string rootDirectory, StrategyBundleLimitOptions? limits = null)
+   54: public string RootDirectory { get; }
+   56: public StrategyBundleInstallation Install(
+   71: public StrategyBundleInstallation Install(
+  103: public StrategyBundleInstallation VerifyInstallation(
+  178: public StrategyBundleInstallation Activate(
+  196: public StrategyBundleInstallation ResolveActive(
+```
+
+## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStoreJson.cs
+```cs
+   15: public const string CurrentSchema = "daxalgo.strategy-activation";
+   16: public const int CurrentSchemaVersion = 1;
+   21: public static byte[] WriteReceipt(StrategyBundleInstallReceipt receipt)
+   62: public static StrategyBundleInstallReceipt ParseReceipt(ReadOnlySpan<byte> bytes)
+  134: public static byte[] WriteActivation(StrategyBundleActivationPointer activation)
+  151: public static StrategyBundleActivationPointer ParseActivation(ReadOnlySpan<byte> bytes)
+```
+
+## src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStoreModels.cs
+```cs
+    4: public enum StrategyBundleTrustMode
+   14: public sealed class StrategyBundleInstallPolicy
+   18: public StrategyBundleInstallPolicy(
+   39: public string HostVersion { get; }
+   40: public string SdkVersion { get; }
+   41: public StrategyBundleTrustMode TrustMode { get; }
+   42: public IReadOnlyList<StrategyBundlePublisherKey> TrustedPublisherKeys => _trustedPublisherKeys
+   46: public static StrategyBundleInstallPolicy LocalDevelopment(
+   52: public static StrategyBundleInstallPolicy VerifiedPublisher(
+   63: public sealed record StrategyBundleInstallReceipt(
+   73: public const string CurrentSchema = "daxalgo.strategy-install-receipt";
+   74: public const int CurrentSchemaVersion = 1;
+   78: public sealed record StrategyBundleInstallation(
+   87: public enum StrategyBundleStoreError
+   96: public sealed class StrategyBundleStoreException : Exception
+   98: public StrategyBundleStoreException(StrategyBundleStoreError error, string message)
+  101: public StrategyBundleStoreException(StrategyBundleStoreError error, string message, Exception innerException)
+  104: public StrategyBundleStoreError Error { get; }
 ```

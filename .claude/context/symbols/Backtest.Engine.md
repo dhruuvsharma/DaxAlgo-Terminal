@@ -109,15 +109,16 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Backtest/TradingTerminal.Backtest.Engine/Kernels/BacktestStrategyKernelAdapter.cs
 ```cs
-   16: public sealed class BacktestStrategyKernelAdapter : IStrategyKernel
-   22: public BacktestStrategyKernelAdapter(IBacktestStrategy inner) => _inner = inner;
-   26: public BacktestStrategyKernelAdapter(Func<Contract, IBacktestStrategy> build) => _build = build;
-   30: public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
-   36: public Task OnQuoteAsync(InstrumentId instrument, Tick quote, IStrategyContext ctx, CancellationToken ct) =>
-   39: public Task OnTradeAsync(InstrumentId instrument, TradePrint trade, IStrategyContext ctx, CancellationToken ct) =>
-   42: public Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyContext ctx, CancellationToken ct) =>
-   45: public Task OnOrderEventAsync(OrderEvent evt, IStrategyContext ctx, CancellationToken ct) =>
-   48: public Task OnEndAsync(IStrategyContext ctx, CancellationToken ct) =>
+   16: public sealed class BacktestStrategyKernelAdapter : IStrategyKernel, IAsyncDisposable
+   23: public BacktestStrategyKernelAdapter(IBacktestStrategy inner) => _inner = inner;
+   27: public BacktestStrategyKernelAdapter(Func<Contract, IBacktestStrategy> build) => _build = build;
+   38: public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
+   45: public Task OnQuoteAsync(InstrumentId instrument, Tick quote, IStrategyContext ctx, CancellationToken ct) =>
+   48: public Task OnTradeAsync(InstrumentId instrument, TradePrint trade, IStrategyContext ctx, CancellationToken ct) =>
+   51: public Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyContext ctx, CancellationToken ct) =>
+   54: public Task OnOrderEventAsync(OrderEvent evt, IStrategyContext ctx, CancellationToken ct) =>
+   57: public Task OnEndAsync(IStrategyContext ctx, CancellationToken ct) =>
+   60: public async ValueTask DisposeAsync()
 ```
 
 ## src/windows/Backtest/TradingTerminal.Backtest.Engine/Kernels/MeanReversionKernel.cs

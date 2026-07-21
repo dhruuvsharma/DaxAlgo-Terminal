@@ -11,12 +11,13 @@ namespace TradingTerminal.Backtest.Engine.Kernels;
 /// that lets the new engine reuse all current strategy logic verbatim — no rewrite, one source of
 /// truth with the live windows. The new callbacks carry an <see cref="InstrumentId"/> the legacy
 /// strategy doesn't need, so it's dropped; clock and router are pulled from the context. The legacy
-/// contract has no bar callback, so <see cref="OnBarAsync"/> stays a no-op.
+/// contract has no bar callback, so <see cref="IStrategyKernel.OnBarAsync"/> stays a no-op.
 /// </summary>
-public sealed class BacktestStrategyKernelAdapter : IStrategyKernel
+public sealed class BacktestStrategyKernelAdapter : IStrategyKernel, IAsyncDisposable
 {
     private readonly Func<Contract, IBacktestStrategy>? _build;
     private IBacktestStrategy? _inner;
+    private int _disposed;
 
     /// <summary>Wrap an already-built legacy strategy (used by the parity test).</summary>
     public BacktestStrategyKernelAdapter(IBacktestStrategy inner) => _inner = inner;
@@ -25,10 +26,18 @@ public sealed class BacktestStrategyKernelAdapter : IStrategyKernel
     /// <see cref="Contract"/> in their constructor, supplied here from the universe's primary.</summary>
     public BacktestStrategyKernelAdapter(Func<Contract, IBacktestStrategy> build) => _build = build;
 
-    private IBacktestStrategy Inner => _inner ?? throw new InvalidOperationException("Strategy not started.");
+    private IBacktestStrategy Inner
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            return _inner ?? throw new InvalidOperationException("Strategy not started.");
+        }
+    }
 
     public Task OnStartAsync(IStrategyContext ctx, CancellationToken ct)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         _inner ??= _build!(ctx.Universe.Primary.Contract);
         return _inner.OnStartAsync(ctx.Clock, ctx.Router, ct);
     }
@@ -47,4 +56,14 @@ public sealed class BacktestStrategyKernelAdapter : IStrategyKernel
 
     public Task OnEndAsync(IStrategyContext ctx, CancellationToken ct) =>
         Inner.OnEndAsync(ctx.Clock, ctx.Router, ct);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        var inner = Interlocked.Exchange(ref _inner, null);
+        if (inner is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+        else if (inner is IDisposable disposable)
+            disposable.Dispose();
+    }
 }

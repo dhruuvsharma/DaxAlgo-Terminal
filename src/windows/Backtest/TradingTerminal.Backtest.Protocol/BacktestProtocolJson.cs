@@ -78,6 +78,56 @@ public static class BacktestProtocolHash
         return ComputeSha256(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)));
     }
 
+    public static string ComputeActivationParametersSha256(
+        IReadOnlyList<BacktestStrategyParameter> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            foreach (var parameter in parameters.OrderBy(static value => value.Key, StringComparer.Ordinal))
+            {
+                writer.WriteStartObject();
+                writer.WriteString("key", parameter.Key);
+                writer.WriteString("kind", parameter.Kind switch
+                {
+                    BacktestStrategyParameterKind.Integer => "integer",
+                    BacktestStrategyParameterKind.Number => "number",
+                    BacktestStrategyParameterKind.Boolean => "boolean",
+                    BacktestStrategyParameterKind.Choice => "choice",
+                    BacktestStrategyParameterKind.Text => "text",
+                    _ => throw new ArgumentOutOfRangeException(nameof(parameters), parameter.Kind, "Unsupported parameter kind."),
+                });
+                writer.WritePropertyName("value");
+                switch (parameter.Kind)
+                {
+                    case BacktestStrategyParameterKind.Integer:
+                        writer.WriteNumberValue(parameter.IntegerValue
+                            ?? throw new ArgumentException($"Parameter '{parameter.Key}' has no integer value.", nameof(parameters)));
+                        break;
+                    case BacktestStrategyParameterKind.Number:
+                        writer.WriteNumberValue(parameter.NumberValue
+                            ?? throw new ArgumentException($"Parameter '{parameter.Key}' has no number value.", nameof(parameters)));
+                        break;
+                    case BacktestStrategyParameterKind.Boolean:
+                        writer.WriteBooleanValue(parameter.BooleanValue
+                            ?? throw new ArgumentException($"Parameter '{parameter.Key}' has no boolean value.", nameof(parameters)));
+                        break;
+                    case BacktestStrategyParameterKind.Choice:
+                    case BacktestStrategyParameterKind.Text:
+                        writer.WriteStringValue(parameter.StringValue
+                            ?? throw new ArgumentException($"Parameter '{parameter.Key}' has no string value.", nameof(parameters)));
+                        break;
+                }
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+
+        return ComputeSha256(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)));
+    }
+
     public static bool IsSha256(string? value) =>
         value is { Length: 64 } && value.All(Uri.IsHexDigit);
 }

@@ -1,3 +1,5 @@
+using DaxAlgo.Strategy.Bundle;
+
 namespace TradingTerminal.Infrastructure.Backtest.Worker;
 
 public sealed class BacktestWorkerOptions
@@ -13,6 +15,15 @@ public sealed class BacktestWorkerOptions
 
     /// <summary>Parent of bounded, one-directory-per-id jobs.</summary>
     public string? JobRootDirectory { get; set; }
+
+    /// <summary>Immutable .daxstrategy store used to prepare fixed worker-job engine images.</summary>
+    public string? StrategyBundleStoreRoot { get; set; }
+
+    /// <summary>
+    /// Current trust and compatibility policy. Installed-bundle jobs are rejected unless both this
+    /// value and <see cref="StrategyBundleStoreRoot"/> are configured.
+    /// </summary>
+    public StrategyBundleInstallPolicy? StrategyBundlePolicy { get; set; }
 
     /// <summary>Host ceiling; the effective timeout is the minimum of this, request limit, and deadline.</summary>
     public TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromMinutes(10);

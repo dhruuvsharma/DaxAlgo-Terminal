@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using DaxAlgo.Strategy.Bundle;
 using FluentAssertions;
 using TradingTerminal.Backtest.Protocol;
+using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Infrastructure.Backtest.Worker;
 using Xunit;
 
@@ -115,6 +117,51 @@ public sealed class WorkerClientTests
     }
 
     [Fact]
+    public async Task Bundle_preparation_failure_cleans_staging_and_allows_same_job_id_retry()
+    {
+        using var temp = new WorkerTempDirectory();
+        var native = WorkerTestData.Request("missing-bundle-job");
+        var run = native.Run with
+        {
+            StrategyId = "tests.missing-bundle",
+            Parameters = StrategyParameters.Empty,
+        };
+        var request = BacktestJobRequest.CreateInstalledBundle(
+            native.JobId,
+            run,
+            native.Input,
+            new BacktestInstalledBundleReference
+            {
+                PublisherId = "tests.publisher",
+                StrategyVersion = "1.0.0",
+                ContentRootSha256 = new string('a', 64),
+                ArchiveSha256 = new string('b', 64),
+                TrustEvidence = new BacktestBundleTrustEvidence
+                {
+                    Kind = BacktestBundleTrustKind.UnsignedLocalDevelopment,
+                },
+            },
+            native.ExpectedHostEngineAssemblySha256,
+            new string('c', 64),
+            []);
+        var options = PowerShellOptions(temp, request.JobId, SleepingWorkerScript);
+        options.StrategyBundleStoreRoot = System.IO.Path.Combine(temp.Path, "empty-strategy-store");
+        options.StrategyBundlePolicy = StrategyBundleInstallPolicy.LocalDevelopment(
+            "1.0.0",
+            BacktestProtocolVersions.Sdk);
+        using var client = new BacktestJobClient(options);
+
+        var first = await client.RunAsync(request);
+        var second = await client.RunAsync(request);
+
+        first.Error!.Code.Should().Be("bundle_store_installation_not_found");
+        second.Error!.Code.Should().Be("bundle_store_installation_not_found");
+        Directory.Exists(System.IO.Path.Combine(temp.Path, "jobs", request.JobId)).Should().BeFalse();
+        Directory.GetDirectories(System.IO.Path.Combine(temp.Path, "jobs"), ".staging-*")
+            .Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Real_worker_executes_synthetic_job_end_to_end()
     {
         using var temp = new WorkerTempDirectory();
@@ -134,6 +181,115 @@ public sealed class WorkerClientTests
             BacktestTerminalStatus.Succeeded,
             $"{outcome.Error?.Code}: {outcome.Error?.Message}\n{outcome.WorkerStandardError}");
         outcome.Report.Should().NotBeNull();
+        outcome.Report!.Summary.EventsProcessed.Should().Be(500);
+    }
+
+    [Fact]
+    public async Task Real_worker_executes_exact_engine_from_active_immutable_bundle()
+    {
+        using var temp = new WorkerTempDirectory();
+        var bundlePath = System.IO.Path.Combine(temp.Path, "worker-strategy.daxstrategy");
+        const string strategyId = "tests.worker-bundle";
+        DaxStrategyBundle.Pack(
+            bundlePath,
+            new StrategyBundlePackRequest(
+                new StrategyBundleIdentity(strategyId, "Worker Bundle", "1.0.0", "tests.publisher"),
+                new StrategyBundleCompatibility(BacktestProtocolVersions.Sdk, "1.0.0"),
+                new StrategyBundleEngineEntryPoint(
+                    "payload/engine/DaxAlgo.SamplePlugin.dll",
+                    "DaxAlgo.SamplePlugin.SampleStrategyEngineFactory",
+                    StrategyBundleEngineEntryPoint.CurrentContract,
+                    StrategyBundleEngineEntryPoint.CurrentActivation),
+                [],
+                [StrategyBundlePayloadSource.FromFile(
+                    "payload/engine/DaxAlgo.SamplePlugin.dll",
+                    StrategyBundlePayloadRole.Engine,
+                    StagedSamplePluginPath)]));
+
+        var policy = StrategyBundleInstallPolicy.LocalDevelopment("1.0.0", BacktestProtocolVersions.Sdk);
+        var storeRoot = System.IO.Path.Combine(temp.Path, "strategy-store");
+        var store = new StrategyBundleStore(storeRoot);
+        var installation = store.Install(bundlePath, policy);
+        store.Activate(
+            installation.Receipt.ContentRootSha256,
+            installation.Receipt.ArchiveSha256,
+            policy);
+
+        var native = WorkerTestData.Request("real-bundle-worker");
+        var run = native.Run with { StrategyId = strategyId, Parameters = StrategyParameters.Empty };
+        var engineHash = installation.Manifest.Payloads
+            .Single(payload => payload.Path == installation.Manifest.Engine.AssemblyPath)
+            .Sha256;
+        var request = BacktestJobRequest.CreateInstalledBundle(
+            native.JobId,
+            run,
+            native.Input,
+            new BacktestInstalledBundleReference
+            {
+                PublisherId = installation.Manifest.Identity.PublisherId,
+                StrategyVersion = installation.Manifest.Identity.Version,
+                ContentRootSha256 = installation.Receipt.ContentRootSha256,
+                ArchiveSha256 = installation.Receipt.ArchiveSha256,
+                TrustEvidence = new BacktestBundleTrustEvidence
+                {
+                    Kind = BacktestBundleTrustKind.UnsignedLocalDevelopment,
+                },
+            },
+            native.ExpectedHostEngineAssemblySha256,
+            engineHash,
+            [
+                new BacktestStrategyParameter
+                {
+                    Key = "lookback",
+                    Kind = BacktestStrategyParameterKind.Integer,
+                    IntegerValue = 30,
+                },
+                new BacktestStrategyParameter
+                {
+                    Key = "threshold",
+                    Kind = BacktestStrategyParameterKind.Number,
+                    NumberValue = 1.5,
+                },
+                new BacktestStrategyParameter
+                {
+                    Key = "enabled",
+                    Kind = BacktestStrategyParameterKind.Boolean,
+                    BooleanValue = true,
+                },
+                new BacktestStrategyParameter
+                {
+                    Key = "mode",
+                    Kind = BacktestStrategyParameterKind.Choice,
+                    StringValue = "fast",
+                },
+                new BacktestStrategyParameter
+                {
+                    Key = "label",
+                    Kind = BacktestStrategyParameterKind.Text,
+                    StringValue = "worker-e2e",
+                },
+            ]);
+        var options = new BacktestWorkerOptions
+        {
+            WorkerExecutablePath = ResolveBuiltWorkerDll(),
+            JobRootDirectory = System.IO.Path.Combine(temp.Path, "jobs"),
+            StrategyBundleStoreRoot = storeRoot,
+            StrategyBundlePolicy = policy,
+            DefaultTimeout = TimeSpan.FromSeconds(30),
+        };
+        using var client = new BacktestJobClient(options);
+
+        var outcome = await client.RunAsync(request);
+
+        outcome.Status.Should().Be(
+            BacktestTerminalStatus.Succeeded,
+            $"{outcome.Error?.Code}: {outcome.Error?.Message}\n{outcome.WorkerStandardError}");
+        outcome.Manifest!.StrategyContentRootSha256.Should().Be(installation.Receipt.ContentRootSha256);
+        outcome.Manifest.StrategyArchiveSha256.Should().Be(installation.Receipt.ArchiveSha256);
+        outcome.Manifest.StrategyTrustEvidence.Should().Be(request.Strategy.InstalledBundle!.TrustEvidence);
+        outcome.Manifest.StrategyAssemblySha256.Should().Be(engineHash);
+        outcome.Manifest.StrategyAssemblyClosure.Should().ContainSingle()
+            .Which.Name.Should().Be("DaxAlgo.SamplePlugin");
         outcome.Report!.Summary.EventsProcessed.Should().Be(500);
     }
 
@@ -159,6 +315,29 @@ public sealed class WorkerClientTests
         outcome.Status.Should().Be(BacktestTerminalStatus.ProtocolError);
         outcome.Manifest.Should().NotBeNull();
         outcome.Error!.Code.Should().Be("strategy_assembly_hash_mismatch");
+    }
+
+    [Fact]
+    public async Task Real_worker_rejects_a_mismatched_host_engine_fingerprint()
+    {
+        using var temp = new WorkerTempDirectory();
+        var request = WorkerTestData.Request("real-worker-host-engine-mismatch") with
+        {
+            ExpectedHostEngineAssemblySha256 = new string('f', 64),
+        };
+        var options = new BacktestWorkerOptions
+        {
+            WorkerExecutablePath = ResolveBuiltWorkerDll(),
+            JobRootDirectory = System.IO.Path.Combine(temp.Path, "jobs"),
+            DefaultTimeout = TimeSpan.FromSeconds(30),
+        };
+        using var client = new BacktestJobClient(options);
+
+        var outcome = await client.RunAsync(request);
+
+        outcome.Status.Should().Be(BacktestTerminalStatus.ProtocolError);
+        outcome.Manifest.Should().NotBeNull();
+        outcome.Error!.Code.Should().Be("host_engine_hash_mismatch");
     }
 
     private static BacktestWorkerOptions PowerShellOptions(
@@ -212,6 +391,12 @@ public sealed class WorkerClientTests
             "bin", configuration, targetFramework, "TradingTerminal.Backtest.Worker.dll");
     }
 
+    private static string StagedSamplePluginPath => System.IO.Path.Combine(
+        AppContext.BaseDirectory,
+        "TestPlugins",
+        "DaxAlgo.SamplePlugin",
+        "DaxAlgo.SamplePlugin.dll");
+
     private static async Task<int> WaitForChildPidAsync(string path)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
@@ -263,7 +448,7 @@ public sealed class WorkerClientTests
         $now = [DateTime]::UtcNow.ToString('O')
         $zeros = '0' * 64
         $manifest = [ordered]@{
-            protocol_version = 1
+            protocol_version = 2
             job_id = $request.job_id
             terminal_status = 'succeeded'
             started_utc = $now
@@ -273,9 +458,10 @@ public sealed class WorkerClientTests
             sdk_version = $request.sdk_version
             strategy_contract_version = $request.strategy_contract_version
             engine_fingerprint = 'fake-test-engine'
+            host_engine_assembly_sha256 = $request.expected_host_engine_assembly_sha256
             backend_fingerprint = 'fake-test-backend'
             strategy_id = $request.strategy.id
-            strategy_assembly_sha256 = $zeros
+            strategy_assembly_sha256 = $request.strategy.expected_assembly_sha256
             parameters_sha256 = $request.parameters_sha256
             input_sha256 = $inputHash
             artifacts = @([ordered]@{

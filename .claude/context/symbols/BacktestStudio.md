@@ -58,7 +58,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   216: public event EventHandler? OptimizationReady;
   219: public event EventHandler? ReportReady;
   222: public event EventHandler? ReplayFrameChanged;
-  827: public void Dispose()
+  822: public void Dispose()
 ```
 
 ## src/windows/Tools/TradingTerminal.BacktestStudio/DataSourceKind.cs

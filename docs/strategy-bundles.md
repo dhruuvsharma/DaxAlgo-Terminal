@@ -1,8 +1,8 @@
 # Signed strategy bundles (`.daxstrategy`)
 
-> Windows strategy-distribution format and offline tooling. Runtime loading, installation, updates, and
-> marketplace integration are not part of this slice. Existing `.daxplugin` behavior remains a separate
-> legacy path.
+> Windows strategy-distribution and isolated-backtest format. Immutable installation and exact worker
+> activation are implemented; marketplace integration, automatic updates, and live-host loading remain
+> later slices. Existing `.daxplugin` behavior stays a separate legacy path.
 
 A `.daxstrategy` is one portable file, not one merged DLL. It is a passive ZIP whose contents can be
 inspected and verified without executing them. Strategy math stays in one canonical WPF-free engine;
@@ -42,7 +42,9 @@ Managed payloads cannot be native, mixed-mode, ReadyToRun, or AOT binaries. Host
 `DaxAlgo.Sdk*` assemblies cannot be bundled as private copies. The engine and all private dependencies
 must remain WPF/UI-free; duplicate assembly identities are rejected. The manifest records the exact
 managed path/name/reference graph, recomputed from PE metadata during verification. These are
-metadata-only checks: the verifier never loads a payload assembly.
+metadata-only checks: the verifier never loads a payload assembly. Although v1 serializes simple names in
+that graph, verification also matches every private reference to the bundled definition's full version,
+culture, public-key token, Windows Runtime content type, and retargetable flag.
 
 The engine object names one exact assembly path and one public, parameterless type implementing
 `DaxAlgo.Sdk.IStrategyEngineFactory`. Its closed v1 contract is
@@ -106,9 +108,12 @@ A verified signature means only:
 
 > The holder of this key endorsed the manifest and every payload byte it identifies.
 
-It does not establish safety, profitability, marketplace review, or process isolation. A signature
-carrying a key id that is not trusted for the manifest publisher is reported as unknown, not as a
-verified publisher; without that trusted key, the verifier cannot claim the signature is valid.
+That establishes publisher authenticity for the signed content, not code safety. The exact outer ZIP is
+identified separately by its archive SHA-256 in store/client evidence; together, the verified publisher
+signature and that archive hash preserve which endorsed content and archive were selected. Neither claim
+establishes safety, profitability, marketplace review, or process isolation. A signature carrying a key
+id that is not trusted for the manifest publisher is reported as unknown, not as a verified publisher;
+without that trusted key, the verifier cannot claim the signature is valid.
 
 A marketplace attestation will be a separate later claim over the same content root and named review
 policy. Its envelope, trusted-key registry, freshness, rotation, and revocation model are deferred to the
@@ -177,10 +182,73 @@ The verifier rejects:
   references;
 - malformed signature envelopes or signatures that fail for the supplied trusted key.
 
-Host-version compatibility, publisher registration, revocation freshness, install policy, and execution
-boundary belong to later installer/runtime work. Successful offline inspection is not permission to run
-the code. If a future host loads it in-process, it still has that process's authority; see
+Successful offline inspection is not permission to run code. Installation and activation apply an
+explicit current host/SDK and publisher policy as described below. Publisher registration and
+revocation-freshness distribution still belong to marketplace integration. If a future live host loads
+the engine in-process, it still has that process's authority; see
 [ADR-0009](../.claude/context/adr/ADR-0009-out-of-process-strategy-host.md).
+
+## Immutable install and isolated backtest activation
+
+The strategy store separates content from evidence:
+
+```text
+strategy-store/
+  objects/sha256/<content-root>/
+    bundle.manifest.json
+    payload/...
+  evidence/sha256/<archive-sha256>/
+    bundle.daxstrategy
+    install.receipt.json
+  activations/<strategy-id>.json
+  .staging/...
+```
+
+The content object contains the canonical manifest and every declared payload. The evidence object holds
+one exact outer archive and a canonical structured receipt. Because signing changes the archive but not
+the content root, differently signed copies reuse the immutable content object while keeping independent
+evidence. Install collisions are verified and reused; existing bytes are never overwritten.
+
+Two explicit trust lanes exist. `LocalDevelopment` accepts an unsigned local bundle. A present signature
+must still verify, so an unknown or invalid signature cannot be relabeled as local.
+`RequireVerifiedPublisher` requires a key explicitly bound to the manifest publisher. Install,
+activation, and resolve also enforce exact target SDK and inclusive host-version bounds and re-check the
+archive, receipt, manifest, every payload, and exact file tree. Activation publishes only a small atomic
+pointer and re-evaluates current policy; historical receipt text is not a trust anchor. Verified evidence
+retains both the envelope key id and the SHA-256 fingerprint of the exact trusted SPKI.
+
+Backtest protocol v2 represents this as an `installed_bundle` strategy source with exact content and
+archive hashes, an exact strategy-assembly hash, typed integer, number, boolean, choice, and text
+parameters, and closed trust evidence. That evidence distinguishes unsigned local development from a
+verified publisher and, for the latter, carries the key id, trusted-SPKI fingerprint, and signature
+algorithm. Separately, the request pins the exact deployed host `TradingTerminal.Backtest.Engine`
+assembly hash. The host client resolves the immutable install under current policy, then copies only
+`bundle.manifest.json` and the graph-reachable engine/private-dependency closure into the worker job.
+Optional Windows UI, unrelated dependencies, resources, receipts, and store paths are not staged.
+
+Before any strategy constructor runs, the worker revalidates the canonical manifest, identity, SDK,
+factory contract, file set, lengths, hashes, managed metadata, and dependency closure. A collectible load
+context resolves private dependencies only from those owned byte arrays. It accepts an external reference
+only when the exact assembly is actually present in the worker runtime's trusted-platform assembly set or
+is an explicitly shared SDK/Core contract; desktop assemblies available elsewhere in the terminal are not
+implicitly allowed. It rejects unmanaged loading and directory probing and activates the exact manifest
+type. Runtime values must exactly match the factory's declarative schema before the same
+`IBacktestStrategy` implementation is adapted into the canonical engine. The strategy and load context
+are disposed after the one-shot run.
+
+The result's `StrategyAssemblyClosure` records that verified, staged engine closure. It is evidence of the
+files made available to the strategy load context, not a claim that every listed assembly was actually
+loaded. The result separately reports the actual host-engine and strategy-assembly hashes and echoes the
+request's trust evidence; the client compares all of them before accepting success. `StrategyArchiveSha256`
+is store/client selection evidence for the exact installed archive; the worker does not receive or inspect
+that archive.
+
+The collectible load context and one-shot process tree under a Windows Job Object provide lifecycle and
+fault isolation, not an OS security sandbox. Bundle code still has the same user token and can use that
+account's filesystem, network, and framework permissions. Marketplace execution must therefore remain
+trusted-publisher-only until an approved restricted-token/AppContainer or VM boundary exists, or until
+strategy code runs in a separately constrained child that exposes only signal IPC. Signature
+verification is not a substitute for any of those execution controls.
 
 ## Migration from `.daxplugin`
 
@@ -188,9 +256,11 @@ Do not rename or blindly re-sign a legacy package. Rebuild the canonical WPF-fre
 WPF presentation, pack a new manifest identity, and sign that exact content root. Repacking cannot create
 publisher ownership or marketplace provenance.
 
-Current loaders, Plugin Manager, feed, installer, updater, and uninstaller continue to use the legacy
-format until the separately approved runtime slice is implemented.
+Current Plugin Manager, feed, updater, uninstaller, and live strategy host continue to use the legacy
+format. The new immutable store and backtest-worker route are opt-in APIs until installed-strategy
+discovery, trust-registry, and parameter-schema UX are connected in the next UI/marketplace slice.
 
 See also: [ADR-0011](../.claude/context/adr/ADR-0011-signed-strategy-bundles.md) ·
+[ADR-0012](../.claude/context/adr/ADR-0012-immutable-strategy-install-and-worker-activation.md) ·
 [plugin security](plugin-security.md) · [plugin authoring](plugin-authoring.md) ·
 [marketplace hosting](marketplace-hosting.md).

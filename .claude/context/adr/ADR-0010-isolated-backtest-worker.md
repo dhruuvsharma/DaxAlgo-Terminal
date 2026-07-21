@@ -2,7 +2,7 @@
 
 **Date** 2026-07-21 · **Status** accepted
 
-**Context.** Backtests are CPU- and memory-heavy, can run untrusted strategy code, and must not make
+**Context.** Backtests are CPU- and memory-heavy, can run externally supplied strategy code, and must not make
 the interactive terminal unresponsive. The existing Studio runs the managed engine inside the WPF
 process, while the optional C++ runner implements different strategy behavior. Requiring a separate
 live and backtest strategy implementation would create permanent drift.
@@ -13,6 +13,10 @@ reads only an atomically published result manifest and artifacts. Cancellation, 
 output, crash, and terminal shutdown terminate the complete child process tree. The worker receives
 immutable input references and has no broker, credential, network, canonical-store mutation, or live
 order services.
+
+The process and Windows Job Object boundary is operational isolation, not a same-user security sandbox.
+Strategy code retains the worker account's filesystem, network, and framework authority, so marketplace
+execution remains limited to trusted publishers until a restricted execution boundary is approved.
 
 `TradingTerminal.Backtest.Engine` is the canonical behavioral oracle. A strategy is authored once as
 a headless engine kernel; live signal hosts and the worker load that same versioned strategy assembly.
@@ -28,7 +32,8 @@ equivalence.
 **Consequences.** A worker failure cannot directly crash the terminal, UI cancellation is deterministic,
 and durable artifacts are recoverable after failure. Protocol and artifact schemas require explicit
 versions and compatibility checks. The first delivery moves Studio single runs for supported built-in
-kernels and immutable inputs; optimization, walk-forward analysis, external exact-hash strategy loading,
-and remaining clients migrate incrementally. Unsupported modeling or execution options fail explicitly
+kernels and immutable inputs. ADR-0012 adds external exact-hash `.daxstrategy` loading; optimization,
+walk-forward analysis, and remaining clients migrate incrementally. Unsupported modeling or execution
+options fail explicitly
 instead of being silently ignored. ADR-0007 still applies: simulated orders exist only inside backtests;
 the live terminal remains data/signals only.

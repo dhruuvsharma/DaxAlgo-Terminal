@@ -84,9 +84,11 @@ internal static class WorkerApplication
             string.IsNullOrWhiteSpace(request.JobId) ? "invalid" : request.JobId,
             Math.Clamp(request.Limits?.MaxProgressMessages ?? 4, 4, BacktestProtocolLimits.MaxProgressMessages));
         var engineHash = BacktestProtocolHash.UnknownSha256;
+        var strategyFingerprint = WorkerStrategyFingerprint.Unknown;
         var inputHash = BacktestProtocolHash.UnknownSha256;
         WorkerArtifactPublisher? publisher = null;
         FileStream? inputLease = null;
+        BundleStrategyExecution? bundleExecution = null;
 
         using var consoleCts = new CancellationTokenSource();
         ConsoleCancelEventHandler cancelHandler = (_, e) =>
@@ -105,12 +107,32 @@ internal static class WorkerApplication
             publisher = new WorkerArtifactPublisher(jobDirectory, request, requestHash);
 
             engineHash = await HashEngineAssemblyAsync().ConfigureAwait(false);
-            if (request.Strategy.ExpectedAssemblySha256 is { } expected &&
+            if (!string.Equals(
+                    request.ExpectedHostEngineAssemblySha256,
+                    engineHash,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BacktestProtocolException(
+                    "host_engine_hash_mismatch",
+                    "The deployed host backtest engine does not match ExpectedHostEngineAssemblySha256.");
+            }
+            if (request.Strategy.Source == BacktestStrategySource.Native &&
+                request.Strategy.ExpectedAssemblySha256 is { } expected &&
                 !string.Equals(expected, engineHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new BacktestProtocolException(
                     "strategy_assembly_hash_mismatch",
                     "The native engine assembly does not match Strategy.ExpectedAssemblySha256.");
+            }
+            if (request.Strategy.Source == BacktestStrategySource.Native)
+            {
+                strategyFingerprint = new WorkerStrategyFingerprint(
+                    engineHash,
+                    null,
+                    null,
+                    [new BacktestLoadedAssemblyFingerprint(
+                        typeof(BacktestEngine).Assembly.GetName().Name ?? "TradingTerminal.Backtest.Engine",
+                        engineHash)]);
             }
 
             var effectiveTimeoutMs = limits.MaxWallClockMilliseconds;
@@ -127,11 +149,26 @@ internal static class WorkerApplication
             inputLease = feed.InputLease;
             inputHash = feed.InputSha256;
 
-            var registry = new StrategyKernelRegistry(NativeKernels.All);
-            if (!registry.TryCreate(request.Strategy.Id, out var kernel))
-                throw new BacktestProtocolException(
-                    "unknown_native_kernel",
-                    $"Native kernel '{request.Strategy.Id}' is not registered.");
+            IStrategyKernel kernel;
+            if (request.Strategy.Source == BacktestStrategySource.Native)
+            {
+                var registry = new StrategyKernelRegistry(NativeKernels.All);
+                if (!registry.TryCreate(request.Strategy.Id, out kernel!))
+                    throw new BacktestProtocolException(
+                        "unknown_native_kernel",
+                        $"Native kernel '{request.Strategy.Id}' is not registered.");
+            }
+            else
+            {
+                bundleExecution = await BundleStrategyLoader.LoadAsync(jobDirectory, request)
+                    .ConfigureAwait(false);
+                kernel = bundleExecution.Kernel;
+                strategyFingerprint = new WorkerStrategyFingerprint(
+                    bundleExecution.StrategyAssemblySha256,
+                    request.Strategy.InstalledBundle!.ContentRootSha256,
+                    request.Strategy.InstalledBundle.ArchiveSha256,
+                    bundleExecution.Closure);
+            }
 
             var eventsTotal = request.Input.Kind == BacktestInputKind.Synthetic
                 ? request.Input.Synthetic!.EventCount
@@ -156,6 +193,9 @@ internal static class WorkerApplication
             {
                 heartbeatCts.Cancel();
                 await heartbeatTask.ConfigureAwait(false);
+                if (bundleExecution is not null)
+                    await bundleExecution.DisposeAsync().ConfigureAwait(false);
+                bundleExecution = null;
             }
 
             await emitter.EmitAsync(
@@ -165,7 +205,14 @@ internal static class WorkerApplication
                 eventsTotal: eventsTotal,
                 percentComplete: 95,
                 ct: ct).ConfigureAwait(false);
-            await publisher.PublishSuccessAsync(report, startedUtc, engineHash, inputHash, ct).ConfigureAwait(false);
+            await publisher.PublishSuccessAsync(
+                    report,
+                    startedUtc,
+                    engineHash,
+                    strategyFingerprint,
+                    inputHash,
+                    ct)
+                .ConfigureAwait(false);
             await emitter.EmitAsync(
                 BacktestWorkerPhase.Completed,
                 "Job completed.",
@@ -183,6 +230,7 @@ internal static class WorkerApplication
                 error,
                 startedUtc,
                 engineHash,
+                strategyFingerprint,
                 inputHash).ConfigureAwait(false);
             await TryEmitAsync(emitter, BacktestWorkerPhase.Cancelled, error.Message).ConfigureAwait(false);
             return 4;
@@ -196,6 +244,7 @@ internal static class WorkerApplication
                 error,
                 startedUtc,
                 engineHash,
+                strategyFingerprint,
                 inputHash).ConfigureAwait(false);
             await TryEmitAsync(emitter, BacktestWorkerPhase.Failed, error.Message).ConfigureAwait(false);
             return 5;
@@ -210,6 +259,7 @@ internal static class WorkerApplication
                 error,
                 startedUtc,
                 engineHash,
+                strategyFingerprint,
                 inputHash).ConfigureAwait(false);
             await TryEmitAsync(emitter, BacktestWorkerPhase.Failed, ex.Message).ConfigureAwait(false);
             await Console.Error.WriteLineAsync($"Protocol error [{ex.Code}]: {ex.Message}").ConfigureAwait(false);
@@ -229,6 +279,7 @@ internal static class WorkerApplication
                 error,
                 startedUtc,
                 engineHash,
+                strategyFingerprint,
                 inputHash).ConfigureAwait(false);
             await TryEmitAsync(emitter, BacktestWorkerPhase.Failed, ex.Message).ConfigureAwait(false);
             await Console.Error.WriteLineAsync($"Worker failure: {ex}").ConfigureAwait(false);
@@ -236,6 +287,15 @@ internal static class WorkerApplication
         }
         finally
         {
+            if (bundleExecution is not null)
+            {
+                try { await bundleExecution.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception ex)
+                {
+                    await Console.Error.WriteLineAsync(
+                        $"Strategy cleanup failed after terminal handling: {ex.Message}").ConfigureAwait(false);
+                }
+            }
             inputLease?.Dispose();
             Console.CancelKeyPress -= cancelHandler;
         }
@@ -390,6 +450,7 @@ internal static class WorkerApplication
         BacktestJobError error,
         DateTime startedUtc,
         string engineHash,
+        WorkerStrategyFingerprint strategyFingerprint,
         string inputHash)
     {
         if (publisher is null) return;
@@ -400,6 +461,7 @@ internal static class WorkerApplication
                 error,
                 startedUtc,
                 engineHash,
+                strategyFingerprint,
                 inputHash,
                 CancellationToken.None).ConfigureAwait(false);
         }

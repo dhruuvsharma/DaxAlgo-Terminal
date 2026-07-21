@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using DaxAlgo.Strategy.Bundle;
 using FluentAssertions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace TradingTerminal.Tests.Plugins;
@@ -194,6 +196,58 @@ public sealed class DaxStrategyBundleTests : IDisposable
     }
 
     [Fact]
+    public void Engine_closure_is_deterministic_and_excludes_unreferenced_windows_ui()
+    {
+        var manifest = GraphManifest(
+            ["Graph.Bridge", "System.Runtime", "Graph.Leaf"],
+            ["Graph.Leaf"]);
+
+        var closure = DaxStrategyBundle.ResolveEngineClosure(manifest);
+
+        closure.Select(static assembly => assembly.Name).Should().Equal(
+            "Graph.Engine",
+            "Graph.Leaf",
+            "Graph.Bridge");
+        closure.Select(static assembly => assembly.Role).Should().Equal(
+            StrategyBundlePayloadRole.Engine,
+            StrategyBundlePayloadRole.ManagedDependency,
+            StrategyBundlePayloadRole.ManagedDependency);
+        closure[0].References.Should().Equal("Graph.Bridge", "Graph.Leaf", "System.Runtime");
+        closure[1].Length.Should().Be(103);
+        closure[1].Sha256.Should().Be(new string('3', 64));
+        closure.Should().NotContain(static assembly => assembly.Name == "Graph.Ui");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Engine_closure_rejects_direct_and_transitive_windows_ui_references(bool direct)
+    {
+        var manifest = direct
+            ? GraphManifest(["Graph.Ui"], [])
+            : GraphManifest(["Graph.Bridge"], ["Graph.Ui"]);
+
+        var act = () => DaxStrategyBundle.ResolveEngineClosure(manifest);
+
+        act.Should().Throw<StrategyBundleValidationException>()
+            .Which.Message.Should().Contain("Windows UI assembly 'Graph.Ui'");
+    }
+
+    [Fact]
+    public void Engine_closure_rejects_reachable_assemblies_with_non_runtime_roles()
+    {
+        var manifest = GraphManifest(
+            ["Graph.Bridge"],
+            [],
+            bridgeRole: StrategyBundlePayloadRole.Resource);
+
+        var act = () => DaxStrategyBundle.ResolveEngineClosure(manifest);
+
+        act.Should().Throw<StrategyBundleValidationException>()
+            .Which.Message.Should().Contain("invalid role 'resource'");
+    }
+
+    [Fact]
     public void Private_managed_dependencies_must_be_present_in_the_bundle_graph()
     {
         var payloads = new Dictionary<string, byte[]>
@@ -206,6 +260,35 @@ public sealed class DaxStrategyBundleTests : IDisposable
 
         act.Should().Throw<StrategyBundleValidationException>()
             .Which.Message.Should().Contain("is not bundled");
+    }
+
+    [Fact]
+    public void Private_managed_dependency_full_identity_must_match_the_engine_reference()
+    {
+        var dependencyV1 = CompileManagedAssembly(
+            "Graph.Private",
+            "1.0.0.0",
+            "namespace Graph; public sealed class PrivateDependency { }");
+        var engine = CompileManagedAssembly(
+            "Graph.Engine",
+            "1.0.0.0",
+            "namespace Graph; public sealed class Engine { public PrivateDependency Value { get; } = new(); }",
+            dependencyV1);
+        var dependencyV2 = CompileManagedAssembly(
+            "Graph.Private",
+            "2.0.0.0",
+            "namespace Graph; public sealed class PrivateDependency { }");
+        var payloads = new Dictionary<string, byte[]>
+        {
+            ["payload/engine/Graph.Engine.dll"] = engine,
+            ["payload/deps/Graph.Private.dll"] = dependencyV2,
+        };
+
+        var act = () => StrategyBundlePayloadPolicy.DescribeManagedAssemblies(payloads);
+
+        act.Should().Throw<StrategyBundleValidationException>()
+            .Which.Message.Should().Contain("Version=1.0.0.0")
+            .And.Contain("Version=2.0.0.0");
     }
 
     [Theory]
@@ -559,6 +642,41 @@ public sealed class DaxStrategyBundleTests : IDisposable
                 EnginePath),
         ]);
 
+    private static StrategyBundleManifest GraphManifest(
+        IReadOnlyList<string> engineReferences,
+        IReadOnlyList<string> bridgeReferences,
+        StrategyBundlePayloadRole bridgeRole = StrategyBundlePayloadRole.ManagedDependency) => new(
+        StrategyBundleManifest.CurrentFormat,
+        StrategyBundleManifest.CurrentFormatVersion,
+        new StrategyBundleIdentity("tests.graph", "Graph Strategy", "1.0.0", "tests.publisher"),
+        new StrategyBundleCompatibility("0.2.0-alpha"),
+        new StrategyBundleEngineEntryPoint(
+            "payload/engine/Graph.Engine.dll",
+            "Graph.Engine.Factory",
+            StrategyBundleEngineEntryPoint.CurrentContract,
+            StrategyBundleEngineEntryPoint.CurrentActivation),
+        [
+            new StrategyBundleManagedAssemblyDescriptor(
+                "payload/windows/Graph.Ui.dll", "Graph.Ui", ["System.Runtime"]),
+            new StrategyBundleManagedAssemblyDescriptor(
+                "payload/deps/Z.Graph.Bridge.dll", "Graph.Bridge", bridgeReferences),
+            new StrategyBundleManagedAssemblyDescriptor(
+                "payload/engine/Graph.Engine.dll", "Graph.Engine", engineReferences),
+            new StrategyBundleManagedAssemblyDescriptor(
+                "payload/deps/A.Graph.Leaf.dll", "Graph.Leaf", ["System.Runtime"]),
+        ],
+        [],
+        [
+            new StrategyBundlePayloadDescriptor(
+                "payload/deps/Z.Graph.Bridge.dll", bridgeRole, 102, new string('2', 64)),
+            new StrategyBundlePayloadDescriptor(
+                "payload/windows/Graph.Ui.dll", StrategyBundlePayloadRole.WindowsUi, 104, new string('4', 64)),
+            new StrategyBundlePayloadDescriptor(
+                "payload/deps/A.Graph.Leaf.dll", StrategyBundlePayloadRole.ManagedDependency, 103, new string('3', 64)),
+            new StrategyBundlePayloadDescriptor(
+                "payload/engine/Graph.Engine.dll", StrategyBundlePayloadRole.Engine, 101, new string('1', 64)),
+        ]);
+
     private static string EnginePath => Path.Combine(
         AppContext.BaseDirectory, "TestPlugins", "DaxAlgo.SamplePlugin", "DaxAlgo.SamplePlugin.dll");
 
@@ -591,6 +709,30 @@ public sealed class DaxStrategyBundleTests : IDisposable
         var prefix = Encoding.ASCII.GetBytes(
             $"DSSEv1 {typeBytes.Length} {payloadType} {payload.Length} ");
         return [.. prefix, .. payload];
+    }
+
+    private static byte[] CompileManagedAssembly(
+        string assemblyName,
+        string version,
+        string source,
+        params byte[][] additionalReferences)
+    {
+        var platformPaths = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))!
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var references = platformPaths
+            .Select(static path => MetadataReference.CreateFromFile(path))
+            .Concat(additionalReferences.Select(static bytes => MetadataReference.CreateFromImage(bytes)));
+        var syntax = CSharpSyntaxTree.ParseText(
+            $"using System.Reflection; [assembly: AssemblyVersion(\"{version}\")] {source}");
+        var compilation = CSharpCompilation.Create(
+            assemblyName,
+            [syntax],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, deterministic: true));
+        using var output = new MemoryStream();
+        var result = compilation.Emit(output);
+        result.Success.Should().BeTrue(string.Join(Environment.NewLine, result.Diagnostics));
+        return output.ToArray();
     }
 
     private static void CreateDirectoryJunction(string junctionPath, string targetPath)

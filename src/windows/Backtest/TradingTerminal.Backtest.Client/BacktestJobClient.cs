@@ -8,6 +8,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using DaxAlgo.Strategy.Bundle;
 using TradingTerminal.Backtest.Protocol;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Infrastructure.Sidecar;
@@ -83,6 +84,7 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
         {
             BacktestProtocolValidator.Validate(request);
             ValidateClientOptions();
+            ValidateStrategyOptions(request);
         }
         catch (BacktestProtocolException ex)
         {
@@ -101,9 +103,15 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
                 "worker_not_found",
                 resolutionError!);
 
+        using var timeoutCts = new CancellationTokenSource(EffectiveTimeout(request));
+        using var prelaunchCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        var prelaunchCt = prelaunchCts.Token;
+
         string jobDirectory;
         string requestPath;
         byte[] requestBytes;
+        var stagingDirectory = string.Empty;
+        IReadOnlyList<BacktestLoadedAssemblyFingerprint>? expectedStrategyClosure = null;
         try
         {
             Directory.CreateDirectory(root);
@@ -113,15 +121,31 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
             jobDirectory = BoundedJobDirectory(root, request.JobId);
             if (Directory.Exists(jobDirectory) || File.Exists(jobDirectory))
                 throw new IOException($"Job '{request.JobId}' already exists under '{root}'.");
-            Directory.CreateDirectory(jobDirectory);
-            provisionalDirectory = jobDirectory;
+            stagingDirectory = CreateExclusiveStagingJobDirectory(root);
+            provisionalDirectory = stagingDirectory;
+
+            if (request.Strategy.Source == BacktestStrategySource.InstalledBundle)
+            {
+                expectedStrategyClosure = await PrepareStrategyImageAsync(
+                        stagingDirectory,
+                        request,
+                        prelaunchCt)
+                    .ConfigureAwait(false);
+            }
 
             requestBytes = BacktestProtocolJson.SerializeToUtf8Bytes(request, writeIndented: true);
             if (requestBytes.LongLength > BacktestProtocolLimits.MaxRequestBytes)
                 throw new InvalidDataException(
                     $"The serialized request exceeds {BacktestProtocolLimits.MaxRequestBytes} bytes.");
+            await WriteNewFileAsync(
+                Path.Combine(stagingDirectory, BacktestJobFiles.Request),
+                requestBytes,
+                prelaunchCt).ConfigureAwait(false);
+            Directory.Move(stagingDirectory, jobDirectory);
+            stagingDirectory = string.Empty;
+            EnsureNoReparseComponentsUnder(root, jobDirectory);
+            provisionalDirectory = jobDirectory;
             requestPath = Path.Combine(jobDirectory, BacktestJobFiles.Request);
-            await WriteNewFileAsync(requestPath, requestBytes, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -132,6 +156,33 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
                 "cancelled",
                 "The job was cancelled before launch.");
         }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            return Failure(
+                BacktestTerminalStatus.TimedOut,
+                request.JobId,
+                provisionalDirectory,
+                "worker_timeout",
+                "The job exceeded its host-side timeout during preparation.");
+        }
+        catch (BacktestProtocolException ex)
+        {
+            return Failure(
+                BacktestTerminalStatus.ProtocolError,
+                request.JobId,
+                provisionalDirectory,
+                ex.Code,
+                ex.Message);
+        }
+        catch (StrategyBundleStoreException ex)
+        {
+            return Failure(
+                BacktestTerminalStatus.ProtocolError,
+                request.JobId,
+                provisionalDirectory,
+                BundleStoreErrorCode(ex.Error),
+                ex.Message);
+        }
         catch (Exception ex)
         {
             return Failure(
@@ -140,6 +191,10 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
                 provisionalDirectory,
                 "job_directory_failure",
                 ex.Message);
+        }
+        finally
+        {
+            TryDeleteOwnedPrelaunchDirectory(root, stagingDirectory);
         }
 
         var launchGateName = $"Local\\DaxAlgo.Backtest.Worker.{Guid.NewGuid():N}";
@@ -280,7 +335,6 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
                 TryKillTree(process);
             }
 
-            using var timeoutCts = new CancellationTokenSource(EffectiveTimeout(request));
             using var userRegistration = ct.Register(() => Terminate(TerminationReason.Cancelled));
             using var timeoutRegistration = timeoutCts.Token.Register(() => Terminate(TerminationReason.TimedOut));
             using var monitorCts = new CancellationTokenSource();
@@ -361,6 +415,7 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
                     jobDirectory,
                     request,
                     requestBytes,
+                    expectedStrategyClosure,
                     verificationCts.Token).ConfigureAwait(false);
                 var exitCode = SafeExitCode(process);
                 if (terminal.Manifest.TerminalStatus == BacktestTerminalStatus.Succeeded && exitCode != 0)
@@ -549,6 +604,7 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
         string jobDirectory,
         BacktestJobRequest request,
         byte[] requestBytes,
+        IReadOnlyList<BacktestLoadedAssemblyFingerprint>? expectedStrategyClosure,
         CancellationToken ct)
     {
         var manifestPath = Path.Combine(jobDirectory, BacktestJobFiles.ResultManifest);
@@ -602,16 +658,88 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
             throw new BacktestProtocolException(
                 "result_strategy_contract_version_mismatch",
                 "The result strategy-contract version did not match the request.");
+        if (!BacktestProtocolHash.IsSha256(manifest.HostEngineAssemblySha256))
+            throw new BacktestProtocolException(
+                "invalid_result_host_engine_hash",
+                "The result host-engine hash was invalid.");
+        if (manifest.TerminalStatus == BacktestTerminalStatus.Succeeded &&
+            !string.Equals(
+                manifest.HostEngineAssemblySha256,
+                request.ExpectedHostEngineAssemblySha256,
+                StringComparison.OrdinalIgnoreCase))
+            throw new BacktestProtocolException(
+                "result_host_engine_hash_mismatch",
+                "The result host-engine hash did not match the requested deployment.");
         if (!string.Equals(manifest.ParametersSha256, request.ParametersSha256, StringComparison.OrdinalIgnoreCase))
             throw new BacktestProtocolException("result_parameters_mismatch", "The result parameter hash did not match the request.");
         if (!string.Equals(manifest.StrategyId, request.Strategy.Id, StringComparison.OrdinalIgnoreCase))
             throw new BacktestProtocolException("result_strategy_mismatch", "The result strategy id did not match the request.");
         if (!BacktestProtocolHash.IsSha256(manifest.StrategyAssemblySha256))
             throw new BacktestProtocolException("invalid_result_strategy_hash", "The result strategy assembly hash was invalid.");
+        if (request.Strategy.Source == BacktestStrategySource.Native &&
+            (manifest.StrategyContentRootSha256 is not null ||
+             manifest.StrategyArchiveSha256 is not null ||
+             manifest.StrategyTrustEvidence is not null))
+        {
+            throw new BacktestProtocolException(
+                "result_strategy_source_confusion",
+                "A native strategy result carried installed-bundle provenance.");
+        }
         if (manifest.TerminalStatus == BacktestTerminalStatus.Succeeded &&
             request.Strategy.ExpectedAssemblySha256 is { } expectedAssembly &&
             !string.Equals(manifest.StrategyAssemblySha256, expectedAssembly, StringComparison.OrdinalIgnoreCase))
             throw new BacktestProtocolException("result_strategy_hash_mismatch", "The result strategy assembly hash did not match the request.");
+        if (manifest.TerminalStatus == BacktestTerminalStatus.Succeeded &&
+            request.Strategy.Source == BacktestStrategySource.InstalledBundle)
+        {
+            var bundle = request.Strategy.InstalledBundle!;
+            if (!string.Equals(
+                    manifest.StrategyContentRootSha256,
+                    bundle.ContentRootSha256,
+                    StringComparison.Ordinal))
+                throw new BacktestProtocolException(
+                    "result_bundle_content_root_mismatch",
+                    "The result bundle content root did not match the request.");
+            if (!string.Equals(
+                    manifest.StrategyArchiveSha256,
+                    bundle.ArchiveSha256,
+                    StringComparison.Ordinal))
+                throw new BacktestProtocolException(
+                    "result_bundle_archive_mismatch",
+                    "The result bundle archive identity did not match the request.");
+            if (manifest.StrategyTrustEvidence != bundle.TrustEvidence)
+                throw new BacktestProtocolException(
+                    "result_bundle_trust_evidence_mismatch",
+                    "The result bundle trust evidence did not match the verified installation.");
+            var closure = manifest.StrategyAssemblyClosure
+                          ?? throw new BacktestProtocolException(
+                              "missing_result_strategy_closure",
+                              "The bundle result omitted its loaded assembly closure.");
+            if (expectedStrategyClosure is null ||
+                closure.Count != expectedStrategyClosure.Count ||
+                closure.Count == 0 ||
+                !string.Equals(
+                    closure[0].Sha256,
+                    manifest.StrategyAssemblySha256,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new BacktestProtocolException(
+                    "invalid_result_strategy_closure",
+                    "The verified engine closure does not match the staged strategy image.");
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var index = 0; index < closure.Count; index++)
+            {
+                var assembly = closure[index];
+                var expected = expectedStrategyClosure[index];
+                if (string.IsNullOrWhiteSpace(assembly.Name) ||
+                    !BacktestProtocolHash.IsSha256(assembly.Sha256) ||
+                    !names.Add(assembly.Name) ||
+                    !string.Equals(assembly.Name, expected.Name, StringComparison.Ordinal) ||
+                    !string.Equals(assembly.Sha256, expected.Sha256, StringComparison.OrdinalIgnoreCase))
+                    throw new BacktestProtocolException(
+                        "invalid_result_strategy_closure",
+                        "The verified engine closure differs from the exact staged strategy image.");
+            }
+        }
         var expectedInputHash = request.Input.Kind == BacktestInputKind.Parquet
             ? request.Input.Sha256!
             : BacktestProtocolHash.ComputeSha256(BacktestProtocolJson.Serialize(request.Input));
@@ -795,6 +923,185 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
             throw new BacktestProtocolException("invalid_staging_age", "AbandonedStagingAge must be at least five minutes.");
     }
 
+    private void ValidateStrategyOptions(BacktestJobRequest request)
+    {
+        if (request.Strategy.Source != BacktestStrategySource.InstalledBundle) return;
+        if (string.IsNullOrWhiteSpace(_options.StrategyBundleStoreRoot) ||
+            _options.StrategyBundlePolicy is null)
+        {
+            throw new BacktestProtocolException(
+                "bundle_store_unavailable",
+                "Installed-bundle jobs require a strategy bundle store root and current trust policy.");
+        }
+    }
+
+    private async Task<IReadOnlyList<BacktestLoadedAssemblyFingerprint>> PrepareStrategyImageAsync(
+        string jobDirectory,
+        BacktestJobRequest request,
+        CancellationToken ct)
+    {
+        var reference = request.Strategy.InstalledBundle!;
+        ct.ThrowIfCancellationRequested();
+        var verificationTask = Task.Run(() =>
+        {
+            var store = new StrategyBundleStore(_options.StrategyBundleStoreRoot!);
+            return store.VerifyInstallation(
+                reference.ContentRootSha256,
+                reference.ArchiveSha256,
+                _options.StrategyBundlePolicy!);
+        });
+        StrategyBundleInstallation installation;
+        try
+        {
+            installation = await verificationTask.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            _ = ObserveBackgroundFailureAsync(verificationTask);
+            throw;
+        }
+        var manifest = installation.Manifest;
+        if (!string.Equals(manifest.Identity.Id, request.Strategy.Id, StringComparison.Ordinal) ||
+            !string.Equals(manifest.Identity.PublisherId, reference.PublisherId, StringComparison.Ordinal) ||
+            !string.Equals(manifest.Identity.Version, reference.StrategyVersion, StringComparison.Ordinal))
+        {
+            throw new BacktestProtocolException(
+                "bundle_installation_identity_mismatch",
+                "The selected immutable installation does not match the requested strategy identity.");
+        }
+        if (reference.TrustEvidence != ToProtocolTrustEvidence(installation.Receipt.PublisherSignature))
+        {
+            throw new BacktestProtocolException(
+                "bundle_installation_trust_evidence_mismatch",
+                "The selected immutable installation does not match the requested publisher trust evidence.");
+        }
+
+        var closure = DaxStrategyBundle.ResolveEngineClosure(manifest);
+        if (!string.Equals(
+                closure[0].Sha256,
+                request.Strategy.ExpectedAssemblySha256,
+                StringComparison.Ordinal))
+        {
+            throw new BacktestProtocolException(
+                "bundle_installation_engine_mismatch",
+                "The selected immutable installation does not match the requested engine hash.");
+        }
+
+        var imageRoot = Path.Combine(jobDirectory, BacktestJobFiles.StrategyDirectory);
+        Directory.CreateDirectory(imageRoot);
+        var manifestSource = installation.ManifestPath;
+        var manifestBytes = await ReadAndVerifyFileAsync(
+            installation.ObjectDirectory,
+            manifestSource,
+            exactLength: null,
+            maximumLength: StrategyBundleLimitOptions.Default.MaxManifestBytes,
+            expectedSha256: reference.ContentRootSha256,
+            ct: ct).ConfigureAwait(false);
+        await WriteNewFileAsync(
+            Path.Combine(imageRoot, BacktestJobFiles.StrategyManifest),
+            manifestBytes,
+            ct).ConfigureAwait(false);
+
+        foreach (var assembly in closure)
+        {
+            var source = ResolveContainedPath(installation.ObjectDirectory, assembly.Path);
+            var bytes = await ReadAndVerifyFileAsync(
+                installation.ObjectDirectory,
+                source,
+                exactLength: assembly.Length,
+                maximumLength: assembly.Length,
+                expectedSha256: assembly.Sha256,
+                ct: ct).ConfigureAwait(false);
+            var destination = ResolveContainedPath(imageRoot, assembly.Path);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            await WriteNewFileAsync(destination, bytes, ct).ConfigureAwait(false);
+        }
+
+        return closure
+            .Select(static assembly => new BacktestLoadedAssemblyFingerprint(
+                assembly.Name,
+                assembly.Sha256))
+            .ToArray();
+    }
+
+    private static string BundleStoreErrorCode(StrategyBundleStoreError error) => error switch
+    {
+        StrategyBundleStoreError.IncompatibleSdk => "bundle_store_incompatible_sdk",
+        StrategyBundleStoreError.IncompatibleHost => "bundle_store_incompatible_host",
+        StrategyBundleStoreError.SignatureRejected => "bundle_store_signature_rejected",
+        StrategyBundleStoreError.InstallationNotFound => "bundle_store_installation_not_found",
+        StrategyBundleStoreError.CorruptInstallation => "bundle_store_corrupt_installation",
+        _ => "bundle_store_failure",
+    };
+
+    private static async Task ObserveBackgroundFailureAsync(Task task)
+    {
+        try { await task.ConfigureAwait(false); }
+        catch { /* The caller already returned cancellation/timeout; observe late verification failure. */ }
+    }
+
+    private static BacktestBundleTrustEvidence ToProtocolTrustEvidence(
+        StrategyBundleSignatureEvidence evidence) => evidence.Status switch
+    {
+        StrategyBundleSignatureStatus.Missing => new BacktestBundleTrustEvidence
+        {
+            Kind = BacktestBundleTrustKind.UnsignedLocalDevelopment,
+        },
+        StrategyBundleSignatureStatus.Verified => new BacktestBundleTrustEvidence
+        {
+            Kind = BacktestBundleTrustKind.VerifiedPublisher,
+            PublisherKeyId = evidence.KeyId,
+            PublisherKeyFingerprintSha256 = evidence.KeyFingerprintSha256,
+        },
+        _ => throw new BacktestProtocolException(
+            "invalid_bundle_installation_trust_evidence",
+            "The immutable installation contains publisher evidence that cannot be executed."),
+    };
+
+    private static async Task<byte[]> ReadAndVerifyFileAsync(
+        string root,
+        string path,
+        long? exactLength,
+        long maximumLength,
+        string expectedSha256,
+        CancellationToken ct)
+    {
+        EnsureNoReparseComponentsUnder(root, path);
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (stream.Length < 0 || stream.Length > maximumLength || stream.Length > int.MaxValue ||
+            exactLength is { } requiredLength && stream.Length != requiredLength)
+            throw new BacktestProtocolException(
+                "bundle_installation_length_mismatch",
+                $"Installed strategy file '{Path.GetFileName(path)}' has the wrong length.");
+        var bytes = GC.AllocateUninitializedArray<byte>(checked((int)stream.Length));
+        await stream.ReadExactlyAsync(bytes, ct).ConfigureAwait(false);
+        var actualHash = BacktestProtocolHash.ComputeSha256(bytes);
+        if (!string.Equals(actualHash, expectedSha256, StringComparison.Ordinal))
+            throw new BacktestProtocolException(
+                "bundle_installation_hash_mismatch",
+                $"Installed strategy file '{Path.GetFileName(path)}' failed its SHA-256 check.");
+        return bytes;
+    }
+
+    private static string ResolveContainedPath(string root, string portablePath)
+    {
+        var fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = Path.GetFullPath(Path.Combine(
+            fullRoot,
+            portablePath.Replace('/', Path.DirectorySeparatorChar)));
+        if (!candidate.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new BacktestProtocolException(
+                "invalid_bundle_installation_path",
+                "An installed strategy path escaped its immutable content object.");
+        return candidate;
+    }
+
     private string ResolveJobRoot()
     {
         string root;
@@ -824,6 +1131,51 @@ public sealed class BacktestJobClient : IBacktestJobClient, IDisposable
         if (!candidate.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The job id escaped the configured job root.");
         return candidate;
+    }
+
+    private static string CreateExclusiveStagingJobDirectory(string root)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var staging = BoundedJobDirectory(root, $".staging-{Guid.NewGuid():N}");
+            if (Directory.Exists(staging) || File.Exists(staging)) continue;
+            Directory.CreateDirectory(staging);
+            EnsureNoReparseComponentsUnder(root, staging);
+            return staging;
+        }
+        throw new IOException("Could not allocate a unique backtest job staging directory.");
+    }
+
+    private static void TryDeleteOwnedPrelaunchDirectory(string root, string staging)
+    {
+        if (string.IsNullOrEmpty(staging)) return;
+        try
+        {
+            if (!Directory.Exists(staging) ||
+                !IsDirectChild(root, staging) ||
+                !IsWorkerStagingName(Path.GetFileName(staging)) ||
+                (File.GetAttributes(staging) & FileAttributes.ReparsePoint) != 0)
+                return;
+            Directory.Delete(staging, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The normal age-bounded cleaner owns this exact random staging namespace.
+        }
+    }
+
+    private static bool IsDirectChild(string parent, string candidate) =>
+        string.Equals(
+            Path.GetDirectoryName(Path.GetFullPath(candidate)),
+            Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsWorkerStagingName(string name)
+    {
+        const string prefix = ".staging-";
+        return name.Length == prefix.Length + 32 &&
+               name.StartsWith(prefix, StringComparison.Ordinal) &&
+               name[prefix.Length..].All(Uri.IsHexDigit);
     }
 
     private static string ResolveArtifactPath(string jobDirectory, string relativePath)

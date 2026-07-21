@@ -10,6 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="..\TradingTerminal.Backtest.Protocol\TradingTerminal.Backtest.Protocol.csproj" />
     <ProjectReference Include="..\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Strategy.Bundle\DaxAlgo.Strategy.Bundle.csproj" />
   </ItemGroup>
 
   <!-- Reuse only the parquet wire record. The worker decodes the already-verified open handle,

@@ -177,6 +177,7 @@ internal static class StrategyBundleArchive
             StrategyBundlePayloadPolicy.Validate(descriptor.Path, descriptor.Role, content);
         }
         StrategyBundlePayloadPolicy.ValidateManagedAssemblyGraph(manifest.ManagedAssemblies, contents);
+        _ = DaxStrategyBundle.ResolveEngineClosure(manifest);
         StrategyBundleEnginePolicy.Validate(manifest.Engine, contents[manifest.Engine.AssemblyPath]);
 
         StrategyBundleEnvelope? envelope = null;

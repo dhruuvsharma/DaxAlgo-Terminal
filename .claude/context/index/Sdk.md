@@ -11,12 +11,17 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Sdk/DaxAlgo.Sdk/IStrategyPlugin.cs` | 28 | win | DaxAlgo.Sdk | B I P | Y | Human-readable plugin name (logging + the future marketplace UI). |
 | `src/windows/Sdk/DaxAlgo.Sdk/SdkInfo.cs` | 18 | win | DaxAlgo.Sdk | B I P | Y | Semantic version of this SDK build. Bump on any breaking change to |
 | `src/windows/Sdk/DaxAlgo.Strategy.Bundle/CanonicalJson.cs` | 59 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Minimal JSON string/number encoding with a frozen escape algorithm. It deliberately avoids |
-| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxStrategyBundle.cs` | 328 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Creates and verifies passive .daxstrategy archives without loading any payload assembly. |
-| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleArchive.cs` | 402 | win | DaxAlgo.Strategy.Bundle | B I P | Y | DSSE PAE domain-separates the payload type and both byte lengths from the |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxStrategyBundle.cs` | 354 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Creates and verifies passive .daxstrategy archives without loading any payload assembly. |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleArchive.cs` | 403 | win | DaxAlgo.Strategy.Bundle | B I P | Y | DSSE PAE domain-separates the payload type and both byte lengths from the |
 | `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleEnginePolicy.cs` | 256 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Validates the manifest-named factory from metadata without loading strategy code. |
 | `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleExternalAssemblyPolicy.cs` | 249 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Frozen v1 list of assemblies supplied by the .NET 9 Windows shared |
 | `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleLimitOptions.cs` | 60 | win | DaxAlgo.Strategy.Bundle | B I P | Y |  |
 | `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleManifestCodec.cs` | 625 | win | DaxAlgo.Strategy.Bundle | B I P | Y |  |
-| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleModels.cs` | 215 | win | DaxAlgo.Strategy.Bundle | B I P | Y | A repeatable source for one payload. The bundle packer owns and disposes |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleModels.cs` | 230 | win | DaxAlgo.Strategy.Bundle | B I P | Y | A repeatable source for one payload. The bundle packer owns and disposes |
 | `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundlePath.cs` | 93 | win | DaxAlgo.Strategy.Bundle | B I P | Y |  |
-| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundlePayloadPolicy.cs` | 300 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Validates bundle payload shape as metadata only. This is a format and |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundlePayloadPolicy.cs` | 485 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Validates bundle payload shape as metadata only. This is a format and |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleRuntimePolicy.cs` | 80 | win | DaxAlgo.Strategy.Bundle | B I P | Y | The frozen v1 framework/host assembly allowlist used by graph and runtime resolution. |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleSemanticVersion.cs` | 85 | win | DaxAlgo.Strategy.Bundle | B I P | Y |  |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStore.cs` | 708 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Atomically makes one already-installed evidence selection active. |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStoreJson.cs` | 263 | win | DaxAlgo.Strategy.Bundle | B I P | Y |  |
+| `src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStoreModels.cs` | 105 | win | DaxAlgo.Strategy.Bundle | B I P | Y | Controls whether an installed strategy may be unsigned. |

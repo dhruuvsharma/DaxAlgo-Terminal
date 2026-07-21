@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using TradingTerminal.Backtest.Protocol;
+using TradingTerminal.Core.Backtesting;
 using Xunit;
 
 namespace TradingTerminal.Tests.Backtesting;
@@ -15,7 +16,7 @@ public sealed class WorkerProtocolTests
         var json = BacktestProtocolJson.Serialize(request);
         var roundTrip = BacktestProtocolJson.Deserialize<BacktestJobRequest>(json);
 
-        json.Should().Contain("\"protocol_version\":1");
+        json.Should().Contain("\"protocol_version\":2");
         roundTrip.Should().BeEquivalentTo(request);
         var act = () => BacktestProtocolValidator.Validate(roundTrip);
         act.Should().NotThrow();
@@ -48,6 +49,110 @@ public sealed class WorkerProtocolTests
 
         act.Should().Throw<BacktestProtocolException>()
             .Which.Code.Should().Be("parameters_hash_mismatch");
+    }
+
+    [Fact]
+    public void Installed_bundle_request_round_trips_typed_parameters_and_evidence()
+    {
+        var native = WorkerTestData.Request("bundle-protocol");
+        var run = native.Run with
+        {
+            StrategyId = "tests.bundle",
+            Parameters = StrategyParameters.Empty,
+        };
+        BacktestStrategyParameter[] parameters =
+        [
+            new() { Key = "enabled", Kind = BacktestStrategyParameterKind.Boolean, BooleanValue = true },
+            new() { Key = "lookback", Kind = BacktestStrategyParameterKind.Integer, IntegerValue = 21 },
+            new() { Key = "mode", Kind = BacktestStrategyParameterKind.Choice, StringValue = "fast" },
+            new() { Key = "threshold", Kind = BacktestStrategyParameterKind.Number, NumberValue = 1.25 },
+        ];
+        var request = BacktestJobRequest.CreateInstalledBundle(
+            native.JobId,
+            run,
+            native.Input,
+            new BacktestInstalledBundleReference
+            {
+                PublisherId = "tests.publisher",
+                StrategyVersion = "1.2.3",
+                ContentRootSha256 = new string('a', 64),
+                ArchiveSha256 = new string('b', 64),
+                TrustEvidence = new BacktestBundleTrustEvidence
+                {
+                    Kind = BacktestBundleTrustKind.VerifiedPublisher,
+                    PublisherKeyId = "publisher-key",
+                    PublisherKeyFingerprintSha256 = new string('d', 64),
+                },
+            },
+            native.ExpectedHostEngineAssemblySha256,
+            new string('c', 64),
+            parameters);
+
+        var json = BacktestProtocolJson.Serialize(request);
+        var roundTrip = BacktestProtocolJson.Deserialize<BacktestJobRequest>(json);
+
+        BacktestProtocolValidator.Validate(roundTrip);
+        roundTrip.Strategy.Source.Should().Be(BacktestStrategySource.InstalledBundle);
+        roundTrip.Strategy.ActivationParameters.Should().BeEquivalentTo(parameters, options => options.WithStrictOrdering());
+        roundTrip.ParametersSha256.Should().Be(BacktestProtocolHash.ComputeActivationParametersSha256(parameters));
+    }
+
+    [Fact]
+    public void Validator_rejects_bundle_source_confusion_and_parameter_tampering()
+    {
+        var native = WorkerTestData.Request("bundle-invalid");
+        var run = native.Run with { StrategyId = "tests.bundle", Parameters = StrategyParameters.Empty };
+        BacktestStrategyParameter[] parameters =
+        [
+            new() { Key = "lookback", Kind = BacktestStrategyParameterKind.Integer, IntegerValue = 21 },
+        ];
+        var request = BacktestJobRequest.CreateInstalledBundle(
+            native.JobId,
+            run,
+            native.Input,
+            new BacktestInstalledBundleReference
+            {
+                PublisherId = "tests.publisher",
+                StrategyVersion = "1.0.0",
+                ContentRootSha256 = new string('a', 64),
+                ArchiveSha256 = new string('b', 64),
+                TrustEvidence = new BacktestBundleTrustEvidence
+                {
+                    Kind = BacktestBundleTrustKind.UnsignedLocalDevelopment,
+                },
+            },
+            native.ExpectedHostEngineAssemblySha256,
+            new string('c', 64),
+            parameters);
+
+        Action missingBundle = () => BacktestProtocolValidator.Validate(request with
+        {
+            Strategy = request.Strategy with { InstalledBundle = null },
+        });
+        Action duplicate = () => BacktestProtocolValidator.Validate(request with
+        {
+            Strategy = request.Strategy with
+            {
+                ActivationParameters = [parameters[0], parameters[0]],
+            },
+        });
+        Action nativeWithBundle = () => BacktestProtocolValidator.Validate(native with
+        {
+            Strategy = native.Strategy with { InstalledBundle = request.Strategy.InstalledBundle },
+        });
+        Action missingTrustEvidence = () => BacktestProtocolValidator.Validate(request with
+        {
+            Strategy = request.Strategy with
+            {
+                InstalledBundle = request.Strategy.InstalledBundle! with { TrustEvidence = null! },
+            },
+        });
+
+        missingBundle.Should().Throw<BacktestProtocolException>().Which.Code.Should().Be("missing_bundle_reference");
+        duplicate.Should().Throw<BacktestProtocolException>().Which.Code.Should().Be("duplicate_activation_parameter");
+        nativeWithBundle.Should().Throw<BacktestProtocolException>().Which.Code.Should().Be("unexpected_bundle_reference");
+        missingTrustEvidence.Should().Throw<BacktestProtocolException>()
+            .Which.Code.Should().Be("missing_bundle_trust_evidence");
     }
 
     [Fact]

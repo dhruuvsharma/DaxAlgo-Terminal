@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Protocol;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Domain;
@@ -28,6 +30,7 @@ internal static class WorkerTestData
             jobId,
             run,
             BacktestInputReference.CreateSynthetic(500, "headless_test"),
+            Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(typeof(BacktestEngine).Assembly.Location))),
             deterministicSeed: 7);
     }
 

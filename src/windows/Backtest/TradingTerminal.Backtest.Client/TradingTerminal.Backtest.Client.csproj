@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Description>Host-side client for launching and supervising isolated backtest workers.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Backtest.Protocol\TradingTerminal.Backtest.Protocol.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Strategy.Bundle\DaxAlgo.Strategy.Bundle.csproj" />
+  </ItemGroup>
+
+  <!-- Process ownership is a tiny OS primitive, not a reason for the worker client to depend on the
+       broker/storage-heavy Infrastructure assembly. Keep one source of truth while the sidecar seam
+       is split into its own lightweight process-hosting project. -->
+  <ItemGroup>
+    <Compile Include="..\..\Pipeline\TradingTerminal.Infrastructure\Sidecar\JobObjectProcessGuard.cs"
+             Link="Process\JobObjectProcessGuard.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

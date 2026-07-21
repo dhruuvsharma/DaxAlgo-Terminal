@@ -21,8 +21,8 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    67: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
    68: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
    72: public sealed class SampleStrategyEngineFactory : IStrategyEngineFactory
-   74: public StrategyParameterSchema Schema => StrategyParameterSchema.Empty;
-   76: public StrategyDataRequirement DataRequirement =>
-   79: public IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
-   81: public IBacktestStrategy Create(Contract contract, StrategyParameters parameters) =>
+   74: public StrategyParameterSchema Schema { get; } = new(
+   81: public StrategyDataRequirement DataRequirement =>
+   84: public IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
+   86: public IBacktestStrategy Create(Contract contract, StrategyParameters parameters)
 ```

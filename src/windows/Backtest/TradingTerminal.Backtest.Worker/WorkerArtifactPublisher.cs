@@ -6,6 +6,19 @@ using TradingTerminal.Core.Backtesting;
 
 namespace TradingTerminal.Backtest.Worker;
 
+internal sealed record WorkerStrategyFingerprint(
+    string AssemblySha256,
+    string? ContentRootSha256,
+    string? ArchiveSha256,
+    IReadOnlyList<BacktestLoadedAssemblyFingerprint> AssemblyClosure)
+{
+    public static WorkerStrategyFingerprint Unknown { get; } = new(
+        BacktestProtocolHash.UnknownSha256,
+        null,
+        null,
+        []);
+}
+
 /// <summary>Writes private staging files, moves artifacts into place, then publishes the manifest last.</summary>
 internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRequest request, string requestSha256)
 {
@@ -15,6 +28,7 @@ internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRe
         BacktestReport report,
         DateTime startedUtc,
         string engineAssemblySha256,
+        WorkerStrategyFingerprint strategyFingerprint,
         string inputSha256,
         CancellationToken ct)
     {
@@ -49,6 +63,7 @@ internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRe
                 BacktestTerminalStatus.Succeeded,
                 startedUtc,
                 engineAssemblySha256,
+                strategyFingerprint,
                 inputSha256,
                 [artifact],
                 error: null);
@@ -66,6 +81,7 @@ internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRe
         BacktestJobError error,
         DateTime startedUtc,
         string engineAssemblySha256,
+        WorkerStrategyFingerprint strategyFingerprint,
         string inputSha256,
         CancellationToken ct = default)
     {
@@ -74,6 +90,7 @@ internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRe
             status,
             startedUtc,
             engineAssemblySha256,
+            strategyFingerprint,
             inputSha256,
             [],
             error);
@@ -85,6 +102,7 @@ internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRe
         BacktestTerminalStatus status,
         DateTime startedUtc,
         string engineAssemblySha256,
+        WorkerStrategyFingerprint strategyFingerprint,
         string inputSha256,
         IReadOnlyList<BacktestArtifactDescriptor> artifacts,
         BacktestJobError? error) =>
@@ -99,9 +117,14 @@ internal sealed class WorkerArtifactPublisher(string jobDirectory, BacktestJobRe
             SdkVersion = request.SdkVersion,
             StrategyContractVersion = request.StrategyContractVersion,
             EngineFingerprint = $"{typeof(Engine.BacktestEngine).Assembly.GetName().Version}+sha256:{engineAssemblySha256}",
+            HostEngineAssemblySha256 = engineAssemblySha256,
             BackendFingerprint = $"managed-dotnet-{Environment.Version}-{RuntimeInformation.ProcessArchitecture}",
             StrategyId = request.Strategy.Id,
-            StrategyAssemblySha256 = engineAssemblySha256,
+            StrategyAssemblySha256 = strategyFingerprint.AssemblySha256,
+            StrategyContentRootSha256 = strategyFingerprint.ContentRootSha256,
+            StrategyArchiveSha256 = strategyFingerprint.ArchiveSha256,
+            StrategyTrustEvidence = request.Strategy.InstalledBundle?.TrustEvidence,
+            StrategyAssemblyClosure = strategyFingerprint.AssemblyClosure,
             ParametersSha256 = request.ParametersSha256,
             InputSha256 = inputSha256,
             Artifacts = artifacts,

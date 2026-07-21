@@ -45,7 +45,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioServiceCollectionExtensions.cs` | 42 | win | TradingTerminal.BacktestStudio | B I P | Y | DI registration for the Backtest Studio. Seeds the kernel registry from the |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioView.xaml.cs` | 151 | win | TradingTerminal.BacktestStudio | B I P | Y | Code-behind for the Studio. Pure view concern: it listens for the VM's |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioView.xaml` | 1175 | win | TradingTerminal.BacktestStudio | B I P | N | XAML |
-| `src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioViewModel.cs` | 837 | win | TradingTerminal.BacktestStudio | B I P | Y | Exports the round-trip trades of the last single run. |
+| `src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioViewModel.cs` | 832 | win | TradingTerminal.BacktestStudio | B I P | Y | Exports the round-trip trades of the last single run. |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/DataSourceKind.cs` | 14 | win | TradingTerminal.BacktestStudio | B I P | Y | Where the Studio pulls market data from for a run. |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/LegacyKernelDescriptors.cs` | 32 | win | TradingTerminal.BacktestStudio | B I P | Y | Bridges the 12 legacy engine strategies (the catalog) into |
 | `src/windows/Tools/TradingTerminal.BacktestStudio/ParamRowViewModel.cs` | 24 | win | TradingTerminal.BacktestStudio | B I P | Y | One editable row in the parameter panel, generated from a kernel's |

@@ -1,5 +1,13 @@
 # context changelog — append-only session journal
 
+## 2026-07-21 — backtest client graph repair
+- Split host-side worker supervision into the WPF-free `TradingTerminal.Backtest.Client` project while
+  preserving the existing client namespace/API and process-ownership behavior.
+- Removed the forbidden `TradingTerminal.Infrastructure` to `TradingTerminal.Backtest.Protocol` edge;
+  Backtest Studio and headless tests now reference the higher client layer directly.
+- Added the client to both Windows edition filters and overlay solutions, regenerated routed Windows
+  index/symbol context, and synchronized the direct/reverse dependency graph.
+
 ## 2026-07-21 — deterministic signed strategy bundle foundation
 - Added the passive `.daxstrategy` v1 container, canonical UTF-8 manifest/content root, strict bounded
   archive and managed-payload validation, standard DSSE ECDSA P-256 publisher signing, and a portable

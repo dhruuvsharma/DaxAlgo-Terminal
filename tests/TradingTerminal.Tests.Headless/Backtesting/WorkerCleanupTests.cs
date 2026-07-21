@@ -60,6 +60,43 @@ public sealed class WorkerCleanupTests
     }
 
     [Fact]
+    public void Cleanup_removes_old_root_level_prelaunch_staging()
+    {
+        using var temp = new WorkerTempDirectory();
+        var staging = System.IO.Path.Combine(
+            temp.Path,
+            ".staging-00000000000000000000000000000005");
+        Directory.CreateDirectory(staging);
+        File.WriteAllText(System.IO.Path.Combine(staging, "partial.request"), "partial");
+        var now = new DateTime(2026, 7, 21, 12, 0, 0, DateTimeKind.Utc);
+        Directory.SetLastWriteTimeUtc(staging, now - TimeSpan.FromDays(3));
+
+        var removed = AbandonedWorkerStagingCleaner.Cleanup(temp.Path, TimeSpan.FromDays(2), now);
+
+        removed.Should().Be(1);
+        Directory.Exists(staging).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Cleanup_accepts_a_bounded_prior_protocol_marker()
+    {
+        using var temp = new WorkerTempDirectory();
+        var job = System.IO.Path.Combine(temp.Path, "legacy-job");
+        var staging = System.IO.Path.Combine(job, ".staging-00000000000000000000000000000006");
+        Directory.CreateDirectory(staging);
+        File.WriteAllText(
+            System.IO.Path.Combine(job, BacktestJobFiles.Request),
+            "{\"protocol_version\":1,\"job_id\":\"legacy-job\"}");
+        var now = new DateTime(2026, 7, 21, 12, 0, 0, DateTimeKind.Utc);
+        Directory.SetLastWriteTimeUtc(staging, now - TimeSpan.FromDays(3));
+
+        var removed = AbandonedWorkerStagingCleaner.Cleanup(temp.Path, TimeSpan.FromDays(2), now);
+
+        removed.Should().Be(1);
+        Directory.Exists(staging).Should().BeFalse();
+    }
+
+    [Fact]
     public void Cleanup_rejects_a_filesystem_root()
     {
         using var temp = new WorkerTempDirectory();
