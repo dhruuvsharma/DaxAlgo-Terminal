@@ -69,6 +69,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     private IDisposable? _eventSubscription;
     private IDisposable? _ingestHandle;
     private IDisposable? _tradeIngestHandle;
+    private int _disposeState;
     private DateTime _currentBarStart = DateTime.MinValue;
     private double _barOpen, _barHigh, _barLow, _barClose;
     private long _barVolume;
@@ -436,6 +437,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [RelayCommand]
     private async Task StartAsync()
     {
+        if (Volatile.Read(ref _disposeState) != 0) return;
+
         ValidationError = null;
         if (SelectedInstrument is null) { ValidationError = "Pick an instrument before starting."; return; }
         if (IsStreaming) return;
@@ -454,13 +457,17 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Status = $"Loading market data for {SelectedInstrument.DisplayName} — {StrategyDisplayName}…";
         try
         {
-            _streamCts = new CancellationTokenSource();
-            _strategy = BuildStrategy(contract);
-            _router = _routerFactory.Create();
-            _router.SignalEmitted += OnSignalEmitted;
-            _eventSubscription = _router.OrderEvents.Subscribe(async evt =>
+            var runCts = new CancellationTokenSource();
+            var runToken = runCts.Token;
+            _streamCts = runCts;
+            var strategy = BuildStrategy(contract);
+            var router = _routerFactory.Create();
+            _strategy = strategy;
+            _router = router;
+            router.SignalEmitted += OnSignalEmitted;
+            _eventSubscription = router.OrderEvents.Subscribe(async evt =>
             {
-                try { await _strategy.OnOrderEventAsync(evt, _streamCts.Token); }
+                try { await strategy.OnOrderEventAsync(evt, runToken); }
                 catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId); }
             });
 
@@ -473,25 +480,35 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
             try
             {
-                await _strategy.OnStartAsync(_clock, _router, _streamCts.Token);
+                await strategy.OnStartAsync(_clock, router, runToken);
+            }
+            catch (OperationCanceledException) when (runToken.IsCancellationRequested)
+            {
+                return;
             }
             catch (Exception ex)
             {
+                if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
                 _logger.LogError(ex, "{Strategy} OnStartAsync threw", StrategyId);
                 Status = $"Failed to start: {ex.Message}";
                 await StopAsync();
                 return;
             }
 
-            await WarmUpBarsAsync(instrumentId, broker, _streamCts.Token);
+            // Closing/stopping can complete while a plug-in ignores cancellation in OnStartAsync.
+            // Never continue that stale run against the source StopAsync has already disposed.
+            if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
+
+            await WarmUpBarsAsync(instrumentId, broker, runToken);
+            if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
             Status = $"Streaming {SelectedInstrument.DisplayName} — {StrategyDisplayName}";
 
             // Start (or join) the ref-counted L1 broker pump for this instrument. Quotes and depth
             // share the same handle on the ingest side, so a single Subscribe powers both observables.
             _ingestHandle = _services.Ingest.Subscribe(contract, broker);
 
-            _ = RunQuoteStreamAsync(instrumentId, _streamCts.Token);
-            _ = RunDepthStreamAsync(instrumentId, _streamCts.Token);
+            _ = RunQuoteStreamAsync(instrumentId, runToken);
+            _ = RunDepthStreamAsync(instrumentId, runToken);
 
             // Opt-in trade-tape pump: only started when the hosted strategy declares TradeTape in
             // its DataRequirement. The pump probes broker capability before subscribing so the
@@ -499,7 +516,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             if (DataRequirement.HasFlag(StrategyDataRequirement.TradeTape))
             {
                 TradeTapeAvailable = false;
-                _ = RunTradeStreamAsync(broker, contract, instrumentId, _streamCts.Token);
+                _ = RunTradeStreamAsync(broker, contract, instrumentId, runToken);
             }
         }
         finally
@@ -511,18 +528,37 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     [RelayCommand]
     private async Task StopAsync()
     {
-        if (!IsStreaming && _streamCts is null) return;
+        var streamCts = Interlocked.Exchange(ref _streamCts, null);
+        var strategy = Interlocked.Exchange(ref _strategy, null);
+        var router = Interlocked.Exchange(ref _router, null);
+        var ingestHandle = Interlocked.Exchange(ref _ingestHandle, null);
+        var tradeIngestHandle = Interlocked.Exchange(ref _tradeIngestHandle, null);
+        var eventSubscription = Interlocked.Exchange(ref _eventSubscription, null);
+        if (!IsStreaming && streamCts is null && strategy is null && router is null &&
+            ingestHandle is null && tradeIngestHandle is null && eventSubscription is null)
+            return;
 
-        _streamCts?.Cancel();
-        try { if (_strategy is not null && _router is not null) await _strategy.OnEndAsync(_clock, _router, CancellationToken.None); }
-        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId); }
+        try
+        {
+            try { streamCts?.Cancel(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} stream cancellation threw", StrategyId); }
 
-        _ingestHandle?.Dispose(); _ingestHandle = null;
-        _tradeIngestHandle?.Dispose(); _tradeIngestHandle = null;
-        _eventSubscription?.Dispose(); _eventSubscription = null;
-        if (_router is not null) { _router.SignalEmitted -= OnSignalEmitted; _router = null; }
-        _strategy = null;
-        _streamCts?.Dispose(); _streamCts = null;
+            if (strategy is not null && router is not null)
+                await strategy.OnEndAsync(_clock, router, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId);
+        }
+        finally
+        {
+            ingestHandle?.Dispose();
+            tradeIngestHandle?.Dispose();
+            eventSubscription?.Dispose();
+            if (router is not null) router.SignalEmitted -= OnSignalEmitted;
+            streamCts?.Dispose();
+        }
+
         IsStreaming = false;
         IsAlgoRunning = false;
         LatestDepth = null;
@@ -530,6 +566,9 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Status = "Stopped";
         Log("STREAM", "Stopped");
     }
+
+    private bool IsCurrentRun(CancellationTokenSource runCts) =>
+        Volatile.Read(ref _disposeState) == 0 && ReferenceEquals(Volatile.Read(ref _streamCts), runCts);
 
     [RelayCommand]
     private void ClearSignals() => Signals.Clear();
@@ -928,13 +967,23 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
         // Remember the instrument the user was last on so this strategy window reopens on it.
         LastInstrumentStore.Save(StrategyId, SelectedInstrument?.Contract.Symbol);
         _services.Selector.StateChanged -= OnBrokerStateChanged;
-        _streamCts?.Cancel();
-        _streamCts?.Dispose();
-        _ingestHandle?.Dispose();
-        _tradeIngestHandle?.Dispose();
-        _eventSubscription?.Dispose();
+        var streamCts = Interlocked.Exchange(ref _streamCts, null);
+        var router = Interlocked.Exchange(ref _router, null);
+        var ingestHandle = Interlocked.Exchange(ref _ingestHandle, null);
+        var tradeIngestHandle = Interlocked.Exchange(ref _tradeIngestHandle, null);
+        var eventSubscription = Interlocked.Exchange(ref _eventSubscription, null);
+        Interlocked.Exchange(ref _strategy, null);
+        try { streamCts?.Cancel(); }
+        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} stream cancellation threw during disposal", StrategyId); }
+        streamCts?.Dispose();
+        ingestHandle?.Dispose();
+        tradeIngestHandle?.Dispose();
+        eventSubscription?.Dispose();
+        if (router is not null) router.SignalEmitted -= OnSignalEmitted;
     }
 }

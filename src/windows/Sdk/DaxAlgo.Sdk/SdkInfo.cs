@@ -5,15 +5,14 @@ namespace DaxAlgo.Sdk;
 /// was built against a compatible SDK; the host's plugin loader (Phase B) compares its own SDK
 /// version against the plugin's declared target to gate loading.
 /// <para>
-/// The SDK itself carries no types beyond this marker today — it is a curated façade that re-exports
-/// the host's contract assemblies (TradingTerminal.Core via this package, the WPF UI bases via
-/// DaxAlgo.Sdk.Wpf). As the surface is narrowed, the canonical plugin contracts (ITradingStrategy,
-/// StrategyFactoryRegistration, IStrategyKernel, BacktestStrategyOption, the parameter schema) will
-/// be exposed through this package's public API.
+/// The SDK is a curated façade over the host's contract assemblies (TradingTerminal.Core via this
+/// package, the WPF UI bases via DaxAlgo.Sdk.Wpf) and owns the stable
+/// <see cref="IStrategyEngineFactory"/> activation seam for packaged engines. As the surface is
+/// narrowed, more canonical plugin contracts will move behind this package's public API.
 /// </para>
 /// </summary>
 public static class SdkInfo
 {
     /// <summary>Semantic version of this SDK build. Bump on any breaking change to the plugin contract.</summary>
-    public const string Version = "0.1.1-alpha";
+    public const string Version = "0.2.0-alpha";
 }

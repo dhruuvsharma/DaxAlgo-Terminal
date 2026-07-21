@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>DaxNewStrategy.Engine</AssemblyName>
+    <RootNamespace>DaxNewStrategy.Engine</RootNamespace>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PathMap>$(MSBuildProjectDirectory)=/_/daxalgo-strategy-engine</PathMap>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Compile-time contracts only. Host copies must never enter a strategy bundle. -->
+    <PackageReference Include="DaxAlgo.Sdk" Version="0.2.0-alpha" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+</Project>

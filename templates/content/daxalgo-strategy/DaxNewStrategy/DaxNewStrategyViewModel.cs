@@ -43,5 +43,5 @@ public sealed class DaxNewStrategyViewModel : LiveSignalStrategyViewModelBase
     /// <summary>Build the engine that runs live. It is the identical kernel the backtest registers, so
     /// live and backtest can never diverge — the one rule that keeps a strategy honest.</summary>
     protected override IBacktestStrategy BuildStrategy(Contract contract) =>
-        new Engine.DaxNewStrategyKernel(contract);
+        new Engine.DaxNewStrategyFactory().Create(contract);
 }

@@ -3,385 +3,1173 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:TradingTerminal.BacktestStudio"
              xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
              mc:Ignorable="d"
-             d:DesignHeight="640" d:DesignWidth="1200"
+             d:DesignHeight="720"
+             d:DesignWidth="1280"
+             MinWidth="900"
+             MinHeight="560"
              Background="{DynamicResource Background.Primary}"
              Foreground="{DynamicResource Text.Primary}">
+    <UserControl.Resources>
+        <Style x:Key="Studio.RailCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
 
-    <Grid Margin="8">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="280" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Style x:Key="Studio.SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource App.SectionHeader}">
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
 
-        <!-- Left: setup -->
-        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="0,0,8,0">
-                <TextBlock Text="Setup" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,6" />
+        <Style x:Key="Studio.FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
 
-                <TextBlock Text="Strategy" />
-                <ComboBox ItemsSource="{Binding Strategies}"
-                          SelectedItem="{Binding SelectedStrategy}"
-                          DisplayMemberPath="Name"
-                          IsEnabled="{Binding IsNotRunning}"
-                          Margin="0,2,0,8" />
-                <TextBlock Text="{Binding SelectedStrategy.Description}"
-                           Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap"
-                           FontSize="11" Margin="0,0,0,8" />
+        <Style x:Key="Studio.Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
 
-                <TextBlock Text="Data source" />
-                <ComboBox ItemsSource="{Binding DataSources}" SelectedItem="{Binding SelectedDataSource}"
-                          IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,8" />
+        <Style x:Key="Studio.PrimaryButton" TargetType="Button" BasedOn="{StaticResource App.ToolButton}">
+            <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+            <Setter Property="Foreground" Value="{DynamicResource Background.Primary}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="18,6" />
+            <Setter Property="MinWidth" Value="104" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
 
-                <TextBlock Text="Parameters" FontWeight="SemiBold" Margin="0,4,0,2" />
-                <ItemsControl ItemsSource="{Binding Parameters}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="90" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{Binding DataContext.IsNotRunning, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+        <Style x:Key="Studio.CancelButton" TargetType="Button" BasedOn="{StaticResource App.ToolButton}">
+            <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Bearish.Brush}" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="MinWidth" Value="82" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+        </Style>
 
-                <TextBlock Text="Starting cash" Margin="0,8,0,0" />
-                <TextBox Text="{Binding StartingCash}" IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,8" />
+        <Style x:Key="Studio.MetricCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Gradient.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="11,8" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+        </Style>
 
-                <TextBlock Text="Synthetic ticks" />
-                <TextBox Text="{Binding SyntheticTicks}" IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,8" />
+        <Style x:Key="Studio.MetricLabel" TargetType="TextBlock" BasedOn="{StaticResource App.StatCaption}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
 
-                <TextBlock Text="Seed" />
-                <TextBox Text="{Binding Seed}" IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,8" />
+        <Style x:Key="Studio.MetricValue" TargetType="TextBlock" BasedOn="{StaticResource App.StatValue}">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
 
-                <TextBlock Text="Parquet file (Parquet source)" />
-                <Grid Margin="0,2,0,8">
+        <Style x:Key="Studio.ContentCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+
+        <Style x:Key="Studio.EmptyState" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="24" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="MaxWidth" Value="460" />
+        </Style>
+
+        <Style x:Key="Studio.PlotFrame" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="Studio.TabItem" TargetType="TabItem">
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="3" Height="31" Background="{DynamicResource Accent.Brush}" Margin="0,0,9,0" />
+                    <StackPanel>
+                        <TextBlock Text="BACKTEST STUDIO" Style="{StaticResource App.Brand}" FontSize="14" />
+                        <TextBlock Text="Strategy research workbench" Style="{StaticResource Studio.Hint}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Column="1" Style="{StaticResource App.ParamDivider}" Margin="16,2,14,2" />
+
+                <Grid Grid.Column="2" VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Text="{Binding ParquetPath, UpdateSourceTrigger=PropertyChanged}"
-                             IsEnabled="{Binding IsNotRunning}" />
-                    <Button Grid.Column="1" Content="…" MinWidth="28" Margin="4,0,0,0"
-                            Command="{Binding BrowseParquetCommand}" IsEnabled="{Binding IsNotRunning}" />
-                </Grid>
-
-                <TextBlock Text="Symbol / broker (Store source)" />
-                <TextBox Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}"
-                         IsEnabled="{Binding IsNotRunning}" Margin="0,2,0,4" />
-                <ComboBox ItemsSource="{Binding Brokers}" SelectedItem="{Binding SelectedBroker}"
-                          IsEnabled="{Binding IsNotRunning}" Margin="0,0,0,4" />
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                        <TextBlock Text="From (UTC)" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                        <DatePicker SelectedDate="{Binding FromDate}" IsEnabled="{Binding IsNotRunning}" />
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,10,0">
+                        <Border Style="{StaticResource Pill.Accent}">
+                            <TextBlock Text="{Binding ExecutionTarget}"
+                                       Foreground="{DynamicResource Accent.Brush}"
+                                       FontSize="9"
+                                       FontWeight="Bold" />
+                        </Border>
+                        <Border>
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource Pill.Base}">
+                                    <Setter Property="Margin" Value="0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock FontSize="10" FontWeight="Bold">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="READY" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                <Setter Property="Text" Value="RUNNING" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
                     </StackPanel>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="To (UTC)" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                        <DatePicker SelectedDate="{Binding ToDate}" IsEnabled="{Binding IsNotRunning}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Status, TargetNullValue=Configure a test and press Run}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource Text.Primary}" />
+                        <TextBlock FontSize="10" Foreground="{DynamicResource Text.Secondary}" TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding SelectedStrategy.Name, TargetNullValue=No strategy}" />
+                            <Run Text="  /  " />
+                            <Run Text="{Binding SelectedDataSource}" />
+                        </TextBlock>
+                        <ProgressBar Minimum="0"
+                                     Maximum="100"
+                                     Value="{Binding RunProgress}"
+                                     Height="3"
+                                     Margin="0,4,0,0">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
                     </StackPanel>
                 </Grid>
 
-                <CheckBox Content="Record visual replay" IsChecked="{Binding RecordVisual}"
-                          IsEnabled="{Binding IsNotRunning}" Margin="0,0,0,12" />
-
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="Run" Command="{Binding RunCommand}"
-                            IsEnabled="{Binding IsNotRunning}" Padding="14,4" />
-                    <Button Content="Cancel" Command="{Binding CancelCommand}"
-                            IsEnabled="{Binding IsRunning}" Padding="12,4" Margin="6,0,0,0" />
-                    <Button Style="{StaticResource App.IconButton}" Content="▤" Margin="10,0,0,0"
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,12,0">
+                    <Button Style="{StaticResource App.ToolButton}" Content="TRADES CSV"
                             Command="{Binding ExportTradesCsvCommand}"
                             ToolTip="Export the last run's round-trip trades as CSV" />
-                    <Button Style="{StaticResource App.IconButton}" Content="⊞"
+                    <Button Style="{StaticResource App.ToolButton}" Content="TRIALS CSV"
                             Command="{Binding ExportTrialsCsvCommand}"
                             ToolTip="Export the optimization trial grid as CSV" />
-                    <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
+                    <Button Style="{StaticResource App.ToolButton}" Content="PNG" Click="ExportPng_Click"
                             ToolTip="Save a PNG snapshot of this window" />
-                    <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?"
-                                  Margin="0" ToolTip="What am I looking at?" />
-                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
-                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
-                           HorizontalOffset="-200" VerticalOffset="6">
-                        <Border Style="{StaticResource App.Card}" Width="390" Padding="16"
+                    <ToggleButton x:Name="HelpToggle"
+                                  Style="{StaticResource App.IconToggle}"
+                                  Content="?"
+                                  Margin="0"
+                                  ToolTip="Backtest Studio guide" />
+                    <Popup PlacementTarget="{Binding ElementName=HelpToggle}"
+                           Placement="Bottom"
+                           IsOpen="{Binding IsChecked, ElementName=HelpToggle}"
+                           AllowsTransparency="True"
+                           HorizontalOffset="-330"
+                           VerticalOffset="6">
+                        <Border Style="{StaticResource App.Card}"
+                                Width="400"
+                                Padding="16"
                                 Background="{DynamicResource Background.Elevated}">
                             <StackPanel>
-                                <TextBlock Text="USING BACKTEST STUDIO" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,8" />
-                                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Text.Primary}" LineHeight="17">
-                                    <Run FontWeight="SemiBold" Text="Single run" /><Run Text=" — replays the chosen data source through the strategy kernel with the parameter values on the left; results land in the equity / stats / trades tabs." /><LineBreak />
-                                    <Run FontWeight="SemiBold" Text="Optimize" /><Run Text=" — sweeps the ticked parameter axes over their ranges and grids every combination; the trials table ranks them by score. Prefer plateaus of good trials over a single sharp peak — sharp peaks are usually overfit." /><LineBreak />
-                                    <Run FontWeight="SemiBold" Text="Walk-forward" /><Run Text=" — re-optimizes on a rolling in-sample window and tests on the following out-of-sample slice; consistent out-of-sample rows are the strongest evidence a setting generalises." /><LineBreak />
-                                    <Run FontWeight="SemiBold" Text="Export" /><Run Text=" — ▤ trades of the last run, ⊞ the optimization trial grid, 📷 a window snapshot." />
+                                <TextBlock Text="BACKTEST STUDIO WORKFLOW"
+                                           Style="{StaticResource App.SectionHeader}"
+                                           Margin="0,0,0,9" />
+                                <TextBlock TextWrapping="Wrap"
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource Text.Primary}"
+                                           LineHeight="17">
+                                    <Run FontWeight="SemiBold" Text="Single run" />
+                                    <Run Text=" - replay the selected source through one strategy setup, then inspect equity and trades." />
+                                    <LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Optimization" />
+                                    <Run Text=" - enable parameter axes, select a scoring criterion, and compare the full trial table with the score surface." />
+                                    <LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Walk-forward" />
+                                    <Run Text=" - re-fit on rolling in-sample windows and validate the selected parameters out of sample." />
+                                    <LineBreak />
+                                    <Run FontWeight="SemiBold" Text="Visual replay" />
+                                    <Run Text=" - enable recording before a run, then seek or play through the resulting candles and trade markers." />
                                 </TextBlock>
                             </StackPanel>
                         </Border>
                     </Popup>
                 </StackPanel>
 
-                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}"
-                           TextWrapping="Wrap" Margin="0,8,0,0" />
-            </StackPanel>
-        </ScrollViewer>
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource Studio.PrimaryButton}"
+                            Content="RUN TEST"
+                            Command="{Binding RunCommand}"
+                            IsEnabled="{Binding IsNotRunning}" />
+                    <Button Style="{StaticResource Studio.CancelButton}"
+                            Content="CANCEL"
+                            Command="{Binding CancelCommand}"
+                            IsEnabled="{Binding IsRunning}" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
-        <!-- Right: results -->
-        <TabControl Grid.Column="1" Margin="0">
-            <!-- Report -->
-            <TabItem Header="Report">
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="310" />
+                <ColumnDefinition Width="1" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{DynamicResource Background.Elevated}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="220" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Margin="0,0,0,6"
-                            Background="{DynamicResource Background.Surface}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="8">
-                        <UniformGrid Columns="6" Rows="1">
+                    <Border Grid.Row="0" Style="{StaticResource App.PanelHeader}" Padding="14,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="Net P&amp;L" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                                <TextBlock Text="{Binding NetProfit, StringFormat=C2}" FontWeight="SemiBold" />
+                                <TextBlock Text="TEST CONFIGURATION" FontWeight="SemiBold" />
+                                <TextBlock Text="Inputs are locked while a run is active" Style="{StaticResource Studio.Hint}" />
                             </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Sharpe" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                                <TextBlock Text="{Binding Sharpe, StringFormat=F2}" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Max DD" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                                <TextBlock Text="{Binding MaxDrawdown, StringFormat=P2}" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Win rate" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                                <TextBlock Text="{Binding WinRate, StringFormat=P1}" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Profit factor" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                                <TextBlock Text="{Binding ProfitFactor, StringFormat=F2}" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Trades" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
-                                <TextBlock Text="{Binding TradeCount}" />
-                            </StackPanel>
-                        </UniformGrid>
+                            <TextBlock Grid.Column="1" Text="01" Style="{StaticResource App.GroupLabel}" Margin="8,0,0,0" />
+                        </Grid>
                     </Border>
 
-                    <Border Grid.Row="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                        <sp:WpfPlot x:Name="EquityPlot" />
-                    </Border>
-
-                    <DataGrid Grid.Row="2" Margin="0,6,0,0"
-                              ItemsSource="{Binding Trades}" AutoGenerateColumns="False"
-                              IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Entry (UTC)" Binding="{Binding EntryUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
-                            <DataGridTextColumn Header="Exit (UTC)" Binding="{Binding ExitUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
-                            <DataGridTextColumn Header="Side" Binding="{Binding Side}" />
-                            <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" />
-                            <DataGridTextColumn Header="Entry" Binding="{Binding EntryPrice, StringFormat=F4}" />
-                            <DataGridTextColumn Header="Exit" Binding="{Binding ExitPrice, StringFormat=F4}" />
-                            <DataGridTextColumn Header="Net P&amp;L" Binding="{Binding NetPnl, StringFormat=F2}" />
-                            <DataGridTextColumn Header="MFE" Binding="{Binding MaxFavorableExcursion, StringFormat=F2}" />
-                            <DataGridTextColumn Header="MAE" Binding="{Binding MaxAdverseExcursion, StringFormat=F2}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </TabItem>
-
-            <!-- Optimization -->
-            <TabItem Header="Optimization">
-                <Grid Margin="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="300" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Axis editor + controls -->
-                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0">
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="12">
                         <StackPanel>
-                            <TextBlock Text="Sweep axes" FontWeight="SemiBold" Margin="0,0,0,4" />
-                            <ItemsControl ItemsSource="{Binding Axes}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="0,4">
-                                            <StackPanel>
-                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding Enabled}" FontWeight="SemiBold" />
-                                                <Grid Margin="18,2,0,0" IsEnabled="{Binding Enabled}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <TextBlock Text="Min" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                                                        <TextBox Text="{Binding Min}" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Margin="0,0,4,0">
-                                                        <TextBlock Text="Max" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                                                        <TextBox Text="{Binding Max}" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="2">
-                                                        <TextBlock Text="Step" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                                                        <TextBox Text="{Binding Step}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <Border Style="{StaticResource Studio.RailCard}">
+                                <StackPanel>
+                                    <TextBlock Text="STRATEGY" Style="{StaticResource Studio.SectionTitle}" />
+                                    <TextBlock Text="Strategy kernel" Style="{StaticResource Studio.FieldLabel}" />
+                                    <ComboBox ItemsSource="{Binding Strategies}"
+                                              SelectedItem="{Binding SelectedStrategy}"
+                                              DisplayMemberPath="Name"
+                                              IsEnabled="{Binding IsNotRunning}" />
+                                    <TextBlock Text="{Binding SelectedStrategy.Description}"
+                                               Style="{StaticResource Studio.Hint}"
+                                               Margin="0,7,0,10" />
 
-                            <TextBlock Text="Rank by" Margin="0,8,0,2" />
-                            <ComboBox ItemsSource="{Binding Criteria}" SelectedItem="{Binding SelectedCriterion}"
-                                      IsEnabled="{Binding IsNotOptimizing}" />
-
-                            <TextBlock Text="Method" Margin="0,8,0,2" />
-                            <ComboBox ItemsSource="{Binding Methods}" SelectedItem="{Binding SelectedMethod}"
-                                      IsEnabled="{Binding IsNotOptimizing}" />
-
-                            <Grid Margin="0,6,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                    <TextBlock Text="Population" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                                    <TextBox Text="{Binding GeneticPopulation}" IsEnabled="{Binding IsNotOptimizing}" />
+                                    <Border BorderBrush="{DynamicResource Border.Brush}"
+                                            BorderThickness="0,1,0,0"
+                                            Padding="0,9,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="INPUT PARAMETERS"
+                                                       Style="{StaticResource Studio.FieldLabel}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Text.Primary}" />
+                                            <ItemsControl ItemsSource="{Binding Parameters}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,3,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="92" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="{Binding Label}"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Margin="0,0,8,0" />
+                                                            <TextBox Grid.Column="1"
+                                                                     Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                                     IsEnabled="{Binding DataContext.IsNotRunning, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="Generations" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
-                                    <TextBox Text="{Binding GeneticGenerations}" IsEnabled="{Binding IsNotOptimizing}" />
+                            </Border>
+
+                            <Border Style="{StaticResource Studio.RailCard}">
+                                <StackPanel>
+                                    <TextBlock Text="MODELING" Style="{StaticResource Studio.SectionTitle}" />
+                                    <TextBlock Text="Starting capital" Style="{StaticResource Studio.FieldLabel}" />
+                                    <TextBox Text="{Binding StartingCash, UpdateSourceTrigger=PropertyChanged}"
+                                             IsEnabled="{Binding IsNotRunning}" />
+                                    <CheckBox Content="Record visual replay"
+                                              IsChecked="{Binding RecordVisual}"
+                                              IsEnabled="{Binding IsNotRunning}"
+                                              Margin="0,10,0,0" />
+                                    <TextBlock Text="Replay recording retains chart frames for the Visual replay tab."
+                                               Style="{StaticResource Studio.Hint}"
+                                               Margin="20,2,0,0" />
                                 </StackPanel>
-                            </Grid>
-                            <TextBlock Text="(Population / generations apply to the Genetic method.)"
-                                       FontSize="10" Foreground="{DynamicResource Text.Secondary}"
-                                       TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </Border>
 
-                            <CheckBox Content="Use GPU when available" IsChecked="{Binding UseGpu}"
-                                      IsEnabled="{Binding IsNotOptimizing}" Margin="0,8,0,0"
-                                      ToolTip="Exhaustive sweeps of mean-reversion (net-profit) run on the CUDA accelerator if built; otherwise CPU." />
-                            <TextBlock Text="{Binding GpuStatus}" FontSize="10"
-                                       Foreground="{DynamicResource Text.Secondary}" Margin="0,2,0,0" />
+                            <Border Style="{StaticResource Studio.RailCard}">
+                                <StackPanel>
+                                    <TextBlock Text="DATA" Style="{StaticResource Studio.SectionTitle}" />
+                                    <TextBlock Text="Source" Style="{StaticResource Studio.FieldLabel}" />
+                                    <ComboBox ItemsSource="{Binding DataSources}"
+                                              SelectedItem="{Binding SelectedDataSource}"
+                                              IsEnabled="{Binding IsNotRunning}" />
 
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <Button Content="Optimize" Command="{Binding OptimizeCommand}"
-                                        IsEnabled="{Binding IsNotOptimizing}" Padding="12,4" />
-                                <Button Content="Cancel" Command="{Binding CancelOptimizeCommand}"
-                                        IsEnabled="{Binding IsOptimizing}" Padding="10,4" Margin="6,0,0,0" />
-                                <Button Content="Apply best" Command="{Binding ApplyBestCommand}"
-                                        Padding="10,4" Margin="6,0,0,0" />
-                            </StackPanel>
+                                    <Grid Margin="0,10,0,0">
+                                        <StackPanel>
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedDataSource}"
+                                                                     Value="{x:Static local:DataSourceKind.Synthetic}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Synthetic ticks" Style="{StaticResource Studio.FieldLabel}" />
+                                                    <TextBox Text="{Binding SyntheticTicks, UpdateSourceTrigger=PropertyChanged}"
+                                                             IsEnabled="{Binding IsNotRunning}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Random seed" Style="{StaticResource Studio.FieldLabel}" />
+                                                    <TextBox Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             IsEnabled="{Binding IsNotRunning}" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="Seeded random-walk data provides a deterministic zero-setup run."
+                                                       Style="{StaticResource Studio.Hint}"
+                                                       Margin="0,7,0,0" />
+                                        </StackPanel>
 
-                            <TextBlock Text="{Binding OptimizeStatus}" Foreground="{DynamicResource Text.Secondary}"
-                                       TextWrapping="Wrap" Margin="0,8,0,0" />
+                                        <StackPanel>
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedDataSource}"
+                                                                     Value="{x:Static local:DataSourceKind.Parquet}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <TextBlock Text="Recorded tick file" Style="{StaticResource Studio.FieldLabel}" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding ParquetPath, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsEnabled="{Binding IsNotRunning}" />
+                                                <Button Grid.Column="1"
+                                                        Style="{StaticResource App.ToolButton}"
+                                                        Content="BROWSE"
+                                                        Command="{Binding BrowseParquetCommand}"
+                                                        IsEnabled="{Binding IsNotRunning}"
+                                                        Margin="6,0,0,0" />
+                                            </Grid>
+                                        </StackPanel>
 
-                            <Separator Margin="0,10" />
-                            <TextBlock Text="Walk-forward" FontWeight="SemiBold" Margin="0,0,0,2" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Folds" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBox Text="{Binding WalkForwardFolds}" Width="50" IsEnabled="{Binding IsNotOptimizing}" />
-                                <Button Content="Run walk-forward" Command="{Binding WalkForwardCommand}"
-                                        IsEnabled="{Binding IsNotOptimizing}" Padding="10,4" Margin="8,0,0,0" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding WalkForwardSummary}" Foreground="{DynamicResource Text.Secondary}"
-                                       TextWrapping="Wrap" Margin="0,6,0,0" />
+                                        <StackPanel>
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedDataSource}"
+                                                                     Value="{x:Static local:DataSourceKind.Store}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Symbol" Style="{StaticResource Studio.FieldLabel}" />
+                                                    <TextBox Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}"
+                                                             IsEnabled="{Binding IsNotRunning}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Broker" Style="{StaticResource Studio.FieldLabel}" />
+                                                    <ComboBox ItemsSource="{Binding Brokers}"
+                                                              SelectedItem="{Binding SelectedBroker}"
+                                                              IsEnabled="{Binding IsNotRunning}" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="From (UTC)" Style="{StaticResource Studio.FieldLabel}" />
+                                                    <DatePicker SelectedDate="{Binding FromDate}"
+                                                                IsEnabled="{Binding IsNotRunning}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="To (UTC)" Style="{StaticResource Studio.FieldLabel}" />
+                                                    <DatePicker SelectedDate="{Binding ToDate}"
+                                                                IsEnabled="{Binding IsNotRunning}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
-                    <!-- Surface + results -->
-                    <Grid Grid.Column="1">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="200" />
-                            <RowDefinition Height="150" />
-                        </Grid.RowDefinitions>
-
-                        <Border Grid.Row="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                            <sp:WpfPlot x:Name="SurfacePlot" />
-                        </Border>
-
-                        <DataGrid Grid.Row="1" Margin="0,6,0,0"
-                                  ItemsSource="{Binding OptimizationTrials}" AutoGenerateColumns="False"
-                                  IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F4}" />
-                                <DataGridTextColumn Header="Net P&amp;L" Binding="{Binding NetProfit, StringFormat=C2}" />
-                                <DataGridTextColumn Header="Trades" Binding="{Binding TradeCount}" />
-                                <DataGridTextColumn Header="Parameters" Binding="{Binding Parameters}" Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-
-                        <DataGrid Grid.Row="2" Margin="0,6,0,0"
-                                  ItemsSource="{Binding WalkForwardRows}" AutoGenerateColumns="False"
-                                  IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Window" Binding="{Binding Window}" />
-                                <DataGridTextColumn Header="IS score" Binding="{Binding InSampleScore, StringFormat=F3}" />
-                                <DataGridTextColumn Header="OOS score" Binding="{Binding OutOfSampleScore, StringFormat=F3}" />
-                                <DataGridTextColumn Header="OOS net" Binding="{Binding OutOfSampleNetProfit, StringFormat=C2}" />
-                                <DataGridTextColumn Header="OOS trades" Binding="{Binding OutOfSampleTrades}" />
-                                <DataGridTextColumn Header="Params" Binding="{Binding Parameters}" Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Grid>
-                </Grid>
-            </TabItem>
-
-            <!-- Visual replay -->
-            <TabItem Header="Visual replay">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <Border Grid.Row="0" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
-                        <sp:WpfPlot x:Name="ReplayPlot" />
+                    <Border Grid.Row="2" Style="{StaticResource App.FooterBar}" Padding="12,8">
+                        <StackPanel>
+                            <TextBlock Text="ENGINE STATUS" Style="{StaticResource Studio.FieldLabel}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Status, TargetNullValue=Waiting for a test run}"
+                                       TextWrapping="Wrap"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxHeight="34" />
+                        </StackPanel>
                     </Border>
+                </Grid>
+            </Border>
 
-                    <Border Grid.Row="1" Margin="0,6,0,0"
-                            Background="{DynamicResource Background.Surface}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Padding="8">
-                        <Grid>
+            <Border Grid.Column="1" Background="{DynamicResource Border.Brush}" />
+
+            <Grid Grid.Column="2" Margin="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <UniformGrid Grid.Row="0" Rows="1" Columns="6" Margin="0,0,-7,10">
+                    <Border Style="{StaticResource Studio.MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="NET P&amp;L" Style="{StaticResource Studio.MetricLabel}" />
+                            <TextBlock Text="{Binding NetProfit, StringFormat=C2}"
+                                       Style="{StaticResource Studio.MetricValue}"
+                                       Foreground="{DynamicResource Bullish.Brush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Studio.MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="SHARPE" Style="{StaticResource Studio.MetricLabel}" />
+                            <TextBlock Text="{Binding Sharpe, StringFormat=F2}" Style="{StaticResource Studio.MetricValue}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Studio.MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="MAX DRAWDOWN" Style="{StaticResource Studio.MetricLabel}" />
+                            <TextBlock Text="{Binding MaxDrawdown, StringFormat=P2}"
+                                       Style="{StaticResource Studio.MetricValue}"
+                                       Foreground="{DynamicResource Bearish.Brush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Studio.MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="WIN RATE" Style="{StaticResource Studio.MetricLabel}" />
+                            <TextBlock Text="{Binding WinRate, StringFormat=P1}" Style="{StaticResource Studio.MetricValue}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Studio.MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="PROFIT FACTOR" Style="{StaticResource Studio.MetricLabel}" />
+                            <TextBlock Text="{Binding ProfitFactor, StringFormat=F2}" Style="{StaticResource Studio.MetricValue}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Studio.MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="TRADES" Style="{StaticResource Studio.MetricLabel}" />
+                            <TextBlock Text="{Binding TradeCount}" Style="{StaticResource Studio.MetricValue}" />
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <TabControl Grid.Row="1" Background="{DynamicResource Background.Primary}">
+                    <TabItem Header="OVERVIEW" Style="{StaticResource Studio.TabItem}">
+                        <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" MinWidth="240" />
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="0" Content="⏮" Command="{Binding RewindCommand}"
-                                    IsEnabled="{Binding HasVisual}" MinWidth="34" />
-                            <Button Grid.Column="1" Content="⏯" Command="{Binding PlayPauseCommand}"
-                                    IsEnabled="{Binding HasVisual}" MinWidth="34" Margin="6,0,0,0" />
+                            <Grid Grid.Column="0">
+                                <Border>
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.ContentCard}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsRunning}" Value="False" />
+                                                        <Condition Binding="{Binding HasReport}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                                        <Border Style="{StaticResource Pill.Accent}" HorizontalAlignment="Center" Margin="0,0,0,14">
+                                            <TextBlock Text="READY FOR RESEARCH" Foreground="{DynamicResource Accent.Brush}" FontWeight="Bold" FontSize="10" />
+                                        </Border>
+                                        <TextBlock Text="No completed run yet"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock Text="Choose a strategy and data source in the configuration rail, review its inputs, then run a deterministic test. A zero-trade result will also appear here for inspection."
+                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </Border>
 
-                            <Slider Grid.Column="2" Margin="10,0"
-                                    Minimum="0" Maximum="{Binding BarCount}"
-                                    Value="{Binding CurrentBar}" IsEnabled="{Binding HasVisual}"
-                                    VerticalAlignment="Center" />
+                                <Border>
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.ContentCard}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="420">
+                                        <TextBlock Text="SIMULATION IN PROGRESS"
+                                                   Style="{StaticResource App.SectionHeader}"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding Status, TargetNullValue=Replaying market events}"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,10,0,14" />
+                                        <ProgressBar IsIndeterminate="True" Height="4" />
+                                        <TextBlock Text="Configuration is locked until the engine completes or the run is cancelled."
+                                                   Style="{StaticResource Studio.Hint}"
+                                                   TextAlignment="Center"
+                                                   Margin="0,10,0,0" />
+                                    </StackPanel>
+                                </Border>
 
-                            <TextBlock Grid.Column="3" Text="{Binding CurrentBarText}" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource Text.Secondary}" Margin="0,0,10,0" />
+                                <Border>
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.ContentCard}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasReport}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0">
+                                            <TextBlock Text="LATEST RUN" Style="{StaticResource App.SectionHeader}" />
+                                            <TextBlock Text="Completed simulation summary" FontSize="20" FontWeight="SemiBold" Margin="0,5,0,2" />
+                                            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Text.Secondary}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" Columns="2" Rows="2" Margin="0,20,0,0">
+                                            <StackPanel Margin="0,0,18,14">
+                                                <TextBlock Text="STRATEGY" Style="{StaticResource Studio.MetricLabel}" />
+                                                <TextBlock Text="{Binding LastRunStrategyName}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,14">
+                                                <TextBlock Text="DATA SOURCE" Style="{StaticResource Studio.MetricLabel}" />
+                                                <TextBlock Text="{Binding LastRunDataSource}" FontSize="15" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,18,0">
+                                                <TextBlock Text="STARTING CAPITAL" Style="{StaticResource Studio.MetricLabel}" />
+                                                <TextBlock Text="{Binding LastRunStartingCash, StringFormat=C2}" Style="{StaticResource Studio.MetricValue}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="VISUAL FRAMES" Style="{StaticResource Studio.MetricLabel}" />
+                                                <TextBlock Text="{Binding BarCount, StringFormat={}{0:N0}}" Style="{StaticResource Studio.MetricValue}" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
 
-                            <TextBlock Grid.Column="4" Text="Speed" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <Slider Grid.Column="5" Minimum="1" Maximum="40" Value="{Binding PlaybackSpeed}"
-                                    VerticalAlignment="Center" />
+                            <Border Grid.Column="2" Style="{StaticResource Studio.ContentCard}">
+                                <StackPanel>
+                                    <TextBlock Text="RESEARCH FLOW" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,14" />
+                                    <Grid Margin="0,0,0,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="32" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="24" Height="24" Background="{DynamicResource Accent.Soft}" BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1">
+                                            <TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource Accent.Brush}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Validate a baseline" FontWeight="SemiBold" />
+                                            <TextBlock Text="Run one configuration and inspect execution quality." Style="{StaticResource Studio.Hint}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="32" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="24" Height="24" Background="{DynamicResource Highlight.Soft}" BorderBrush="{DynamicResource Text.Highlight}" BorderThickness="1">
+                                            <TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource Text.Highlight}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Explore stable regions" FontWeight="SemiBold" />
+                                            <TextBlock Text="Sweep selected axes and compare score plateaus." Style="{StaticResource Studio.Hint}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="32" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="24" Height="24" Background="{DynamicResource Bullish.Soft}" BorderBrush="{DynamicResource Bullish.Brush}" BorderThickness="1">
+                                            <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource Bullish.Brush}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Test out of sample" FontWeight="SemiBold" />
+                                            <TextBlock Text="Confirm the selected setup with rolling walk-forward folds." Style="{StaticResource Studio.Hint}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </Grid>
-                    </Border>
-                </Grid>
-            </TabItem>
-        </TabControl>
+                    </TabItem>
+
+                    <TabItem Header="EQUITY + TRADES" Style="{StaticResource Studio.TabItem}">
+                        <Grid Margin="0,10,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="3*" />
+                                <RowDefinition Height="8" />
+                                <RowDefinition Height="2*" MinHeight="150" />
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Style="{StaticResource App.PanelHeader}" Padding="12,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="EQUITY CURVE" Style="{StaticResource App.SectionHeader}" />
+                                        <TextBlock Text="Mark-to-market account value and completed round trips" Style="{StaticResource Studio.Hint}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource App.ToolButton}" Content="EXPORT TRADES"
+                                            Command="{Binding ExportTradesCsvCommand}" Margin="8,0,0,0" />
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="1" Style="{StaticResource Studio.PlotFrame}">
+                                <sp:WpfPlot x:Name="EquityPlot" />
+                            </Border>
+
+                            <Grid Grid.Row="3">
+                                <DataGrid ItemsSource="{Binding Trades}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Entry (UTC)" Binding="{Binding EntryUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+                                        <DataGridTextColumn Header="Exit (UTC)" Binding="{Binding ExitUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+                                        <DataGridTextColumn Header="Side" Binding="{Binding Side}" />
+                                        <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" />
+                                        <DataGridTextColumn Header="Entry" Binding="{Binding EntryPrice, StringFormat=F4}" />
+                                        <DataGridTextColumn Header="Exit" Binding="{Binding ExitPrice, StringFormat=F4}" />
+                                        <DataGridTextColumn Header="Net P&amp;L" Binding="{Binding NetPnl, StringFormat=F2}" />
+                                        <DataGridTextColumn Header="MFE" Binding="{Binding MaxFavorableExcursion, StringFormat=F2}" />
+                                        <DataGridTextColumn Header="MAE" Binding="{Binding MaxAdverseExcursion, StringFormat=F2}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <Border IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.EmptyState}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HasReport}" Value="True" />
+                                                        <Condition Binding="{Binding TradeCount}" Value="0" />
+                                                        <Condition Binding="{Binding IsRunning}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel>
+                                        <TextBlock Text="NO ROUND-TRIP TRADES" Style="{StaticResource App.SectionHeader}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="The latest completed run produced no round-trip trades. Review its parameters or market window before iterating."
+                                                   Style="{StaticResource Studio.Hint}" TextAlignment="Center" Margin="0,7,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="OPTIMIZATION" Style="{StaticResource Studio.TabItem}">
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="300" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource Studio.ContentCard}" Padding="12">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <TextBlock Text="PARAMETER SWEEP" Style="{StaticResource App.SectionHeader}" />
+                                        <TextBlock Text="Enable one or more axes and define the search range."
+                                                   Style="{StaticResource Studio.Hint}" Margin="0,4,0,10" />
+
+                                        <ItemsControl ItemsSource="{Binding Axes}" IsEnabled="{Binding IsNotOptimizing}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="0,6">
+                                                        <StackPanel>
+                                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding Enabled}" FontWeight="SemiBold" />
+                                                            <Grid Margin="20,4,0,0" IsEnabled="{Binding Enabled}">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="6" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="6" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <StackPanel Grid.Column="0">
+                                                                    <TextBlock Text="Min" Style="{StaticResource Studio.FieldLabel}" />
+                                                                    <TextBox Text="{Binding Min, UpdateSourceTrigger=PropertyChanged}" />
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="2">
+                                                                    <TextBlock Text="Max" Style="{StaticResource Studio.FieldLabel}" />
+                                                                    <TextBox Text="{Binding Max, UpdateSourceTrigger=PropertyChanged}" />
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="4">
+                                                                    <TextBlock Text="Step" Style="{StaticResource Studio.FieldLabel}" />
+                                                                    <TextBox Text="{Binding Step, UpdateSourceTrigger=PropertyChanged}" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Rank by" Style="{StaticResource Studio.FieldLabel}" />
+                                                <ComboBox ItemsSource="{Binding Criteria}"
+                                                          SelectedItem="{Binding SelectedCriterion}"
+                                                          IsEnabled="{Binding IsNotOptimizing}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Method" Style="{StaticResource Studio.FieldLabel}" />
+                                                <ComboBox ItemsSource="{Binding Methods}"
+                                                          SelectedItem="{Binding SelectedMethod}"
+                                                          IsEnabled="{Binding IsNotOptimizing}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Population" Style="{StaticResource Studio.FieldLabel}" />
+                                                <TextBox Text="{Binding GeneticPopulation, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsEnabled="{Binding IsNotOptimizing}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Generations" Style="{StaticResource Studio.FieldLabel}" />
+                                                <TextBox Text="{Binding GeneticGenerations, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsEnabled="{Binding IsNotOptimizing}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="Population and generations apply to the Genetic method."
+                                                   Style="{StaticResource Studio.Hint}" Margin="0,4,0,0" />
+
+                                        <CheckBox Content="Use GPU when available"
+                                                  IsChecked="{Binding UseGpu}"
+                                                  IsEnabled="{Binding IsNotOptimizing}"
+                                                  Margin="0,10,0,0"
+                                                  ToolTip="Eligible exhaustive sweeps use the CUDA accelerator when available; otherwise they run on CPU." />
+                                        <TextBlock Text="{Binding GpuStatus}" Style="{StaticResource Studio.Hint}" Margin="20,2,0,0" />
+
+                                        <Grid Margin="0,12,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Style="{StaticResource Studio.PrimaryButton}"
+                                                    Content="OPTIMIZE"
+                                                    Command="{Binding OptimizeCommand}"
+                                                    IsEnabled="{Binding IsNotOptimizing}"
+                                                    MinWidth="0" />
+                                            <Button Grid.Column="1" Style="{StaticResource Studio.CancelButton}"
+                                                    Content="CANCEL"
+                                                    Command="{Binding CancelOptimizeCommand}"
+                                                    IsEnabled="{Binding IsOptimizing}" />
+                                        </Grid>
+                                        <Button Style="{StaticResource App.ToolButton}"
+                                                Content="APPLY BEST PARAMETERS"
+                                                Command="{Binding ApplyBestCommand}"
+                                                Margin="0,7,0,0" />
+                                        <TextBlock Text="{Binding OptimizeStatus}" Style="{StaticResource Studio.Hint}" Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <Grid Grid.Column="2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="3*" />
+                                    <RowDefinition Height="8" />
+                                    <RowDefinition Height="2*" MinHeight="150" />
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0">
+                                    <Border Style="{StaticResource Studio.PlotFrame}">
+                                        <sp:WpfPlot x:Name="SurfacePlot" />
+                                    </Border>
+                                    <Border IsHitTestVisible="False">
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource Studio.EmptyState}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding OptimizationTrials.Count}" Value="0" />
+                                                            <Condition Binding="{Binding IsOptimizing}" Value="False" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Text="SCORE SURFACE" Style="{StaticResource App.SectionHeader}" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Enable exactly two axes to render a two-dimensional score surface. All completed trials remain available below."
+                                                       Style="{StaticResource Studio.Hint}" TextAlignment="Center" Margin="0,7,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border IsHitTestVisible="False">
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource Studio.EmptyState}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOptimizing}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Width="320">
+                                            <TextBlock Text="SEARCH IN PROGRESS" Style="{StaticResource App.SectionHeader}" HorizontalAlignment="Center" />
+                                            <TextBlock Text="{Binding OptimizeStatus, TargetNullValue=Evaluating parameter trials}"
+                                                       TextAlignment="Center" TextWrapping="Wrap" Margin="0,7,0,10" />
+                                            <ProgressBar IsIndeterminate="True" Height="4" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <DataGrid Grid.Row="2"
+                                          ItemsSource="{Binding OptimizationTrials}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F4}" />
+                                        <DataGridTextColumn Header="Net P&amp;L" Binding="{Binding NetProfit, StringFormat=C2}" />
+                                        <DataGridTextColumn Header="Trades" Binding="{Binding TradeCount}" />
+                                        <DataGridTextColumn Header="Parameters" Binding="{Binding Parameters}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="WALK-FORWARD" Style="{StaticResource Studio.TabItem}">
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="280" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource Studio.ContentCard}">
+                                <StackPanel>
+                                    <TextBlock Text="OUT-OF-SAMPLE TEST" Style="{StaticResource App.SectionHeader}" />
+                                    <TextBlock Text="Re-optimize the enabled axes on rolling in-sample windows, then evaluate the following holdout slice."
+                                               Style="{StaticResource Studio.Hint}" Margin="0,5,0,14" />
+
+                                    <TextBlock Text="Folds" Style="{StaticResource Studio.FieldLabel}" />
+                                    <TextBox Text="{Binding WalkForwardFolds, UpdateSourceTrigger=PropertyChanged}"
+                                             IsEnabled="{Binding IsNotOptimizing}" />
+                                    <TextBlock Text="Scoring criterion" Style="{StaticResource Studio.FieldLabel}" Margin="0,9,0,3" />
+                                    <ComboBox ItemsSource="{Binding Criteria}"
+                                              SelectedItem="{Binding SelectedCriterion}"
+                                              IsEnabled="{Binding IsNotOptimizing}" />
+
+                                    <Border Background="{DynamicResource Accent.Soft}"
+                                            BorderBrush="{DynamicResource Accent.Dim.Brush}"
+                                            BorderThickness="1"
+                                            Padding="9"
+                                            Margin="0,12,0,0">
+                                        <TextBlock Text="Axis ranges are shared with the Optimization tab. Enable and configure them there before starting this test."
+                                                   Style="{StaticResource Studio.Hint}" />
+                                    </Border>
+
+                                    <Button Style="{StaticResource Studio.PrimaryButton}"
+                                            Content="RUN WALK-FORWARD"
+                                            Command="{Binding WalkForwardCommand}"
+                                            IsEnabled="{Binding IsNotOptimizing}"
+                                            Margin="0,14,0,0" />
+                                    <Button Style="{StaticResource Studio.CancelButton}"
+                                            Content="CANCEL"
+                                            Command="{Binding CancelOptimizeCommand}"
+                                            IsEnabled="{Binding IsOptimizing}"
+                                            Margin="0,7,0,0" />
+                                    <TextBlock Text="{Binding WalkForwardSummary}"
+                                               Foreground="{DynamicResource Text.Primary}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,12,0,0" />
+                                    <TextBlock Text="{Binding OptimizeStatus}" Style="{StaticResource Studio.Hint}" Margin="0,5,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Grid Grid.Column="2">
+                                <DataGrid ItemsSource="{Binding WalkForwardRows}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Window" Binding="{Binding Window}" />
+                                        <DataGridTextColumn Header="IS score" Binding="{Binding InSampleScore, StringFormat=F3}" />
+                                        <DataGridTextColumn Header="OOS score" Binding="{Binding OutOfSampleScore, StringFormat=F3}" />
+                                        <DataGridTextColumn Header="OOS net" Binding="{Binding OutOfSampleNetProfit, StringFormat=C2}" />
+                                        <DataGridTextColumn Header="OOS trades" Binding="{Binding OutOfSampleTrades}" />
+                                        <DataGridTextColumn Header="Parameters" Binding="{Binding Parameters}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <Border IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.EmptyState}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding WalkForwardRows.Count}" Value="0" />
+                                                        <Condition Binding="{Binding IsOptimizing}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel>
+                                        <TextBlock Text="NO WALK-FORWARD RESULTS" Style="{StaticResource App.SectionHeader}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="Configure at least one optimization axis, select the fold count, and run an out-of-sample validation."
+                                                   Style="{StaticResource Studio.Hint}" TextAlignment="Center" Margin="0,7,0,0" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.EmptyState}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOptimizing}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel Width="330">
+                                        <TextBlock Text="ROLLING VALIDATION IN PROGRESS" Style="{StaticResource App.SectionHeader}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding OptimizeStatus, TargetNullValue=Evaluating out-of-sample folds}"
+                                                   TextAlignment="Center" TextWrapping="Wrap" Margin="0,7,0,10" />
+                                        <ProgressBar IsIndeterminate="True" Height="4" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="VISUAL REPLAY" Style="{StaticResource Studio.TabItem}">
+                        <Grid Margin="0,10,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0">
+                                <Border Style="{StaticResource Studio.PlotFrame}">
+                                    <sp:WpfPlot x:Name="ReplayPlot" />
+                                </Border>
+                                <Border IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Studio.EmptyState}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasVisual}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel>
+                                        <TextBlock Text="VISUAL REPLAY NOT AVAILABLE" Style="{StaticResource App.SectionHeader}" HorizontalAlignment="Center" />
+                                        <TextBlock Text="Enable Record visual replay in the modeling section, then complete a single run to inspect candles and trade markers."
+                                                   Style="{StaticResource Studio.Hint}" TextAlignment="Center" Margin="0,7,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Border Grid.Row="1" Style="{StaticResource App.FooterBar}" Margin="0,8,0,0" Padding="10,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="130" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                                            Style="{StaticResource App.ToolButton}"
+                                            Content="REWIND"
+                                            Command="{Binding RewindCommand}"
+                                            IsEnabled="{Binding HasVisual}" />
+                                    <Button Grid.Column="1" Command="{Binding PlayPauseCommand}" IsEnabled="{Binding HasVisual}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource Studio.PrimaryButton}">
+                                                <Setter Property="Content" Value="PLAY" />
+                                                <Setter Property="MinWidth" Value="74" />
+                                                <Setter Property="Padding" Value="12,4" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                                        <Setter Property="Content" Value="PAUSE" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
+                                    <Slider Grid.Column="2"
+                                            Margin="12,0"
+                                            Minimum="0"
+                                            Maximum="{Binding BarCount}"
+                                            Value="{Binding CurrentBar}"
+                                            IsEnabled="{Binding HasVisual}"
+                                            VerticalAlignment="Center" />
+
+                                    <TextBlock Grid.Column="3"
+                                               Text="{Binding CurrentBarText}"
+                                               FontFamily="{DynamicResource Font.Data}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource Text.Secondary}"
+                                               Margin="0,0,14,0" />
+
+                                    <TextBlock Grid.Column="4"
+                                               Text="SPEED"
+                                               Style="{StaticResource Studio.FieldLabel}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <Slider Grid.Column="5"
+                                            Minimum="1"
+                                            Maximum="40"
+                                            Value="{Binding PlaybackSpeed}"
+                                            IsEnabled="{Binding HasVisual}"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

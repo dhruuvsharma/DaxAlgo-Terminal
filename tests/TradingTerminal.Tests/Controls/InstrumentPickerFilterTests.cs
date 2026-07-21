@@ -140,6 +140,44 @@ public sealed class InstrumentPickerFilterTests
     }
 
     [Fact]
+    public void Apply_collapses_equal_broker_rows_before_moving_items()
+    {
+        var a = Inst("A");
+        var duplicateA = Inst("A");
+        var b = Inst("B");
+        var target = new ObservableCollection<SignalInstrument> { a };
+
+        var apply = () => InstrumentPickerFilter.Apply(target, new[] { a, duplicateA, b });
+
+        apply.Should().NotThrow();
+        target.Should().Equal(a, b);
+    }
+
+    [Fact]
+    public void Apply_coalesces_a_reentrant_filter_change_without_using_a_stale_insert_index()
+    {
+        var a = Inst("A");
+        var b = Inst("B");
+        var c = Inst("C");
+        var d = Inst("D");
+        var target = new ObservableCollection<SignalInstrument> { a };
+        var reentered = false;
+
+        target.CollectionChanged += (_, _) =>
+        {
+            if (reentered) return;
+            reentered = true;
+            InstrumentPickerFilter.Apply(target, new[] { c });
+        };
+
+        var apply = () => InstrumentPickerFilter.Apply(target, new[] { a, b, d });
+
+        apply.Should().NotThrow();
+        target.Should().ContainSingle().Which.Should().BeSameAs(c,
+            "the most recent filter request wins after the active update completes");
+    }
+
+    [Fact]
     public void InitialSelection_falls_back_to_the_default_when_nothing_is_remembered()
     {
         var all = new[] { Inst("AAPL"), Inst("MSFT") };

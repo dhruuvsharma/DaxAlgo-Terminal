@@ -101,7 +101,6 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintWindow.xaml.cs
 ```cs
-   12: public partial class VolumeFootprintWindow : MetroWindow
-   14: public VolumeFootprintWindow() => InitializeComponent();
-   16: protected override void OnClosed(EventArgs e)
+   11: public partial class VolumeFootprintWindow : MetroWindow
+   13: public VolumeFootprintWindow() => InitializeComponent();
 ```

@@ -22,10 +22,6 @@ public partial class LiveCorrelationMatrixWindow : MetroWindow
         matrix.SetBinding(CorrelationMatrixControl.MatrixProperty,
             new Binding(nameof(LiveCorrelationMatrixViewModel.MatrixResult)));
         MatrixHost.Content = matrix;
-
-        // Dispose the VM when the window closes — critical for the live tool: otherwise its hub quote
-        // subscriptions and sampler DispatcherTimer keep the VM rooted (and ticking) forever.
-        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
     }
 
     private void ExportPng_Click(object sender, RoutedEventArgs e)

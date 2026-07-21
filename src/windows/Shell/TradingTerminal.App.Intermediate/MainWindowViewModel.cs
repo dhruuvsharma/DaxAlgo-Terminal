@@ -444,7 +444,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             window.Closed += (_, _) =>
             {
                 _host.Unregister(capturedId);
-                if (host.ViewModel is IDisposable d) d.Dispose();
+                // StrategyWindowBase owns its VM because it must await Stop before disposal. Plain
+                // plugin windows and hosted views have no such owner, so the shell releases those.
+                if (window is not StrategyWindowBase && host.ViewModel is IDisposable d) d.Dispose();
             };
             _host.Register(capturedId, window);
             window.Show();

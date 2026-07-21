@@ -284,7 +284,7 @@ public sealed class CliWorkspaceLauncher(
                  contract assemblies into the plugin's load context, so never ship TradingTerminal.* /
                  DaxAlgo.Sdk* copies next to the strategy. DaxAlgo.Sdk.Wpf bundles DaxAlgo.Sdk plus the
                  WPF live-window base types. -->
-            <PackageReference Include="DaxAlgo.Sdk.Wpf" Version="0.1.0-alpha" ExcludeAssets="runtime" />
+            <PackageReference Include="DaxAlgo.Sdk.Wpf" Version="0.2.0-alpha" ExcludeAssets="runtime" />
           </ItemGroup>
 
         </Project>

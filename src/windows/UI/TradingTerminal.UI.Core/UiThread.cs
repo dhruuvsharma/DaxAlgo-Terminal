@@ -37,14 +37,55 @@ public static class UiThread
     // `_renderTimer?.Dispose()`). The factory cannot dispose it here (it would never fire), so the
     // teardown lives in the returned handle.
     private static IDisposable DefaultRenderTimer(TimeSpan interval, Action tick)
-    {
-        var timer = new System.Threading.Timer(_ => Marshal(() => { tick(); return Task.CompletedTask; }), null, interval, interval);
-        return new TimerHandle(timer);
-    }
+        => new CoalescingRenderTimer(interval, tick);
 
-    /// <summary>Owns the render timer; disposing the handle stops + releases it.</summary>
-    private sealed class TimerHandle(System.Threading.Timer timer) : IDisposable
+    /// <summary>Allows at most one dispatcher callback to be queued at a time.</summary>
+    private sealed class CoalescingRenderTimer : IDisposable
     {
-        public void Dispose() => timer.Dispose();
+        private readonly Action _tick;
+        private readonly System.Threading.Timer _timer;
+        private int _pending;
+        private int _disposed;
+
+        public CoalescingRenderTimer(TimeSpan interval, Action tick)
+        {
+            _tick = tick;
+            _timer = new System.Threading.Timer(OnTimer, null, interval, interval);
+        }
+
+        private void OnTimer(object? state)
+        {
+            if (Volatile.Read(ref _disposed) != 0 ||
+                Interlocked.CompareExchange(ref _pending, 1, 0) != 0)
+                return;
+
+            _ = DispatchAsync();
+        }
+
+        private async Task DispatchAsync()
+        {
+            try
+            {
+                await Marshal(() =>
+                {
+                    if (Volatile.Read(ref _disposed) == 0) _tick();
+                    return Task.CompletedTask;
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Render timer callback failed: {ex}");
+            }
+            finally
+            {
+                Volatile.Write(ref _pending, 0);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _timer.Dispose();
+        }
     }
 }

@@ -17,8 +17,10 @@ namespace TradingTerminal.Tests.Backtesting;
 /// Parity gate: the new <see cref="BacktestEngine"/> must reproduce the old
 /// <see cref="BacktestSession"/> to floating-point exactness when running the SAME strategy over the
 /// SAME ticks. We run the legacy <see cref="MeanReversionStrategy"/> natively on the old engine and,
-/// via <see cref="BacktestStrategyKernelAdapter"/>, on the new engine, then compare ending equity and
-/// the round-trip ledger. Slippage 0 + multiplier 1 keeps both engines on identical arithmetic.
+/// via <see cref="BacktestStrategyKernelAdapter"/>, on the new engine, then compare the common
+/// round-trip ledger. The canonical engine additionally fills the strategy's final liquidation at
+/// the last touch; the legacy session leaves that order working and marks the position at mid.
+/// Slippage 0 + multiplier 1 keeps the shared replay on identical arithmetic.
 /// </summary>
 public sealed class EngineParityTests
 {
@@ -82,15 +84,39 @@ public sealed class EngineParityTests
 
             // --- Parity assertions. ---
             newReport.Trades.Should().NotBeEmpty("the strategy must actually trade for parity to be meaningful");
-            newReport.Trades.Count.Should().Be(oldResult.Trades.Count);
-            newReport.Summary.EndingEquity.Should().BeApproximately(oldResult.EndingCash, 1e-6);
-            newReport.Trades.Sum(t => t.GrossPnl).Should().BeApproximately(oldResult.Trades.Sum(t => t.GrossPnl), 1e-6);
+            oldResult.Fills.Should().NotBeNull();
+            var legacyFills = oldResult.Fills!;
+            var legacyOpenQuantity = legacyFills.Sum(f =>
+                f.Side == TradingTerminal.Core.Trading.OrderSide.Buy ? f.Quantity : -f.Quantity);
+            var expectedFinalCloseCount = legacyOpenQuantity == 0 ? 0 : 1;
 
-            for (var i = 0; i < newReport.Trades.Count; i++)
+            newReport.Trades.Count.Should().Be(oldResult.Trades.Count + expectedFinalCloseCount);
+            newReport.Trades.Take(oldResult.Trades.Count).Sum(t => t.GrossPnl)
+                .Should().BeApproximately(oldResult.Trades.Sum(t => t.GrossPnl), 1e-6);
+
+            for (var i = 0; i < oldResult.Trades.Count; i++)
             {
                 newReport.Trades[i].EntryPrice.Should().BeApproximately(oldResult.Trades[i].EntryPrice, 1e-9);
                 newReport.Trades[i].ExitPrice.Should().BeApproximately(oldResult.Trades[i].ExitPrice, 1e-9);
                 newReport.Trades[i].GrossPnl.Should().BeApproximately(oldResult.Trades[i].GrossPnl, 1e-9);
+            }
+
+            if (legacyOpenQuantity == 0)
+            {
+                newReport.Summary.EndingEquity.Should().BeApproximately(oldResult.EndingCash, 1e-6);
+            }
+            else
+            {
+                var last = ticks[^1];
+                var expectedExit = legacyOpenQuantity > 0 ? last.Bid : last.Ask;
+                var expectedSpreadCost = Math.Abs(legacyOpenQuantity) * (last.Ask - last.Bid) * 0.5;
+                var finalClose = newReport.Trades[^1];
+
+                finalClose.Quantity.Should().Be(Math.Abs(legacyOpenQuantity));
+                finalClose.ExitPrice.Should().BeApproximately(expectedExit, 1e-9);
+                finalClose.ExitUtc.Should().Be(last.TimestampUtc);
+                newReport.Summary.EndingEquity
+                    .Should().BeApproximately(oldResult.EndingCash - expectedSpreadCost, 1e-6);
             }
         }
         finally

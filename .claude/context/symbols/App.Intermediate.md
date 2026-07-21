@@ -134,39 +134,39 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   400: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
   407: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
   416: public void OpenStrategy(string? strategyId)
-  464: public void QuickBacktest(string? strategyId)
-  503: public async Task ReconnectAsync()
-  514: public void Exit()
-  523: public async Task StartQuestDbAsync()
-  533: public ObservableCollection<ThemeMenuOption> Themes { get; }
-  560: public void OpenThemeStudio() =>
-  592: public void OpenPluginManager() =>
-  597: public void OpenStrategyAuthoring() =>
-  603: public IReadOnlyList<CliLaunchChoice> CliLaunchChoices { get; }
-  607: public bool HasCliLaunchers => CliLaunchChoices.Any(choice => choice.IsAvailable);
-  613: public void LaunchCli(CliLaunchChoice? choice)
-  629: public void OpenBacktestStudio() =>
-  635: public TickRecordingService Recorder { get; }
-  640: public void OpenRecorder() =>
-  645: public void OpenCorrelation() =>
-  650: public void OpenLiveCorrelation() =>
-  657: public void OpenSupport() =>
-  662: public void OpenCharts() =>
-  666: public void OpenOrderBook() =>
-  670: public void OpenFootprint() =>
-  674: public void OpenBookmap() =>
-  678: public void OpenAdvancedRegime() =>
-  684: public void OpenNotificationsSettings() =>
-  688: public void OpenAiProvidersSettings() =>
-  693: public void OpenArchiveSettings() =>
-  697: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
-  729: public void InstantOffload()
-  736: public Task StartAsync()
-  748: public sealed class CliLaunchChoice(AgentCliAdapter adapter, bool isAvailable)
-  750: public AgentCliAdapter Adapter { get; } = adapter;
-  751: public bool IsAvailable { get; } = isAvailable;
-  752: public string DisplayName => Adapter.DisplayName;
-  753: public string MenuHeader => IsAvailable ? Adapter.DisplayName : $"{Adapter.DisplayName} — not installed";
+  466: public void QuickBacktest(string? strategyId)
+  505: public async Task ReconnectAsync()
+  516: public void Exit()
+  525: public async Task StartQuestDbAsync()
+  535: public ObservableCollection<ThemeMenuOption> Themes { get; }
+  562: public void OpenThemeStudio() =>
+  594: public void OpenPluginManager() =>
+  599: public void OpenStrategyAuthoring() =>
+  605: public IReadOnlyList<CliLaunchChoice> CliLaunchChoices { get; }
+  609: public bool HasCliLaunchers => CliLaunchChoices.Any(choice => choice.IsAvailable);
+  615: public void LaunchCli(CliLaunchChoice? choice)
+  631: public void OpenBacktestStudio() =>
+  637: public TickRecordingService Recorder { get; }
+  642: public void OpenRecorder() =>
+  647: public void OpenCorrelation() =>
+  652: public void OpenLiveCorrelation() =>
+  659: public void OpenSupport() =>
+  664: public void OpenCharts() =>
+  668: public void OpenOrderBook() =>
+  672: public void OpenFootprint() =>
+  676: public void OpenBookmap() =>
+  680: public void OpenAdvancedRegime() =>
+  686: public void OpenNotificationsSettings() =>
+  690: public void OpenAiProvidersSettings() =>
+  695: public void OpenArchiveSettings() =>
+  699: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
+  731: public void InstantOffload()
+  738: public Task StartAsync()
+  750: public sealed class CliLaunchChoice(AgentCliAdapter adapter, bool isAvailable)
+  752: public AgentCliAdapter Adapter { get; } = adapter;
+  753: public bool IsAvailable { get; } = isAvailable;
+  754: public string DisplayName => Adapter.DisplayName;
+  755: public string MenuHeader => IsAvailable ? Adapter.DisplayName : $"{Adapter.DisplayName} — not installed";
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml.cs

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <AssemblyName>TradingTerminal.Backtest.Worker</AssemblyName>
+    <Description>WPF-free, one-shot managed backtest worker. Executes one immutable job and atomically publishes hashed artifacts.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TradingTerminal.Backtest.Protocol\TradingTerminal.Backtest.Protocol.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+  </ItemGroup>
+
+  <!-- Reuse only the parquet wire record. The worker decodes the already-verified open handle,
+       without referencing Infrastructure or reopening the immutable input by path. -->
+  <ItemGroup>
+    <Compile Include="..\..\Pipeline\TradingTerminal.Infrastructure\Backtest\Persistence\TickRecord.cs"
+             Link="Persistence\TickRecord.cs" />
+    <PackageReference Include="Parquet.Net" Version="5.0.2" />
+  </ItemGroup>
+
+  <!-- Expose the complete, isolated output closure to desktop hosts. A dedicated target avoids
+       relying on cached GetTargetPath results when the worker was already built as a project
+       reference in the same MSBuild graph. -->
+  <Target Name="GetBacktestWorkerStagingFiles"
+          DependsOnTargets="Build"
+          Returns="@(_BacktestWorkerStagingFile)">
+    <Error Condition="'$(TargetDir)' == ''"
+           Text="The backtest worker target directory could not be resolved." />
+    <ItemGroup>
+      <_BacktestWorkerStagingFile Include="$(TargetDir)**\*" />
+    </ItemGroup>
+    <Error Condition="'@(_BacktestWorkerStagingFile)' == ''"
+           Text="No backtest worker output was found under '$(TargetDir)'." />
+  </Target>
+
+</Project>

@@ -10,7 +10,7 @@
     <PackageType>Template</PackageType>
     <PackageId>DaxAlgo.Templates</PackageId>
     <Version>$(DaxAlgoSdkVersion)</Version>
-    <Description>dotnet new templates for DaxAlgo Terminal strategy plugins (daxalgo-strategy: plugin entry point, backtest kernel with a worked EMA-cross demo, offline test harness, .daxplugin packaging script, AI context pack).</Description>
+    <Description>dotnet new templates for DaxAlgo strategies: deterministic WPF-free engine, optional Windows UI companion, offline tests, signed .daxstrategy packaging, legacy adapter, and AI context.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>daxalgo;templates;dotnet-new;trading;strategy;plugin</PackageTags>
 

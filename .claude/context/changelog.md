@@ -1,5 +1,54 @@
 # context changelog — append-only session journal
 
+## 2026-07-21 — deterministic signed strategy bundle foundation
+- Added the passive `.daxstrategy` v1 container, canonical UTF-8 manifest/content root, strict bounded
+  archive and managed-payload validation, standard DSSE ECDSA P-256 publisher signing, and a portable
+  `daxalgo-bundle` pack/sign/verify/inspect tool. Verification binds trusted keys to the manifest
+  publisher and never loads strategy code.
+- Added the explicit, parameter-aware `IStrategyEngineFactory` SDK contract and deterministic managed
+  assembly graph so one WPF-free engine assembly is the live/backtest/optimizer implementation; optional
+  Windows presentation stays separate. Advanced validation rejects host copies, native/mixed/R2R payloads, missing private
+  dependencies, UI references in the engine closure, path aliases, executable resources, and tampering.
+- Advanced the Windows SDK/tool/template chain to `0.2.0-alpha`; split the strategy template into a
+  canonical Engine project plus optional WPF companion, added deterministic bundle packaging, stable
+  publisher/capability metadata, and preserved the legacy `.daxplugin` adapter.
+- Hardened legacy and bundle-tool output against normalized/junction/symlink/hard-link aliases, including
+  non-overwriting final moves, and accepted PowerShell 5.1 UTF-8 BOM indexes. Extended CI for local-vNext/
+  published package smoke and cross-root reproducibility.
+- Verified 35 focused bundle tests, 871/871 shared headless tests, fresh headless/UI template builds and
+  packages from local NuGets, and Basic/Intermediate/Professional Release builds. Runtime loading,
+  immutable installation, marketplace attestations/revocation, and trust UX remain later slices.
+
+## 2026-07-21 — isolated backtest worker and Studio workbench
+- Added a versioned, WPF-free one-shot backtest worker plus a thin Infrastructure client. Jobs use
+  immutable hashed inputs, bounded progress, atomic hashed reports, strict protocol/component checks,
+  Windows Job Object ownership, cancellation/timeout/crash classification, and guarded cleanup.
+- Kept the author-once invariant: the first worker slice executes the canonical managed engine
+  assembly directly and pins its exact hash; it does not introduce a second strategy implementation.
+  Exact-hash loading of arbitrary external strategy engine packages remains the SDK-vNext phase.
+- Tightened canonical-engine causality and lifecycle: FIFO order callbacks, same-touch end-of-run
+  liquidation/drain, disposal on all exits, and explicit rejection of unsupported execution options.
+- Routed supported Backtest Studio single runs through the worker and redesigned the WPF surface as
+  an MT5-inspired tester workbench with configuration rail, progress/cancel, metrics, report tabs,
+  optimization/replay states, and truthful execution-target badges.
+- Staged/published the isolated worker closure for Basic, Intermediate, and Pro. Verified 793/793
+  headless tests, all three Windows edition builds, and a Basic publish containing the worker sidecar.
+
+## 2026-07-20 — Windows tool-window lifetime and service-probe reliability
+- Made the shared shell the single owner of standalone Charts, Order Book, Volume Footprint,
+  Bookmap, Historical Correlation, and Live Correlation view-model disposal, removing deterministic
+  close-time double disposal in Basic, Intermediate, and Professional compositions.
+- Made chart reload cancellation and live-strategy start/stop/dispose ownership atomic and
+  idempotent, including the close-while-starting case where a plug-in ignores cancellation.
+- Replaced abandoned TCP reachability tasks with directly awaited, cancellation-aware connections;
+  refused, timed-out, and cancelled login probes now complete as ordinary unavailable states.
+- Made shared instrument-picker updates coalesce synchronous ComboBox re-entry and normalize equal
+  broker rows before moving items, preventing recorder/tool launch `ArgumentOutOfRangeException`s.
+- Added focused pending-reload, double-dispose, delayed-strategy-start, loopback, closed-port, and
+  pre-cancelled probe regressions plus picker duplicate/re-entry coverage.
+- Verified the complete shared Windows test project at 64/64 and an isolated Basic, Intermediate,
+  and Professional launch/close/reopen matrix at 40/40 with no new crash-report filenames.
+
 ## 2026-07-20 — context integrity and Codex parity
 - Repaired the active Windows layer: 28 projects / 911 `.cs`+XAML-family files; removed orphaned
   Windows strategy indexes/symbols, added Codegen/StrategyTool/StrategyComposer to the graph, and

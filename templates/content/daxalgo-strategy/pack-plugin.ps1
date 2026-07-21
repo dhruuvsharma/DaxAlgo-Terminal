@@ -19,7 +19,9 @@ try {
     # The plugin package = main dll + manifest (+ pdb/deps.json). Add any plugin-PRIVATE dependency
     # dlls your csproj copies to bin here too — NEVER TradingTerminal.*/DaxAlgo.Sdk* (the host
     # provides those; a shipped copy breaks type identity).
-    foreach ($file in @("$name.dll", "plugin.json", "$name.pdb", "$name.deps.json")) {
+    foreach ($file in @(
+        "$name.dll", "plugin.json", "$name.pdb", "$name.deps.json",
+        "$name.Engine.dll", "$name.Engine.pdb")) {
         $source = Join-Path $bin $file
         if (Test-Path $source) { Copy-Item $source $stage }
     }

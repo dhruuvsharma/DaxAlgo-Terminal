@@ -4,7 +4,7 @@
   "classifications": ["DaxAlgo", "Trading", "Plugin"],
   "identity": "DaxAlgo.Strategy.CSharp",
   "name": "DaxAlgo Terminal strategy plugin",
-  "description": "A DaxAlgo Terminal strategy plugin: IStrategyPlugin registration, a backtestable IBacktestStrategy kernel with a worked EMA-cross demo, an offline test harness, a .daxplugin packaging script, and a CLAUDE.md/AGENTS.md context pack for AI-assisted authoring. Pass --ui to scaffold a live strategy window (LiveSignalStrategyViewModelBase + MetroWindow) as well.",
+  "description": "A DaxAlgo strategy with a deterministic WPF-free Engine project, optional Windows UI companion, offline tests, signed .daxstrategy packaging, a legacy .daxplugin adapter, and AI-authoring context. Pass --ui for the WPF presentation companion.",
   "shortName": "daxalgo-strategy",
   "sourceName": "DaxNewStrategy",
   "preferNameDirectory": true,
@@ -26,7 +26,7 @@
       "type": "parameter",
       "datatype": "bool",
       "defaultValue": "false",
-      "description": "Also scaffold a live strategy window (view-model on LiveSignalStrategyViewModelBase + a MetroWindow view + StrategyFactoryRegistration), referencing DaxAlgo.Sdk.Wpf. Omit for a headless / backtest-only plugin."
+      "description": "Also scaffold a WPF presentation companion. It references the canonical Engine project; Engine stays UI-free."
     }
   },
   "sources": [

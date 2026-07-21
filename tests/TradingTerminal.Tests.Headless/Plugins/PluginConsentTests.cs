@@ -38,6 +38,11 @@ public sealed class PluginConsentTests : IDisposable
         }
     }
 
+    private sealed class SignatureInspector(PluginSignature signature) : IPluginSignatureInspector
+    {
+        public PluginSignature Inspect(string assemblyPath) => signature;
+    }
+
     private static readonly PluginTrustPolicy Curated = PluginTrustPolicy.Curated(["A-THUMBPRINT"]);
 
     private string WritePlugin(string name, string content = "unsigned-third-party")
@@ -131,6 +136,30 @@ public sealed class PluginConsentTests : IDisposable
         Load(prompt, new PluginStateStore(_root));
 
         prompt.Asked.Should().BeEmpty("the shipped catalogue must not interrogate the user on first run");
+    }
+
+    [Fact]
+    public void Consent_for_a_valid_but_unknown_signer_remains_marked_as_untrusted()
+    {
+        var dir = Directory.CreateDirectory(Path.Combine(_root, "ThirdParty")).FullName;
+        var fixture = Path.Combine(
+            AppContext.BaseDirectory, "TestPlugins", "DaxAlgo.SamplePlugin", "DaxAlgo.SamplePlugin.dll");
+        File.Copy(fixture, Path.Combine(dir, "ThirdParty.dll"));
+        File.WriteAllText(Path.Combine(dir, PluginManifest.FileName),
+            $$"""{ "id":"third.party", "name":"Third Party", "version":"1.0.0", "targetSdkVersion":"{{SdkInfo.Version}}" }""");
+
+        var prompt = new Prompt(answer: true);
+        var inspector = new SignatureInspector(new PluginSignature(
+            IsSigned: true, IsValid: true, Thumbprint: "NOT-TRUSTED", Subject: "CN=Unknown Publisher"));
+
+        var report = PluginLoader.LoadWithReport(
+            new ServiceCollection(), _root, SdkInfo.Version, Curated, inspector,
+            new PluginStateStore(_root), PluginScanMode.Off, prompt);
+
+        prompt.Asked.Should().ContainSingle("an unrecognized signing key still requires explicit consent");
+        report.Loaded.Should().ContainSingle();
+        report.Loaded[0].Unsigned.Should().BeTrue(
+            "consent is not evidence that the signer is a recognized publisher");
     }
 
     [Fact]

@@ -22,6 +22,15 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    33: public sealed record PluginContext(string Name, string AssemblyPath, string TargetSdkVersion);
 ```
 
+## src/windows/Sdk/DaxAlgo.Sdk/IStrategyEngineFactory.cs
+```cs
+   13: public interface IStrategyEngineFactory
+   16:     StrategyParameterSchema Schema { get; }
+   19:     StrategyDataRequirement DataRequirement { get; }
+   22:     IBacktestStrategy Create(Contract contract, StrategyParameters parameters);
+   25:     IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
+```
+
 ## src/windows/Sdk/DaxAlgo.Sdk/IStrategyPlugin.cs
 ```cs
    16: public interface IStrategyPlugin
@@ -32,6 +41,6 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Sdk/DaxAlgo.Sdk/SdkInfo.cs
 ```cs
-   15: public static class SdkInfo
-   18: public const string Version = "0.1.1-alpha";
+   14: public static class SdkInfo
+   17: public const string Version = "0.2.0-alpha";
 ```

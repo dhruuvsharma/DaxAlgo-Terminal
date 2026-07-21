@@ -47,6 +47,8 @@ public partial class BookmapHeatmapWindow : MetroWindow
     {
         if (_vm is null) return;
         _vm.HeatmapUpdated -= OnHeatmapUpdated;
-        _vm.Dispose();
+        _surface.ViewModel = null;
+        _vm = null;
+        // The shell window host owns and disposes the standalone view-model exactly once.
     }
 }

@@ -1,5 +1,7 @@
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using DaxAlgo.Sdk;
@@ -78,14 +80,15 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             trees.Add(CSharpSyntaxTree.ParseText(file.Content, ParseOptions, path: FileName(file, script)));
 
         var compilation = CSharpCompilation.Create(
-            assemblyName: $"DaxAlgo.Authored.{Sanitize(script.Id)}.{Guid.NewGuid():N}",
+            assemblyName: BuildAssemblyName(script, globals),
             syntaxTrees: trees,
             references: references,
             options: new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
                 optimizationLevel: OptimizationLevel.Release,
                 nullableContextOptions: NullableContextOptions.Enable,
-                allowUnsafe: false));
+                allowUnsafe: false)
+                .WithDeterministic(true));
 
         using var peStream = new MemoryStream();
         var emit = compilation.Emit(peStream);
@@ -330,4 +333,37 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
 
     private static string Sanitize(string id) =>
         new(id.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+
+    /// <summary>
+    /// Gives identical authored inputs an identical assembly identity while retaining the content suffix
+    /// that lets a changed strategy coexist with the previous in-memory build during the same session.
+    /// Length-prefixing each value makes the hash unambiguous (<c>["ab", "c"]</c> cannot collide with
+    /// <c>["a", "bc"]</c> through concatenation alone).
+    /// </summary>
+    private static string BuildAssemblyName(StrategyScript script, string globals)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        Append(script.Id);
+        Append(script.DisplayName);
+        Append(globals);
+        Append(PluginEntryPoint(script));
+        foreach (var file in script.Files)
+        {
+            Append(FileName(file, script));
+            Append(file.Content);
+        }
+
+        var suffix = Convert.ToHexString(hash.GetHashAndReset())[..24].ToLowerInvariant();
+        return $"DaxAlgo.Authored.{Sanitize(script.Id)}.{suffix}";
+
+        void Append(string value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value);
+            Span<byte> length = stackalloc byte[sizeof(int)];
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
+            hash.AppendData(length);
+            hash.AppendData(bytes);
+        }
+    }
 }

@@ -28,11 +28,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxPluginPackage.cs
 ```cs
-   16: public static class DaxPluginPackage
-   18: public const string Extension = ".daxplugin";
-   19: public const string IndexEntryName = "package.json";
-   36: public static void Write(string pluginDirectory, string mainAssemblyFileName, string outputPath)
-   70: public static (string ExtractedDir, string MainAssemblyName) ExtractAndVerify(string packagePath)
+   15: public static class DaxPluginPackage
+   17: public const string Extension = ".daxplugin";
+   18: public const string IndexEntryName = "package.json";
+   82: public static void Write(string pluginDirectory, string mainAssemblyFileName, string outputPath)
+  130: public static (string ExtractedDir, string MainAssemblyName) ExtractAndVerify(string packagePath) =>
+  666: public void Add(ValidatedPath path)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSignatureVerifier.cs
@@ -208,27 +209,27 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    82: public static PluginLoadReport LoadWithReport(
    93: public static PluginLoadReport LoadWithReport(
   109: public static PluginLoadReport LoadWithReport(
-  342: public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
-  380: public static bool IsCompatible(string pluginVersion, string hostVersion)
-  413: public IServiceCollection Services { get; } = services;
-  414: public PluginContext Context { get; } = context;
-  418: public sealed class PluginIncompatibleException(string pluginName, string pluginVersion, string hostVersion)
-  421: public string PluginName { get; } = pluginName;
-  422: public string PluginVersion { get; } = pluginVersion;
-  423: public string HostVersion { get; } = hostVersion;
-  428: public sealed class PluginRejectedException(string assemblyPath, string reason)
-  431: public string AssemblyPath { get; } = assemblyPath;
-  432: public string Reason { get; } = reason;
-  438: public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
-  441: public string AssemblyPath { get; } = assemblyPath;
-  442: public PluginScanReport Scan { get; } = scan;
-  443: public string Reason { get; } = scan.Summary;
-  449: public sealed class PluginTamperedException(string assemblyPath, string reason)
-  452: public string AssemblyPath { get; } = assemblyPath;
-  453: public string Reason { get; } = reason;
-  458: public sealed class PluginRevokedException(string assemblyPath, string reason)
-  461: public string AssemblyPath { get; } = assemblyPath;
-  462: public string Reason { get; } = reason;
+  346: public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
+  384: public static bool IsCompatible(string pluginVersion, string hostVersion)
+  417: public IServiceCollection Services { get; } = services;
+  418: public PluginContext Context { get; } = context;
+  422: public sealed class PluginIncompatibleException(string pluginName, string pluginVersion, string hostVersion)
+  425: public string PluginName { get; } = pluginName;
+  426: public string PluginVersion { get; } = pluginVersion;
+  427: public string HostVersion { get; } = hostVersion;
+  432: public sealed class PluginRejectedException(string assemblyPath, string reason)
+  435: public string AssemblyPath { get; } = assemblyPath;
+  436: public string Reason { get; } = reason;
+  442: public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
+  445: public string AssemblyPath { get; } = assemblyPath;
+  446: public PluginScanReport Scan { get; } = scan;
+  447: public string Reason { get; } = scan.Summary;
+  453: public sealed class PluginTamperedException(string assemblyPath, string reason)
+  456: public string AssemblyPath { get; } = assemblyPath;
+  457: public string Reason { get; } = reason;
+  462: public sealed class PluginRevokedException(string assemblyPath, string reason)
+  465: public string AssemblyPath { get; } = assemblyPath;
+  466: public string Reason { get; } = reason;
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs

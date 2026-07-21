@@ -60,6 +60,37 @@ public class RoslynStrategyCompilerTests
     }
 
     [Fact]
+    public void Identical_authored_inputs_emit_identical_assembly_bytes()
+    {
+        var compiler = new RoslynStrategyCompiler();
+        var script = new StrategyScript("repeatable", "Repeatable", ValidSource);
+
+        var first = compiler.Compile(script);
+        var second = compiler.Compile(script);
+
+        first.Success.Should().BeTrue(string.Join("; ", first.Diagnostics));
+        second.Success.Should().BeTrue(string.Join("; ", second.Diagnostics));
+        second.Authored!.Image.Should().Equal(first.Authored!.Image,
+            "the bundle content root must not change when authored inputs do not change");
+        second.Authored.Assembly.GetName().Name.Should().Be(first.Authored.Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void Changed_authored_source_gets_a_different_deterministic_identity()
+    {
+        var compiler = new RoslynStrategyCompiler();
+
+        var first = compiler.Compile(new StrategyScript("repeatable", "Repeatable", ValidSource));
+        var second = compiler.Compile(new StrategyScript(
+            "repeatable", "Repeatable", ValidSource.Replace("MyStrat", "ChangedStrat", StringComparison.Ordinal)));
+
+        first.Success.Should().BeTrue(string.Join("; ", first.Diagnostics));
+        second.Success.Should().BeTrue(string.Join("; ", second.Diagnostics));
+        second.Authored!.Assembly.GetName().Name.Should().NotBe(first.Authored!.Assembly.GetName().Name,
+            "a regenerated strategy must coexist with its prior in-memory build");
+    }
+
+    [Fact]
     public void Compile_invalid_source_fails_with_error_diagnostics()
     {
         var compiler = new RoslynStrategyCompiler();

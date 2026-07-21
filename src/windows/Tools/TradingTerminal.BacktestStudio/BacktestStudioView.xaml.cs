@@ -20,13 +20,25 @@ public partial class BacktestStudioView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
-        Unloaded += (_, _) => Detach();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         Detach();
-        _vm = e.NewValue as BacktestStudioViewModel;
+        if (IsLoaded) Attach(e.NewValue as BacktestStudioViewModel);
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e) =>
+        Attach(DataContext as BacktestStudioViewModel);
+
+    private void OnUnloaded(object sender, RoutedEventArgs e) => Detach();
+
+    private void Attach(BacktestStudioViewModel? viewModel)
+    {
+        Detach();
+        _vm = viewModel;
         if (_vm is null) return;
         _vm.ReportReady += OnReportReady;
         _vm.ReplayFrameChanged += OnReplayFrameChanged;

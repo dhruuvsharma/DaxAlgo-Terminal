@@ -14,7 +14,11 @@
     <ProjectReference Include="..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Worker\TradingTerminal.Backtest.Worker.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\windows\Sdk\DaxAlgo.Strategy.Bundle\DaxAlgo.Strategy.Bundle.csproj" />
+    <ProjectReference Include="..\..\src\windows\Tools\DaxAlgo.Strategy.BundleTool\DaxAlgo.Strategy.BundleTool.csproj" />
     <ProjectReference Include="..\..\src\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 

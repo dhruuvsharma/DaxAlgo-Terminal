@@ -98,4 +98,6 @@
     </None>
   </ItemGroup>
 
+  <Import Project="..\..\Backtest\BacktestWorker.Staging.targets" />
+
 </Project>

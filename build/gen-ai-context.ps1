@@ -131,6 +131,29 @@ public static IBacktestStrategy Create(Contract contract, StrategyParameters p) 
 ``````
 "@
 
+$templateParameters = @"
+The manifest-named factory owns the parameter schema, data requirements, and activation. Untunable
+strategies use ``StrategyParameterSchema.Empty``; tunable strategies declare their schema once and pass
+the selected values into the same kernel used by live replay, single backtests, and optimizer sweeps:
+
+``````csharp
+public StrategyParameterSchema Schema { get; } = new(
+    StrategyParameter.Int("lookback", "Look-back", 20, min: 2, max: 500),
+    StrategyParameter.Number("threshold", "Entry threshold", 1.5, min: 0.1, max: 10, step: 0.1));
+
+public StrategyDataRequirement DataRequirement =>
+    StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+public IBacktestStrategy Create(Contract contract, StrategyParameters parameters) =>
+    new DaxNewStrategyKernel(
+        contract,
+        parameters.GetInt("lookback"),
+        parameters.GetDouble("threshold"));
+
+public IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
+``````
+"@
+
 # -- Output 1: the pack (in-app pane + CLI system prompt) -------------------------------------------
 $pack = @"
 # DaxAlgo Terminal - strategy authoring context (SDK $sdkVersion)
@@ -331,11 +354,19 @@ When working inside a scaffold from ``dotnet new daxalgo-strategy`` (its ``CLAUD
 carry the same rules), you edit files rather than emit blocks:
 
 - Put ALL strategy math in ``<Name>/Engine/<Name>Kernel.cs`` (the ``IBacktestStrategy``).
+- Keep ``<Name>/Engine/<Name>Factory.cs`` as the public, parameterless
+  ``IStrategyEngineFactory`` named by the bundle manifest. It owns ``Schema``, ``DataRequirement``, and
+  parameterized kernel activation, but contains no strategy math.
+- The nested ``<Name>.Engine.csproj`` is the canonical WPF-free assembly. The outer project is only the
+  Windows presentation / legacy-host adapter and may depend on Engine; Engine never depends on it.
 - Keep the plugin entry point (``<Name>Plugin.cs``), the ``plugin.json`` manifest, and - for a
   ``--ui`` scaffold - the view-model (on ``LiveSignalStrategyViewModelBase``) + window.
 - Grow ``<Name>.Tests/`` with real invariants; ``dotnet build`` + ``dotnet test`` must stay green.
 - Never reference ``TradingTerminal.*`` projects or ship host DLLs - the ``DaxAlgo.Sdk`` package
   (``ExcludeAssets="runtime"``) is the whole surface.
+- ``pack-strategy.ps1`` creates the deterministic ``.daxstrategy``; ``pack-plugin.ps1`` remains the
+  compatibility adapter for hosts that do not yet load bundles. Keep ``plugin.json.publisherId`` stable,
+  declare capabilities there, and let the pack script include engine-private managed dependencies.
 
 ---
 
@@ -347,32 +378,37 @@ sources (SdkInfo.cs, the template kernel, this generator) and regenerate.*
 # Uses the SAME $engineContract / $hardRules as the pack, so they can't drift. DaxNewStrategy is the
 # template sourceName; `dotnet new` substitutes the user's project name on scaffold.
 $templateClaude = @"
-# DaxNewStrategy - DaxAlgo Terminal strategy plugin
+# DaxNewStrategy - DaxAlgo Terminal strategy
 
-This repo is a **strategy plugin for DaxAlgo Terminal** (a WPF multi-broker trading terminal),
-scaffolded by ``dotnet new daxalgo-strategy``. It compiles against the **DaxAlgo.Sdk** NuGet package
-(SDK ``$sdkVersion``) and is loaded by the terminal at runtime from its ``plugins/`` folder - the host
-never recompiles. This file is the working context for an AI coding agent; everything below is
-load-bearing. (It is generated from the same source as the in-app builder's context, so it can't drift -
-see ``build/gen-ai-context.ps1``.)
+This repo is a strategy for DaxAlgo Terminal, scaffolded by ``dotnet new daxalgo-strategy``. The nested
+Engine project compiles once against **DaxAlgo.Sdk** (SDK ``$sdkVersion``); that exact WPF-free assembly is
+the source of live and backtest behavior. The outer project supplies Windows presentation and the legacy
+plugin adapter. This file is the working context for an AI coding agent and is generated from the same
+source as the in-app builder's context.
 
 ## What a strategy is here
 
 - **``DaxNewStrategy/Engine/DaxNewStrategyKernel.cs``** - the strategy itself: an ``IBacktestStrategy``
   receiving ticks and placing orders through ``IOrderRouter``. ALL strategy math lives here.
-- **``DaxNewStrategy/DaxNewStrategyPlugin.cs``** - the ``IStrategyPlugin`` entry point (the host finds
-  exactly one public implementation per assembly) plus the catalog descriptor. Registration is plain
-  ``IServiceCollection`` calls.
-- **``DaxNewStrategy/plugin.json``** - read by the host BEFORE any code loads: id, version, and
-  ``targetSdkVersion`` (must stay compatible with the host SDK; pre-1.0 = exact major.minor).
-- **``DaxNewStrategy.Tests/``** - offline harness driving the kernel with synthetic ticks through a
-  recording router. Keep it green; grow it with the strategy's invariants.
+- **``DaxNewStrategy/Engine/DaxNewStrategyFactory.cs``** - the manifest-named, public parameterless
+  ``IStrategyEngineFactory``. It declares parameters and data needs, then creates the kernel through the
+  same activation seam used by live replay, single backtests, and optimizer sweeps.
+- **``DaxNewStrategy/Engine/DaxNewStrategy.Engine.csproj``** - the deterministic, WPF-free canonical
+  assembly. It never references the outer project, WPF, or UI assemblies.
+- **``DaxNewStrategy/DaxNewStrategy.csproj``** - Windows presentation and legacy-host adapter. It may
+  reference Engine; dependency direction never reverses.
+- **``DaxNewStrategy/DaxNewStrategyPlugin.cs``** - legacy ``IStrategyPlugin`` registration and catalog
+  descriptor. It contains no strategy math.
+- **``DaxNewStrategy/plugin.json``** - read before code loads: id, version, stable ``publisherId``,
+  capabilities, and ``targetSdkVersion`` (pre-1.0 compatibility is exact major/minor).
+- **``DaxNewStrategy.Tests/``** - offline harness referencing Engine directly and driving the kernel with
+  synthetic ticks through a recording router. Keep it green; grow it with the strategy's invariants.
 - **(``--ui`` scaffolds only)** ``DaxNewStrategyViewModel.cs`` + ``DaxNewStrategyWindow.xaml(.cs)`` - a
   live strategy window. The VM derives from ``LiveSignalStrategyViewModelBase`` (host-provided: instrument
   picker, warm-up, start/stop, the signal feed, presets, Activity Log) and supplies just
   ``DataRequirement`` + ``BuildStrategy(contract)`` - which returns the SAME kernel the backtest runs, so
-  live and backtest can't diverge. The plugin then references ``DaxAlgo.Sdk.Wpf`` (not ``DaxAlgo.Sdk``)
-  and registers the VM + window + a ``StrategyFactoryRegistration``. A headless scaffold has none of this.
+  live and backtest can't diverge. The outer project references ``DaxAlgo.Sdk.Wpf`` and registers the VM
+  + window + a ``StrategyFactoryRegistration``. A headless scaffold has none of this presentation code.
 
 ## The engine contract (from DaxAlgo.Sdk - do not redeclare)
 
@@ -382,27 +418,28 @@ $engineContract
 
 $hardRules
 
-## Parameters (optional)
+## Parameters (factory-owned; ``StrategyParameterSchema.Empty`` is valid)
 
-$parameters
+$templateParameters
 
 ## Commands
 
 ``````powershell
-dotnet build DaxNewStrategy.slnx          # build plugin + tests
+dotnet build DaxNewStrategy.slnx          # build engine, adapter, and tests
 dotnet test  DaxNewStrategy.slnx          # offline kernel harness
-./pack-plugin.ps1                          # -> DaxNewStrategy.daxplugin (integrity-indexed zip)
+./pack-strategy.ps1                        # -> DaxNewStrategy.daxstrategy (requires daxalgo-bundle)
+./pack-plugin.ps1                          # -> legacy DaxNewStrategy.daxplugin
 ``````
 
-Install into the terminal: **Plugins -> Manage strategy plugins... -> Install plugin...** and pick the
-``.daxplugin`` (or the built ``.dll`` for a quick dev drop-in), then restart the terminal. It appears in
-Backtest Studio and the ``daxalgo-backtest`` CLI under the id in ``plugin.json``. Loading problems show
-in the Plugin Manager and the terminal's Activity Log with a classified reason.
+The new bundle can be inspected and signature-verified offline. Runtime bundle loading is a later host
+integration. For current hosts, install the legacy ``.daxplugin`` through **Plugins -> Manage strategy
+plugins... -> Install plugin...**, then restart.
 
 ## Definition of done for a change
 
 Build green, tests green (including at least one test that exercises the changed behaviour),
-``./pack-plugin.ps1`` produces a package, and the kernel still flattens at end of run.
+``./pack-strategy.ps1`` produces a passively inspectable bundle, ``./pack-plugin.ps1`` preserves current
+host compatibility, and the kernel still flattens at end of run.
 
 <!-- Generated by build/gen-ai-context.ps1 for SDK $sdkVersion. Do not hand-edit - change the sources and regenerate. -->
 "@

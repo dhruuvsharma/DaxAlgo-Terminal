@@ -1,0 +1,56 @@
+<Project>
+
+  <PropertyGroup>
+    <_BacktestWorkerProject>$(MSBuildThisFileDirectory)TradingTerminal.Backtest.Worker\TradingTerminal.Backtest.Worker.csproj</_BacktestWorkerProject>
+  </PropertyGroup>
+
+  <!-- Build the worker as a sidecar, never as an assembly loaded by the desktop host. -->
+  <ItemGroup Condition="'$(DesignTimeBuild)' != 'true' And !$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <ProjectReference Include="$(_BacktestWorkerProject)"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Keep the worker's complete dependency closure in its own directory. This avoids resolving the
+       worker against whichever versions happen to be loaded by the WPF host. Ask the worker for its
+       actual output files so redirected and RID-specific output layouts remain valid. -->
+  <Target Name="StageBacktestWorker"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' And !$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <MSBuild Projects="$(_BacktestWorkerProject)"
+             Targets="GetBacktestWorkerStagingFiles"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier)">
+      <Output TaskParameter="TargetOutputs" ItemName="_BacktestWorkerStageFile" />
+    </MSBuild>
+    <Error Condition="'@(_BacktestWorkerStageFile)' == ''"
+           Text="Backtest worker output was not returned by '$(_BacktestWorkerProject)'." />
+    <RemoveDir Directories="$(OutDir)backtest-worker" />
+    <Copy SourceFiles="@(_BacktestWorkerStageFile)"
+          DestinationFiles="@(_BacktestWorkerStageFile->'$(OutDir)backtest-worker\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <FileWrites Include="@(_BacktestWorkerStageFile->'$(OutDir)backtest-worker\%(RecursiveDir)%(Filename)%(Extension)')" />
+    </ItemGroup>
+  </Target>
+
+  <!-- A publish may be RID-specific or self-contained, so publish the worker with the host's runtime
+       settings and add its isolated closure to the host's publish manifest. -->
+  <Target Name="PublishBacktestWorker"
+          AfterTargets="ComputeFilesToPublish"
+          Condition="'$(DesignTimeBuild)' != 'true' And !$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <PropertyGroup>
+      <_BacktestWorkerPublishDir>$(BaseIntermediateOutputPath)backtest-worker-publish\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\</_BacktestWorkerPublishDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_BacktestWorkerPublishDir)" />
+    <MSBuild Projects="$(_BacktestWorkerProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_BacktestWorkerPublishDir);PublishSingleFile=false" />
+    <ItemGroup>
+      <_BacktestWorkerPublishFile Include="$(_BacktestWorkerPublishDir)**\*" />
+      <ResolvedFileToPublish Include="@(_BacktestWorkerPublishFile)">
+        <RelativePath>backtest-worker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+</Project>

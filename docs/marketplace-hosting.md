@@ -45,7 +45,7 @@ Matches [`PluginIndex`](../src/windows/Pipeline/TradingTerminal.Infrastructure/P
       "paperUrl": "https://arxiv.org/abs/2507.22712",
       "latest": {
         "version": "1.2.0",
-        "sdkVersion": "0.1.0-alpha",
+        "sdkVersion": "0.2.0-alpha",
         "minAppVersion": "1.1.0",
         "url": "https://github.com/dhruuvsharma/daxalgo-plugins/releases/download/acme.orderflow-imbalance-1.2.0/acme.orderflow-imbalance-1.2.0.daxplugin",
         "sha256": "8F3C…",

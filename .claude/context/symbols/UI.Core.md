@@ -62,15 +62,17 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs
 ```cs
-   19: public static class InstrumentPickerFilter
-   22: public static List<SignalInstrument> Visible(
-   42: public static List<T> Visible<T>(
-   62: public static List<SignalInstrument> Visible(
-   82: public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
-   99: public static SignalInstrument? Remembered(string key, IReadOnlyList<SignalInstrument> all)
-  105: public static T? Remembered<T>(string key, IReadOnlyList<T> all, Func<T, string> symbolOf) where T : class
-  117: public static SignalInstrument? InitialSelection(
-  122: public static T? InitialSelection<T>(
+   20: public static class InstrumentPickerFilter
+   26: public bool IsApplying { get; set; }
+   27: public object? PendingDesired { get; set; }
+   31: public static List<SignalInstrument> Visible(
+   51: public static List<T> Visible<T>(
+   71: public static List<SignalInstrument> Visible(
+   91: public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
+  166: public static SignalInstrument? Remembered(string key, IReadOnlyList<SignalInstrument> all)
+  172: public static T? Remembered<T>(string key, IReadOnlyList<T> all, Func<T, string> symbolOf) where T : class
+  184: public static SignalInstrument? InitialSelection(
+  189: public static T? InitialSelection<T>(
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/LastInstrumentStore.cs
@@ -87,25 +89,25 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    44: public const int MaxBarsRetained = 300;
    48: public const int MaxInstrumentsDisplayed = 500;
    58: protected virtual int WarmupBarCount => 120;
-   86: protected LiveSignalStrategyViewModelBase(
-  142: public string StrategyId { get; }
-  143: public string StrategyDisplayName { get; }
-  147: public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
-  149: public ObservableCollection<SignalEntry> Signals { get; }
-  152: public ObservableCollection<Bar> Bars { get; }
-  154: public event EventHandler? BarsChanged;
-  160: public event EventHandler? TickProcessed;
-  186: protected virtual StrategyDataRequirement DataRequirement =>
-  271: protected virtual void OnPauseReleased() { }
-  390: protected abstract IBacktestStrategy BuildStrategy(Contract contract);
-  394: protected virtual string? ValidateSetup() => null;
-  398: protected virtual void OnBarsUpdated() { }
-  404: protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
-  408: protected void Log(string category, string message) =>
-  818: public ObservableCollection<string> PresetNames { get; }
-  833: protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
-  837: protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
-  929: public void Dispose()
+   87: protected LiveSignalStrategyViewModelBase(
+  143: public string StrategyId { get; }
+  144: public string StrategyDisplayName { get; }
+  148: public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
+  150: public ObservableCollection<SignalEntry> Signals { get; }
+  153: public ObservableCollection<Bar> Bars { get; }
+  155: public event EventHandler? BarsChanged;
+  161: public event EventHandler? TickProcessed;
+  187: protected virtual StrategyDataRequirement DataRequirement =>
+  272: protected virtual void OnPauseReleased() { }
+  391: protected abstract IBacktestStrategy BuildStrategy(Contract contract);
+  395: protected virtual string? ValidateSetup() => null;
+  399: protected virtual void OnBarsUpdated() { }
+  405: protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
+  409: protected void Log(string category, string message) =>
+  857: public ObservableCollection<string> PresetNames { get; }
+  872: protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
+  876: protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
+  968: public void Dispose()
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/LiveStrategyHostServices.cs
@@ -236,7 +238,8 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    20: public static Task RunAsync(Func<Task> action) => Marshal(action);
    23: public static Task RunAsync(Action action) => Marshal(() => { action(); return Task.CompletedTask; });
    33: public static Func<TimeSpan, Action, IDisposable> CreateRenderTimer { get; set; } = DefaultRenderTimer;
-   48: public void Dispose() => timer.Dispose();
+   50: public CoalescingRenderTimer(TimeSpan interval, Action tick)
+   85: public void Dispose()
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/ViewModelBase.cs

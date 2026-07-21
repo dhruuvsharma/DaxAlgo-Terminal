@@ -120,10 +120,18 @@ public abstract class StrategyWindowBase : MetroWindow
 
     private async void OnClosed(object? sender, EventArgs e)
     {
-        if (_vm is null) return;
-        _vm.BarsChanged -= OnBarsChanged;
-        _vm.PropertyChanged -= OnVmPropertyChanged;
-        await _vm.StopCommand.ExecuteAsync(null);
-        _vm.Dispose();
+        var vm = _vm;
+        if (vm is null) return;
+        vm.BarsChanged -= OnBarsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
+        try
+        {
+            await vm.StopCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            vm.Dispose();
+            if (ReferenceEquals(_vm, vm)) _vm = null;
+        }
     }
 }

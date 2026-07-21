@@ -1,26 +1,31 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Text;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Engine.Feeds;
+using TradingTerminal.Backtest.Engine.Kernels;
 using TradingTerminal.Backtest.Engine.Optimization;
 using TradingTerminal.Backtest.Engine.Optimization.Gpu;
+using TradingTerminal.Backtest.Protocol;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Infrastructure.Backtest.Worker;
 using TradingTerminal.UI;
 
 namespace TradingTerminal.BacktestStudio;
 
 /// <summary>
-/// View-model for the Backtest Studio. Runs the new <see cref="BacktestEngine"/> over a synthetic
-/// feed (zero-setup), exposes the resulting report + metrics for the Report tab, and drives the
-/// visual replay (a single playback <see cref="DispatcherTimer"/> walks a cursor across the recorded
+/// View-model for the Backtest Studio. Sends supported single runs to the isolated backtest worker,
+/// retains explicit in-process paths for not-yet-migrated strategies/optimizers, exposes the resulting
+/// report + metrics for the Report tab, and drives the
+/// visual replay (a single coalescing render timer walks a cursor across the recorded
 /// bars; the view redraws once per frame). Owns a run CTS and the timer, so it is
 /// <see cref="IDisposable"/> and tears both down on close.
 /// </summary>
@@ -29,20 +34,25 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private readonly IStrategyKernelRegistry _registry;
     private readonly IMarketDataStore _store;
     private readonly IInstrumentRegistry _instruments;
+    private readonly IBacktestJobClient _jobClient;
     private readonly ILogger<BacktestStudioViewModel> _logger;
     private IDisposable? _playback;
     private static readonly InstrumentId SynthInstrument = new(1);
 
     private CancellationTokenSource? _runCts;
     private CancellationTokenSource? _optCts;
+    private string? _activeWorkerJobId;
+    private int _playbackGeneration;
 
     public BacktestStudioViewModel(
         IStrategyKernelRegistry registry, IMarketDataStore store, IInstrumentRegistry instruments,
+        IBacktestJobClient jobClient,
         ILogger<BacktestStudioViewModel> logger)
     {
         _registry = registry;
         _store = store;
         _instruments = instruments;
+        _jobClient = jobClient;
         _logger = logger;
 
         Strategies = new ObservableCollection<StrategyKernelDescriptor>(registry.All);
@@ -117,7 +127,9 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private static string GpuExePath => Path.Combine(AppContext.BaseDirectory, "gpu_optimizer.exe");
 
     // Data source.
-    [ObservableProperty] private DataSourceKind _selectedDataSource = DataSourceKind.Synthetic;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExecutionTarget))]
+    private DataSourceKind _selectedDataSource = DataSourceKind.Synthetic;
     [ObservableProperty] private string _parquetPath = "";
     [ObservableProperty] private string _symbol = "ES";
     [ObservableProperty] private BrokerKind _selectedBroker = BrokerKind.Simulated;
@@ -127,7 +139,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     /// <summary>The last completed report — read by the view to draw the equity curve.</summary>
     public BacktestReport? Report { get; private set; }
 
+    [ObservableProperty] private bool _hasReport;
+    [ObservableProperty] private string? _lastRunStrategyName;
+    [ObservableProperty] private string? _lastRunDataSource;
+    [ObservableProperty] private double _lastRunStartingCash;
+
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExecutionTarget))]
     private StrategyKernelDescriptor? _selectedStrategy;
 
     [ObservableProperty] private double _startingCash = 100_000;
@@ -137,8 +155,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotRunning))]
+    [NotifyPropertyChangedFor(nameof(IsNotOptimizing))]
+    [NotifyPropertyChangedFor(nameof(IsBusy))]
     private bool _isRunning;
 
+    [ObservableProperty] private double _runProgress;
     [ObservableProperty] private string? _status;
 
     // Report metrics (set after a run).
@@ -171,6 +192,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotOptimizing))]
+    [NotifyPropertyChangedFor(nameof(IsNotRunning))]
+    [NotifyPropertyChangedFor(nameof(IsBusy))]
     private bool _isOptimizing;
 
     [ObservableProperty] private string? _optimizeStatus;
@@ -181,9 +204,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     public AxisRowViewModel? SurfaceXAxis { get; private set; }
     public AxisRowViewModel? SurfaceYAxis { get; private set; }
 
-    public bool IsNotRunning => !IsRunning;
-    public bool IsNotOptimizing => !IsOptimizing;
+    public bool IsBusy => IsRunning || IsOptimizing;
+    public bool IsNotRunning => !IsBusy;
+    public bool IsNotOptimizing => !IsBusy;
     public string CurrentBarText => $"{CurrentBar} / {BarCount}";
+    public string ExecutionTarget => SelectedStrategy is { } strategy && SupportsWorker(strategy)
+        ? "SINGLE RUN · ISOLATED WORKER"
+        : "SINGLE RUN · IN-PROCESS";
 
     /// <summary>Raised after a sweep so the view can draw the 2D score heatmap.</summary>
     public event EventHandler? OptimizationReady;
@@ -224,8 +251,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         error = null;
         feedFactory = null!;
         baseSpec = null!;
-        var from = FromDate?.ToUniversalTime();
-        var to = ToDate?.ToUniversalTime();
+        var from = NormalizeUtcDate(FromDate);
+        var to = NormalizeUtcDate(ToDate);
 
         switch (SelectedDataSource)
         {
@@ -279,16 +306,24 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private static DateTime? NormalizeUtcDate(DateTime? value) => value?.Kind switch
+    {
+        null => null,
+        DateTimeKind.Utc => value.Value,
+        DateTimeKind.Local => value.Value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc),
+    };
+
     [RelayCommand]
     private async Task RunAsync()
     {
-        if (IsRunning || SelectedStrategy is null) return;
+        if (IsBusy || SelectedStrategy is null) return;
 
         StopPlayback();
+        ResetReportPresentation();
         IsRunning = true;
-        Status = "Running…";
-        Trades.Clear();
-        Report = null;
+        RunProgress = 0;
+        Status = "Preparing isolated run…";
 
         _runCts = new CancellationTokenSource();
         var ct = _runCts.Token;
@@ -304,8 +339,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
                 return;
             }
             var spec = baseSpec with { Visual = RecordVisual ? VisualRecording.On : VisualRecording.Off };
-            var report = await Task.Run(() =>
-                new BacktestEngine(feedFactory()).RunAsync(spec, descriptor.Create(), ct), ct);
+            var report = await RunSingleAsync(descriptor, feedFactory, spec, ct);
 
             Report = report;
             foreach (var t in report.Trades) Trades.Add(t);
@@ -320,11 +354,15 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             HasVisual = report.Visual is { Bars.Count: > 0 };
             BarCount = report.Visual?.Bars.Count ?? 0;
             CurrentBar = BarCount; // show the whole run; replay rewinds from here
+            LastRunStrategyName = descriptor.Name;
+            LastRunDataSource = SelectedDataSource.ToString();
+            LastRunStartingCash = spec.StartingCash;
+            HasReport = true;
 
+            RunProgress = 100;
             Status = $"Done. {report.Trades.Count} trades, P&L {report.Summary.NetProfit:C2}, " +
                      $"{report.Summary.EventsProcessed:N0} events in {report.Summary.EngineMilliseconds:F0} ms.";
             ReportReady?.Invoke(this, EventArgs.Empty);
-            ReplayFrameChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (OperationCanceledException)
         {
@@ -343,6 +381,220 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void ResetReportPresentation()
+    {
+        Report = null;
+        Trades.Clear();
+        NetProfit = 0;
+        Sharpe = 0;
+        MaxDrawdown = 0;
+        WinRate = 0;
+        ProfitFactor = 0;
+        TradeCount = 0;
+        HasVisual = false;
+        BarCount = 0;
+        CurrentBar = 0;
+        HasReport = false;
+        LastRunStrategyName = null;
+        LastRunDataSource = null;
+        LastRunStartingCash = 0;
+        ReportReady?.Invoke(this, EventArgs.Empty);
+        ReplayFrameChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task<BacktestReport> RunSingleAsync(
+        StrategyKernelDescriptor descriptor,
+        Func<IMarketDataFeed> feedFactory,
+        RunSpec spec,
+        CancellationToken ct)
+    {
+        if (!SupportsWorker(descriptor))
+        {
+            RunProgress = 5;
+            Status = "Running in-process; this strategy/data source has not migrated to the worker yet…";
+            return await Task.Run(
+                () => new BacktestEngine(feedFactory()).RunAsync(spec, descriptor.Create(), ct), ct);
+        }
+
+        var input = await CreateWorkerInputAsync(ct);
+        var jobId = $"studio-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}";
+        var request = BacktestJobRequest.Create(jobId, spec, input, Seed);
+        var engineAssemblyPath = typeof(BacktestEngine).Assembly.Location;
+        if (!string.IsNullOrWhiteSpace(engineAssemblyPath) && File.Exists(engineAssemblyPath))
+        {
+            var expectedHash = await BacktestProtocolHash.ComputeFileSha256Async(engineAssemblyPath, ct);
+            request = request with
+            {
+                Strategy = request.Strategy with { ExpectedAssemblySha256 = expectedHash },
+            };
+        }
+        var progress = new Progress<BacktestJobProgress>(OnWorkerProgress);
+        _activeWorkerJobId = jobId;
+        BacktestJobOutcome outcome;
+        try
+        {
+            outcome = await _jobClient.RunAsync(request, progress, ct);
+        }
+        finally
+        {
+            _activeWorkerJobId = null;
+        }
+
+        if (outcome.IsSuccess && outcome.Report is not null)
+        {
+            _logger.LogInformation(
+                "Backtest worker job {JobId} completed; artifacts: {JobDirectory}",
+                outcome.JobId,
+                outcome.JobDirectory);
+            return outcome.Report;
+        }
+
+        if (outcome.Status == BacktestTerminalStatus.Cancelled || ct.IsCancellationRequested)
+            throw new OperationCanceledException("The isolated backtest was cancelled.", ct);
+
+        var error = outcome.Error?.Message
+                    ?? outcome.WorkerStandardError?.Trim()
+                    ?? $"Worker ended with status {outcome.Status}.";
+        _logger.LogWarning(
+            "Backtest worker job {JobId} ended with {Status}: {Error}. Artifacts: {JobDirectory}",
+            outcome.JobId,
+            outcome.Status,
+            error,
+            outcome.JobDirectory);
+
+        var mayFallback = outcome.Status == BacktestTerminalStatus.StartFailed &&
+                          outcome.Error?.Code is "worker_not_found" or "worker_start_failed";
+        if (mayFallback && IsWorkerFallbackEnabled())
+        {
+            Status = $"Worker {outcome.Status}; using the temporary in-process fallback…";
+            return await RunWorkerEquivalentFallbackAsync(input, spec, descriptor, ct);
+        }
+
+        throw new InvalidOperationException($"Backtest worker {outcome.Status}: {error}");
+    }
+
+    private bool SupportsWorker(StrategyKernelDescriptor descriptor) =>
+        (SelectedDataSource is DataSourceKind.Synthetic or DataSourceKind.Parquet) &&
+        NativeKernels.All.Any(native =>
+            string.Equals(native.Id, descriptor.Id, StringComparison.OrdinalIgnoreCase));
+
+    private async Task<BacktestInputReference> CreateWorkerInputAsync(CancellationToken ct)
+    {
+        if (SelectedDataSource == DataSourceKind.Synthetic)
+        {
+            return BacktestInputReference.CreateSynthetic(
+                SyntheticTicks,
+                provenance: "backtest-studio",
+                startPrice: 5_000d,
+                spread: 0.25d);
+        }
+
+        var path = Path.GetFullPath(ParquetPath);
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var length = stream.Length;
+        var sha256 = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
+        return BacktestInputReference.CreateParquet(
+            path,
+            sha256,
+            length,
+            provenance: "backtest-studio");
+    }
+
+    private async Task<BacktestReport> RunWorkerEquivalentFallbackAsync(
+        BacktestInputReference input,
+        RunSpec spec,
+        StrategyKernelDescriptor descriptor,
+        CancellationToken ct)
+    {
+        FileStream? parquetLease = null;
+        try
+        {
+            if (input.Kind == BacktestInputKind.Parquet)
+                parquetLease = await OpenVerifiedParquetLeaseAsync(input, ct);
+
+            return await Task.Run(
+                () => new BacktestEngine(CreateWorkerEquivalentFeed(input, spec))
+                    .RunAsync(spec, descriptor.Create(), ct),
+                ct);
+        }
+        finally
+        {
+            if (parquetLease is not null) await parquetLease.DisposeAsync();
+        }
+    }
+
+    private static async Task<FileStream> OpenVerifiedParquetLeaseAsync(
+        BacktestInputReference input,
+        CancellationToken ct)
+    {
+        var stream = new FileStream(
+            input.Path!,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        try
+        {
+            if (stream.Length != input.LengthBytes)
+                throw new InvalidDataException("The parquet file changed after the worker request was prepared.");
+
+            var actualHash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
+            stream.Position = 0;
+            if (!string.Equals(actualHash, input.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The parquet file hash changed after the worker request was prepared.");
+            return stream;
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+    }
+
+    private IMarketDataFeed CreateWorkerEquivalentFeed(BacktestInputReference input, RunSpec spec) =>
+        input.Kind switch
+        {
+            BacktestInputKind.Synthetic => new SyntheticMarketDataFeed(
+                spec.Universe.Primary.Id,
+                input.Synthetic!.EventCount,
+                Seed,
+                input.Synthetic.StartPrice,
+                input.Synthetic.Spread),
+            BacktestInputKind.Parquet => new ParquetMarketDataFeed(
+                spec.Universe.Primary.Id,
+                input.Path!,
+                spec.Data.FromUtc,
+                spec.Data.ToUtc),
+            _ => throw new NotSupportedException($"Worker input kind '{input.Kind}' is not supported."),
+        };
+
+    private void OnWorkerProgress(BacktestJobProgress progress)
+    {
+        if (!string.Equals(progress.JobId, _activeWorkerJobId, StringComparison.Ordinal))
+            return;
+
+        if (progress.PercentComplete is { } percent)
+            RunProgress = Math.Clamp(percent, 0, 100);
+
+        var detail = string.IsNullOrWhiteSpace(progress.Message)
+            ? progress.Phase.ToString()
+            : $"{progress.Phase}: {progress.Message}";
+        Status = $"Worker · {detail}";
+    }
+
+    private static bool IsWorkerFallbackEnabled() =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("DAXALGO_BACKTEST_IN_PROCESS_FALLBACK"),
+            "1",
+            StringComparison.Ordinal);
+
     [RelayCommand]
     private void Cancel() => _runCts?.Cancel();
 
@@ -353,8 +605,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         if (IsPlaying) { StopPlayback(); return; }
         if (CurrentBar >= BarCount) CurrentBar = 0; // restart if parked at the end
         IsPlaying = true;
+        var generation = ++_playbackGeneration;
         // Portable playback timer — UI-thread ticks via the UiThread hook (was a WPF DispatcherTimer).
-        _playback = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(33), OnPlaybackTick);
+        _playback = UiThread.CreateRenderTimer(
+            TimeSpan.FromMilliseconds(33),
+            () => OnPlaybackTick(generation));
     }
 
     [RelayCommand]
@@ -364,8 +619,10 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         CurrentBar = 0;
     }
 
-    private void OnPlaybackTick()
+    private void OnPlaybackTick(int generation)
     {
+        if (!IsPlaying || generation != _playbackGeneration) return;
+
         var next = CurrentBar + Math.Max(1, (int)PlaybackSpeed);
         if (next >= BarCount)
         {
@@ -380,6 +637,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     private void StopPlayback()
     {
+        _playbackGeneration++;
         _playback?.Dispose();
         _playback = null;
         IsPlaying = false;
@@ -388,7 +646,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task OptimizeAsync()
     {
-        if (IsOptimizing || SelectedStrategy is null) return;
+        if (IsBusy || SelectedStrategy is null) return;
 
         var axisRows = Axes.Where(a => a.Enabled).ToList();
         if (axisRows.Count == 0) { OptimizeStatus = "Enable at least one parameter as a sweep axis."; return; }
@@ -462,7 +720,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task WalkForwardAsync()
     {
-        if (IsOptimizing || SelectedStrategy is null) return;
+        if (IsBusy || SelectedStrategy is null) return;
 
         var axisRows = Axes.Where(a => a.Enabled).ToList();
         if (axisRows.Count == 0) { OptimizeStatus = "Enable at least one axis for walk-forward."; return; }
@@ -568,8 +826,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _playback?.Dispose();
-        _playback = null;
+        StopPlayback();
         _runCts?.Cancel();
         _runCts?.Dispose();
         _runCts = null;

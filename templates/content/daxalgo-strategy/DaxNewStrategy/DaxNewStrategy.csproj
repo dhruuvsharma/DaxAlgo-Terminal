@@ -7,11 +7,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PathMap>$(MSBuildProjectDirectory)=/_/daxalgo-strategy-windows</PathMap>
     <!--#if (ui) -->
     <!-- A live-window plugin ships WPF views. -->
     <UseWPF>true</UseWPF>
     <!--#endif -->
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Canonical strategy math compiles once into the WPF-free Engine assembly. This project is
+         presentation / legacy-host registration only; dependency direction is Windows -> Engine. -->
+    <Compile Remove="Engine\**\*.cs" />
+    <ProjectReference Include="Engine\DaxNewStrategy.Engine.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- COMPILE-TIME surface only (ExcludeAssets=runtime): at runtime the host shares its own
@@ -24,9 +34,9 @@
     <!--#if (ui) -->
     <!-- DaxAlgo.Sdk.Wpf bundles DaxAlgo.Sdk + the WPF strategy-window base (LiveSignalStrategyViewModelBase,
          the shared controls, MahApps) — everything a live window needs. -->
-    <PackageReference Include="DaxAlgo.Sdk.Wpf" Version="0.1.0-alpha" ExcludeAssets="runtime" />
+    <PackageReference Include="DaxAlgo.Sdk.Wpf" Version="0.2.0-alpha" ExcludeAssets="runtime" />
     <!--#else -->
-    <PackageReference Include="DaxAlgo.Sdk" Version="0.1.0-alpha" ExcludeAssets="runtime" />
+    <PackageReference Include="DaxAlgo.Sdk" Version="0.2.0-alpha" ExcludeAssets="runtime" />
     <!--#endif -->
   </ItemGroup>
 

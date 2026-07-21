@@ -7,12 +7,17 @@ namespace TradingTerminal.Infrastructure.Sidecar;
 /// <summary>
 /// Wraps a Windows Job Object configured with <c>KILL_ON_JOB_CLOSE</c> so any child process assigned to
 /// it is terminated when the job handle closes — i.e. when the parent (this app) exits, even on a crash
-/// or a kill from Task Manager. This guarantees the managed sidecar can never be orphaned. Best-effort:
-/// if the job can't be created the guard is inert and the caller still kills the child on a clean exit.
+/// or a kill from Task Manager. Callers that require fail-closed ownership can inspect
+/// <see cref="IsConfigured"/> and the result of <see cref="TryAssign"/> before proceeding.
 /// </summary>
 internal sealed class JobObjectProcessGuard : IDisposable
 {
-    private readonly IntPtr _job;
+    private IntPtr _job;
+
+    /// <summary>True off Windows (where process-tree kill is used), or when KILL_ON_JOB_CLOSE is active.</summary>
+    public bool IsConfigured =>
+        !OperatingSystem.IsWindows() ||
+        Interlocked.CompareExchange(ref _job, IntPtr.Zero, IntPtr.Zero) != IntPtr.Zero;
 
     public JobObjectProcessGuard()
     {
@@ -20,8 +25,8 @@ internal sealed class JobObjectProcessGuard : IDisposable
         // falls back to SidecarHostService's cross-platform Kill(entireProcessTree: true).
         if (!OperatingSystem.IsWindows()) return;
 
-        _job = CreateJobObject(IntPtr.Zero, null);
-        if (_job == IntPtr.Zero) return;
+        var job = CreateJobObject(IntPtr.Zero, null);
+        if (job == IntPtr.Zero) return;
 
         var info = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION
         {
@@ -32,29 +37,39 @@ internal sealed class JobObjectProcessGuard : IDisposable
         };
 
         var length = Marshal.SizeOf(info);
-        var ptr = Marshal.AllocHGlobal(length);
+        var ptr = IntPtr.Zero;
+        var configured = false;
         try
         {
+            ptr = Marshal.AllocHGlobal(length);
             Marshal.StructureToPtr(info, ptr, false);
-            SetInformationJobObject(_job, JobObjectExtendedLimitInformation, ptr, (uint)length);
+            configured = SetInformationJobObject(job, JobObjectExtendedLimitInformation, ptr, (uint)length);
         }
         finally
         {
-            Marshal.FreeHGlobal(ptr);
+            if (ptr != IntPtr.Zero) Marshal.FreeHGlobal(ptr);
+            if (!configured) CloseHandle(job);
         }
+        if (configured) _job = job;
     }
 
     /// <summary>Assigns a process to the job so it dies when this guard (the app) goes away.</summary>
     public bool TryAssign(Process process)
     {
-        if (!OperatingSystem.IsWindows() || _job == IntPtr.Zero) return false;
-        try { return AssignProcessToJobObject(_job, process.Handle); }
+        if (!OperatingSystem.IsWindows()) return true;
+        var job = Interlocked.CompareExchange(ref _job, IntPtr.Zero, IntPtr.Zero);
+        if (job == IntPtr.Zero) return false;
+        try { return AssignProcessToJobObject(job, process.Handle); }
         catch { return false; }
     }
 
-    public void Dispose()
+    public void Dispose() => Close();
+
+    private void Close()
     {
-        if (OperatingSystem.IsWindows() && _job != IntPtr.Zero) CloseHandle(_job);
+        if (!OperatingSystem.IsWindows()) return;
+        var job = Interlocked.Exchange(ref _job, IntPtr.Zero);
+        if (job != IntPtr.Zero) CloseHandle(job);
     }
 
     // ── Win32 ─────────────────────────────────────────────────────────────────────────────────────
@@ -67,7 +82,7 @@ internal sealed class JobObjectProcessGuard : IDisposable
     private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);
 
     [SupportedOSPlatform("windows")]
-    [DllImport("kernel32.dll")]
+    [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetInformationJobObject(IntPtr hJob, int infoClass, IntPtr lpInfo, uint cbInfoLength);
 

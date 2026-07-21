@@ -78,7 +78,6 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Charts/TradingTerminal.OrderBook/OrderBookWindow.xaml.cs
 ```cs
-   12: public partial class OrderBookWindow : MetroWindow
-   14: public OrderBookWindow() => InitializeComponent();
-   16: protected override void OnClosed(EventArgs e)
+   11: public partial class OrderBookWindow : MetroWindow
+   13: public OrderBookWindow() => InitializeComponent();
 ```

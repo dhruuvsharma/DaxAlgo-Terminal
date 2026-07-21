@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 
 namespace TradingTerminal.UI;
 
@@ -18,6 +19,14 @@ namespace TradingTerminal.UI;
 /// </summary>
 public static class InstrumentPickerFilter
 {
+    private static readonly ConditionalWeakTable<object, ApplyState> ApplyStates = new();
+
+    private sealed class ApplyState
+    {
+        public bool IsApplying { get; set; }
+        public object? PendingDesired { get; set; }
+    }
+
     /// <summary>Rows to show for a <see cref="SignalInstrument"/> picker — see <see cref="Visible{T}"/>.</summary>
     public static List<SignalInstrument> Visible(
         IReadOnlyList<SignalInstrument> all, string? term, SignalInstrument? selected, int cap)
@@ -81,8 +90,66 @@ public static class InstrumentPickerFilter
     /// </summary>
     public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
     {
-        for (int i = target.Count - 1; i >= 0; i--)
-            if (!desired.Contains(target[i])) target.RemoveAt(i);
+        // ObservableCollection notifications are synchronous. An editable ComboBox can update its
+        // search text while an item is inserted, which immediately calls Apply again for the same
+        // collection. Let the active pass finish and then apply only the latest requested snapshot;
+        // otherwise the nested pass can shrink the list beneath the outer pass's next Insert index.
+        var state = ApplyStates.GetOrCreateValue(target);
+        // Broker discovery can surface equal rows through more than one registration path. Keep the
+        // first occurrence: Move requires a destination strictly below Count, and a duplicate desired
+        // item otherwise makes IndexOf find the earlier copy while i advances past the list's end.
+        var next = desired.Distinct().ToArray();
+        lock (state)
+        {
+            if (state.IsApplying)
+            {
+                state.PendingDesired = next;
+                return;
+            }
+            state.IsApplying = true;
+        }
+
+        try
+        {
+            while (true)
+            {
+                ApplyCore(target, next);
+
+                lock (state)
+                {
+                    if (state.PendingDesired is T[] pending)
+                    {
+                        state.PendingDesired = null;
+                        next = pending;
+                        continue;
+                    }
+
+                    state.IsApplying = false;
+                    return;
+                }
+            }
+        }
+        catch
+        {
+            lock (state)
+            {
+                state.IsApplying = false;
+                state.PendingDesired = null;
+            }
+            throw;
+        }
+    }
+
+    private static void ApplyCore<T>(ObservableCollection<T> target, IReadOnlyList<T> desired)
+    {
+        var desiredSet = new HashSet<T>(desired);
+        var retained = new HashSet<T>();
+        for (var i = 0; i < target.Count;)
+        {
+            var item = target[i];
+            if (!desiredSet.Contains(item) || !retained.Add(item)) target.RemoveAt(i);
+            else i++;
+        }
 
         for (int i = 0; i < desired.Count; i++)
         {

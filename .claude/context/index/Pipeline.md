@@ -39,6 +39,12 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Strategies/ReproducedStrategyFactory.cs` | 81 | win | TradingTerminal.Infrastructure | B I P | Y | Prefix for ids of reproduced strategies so they're recognisable in the catalog |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/TradeLedger.cs` | 71 | win | TradingTerminal.Infrastructure | B I P | Y | Position + cash accounting for the backtester. Pairs entry fills with exit |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/WalkForwardGridBuilders.cs` | 28 | win | TradingTerminal.Infrastructure | B I P | Y | The strategy's walk-forward grid for the given axes, as (label, fresh-builder) pairs. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Worker/AbandonedWorkerStagingCleaner.cs` | 113 | win | TradingTerminal.Infrastructure | B I P | Y | Removes only old, immediate worker-owned .staging-* directories beneath immediate job folders. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Worker/BacktestJobClient.cs` | 949 | win | TradingTerminal.Infrastructure | B I P | Y | Owns one-shot worker processes. Every control stream and captured diagnostic is bounded; |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Worker/BacktestWorkerExecutableResolver.cs` | 84 | win | TradingTerminal.Infrastructure | B I P | Y |  |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Worker/BacktestWorkerOptions.cs` | 26 | win | TradingTerminal.Infrastructure | B I P | Y | Arguments inserted before the client's mandatory |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Worker/BacktestWorkerServiceCollectionExtensions.cs` | 17 | win | TradingTerminal.Infrastructure | B I P | Y |  |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Worker/IBacktestJobClient.cs` | 12 | win | TradingTerminal.Infrastructure | B I P | Y | Runs one isolated worker process and returns a fully verified terminal outcome. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Binance/RealBinanceClient.cs` | 495 | win | TradingTerminal.Infrastructure | B I P | Y | Reads one full WebSocket text message (re-assembling continuation frames), or null on |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Brokers/BrokerApiMeter.cs` | 80 | win | TradingTerminal.Infrastructure | B I P | Y | Heuristic per-minute soft cap by broker. 0 = no known cap. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Brokers/BrokerSelector.cs` | 129 | win | TradingTerminal.Infrastructure | B I P | Y | Default . Holds one + one |
@@ -69,7 +75,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Notifications/Telegram/TelegramTransport.cs` | 68 | win | TradingTerminal.Infrastructure | B I P | Y | Posts to api.telegram.org/bot{token}/sendMessage. Reads options through IOptionsMonitor |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Okx/RealOkxClient.cs` | 201 | win | TradingTerminal.Infrastructure | B I P | Y | OKX market-data client over the public v5 WebSocket + REST endpoints (no |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/AuthenticodeSignatureInspector.cs` | 125 | win | TradingTerminal.Infrastructure | B I P | Y | Verifies the file's embedded Authenticode signature (integrity + cert chain) via |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxPluginPackage.cs` | 127 | win | TradingTerminal.Infrastructure | B I P | Y | Packs every file under |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxPluginPackage.cs` | 707 | win | TradingTerminal.Infrastructure | B I P | Y | Packs every file under |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSignatureVerifier.cs` | 95 | win | TradingTerminal.Infrastructure | B I P | Y | Why a feed was accepted or rejected. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSigner.cs` | 55 | win | TradingTerminal.Infrastructure | B I P | Y | A fresh feed-signing keypair. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginCatalog.cs` | 150 | win | TradingTerminal.Infrastructure | B I P | Y | Where a feed-listed plugin stands relative to what's installed locally. |
@@ -85,7 +91,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs` | 146 | win | TradingTerminal.Infrastructure | B I P | Y | Whether a plugin folder matches the hashes the host pins for it. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs` | 63 | win | TradingTerminal.Infrastructure | B I P | Y | True for assemblies whose type identity MUST be shared between host and |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 70 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 463 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 467 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs` | 52 | win | TradingTerminal.Infrastructure | B I P | Y | Reads |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginPolicyScanner.cs` | 259 | win | TradingTerminal.Infrastructure | B I P | Y | How serious a scan finding is. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginRevocationList.cs` | 113 | win | TradingTerminal.Infrastructure | B I P | Y | A withdrawn plugin build. Matched by assembly |
@@ -115,12 +121,12 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Research/Sandbox/RepoFetcher.cs` | 84 | win | TradingTerminal.Infrastructure | B I P | Y | Result of a clone attempt: the scratch directory the repo was checked |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Research/Sandbox/SandboxProcess.cs` | 104 | win | TradingTerminal.Infrastructure | B I P | Y | Outcome of a sandbox subprocess run: exit code (null = could not |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Research/Sandbox/Wsl2SandboxRunner.cs` | 28 | win | TradingTerminal.Infrastructure | B I P | Y | Placeholder WSL2 sandbox backend. Not yet implemented — reports = false so |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Sidecar/JobObjectProcessGuard.cs` | 119 | win | TradingTerminal.Infrastructure | B I P | Y | Assigns a process to the job so it dies when this guard |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Sidecar/JobObjectProcessGuard.cs` | 134 | win | TradingTerminal.Infrastructure | B I P | Y | True off Windows (where process-tree kill is used), or when KILL_ON_JOB_CLOSE is |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Sidecar/SidecarHostService.cs` | 294 | win | TradingTerminal.Infrastructure | B I P | Y | Walks up from |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Sidecar/SidecarServiceCollectionExtensions.cs` | 26 | win | TradingTerminal.Infrastructure | B I P | Y | Registers the managed Python sidecar launcher: binds , registers the |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Simulation/SimulatedBrokerClient.cs` | 446 | win | TradingTerminal.Infrastructure | B I P | Y | Find the stored |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/AuthoredStrategyInstaller.cs` | 182 | win | TradingTerminal.Infrastructure | B I P | Y | What an install did, in the terms the user cares about: is |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/RoslynStrategyCompiler.cs` | 333 | win | TradingTerminal.Infrastructure | B I P | Y | Ambient namespaces every script gets for free (kept in a dedicated tree |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Strategies/Authoring/RoslynStrategyCompiler.cs` | 369 | win | TradingTerminal.Infrastructure | B I P | Y | Ambient namespaces every script gets for free (kept in a dedicated tree |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Threading/WpfDispatcher.cs` | 26 | win | TradingTerminal.Infrastructure | B I P | Y | WPF-backed dispatcher. Posts onto |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Time/SystemClock.cs` | 9 | win | TradingTerminal.Infrastructure | B I P | Y | Production |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Upstox/RealUpstoxClient.cs` | 589 | win | TradingTerminal.Infrastructure | B I P | Y | Parses |

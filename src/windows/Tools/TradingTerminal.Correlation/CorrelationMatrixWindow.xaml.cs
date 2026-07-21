@@ -22,10 +22,6 @@ public partial class CorrelationMatrixWindow : MetroWindow
         matrix.SetBinding(CorrelationMatrixControl.MatrixProperty,
             new Binding(nameof(CorrelationMatrixViewModel.MatrixResult)));
         MatrixHost.Content = matrix;
-
-        // Dispose the VM when the window closes so its cancellation source and the picker's per-row
-        // handlers / instrument lists are released (the window is transient — one per open).
-        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
     }
 
     private void ExportPng_Click(object sender, RoutedEventArgs e)

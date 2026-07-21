@@ -43,7 +43,7 @@ public sealed class PluginLoaderTests
     {
         var services = new ServiceCollection();
 
-        var act = () => PluginLoader.RegisterFromAssembly(typeof(SampleStrategyPlugin).Assembly, services, hostSdkVersion: "0.2.0");
+        var act = () => PluginLoader.RegisterFromAssembly(typeof(SampleStrategyPlugin).Assembly, services, hostSdkVersion: "0.3.0");
 
         act.Should().Throw<PluginIncompatibleException>();
         services.Should().BeEmpty("a rejected plugin must not register anything");

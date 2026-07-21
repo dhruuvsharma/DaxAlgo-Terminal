@@ -22,8 +22,8 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioServiceCollectionExtensions.cs
 ```cs
-   14: public static class BacktestStudioServiceCollectionExtensions
-   16: public static IServiceCollection AddBacktestStudioSurface(this IServiceCollection services)
+   15: public static class BacktestStudioServiceCollectionExtensions
+   17: public static IServiceCollection AddBacktestStudioSurface(this IServiceCollection services)
 ```
 
 ## src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioView.xaml.cs
@@ -34,29 +34,31 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Tools/TradingTerminal.BacktestStudio/BacktestStudioViewModel.cs
 ```cs
-   27: public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
-   39: public BacktestStudioViewModel(
-  106: public ObservableCollection<StrategyKernelDescriptor> Strategies { get; }
-  107: public ObservableCollection<ParamRowViewModel> Parameters { get; }
-  108: public ObservableCollection<RoundTripTrade> Trades { get; }
-  109: public ObservableCollection<AxisRowViewModel> Axes { get; }
-  110: public ObservableCollection<TrialRowViewModel> OptimizationTrials { get; }
-  111: public ObservableCollection<WalkForwardRowViewModel> WalkForwardRows { get; }
-  112: public IReadOnlyList<OptimizationCriterion> Criteria { get; }
-  113: public IReadOnlyList<OptimizationMethod> Methods { get; }
-  114: public IReadOnlyList<DataSourceKind> DataSources { get; } = Enum.GetValues<DataSourceKind>();
-  115: public IReadOnlyList<BrokerKind> Brokers { get; } = Enum.GetValues<BrokerKind>();
-  128: public BacktestReport? Report { get; private set; }
-  180: public double[,]? SurfaceScores { get; private set; }
-  181: public AxisRowViewModel? SurfaceXAxis { get; private set; }
-  182: public AxisRowViewModel? SurfaceYAxis { get; private set; }
-  184: public bool IsNotRunning => !IsRunning;
-  185: public bool IsNotOptimizing => !IsOptimizing;
-  186: public string CurrentBarText => $"{CurrentBar} / {BarCount}";
-  189: public event EventHandler? OptimizationReady;
-  192: public event EventHandler? ReportReady;
-  195: public event EventHandler? ReplayFrameChanged;
-  569: public void Dispose()
+   32: public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
+   47: public BacktestStudioViewModel(
+  116: public ObservableCollection<StrategyKernelDescriptor> Strategies { get; }
+  117: public ObservableCollection<ParamRowViewModel> Parameters { get; }
+  118: public ObservableCollection<RoundTripTrade> Trades { get; }
+  119: public ObservableCollection<AxisRowViewModel> Axes { get; }
+  120: public ObservableCollection<TrialRowViewModel> OptimizationTrials { get; }
+  121: public ObservableCollection<WalkForwardRowViewModel> WalkForwardRows { get; }
+  122: public IReadOnlyList<OptimizationCriterion> Criteria { get; }
+  123: public IReadOnlyList<OptimizationMethod> Methods { get; }
+  124: public IReadOnlyList<DataSourceKind> DataSources { get; } = Enum.GetValues<DataSourceKind>();
+  125: public IReadOnlyList<BrokerKind> Brokers { get; } = Enum.GetValues<BrokerKind>();
+  140: public BacktestReport? Report { get; private set; }
+  203: public double[,]? SurfaceScores { get; private set; }
+  204: public AxisRowViewModel? SurfaceXAxis { get; private set; }
+  205: public AxisRowViewModel? SurfaceYAxis { get; private set; }
+  207: public bool IsBusy => IsRunning || IsOptimizing;
+  208: public bool IsNotRunning => !IsBusy;
+  209: public bool IsNotOptimizing => !IsBusy;
+  210: public string CurrentBarText => $"{CurrentBar} / {BarCount}";
+  211: public string ExecutionTarget => SelectedStrategy is { } strategy && SupportsWorker(strategy)
+  216: public event EventHandler? OptimizationReady;
+  219: public event EventHandler? ReportReady;
+  222: public event EventHandler? ReplayFrameChanged;
+  827: public void Dispose()
 ```
 
 ## src/windows/Tools/TradingTerminal.BacktestStudio/DataSourceKind.cs

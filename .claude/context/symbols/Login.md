@@ -415,7 +415,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    86: public async Task CheckAsync(CancellationToken ct = default)
   108: public static async Task<bool> HttpOkAsync(string url, CancellationToken ct)
   123: public static async Task<bool> TcpOpenAsync(string host, int[] ports, CancellationToken ct)
-  143: public static Task<bool> DockerRunningAsync(CancellationToken ct) => Task.Run(() =>
+  158: public static Task<bool> DockerRunningAsync(CancellationToken ct) => Task.Run(() =>
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/StoredCredentials.cs

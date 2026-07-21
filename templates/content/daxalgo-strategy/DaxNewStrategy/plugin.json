@@ -2,6 +2,8 @@
   "id": "dax.new.strategy",
   "name": "DaxNewStrategy",
   "version": "1.0.0",
-  "targetSdkVersion": "0.1.0-alpha",
-  "publisher": "Your Name"
+  "targetSdkVersion": "0.2.0-alpha",
+  "publisher": "Your Name",
+  "publisherId": "local-author",
+  "capabilities": ["market-data.bars", "market-data.l1"]
 }

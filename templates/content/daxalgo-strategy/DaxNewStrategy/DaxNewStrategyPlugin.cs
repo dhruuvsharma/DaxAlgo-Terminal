@@ -26,6 +26,8 @@ public sealed class DaxNewStrategyPlugin : IStrategyPlugin
 
     public void Register(IPluginRegistrar registrar)
     {
+        var engineFactory = new Engine.DaxNewStrategyFactory();
+
         // Catalog metadata — what the Strategies pane shows.
         registrar.Services.AddSingleton<ITradingStrategy, DaxNewStrategyDescriptor>();
 
@@ -34,7 +36,12 @@ public sealed class DaxNewStrategyPlugin : IStrategyPlugin
         registrar.Services.AddSingleton(new BacktestStrategyOption(
             Id: "dax.new.strategy",
             DisplayName: "DaxNewStrategy",
-            Build: contract => new Engine.DaxNewStrategyKernel(contract)));
+            Build: engineFactory.Create)
+        {
+            Schema = engineFactory.Schema,
+            ParameterizedBuild = engineFactory.Create,
+            DataRequirement = engineFactory.DataRequirement,
+        });
 
 #if (ui)
         // Live window: the VM (on LiveSignalStrategyViewModelBase) + its view, tied to the strategy id.

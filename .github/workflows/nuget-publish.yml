@@ -1,5 +1,5 @@
-# Publishes the plugin-SDK NuGet packages (DaxAlgo.Sdk, DaxAlgo.Sdk.Wpf + the
-# TradingTerminal.Core/UI/UI.Core contract packages) to NuGet.org via TRUSTED PUBLISHING:
+# Publishes the lockstep Windows SDK, contract, strategy-bundle/tool, and template packages to
+# NuGet.org via TRUSTED PUBLISHING:
 # no stored API key — the NuGet/login step exchanges this job's GitHub OIDC token for a
 # short-lived push key against the "daxalgo-sdk-publish" policy on nuget.org, which pins
 # this repository, THIS file name, and the "nuget-publish" environment. Renaming this file
@@ -7,7 +7,7 @@
 #
 # Trigger: push an `sdk-vX.Y.Z[-pre]` tag matching SdkInfo.Version / DaxAlgoSdkVersion
 # (the guard step refuses any mismatch), e.g.:
-#   git tag sdk-v0.1.0-alpha && git push origin sdk-v0.1.0-alpha
+#   git tag sdk-v0.2.0-alpha && git push origin sdk-v0.2.0-alpha
 # workflow_dispatch runs publish the current HEAD's version (same guards, no tag check).
 name: nuget-publish
 
@@ -43,7 +43,7 @@ jobs:
           }
           Write-Host "Publishing SDK version $sdkInfo"
 
-      - name: Pack (6 packages, lockstep version)
+      - name: Pack (8 packages, lockstep version)
         shell: pwsh
         run: |
           $projects = @(
@@ -52,10 +52,14 @@ jobs:
             'src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj',
+            'src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxAlgo.Strategy.Bundle.csproj',
+            'src/windows/Tools/DaxAlgo.Strategy.BundleTool/DaxAlgo.Strategy.BundleTool.csproj',
             'templates/DaxAlgo.Templates.csproj'
-            # NOTE: DaxAlgo.StrategyTool is intentionally NOT packed here. PackAsTool rejects its
+            # NOTE: the older AI-capable DaxAlgo.StrategyTool is intentionally NOT packed here.
+            # DaxAlgo.Strategy.BundleTool above is the portable pack/sign/verify/inspect front end.
+            # The older tool still rejects packing because of its
             # net9.0-windows7.0 TFM (NETSDK1146 — a dotnet tool needs a platform-agnostic TFM), which it
-            # carries because it references the Windows-tree Core. Publishing the CLI needs a separate
+            # carries because it references the Windows-tree Core. Publishing the AI tool needs a separate
             # packaging path (e.g. a net9.0 façade); until then it runs from source
             # (dotnet run --project src/windows/Tools/DaxAlgo.StrategyTool -- strategy ...).
           )

@@ -4,6 +4,8 @@
     "projects": [
       "src\\windows\\AI\\TradingTerminal.Ai\\TradingTerminal.Ai.csproj",
       "src\\windows\\Backtest\\TradingTerminal.Backtest.Engine\\TradingTerminal.Backtest.Engine.csproj",
+      "src\\windows\\Backtest\\TradingTerminal.Backtest.Protocol\\TradingTerminal.Backtest.Protocol.csproj",
+      "src\\windows\\Backtest\\TradingTerminal.Backtest.Worker\\TradingTerminal.Backtest.Worker.csproj",
       "src\\windows\\Charts\\TradingTerminal.Charts\\TradingTerminal.Charts.csproj",
       "src\\windows\\Charts\\TradingTerminal.Heatmap\\TradingTerminal.Heatmap.csproj",
       "src\\windows\\Charts\\TradingTerminal.OrderBook\\TradingTerminal.OrderBook.csproj",

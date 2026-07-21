@@ -124,16 +124,31 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
     {
         foreach (var port in ports)
         {
+            if (ct.IsCancellationRequested) return false;
+
             try
             {
                 using var client = new TcpClient();
-                var connect = client.ConnectAsync(host, port);
-                var finished = await Task.WhenAny(connect, Task.Delay(1500, ct)).ConfigureAwait(false);
-                if (finished == connect && client.Connected) return true;
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromMilliseconds(1500));
+                await client.ConnectAsync(host, port, timeout.Token).ConfigureAwait(false);
+                if (client.Connected) return true;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                // Per-port timeout: try the next candidate.
+            }
+            catch (SocketException)
+            {
+                // Connection refused/unreachable: try the next candidate.
             }
             catch
             {
-                // try the next port
+                // Defensive probe contract: an unexpected transport failure still means unavailable.
             }
         }
         return false;

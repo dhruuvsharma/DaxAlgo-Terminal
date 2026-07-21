@@ -5,6 +5,7 @@
   <Folder Name="/Sdk/">
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj" />
+    <Project Path="src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxAlgo.Strategy.Bundle.csproj" />
   </Folder>
   <Folder Name="/Pipeline/">
     <Project Path="src/windows/Pipeline/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj" />
@@ -12,6 +13,8 @@
   </Folder>
   <Folder Name="/Backtest/">
     <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Engine/TradingTerminal.Backtest.Engine.csproj" />
+    <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Protocol/TradingTerminal.Backtest.Protocol.csproj" />
+    <Project Path="src/windows/Backtest/TradingTerminal.Backtest.Worker/TradingTerminal.Backtest.Worker.csproj" />
   </Folder>
   <Folder Name="/UI/">
     <Project Path="src/windows/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />
@@ -29,6 +32,7 @@
   <Folder Name="/src/windows/Core/" />
   <Folder Name="/src/windows/Tools/">
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
+    <Project Path="src/windows/Tools/DaxAlgo.Strategy.BundleTool/DaxAlgo.Strategy.BundleTool.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
   </Folder>
   <Folder Name="/AI/">

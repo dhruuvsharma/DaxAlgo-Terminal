@@ -10,10 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DaxNewStrategy\DaxNewStrategy.csproj" />
+    <!-- Exercise the exact WPF-free engine later placed in the bundle. -->
+    <ProjectReference Include="..\DaxNewStrategy\Engine\DaxNewStrategy.Engine.csproj" />
     <!-- Tests EXECUTE the kernel, so unlike the plugin project they need the SDK's runtime
          assemblies too (no ExcludeAssets here). -->
-    <PackageReference Include="DaxAlgo.Sdk" Version="0.1.0-alpha" />
+    <PackageReference Include="DaxAlgo.Sdk" Version="0.2.0-alpha" />
   </ItemGroup>
 
   <ItemGroup>

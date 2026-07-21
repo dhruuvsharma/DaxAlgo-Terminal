@@ -29,9 +29,9 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/UI/TradingTerminal.UI.Core/Catalog/StrategyCatalogViewModel.cs` | 53 | win | TradingTerminal.UI.Core | B I P | Y | Human-readable detail block for the currently selected strategy. |
 | `src/windows/UI/TradingTerminal.UI.Core/Diagnostics/PluginFaultTracker.cs` | 31 | win | TradingTerminal.UI.Core | B I P | Y | Records one fault for |
 | `src/windows/UI/TradingTerminal.UI.Core/ISignalGeneratorRouterFactory.cs` | 18 | win | TradingTerminal.UI.Core | B I P | Y | Default impl — vanilla |
-| `src/windows/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs` | 127 | win | TradingTerminal.UI.Core | B I P | Y | Rows to show for a |
+| `src/windows/UI/TradingTerminal.UI.Core/InstrumentPickerFilter.cs` | 194 | win | TradingTerminal.UI.Core | B I P | Y | Rows to show for a |
 | `src/windows/UI/TradingTerminal.UI.Core/LastInstrumentStore.cs` | 75 | win | TradingTerminal.UI.Core | B I P | Y | The canonical symbol last selected under |
-| `src/windows/UI/TradingTerminal.UI.Core/LiveSignalStrategyViewModelBase.cs` | 940 | win | TradingTerminal.UI.Core | B I P | Y | Cap on how many instruments the picker shows at once. The broker |
+| `src/windows/UI/TradingTerminal.UI.Core/LiveSignalStrategyViewModelBase.cs` | 989 | win | TradingTerminal.UI.Core | B I P | Y | Cap on how many instruments the picker shows at once. The broker |
 | `src/windows/UI/TradingTerminal.UI.Core/LiveStrategyHostServices.cs` | 41 | win | TradingTerminal.UI.Core | B I P | Y | Bundle of canonical-pipeline dependencies that every live strategy host needs. Passed as |
 | `src/windows/UI/TradingTerminal.UI.Core/Logging/InMemoryLogSink.cs` | 91 | win | TradingTerminal.UI.Core | B I P | Y | Convenience append used by strategy/tab view-models — stamps the entry with the |
 | `src/windows/UI/TradingTerminal.UI.Core/Presets/StrategyViewPreset.cs` | 18 | win | TradingTerminal.UI.Core | B I P | Y | A named snapshot of a strategy window's view options, persisted per user |
@@ -44,5 +44,5 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/UI/TradingTerminal.UI.Core/TaskExtensions.cs` | 29 | win | TradingTerminal.UI.Core | B I P | Y | Fires the task and logs any exception via |
 | `src/windows/UI/TradingTerminal.UI.Core/TradeableInstrument.cs` | 145 | win | TradingTerminal.UI.Core | B I P | Y | App sets this once at startup to a registry-backed provider. When null |
 | `src/windows/UI/TradingTerminal.UI.Core/UiFile.cs` | 22 | win | TradingTerminal.UI.Core | B I P | Y | Show an open-file picker. |
-| `src/windows/UI/TradingTerminal.UI.Core/UiThread.cs` | 50 | win | TradingTerminal.UI.Core | B I P | Y | Runs |
+| `src/windows/UI/TradingTerminal.UI.Core/UiThread.cs` | 91 | win | TradingTerminal.UI.Core | B I P | Y | Runs |
 | `src/windows/UI/TradingTerminal.UI.Core/ViewModelBase.cs` | 8 | win | TradingTerminal.UI.Core | B I P | Y | Base class for all view-models. Inherits CommunityToolkit's |

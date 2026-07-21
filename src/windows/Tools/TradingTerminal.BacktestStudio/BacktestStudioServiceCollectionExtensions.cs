@@ -4,6 +4,7 @@ using TradingTerminal.Backtest.Engine.Kernels;
 using TradingTerminal.Backtest.Engine.Polyglot;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.Backtest.Worker;
 
 namespace TradingTerminal.BacktestStudio;
 
@@ -15,6 +16,7 @@ public static class BacktestStudioServiceCollectionExtensions
 {
     public static IServiceCollection AddBacktestStudioSurface(this IServiceCollection services)
     {
+        services.AddBacktestWorker();
         services.AddSingleton<IStrategyKernelRegistry>(sp =>
         {
             var descriptors = new List<StrategyKernelDescriptor>(NativeKernels.All);

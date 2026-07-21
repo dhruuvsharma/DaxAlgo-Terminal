@@ -16,13 +16,16 @@ namespace DaxNewStrategy.Engine;
 ///   <item>no file/network/process access - the host's install-time policy scan flags it.</item>
 /// </list>
 /// </summary>
-public sealed class DaxNewStrategyKernel(Contract contract) : IBacktestStrategy
+public sealed class DaxNewStrategyKernel(
+    Contract contract,
+    int fastPeriod = 20,
+    int slowPeriod = 80,
+    long quantity = 1) : IBacktestStrategy
 {
-    private const int FastPeriod = 20;
-    private const int SlowPeriod = 80;
-    private const long Quantity = 1;
-
     private readonly Contract _contract = contract;
+    private readonly int _fastPeriod = Math.Max(2, fastPeriod);
+    private readonly int _slowPeriod = Math.Max(3, slowPeriod);
+    private readonly long _quantity = Math.Max(1, quantity);
     private double _fastEma;
     private double _slowEma;
     private int _ticksSeen;
@@ -44,15 +47,15 @@ public sealed class DaxNewStrategyKernel(Contract contract) : IBacktestStrategy
             return;
         }
 
-        _fastEma += 2.0 / (FastPeriod + 1) * (mid - _fastEma);
-        _slowEma += 2.0 / (SlowPeriod + 1) * (mid - _slowEma);
-        if (_ticksSeen < SlowPeriod) return; // warm-up
+        _fastEma += 2.0 / (_fastPeriod + 1) * (mid - _fastEma);
+        _slowEma += 2.0 / (_slowPeriod + 1) * (mid - _slowEma);
+        if (_ticksSeen < _slowPeriod) return; // warm-up
 
         var want = _fastEma > _slowEma ? 1L : _fastEma < _slowEma ? -1L : _position;
         if (want == _position) return;
 
         // One order moves straight to the target (a reversal is a single 2xQuantity order).
-        var delta = (want - _position) * Quantity;
+        var delta = (want - _position) * _quantity;
         await router.PlaceOrderAsync(new OrderRequest(
             ClientOrderId: NextOrderId(clock),
             Contract: _contract,
@@ -74,7 +77,7 @@ public sealed class DaxNewStrategyKernel(Contract contract) : IBacktestStrategy
             Contract: _contract,
             Side: _position > 0 ? OrderSide.Sell : OrderSide.Buy,
             Type: OrderType.Market,
-            Quantity: Math.Abs(_position) * Quantity), ct);
+            Quantity: Math.Abs(_position) * _quantity), ct);
         _position = 0;
     }
 

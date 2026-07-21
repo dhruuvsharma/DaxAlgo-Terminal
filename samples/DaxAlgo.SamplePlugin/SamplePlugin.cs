@@ -4,6 +4,7 @@ using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Strategies.Parameters;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
@@ -23,6 +24,8 @@ public sealed class SamplePlugin : IStrategyPlugin
 
     public void Register(IPluginRegistrar registrar)
     {
+        var engineFactory = new SampleStrategyEngineFactory();
+
         // Catalog metadata for the Strategies pane.
         registrar.Services.AddSingleton<ITradingStrategy, SampleStrategy>();
 
@@ -31,7 +34,12 @@ public sealed class SamplePlugin : IStrategyPlugin
         registrar.Services.AddSingleton(new BacktestStrategyOption(
             Id: "sample.plugin",
             DisplayName: "Sample Plugin Strategy (skeleton)",
-            Build: contract => new SampleBacktestStrategy(contract)));
+            Build: engineFactory.Create)
+        {
+            Schema = engineFactory.Schema,
+            ParameterizedBuild = engineFactory.Create,
+            DataRequirement = engineFactory.DataRequirement,
+        });
     }
 }
 
@@ -58,4 +66,18 @@ public sealed class SampleBacktestStrategy(Contract contract) : IBacktestStrateg
     public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
     public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
     public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+}
+
+/// <summary>Deterministic activation point named by a <c>.daxstrategy</c> manifest.</summary>
+public sealed class SampleStrategyEngineFactory : IStrategyEngineFactory
+{
+    public StrategyParameterSchema Schema => StrategyParameterSchema.Empty;
+
+    public StrategyDataRequirement DataRequirement =>
+        StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+
+    public IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
+
+    public IBacktestStrategy Create(Contract contract, StrategyParameters parameters) =>
+        new SampleBacktestStrategy(contract);
 }

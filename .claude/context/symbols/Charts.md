@@ -34,28 +34,27 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    24: public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
    26: public const int MaxInstrumentsDisplayed = 500;
-   62: public ChartsViewModel(
-   95: public ObservableCollection<ChartTimeframe> Timeframes { get; }
-   96: public ObservableCollection<TradableInstrument> Instruments { get; }
-   97: public ObservableCollection<string> PresetNames { get; }
-  100: public IReadOnlyList<string> ChartTypes { get; } = new[] { "Candles", "Bars", "Line", "Area" };
-  125: public event EventHandler<ChartSnapshot>? SnapshotReady;
-  128: public event EventHandler<ChartCandle>? CandleUpdated;
-  166: public Task NotifyChartReadyAsync()
-  484: public void Dispose()
-  497: public sealed record ChartTimeframe(string Label, BarSize BarSize, TimeSpan Lookback);
-  506: public sealed record ChartsEmbedOptions(TradableInstrument? Instrument = null, BarSize BarSize = BarSize.OneMinute);
-  512: public sealed record ChartsPreset(
-  522: public sealed record ChartCandle(long Time, double Open, double High, double Low, double Close);
-  523: public sealed record ChartVolume(long Time, double Value, string Color);
-  524: public sealed record ChartLinePoint(long Time, double Value);
-  525: public sealed record MacdPoint(long Time, double Macd, double Signal, double Hist);
-  526: public sealed record ChartSnapshot(
+   63: public ChartsViewModel(
+   96: public ObservableCollection<ChartTimeframe> Timeframes { get; }
+   97: public ObservableCollection<TradableInstrument> Instruments { get; }
+   98: public ObservableCollection<string> PresetNames { get; }
+  101: public IReadOnlyList<string> ChartTypes { get; } = new[] { "Candles", "Bars", "Line", "Area" };
+  126: public event EventHandler<ChartSnapshot>? SnapshotReady;
+  129: public event EventHandler<ChartCandle>? CandleUpdated;
+  167: public Task NotifyChartReadyAsync()
+  506: public void Dispose()
+  522: public sealed record ChartTimeframe(string Label, BarSize BarSize, TimeSpan Lookback);
+  531: public sealed record ChartsEmbedOptions(TradableInstrument? Instrument = null, BarSize BarSize = BarSize.OneMinute);
+  537: public sealed record ChartsPreset(
+  547: public sealed record ChartCandle(long Time, double Open, double High, double Low, double Close);
+  548: public sealed record ChartVolume(long Time, double Value, string Color);
+  549: public sealed record ChartLinePoint(long Time, double Value);
+  550: public sealed record MacdPoint(long Time, double Macd, double Signal, double Hist);
+  551: public sealed record ChartSnapshot(
 ```
 
 ## src/windows/Charts/TradingTerminal.Charts/ChartsWindow.xaml.cs
 ```cs
    11: public partial class ChartsWindow : MetroWindow
    13: public ChartsWindow() => InitializeComponent();
-   15: protected override void OnClosed(EventArgs e)
 ```

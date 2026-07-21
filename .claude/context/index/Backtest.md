@@ -6,7 +6,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/Accounting/Portfolio.cs` | 152 | win | TradingTerminal.Backtest.Engine | B I P | Y | Update the latest mark for an instrument and the open lots' favorable/adverse |
-| `src/windows/Backtest/TradingTerminal.Backtest.Engine/BacktestEngine.cs` | 130 | win | TradingTerminal.Backtest.Engine | B I P | Y | Drives one backtest end-to-end. Single-threaded by design: there is one logical timeline |
+| `src/windows/Backtest/TradingTerminal.Backtest.Engine/BacktestEngine.cs` | 226 | win | TradingTerminal.Backtest.Engine | B I P | Y | Drives one backtest end-to-end. Single-threaded by design: there is one logical timeline |
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/Cost/FeeModels.cs` | 16 | win | TradingTerminal.Backtest.Engine | B I P | Y | Maps the serializable |
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/Execution/EngineOrderRouter.cs` | 47 | win | TradingTerminal.Backtest.Engine | B I P | Y | The kernel-facing order seam for the backtester. Resolves each 's |
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/Execution/IFillModel.cs` | 73 | win | TradingTerminal.Backtest.Engine | B I P | Y | Decides whether a working order fills against the current quote and at |
@@ -36,3 +36,12 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/Stats/ReportBuilder.cs` | 144 | win | TradingTerminal.Backtest.Engine | B I P | Y | Turns a finished run's equity timeline + round-trip ledger into a . |
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/Stats/VisualRecorder.cs` | 77 | win | TradingTerminal.Backtest.Engine | B I P | Y | Captures the visual-replay backdrop while a run streams: aggregates the charted instrument's |
 | `src/windows/Backtest/TradingTerminal.Backtest.Engine/StrategyContext.cs` | 41 | win | TradingTerminal.Backtest.Engine | B I P | Y | The engine's |
+| `src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestJobContracts.cs` | 259 | win | TradingTerminal.Backtest.Protocol | B I P | Y | Exact executable strategy identity. P2 deliberately permits built-in kernels only. |
+| `src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestProtocolJson.cs` | 83 | win | TradingTerminal.Backtest.Protocol | B I P | Y | Canonical JSON settings shared by request files, NDJSON progress, and result artifacts. |
+| `src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestProtocolValidator.cs` | 172 | win | TradingTerminal.Backtest.Protocol | B I P | Y | Pure request validation shared by the client and worker; filesystem checks stay |
+| `src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestProtocolVersions.cs` | 36 | win | TradingTerminal.Backtest.Protocol | B I P | Y | Independent compatibility versions for the worker control and artifact boundary. |
+| `src/windows/Backtest/TradingTerminal.Backtest.Worker/ParquetMarketDataFeed.cs` | 61 | win | TradingTerminal.Backtest.Worker | B I P | Y | P2's narrow, single-instrument immutable parquet adapter. |
+| `src/windows/Backtest/TradingTerminal.Backtest.Worker/Program.cs` | 7 | win | TradingTerminal.Backtest.Worker | B I P | N |  |
+| `src/windows/Backtest/TradingTerminal.Backtest.Worker/WorkerApplication.cs` | 421 | win | TradingTerminal.Backtest.Worker | B I P | Y |  |
+| `src/windows/Backtest/TradingTerminal.Backtest.Worker/WorkerArtifactPublisher.cs` | 258 | win | TradingTerminal.Backtest.Worker | B I P | Y | Writes private staging files, moves artifacts into place, then publishes the manifest |
+| `src/windows/Backtest/TradingTerminal.Backtest.Worker/WorkerProgressEmitter.cs` | 75 | win | TradingTerminal.Backtest.Worker | B I P | Y | Serializes a finite number of coarse progress records to stdout as NDJSON. |

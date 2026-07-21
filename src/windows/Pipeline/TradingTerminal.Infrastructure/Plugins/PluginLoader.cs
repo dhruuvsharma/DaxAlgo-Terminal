@@ -200,14 +200,18 @@ public static class PluginLoader
                     // Inspect the signature only when the policy actually needs it (the permissive dev
                     // flow skips Authenticode entirely).
                     var signature = policy.RequireSignature ? inspector.Inspect(dll) : PluginSignature.Unsigned;
-                    if (!policy.Allows(signature, manifest is not null, out var reason))
+                    var trustedByPolicy = policy.Allows(signature, manifest is not null, out var reason);
+                    if (!trustedByPolicy)
                     {
                         if (!Consented(folder, hash, dll, manifest, scan, state, consent))
                             throw new PluginRejectedException(dll, reason!);
                     }
                     // Neither ours-by-hash nor signed-by-a-trusted-publisher: it runs on the user's
                     // say-so (or a permissive dev build), so it wears the DEV / UNSIGNED badge.
-                    unsigned = !signature.IsSigned || !signature.IsValid;
+                    // A cryptographically valid signature from an UNKNOWN publisher is still not a
+                    // trusted-publisher result: consent authorizes this exact build to run, but must
+                    // not silently promote the signer into a marketplace/publisher trust badge.
+                    unsigned = !signature.IsSigned || !signature.IsValid || !trustedByPolicy;
                 }
 
                 // ── Load + register ──────────────────────────────────────────────────────────────

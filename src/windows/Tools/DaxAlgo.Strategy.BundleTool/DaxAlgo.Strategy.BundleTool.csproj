@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <UseWPF>false</UseWPF>
+    <RootNamespace>DaxAlgo.Strategy.BundleTool</RootNamespace>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>daxalgo-bundle</ToolCommandName>
+    <PackageId>DaxAlgo.Strategy.BundleTool</PackageId>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <Description>Portable CLI for packing, signing, verifying, and inspecting passive DaxAlgo strategy bundles.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>daxalgo;strategy;bundle;signature;cli;dotnet-tool</PackageTags>
+    <IncludeSymbols>false</IncludeSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Strategy.Bundle\DaxAlgo.Strategy.Bundle.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
+    <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+  </ItemGroup>
+
+</Project>

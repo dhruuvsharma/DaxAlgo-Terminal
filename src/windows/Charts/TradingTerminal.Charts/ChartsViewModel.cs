@@ -40,6 +40,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _loadCts;
     private IDisposable? _liveSub;
     private IDisposable? _ingestHandle;
+    private int _disposeState;
 
     // Retained for CSV export; refreshed on every successful reload.
     private IReadOnlyList<Bar> _lastBars = Array.Empty<Bar>();
@@ -165,13 +166,15 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     /// <summary>Called by the window once the WebView2 page has loaded and can receive data.</summary>
     public Task NotifyChartReadyAsync()
     {
+        if (Volatile.Read(ref _disposeState) != 0) return Task.CompletedTask;
         _chartReady = true;
         return ReloadAsync();
     }
 
     private void QueueReload()
     {
-        if (_chartReady && !_applyingPreset) _ = ReloadAsync();
+        if (Volatile.Read(ref _disposeState) == 0 && _chartReady && !_applyingPreset)
+            _ = ReloadAsync();
     }
 
     private async Task LoadInstrumentsAsync()
@@ -211,13 +214,32 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
     private async Task ReloadAsync()
     {
+        if (Volatile.Read(ref _disposeState) != 0) return;
+
         var instrument = SelectedInstrument;
         var tf = SelectedTimeframe;
         if (instrument is null || tf is null) return;
 
-        _loadCts?.Cancel();
-        _loadCts = new CancellationTokenSource();
-        var ct = _loadCts.Token;
+        // Publish the next source atomically so each reload/dispose caller owns exactly one source.
+        // Capture the token before publication: another reload can cancel and dispose the source as
+        // soon as it becomes current, but an already-captured token remains safe to observe.
+        var nextCts = new CancellationTokenSource();
+        var ct = nextCts.Token;
+        var previousCts = Interlocked.Exchange(ref _loadCts, nextCts);
+        try { previousCts?.Cancel(); }
+        finally { previousCts?.Dispose(); }
+
+        // Dispose may have won between the entry check and the exchange above. Withdraw the source
+        // only if it is still ours; otherwise the reload/dispose that replaced it owns cleanup.
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _loadCts, null, nextCts), nextCts))
+            {
+                nextCts.Cancel();
+                nextCts.Dispose();
+            }
+            return;
+        }
 
         StopLive();
 
@@ -483,12 +505,15 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
         // Remember the instrument the user was last charting so the window reopens on it — but never
         // from an embedded panel, whose instrument belongs to the strategy, not to the standalone tool.
         if (_embed is null)
             LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
-        _loadCts?.Cancel();
-        _loadCts?.Dispose();
+        var loadCts = Interlocked.Exchange(ref _loadCts, null);
+        loadCts?.Cancel();
+        loadCts?.Dispose();
         StopLive();
     }
 }
