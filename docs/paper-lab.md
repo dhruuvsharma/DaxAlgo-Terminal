@@ -7,7 +7,7 @@ link, it finds the paper's published code, runs that code **safely in a sealed s
 works — turns the result into a backtestable strategy inside the terminal, complete with a
 **confidence score** telling you how trustworthy the reproduction is.
 
-Open it from **AI tools → Paper Lab**. It is available on both the Windows and Linux builds.
+Open it from **AI tools → Paper Lab** in the Windows desktop application.
 
 > 🖼️ **Screenshot:** `images/ai-paperlab.png` — a paper URL resolved → repo candidates → a job
 > running → the Save-as-strategy button + confidence readout.

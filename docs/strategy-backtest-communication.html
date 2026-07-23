@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Strategy to Backtest Engine Communication</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: Canvas;
+      --foreground: CanvasText;
+      --muted-foreground: GrayText;
+      --border: color-mix(in srgb, CanvasText 22%, Canvas 78%);
+      --surface: color-mix(in srgb, Canvas 94%, Highlight 6%);
+      --surface-strong: color-mix(in srgb, Canvas 87%, Highlight 13%);
+      --accent: Highlight;
+      --accent-foreground: HighlightText;
+      --danger-surface: color-mix(in srgb, Canvas 90%, Mark 10%);
+      --code-surface: color-mix(in srgb, Canvas 90%, CanvasText 10%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--foreground);
+      line-height: 1.58;
+    }
+
+    a { color: LinkText; }
+    a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+    .page {
+      width: min(100% - 2rem, 1120px);
+      margin-inline: auto;
+      padding-block: 2rem 4rem;
+    }
+
+    header {
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1, h2, h3 {
+      font-weight: 500;
+      line-height: 1.2;
+      text-wrap: balance;
+    }
+
+    h1 { margin: 0 0 0.75rem; font-size: clamp(2rem, 5vw, 3.6rem); }
+    h2 { margin: 2.5rem 0 1rem; font-size: clamp(1.4rem, 3vw, 2rem); }
+    h3 { margin: 1.5rem 0 0.65rem; font-size: 1.15rem; }
+    p { max-width: 82ch; }
+
+    .eyebrow {
+      margin: 0 0 0.45rem;
+      color: var(--muted-foreground);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .lede { margin: 0; max-width: 76ch; font-size: 1.08rem; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.7rem;
+      margin-top: 1.2rem;
+    }
+
+    button, .action-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.5rem;
+      padding: 0.55rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: ButtonFace;
+      color: ButtonText;
+      font: inherit;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .action-link.primary {
+      background: var(--accent);
+      color: var(--accent-foreground);
+      border-color: var(--accent);
+    }
+
+    .notice {
+      margin-top: 1.5rem;
+      padding: 1rem 1.1rem;
+      border-left: 4px solid var(--accent);
+      background: var(--surface);
+    }
+
+    .notice strong { font-weight: 500; }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.9rem;
+      margin-top: 1.5rem;
+      font-size: 0.92rem;
+    }
+
+    nav a { text-underline-offset: 0.2em; }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+      counter-reset: flow-step;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 9.3rem;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.8rem;
+      background: var(--surface);
+      counter-increment: flow-step;
+    }
+
+    .flow-step::before {
+      content: counter(flow-step);
+      display: grid;
+      place-items: center;
+      width: 1.9rem;
+      height: 1.9rem;
+      margin-bottom: 0.75rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--accent-foreground);
+      font-weight: 500;
+    }
+
+    .flow-step h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+    .flow-step p { margin: 0; color: var(--muted-foreground); font-size: 0.91rem; }
+
+    .diagram-caption { color: var(--muted-foreground); font-size: 0.9rem; }
+
+    .loop {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      align-items: stretch;
+      gap: 0.7rem;
+      margin-block: 1.25rem;
+    }
+
+    .loop-node {
+      padding: 0.9rem;
+      border-top: 3px solid var(--accent);
+      background: var(--surface);
+    }
+
+    .loop-node strong { display: block; margin-bottom: 0.25rem; font-weight: 500; }
+    .loop-node span { color: var(--muted-foreground); font-size: 0.9rem; }
+
+    .sequence {
+      display: grid;
+      gap: 0;
+      margin-block: 1.25rem;
+      padding: 0;
+      border-left: 2px solid var(--border);
+      list-style: none;
+    }
+
+    .sequence-step {
+      display: grid;
+      grid-template-columns: minmax(7rem, 10rem) 1fr;
+      gap: 1rem;
+      padding: 0.85rem 0 0.85rem 1.15rem;
+      position: relative;
+    }
+
+    .sequence-step::before {
+      content: "";
+      position: absolute;
+      left: -0.46rem;
+      top: 1.2rem;
+      width: 0.78rem;
+      height: 0.78rem;
+      border-radius: 999px;
+      background: var(--accent);
+      border: 2px solid var(--background);
+    }
+
+    .actor { font-weight: 500; }
+    .sequence-step p { margin: 0; }
+
+    .chain {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 0.65rem;
+      margin: 1rem 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: chain;
+    }
+
+    .chain li {
+      padding: 0.8rem;
+      border-bottom: 3px solid var(--accent);
+      background: var(--surface);
+      counter-increment: chain;
+    }
+
+    .chain li::before {
+      content: counter(chain) ". ";
+      font-weight: 500;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-block: 1rem;
+      font-size: 0.94rem;
+    }
+
+    th, td {
+      padding: 0.72rem;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th { background: var(--surface-strong); font-weight: 500; }
+
+    code, pre {
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    }
+
+    code { font-size: 0.92em; }
+
+    pre {
+      margin-block: 1rem;
+      padding: 1rem;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      background: var(--code-surface);
+      font-size: 0.86rem;
+      line-height: 1.5;
+    }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+      gap: 1rem;
+    }
+
+    .panel {
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      background: var(--surface);
+    }
+
+    .panel h3 { margin-top: 0; }
+    .panel ul, .panel ol { padding-left: 1.25rem; }
+
+    .warning {
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-left: 4px solid Mark;
+      background: var(--danger-surface);
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted-foreground);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 700px) {
+      .page { width: min(100% - 1.2rem, 1120px); padding-top: 1rem; }
+      .sequence-step { grid-template-columns: 1fr; gap: 0.2rem; }
+
+      table, thead, tbody, tr, th, td { display: block; }
+      thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      tr { margin-bottom: 0.8rem; border: 1px solid var(--border); }
+      td { border: 0; border-bottom: 1px solid var(--border); }
+      td:last-child { border-bottom: 0; }
+      td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 0.2rem;
+        color: var(--muted-foreground);
+        font-size: 0.78rem;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+    }
+
+    @media print {
+      .page { width: 100%; padding: 0; }
+      .actions, nav { display: none; }
+      .flow-step, .panel, .loop-node, .notice, .warning { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+      h2 { break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <p class="eyebrow">DaxAlgo Terminal · Architecture guide</p>
+      <h1>How a strategy communicates with the backtest engine</h1>
+      <p class="lede">
+        One strategy implementation is packaged, verified, loaded into an isolated worker, driven by
+        chronological market events, and connected to simulated execution through a narrow order-router
+        contract. No second backtest version of the strategy is required.
+      </p>
+      <div class="actions">
+        <button type="button" onclick="window.print()">Print or save as PDF</button>
+        <a class="action-link primary" href="#overview">Start with the diagram</a>
+        <a class="action-link" href="strategy-backtest-communication.md">Canonical Markdown source</a>
+      </div>
+      <div class="notice" role="note">
+        <strong>Current status:</strong> the immutable store, protocol, client, worker activation, and
+        execution path are implemented. Installed <code>.daxstrategy</code> execution is programmatic and
+        test-only today; Backtest Studio still needs bundle discovery, trust display, and parameter UI.
+      </div>
+      <nav aria-label="Page sections">
+        <a href="#overview">Overview</a>
+        <a href="#contracts">Contracts</a>
+        <a href="#job-sequence">Job sequence</a>
+        <a href="#runtime">Runtime loop</a>
+        <a href="#trust">Trust chain</a>
+        <a href="#results">Results and failures</a>
+        <a href="#studio">Studio integration</a>
+      </nav>
+    </header>
+
+    <section id="overview" aria-labelledby="overview-title">
+      <h2 id="overview-title">End-to-end architecture</h2>
+      <div class="flow-grid" role="img" aria-label="Eight-step flow from strategy build to verified backtest result">
+        <article class="flow-step">
+          <h3>Build once</h3>
+          <p>A headless factory and one <code>IBacktestStrategy</code> contain the canonical trading logic.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Pack and sign</h3>
+          <p>The canonical manifest names the factory and hashes the engine and private dependencies.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Install immutably</h3>
+          <p>The store separates content identity from exact archive and publisher evidence.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Select a run</h3>
+          <p>The host chooses an exact version, trust lane, instrument, parameters, and market input.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Stage the job</h3>
+          <p>The client re-verifies the install and atomically stages only the headless engine closure.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Activate safely</h3>
+          <p>The worker checks every identity and constructs only the manifest-named factory type.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Run events</h3>
+          <p>The engine drives callbacks while orders and fills travel through the simulated router.</p>
+        </article>
+        <article class="flow-step">
+          <h3>Verify the result</h3>
+          <p>The host accepts output only after hashes, trust, closure, and artifact checks succeed.</p>
+        </article>
+      </div>
+      <p class="diagram-caption">
+        The process boundary is coarse: market events stay inside the worker. The host sends a request and
+        exact strategy image, receives bounded progress, then validates terminal result files.
+      </p>
+    </section>
+
+    <section id="contracts" aria-labelledby="contracts-title">
+      <h2 id="contracts-title">The strategy plug-in contract</h2>
+      <p>
+        <code>IStrategyEngineFactory</code> is the activation point, comparable to an Expert Advisor entry
+        point. The bundle manifest names one exact public parameterless implementation, so the worker never
+        scans assemblies or guesses which strategy to run.
+      </p>
+
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Contract</th><th>What crosses the seam</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-label="Layer">Strategy build</td>
+            <td data-label="Contract"><code>IStrategyEngineFactory</code></td>
+            <td data-label="Exchange">Parameter schema, data requirement, and <code>Create(Contract, StrategyParameters)</code></td>
+          </tr>
+          <tr>
+            <td data-label="Layer">Bundle</td>
+            <td data-label="Contract"><code>StrategyBundleManifest</code></td>
+            <td data-label="Exchange">Factory type, SDK compatibility, payload roles, dependency graph, lengths, and hashes</td>
+          </tr>
+          <tr>
+            <td data-label="Layer">Host to worker</td>
+            <td data-label="Contract"><code>BacktestJobRequest</code></td>
+            <td data-label="Exchange">Run spec, typed parameters, input identity, limits, trust, and independent host/strategy hashes</td>
+          </tr>
+          <tr>
+            <td data-label="Layer">Worker runtime</td>
+            <td data-label="Contract"><code>IBacktestStrategy</code> + <code>IOrderRouter</code></td>
+            <td data-label="Exchange">Ordered market callbacks, order submissions, cancellations, and FIFO order events</td>
+          </tr>
+          <tr>
+            <td data-label="Layer">Worker to host</td>
+            <td data-label="Contract"><code>BacktestResultManifest</code></td>
+            <td data-label="Exchange">Terminal state, hashes, trust evidence, closure fingerprints, and report artifacts</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Minimal factory and strategy shape</h3>
+      <pre><code>public sealed class ExampleFactory : IStrategyEngineFactory
+{
+    public StrategyParameterSchema Schema { get; } = new(
+        StrategyParameter.Int("lookback", "Lookback", 20, min: 2, max: 500));
+
+    public StrategyDataRequirement DataRequirement =&gt; StrategyDataRequirement.L1;
+
+    public IBacktestStrategy Create(Contract contract, StrategyParameters values) =&gt;
+        new ExampleStrategy(contract, values.GetLong("lookback"));
+}
+
+public sealed class ExampleStrategy(Contract contract, long lookback) : IBacktestStrategy
+{
+    public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) =&gt;
+        Task.CompletedTask;
+
+    public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+    {
+        // Update indicators; submit or cancel orders only through router.
+        return Task.CompletedTask;
+    }
+
+    public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) =&gt;
+        Task.CompletedTask;
+
+    public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) =&gt;
+        Task.CompletedTask;
+}</code></pre>
+
+      <div class="two-column">
+        <div class="panel">
+          <h3>Build boundary</h3>
+          <ul>
+            <li>Current template: <code>net9.0-windows7.0</code>.</li>
+            <li>Current SDK contract: <code>0.2.0-alpha</code>.</li>
+            <li>SDK reference is compile-only with <code>ExcludeAssets="runtime"</code>.</li>
+            <li>Host <code>DaxAlgo.Sdk</code> and <code>TradingTerminal.*</code> assemblies are never bundled privately.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Why one implementation works</h3>
+          <p>
+            The factory creates the same strategy object from a contract and validated parameter bag.
+            <code>BacktestStrategyKernelAdapter</code> translates it into the engine's canonical
+            <code>IStrategyKernel</code> callbacks. The author does not maintain parallel live and backtest math.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="job-sequence" aria-labelledby="sequence-title">
+      <h2 id="sequence-title">One installed-bundle job</h2>
+      <ol class="sequence">
+        <li class="sequence-step">
+          <div class="actor">Host</div>
+          <p>Chooses the exact bundle, instrument, typed parameters, market input, seed, deadline, and resource limits.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Client → Store</div>
+          <p>Calls <code>VerifyInstallation</code> with content root, archive hash, and the current trust policy.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Client</div>
+          <p>Copies the canonical manifest and reachable engine/private-dependency closure into a random staging directory, writes <code>request.json</code>, then atomically publishes the job.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Worker</div>
+          <p>Validates protocol, host engine hash, limits, deadline, input length/hash, bundle identity, file set, managed metadata, and dependency closure.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Factory</div>
+          <p>The worker constructs the exact manifest-named type, reads its schema and data requirement, validates every supplied value, and calls <code>Create</code>.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Engine</div>
+          <p>Runs the strategy through chronological market callbacks and a simulated execution loop. Progress is coarse NDJSON; ticks never cross stdout.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Cleanup</div>
+          <p>The engine disposes the strategy adapter. Bundle cleanup idempotently disposes it, unloads the collectible context, and the one-shot process exits.</p>
+        </li>
+        <li class="sequence-step">
+          <div class="actor">Client → Host</div>
+          <p>Accepts success only after the result manifest, report, artifacts, identities, hashes, trust evidence, and closure all match the request.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="runtime" aria-labelledby="runtime-title">
+      <h2 id="runtime-title">Runtime communication loop</h2>
+      <div class="loop" role="img" aria-label="Market event, engine, strategy, router, simulated book, portfolio, and order event loop">
+        <div class="loop-node"><strong>1 · Market feed</strong><span>Produces the next chronological L1 quote.</span></div>
+        <div class="loop-node"><strong>2 · Backtest engine</strong><span>Advances simulated time and applies the quote to the book.</span></div>
+        <div class="loop-node"><strong>3 · Portfolio</strong><span>Records quote-triggered fills before callbacks are delivered.</span></div>
+        <div class="loop-node"><strong>4 · Strategy</strong><span>Receives queued order events, then <code>OnTickAsync</code>.</span></div>
+        <div class="loop-node"><strong>5 · Order router</strong><span>Receives place/cancel requests; no broker client is exposed.</span></div>
+        <div class="loop-node"><strong>6 · FIFO feedback</strong><span>New order transitions return before the next market event.</span></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Engine action</th><th>Packaged strategy callback</th><th>Ordering</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-label="Engine action">Start</td>
+            <td data-label="Callback"><code>OnStartAsync(clock, router, ct)</code></td>
+            <td data-label="Ordering">Once, before market data</td>
+          </tr>
+          <tr>
+            <td data-label="Engine action">L1 quote</td>
+            <td data-label="Callback"><code>OnTickAsync(tick, clock, router, ct)</code></td>
+            <td data-label="Ordering">Clock and quote-triggered fills update first; their order events arrive before the tick callback</td>
+          </tr>
+          <tr>
+            <td data-label="Engine action">Trade / depth</td>
+            <td data-label="Callback"><code>OnTradeAsync</code> / <code>OnDepthAsync</code></td>
+            <td data-label="Ordering">Adapter mappings exist, but the one-shot bundle worker has no trade/depth input schema yet</td>
+          </tr>
+          <tr>
+            <td data-label="Engine action">Completed bar</td>
+            <td data-label="Callback">No factory-v1 callback</td>
+            <td data-label="Ordering"><code>IStrategyKernel.OnBarAsync</code> is a no-op in the current bundle adapter</td>
+          </tr>
+          <tr>
+            <td data-label="Engine action">Order transition</td>
+            <td data-label="Callback"><code>OnOrderEventAsync(evt, ct)</code></td>
+            <td data-label="Ordering">FIFO; fully drained before the next market event</td>
+          </tr>
+          <tr>
+            <td data-label="Engine action">End</td>
+            <td data-label="Callback"><code>OnEndAsync(clock, router, ct)</code></td>
+            <td data-label="Ordering">Once; final orders are settled with the last known quote where possible</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="warning" role="note">
+        <strong>Current data limits:</strong> installed bundles are single-instrument. The worker accepts
+        <code>L1</code> and <code>Bars</code> requirement flags, but its current synthetic and Parquet feeds
+        produce L1 quotes only. A bundle must not depend on direct bar, trade, or depth delivery yet.
+      </div>
+    </section>
+
+    <section id="trust" aria-labelledby="trust-title">
+      <h2 id="trust-title">Identity and trust chain</h2>
+      <p>No display name or single hash is enough. One accepted run binds all of these identities:</p>
+      <ol class="chain">
+        <li>Publisher, strategy id, version</li>
+        <li>Canonical content-root SHA-256</li>
+        <li>Archive SHA-256 and trust evidence</li>
+        <li>Strategy engine assembly SHA-256</li>
+        <li>Private dependency closure</li>
+        <li>Host Backtest.Engine SHA-256</li>
+      </ol>
+      <p>
+        Store paths do not cross the protocol. The worker receives only the canonical manifest and exact
+        headless engine closure. Optional WPF UI, unrelated resources, receipts, and archive bytes are not
+        staged. The worker separately reports the bytes it actually accepted so the client can compare them
+        with the original selection.
+      </p>
+      <div class="warning" role="note">
+        <strong>A signature is not a sandbox.</strong> It proves that a trusted publisher key endorsed the
+        signed content. Strategy code still runs with the user's account permissions. The collectible load
+        context and one-shot Job Object provide lifecycle and fault isolation, not hostile-code containment.
+      </div>
+    </section>
+
+    <section id="results" aria-labelledby="results-title">
+      <h2 id="results-title">Result acceptance and failure boundaries</h2>
+      <div class="two-column">
+        <div class="panel">
+          <h3>Accepted result must match</h3>
+          <ul>
+            <li>Protocol, job, engine, SDK, and strategy-contract versions.</li>
+            <li>Original request, parameters, and market input identities.</li>
+            <li>Actual host-engine and strategy-engine hashes.</li>
+            <li>Content root, archive hash, and publisher trust evidence.</li>
+            <li>Exact staged assembly closure.</li>
+            <li>Every artifact's relative path, length, and SHA-256.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Report contains</h3>
+          <ul>
+            <li>Fill-derived accounting and liquidity attribution.</li>
+            <li>Round-trip trades and equity samples.</li>
+            <li>Drawdown and performance metrics.</li>
+            <li>Optional visual recording.</li>
+            <li>It is not a raw fill-event list.</li>
+          </ul>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Failure point</th><th>Host-visible outcome</th></tr>
+        </thead>
+        <tbody>
+          <tr><td data-label="Failure">Store policy or preparation</td><td data-label="Outcome">Job does not launch; specific protocol/start failure</td></tr>
+          <tr><td data-label="Failure">Request, input, hash, closure, schema, or factory validation</td><td data-label="Outcome"><code>ProtocolError</code></td></tr>
+          <tr><td data-label="Failure">Strategy callback throws</td><td data-label="Outcome"><code>Failed</code>, followed by cleanup</td></tr>
+          <tr><td data-label="Failure">User cancellation</td><td data-label="Outcome"><code>Cancelled</code>; worker tree is terminated if needed</td></tr>
+          <tr><td data-label="Failure">Deadline or host timeout</td><td data-label="Outcome"><code>TimedOut</code></td></tr>
+          <tr><td data-label="Failure">Root-worker working-set limit</td><td data-label="Outcome"><code>ResourceLimitExceeded</code> after termination</td></tr>
+          <tr><td data-label="Failure">Crash or invalid terminal files</td><td data-label="Outcome"><code>WorkerCrashed</code> or <code>ProtocolError</code></td></tr>
+          <tr><td data-label="Failure">Any result identity/hash/trust mismatch</td><td data-label="Outcome">Output rejected; no successful report reaches the host</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="studio" aria-labelledby="studio-title">
+      <h2 id="studio-title">Remaining Backtest Studio wiring</h2>
+      <p>
+        Studio already has native worker run/cancel, bounded progress, and verified report rendering.
+        A clickable installed-strategy workflow still needs:
+      </p>
+      <ol>
+        <li>Bundle-store root and current trust-policy composition.</li>
+        <li>Active installation discovery with publisher and trust presentation.</li>
+        <li>Safe schema discovery through an isolated call or future signed manifest field.</li>
+        <li>Typed parameter editors generated from that schema.</li>
+        <li><code>BacktestJobRequest.CreateInstalledBundle</code> with separate host and strategy hashes.</li>
+        <li>The same activation contract for optimizer, walk-forward, and marketplace UX.</li>
+      </ol>
+      <p>
+        Until then, this page describes the implemented host API and worker route, not a current clickable
+        <code>.daxstrategy</code> picker.
+      </p>
+    </section>
+
+    <section aria-labelledby="sources-title">
+      <h2 id="sources-title">Key source contracts</h2>
+      <ul>
+        <li><a href="../src/windows/Sdk/DaxAlgo.Sdk/IStrategyEngineFactory.cs">IStrategyEngineFactory</a></li>
+        <li><a href="../src/windows/Sdk/DaxAlgo.Strategy.Bundle/StrategyBundleStore.cs">StrategyBundleStore</a></li>
+        <li><a href="../src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestJobContracts.cs">Backtest protocol contracts</a></li>
+        <li><a href="../src/windows/Backtest/TradingTerminal.Backtest.Client/BacktestJobClient.cs">BacktestJobClient</a></li>
+        <li><a href="../src/windows/Backtest/TradingTerminal.Backtest.Worker/BundleStrategyLoader.cs">BundleStrategyLoader</a></li>
+        <li><a href="../src/windows/Backtest/TradingTerminal.Backtest.Engine/BacktestEngine.cs">BacktestEngine</a></li>
+        <li><a href="../src/windows/Core/TradingTerminal.Core/Trading/IOrderRouter.cs">IOrderRouter</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Standalone guide · Windows protocol v2 · Updated 21 July 2026</p>
+    </footer>
+  </main>
+</body>
+</html>

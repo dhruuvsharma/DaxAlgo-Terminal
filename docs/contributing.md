@@ -4,11 +4,8 @@
 
 How to add new features without breaking the layering rules. The constraints come from [architecture.md](architecture.md) — read that first if you haven't.
 
-> **Two trees.** The repo is two independent codebases — `src/windows` (WPF) and `src/linux`
-> (Avalonia). Paths below are shown for the **Windows** tree; the Linux tree mirrors them under
-> `src/linux/…`. **A change meant for both must be made in both** (see
-> [architecture.md](architecture.md#two-independent-trees)). Build/test name a solution:
-> `dotnet build TradingTerminal.Windows.slnx` or `…Linux.slnx`.
+> **Repository scope.** This repository contains the Windows/WPF product. Source paths are under
+> `src/windows/`; build and test the explicitly named Windows solution or filter.
 
 ## The three plug-in seams
 
@@ -98,7 +95,7 @@ If you find yourself adding a `Dispatcher.Invoke` outside `MarketDataRepository`
 ## Tests
 
 ```powershell
-dotnet test TradingTerminal.Windows.slnx   # or TradingTerminal.Linux.slnx
+dotnet test TradingTerminal.Windows.slnx
 ```
 
 - `xUnit` + `FluentAssertions` + `NSubstitute`.

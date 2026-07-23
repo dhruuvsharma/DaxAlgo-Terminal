@@ -5,6 +5,6 @@ Load Windows context plus paper-ingestion, paper-reproduction, and untrusted-exe
 src/windows/Core/TradingTerminal.Core/Research,
 src/windows/Pipeline/TradingTerminal.Infrastructure/Research, and the matching sidecar endpoints.
 Treat all fetched repositories as untrusted: deny host credentials/store mounts, constrain
-network/CPU/RAM/pids/disk/time, verify artifacts, and kill process trees. Linux PaperLab UI is a
-separate tree; touch it only when explicitly authorized and after loading the Linux masters.
+network/CPU/RAM/pids/disk/time, verify artifacts, and kill process trees. Stay within the Windows
+research and sidecar seams owned by this repository.
 """

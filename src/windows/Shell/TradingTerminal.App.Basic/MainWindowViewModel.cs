@@ -22,7 +22,6 @@ using TradingTerminal.Backtest;
 using TradingTerminal.BacktestStudio;
 using TradingTerminal.Recording;
 using TradingTerminal.AdvancedMarketRegime;
-using TradingTerminal.Infrastructure.MarketData.Store;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -518,13 +517,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         System.Windows.Application.Current.Shutdown();
     }
 
-    /// <summary>File → Start QuestDB. Brings up the QuestDB Docker container (launching Docker Desktop
-    /// first if the daemon is down) and re-arms the store so tick persistence engages without a restart.
+    /// <summary>File → Start QuestDB. Starts or attaches to the configured QuestDB runtime and
+    /// re-arms the store so tick persistence engages without a restart.
     /// Progress shows in the activity log. No-op-with-a-message when QuestDB isn't the configured backend.</summary>
     [RelayCommand]
     public async Task StartQuestDbAsync()
     {
-        var service = _services.GetRequiredService<QuestDbDockerService>();
+        var service = _services.GetRequiredService<IQuestDbLauncher>();
         await service.StartAsync().ConfigureAwait(false);
     }
 

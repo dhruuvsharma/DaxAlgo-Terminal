@@ -1,5 +1,5 @@
-# Stop hook: structural-drift reminder for the public repository. It notices project/solution
-# edits and added/deleted/renamed source or resource paths; ordinary implementation edits are quiet.
+# Stop hook: generator-freshness gate for the public Windows repository. Routed source/config
+# changes require a byte-for-byte context generator check before the turn can finish.
 
 $ErrorActionPreference = 'Continue'
 
@@ -14,32 +14,38 @@ Set-Location -LiteralPath $projectDir
 
 $status = @(& git status --porcelain --untracked-files=all 2>$null)
 if (-not $status) { exit 0 }
-$structural = @($status | Where-Object {
+$contextRelevant = @($status | Where-Object {
     if ($_.Length -lt 4) { return $false }
     $code = $_.Substring(0,2)
     $path = $_.Substring(3)
     $configChanged = $path -match '[.](csproj|slnx|slnf|props|targets)$'
+    $sourceChanged = $path -match '^(src/windows|tests|samples)/' -and
+        $path -match '[.](cs|xaml)$'
     $pathSetChanged = $code -match '[ADR?]' -and
-        $path -match '[.](cs|xaml|axaml|html|js|ts|tsx|css|json|xshd|svg|py|cpp|h|hpp|c|cu|cuh|sh|ps1)$'
-    $configChanged -or $pathSetChanged
+        $path -match '[.](cs|xaml|html|js|ts|tsx|css|json|xshd|svg|py|cpp|h|hpp|c|cu|cuh|sh|ps1)$'
+    $contextEngineChanged = $path -match '^\.claude/context/(gen-context[.]sh|manage-context[.]ps1)$'
+    $contextDataChanged = $path -match '^\.claude/context/' -and $path -match '[.](md|json|sh|ps1)$'
+    $configChanged -or $sourceChanged -or $pathSetChanged -or $contextEngineChanged -or $contextDataChanged
 })
-if (-not $structural) { exit 0 }
+if (-not $contextRelevant) { exit 0 }
 
 $manager = Join-Path $projectDir '.claude/context/manage-context.ps1'
 if (Test-Path -LiteralPath $manager) {
     $powerShellExe = (Get-Process -Id $PID).Path
     $arguments = @('-NoProfile')
     if ($env:OS -eq 'Windows_NT') { $arguments += @('-ExecutionPolicy', 'Bypass') }
-    $arguments += @('-File', $manager, 'check')
+    $arguments += @('-File', $manager, 'gate-check')
     $output = @(& $powerShellExe @arguments 2>&1)
-    if ($LASTEXITCODE -eq 0) { exit 0 }
+    $checkExitCode = $LASTEXITCODE
+    # Exit 2 is deliberately deferred; the exact-state stamp cannot be reused until a stable Stop.
+    if ($checkExitCode -eq 0 -or $checkExitCode -eq 2) { exit 0 }
     $details = ($output | Select-Object -Last 12 | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
 } else {
     $details = 'public context manager is missing'
 }
 
-$reason = "Project/source structure changed and the public context check is stale or unavailable. " +
-          "Regenerate the affected Windows or Linux slice and update the dependency masters." +
+$reason = "Windows source/configuration changed and the public generated context is stale or unavailable. " +
+          "Regenerate the Windows context, update dependency masters if needed, and rerun deep-check." +
           [Environment]::NewLine + $details
 
 [ordered]@{ decision='block'; reason=$reason } | ConvertTo-Json -Compress

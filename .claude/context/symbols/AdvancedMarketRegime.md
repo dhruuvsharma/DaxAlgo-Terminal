@@ -43,9 +43,3 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   462: public string Label { get; }
   470: public sealed record AdvancedRegimePreset(
 ```
-
-## src/windows/Tools/TradingTerminal.AdvancedMarketRegime/AvaloniaUi/AdvancedMarketRegimeAvaloniaWindow.axaml.cs
-```cs
-    8: public partial class AdvancedMarketRegimeAvaloniaWindow : Window
-   10: public AdvancedMarketRegimeAvaloniaWindow() => InitializeComponent();
-```

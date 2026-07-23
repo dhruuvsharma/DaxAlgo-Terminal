@@ -75,5 +75,5 @@ tests, and an explicit migration path.
 
 Immutable installation and isolated backtest loading are specified by ADR-0012. Update/uninstall, feed
 integration, live-host loading, and marketplace UI remain deferred.
-Legacy `.daxplugin` remains distinct and is never accepted by changing its extension. Linux/Avalonia is
-out of scope; a WPF-free engine does not itself create a Linux compatibility promise.
+Legacy `.daxplugin` remains distinct and is never accepted by changing its extension. External
+platform repositories are out of scope; a WPF-free engine does not itself create compatibility promises.

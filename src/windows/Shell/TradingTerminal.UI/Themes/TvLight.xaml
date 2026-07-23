@@ -8,8 +8,8 @@
 
          Like GreekLight, this palette runs on the MahApps *Dark* base, so it also flips the core
          native surfaces (window / control / flyout background + foreground) to light — the custom
-         shell is fully token-driven, so everything else follows automatically. Same key set as
-         Brushes.xaml (plus the shared Ai.* / Font.* additions).
+         shell is fully token-driven, so everything else follows automatically. It carries the same
+         DaxAlgo token contract as TvDark.xaml plus seven MahApps light-surface overrides.
          ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <!-- Backgrounds — white canvas, cool panel wash, white elevated cards -->

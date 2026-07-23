@@ -8,8 +8,8 @@
          sans (Font.Base); monospace is reserved for DATA (Font.Data / Font.Mono) so numeric
          columns stay aligned without the whole app reading like a code editor.
 
-         Defines EXACTLY the same key set as Brushes.xaml (plus the shared Ai.* / Font.* additions
-         every palette now carries) so ThemeManager can hot-swap it in.
+         Defines the shared DaxAlgo token contract consumed by the structural styles. TvLight.xaml
+         carries the same contract plus the MahApps light-surface overrides it needs.
          ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <!-- Backgrounds — TV canvas #131722, panel #1E222D, raised chrome one step lighter -->

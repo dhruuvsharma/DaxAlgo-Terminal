@@ -57,6 +57,14 @@ jobs:
           -p:Version=${{ steps.ver.outputs.version }}
           -o publish/DaxAlgo-Terminal-Basic
 
+      - name: Stage verified native QuestDB runtime
+        shell: pwsh
+        run: |
+          ./scripts/stage-questdb.ps1 -Destination @(
+            'publish/DaxAlgo-Terminal-Intermediate/questdb',
+            'publish/DaxAlgo-Terminal-Basic/questdb'
+          )
+
       - name: Stage release docs
         shell: pwsh
         run: |

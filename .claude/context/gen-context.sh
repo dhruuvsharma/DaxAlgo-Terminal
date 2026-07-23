@@ -4,10 +4,12 @@
 #   .claude/context/symbols/<Proj>.md  (public/protected declaration lines with file:line)
 #   <scratch>/deps.tsv                 (project -> ProjectReference list; feeds deps.json by hand)
 # Hand-written files (index.md, symbols.md, deps.json, modules/, adr/, RECIPES/, PROTOCOL.md,
-# glossary.md) are NOT touched. Run from the repo root:  bash .claude/context/gen-context.sh
-# Add --check to compare a staged regeneration without changing committed output.
+# glossary.md) are NOT touched. The locked context manager invokes this script for sync/check;
+# direct calls delegate back to it so simultaneous terminals cannot expose partial output.
 # See MAINTENANCE.md for when to run. Git Bash on Windows is fine; needs rg + coreutils.
 set -euo pipefail
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd -- "$SCRIPT_DIR/../.." && pwd)
 # rg shim: Claude Code exposes ripgrep as a shell function (not on PATH for child shells).
 if ! command -v rg >/dev/null 2>&1; then
   _cc_bin="${CLAUDE_CODE_EXECPATH:-$HOME/.local/bin/claude.exe}"
@@ -16,19 +18,30 @@ if ! command -v rg >/dev/null 2>&1; then
 fi
 MODE="write"
 if [ "${1:-}" = "--check" ]; then MODE="check"; shift; fi
+if [ "$#" -ne 0 ]; then echo "Usage: $0 [--check]" >&2; exit 2; fi
+if [ "${DAXALGO_CONTEXT_LOCK_HELD:-}" != "1" ]; then
+  action=sync; [ "$MODE" = check ] && action=deep-check
+  if command -v powershell.exe >/dev/null 2>&1; then
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/manage-context.ps1" "$action"
+  elif command -v pwsh >/dev/null 2>&1; then
+    exec pwsh -NoProfile -File "$SCRIPT_DIR/manage-context.ps1" "$action"
+  fi
+  echo "gen-context.sh: PowerShell is required to acquire the context-manager lock." >&2
+  exit 2
+fi
+cd -- "$REPO_ROOT"
 S="$(mktemp -d)"
 trap 'rm -rf "$S"' EXIT
 [ -d src/windows ] || { echo "gen-context.sh: run from the repo root" >&2; exit 1; }
-mkdir -p .claude/context/index .claude/context/symbols
 OUT="$S/output"
 INDEX_OUT="$OUT/index"
 SYMBOLS_OUT="$OUT/symbols"
 mkdir -p "$INDEX_OUT" "$SYMBOLS_OUT"
 
 # ---------- 0 · project list + LOC ----------
-rg --files -g '*.csproj' src/windows tests samples | tr '\\' '/' | grep -v 'tests/linux' | sort > "$S/csprojs.txt"
+rg --files -g '*.csproj' src/windows tests samples | tr '\\' '/' | sort > "$S/csprojs.txt"
 awk -F/ '{n=$NF; sub(/[.]csproj$/,"",n); d=$0; sub(/\/[^\/]*$/,"",d); print n "\t" d}' "$S/csprojs.txt" > "$S/projlist.txt"
-rg -c '^' -g '*.cs' -g '*.xaml' -g '*.axaml' src/windows tests/TradingTerminal.Tests tests/TradingTerminal.Tests.Headless samples | tr '\\' '/' > "$S/locn.txt"
+rg -c '^' -g '*.cs' -g '*.xaml' src/windows tests/TradingTerminal.Tests tests/TradingTerminal.Tests.Headless samples | tr '\\' '/' > "$S/locn.txt"
 
 # ---------- 1 · deps.tsv ----------
 : > "$S/deps.tsv"
@@ -190,9 +203,23 @@ if [ "$MODE" = "check" ]; then
     exit 1
   fi
 else
-  rm -f .claude/context/index/*.md .claude/context/symbols/*.md
-  cp "$INDEX_OUT"/*.md .claude/context/index/
-  cp "$SYMBOLS_OUT"/*.md .claude/context/symbols/
+  for name in index symbols; do
+    target=".claude/context/$name"
+    source="$OUT/$name"
+    replacement=".claude/context/.$name.next"
+    previous=".claude/context/.$name.previous"
+    if [ ! -e "$target" ] && [ -e "$previous" ]; then mv "$previous" "$target"; fi
+    rm -rf -- "$replacement"
+    if [ -e "$target" ]; then rm -rf -- "$previous"; fi
+    cp -R "$source" "$replacement"
+    if [ -e "$target" ]; then mv "$target" "$previous"; fi
+    if mv "$replacement" "$target"; then
+      rm -rf -- "$previous"
+    else
+      [ ! -e "$target" ] && [ -e "$previous" ] && mv "$previous" "$target"
+      exit 1
+    fi
+  done
 fi
 
 echo "== deps.tsv =="; cat "$S/deps.tsv"

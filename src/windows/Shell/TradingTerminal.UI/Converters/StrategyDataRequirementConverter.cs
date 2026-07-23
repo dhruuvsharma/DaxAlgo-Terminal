@@ -49,7 +49,7 @@ public sealed class StrategyDataRequirementConverter : IValueConverter
     private static readonly Brush BaselineBg = MakeBrush("#334155");  // muted slate
     private static readonly Brush BaselineFg = MakeBrush("#CFD8DC");
 
-    // ── Extra-data pills — amber-dim accent (Accent.Dim.Color from Brushes.xaml) ─────────────
+    // ── Extra-data pills — subdued active-theme accent (Accent.Dim.Color) ───────────────────
     // Signals "this strategy needs data not every broker provides" without alarm-colouring.
     private static readonly Brush ExtraBg = MakeBrush("#A65A00");     // Accent.Dim.Color
     private static readonly Brush ExtraFg = MakeBrush("#FFE0A0");     // warm off-white over amber-dim

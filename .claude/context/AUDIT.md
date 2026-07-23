@@ -1,10 +1,10 @@
 # AUDIT — token-leak audit of the existing setup (Phase 1)
 
 > Historical baseline from 2026-07-10. Current topology is authoritative only in the generated
-> Windows/Linux masters and dependency graphs; removed project paths below are retained as audit
+> Windows masters and dependency graph; removed project paths below are retained as audit
 > evidence, not navigation guidance.
 
-Date: 2026-07-10 · Scope: **Windows tree** (`src/windows/` + `tests/`, excluding `tests/linux/`) per Phase-0 answer; edition focus **Intermediate**.
+Date: 2026-07-10 · Scope: **Windows tree** (`src/windows/` + `tests/`); edition focus **Intermediate**.
 Method: read-only — `rg`/`awk` LOC census; public-type extraction diffed against the full markdown corpus (44 files: `docs/*.md`, `.claude/**/*.md`, `CLAUDE.md`, `README.md`); hook headers + `settings.json`. No whole-file source reads; nothing modified.
 
 ## 1 · Prime token sinks (files > 400 LOC)
@@ -47,7 +47,8 @@ All invoked `powershell -NoProfile -ExecutionPolicy Bypass -File …` — runnab
 2. **Strategy-window edits** — 9 `Strategies.*` projects ≈ 17k LOC with 460–1,355-LOC VMs, all funneling through the 940-LOC `LiveSignalStrategyViewModelBase`, which gets re-read to answer "what does the base already give me". → `symbols/` for UI.Core + per-strategy module docs.
 3. **Canonical-pipeline changes** — MarketData (5.8k) + Infrastructure (14.9k) + Core types; a store/ingest change fans across `SqliteMarketDataStore` (435), `MarketDataArchiver` (574), and 7 `Real*Client` files (482–759 LOC each). → `deps.json` + `market-data-pipeline-change.md`.
 4. **Core signature changes** — the biggest project (17.2k LOC, 403 public types, 58% undocumented) and every project depends on it; one signature change means grepping the world. → `symbols/Core-*.md` splits + `deps.json` blastRadius.
-5. **Cross-tree fixes** — every backend fix is made twice (`src/linux/` mirror; out of this run's Windows scope but a standing cost); no checklist names the mirror paths. → `cross-tree-fix.md`.
+5. **Resolved Linux parity cost** — the former mirror obligation ended when the Linux edition moved
+   to a separate private repository. This repository is Windows-only. → `adr/ADR-0013-linux-repository-extraction.md`.
 
 ## Bonus findings
 

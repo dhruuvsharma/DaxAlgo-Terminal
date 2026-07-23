@@ -1,5 +1,5 @@
-# SessionStart hook: injects a cheap one-time orientation (branch, last commit, dirty count)
-# into the session as additionalContext. No build -- fast. Helps recall on a fresh session.
+# SessionStart hook: injects Windows-only orientation and a fast structural context-health result.
+# It never rewrites context; the Stop gate enforces byte-for-byte generator freshness.
 
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -11,11 +11,24 @@ $branch = (& git rev-parse --abbrev-ref HEAD 2>$null)
 $last   = (& git log -1 --pretty=format:'%h %s' 2>$null)
 $dirty  = ((& git status --porcelain --untracked-files=all 2>$null) | Measure-Object -Line).Lines
 
-$ctx = "DaxAlgo Terminal orientation - branch: $branch | last commit: $last | uncommitted files: $dirty. " +
-       "Follow AGENTS.md; load .claude/context/index.md + symbols.md + deps.json + PROTOCOL.md before Windows source. Linux uses .claude/context/linux/. " +
-       "INDEPENDENT TREES: Windows/WPF = src/windows + TradingTerminal.Windows.slnx; Linux/Avalonia = src/linux + TradingTerminal.Linux.slnx. " +
-       "Use a Windows edition .slnf by default; run App.Basic or App.Intermediate explicitly. " +
-       "Data/signals only (no live order execution); one universal Activity Log."
+$contextHealth = 'UNAVAILABLE'
+$manager = Join-Path $projectDir '.claude/context/manage-context.ps1'
+if (Test-Path -LiteralPath $manager) {
+    $powerShellExe = (Get-Process -Id $PID).Path
+    $arguments = @('-NoProfile')
+    if ($env:OS -eq 'Windows_NT') { $arguments += @('-ExecutionPolicy', 'Bypass') }
+    $arguments += @('-File', $manager, 'check')
+    & $powerShellExe @arguments *> $null
+    if ($LASTEXITCODE -eq 0) { $contextHealth = 'PASS' }
+    elseif ($LASTEXITCODE -eq 2) { $contextHealth = 'BUSY/CHANGING' }
+    else { $contextHealth = 'STALE' }
+}
+
+$ctx = "DaxAlgo Terminal Windows orientation - branch: $branch | last commit: $last | uncommitted files: $dirty | structural context check: $contextHealth. " +
+       "Follow AGENTS.md; load .claude/context/index.md + symbols.md + deps.json + PROTOCOL.md before source. " +
+       "This workspace is Windows/WPF only (src/windows + TradingTerminal.Windows.slnx). " +
+       "Use a Windows edition .slnf by default and preserve Basic/Intermediate composition. " +
+       "The Stop context gate enforces byte-for-byte generated-context freshness after routed code changes. Data/signals only; no live order execution."
 
 $payload = [ordered]@{
     hookSpecificOutput = [ordered]@{

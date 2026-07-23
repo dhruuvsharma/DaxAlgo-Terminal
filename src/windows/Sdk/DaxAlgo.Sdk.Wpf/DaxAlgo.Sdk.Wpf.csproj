@@ -7,8 +7,7 @@
 
        v1 is a curated façade over the host UI bases (TradingTerminal.UI + TradingTerminal.UI.Core).
        A WPF strategy plugin references THIS package only; Core/UI/UI.Core (and MahApps/ScottPlot)
-       flow transitively. The Avalonia tree gets a parallel DaxAlgo.Sdk.Avalonia when that port
-       resumes — the headless DaxAlgo.Sdk is shared, the UI base is per-tree. -->
+       flow transitively. -->
   <PropertyGroup>
     <UseWPF>true</UseWPF>
     <IsPackable>true</IsPackable>

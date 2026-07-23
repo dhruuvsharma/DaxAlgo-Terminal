@@ -1,13 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Portable VM layer: ViewModelBase, the live-strategy VM bases, host-services bundle,
-         strategy-parameter VM, signal types, and the universal Activity Log sink. WPF-free, so
-         both the WPF shell (TradingTerminal.UI) and the Avalonia head reuse these view-models
-         unchanged. Multi-targets like the rest of src/shared/. Namespace stays TradingTerminal.UI*
-         so existing consumers need no using changes. -->
+    <!-- WPF-free Windows VM contracts used by shells, tools, and the plugin SDK. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
-    <Description>Portable (WPF-free) view-model layer shared by the WPF and Avalonia UI heads.</Description>
+    <Description>WPF-free view-model contracts shared by Windows shells, tools, and plugins.</Description>
   </PropertyGroup>
 
   <!-- NuGet contract package in the plugin-SDK dependency chain (DaxAlgo.Sdk.Wpf depends on this).

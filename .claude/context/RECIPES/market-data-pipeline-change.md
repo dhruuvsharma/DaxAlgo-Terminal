@@ -17,4 +17,4 @@ Fan-out order (top-down, so each layer compiles against the one below):
 Signatures first: `symbols.md` hot-seam digest + `symbols/Core-MarketData.md` + `symbols/MarketData.md`.
 Build: `dotnet build TradingTerminal.Windows.slnx` (cross-cutting). Test:
 `--filter "FullyQualifiedName~MarketData"` (+ `~Store`); Postgres tests self-skip without Docker.
-Usually a cross-tree fix — see `cross-tree-fix.md`. Update: `symbols/` regen, `docs/market-data.md`, issue tick.
+Update: `symbols/` regeneration, `docs/market-data.md`, and the issue tick.

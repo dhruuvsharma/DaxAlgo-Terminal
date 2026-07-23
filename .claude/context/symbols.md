@@ -26,9 +26,8 @@ signatures show their first line, and source-generated properties may not appear
 | AI analyst seam | `Core-AiAnalyst.md`, `Ai.md` | Null/HTTP parity; sidecar over loopback HTTP/JSON |
 | Edition policy | `Core-Configuration.md` | Basic, Intermediate, and consuming-overlay composition remain explicit |
 
-Windows first-party strategy implementations are external runtime plugins. A Windows
-`symbols/Strategies.*.md` shard is stale by definition. Linux has independent in-tree strategy
-projects and is not evidence for the Windows host.
+Windows first-party strategy implementations are external runtime plugins. A
+`symbols/Strategies.*.md` shard is stale by definition.
 
 ## Project routing
 
@@ -46,6 +45,3 @@ projects and is not evidence for the Windows host.
 | Code generation/authoring CLI | `DaxAlgo.Codegen.md`, `DaxAlgo.StrategyTool.md` |
 | SDK and sample plugin | `DaxAlgo.Sdk.md`, `DaxAlgo.SamplePlugin.md` |
 | Windows tests | matching entries in `symbols/` plus `index/Tests.md` |
-
-For Linux/Avalonia work, load `linux/symbols.md` and query `linux/symbols/`. Never infer a Linux
-signature from this Windows router.

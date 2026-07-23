@@ -189,7 +189,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     /// <summary>QuestDB is the only market-data backend that needs an external server up before the
     /// terminal can persist ticks. We surface its status on the login screen and, when auto-start is on,
-    /// kick the Docker launch off in the background here — so it warms up (and re-arms the store) while
+    /// kick native startup off in the background here — so it warms up (and re-arms the store) while
     /// the user is signing in, rather than stalling the main window later.</summary>
     private void InitializeQuestDb()
     {
@@ -229,7 +229,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     [NotifyCanExecuteChangedFor(nameof(StartQuestDbCommand))]
     private bool _questDbReady;
 
-    /// <summary>A start attempt is in flight (Docker Desktop / container coming up).</summary>
+    /// <summary>A QuestDB start attempt is in flight.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartQuestDbCommand))]
     private bool _isQuestDbBusy;
@@ -453,10 +453,9 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
         Services.Add(new ServiceDependencyViewModel(
             name: "Docker Desktop",
-            purpose: "Runs the Paper Lab sandbox container and the optional QuestDB tick store.",
+            purpose: "Runs the isolated Paper Lab sandbox container.",
             requirement: "Optional",
-            howTo: "Start Docker Desktop and wait for the engine to report Running before using Paper Lab " +
-                   "or QuestDB.",
+            howTo: "Start Docker Desktop and wait for the engine to report Running before using Paper Lab.",
             startCommand: null,
             probe: ServiceDependencyViewModel.DockerRunningAsync));
 

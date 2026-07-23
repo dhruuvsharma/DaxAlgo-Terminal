@@ -20,9 +20,7 @@ same dependency-injection seam the built-in strategies use — no host recompile
 > just means the terminal itself is free and open source, while strategies can be shipped and sold
 > separately as plugins.
 
-> **Windows only (for now).** The plugin system and the DaxAlgo SDK live in the Windows/WPF build.
-> The Linux/Avalonia tree doesn't ship the SDK yet, so plugins are a Windows feature today. (The rest
-> of the app — the 12 built-in strategies, tools, brokers — runs on both.)
+> The plugin system and the DaxAlgo SDK are part of the Windows/WPF product in this repository.
 
 ---
 

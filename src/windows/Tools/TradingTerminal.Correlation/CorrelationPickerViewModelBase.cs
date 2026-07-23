@@ -58,7 +58,7 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
 #if WINDOWS
         // WPF: group the picker by canonical category, ordered category-then-symbol so the headers
         // (Crypto, FX, Commodities, Indices, ETFs, Stocks, …) come out in a predictable order. On the
-        // Avalonia head the flat Instruments list is pre-sorted in ApplyFilter instead.
+        // flat-list hosts pre-sort Instruments in ApplyFilter instead.
         InstrumentsView = CollectionViewSource.GetDefaultView(Instruments);
         InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.CategoryOrder), ListSortDirection.Ascending));
         InstrumentsView.SortDescriptions.Add(new SortDescription(nameof(SelectableInstrument.CanonicalCategory), ListSortDirection.Ascending));
@@ -167,7 +167,7 @@ public abstract partial class CorrelationPickerViewModelBase : ViewModelBase
         foreach (var sel in AllInstruments.Where(i => i.IsSelected))
             if (!shown.Contains(sel)) shown.Add(sel);
 
-        // Pre-sort category-then-symbol so the flat Avalonia list matches the WPF grouped view's order
+        // Pre-sort category-then-symbol so flat-list hosts match the WPF grouped view's order
         // (on WPF, InstrumentsView re-sorts/groups on top — harmless).
         shown = shown
             .OrderBy(i => i.CategoryOrder)

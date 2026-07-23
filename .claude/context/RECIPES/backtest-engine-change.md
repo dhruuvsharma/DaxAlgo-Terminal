@@ -17,8 +17,8 @@ Checklist:
    `TradingTerminal.BacktestStudio`.
 4. A consuming overlay may add a headless CLI; use the active workspace context to identify and
    report that downstream impact without copying overlay implementation here.
-   the Linux tree still carries its own CLI copy.
+   external consumers are outside this repository's blast radius.
 5. Fees/fills/risk changes need numeric tests: `--filter "FullyQualifiedName~Backtest"`.
 
 Build: `dotnet build TradingTerminal.Windows.Intermediate.slnf` (slnx if Core seams moved).
-Usually cross-tree (`cross-tree-fix.md`). Update: `docs/backtesting.md`, `symbols/` regen, issue tick.
+Update: `docs/backtesting.md`, `symbols/` regeneration, and the issue tick.

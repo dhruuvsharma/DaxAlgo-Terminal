@@ -16,9 +16,8 @@ namespace TradingTerminal.UI.Logging;
 /// collection is bounded (oldest entries drop off) and the pending buffer is bounded the same
 /// way, so a burst can never balloon memory before the flush lands.
 ///
-/// UI-thread marshalling is pluggable so this type stays WPF-free and is shared by both UI heads:
-/// set <see cref="UiPost"/> once at startup — the WPF shell points it at the WPF Dispatcher, the
-/// Avalonia shell at <c>Dispatcher.UIThread.Post</c>. The default runs inline, which keeps
+/// UI-thread marshalling is pluggable so this type stays WPF-free. The desktop shell points
+/// <see cref="UiPost"/> at the WPF Dispatcher during startup. The default runs inline, which keeps
 /// appends synchronous for headless callers and tests.
 /// </summary>
 public sealed class InMemoryLogSink : INotifyPropertyChanged
@@ -26,9 +25,8 @@ public sealed class InMemoryLogSink : INotifyPropertyChanged
     private const int CapacityDefault = 2000;
 
     /// <summary>
-    /// Marshals a flush onto the UI thread. Assigned once during app startup by whichever UI head
-    /// is hosting (WPF / Avalonia). Defaults to inline execution so headless callers and tests work
-    /// without a UI thread.
+    /// Marshals a flush onto the UI thread. Assigned once during app startup by the UI host.
+    /// Defaults to inline execution so headless callers and tests work without a UI thread.
     /// </summary>
     public static Action<Action> UiPost { get; set; } = static action => action();
 

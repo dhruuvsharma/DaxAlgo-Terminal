@@ -1,5 +1,11 @@
 {
   "profiles": {
+    "Intermediate — Local developer (enter app)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSim"
+      }
+    },
     "Intermediate (Login)": {
       "commandName": "Project"
     },

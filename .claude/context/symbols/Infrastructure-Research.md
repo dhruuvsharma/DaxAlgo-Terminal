@@ -38,18 +38,6 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   223: public void Dispose()
 ```
 
-## src/windows/Pipeline/TradingTerminal.Infrastructure/Research/NullEnvResolverClient.cs
-```cs
-   12: public bool IsAvailable => false;
-   14: public Task<MinimalReproPlan> ResolvePlanAsync(RepoRef repo, CancellationToken ct = default) =>
-```
-
-## src/windows/Pipeline/TradingTerminal.Infrastructure/Research/NullPaperIngestClient.cs
-```cs
-   12: public bool IsAvailable => false;
-   14: public Task<PaperIngestResult> ResolveAsync(string url, CancellationToken ct = default) =>
-```
-
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Research/ReplicationConfidenceScorer.cs
 ```cs
    23: public sealed class ReplicationConfidenceScorer : IReplicationConfidenceScorer

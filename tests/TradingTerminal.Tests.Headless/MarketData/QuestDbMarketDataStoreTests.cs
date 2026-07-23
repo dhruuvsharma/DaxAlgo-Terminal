@@ -9,9 +9,9 @@ using Xunit;
 namespace TradingTerminal.Tests.MarketData;
 
 /// <summary>
-/// Integration tests against the docker-compose QuestDB. They self-skip (return) when QuestDB isn't
-/// reachable on the PG-wire port, so the suite stays green without Docker; bring it up
-/// (<c>docker compose up -d</c>) to exercise the real QuestDB path. A random instrument id per run
+/// Integration tests against a running QuestDB endpoint. They self-skip (return) when QuestDB isn't
+/// reachable on the PG-wire port, so the suite stays green without the native runtime; start QuestDB
+/// to exercise the real store path. A random instrument id per run
 /// avoids collisions on the shared dev database. QuestDB applies the WAL asynchronously after an ILP
 /// flush, so reads poll briefly before asserting.
 /// </summary>

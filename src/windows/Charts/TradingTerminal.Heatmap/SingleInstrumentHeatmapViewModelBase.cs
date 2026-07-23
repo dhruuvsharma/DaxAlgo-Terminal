@@ -63,7 +63,7 @@ public abstract partial class SingleInstrumentHeatmapViewModelBase : ViewModelBa
             () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
         ApplyFilter();
 
-        // Coalesced render tick via the portable timer seam (WPF/Avalonia dispatcher). IDisposable.
+        // Coalesced render tick via the portable UI-dispatcher timer seam. IDisposable.
         _renderTimer = UiThread.CreateRenderTimer(RenderInterval, () => OnRenderTick(this, EventArgs.Empty));
 
         _ = LoadInstrumentsAsync();

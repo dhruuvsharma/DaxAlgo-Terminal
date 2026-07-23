@@ -3,10 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <UseWPF>false</UseWPF>
-    <!-- Allow Linux/macOS to restore & evaluate the net9.0-windows7.0 leg of the multi-targeted
-         headless projects (Core/MarketData/Infrastructure/Backtest.Engine/Backtest.Cli) so a plain
-         `dotnet build -f net9.0` works on the Pi. Only the net9.0 leg compiles off-Windows; the WPF
-         projects are simply never built there. No-op on Windows. -->
+    <!-- Allow non-Windows CI hosts to restore and evaluate the Windows target framework. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -78,16 +75,10 @@
   </ItemGroup>
 
   <!--
-    Build-output redirect (Windows dev only). This repo lives on a small D: drive that the
-    two-tree solution's bin/obj (~2 GB) repeatedly fills — which cascades into "metadata file not
-    found" / restore errors. Send all build output to a roomy drive instead, keyed by each
-    project's repo-relative path so the windows/ and linux/ trees (which deliberately share project
-    names) never collide, and so the layout under the root mirrors the repo.
-
-    Gated on Windows: a Linux/Pi build must keep its default in-tree output (a 'C:\' path would be
-    nonsense there). Override the destination by setting a DaxAlgoBuildRoot env var / MSBuild
-    property. BaseIntermediateOutputPath must be set here (in Directory.Build.props) so it lands
-    before the SDK computes the obj/ location.
+    Build-output redirect (Windows dev only). This repo lives on a small D: drive that the solution's
+    bin/obj repeatedly fills, cascading into restore and metadata errors. Send output to a roomy
+    drive, keyed by checkout and project-relative path. Override the destination with the
+    DaxAlgoBuildRoot property. BaseIntermediateOutputPath must be set here before SDK evaluation.
   -->
   <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
     <DaxAlgoBuildRoot Condition="'$(DaxAlgoBuildRoot)' == ''">C:\DaxAlgoBuild</DaxAlgoBuildRoot>

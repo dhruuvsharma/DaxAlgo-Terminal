@@ -177,8 +177,8 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
                 () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
         ApplyFilter();
 
-        // Coalesced capture/render tick via the portable timer seam (WPF Dispatcher / Avalonia
-        // Dispatcher under the hood). Returns an IDisposable owned by this VM.
+        // Coalesced capture/render tick via the portable UI-dispatcher timer seam.
+        // Returns an IDisposable owned by this VM.
         _captureTimer = UiThread.CreateRenderTimer(TimeSpan.FromMilliseconds(CaptureIntervalMs), OnCaptureTick);
 
         _ready = true;

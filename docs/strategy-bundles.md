@@ -10,8 +10,6 @@ optional WPF presentation is a companion. Live and backtest consumers will use t
 than maintain separate strategy implementations, following
 [ADR-0010](../.claude/context/adr/ADR-0010-isolated-backtest-worker.md).
 
-Linux/Avalonia packaging and loading are outside v1 scope.
-
 ## Layout
 
 ```text
@@ -236,6 +234,10 @@ type. Runtime values must exactly match the factory's declarative schema before 
 `IBacktestStrategy` implementation is adapted into the canonical engine. The strategy and load context
 are disposed after the one-shot run.
 
+See [strategy-to-backtest engine communication](strategy-backtest-communication.md) for component and
+sequence diagrams covering selection, staging, factory activation, market callbacks, the order/fill
+round trip, and result acceptance.
+
 The result's `StrategyAssemblyClosure` records that verified, staged engine closure. It is evidence of the
 files made available to the strategy load context, not a claim that every listed assembly was actually
 loaded. The result separately reports the actual host-engine and strategy-assembly hashes and echoes the
@@ -262,5 +264,6 @@ discovery, trust-registry, and parameter-schema UX are connected in the next UI/
 
 See also: [ADR-0011](../.claude/context/adr/ADR-0011-signed-strategy-bundles.md) ·
 [ADR-0012](../.claude/context/adr/ADR-0012-immutable-strategy-install-and-worker-activation.md) ·
+[strategy/backtest communication](strategy-backtest-communication.md) ·
 [plugin security](plugin-security.md) · [plugin authoring](plugin-authoring.md) ·
 [marketplace hosting](marketplace-hosting.md).

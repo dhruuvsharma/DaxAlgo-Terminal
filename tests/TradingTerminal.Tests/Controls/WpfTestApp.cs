@@ -32,7 +32,7 @@ internal static class WpfTestApp
         "pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Blue.xaml",
         "pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml",
         "pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml",
-        "pack://application:,,,/TradingTerminal.UI;component/Themes/Brushes.xaml",
+        "pack://application:,,,/TradingTerminal.UI;component/Themes/TvDark.xaml",
         "pack://application:,,,/TradingTerminal.UI;component/Themes/Dark.xaml",
         "pack://application:,,,/TradingTerminal.UI;component/Themes/Components.xaml",
         "pack://application:,,,/TradingTerminal.UI;component/Themes/StrategyShellStyles.xaml",

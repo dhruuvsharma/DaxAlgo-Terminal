@@ -4,12 +4,6 @@ Generated from the current source tree. Declaration lines only; multi-line signa
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
-## src/windows/Tools/TradingTerminal.Correlation/AvaloniaUi/LiveCorrelationAvaloniaWindow.axaml.cs
-```cs
-   11: public partial class LiveCorrelationAvaloniaWindow : Window
-   15: public LiveCorrelationAvaloniaWindow()
-```
-
 ## src/windows/Tools/TradingTerminal.Correlation/CorrelationMatrixControl.cs
 ```cs
    19: public sealed class CorrelationMatrixControl : FrameworkElement

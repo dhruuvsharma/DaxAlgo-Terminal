@@ -4,12 +4,6 @@ Generated from the current source tree. Declaration lines only; multi-line signa
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
-## src/windows/Charts/TradingTerminal.OrderBook/AvaloniaUi/OrderBookAvaloniaWindow.axaml.cs
-```cs
-    8: public partial class OrderBookAvaloniaWindow : Window
-   10: public OrderBookAvaloniaWindow() => InitializeComponent();
-```
-
 ## src/windows/Charts/TradingTerminal.OrderBook/OrderBookModels.cs
 ```cs
     7: public sealed record OrderBookLevel(double Price, long Size, long Cumulative, double BarFraction);

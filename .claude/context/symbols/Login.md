@@ -388,7 +388,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   218: public bool CanLaunch => ConnectedCount > 0;
   269: public event EventHandler<bool>? LoginCompleted;
   426: public ObservableCollection<ServiceDependencyViewModel> Services { get; } = new();
-  531: public void Dispose()
+  530: public void Dispose()
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/LoginWindow.xaml.cs

@@ -4,8 +4,8 @@
 
     <!-- ===================================================================================
          Structural style layer — theme-agnostic. Every brush/colour/gradient/font key it
-         references is supplied by the active PALETTE dictionary (Themes/Brushes.xaml,
-         Themes/Monochrome.xaml, …), which App.xaml merges *before* this file and which
+         references is supplied by the active DaxAlgo PALETTE dictionary (Themes/TvDark.xaml or
+         Themes/TvLight.xaml), which App.xaml merges *before* this file and which
          ThemeManager hot-swaps at runtime. All palette references here are DynamicResource so a
          swap re-skins live. The MahApps accent override now lives in each palette too.
          =================================================================================== -->
@@ -64,7 +64,7 @@
         <Setter Property="MinHeight" Value="28" />
     </Style>
 
-    <!-- Amber checkbox (MahApps tick now reads amber via the accent override). -->
+    <!-- Accent checkbox (MahApps tick follows the active palette override). -->
     <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource MahApps.Styles.CheckBox}">
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
@@ -197,7 +197,7 @@
         <Setter Property="FontSize" Value="11" />
     </Style>
 
-    <!-- Menus: ride the MahApps templates (now amber) + our mono font. -->
+    <!-- Menus: ride the MahApps templates with the active accent + our data font. -->
     <Style TargetType="{x:Type Menu}" BasedOn="{StaticResource MahApps.Styles.Menu}">
         <Setter Property="Background" Value="{DynamicResource Gradient.Chrome}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
@@ -386,7 +386,7 @@
         </Setter>
     </Style>
 
-    <!-- Bloomberg-style section header label (amber, uppercase, dense) -->
+    <!-- DaxAlgo section header label (accent, uppercase, dense) -->
     <Style x:Key="BB.SectionHeader" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
         <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
@@ -395,7 +395,7 @@
         <Setter Property="Padding" Value="8,5" />
     </Style>
 
-    <!-- Bloomberg-style "function key" tile: amber background, black text, monospace label -->
+    <!-- DaxAlgo "function key" tile: accent background, contrast text, data-font label -->
     <Style x:Key="BB.FnKey" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Gradient.Accent}" />
         <Setter Property="CornerRadius" Value="0" />

@@ -213,9 +213,9 @@ Empty buckets stay **NaN and render as holes** — no fake zeros. Two **2D slice
 
 Each project carries its own README with the full setting/color/math detail:
 
-| What | Where (Windows tree; Linux mirrors under `src/linux/Charts/`) | Per-project README |
+| What | Where | Per-project README |
 |---|---|---|
-| Charts window *(Windows only)* | `src/windows/Charts/TradingTerminal.Charts/` (WebView2 assets under `Assets/`) | [README](../src/windows/Charts/TradingTerminal.Charts/README.md) |
+| Charts window | `src/windows/Charts/TradingTerminal.Charts/` (WebView2 assets under `Assets/`) | [README](../src/windows/Charts/TradingTerminal.Charts/README.md) |
 | Order book | `src/windows/Charts/TradingTerminal.OrderBook/` | [README](../src/windows/Charts/TradingTerminal.OrderBook/README.md) |
 | Volume footprint | `src/windows/Charts/TradingTerminal.VolumeFootprint/` (bar math: `FootprintFeatures` in Core; fits: `Core/Quant/CurveFitting.cs`) | [README](../src/windows/Charts/TradingTerminal.VolumeFootprint/README.md) — incl. the regression-fit and predictor math |
 | Bookmap + VolBook | `src/windows/Charts/TradingTerminal.Heatmap/` (`BookmapHeatmapViewModel` data engine + `BookmapHeatmapWindow` rendering) | [README](../src/windows/Charts/TradingTerminal.Heatmap/README.md) |

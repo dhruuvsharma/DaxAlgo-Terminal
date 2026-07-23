@@ -17,10 +17,7 @@ feature has a deep-dive doc — followed by a cross-link.
 Run the app (see [getting-started.md](getting-started.md)):
 
 ```powershell
-# Windows / WPF
 dotnet run --project src/windows/Shell/TradingTerminal.App
-# Linux / Avalonia
-dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
 ```
 
 The **login window** opens with a tile per data source: **Interactive Brokers, NinjaTrader, cTrader,
@@ -98,7 +95,7 @@ brings it to the front (windows are single-instance).
 | Item | What it does |
 |---|---|
 | **Activity log** | Show/hide the bottom log drawer. |
-| **Theme** | Switch between **Bloomberg Amber**, **Monochrome (B&W)**, and the **Greek — Marble (light)** / **Greek — Obsidian (dark)** palettes. |
+| **Theme** | Switch between **DaxAlgo Dark** and **DaxAlgo Light**. |
 | **Customize theme… (Theme Studio)** | Open the live colour editor — recolour any part of the app and save your own theme. See [theme-studio.md](theme-studio.md). |
 
 ### Tools
@@ -234,9 +231,9 @@ The day-to-day "does this feature predict anything?" loop:
 ## 8. Customisations
 
 ### Add an instrument to the catalog
-The shared instrument list lives at `src/windows/Shell/TradingTerminal.UI/…SignalInstrumentCatalog…`
-(and the mirror under `src/linux/…`). Add a row following the existing pattern; it then appears in
-every strategy and tool picker on next launch.
+The shared instrument list lives at `src/windows/Shell/TradingTerminal.UI/…SignalInstrumentCatalog…`.
+Add a row following the existing pattern; it then appears in every strategy and tool picker on next
+launch.
 
 ### Tune a strategy's parameters
 Change them at runtime in the strategy window's Parameters panel, or edit the defaults in that
@@ -244,8 +241,7 @@ strategy's view-model. For systematic searches, use the CLI's `sweep` / `walkfor
 [backtesting.md](backtesting.md).
 
 ### Add a new strategy, broker, or notifier
-See [contributing.md](contributing.md) for the recipes and the layering rules (and remember the
-**two trees** — changes apply to `src/windows` and `src/linux` independently).
+See [contributing.md](contributing.md) for the recipes and the layering rules.
 
 ---
 
@@ -254,10 +250,7 @@ See [contributing.md](contributing.md) for the recipes and the layering rules (a
 The backtest engine is also a headless CLI for scripting/CI. Build it once:
 
 ```powershell
-# Windows
 dotnet build src/windows/Backtest/TradingTerminal.Backtest.Cli
-# Linux
-dotnet build src/linux/Backtest/TradingTerminal.Backtest.Cli
 ```
 
 Then call `daxalgo-backtest <command>` (`run` / `synth` / `sweep` / `walkforward` / `mc` / `tca` /

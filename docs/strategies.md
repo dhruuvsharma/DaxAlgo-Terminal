@@ -23,7 +23,7 @@ Every strategy has **two halves**:
   `Infrastructure/Backtest/Strategies/`.
 - **Live UI side** — a window + view-model that picks an instrument, lets you set parameters, draws
   the strategy's view, and turns signals into notifications. Lives in
-  `src/windows/Strategies/<Name>/` (WPF) or `src/linux/Strategies/<Name>/` (Avalonia).
+  `src/windows/Strategies/<Name>/` (WPF).
 
 In the shell, every strategy opens as **its own window** — double-click a card in the strategy
 catalog, or right-click → *Open* (or *Quick backtest*).
@@ -264,8 +264,7 @@ still `ApexScalperStrategy`.)*
 ## Adding a new strategy
 
 Each strategy is its own project following the same six-file shape. The fastest path is to copy an
-existing project, rename, and edit. **Remember the two trees** — a strategy you want on both Windows
-and Linux must be added under `src/windows/Strategies/` *and* `src/linux/Strategies/`.
+existing project under `src/windows/Strategies/`, rename it, and edit it.
 
 1. **Copy** the closest existing project (e.g. `src/windows/Strategies/TradingTerminal.Strategies.CumulativeDelta`).
    Rename the directory, the `.csproj`, and the class prefix.
@@ -275,8 +274,7 @@ and Linux must be added under `src/windows/Strategies/` *and* `src/linux/Strateg
    - `MyStrategyViewModel.cs` — extends `LiveSignalStrategyViewModelBase` (in `TradingTerminal.UI`).
      Declare parameters as `[ObservableProperty]`s; override `BuildStrategy(Contract contract)` to
      return your engine-side `IBacktestStrategy`.
-   - `MyStrategyWindow.xaml(.cs)` — the window (a MahApps `MetroWindow` on WPF; an Avalonia `Window`
-     on Linux).
+   - `MyStrategyWindow.xaml(.cs)` — the MahApps `MetroWindow`.
    - `DependencyInjection.cs` — one `AddMyStrategy()` extension registering the descriptor, VM, view,
      and a `StrategyFactoryRegistration`.
 3. Put the **decision logic** in `Infrastructure/Backtest/Strategies/<Name>Strategy.cs` implementing

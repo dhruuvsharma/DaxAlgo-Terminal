@@ -1,10 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: the heatmap VMs are portable (depth/trade/volume-profile/CVD/DOM data off the
-         hub; render tick via the UiThread timer seam). The WPF window + the WriteableBitmap-based
-         BookmapSurface control stay on the windows leg; the Avalonia view exposes the controls + live
-         readouts (the faithful bookmap pixel render is a later polish pass). -->
+    <!-- WPF heatmap; view-model rendering cadence remains behind the UiThread seam. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Bookmap + VolBook tool: L2 liquidity heatmap + trade dots + volume profile/VWAP/value area + CVD + DOM + playback off the canonical hub.</Description>
   </PropertyGroup>
@@ -23,16 +20,6 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <!-- WPF window + WriteableBitmap render control don't compile off-Windows. -->
-    <Compile Remove="BookmapHeatmapWindow.xaml.cs" />
-    <Compile Remove="BookmapSurface.cs" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

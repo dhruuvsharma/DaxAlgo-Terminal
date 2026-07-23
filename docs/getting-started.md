@@ -1,9 +1,8 @@
 # Getting started
 
-> Last updated: 2026-06-30
+> Last updated: 2026-07-22
 
-The shortest path from a clean clone to a running shell — on **either** build (Windows/WPF or
-Linux/Avalonia). For broker-specific configuration after the first launch, see
+The shortest path from a clean clone to a running Windows/WPF shell. For broker-specific configuration after the first launch, see
 [brokers.md](brokers.md). For the daily-use walkthrough, see [user-guide.md](user-guide.md).
 
 ## Prerequisites
@@ -12,7 +11,7 @@ Linux/Avalonia). For broker-specific configuration after the first launch, see
 |---|---|
 | **.NET SDK** | 9.x. (Only the .NET 9 SDK is needed — no .NET 8.) |
 | **Git** | any recent version |
-| **OS** | **Windows 10/11** for the WPF build, **or** Linux / Raspberry Pi (ARM64) for the Avalonia build. The Avalonia build also runs on Windows. |
+| **OS** | **Windows 10/11** |
 
 You do **not** need any broker account to build and run. Two zero-credential paths give you data out
 of the box:
@@ -45,18 +44,12 @@ git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
 cd "DaxAlgo Terminal"
 ```
 
-There are **two solutions** — always name the one you want (there is no bare `dotnet build`).
+Always name the Windows solution or edition filter; there is no bare `dotnet build` workflow.
 
 **Windows (WPF):**
 
 ```powershell
 dotnet build TradingTerminal.Windows.slnx
-```
-
-**Linux / Raspberry Pi (Avalonia):**
-
-```bash
-dotnet build TradingTerminal.Linux.slnx
 ```
 
 A successful Windows build prints, when applicable, `IB CSharpAPI resolved from: <path>`
@@ -66,8 +59,8 @@ compiled in. cTrader and Alpaca are always compiled in (NuGet packages, no DLL g
 ## Run
 
 **Windows (WPF)** ships as **three editions** — three fully independent shell exes over the same
-platform libraries. There is **no shared shell code** between them (same philosophy as the
-Windows/Linux tree fork): each project carries its own complete copy of the shell, so lower tiers
+platform libraries. There is **no shared shell code** between them: each project carries its own
+complete copy of the shell, so lower tiers
 physically exclude the higher-tier feature DLLs from their output.
 
 | Edition | Project | Brokers | Tools |
@@ -94,12 +87,6 @@ dotnet build TradingTerminal.Windows.Basic.slnf
 The `Simulated` broker ships in **every** edition; whenever it is connected, every window shows a
 persistent amber **“SIMULATED DATA — not a live feed”** banner so a synthetic feed is never mistaken
 for a live one.
-
-**Linux / Raspberry Pi (Avalonia):**
-
-```bash
-dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
-```
 
 The **login window** opens with broker tiles. Connect one or more (sessions are concurrent), and the
 main shell opens. Tick **Auto Connect** to have every broker with saved credentials connect
@@ -145,21 +132,16 @@ are off in the shipped build. See [configuration.md](configuration.md#dev-launch
 
 ## Repo layout (at a glance)
 
-The repo holds **two independent trees** (see
-[architecture.md](architecture.md#two-independent-trees)):
+The repository holds one Windows product tree:
 
 ```
 DaxAlgo Terminal/
 ├── src/
-│   ├── windows/                      Windows / WPF tree  (TradingTerminal.Windows.slnx, net9.0-windows7.0)
-│   │   ├── Core/ Pipeline/ Shell/    Core · MarketData + Infrastructure · UI + Login + App
-│   │   ├── Charts/ Tools/ AI/        tool, chart, regime, AI and QuantConnect windows
-│   │   ├── MachineLearning/          the ML windows (Windows-only)
-│   │   ├── Strategies/               12 per-strategy projects
-│   │   └── Sdk/                      DaxAlgo SDK for plugins (Windows-only)
-│   └── linux/                        Linux / Avalonia tree (TradingTerminal.Linux.slnx, net9.0)
-│       └── …                         same layout, App.Avalonia shell, no Charts(WebView2)/ML/SDK
-├── tests/                            Windows tests + tests/linux/ for the Avalonia tree
+│   └── windows/                      Windows / WPF tree (TradingTerminal.Windows.slnx)
+│       ├── Core/ Pipeline/ Shell/    Core · MarketData + Infrastructure · UI + Login + shells
+│       ├── Charts/ Tools/ AI/        tool, chart, regime, and AI seams
+│       └── Sdk/                      DaxAlgo SDK for runtime plugins
+├── tests/                            Windows headless and WPF tests
 ├── tools/
 │   ├── cpp-backtester/               C++ tick backtester (subprocess sidecar)
 │   └── python-ml/                    Python AI / Paper Lab sidecar (FastAPI)

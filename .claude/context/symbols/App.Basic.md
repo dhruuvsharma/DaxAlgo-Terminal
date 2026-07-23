@@ -115,58 +115,58 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs
 ```cs
-   41: public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPresenter
-   72: public MainWindowViewModel(
-  238: public ObservableCollection<ITradingStrategy> Strategies { get; }
-  243: public ObservableCollection<StrategyCatalogItemViewModel> CatalogItems { get; }
-  247: public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
-  248: public InMemoryLogSink LogSink { get; }
-  253: public ICollectionView ActivityLog { get; }
-  271: public BrokerApiMeterViewModel ApiMeter { get; }
-  275: public int PluginProblemCount { get; }
-  277: public bool HasPluginProblems => PluginProblemCount > 0;
-  281: public string ModeDisplayName
-  296: public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
-  298: public string ActiveBrokerLabel
-  312: public string DisconnectBannerText => "Disconnected — connect a broker to resume";
-  323: public bool IsAuthenticated => _session.IsAuthenticated;
-  325: public string SessionUserDisplay
-  400: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
-  407: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
-  416: public void OpenStrategy(string? strategyId)
-  466: public void QuickBacktest(string? strategyId)
-  505: public async Task ReconnectAsync()
-  516: public void Exit()
-  525: public async Task StartQuestDbAsync()
-  535: public ObservableCollection<ThemeMenuOption> Themes { get; }
-  562: public void OpenThemeStudio() =>
-  594: public void OpenPluginManager() =>
-  599: public void OpenStrategyAuthoring() =>
-  605: public IReadOnlyList<CliLaunchChoice> CliLaunchChoices { get; }
-  609: public bool HasCliLaunchers => CliLaunchChoices.Any(choice => choice.IsAvailable);
-  615: public void LaunchCli(CliLaunchChoice? choice)
-  631: public void OpenBacktestStudio() =>
-  637: public TickRecordingService Recorder { get; }
-  642: public void OpenRecorder() =>
-  647: public void OpenCorrelation() =>
-  652: public void OpenLiveCorrelation() =>
-  659: public void OpenSupport() =>
-  664: public void OpenCharts() =>
-  668: public void OpenOrderBook() =>
-  672: public void OpenFootprint() =>
-  676: public void OpenBookmap() =>
-  680: public void OpenAdvancedRegime() =>
-  686: public void OpenNotificationsSettings() =>
-  690: public void OpenAiProvidersSettings() =>
-  695: public void OpenArchiveSettings() =>
-  699: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
-  731: public void InstantOffload()
-  738: public Task StartAsync()
-  750: public sealed class CliLaunchChoice(AgentCliAdapter adapter, bool isAvailable)
-  752: public AgentCliAdapter Adapter { get; } = adapter;
-  753: public bool IsAvailable { get; } = isAvailable;
-  754: public string DisplayName => Adapter.DisplayName;
-  755: public string MenuHeader => IsAvailable ? Adapter.DisplayName : $"{Adapter.DisplayName} — not installed";
+   40: public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPresenter
+   71: public MainWindowViewModel(
+  237: public ObservableCollection<ITradingStrategy> Strategies { get; }
+  242: public ObservableCollection<StrategyCatalogItemViewModel> CatalogItems { get; }
+  246: public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
+  247: public InMemoryLogSink LogSink { get; }
+  252: public ICollectionView ActivityLog { get; }
+  270: public BrokerApiMeterViewModel ApiMeter { get; }
+  274: public int PluginProblemCount { get; }
+  276: public bool HasPluginProblems => PluginProblemCount > 0;
+  280: public string ModeDisplayName
+  295: public bool IsLiveMode => _brokerSelector.Connected.Any(k => _brokerSelector.ModeOf(k).IsLive);
+  297: public string ActiveBrokerLabel
+  311: public string DisconnectBannerText => "Disconnected — connect a broker to resume";
+  322: public bool IsAuthenticated => _session.IsAuthenticated;
+  324: public string SessionUserDisplay
+  399: public int ConnectedBrokerCount => _brokerSelector.Connected.Count;
+  406: public bool IsDisconnected => ConnectionState is not Core.Domain.ConnectionState.Connected;
+  415: public void OpenStrategy(string? strategyId)
+  465: public void QuickBacktest(string? strategyId)
+  504: public async Task ReconnectAsync()
+  515: public void Exit()
+  524: public async Task StartQuestDbAsync()
+  534: public ObservableCollection<ThemeMenuOption> Themes { get; }
+  561: public void OpenThemeStudio() =>
+  593: public void OpenPluginManager() =>
+  598: public void OpenStrategyAuthoring() =>
+  604: public IReadOnlyList<CliLaunchChoice> CliLaunchChoices { get; }
+  608: public bool HasCliLaunchers => CliLaunchChoices.Any(choice => choice.IsAvailable);
+  614: public void LaunchCli(CliLaunchChoice? choice)
+  630: public void OpenBacktestStudio() =>
+  636: public TickRecordingService Recorder { get; }
+  641: public void OpenRecorder() =>
+  646: public void OpenCorrelation() =>
+  651: public void OpenLiveCorrelation() =>
+  658: public void OpenSupport() =>
+  663: public void OpenCharts() =>
+  667: public void OpenOrderBook() =>
+  671: public void OpenFootprint() =>
+  675: public void OpenBookmap() =>
+  679: public void OpenAdvancedRegime() =>
+  685: public void OpenNotificationsSettings() =>
+  689: public void OpenAiProvidersSettings() =>
+  694: public void OpenArchiveSettings() =>
+  698: public void OpenArchiveActivity() => OpenOrActivateArchiveHistory();
+  730: public void InstantOffload()
+  737: public Task StartAsync()
+  749: public sealed class CliLaunchChoice(AgentCliAdapter adapter, bool isAvailable)
+  751: public AgentCliAdapter Adapter { get; } = adapter;
+  752: public bool IsAvailable { get; } = isAvailable;
+  753: public string DisplayName => Adapter.DisplayName;
+  754: public string MenuHeader => IsAvailable ? Adapter.DisplayName : $"{Adapter.DisplayName} — not installed";
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml.cs

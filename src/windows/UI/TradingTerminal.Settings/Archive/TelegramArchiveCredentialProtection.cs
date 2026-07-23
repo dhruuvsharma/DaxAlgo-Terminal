@@ -8,9 +8,8 @@ namespace TradingTerminal.App.Archive;
 /// <summary>
 /// Protection helpers for Telegram archive credentials. On Windows the secret is encrypted with DPAPI
 /// (<c>DataProtectionScope.CurrentUser</c>) — decryptable only by the same Windows user on the same
-/// machine. Off Windows (the Avalonia/Linux head) DPAPI is unavailable, so we fall back to a plain
-/// base64 wrapper — the same precedent Phase 0 set for AiAnalystOptions (TODO: an OS-keyring-backed
-/// secret store on Linux). The fallback never throws.
+/// machine. Off Windows, DPAPI is unavailable, so non-desktop tooling falls back to a plain base64
+/// wrapper (TODO: an OS-keyring-backed portable secret store). The fallback never throws.
 /// </summary>
 public static class TelegramArchiveCredentialProtection
 {

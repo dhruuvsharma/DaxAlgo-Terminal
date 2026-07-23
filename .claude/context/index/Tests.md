@@ -18,6 +18,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests/Controls/InstrumentPickerTests.cs` | 57 | win | TradingTerminal.Tests | dev | Y | Regression test for the strategy-window crash "Cannot find resource named |
 | `tests/TradingTerminal.Tests/Controls/LiveSignalStrategyViewModelLifetimeTests.cs` | 114 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Controls/RecorderPanelViewTests.cs` | 57 | win | TradingTerminal.Tests | dev | Y | The L3 chip is a deliberate, permanently-dim placeholder: no broker in this |
+| `tests/TradingTerminal.Tests/Controls/ThemeManagerTests.cs` | 18 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Controls/WpfTestApp.cs` | 84 | win | TradingTerminal.Tests | dev | N | Any style the panels resolve by StaticResource — its presence means the |
 | `tests/TradingTerminal.Tests/Login/LoginFormEditionCompositionTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y | The broker-neutral services every edition provides before AddLogin. |
 | `tests/TradingTerminal.Tests/Login/ServiceDependencyViewModelTests.cs` | 61 | win | TradingTerminal.Tests | dev | Y |  |
@@ -68,6 +69,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/MarketData/OrderFlowImbalanceTests.cs` | 82 | win | TradingTerminal.Tests.Headless | dev | Y | Unit tests for the OBI(T) primitives from arXiv:2507.22712 (trade-based imbalance + the |
 | `tests/TradingTerminal.Tests.Headless/MarketData/PerBrokerSqliteMarketDataStoreTests.cs` | 179 | win | TradingTerminal.Tests.Headless | dev | Y | Behaviour of the per-broker, per-stream SQLite store: writes route to one file |
 | `tests/TradingTerminal.Tests.Headless/MarketData/QuestDbMarketDataStoreTests.cs` | 124 | win | TradingTerminal.Tests.Headless | dev | Y | Poll a read until it returns the expected count or the timeout |
+| `tests/TradingTerminal.Tests.Headless/MarketData/QuestDbNativeBootstrapperTests.cs` | 257 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/MarketData/SqliteMarketDataStoreTests.cs` | 131 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/MarketData/SqliteModelRegistryTests.cs` | 144 | win | TradingTerminal.Tests.Headless | dev | Y | Round-trip coverage for the SQLite trained-model registry: save/version/load, latest-per-key |
 | `tests/TradingTerminal.Tests.Headless/Ml/DepthStepSamplerTests.cs` | 108 | win | TradingTerminal.Tests.Headless | dev | Y |  |
@@ -135,4 +137,4 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyCodegenTests.cs` | 1082 | win | TradingTerminal.Tests.Headless | dev | Y | A kernel that compiles and does nothing — the fixture for the |
 | `tests/TradingTerminal.Tests.Headless/Strategies/StrategyParametersTests.cs` | 128 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/TestSupport/ImmediateDispatcher.cs` | 11 | win | TradingTerminal.Tests.Headless | dev | Y | UI dispatcher stand-in for tests; runs everything inline on the calling thread. |
-| `tests/TradingTerminal.Tests.Headless/Ui/StrategyCatalogViewModelTests.cs` | 38 | win | TradingTerminal.Tests.Headless | dev | Y | Tests the portable strategy-catalog VM (shared by the WPF + Avalonia heads). |
+| `tests/TradingTerminal.Tests.Headless/Ui/StrategyCatalogViewModelTests.cs` | 36 | win | TradingTerminal.Tests.Headless | dev | Y | Tests the portable, WPF-free strategy-catalog VM through the headless catalog seam. |

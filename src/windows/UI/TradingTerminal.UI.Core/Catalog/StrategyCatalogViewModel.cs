@@ -5,11 +5,10 @@ using TradingTerminal.Core.Backtest;
 namespace TradingTerminal.UI.Catalog;
 
 /// <summary>
-/// Portable view-model for the strategy catalog, shared by both UI heads (WPF + Avalonia). It is a
-/// plain <see cref="ObservableObject"/> over the broker-neutral <see cref="BacktestStrategyOption"/>
-/// list from the headless catalog — no UI-framework types — so the same VM drives a WPF list or an
-/// Avalonia list unchanged. An optional <c>onLog</c> callback lets the host route selection activity
-/// to the universal Activity Log.
+/// Portable view-model for the strategy catalog. It is a plain <see cref="ObservableObject"/> over
+/// the broker-neutral <see cref="BacktestStrategyOption"/> list from the headless catalog, with no
+/// UI-framework types. An optional <c>onLog</c> callback lets the host route selection activity to
+/// the universal Activity Log.
 /// </summary>
 public sealed partial class StrategyCatalogViewModel : ObservableObject
 {

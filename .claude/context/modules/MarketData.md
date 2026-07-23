@@ -19,4 +19,4 @@ Surface: `symbols/MarketData.md` (463 lines). Seams it implements: `symbols/Core
 **Tests** `tests/TradingTerminal.Tests.Headless` `~MarketData` / `~Store`; Postgres self-skips without Docker.
 
 **Common changes.** Follow `RECIPES/market-data-pipeline-change.md` (store change = ALL backends +
-archive bundle). Load `market-data-pipeline` skill. Usually cross-tree.
+archive bundle). Load `market-data-pipeline` skill.

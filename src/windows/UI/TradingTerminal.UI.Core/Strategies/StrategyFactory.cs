@@ -6,9 +6,8 @@ namespace TradingTerminal.UI.Strategies;
 /// DI-backed catalog. Each strategy registered in DI must also register a
 /// <see cref="StrategyFactoryRegistration"/> describing how to build its (view, vm) pair.
 /// <para>
-/// Portable (WPF-free) so both the WPF shell and the Avalonia head open strategies through the
-/// same seam — the shell never names a concrete strategy type. The view may be a UserControl
-/// (rendered in a tab/host) or a Window (shown standalone); each UI head decides how to host it.
+/// Portable (WPF-free) so the shell opens strategies through one seam and never names a concrete
+/// strategy type. The view may be a UserControl (rendered in a host) or a Window (shown standalone).
 /// </para>
 /// <para>
 /// The catalog is mutable: <see cref="Register"/> adds a strategy compiled at runtime by the AI builder
@@ -21,9 +20,8 @@ public sealed class StrategyFactory : IStrategyFactory
 {
     /// <summary>
     /// Assigns the resolved view-model to the resolved view's <c>DataContext</c>. Defaults to a
-    /// reflection-based assignment that works for both WPF (<c>FrameworkElement.DataContext</c>) and
-    /// Avalonia (<c>StyledElement.DataContext</c>), keeping this factory free of any UI framework
-    /// reference. A UI head may replace it with a typed binder if desired.
+    /// reflection-based <c>DataContext</c> assignment, keeping this factory free of any UI framework
+    /// reference. The WPF host may replace it with a typed binder if desired.
     /// </summary>
     public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
 

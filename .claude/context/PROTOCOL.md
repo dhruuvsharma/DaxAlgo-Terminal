@@ -7,7 +7,6 @@ source, make the smallest authorized change, and leave durable memory.
 
 1. **Load the correct masters before source.**
    - Windows: `.claude/context/index.md`, `symbols.md`, and `deps.json`.
-   - Linux: `.claude/context/linux/index.md`, `symbols.md`, and `deps.json`.
    - When this repository is mounted under an overlay, also load that overlay's masters.
 2. **Protect existing work.** Inspect `git status --short`; unrelated dirty files belong to the
    user. Never discard, overwrite, stage, or commit them.
@@ -28,18 +27,19 @@ source, make the smallest authorized change, and leave durable memory.
 8. **Verify proportionally.** Start with syntax/static checks and the narrowest project, solution
    filter, or test filter that covers the change. Never use a bare `dotnet build` in this repository.
 9. **Synchronize context.** Do not hand-edit generated `index/` or `symbols/` shards. Run the
-   appropriate generator when paths or public symbols change, update `deps.json` when project
-   references change, append `changelog.md`, and run freshness checks.
+   repository's locked `manage-context.ps1 sync` action when routed source or public symbols change;
+   never invoke a generator directly. Update `deps.json` when project references change, append
+   `changelog.md`, and run freshness checks.
 10. **Close the scratchpad and report.** Record files changed, checks actually run, results, risks,
-    and deferred cross-tree work. Do not claim a check that was not executed.
+    and deferred work. Do not claim a check that was not executed.
 
 ## Scope multipliers
 
 - A shared public shell change normally applies to both `App.Basic` and `App.Intermediate`; use
   `RECIPES/shell-fix-editions.md`. An overlay may impose an additional shell copy, but public code
   never imports or reproduces private implementation.
-- Windows/WPF and Linux/Avalonia are independent trees. Touch both only when explicitly authorized
-  and verify each from its own context layer.
+- The Linux edition is maintained in a separate private repository and is outside this workspace;
+  do not inspect or mirror it unless the user explicitly opens that repository and expands scope.
 - Windows strategies are external SDK plugins. Use `RECIPES/add-strategy.md`; never recreate
   first-party `src/windows/Strategies/TradingTerminal.Strategies.*` projects.
 - External actions—issues, commits, pushes, PRs, releases, or messages—require explicit user approval.

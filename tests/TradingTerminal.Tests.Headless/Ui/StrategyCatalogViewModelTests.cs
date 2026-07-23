@@ -6,9 +6,7 @@ using Xunit;
 namespace TradingTerminal.Tests.Ui;
 
 /// <summary>
-/// Tests the portable strategy-catalog VM (shared by the WPF + Avalonia heads). Because it is
-/// WPF-free, these run headless on Windows and Linux alike — the proof that the catalog view-model
-/// ports across UI frameworks unchanged.
+/// Tests the portable, WPF-free strategy-catalog VM through the headless catalog seam.
 /// </summary>
 public sealed class StrategyCatalogViewModelTests
 {

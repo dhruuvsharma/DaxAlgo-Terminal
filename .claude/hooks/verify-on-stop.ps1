@@ -5,10 +5,8 @@
 #
 # Only fires when .cs/.csproj changed. Honors stop_hook_active so it never loops. Conservative
 # by design: it blocks ONLY on things that are violations by construction (no false positives).
-# 2026-07-11: rewritten -- the original probed pre-fork paths (src\<Proj>\) so BOTH checks had
-# been silently dead since the 2026-06-27 two-tree fork. Projects are now located by glob under
-# src/ (covers src/windows AND src/linux), and the lower-layer path regex matches the forked
-# layout including the DaxAlgo.Sdk projects.
+# Current topology is the Windows tree under src/windows. Projects are located by name within that
+# tree, and the lower-layer path regex includes the DaxAlgo.Sdk projects.
 # 2026-07-18: Infrastructure allowlist gains DaxAlgo.Codegen -- the lean AI-codegen assembly split
 # out of Infrastructure (42a2dc2, #26 phase 4). It depends only on Core, so the reference is
 # downward; Codegen itself is now gate-guarded to Core-only.
@@ -34,8 +32,7 @@ if (-not $relevant) { exit 0 }
 $violations = New-Object System.Collections.Generic.List[string]
 
 # ---- 1. Solution-graph: lower-layer projects may reference only what the graph allows --------
-# Checked whenever any .csproj changed. Both trees carry identically-named projects (they never
-# compile together), so one glob per project name covers windows + linux copies.
+# Checked whenever any .csproj changed.
 $csprojChanged = $relevant | Where-Object { $_ -match '\.csproj$' }
 if ($csprojChanged) {
     $allowed = @{
@@ -49,7 +46,7 @@ if ($csprojChanged) {
         'DaxAlgo.Sdk.Wpf'                = @('DaxAlgo.Sdk','TradingTerminal.UI','TradingTerminal.UI.Core')
     }
     foreach ($proj in $allowed.Keys) {
-        $csprojs = Get-ChildItem -Path (Join-Path $projectDir 'src') -Recurse -Filter "$proj.csproj" -File -ErrorAction SilentlyContinue
+        $csprojs = Get-ChildItem -Path (Join-Path $projectDir 'src\windows') -Recurse -Filter "$proj.csproj" -File -ErrorAction SilentlyContinue
         foreach ($csproj in $csprojs) {
             $refs = Select-String -Path $csproj.FullName -Pattern 'ProjectReference\s+Include="[^"]*\\([^\\"]+)\.csproj"' -AllMatches |
                     ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value }
@@ -70,7 +67,7 @@ if ($csprojChanged) {
 $sdkPattern = '^\s*using\s+(IBApi|NinjaTrader|NTDirect|Alpaca\.Markets|OpenAPI|Spotware)\b'
 $lowerCs = $relevant | Where-Object {
     $_ -match '\.cs$' -and
-    $_ -match '^src/(windows|linux)/[^/]+/(TradingTerminal\.(Core|MarketData|UI|UI\.Core)|DaxAlgo\.Sdk(\.Wpf)?)/'
+    $_ -match '^src/windows/[^/]+/(TradingTerminal\.(Core|MarketData|UI|UI\.Core)|DaxAlgo\.Sdk(\.Wpf)?)/'
 }
 foreach ($file in $lowerCs) {
     $full = Join-Path $projectDir ($file -replace '/','\')

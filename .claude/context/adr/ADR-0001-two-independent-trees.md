@@ -1,6 +1,6 @@
 # ADR-0001 — Two independent trees, zero shared code
 
-**Date** 2026-06-27 · **Status** accepted
+**Date** 2026-06-27 · **Status** superseded by ADR-0013
 
 **Context.** The Linux/Avalonia port initially multi-targeted shared projects; Linux work kept
 destabilizing the Windows/WPF build.
@@ -10,6 +10,5 @@ destabilizing the Windows/WPF build.
 `TradingTerminal.Linux.slnx` (Avalonia, net9.0). `src/shared/` deleted; no multi-targeting.
 Namespaces are intentionally identical — the trees never compile together.
 
-**Consequences.** A backend fix that applies to both is made TWICE (see
-`RECIPES/cross-tree-fix.md`). Windows-only projects exist only under `src/windows/`. Never run
-bare `dotnet build` (two solutions). Context layer indexes Windows only as of 2026-07-10.
+**Consequences.** This decision governed the former combined repository. ADR-0013 moved the
+Linux/Avalonia tree to an independent private repository; this repository now owns Windows only.

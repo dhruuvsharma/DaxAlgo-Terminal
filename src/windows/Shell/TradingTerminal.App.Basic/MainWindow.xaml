@@ -366,7 +366,7 @@
                           Command="{Binding ReconnectCommand}" />
                 <MenuItem Icon="🗃️" Header="Start _QuestDB"
                           Command="{Binding StartQuestDbCommand}"
-                          ToolTip="Launch Docker Desktop (if needed) and the QuestDB container, then enable tick persistence without restarting." />
+                          ToolTip="Start the bundled QuestDB runtime (or attach to an external endpoint), then enable tick persistence without restarting." />
                 <Separator />
                 <MenuItem Icon="🚪" Header="E_xit"
                           Command="{Binding ExitCommand}"

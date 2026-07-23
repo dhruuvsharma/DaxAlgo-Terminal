@@ -1,5 +1,11 @@
 {
   "profiles": {
+    "Basic — Local developer (enter app)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "DevSim"
+      }
+    },
     "Basic (Login)": {
       "commandName": "Project"
     },

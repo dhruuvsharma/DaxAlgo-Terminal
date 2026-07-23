@@ -165,7 +165,7 @@ public sealed partial class ThemeStudioViewModel : ViewModelBase
         var file = new CustomThemeFile
         {
             Name = string.IsNullOrWhiteSpace(NewThemeName) ? "Custom" : NewThemeName.Trim(),
-            BaseThemeId = SelectedBaseTheme?.Id ?? "amber",
+            BaseThemeId = SelectedBaseTheme?.Id ?? "daxalgo-dark",
         };
 
         foreach (var group in Groups)

@@ -3,7 +3,7 @@
 **Path** `src/windows/Charts/TradingTerminal.Charts/` · **Editions** B I P · **Blast: med (leaf window)**
 
 **Purpose.** The Charts menu's candlestick window hosting a WebView2 chart (TradingView-style),
-fed from the hub/store. Windows-only tech (no Linux mirror of WebView2).
+fed from the hub/store using Windows-only WebView2.
 
 **DI** `AddChartsSurface` — `ChartsServiceCollectionExtensions.cs`. **Surface** `symbols/Charts.md`.
 **Depends on** Core, Infrastructure, UI, UI.Core. **Consumed by** both shells (Charts menu).

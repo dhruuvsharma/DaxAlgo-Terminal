@@ -4,15 +4,15 @@ namespace TradingTerminal.UI;
 /// Tiny marshaling helper for VMs that subscribe to background-threaded sources (hub subjects,
 /// channels fed from ingest pumps) and need to mutate observable state on the UI thread.
 ///
-/// WPF-free and shared by both UI heads: set <see cref="Marshal"/> once at startup — the WPF shell
-/// points it at its Dispatcher, the Avalonia shell at <c>Dispatcher.UIThread</c>. The default runs
-/// inline, which is also the correct no-op for unit tests on a worker thread.
+/// WPF-free so the view-model layer stays testable: the desktop shell points <see cref="Marshal"/>
+/// at its Dispatcher during startup. The default runs inline, which is also the correct no-op for
+/// unit tests on a worker thread.
 /// </summary>
 public static class UiThread
 {
     /// <summary>
     /// Runs an action on the UI thread and returns a task for its completion. Assigned once during
-    /// app startup by whichever UI head is hosting; defaults to inline execution.
+    /// app startup by the UI host; defaults to inline execution.
     /// </summary>
     public static Func<Func<Task>, Task> Marshal { get; set; } = static action => action();
 

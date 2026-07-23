@@ -24,7 +24,7 @@
           {
             "type": "command",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\session-start.ps1\"",
-            "timeout": 15
+            "timeout": 45
           }
         ]
       }
@@ -51,7 +51,7 @@
           {
             "type": "command",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PROJECT_DIR}\\.claude\\hooks\\docsync-on-stop.ps1\"",
-            "timeout": 20
+            "timeout": 120
           }
         ]
       }

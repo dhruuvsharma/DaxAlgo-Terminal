@@ -330,30 +330,6 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   262: public void Dispose()
 ```
 
-## src/windows/Pipeline/TradingTerminal.MarketData/Store/QuestDbDockerBootstrapper.cs
-```cs
-   25: public static TimeSpan StartupTimeout(MarketDataStoreOptions opts) =>
-   29: public static bool DockerCliPresent() => TryRunDocker("--version", TimeSpan.FromSeconds(15), out _, log: null);
-   32: public static bool DockerDaemonReady() => TryRunDocker("info", TimeSpan.FromSeconds(20), out _, log: null);
-   40: public static bool TryStartDockerEngineCli(ILogger log)
-   53: public static bool IsReachable(string conn)
-   70: public static bool TryStartContainer(MarketDataStoreOptions opts, ILogger log)
-   88: public static bool TryLaunchDockerDesktop(MarketDataStoreOptions opts, ILogger log)
-  108: public static bool WaitForDaemon(TimeSpan timeout, CancellationToken ct)
-  120: public static bool WaitUntilReachable(string conn, TimeSpan timeout, CancellationToken ct)
-```
-
-## src/windows/Pipeline/TradingTerminal.MarketData/Store/QuestDbDockerService.cs
-```cs
-   18: public sealed class QuestDbDockerService : IQuestDbLauncher
-   24: public QuestDbDockerService(
-   32: public bool IsQuestDbBackend => _opts.Provider == MarketDataProvider.QuestDb;
-   35: public bool IsApplicable => IsQuestDbBackend;
-   36: public bool AutoStart => _opts.AutoStartDocker;
-   37: public bool IsReachable() => QuestDbDockerBootstrapper.IsReachable(_opts.QuestDbPgConnectionString);
-   41: public Task<bool> StartAsync(CancellationToken ct = default) => Task.Run(() => StartCore(ct), ct);
-```
-
 ## src/windows/Pipeline/TradingTerminal.MarketData/Store/QuestDbMarketDataStore.cs
 ```cs
    41: public QuestDbMarketDataStore(
@@ -371,6 +347,32 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   270: public override Task<long> DeleteDepthInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
   273: public override Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
   323: protected override void OnDispose() => _sender?.Dispose();
+```
+
+## src/windows/Pipeline/TradingTerminal.MarketData/Store/QuestDbNativeBootstrapper.cs
+```cs
+   25: public static TimeSpan StartupTimeout(MarketDataStoreOptions options) =>
+   28: public static QuestDbRuntimePaths ResolvePaths(
+   49: public static void EnsureManagedConfiguration(QuestDbRuntimePaths paths)
+   73: public static bool TryAcquireRootOwnership(
+   97: public static ProcessStartInfo CreateStartInfo(QuestDbRuntimePaths paths)
+  112: public static Process? TryStart(QuestDbRuntimePaths paths, ILogger log)
+  138: public static bool IsReachable(MarketDataStoreOptions options)
+  154: public static bool HasSafeEndpoints(MarketDataStoreOptions options, out string? reason)
+  214: public static string DescribePgEndpoint(string connectionString)
+  231: public static async Task<bool> WaitUntilReachableAsync(
+  249: public static async Task<bool> WaitUntilReachableAsync(
+```
+
+## src/windows/Pipeline/TradingTerminal.MarketData/Store/QuestDbNativeService.cs
+```cs
+   14: public sealed class QuestDbNativeService : IQuestDbLauncher, IDisposable
+   25: public QuestDbNativeService(
+   35: public bool IsApplicable => _options.Provider == MarketDataProvider.QuestDb;
+   37: public bool AutoStart =>
+   42: public bool IsReachable() =>
+   45: public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
+  190: public void Dispose()
 ```
 
 ## src/windows/Pipeline/TradingTerminal.MarketData/Store/QuestDbSchema.cs

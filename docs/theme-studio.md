@@ -1,11 +1,10 @@
 # Theme Studio — recolour the whole app
 
-> Last updated: 2026-06-30
+> Last updated: 2026-07-22
 
-DaxAlgo Terminal ships a **Bloomberg-style** look: a pure-black canvas, an amber accent, and a
-monospace (Consolas) font everywhere. **Theme Studio** is a built-in, live colour editor that lets you
-change *any* of those colours and see the result instantly — no code, no restart — then save and share
-your own theme.
+DaxAlgo Terminal ships with **DaxAlgo Dark** and **DaxAlgo Light**. **Theme Studio** is a built-in,
+live colour editor that lets you change *any* palette colour and see the result instantly — no code,
+no restart — then save and share your own theme.
 
 Open it from **View → Customize theme… (Theme Studio)**.
 
@@ -23,21 +22,19 @@ with a colour swatch. Change a swatch and the whole app re-tints **live**, so yo
 the look you want and watch it happen. When you're happy, you save it as a named theme and can export
 it to a file to back up or share with someone else.
 
-It's aimed at anyone who wants the terminal to match their taste or workspace — a designer collaborator
-tweaking the palette, or a user who finds amber-on-black too intense and wants something softer.
+It's aimed at anyone who wants the terminal to match their taste or workspace — a designer
+collaborator tweaking the palette, or a user who wants a softer variation of either DaxAlgo base.
 
 ---
 
 ## The built-in themes
 
-Before you touch the editor, there are four ready-made themes under **View → Theme**:
+Before you touch the editor, there are two ready-made themes under **View → Theme**:
 
 | Theme | Look |
 |---|---|
-| **Bloomberg Amber** | The default — amber accent on black, the classic trading-terminal feel. |
-| **Monochrome (B&W)** | A grayscale, low-chroma alternative for a calmer, distraction-free screen. |
-| **Greek — Marble (light)** | An editorial, museum-daylight look: Pentelic-marble surfaces, warm charcoal ink, and a terracotta/amphora accent. The app's first *light* theme. P&L stays thematic yet legible — laurel-olive up, wine-dark down. |
-| **Greek — Obsidian (dark)** | The night-museum counterpart: warm basalt/obsidian stone, marble-ivory text, the same glowing terracotta accent, with a bronze-gold warning. |
+| **DaxAlgo Dark** | The default — a deep blue-grey terminal canvas with electric-blue accents. |
+| **DaxAlgo Light** | A bright, cool-toned counterpart with the same accent and P&L semantics. |
 
 Pick any with one click; the choice is remembered for next launch.
 
@@ -63,8 +60,8 @@ every window that uses it — strategy windows, charts, dialogs, the shell — a
 - **Keep contrast readable.** The bullish/bearish and warning/error colours carry meaning across every
   chart and the activity log; if you recolour them, keep green-ish/red-ish semantics so signals stay
   legible at a glance.
-- **Start from a base theme.** Switch to the closest built-in first (e.g. a Greek theme for a warm,
-  editorial palette, Monochrome for grayscale), then tweak — you'll only need to change a handful of tokens.
+- **Start from a base theme.** Switch to DaxAlgo Dark or DaxAlgo Light first, then tweak — you'll
+  only need to change a handful of tokens.
 - **Custom themes are portable.** The exported JSON has no machine-specific data, so it's safe to
   commit to a repo or share.
 
@@ -79,10 +76,9 @@ custom theme is a serialized token→colour map persisted as JSON under the app'
 editor view-model writes token changes straight into the live `DynamicResource` dictionary, which is
 what makes the preview instantaneous. No new dependencies are required.
 
-Bloomberg Amber and Monochrome are part of the shared theming layer and so are present on both the
-Windows and Linux builds; the two **Greek** palettes currently ship on the Windows/WPF build (each is a
-`ResourceDictionary` under `TradingTerminal.UI/Themes/`, registered in `ThemeManager`). The live Theme
-Studio editor is reached from the desktop shell's **View** menu.
+**DaxAlgo Dark** and **DaxAlgo Light** are the only bundled palettes in the Windows/WPF application.
+Each is a `ResourceDictionary` under `TradingTerminal.UI/Themes/`, registered in `ThemeManager`. The
+live Theme Studio editor is reached from the desktop shell's **View** menu.
 
 See also [user-guide.md](user-guide.md) (the View menu) and [configuration.md](configuration.md)
 (where preferences persist).

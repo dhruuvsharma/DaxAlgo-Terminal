@@ -16,9 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
-    <!-- Portable VM layer (ViewModelBase, live-strategy VM bases, Activity Log sink, â€¦) shared
-         with the Avalonia head. Brings CommunityToolkit.Mvvm / Logging.Abstractions / Reactive
-         transitively, so they're not repeated below. -->
+    <!-- UI.Core supplies ViewModelBase, live-strategy VM bases, and the Activity Log sink. It brings
+         CommunityToolkit.Mvvm, Logging.Abstractions, and Reactive transitively. -->
     <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
   </ItemGroup>
 
@@ -44,7 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Page Update="Themes\Brushes.xaml">
+    <Page Update="Themes\TvDark.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

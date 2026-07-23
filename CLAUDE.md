@@ -16,20 +16,12 @@ Ongoing initiatives and multi-session work are tracked as **GitHub issues** (`gh
 
 **The pipeline (do this without being asked):** when you finish a slice of tracked work, **update its issue** — tick the checkbox and drop the commit hash. When a new initiative starts, **open an issue** (`gh issue create`, apply labels: `epic`/`refactor`/`ui-ux`/`performance`/`charts`/`strategies`/`tools`/`ai-ml`/`distribution`/`roadmap`) and link it from #4. When active work spins out of the backlog, promote it to its own labelled issue. Prefer a short issue comment or checkbox tick over expanding a memory file. Write issue bodies via `--body-file` (PowerShell 5.1 mangles inline `-m`/`--body` with embedded double quotes).
 
-## ⚠️ Two independent trees — NO shared code (2026-06-27)
+## ⚠️ Repository scope — Windows only (2026-07-22)
 
-The repo is **forked into two fully independent codebases with zero shared projects** (done so Linux/Avalonia work can never destabilize the Windows/WPF build):
-
-| Tree | Root | Solution | TFM | UI |
-|---|---|---|---|---|
-| **Windows** | `src/windows/` | `TradingTerminal.Windows.slnx` | `net9.0-windows7.0` | WPF (MahApps) |
-| **Linux** | `src/linux/` | `TradingTerminal.Linux.slnx` | `net9.0` | Avalonia |
-
-- Each tree owns its **own copy** of the backend (Core, MarketData, Infrastructure, Backtest.Engine/Cli, UI.Core, Settings) and of every strategy/tool/AI/chart project. `src/shared/` is gone; **no multi-targeting** remains.
-- Type **namespaces are intentionally identical** across trees (`TradingTerminal.Core`, etc.) — the two never compile together, so there's no clash. A change in one tree does **not** propagate; **a fix that should apply to both must be made twice** (once per tree).
-- Windows-only projects (e.g. `TradingTerminal.Charts` WebView2 charts, the `Ml.*` windows) exist only under `src/windows/`. The Avalonia shell is `src/linux/Shell/TradingTerminal.App.Avalonia`.
-- Tests: `tests/TradingTerminal.Tests` (WPF) + `tests/TradingTerminal.Tests.Headless` → Windows tree; `tests/linux/TradingTerminal.Tests.Headless` → Linux tree.
-- Project-map/skill descriptions below still name projects correctly; just prepend `src/windows/<group>/` (or `src/linux/<group>/`) to the old `src/` paths.
+This repository owns the Windows/WPF open-core implementation under `src/windows/`, with
+`TradingTerminal.Windows.slnx` and the Windows test projects. The Linux/Avalonia edition moved to a
+separate private repository. Do not inspect, mirror, or coordinate that repository unless the user
+explicitly opens it and expands scope.
 
 ## ⚠️ Open-core split — Professional code is in a PRIVATE repo (2026-07-09)
 
@@ -38,7 +30,6 @@ This repo is the **open-source core** (AGPL-3.0; the `src/windows/Sdk/` plugin S
 - **Never copy code from the Pro repo into this one** — this repo is world-readable.
 - Shared/backend work happens **here**; the Pro repo pins a commit of this repo via the submodule.
 - Shell fixes are now **×3 across two repos**: `App.Basic` + `App.Intermediate` here, `TradingTerminal.App` in the Pro repo.
-- The Linux/Avalonia tree still carries ports of some Pro windows (Ai.*, LseBacktest, QuantConnect) — pruning them is an open decision, now also the last copy of the ones the Pro repo archived on 2026-07-17.
 
 ## Stack
 
@@ -79,12 +70,12 @@ Core           → (nothing)
 | ViewModelBase, `LiveSignalStrategyViewModelBase`, `LiveStrategyHostServices`, `InMemoryLogSink` | `TradingTerminal.UI.Core` (`src/windows/UI/`) |
 | Login window, credential store, broker login forms, `AddLogin()` | `TradingTerminal.Login` |
 | AI analyst seam (`IAiAnalystClient` Null/Http), enricher, `AddAiAnalyst()` | `TradingTerminal.Ai` (shared seam only) |
-| AI tool windows — only `Ai.PaperLab` still ships; the `MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis` panels were archived there 2026-07-17 | **Private Pro repo** (Windows tree; Avalonia ports remain under `src/linux/AI/`) |
+| AI tool windows — only `Ai.PaperLab` still ships; the `MarketAnalyst`/`FactorResearch`/`MlFeatures`/`BacktestAnalysis` panels were archived there 2026-07-17 | **Private Pro repo** |
 | Per-strategy live windows | **External** — the [DaxAlgo-Terminal-Strategies](https://github.com/dhruuvsharma/DaxAlgo-Terminal-Strategies) repo (runtime `.daxplugin`s); the terminal ships with an empty catalog |
 | Per-tool windows (one project each) — each ships its own `Add…Surface` DI extension | `TradingTerminal.<Name>` — Charts group: `Charts`/`OrderBook`/`VolumeFootprint`/`Heatmap` (Bookmap+VolBook); Tools group: `Correlation`/`Backtest`/`BacktestStudio`/`Recording` (the background recorder + its header panel — no menu entry; the shell's REC chip opens it)/`AdvancedMarketRegime`. (`BubbleChart`/`SurfaceLab`/`LseBacktest`/`QuantConnect` → private Pro repo; MarketRegime/InstrumentRegime windows removed.) |
 | Machine Learning menu windows (`Ml.Stationarity`/`ArimaGarch`/`KalmanFilter`) | **Archived in the private Pro repo** 2026-07-17 — slated to return as chart indicators/panels. Their math stays here in `Core/Quant/TimeSeries/` and is untouched. |
 | Shell, MainWindow, inline menu, DI composition (`AppDependencyInjection`), `App.xaml.cs`, notifications + archive UI | **Independent edition shells** (see “Edition shells” below): `TradingTerminal.App.Basic` / `TradingTerminal.App.Intermediate` here; `TradingTerminal.App` (Professional) in the **private Pro repo** |
-| Headless backtest CLI (`daxalgo-backtest`) | **Private Pro repo** (Windows copy; the Linux tree's copy remains here) |
+| Headless backtest CLI (`daxalgo-backtest`) | **Private Pro repo** |
 
 Live strategies — **moved out (2026-07-19).** The 9 first-party strategies (SigmaIcFlow, CumulativeDelta, FilteredOrderFlow, ImbalanceHeatFront, IndexKScoreSurface, IndexRegimeGraph, OrderFlowCube, OrderFlowPressureMap, OrderFlowSurfaceSpike) now live in the separate **[DaxAlgo-Terminal-Strategies](https://github.com/dhruuvsharma/DaxAlgo-Terminal-Strategies)** repo, built against the published DaxAlgo SDK NuGet packages and installed at runtime as `.daxplugin`s. The terminal ships as an **empty sandbox**: a fresh install has no built-in strategies; users author them in-app (Roslyn / AI Strategy Builder) or install packs via the Plugin Manager. The shared quant primitives they build on stay here in `Core/Quant/`.
 
@@ -162,11 +153,12 @@ dotnet run --project src/windows/Shell/TradingTerminal.App.Basic        # Basic 
 dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate # Intermediate (all brokers)
 # Professional: build/run from the private DaxAlgo-Terminal-Pro repo (TradingTerminal.Pro.slnx)
 
-# Linux/Avalonia tree (also builds on Windows; net9.0)
-dotnet build TradingTerminal.Linux.slnx
-dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
 ```
-There is no top-level `dotnet build` with no argument anymore — two solutions exist, so always name one. `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` / `linux/Dockerfile` (Linux) wrap each tree. Per-edition **solution filters** at the repo root (`TradingTerminal.Windows.Basic|Intermediate.slnf`) build/load just one edition's project closure; regenerate them when a shell's project references change. (The Professional filter moved with the Pro code — the Pro repo builds `TradingTerminal.Pro.slnx`.)
+Always name the Windows solution or one edition filter; do not use a bare `dotnet build`.
+`build-and-test.ps1` wraps the Windows flow. Per-edition **solution filters** at the repo root
+(`TradingTerminal.Windows.Basic|Intermediate.slnf`) build/load one edition's project closure;
+regenerate them when a shell's project references change. The Pro repo builds
+`TradingTerminal.Pro.slnx`.
 
 Defaults: IB and NT are wired purely by build-time DLL resolution (`HAS_IBAPI` from `C:\TWS API\`; `HAS_NTAPI` from `NTDirect.dll`) — there's no `UseRealClient` switch and no per-broker synthetic fallback; cTrader needs OAuth at login; Alpaca needs ApiKey+Secret (`IsLive` toggles paper/live; live stock stream pinned to IEX). No broker required to build/run — the `Simulated` broker (`BrokerKind.Simulated`, `SimulatedBrokerClient` in `Infrastructure/Simulation/`) is always registered and serves a synthetic random-walk feed or local-store replay.
 

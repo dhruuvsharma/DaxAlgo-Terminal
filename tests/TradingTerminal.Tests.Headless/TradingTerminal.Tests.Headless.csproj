@@ -50,4 +50,10 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Accounts\Fixtures\entitlement-lease-v1.json"
+          TargetPath="Fixtures\entitlement-lease-v1.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

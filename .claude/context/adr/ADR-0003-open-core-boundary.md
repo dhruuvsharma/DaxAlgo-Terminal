@@ -11,5 +11,5 @@ SurfaceLab, BubbleChart, LseBacktest, QuantConnect, Backtest.Cli, installer, Tes
 
 **Consequences.** NEVER copy code from the Pro repo into this world-readable repo (hard stop in
 PROTOCOL.md). Shared/backend work lands here first; the Pro repo bumps its submodule pin.
-Shell fixes are ×3 across two repos. The Linux tree still carries ports of some Pro windows —
-pruning them is an open decision.
+Shell fixes are ×3 across the Basic, Intermediate, and Pro shells. The separately maintained Linux
+edition is not part of this open-core workspace.

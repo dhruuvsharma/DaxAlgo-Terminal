@@ -2,9 +2,7 @@
 
 > Last updated: 2026-06-30 · **Windows build only**
 
-> **Windows only.** The Machine-learning menu and its three windows ship in the Windows/WPF build.
-> The Linux/Avalonia tree doesn't include them yet (the underlying maths library is shared, but the
-> windows aren't ported).
+> The Machine-learning menu and its three windows ship in the Windows/WPF desktop application.
 
 ### In plain terms
 

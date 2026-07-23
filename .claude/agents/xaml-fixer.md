@@ -14,7 +14,9 @@ You are the WPF XAML specialist for **DaxAlgo Terminal**.
 - WPF on .NET 9 (`net9.0-windows`).
 - MahApps Metro chrome. **No docking framework** (AvalonDock removed) — every tool/strategy/chart is its own `MetroWindow`; the shell `MainWindow` is a full-width strategy catalog + a collapsible bottom activity-log drawer. UserControl-based tools are hosted in `App/Shell/ToolHostWindow`.
 - `CommunityToolkit.Mvvm` — `[ObservableProperty]` source generators (so `myField` → `MyField` public).
-- Theme resources in `src/TradingTerminal.UI/Themes/{Brushes.xaml, Dark.xaml, Components.xaml, StrategyShellStyles.xaml}`.
+- Theme resources in `src/windows/Shell/TradingTerminal.UI/Themes/`: `TvDark.xaml` and
+  `TvLight.xaml` are the selectable DaxAlgo palettes; `Dark.xaml`, `Components.xaml`, and
+  `StrategyShellStyles.xaml` are shared structural styles.
 
 ## Diagnostic order for binding bugs
 

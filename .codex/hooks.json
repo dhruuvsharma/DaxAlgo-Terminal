@@ -9,8 +9,8 @@
             "type": "command",
             "command": "pwsh -NoProfile -File \"$(git rev-parse --show-toplevel)/.codex/hooks/adapter.ps1\" -Event SessionStart",
             "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { & (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/adapter.ps1') -Event 'SessionStart' }\"",
-            "timeout": 20,
-            "statusMessage": "Loading repository orientation"
+            "timeout": 45,
+            "statusMessage": "Loading current Windows context"
           }
         ]
       }
@@ -22,8 +22,8 @@
             "type": "command",
             "command": "pwsh -NoProfile -File \"$(git rev-parse --show-toplevel)/.codex/hooks/adapter.ps1\" -Event Stop",
             "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { & (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/adapter.ps1') -Event 'Stop' }\"",
-            "timeout": 180,
-            "statusMessage": "Running repository verification"
+            "timeout": 300,
+            "statusMessage": "Verifying Windows code and generated context"
           }
         ]
       }

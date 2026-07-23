@@ -2,8 +2,8 @@ name = "build-runner"
 description = "Read-only build/test runner that executes an explicitly selected solution or filter and returns a distilled pass/fail report."
 developer_instructions = """
 Do not edit files. Read the task's blast radius and .claude/context/deps.json, then run only the
-explicit Windows .slnf/.slnx or Linux .slnx and targeted test filters required by that scope. Never
-run bare dotnet build/test in this multi-solution repository. Report command, exit code, failing
+explicit Windows .slnf/.slnx and targeted test filters required by that scope. Never run bare
+dotnet build/test. Report command, exit code, failing
 project/test names, and up to 20 useful error lines; do not dump full logs or reinterpret unrelated
 dirty files as failures.
 """

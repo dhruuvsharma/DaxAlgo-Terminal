@@ -27,6 +27,16 @@ public enum MarketDataProvider
     SqlitePerBroker = 3,
 }
 
+/// <summary>How the Windows app obtains the QuestDB process used by the split tick store.</summary>
+public enum QuestDbLaunchMode
+{
+    /// <summary>Start the bundled native Windows runtime as an app-owned, per-user child process.</summary>
+    Native = 0,
+
+    /// <summary>Only connect to an endpoint managed outside the app; never start or stop a process.</summary>
+    External = 1,
+}
+
 /// <summary>
 /// Settings for the local market-data pipeline (canonical store + ingest). Two backends:
 /// embedded SQLite (default, zero-config) and PostgreSQL/TimescaleDB (the docker-compose service).
@@ -77,8 +87,8 @@ public sealed class MarketDataStoreOptions
     public int BarRetentionDays { get; set; } = 0;
 
     // ── QuestDB (Provider == QuestDb) ────────────────────────────────────────────────────────
-    // QuestDB is a standalone time-series server (see the docker-compose `questdb` service), not
-    // embeddable. Writes use the InfluxDB Line Protocol over HTTP (port 9000); reads use the
+    // QuestDB is a standalone time-series server. Writes use the InfluxDB Line Protocol over HTTP
+    // (port 9000); reads use the
     // PostgreSQL wire protocol (port 8812) via Npgsql. Bars continue to use the SQLite store; only
     // the high-volume L1/L2 streams land in QuestDB.
 
@@ -96,27 +106,25 @@ public sealed class MarketDataStoreOptions
     /// the highest-volume stream, so the default trims it hardest.</summary>
     public int DepthRetentionDays { get; set; } = 14;
 
-    // ── QuestDB Docker auto-start (Provider == QuestDb) ──────────────────────────────────────────
-    // QuestDB is a standalone server with no embedded fallback for ticks, so when it's configured but
-    // not running we try to start its Docker container at launch rather than just disabling persistence.
+    // ── QuestDB native startup (Provider == QuestDb) ────────────────────────────────────────────
+    // QuestDB is a standalone server with no embedded fallback for ticks. Native mode starts the
+    // bundled Windows runtime without Docker; External mode only probes an endpoint managed elsewhere.
 
-    /// <summary>When QuestDB is selected but not reachable at startup, attempt to start its Docker
-    /// container automatically (the docker-compose <see cref="DockerComposeService"/> service).
-    /// Best-effort — skipped and logged if Docker isn't installed or the daemon is down. Set false to
-    /// manage QuestDB yourself.</summary>
-    public bool AutoStartDocker { get; set; } = true;
+    /// <summary>Choose the bundled native runtime or an externally managed QuestDB endpoint.</summary>
+    public QuestDbLaunchMode QuestDbLaunchMode { get; set; } = QuestDbLaunchMode.Native;
 
-    /// <summary>docker-compose service name started when <see cref="AutoStartDocker"/> kicks in.</summary>
-    public string DockerComposeService { get; set; } = "questdb";
+    /// <summary>When native mode is selected and QuestDB is unreachable, start the bundled runtime
+    /// automatically. Set false to require the explicit File → Start QuestDB action.</summary>
+    public bool AutoStartQuestDb { get; set; } = true;
 
-    /// <summary>Container name used as a fallback (<c>docker start</c>) when the compose file isn't found
-    /// next to a published build.</summary>
-    public string DockerContainerName { get; set; } = "daxalgo-questdb";
+    /// <summary>Optional path to <c>questdb.exe</c>. Empty resolves to
+    /// <c>&lt;app-directory&gt;\questdb\bin\questdb.exe</c>; relative paths are app-directory relative.</summary>
+    public string QuestDbExecutablePath { get; set; } = string.Empty;
 
-    /// <summary>How long to wait for QuestDB to accept connections after its container starts, in seconds.</summary>
-    public int DockerStartupTimeoutSeconds { get; set; } = 40;
+    /// <summary>Optional writable QuestDB root. Empty resolves to
+    /// <c>%LocalAppData%\DaxAlgoTerminal\QuestDB</c>; relative paths resolve beneath the same app-data folder.</summary>
+    public string QuestDbRootPath { get; set; } = string.Empty;
 
-    /// <summary>Optional explicit path to <c>Docker Desktop.exe</c>, used by File → Start QuestDB when the
-    /// daemon is down. Empty → probe the usual install locations under Program Files / LocalAppData.</summary>
-    public string DockerDesktopPath { get; set; } = string.Empty;
+    /// <summary>How long to wait for a newly started native runtime to accept PG-wire connections.</summary>
+    public int QuestDbStartupTimeoutSeconds { get; set; } = 40;
 }

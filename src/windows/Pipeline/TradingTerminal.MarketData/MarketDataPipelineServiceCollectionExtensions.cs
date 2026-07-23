@@ -98,10 +98,10 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
         services.AddSingleton<IMarketDataIngest, MarketDataIngestService>();
 
-        // Backs the manual File → Start QuestDB command (launch Docker Desktop + container, re-arm live).
-        // Exposed via IQuestDbLauncher too, so store-agnostic layers (the login screen) can warm it up.
-        services.AddSingleton<QuestDbDockerService>();
-        services.AddSingleton<IQuestDbLauncher>(sp => sp.GetRequiredService<QuestDbDockerService>());
+        // Backs the manual File → Start QuestDB command with the bundled native Windows runtime.
+        // Exposed via IQuestDbLauncher so store-agnostic layers (the login screen) can warm it up.
+        services.AddSingleton<QuestDbNativeService>();
+        services.AddSingleton<IQuestDbLauncher>(sp => sp.GetRequiredService<QuestDbNativeService>());
 
         // Instrument-universe pre-loader. Hosted service so it kicks in once the host starts and
         // reacts to every Connected transition on every registered broker — the service subscribes
@@ -130,20 +130,30 @@ public static class MarketDataPipelineServiceCollectionExtensions
     {
         var log = lf.CreateLogger("MarketData");
 
+        // Validate before probing or constructing a sender. Native mode is tied to the exact ports
+        // in the managed server.conf; External mode may choose other ports but remains loopback-only.
+        // Failing closed here ensures a typo can never turn startup into a remote credentialed probe.
+        if (!QuestDbNativeBootstrapper.HasSafeEndpoints(opts, out var endpointError))
+        {
+            log.LogError("QuestDB configuration was rejected: {Reason}", endpointError);
+            throw new InvalidOperationException($"Unsafe QuestDB configuration: {endpointError}");
+        }
+
         var barStore = new SqliteMarketDataStore(
             sqliteConn, opts.PersistLiveData, opts.WriteBatchSize, lf.CreateLogger<SqliteMarketDataStore>());
 
         // Probe only — never block here. The store is resolved on the UI thread (the login screen
-        // pulls in the launcher), so the actual Docker start runs asynchronously from the login screen
-        // (QuestDbDockerService, honouring AutoStartDocker) or File → Start QuestDB, then re-arms the
+        // pulls in the launcher), so native startup runs asynchronously from the login screen
+        // (QuestDbNativeService, honouring AutoStartQuestDb) or File → Start QuestDB, then re-arms the
         // store live via IReactivatableTickStore. If QuestDB is already up we wire the sender now.
-        var reachable = CanReachQuestDb(opts.QuestDbPgConnectionString);
+        var endpoint = QuestDbNativeBootstrapper.DescribePgEndpoint(opts.QuestDbPgConnectionString);
+        var reachable = QuestDbNativeBootstrapper.IsReachable(opts);
         if (!reachable)
             log.LogWarning(
-                "QuestDB not reachable yet ({Conn}) — L1/L2/trade persistence stays off until it's up. " +
+                "QuestDB not reachable yet at {Endpoint} — L1/L2/trade persistence stays off until it's up. " +
                 "It will be started from the login screen (or File → Start QuestDB) and engaged without a restart. " +
                 "Bars still persist to SQLite.",
-                opts.QuestDbPgConnectionString);
+                endpoint);
 
         var tickStore = new QuestDbMarketDataStore(
             opts.QuestDbIlpConfig, opts.QuestDbPgConnectionString,
@@ -154,10 +164,7 @@ public static class MarketDataPipelineServiceCollectionExtensions
     }
 
     /// <summary>Best-effort startup probe — opens and closes a connection to decide availability.</summary>
-    private static bool CanReachPostgres(string connectionString) => CanReachQuestDb(connectionString);
-
-    /// <summary>Probe a PostgreSQL-wire endpoint (Postgres/TimescaleDB or QuestDB) for reachability.</summary>
-    private static bool CanReachQuestDb(string connectionString)
+    private static bool CanReachPostgres(string connectionString)
     {
         try
         {

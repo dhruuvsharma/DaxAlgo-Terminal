@@ -180,26 +180,27 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Core/TradingTerminal.Core/Configuration/MarketDataStoreOptions.cs
 ```cs
     4: public enum MarketDataProvider
-   36: public sealed class MarketDataStoreOptions
-   38: public const string SectionName = "MarketDataStore";
-   41: public bool Enabled { get; set; } = true;
-   45: public MarketDataProvider Provider { get; set; } = MarketDataProvider.SqlitePerBroker;
-   49: public string PostgresConnectionString { get; set; } =
-   53: public string DatabasePath { get; set; } = string.Empty;
-   57: public bool PersistLiveData { get; set; } = true;
-   60: public int WriteBatchSize { get; set; } = 500;
-   63: public int FlushIntervalMs { get; set; } = 1000;
-   70: public int QuoteRetentionDays { get; set; } = 30;
-   73: public int TradeRetentionDays { get; set; } = 30;
-   77: public int BarRetentionDays { get; set; } = 0;
-   87: public string QuestDbIlpConfig { get; set; } = "http::addr=localhost:9000;auto_flush=off;";
-   91: public string QuestDbPgConnectionString { get; set; } =
-   97: public int DepthRetentionDays { get; set; } = 14;
-  107: public bool AutoStartDocker { get; set; } = true;
-  110: public string DockerComposeService { get; set; } = "questdb";
-  114: public string DockerContainerName { get; set; } = "daxalgo-questdb";
-  117: public int DockerStartupTimeoutSeconds { get; set; } = 40;
-  121: public string DockerDesktopPath { get; set; } = string.Empty;
+   31: public enum QuestDbLaunchMode
+   46: public sealed class MarketDataStoreOptions
+   48: public const string SectionName = "MarketDataStore";
+   51: public bool Enabled { get; set; } = true;
+   55: public MarketDataProvider Provider { get; set; } = MarketDataProvider.SqlitePerBroker;
+   59: public string PostgresConnectionString { get; set; } =
+   63: public string DatabasePath { get; set; } = string.Empty;
+   67: public bool PersistLiveData { get; set; } = true;
+   70: public int WriteBatchSize { get; set; } = 500;
+   73: public int FlushIntervalMs { get; set; } = 1000;
+   80: public int QuoteRetentionDays { get; set; } = 30;
+   83: public int TradeRetentionDays { get; set; } = 30;
+   87: public int BarRetentionDays { get; set; } = 0;
+   97: public string QuestDbIlpConfig { get; set; } = "http::addr=localhost:9000;auto_flush=off;";
+  101: public string QuestDbPgConnectionString { get; set; } =
+  107: public int DepthRetentionDays { get; set; } = 14;
+  114: public QuestDbLaunchMode QuestDbLaunchMode { get; set; } = QuestDbLaunchMode.Native;
+  118: public bool AutoStartQuestDb { get; set; } = true;
+  122: public string QuestDbExecutablePath { get; set; } = string.Empty;
+  126: public string QuestDbRootPath { get; set; } = string.Empty;
+  129: public int QuestDbStartupTimeoutSeconds { get; set; } = 40;
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/MarketRegimeOptions.cs

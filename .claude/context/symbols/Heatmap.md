@@ -4,12 +4,6 @@ Generated from the current source tree. Declaration lines only; multi-line signa
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
-## src/windows/Charts/TradingTerminal.Heatmap/AvaloniaUi/BookmapHeatmapAvaloniaWindow.axaml.cs
-```cs
-   10: public partial class BookmapHeatmapAvaloniaWindow : Window
-   12: public BookmapHeatmapAvaloniaWindow() => InitializeComponent();
-```
-
 ## src/windows/Charts/TradingTerminal.Heatmap/BookmapHeatmapViewModel.cs
 ```cs
    33: public sealed partial class BookmapHeatmapViewModel : SingleInstrumentHeatmapViewModelBase

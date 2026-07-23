@@ -1,5 +1,45 @@
 # context changelog — append-only session journal
 
+## 2026-07-22 — local account access profile
+- Added first-choice Debug launch profiles for Basic and Intermediate that select DevSim and use
+  the existing in-memory local account before bypassing broker login into the simulated terminal.
+- Made the development account gate label its temporary local profile explicitly; Release builds
+  and non-development environments remain fail-closed.
+
+## 2026-07-22 — concurrency-safe context gate
+- Serialized context checks and regeneration across terminals and added content fingerprints so a
+  moving working tree is never classified as deterministic stale context.
+- Added exact-state verification stamps for single-flight Stop checks and routed all generator
+  writes through `manage-context.ps1 sync`; legacy direct calls delegate to the locked workflow.
+
+## 2026-07-22 — obsolete workspace residue cleanup
+- Removed two unreferenced null research clients after the HTTP implementations became the sole DI
+  registrations, and regenerated the Windows Pipeline index/symbol context.
+- Removed the obsolete in-tree strategy generator, stale web placeholder, tracked Python bytecode,
+  and local generated/cache/log/task-render residue; active projects and external strategy ownership
+  are unchanged.
+
+## 2026-07-22 — DaxAlgo theme consolidation
+- Removed the Bloomberg Amber, Monochrome, Greek Marble, and Greek Obsidian bundled palettes.
+- DaxAlgo Dark and DaxAlgo Light are now the only built-in bases across Basic, Intermediate, and
+  consuming overlay shells; saved legacy ids safely fall back to DaxAlgo Dark.
+
+## 2026-07-22 — current-code session and context gates
+- Regenerated the Windows index/symbol layer from the current working tree and removed residual
+  `.axaml` generator/manager handling after the Linux extraction.
+- SessionStart now reports fast structural context health and injects Windows-only routing.
+- Stop-time doc sync now runs the byte-for-byte Windows generator check for routed source or project
+  changes, preventing the next session from inheriting stale file rows, LOC, symbols, or anchors.
+- Updated build, verifier, agent, timeout, and maintenance guidance to the single Windows topology.
+
+## 2026-07-22 — Linux repository extraction
+- Moved the complete Linux/Avalonia source, tests, solution, supporting tools, and context layer to
+  the new private `dhruuvsharma/DaxAlgo-Terminal-Linux` repository.
+- Removed Linux-owned paths and obsolete Avalonia project items from this repository. Windows work
+  has no Linux parity or mirror obligation; cross-repository coordination requires explicit scope.
+- Reduced the context manager, generators, guides, recipes, modules, and product documentation to
+  the Windows/WPF repository boundary; ADR-0013 records the decision.
+
 ## 2026-07-21 — backtest client graph repair
 - Split host-side worker supervision into the WPF-free `TradingTerminal.Backtest.Client` project while
   preserving the existing client namespace/API and process-ownership behavior.

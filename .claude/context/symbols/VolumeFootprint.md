@@ -4,12 +4,6 @@ Generated from the current source tree. Declaration lines only; multi-line signa
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
-## src/windows/Charts/TradingTerminal.VolumeFootprint/AvaloniaUi/VolumeFootprintAvaloniaWindow.axaml.cs
-```cs
-    9: public partial class VolumeFootprintAvaloniaWindow : Window
-   11: public VolumeFootprintAvaloniaWindow() => InitializeComponent();
-```
-
 ## src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintModels.cs
 ```cs
     7: public enum PocSeries { Total, Buy, Sell }

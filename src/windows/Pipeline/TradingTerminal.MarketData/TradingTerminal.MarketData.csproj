@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target for the Linux/ARM64 headless build (see Core.csproj). -->
+    <!-- Windows canonical market-data pipeline. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Canonical market-data pipeline: hub, ingest, repository, instrument registry, SQLite/Postgres store, and the Telegram-backed archive offloader. Sits between Core and Infrastructure.</Description>
   </PropertyGroup>

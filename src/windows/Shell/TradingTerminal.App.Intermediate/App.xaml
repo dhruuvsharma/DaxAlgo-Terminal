@@ -24,8 +24,8 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
 
-                <!-- Project dark theme overrides -->
-                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Brushes.xaml" />
+                <!-- DaxAlgo default palette + shared structural styles -->
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/TvDark.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Dark.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Components.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/StrategyShellStyles.xaml" />

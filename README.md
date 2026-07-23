@@ -1,11 +1,10 @@
 # DaxAlgo Terminal
 
-> Last updated: 2026-06-30
+> Last updated: 2026-07-22
 
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows-WPF%20%2B%20MahApps-blueviolet?logo=windows)](#two-builds-windows-and-linux)
-[![Linux](https://img.shields.io/badge/Linux%20%2F%20Pi-Avalonia-7a42bf?logo=linux)](#two-builds-windows-and-linux)
+[![Windows](https://img.shields.io/badge/Windows-WPF%20%2B%20MahApps-blueviolet?logo=windows)](#quick-start)
 [![Brokers](https://img.shields.io/badge/Brokers-12%20%2B%20Simulated-orange)](docs/brokers.md)
 [![Data only](https://img.shields.io/badge/Mode-Data%20%26%20Signals%20only-informational)](#-no-live-order-execution)
 
@@ -55,7 +54,7 @@ real money. This is a deliberate safety boundary, not a missing feature.
 ## Contents
 
 - [What ships](#what-ships)
-- [Two builds: Windows and Linux](#two-builds-windows-and-linux)
+- [Repository scope](#repository-scope)
 - [The menus at a glance](#the-menus-at-a-glance)
 - [System at a glance](#system-at-a-glance) — architecture diagram
 - [Quick start](#quick-start)
@@ -110,39 +109,12 @@ real money. This is a deliberate safety boundary, not a missing feature.
 
 ---
 
-## Two builds: Windows and Linux
+## Repository scope
 
-The repository is split into **two fully independent codebases** so that work on the Linux port can
-never destabilise the Windows build. They share no project files — a fix that should apply to both
-is made twice, once per tree.
-
-| | **Windows tree** | **Linux tree** |
-|---|---|---|
-| Source root | `src/windows/` | `src/linux/` |
-| Solution | `TradingTerminal.Windows.slnx` | `TradingTerminal.Linux.slnx` |
-| Target framework | `net9.0-windows7.0` | `net9.0` |
-| UI toolkit | WPF + MahApps Metro | Avalonia |
-| Runs on | Windows 10/11 | Linux, Raspberry Pi (ARM64), also Windows |
-| Shell project | `Shell/TradingTerminal.App` | `Shell/TradingTerminal.App.Avalonia` |
-
-Both trees carry their own copy of the backend (Core, MarketData, Infrastructure, the backtest
-engine + CLI) and **all 9 strategies**, the order-flow tools, the regime board, the AI tool
-windows, the brokers, and the canonical pipeline. A handful of features are **Windows-only** because
-they depend on Windows-only components:
-
-| Feature | Windows | Linux | Why |
-|---|:---:|:---:|---|
-| 9 strategies (incl. 3D regime cubes) | ✅ | ✅ | shared |
-| Order Book · Volume Footprint · Bookmap + VolBook | ✅ | ✅ | shared |
-| Correlation · Advanced regime · Recording · Backtest Studio | ✅ | ✅ | shared |
-| AI tool windows (Analyst / Factor / ML / Backtest / Paper Lab) | ✅ | ✅ | shared |
-| Brokers + canonical pipeline + backtest engine + CLI | ✅ | ✅ | shared |
-| **TradingView-style Charts** | ✅ | ❌ | needs WebView2 (Windows) |
-| **Machine-Learning menu** (Stationarity / ARIMA-GARCH / Kalman) | ✅ | ❌ | Windows-only windows |
-| **Strategy plugins + DaxAlgo SDK** | ✅ | ❌ | plugin UI is WPF for now |
-
-> Broker availability also depends on the OS — NinjaTrader's `NTDirect.dll` is Windows-only, for
-> example. The full per-broker, per-OS matrix is in [docs/brokers.md](docs/brokers.md).
+This repository contains the **Windows/WPF open-core implementation only**: `src/windows/`, the
+Basic and Intermediate shells, Windows tests, SDK, templates, and shared tooling. The independent
+Linux/Avalonia edition moved to a separate private repository on 2026-07-22. Windows changes here
+have no Linux parity or mirror obligation.
 
 ---
 
@@ -258,18 +230,8 @@ higher-tier feature DLLs):
 Basic and Intermediate are fully open source in this repo. The Professional edition's exclusive
 surfaces live in a private repo that consumes this one as a git submodule.
 
-### Linux / Raspberry Pi (Avalonia)
-
-```bash
-git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
-cd "DaxAlgo Terminal"
-dotnet build TradingTerminal.Linux.slnx
-dotnet run --project src/linux/Shell/TradingTerminal.App.Avalonia
-```
-
-> There is **no** bare `dotnet build` with no argument — two solutions exist, so always name one.
-> The helper scripts `build-and-test.ps1` (Windows) and `linux/build-and-test.sh` /
-> `linux/Dockerfile` (Linux) wrap each tree.
+Always name the Windows solution or edition filter; do not use a bare `dotnet build`. The
+`build-and-test.ps1` helper wraps the Windows verification flow.
 
 **Want to skip the login screen while developing?** The Windows shell ships dev launch profiles
 (`Dev: Simulated (offline)`, `Dev: Replay (local DB)`, `Dev: Live (no login)`) that auto-connect and
@@ -346,11 +308,10 @@ flowchart TD
     Core --> Nothing([no dependencies])
 ```
 
-`Core` has zero dependencies on UI, WPF/Avalonia, or any broker SDK. `MarketData` (the canonical
+`Core` has zero dependencies on UI, WPF, or any broker SDK. `MarketData` (the canonical
 pipeline) sits just above it. Adding a **broker** = one `IBrokerClient` implementation in
-`Infrastructure/<Broker>/` + one DI block. Adding a **strategy** = one
-`TradingTerminal.Strategies.<Name>` project + one DI line. The same structure holds in both the
-Windows and Linux trees.
+`Infrastructure/<Broker>/` + one DI block. Adding a **strategy** means packaging an external
+runtime plugin against the SDK.
 
 ---
 

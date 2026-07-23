@@ -3,7 +3,7 @@ description = "Fast read-only navigator for current Windows/WPF definitions, ref
 developer_instructions = """
 Do not edit or build. Start with .claude/context/index.md, symbols.md, and deps.json; grep the smallest
 matching generated shard, then use rg and ranged source reads. Return concise file:line hits and
-state when a symbol is absent or belongs to the Linux tree. Current Windows roots are grouped under
+state when a symbol is absent from this Windows repository. Current roots are grouped under
 src/windows/{Core,Pipeline,Shell,UI,Charts,Tools,Backtest,Sdk}; never invent the removed flat src/
 layout or internal strategy projects.
 """

@@ -71,7 +71,7 @@ Capture priority is flagged **P1** (front-page / most-viewed), **P2** (feature d
 | Pri | Filename | What to capture |
 |---|---|---|
 | P2 | `shell-menu-file.png` | **File** open: Reconnect to broker · Start QuestDB · Exit. |
-| P2 | `shell-menu-view.png` | **View** open: Activity log · Theme ▶ (Bloomberg Amber / Monochrome) · Customize theme… |
+| P2 | `shell-menu-view.png` | **View** open: Activity log · Theme ▶ (DaxAlgo Dark / DaxAlgo Light) · Customize theme… |
 | P2 | `shell-menu-tools.png` | **Tools** open: Backtest Studio · Record live ticks · Advanced market regime · Correlation matrix · Live correlation matrix. |
 | P2 | `shell-menu-plugins.png` | **Plugins** open: Manage strategy plugins… |
 | P2 | `shell-menu-lse.png` | **LSE Tools** open: LSE backtester… |
@@ -214,14 +214,3 @@ shot (the parameter panel before Start). 3D strategies should show the Helix vie
 
 > You already have a draft `test/homescreenvideo.mp4` and `test/homescreen.png` — those can seed
 > `video/shell-tour.mp4` and `shell-main.png` once finalised.
-
----
-
-## Linux / Avalonia note
-
-The Linux/Avalonia build (`src/linux`, `TradingTerminal.App.Avalonia`) renders the same windows
-with the Avalonia toolkit. Where a screenshot would look meaningfully different on Linux and we
-want to show it, the slot gets an `-avalonia` suffix (e.g. `shell-main-avalonia.png`). These are
-**optional** — capture them only if you want the docs to show the Linux look too. The Machine
-Learning windows and the WebView2 Charts window do **not** exist on Linux, so they have no
-`-avalonia` slots.

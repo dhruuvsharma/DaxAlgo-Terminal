@@ -8,7 +8,7 @@ areas (Quant/, MarketData/, Backtest/, brokers, authoring). Headless uses Sample
 in-tree plugin-contract fixture; Tests references App.Intermediate for WPF shell coverage.
 
 **Run narrow:** `dotnet test tests/TradingTerminal.Tests.Headless --filter "FullyQualifiedName~<Area>"`.
-Postgres tests self-skip without Docker; 1 known flaky GPU test lives in the LINUX tree, not here.
+Postgres tests self-skip without Docker.
 
 **Conventions.** New engine/quant math ⇒ numeric tests required. External strategy plugins own their
 kernel tests. WPF-touching host tests go in Tests with `[WpfFact]`, never in Headless.

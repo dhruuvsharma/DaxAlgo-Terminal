@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Shared AI analyst seam (IAiAnalystClient Null/Http + AddAiAnalyst + the enricher). No WPF in
-         this project (UseWPF was vestigial), so it multi-targets cleanly for the Avalonia head. -->
+    <!-- UI-free AI analyst seam used by the Windows shells. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>AI Market Analyst seam: IAiAnalystClient (Null/Http) + AddAiAnalyst + the notification enricher.</Description>
   </PropertyGroup>

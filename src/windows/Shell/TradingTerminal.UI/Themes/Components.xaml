@@ -53,7 +53,7 @@
         <Setter Property="Padding" Value="22,16" />
     </Style>
 
-    <!-- Thin amber rule, e.g. directly under a card header. -->
+    <!-- Thin accent rule, e.g. directly under a card header. -->
     <Style x:Key="App.AccentRule" TargetType="Border">
         <Setter Property="Height" Value="2" />
         <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
@@ -79,7 +79,7 @@
         <Setter Property="Margin" Value="0,0,10,0" />
     </Style>
 
-    <!-- Section header: amber caps preceded by an accent tick. Put inside a horizontal panel
+    <!-- Section header: accent caps preceded by a matching tick. Put inside a horizontal panel
          with an "App.SectionBar" border for the left rule. -->
     <Style x:Key="App.SectionHeader" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
@@ -171,7 +171,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Warning.Brush}" />
     </Style>
 
-    <!-- Live/armed pill: amber wash that gently pulses forever once loaded. -->
+    <!-- Live/armed pill: accent wash that gently pulses forever once loaded. -->
     <Style x:Key="Pill.Live" TargetType="Border" BasedOn="{StaticResource Pill.Accent}">
         <Style.Triggers>
             <EventTrigger RoutedEvent="Loaded">

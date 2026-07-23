@@ -22,12 +22,11 @@ Set-Location -Path $projectDir
 # Skip if not a git repo or no relevant changes
 $gitChanged = & git status --porcelain --untracked-files=all 2>$null
 if (-not $gitChanged) { exit 0 }
-$relevant = ($gitChanged | Where-Object { $_ -match '\.(cs|xaml|axaml|csproj|props|targets|slnx|slnf)\b' })
+$relevant = ($gitChanged | Where-Object { $_ -match '\.(cs|xaml|csproj|props|targets|slnx|slnf)\b' })
 if (-not $relevant) { exit 0 }
 
-# Two independent trees (2026-06-27 fork): build each solution explicitly — a bare
-# `dotnet build` is ambiguous now that the repo has more than one solution file.
-$solutions = @('TradingTerminal.Windows.slnx', 'TradingTerminal.Linux.slnx')
+# Build the explicitly named Windows solution; a bare `dotnet build` is never used.
+$solutions = @('TradingTerminal.Windows.slnx')
 $buildOutput = ''
 $buildExit = 0
 foreach ($sln in $solutions) {

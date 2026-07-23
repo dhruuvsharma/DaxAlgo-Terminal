@@ -47,8 +47,8 @@ public sealed class CustomThemeFile
     /// <summary>Display name shown in the View → Theme menu.</summary>
     public string Name { get; set; } = "Custom";
 
-    /// <summary>Id of the built-in palette this theme starts from (e.g. "amber", "mono").</summary>
-    public string BaseThemeId { get; set; } = "amber";
+    /// <summary>Id of the built-in DaxAlgo palette this theme starts from.</summary>
+    public string BaseThemeId { get; set; } = "daxalgo-dark";
 
     /// <summary>Resource key → <c>#AARRGGBB</c>. Covers brush keys and their sibling colour keys.</summary>
     public Dictionary<string, string> Colors { get; set; } = new();

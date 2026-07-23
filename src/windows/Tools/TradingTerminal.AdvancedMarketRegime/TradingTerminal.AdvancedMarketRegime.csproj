@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: portable VM on net9.0 (Avalonia view); the WPF dashboard UserControl stays on
-         the windows leg. See Strategies.CumulativeDelta for the template. -->
+    <!-- WPF dashboard with a UI-framework-neutral view model. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Advanced Live Market Regime tool: an 18-row Ã— 8-timeframe indicator dashboard ported from a TradingView multi-timeframe dashboard. AddAdvancedMarketRegimeSurface also registers the IAdvancedRegimeProvider impl from Infrastructure.</Description>
   </PropertyGroup>
@@ -21,14 +20,6 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
     <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <Compile Remove="AdvancedMarketRegimeView.xaml.cs" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

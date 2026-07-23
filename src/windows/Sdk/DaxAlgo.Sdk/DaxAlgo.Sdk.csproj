@@ -8,9 +8,8 @@
 
        v1 is a curated FAÇADE over TradingTerminal.Core (the host's already broker-/UI-free contract
        layer): a plugin references DaxAlgo.Sdk instead of naming host projects directly, which is the
-       boundary we version and (later) narrow. The matching UI base lives in DaxAlgo.Sdk.Wpf.
-       TFM tracks the Windows tree (net9.0-windows7.0); a cross-platform net9.0 SDK comes when the
-       packages are published for the Linux tree too. -->
+       boundary we version and (later) narrow. The matching UI base lives in DaxAlgo.Sdk.Wpf and
+       the TFM follows the Windows host contract. -->
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>DaxAlgo.Sdk</PackageId>

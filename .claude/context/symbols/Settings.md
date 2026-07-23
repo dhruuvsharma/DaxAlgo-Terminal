@@ -54,9 +54,9 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.Settings/Archive/TelegramArchiveCredentialProtection.cs
 ```cs
-   15: public static class TelegramArchiveCredentialProtection
-   17: public static string? Encrypt(string? plaintext)
-   32: public static string? Decrypt(string? cipherBase64)
+   14: public static class TelegramArchiveCredentialProtection
+   16: public static string? Encrypt(string? plaintext)
+   31: public static string? Decrypt(string? cipherBase64)
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Authoring/AiCodegenUserFile.cs

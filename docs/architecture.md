@@ -1,6 +1,6 @@
 # Architecture
 
-> Last updated: 2026-06-30
+> Last updated: 2026-07-22
 
 The design rationale, key interface signatures, and constraints that the rest of the codebase honors. For installation and runtime setup, see [getting-started.md](getting-started.md). For per-broker quirks, see [brokers.md](brokers.md). For feature-level deep dives, see [market-data.md](market-data.md), [market-regime.md](market-regime.md), [backtesting.md](backtesting.md), [notifications.md](notifications.md), [ai-analyst.md](ai-analyst.md).
 
@@ -19,37 +19,13 @@ without caring which correspondent the news came from.
 That single idea — **translate once at the edge, then everything downstream speaks one language** —
 is the backbone of the whole system. The rest of this document is the precise version of it.
 
-## Two independent trees
+## Repository boundary
 
-The repository is **forked into two fully independent codebases that share no project files.** This
-was a deliberate call: the Linux/Avalonia port was destabilising the Windows/WPF build when they
-shared code, so the two were split so that work on one can never break the other.
-
-| | **Windows tree** | **Linux tree** |
-|---|---|---|
-| Source root | `src/windows/` | `src/linux/` |
-| Solution | `TradingTerminal.Windows.slnx` | `TradingTerminal.Linux.slnx` |
-| Target framework | `net9.0-windows7.0` | `net9.0` |
-| UI toolkit | WPF + MahApps Metro | Avalonia |
-| Shell | `Shell/TradingTerminal.App` | `Shell/TradingTerminal.App.Avalonia` |
-| Tests | `tests/TradingTerminal.Tests` (+ `.Headless`) | `tests/linux/TradingTerminal.Tests.Headless` |
-
-Each tree owns its **own copy** of every backend project (Core, MarketData, Infrastructure, the
-backtest engine + CLI, UI/UI.Core, Settings) and of **all 12 strategies** and the tool/AI windows.
-Type **namespaces are intentionally identical** across the trees (`TradingTerminal.Core`, etc.) —
-they never compile together, so there is no clash. The practical consequences:
-
-- A change in one tree does **not** propagate. **A fix that should apply to both must be made twice.**
-- A few projects are **Windows-only**: the WebView2 `TradingTerminal.Charts` window, the
-  `Ml.*` Machine-Learning windows, and the `DaxAlgo.Sdk*` plugin SDK. They have no `src/linux`
-  counterpart.
-- Everything else — the 12 strategies (including the HelixToolkit 3D regime cubes, re-implemented on
-  Avalonia), the order-flow tools, the regime board, the AI windows, the brokers, and the canonical
-  pipeline — exists in both trees.
-
-The parity table in the [root README](../README.md#two-builds-windows-and-linux) is the quick
-reference; the rest of *this* document describes structures present in both trees. Where a path is
-shown as `src/…`, read it as `src/windows/…` (WPF) or `src/linux/…` (Avalonia).
+This repository contains the Windows/WPF product only. Its source lives under `src/windows/`, and
+`TradingTerminal.Windows.slnx` is the complete shared-core solution. The former Linux/Avalonia tree
+was extracted to a separate private repository on 2026-07-22; it is not part of this repository's
+build, maintenance, parity, or review scope. Paths in this document therefore refer only to the
+Windows implementation.
 
 ## Goal
 
@@ -66,7 +42,7 @@ The shipped brokers (Interactive Brokers, NinjaTrader 8, cTrader, Alpaca, Ironbe
 
 ```mermaid
 flowchart TB
-    subgraph UI["Presentation — WPF (Windows) · Avalonia (Linux)"]
+    subgraph UI["Presentation — WPF"]
         SHELL[App shell<br/>MainWindow · menu · catalog · log drawer]
         SW[Strategy windows ×12]
         TW[Tool · chart · ML · AI windows]
@@ -134,23 +110,19 @@ UI             → Core
 Core           → (nothing)
 ```
 
-`UI` is `TradingTerminal.UI` (WPF) in the Windows tree and `TradingTerminal.UI.Avalonia` in the
-Linux tree; shared MVVM bits that are toolkit-free live in `UI.Core`. The graph is otherwise
-identical across the two trees.
+`UI` is `TradingTerminal.UI` (WPF); toolkit-free MVVM bits live in `UI.Core`.
 
 The App shell only *references* the tool/AI-tool projects and opens them via `IServiceProvider`; it contains none of their views. Each tool project exposes one `Add…Surface` DI extension that `App.xaml.cs` calls during composition.
 
-**Edition shells.** The Windows tree ships **three fully independent shell exes** — `TradingTerminal.App` (Professional), `TradingTerminal.App.Basic` and `TradingTerminal.App.Intermediate` — with **no shared shell library** between them, mirroring the Windows/Linux tree-fork philosophy: each project carries its own complete copy of the shell code (MainWindow + inline menu, view-model, `AppDependencyInjection`, window-host machinery, settings/archive/support views, manifest, icons, plugin-staging targets). The copies keep identical `TradingTerminal.App.*` namespaces — the three exes never reference each other, so nothing clashes — and a shell fix must be applied to each copy. Tier gating is purely compositional: Basic's csproj never references the Pro-only tool projects (its exe output physically excludes those DLLs), its composition root registers `AddKeylessBrokers()` without `AddCredentialedBrokers()` (which also removes the credentialed tiles from the login screen, since the form factory filters on `IBrokerSelector.IsAvailable`), and `AddLogin()` carries only the keyless login forms — `AddCredentialedLoginForms()` must pair with `AddCredentialedBrokers()` because resolving `IEnumerable<IBrokerLoginForm>` instantiates every registered form. `AppEdition` + `BrokerEditionPolicy` (in `Core/Configuration`) name the tiers; each shell pins its edition as a DI constant. The Simulated broker ships in every edition, flagged by the persistent amber “SIMULATED DATA” banner (`SimulatedDataState` / `SimulatedDataBanner` in `TradingTerminal.UI`) on the shell and every tool/strategy window.
+**Edition shells.** The repository ships **three fully independent shell exes** — `TradingTerminal.App` (Professional), `TradingTerminal.App.Basic` and `TradingTerminal.App.Intermediate` — with **no shared shell library** between them. Each project carries its own complete copy of the shell code (MainWindow + inline menu, view-model, `AppDependencyInjection`, window-host machinery, settings/archive/support views, manifest, icons, plugin-staging targets). The copies keep identical `TradingTerminal.App.*` namespaces — the three exes never reference each other, so nothing clashes — and a shell fix must be applied to each copy. Tier gating is purely compositional: Basic's csproj never references the Pro-only tool projects (its exe output physically excludes those DLLs), its composition root registers `AddKeylessBrokers()` without `AddCredentialedBrokers()` (which also removes the credentialed tiles from the login screen, since the form factory filters on `IBrokerSelector.IsAvailable`), and `AddLogin()` carries only the keyless login forms — `AddCredentialedLoginForms()` must pair with `AddCredentialedBrokers()` because resolving `IEnumerable<IBrokerLoginForm>` instantiates every registered form. `AppEdition` + `BrokerEditionPolicy` (in `Core/Configuration`) name the tiers; each shell pins its edition as a DI constant. The Simulated broker ships in every edition, flagged by the persistent amber “SIMULATED DATA” banner (`SimulatedDataState` / `SimulatedDataBanner` in `TradingTerminal.UI`) on the shell and every tool/strategy window.
 
-`Core` knows nothing about WPF, Avalonia, MahApps, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and the AI analyst seam (`Ai`) are separate projects so the App shell stays thin. Each tool window and AI tool window is now its own flat `TradingTerminal.<Name>` project (Charts, OrderBook, VolumeFootprint, Heatmap, Correlation, AdvancedMarketRegime, BacktestStudio, Backtest, Recording, LseBacktest, QuantConnect, the `Ml.*` windows, plus `Ai.MarketAnalyst` / `Ai.FactorResearch` / `Ai.MlFeatures` / `Ai.BacktestAnalysis` / `Ai.PaperLab`); each ships its own `Add…Surface` DI extension that the shell's `App` startup calls, and `App` only references them — it hosts none of their views. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
+`Core` knows nothing about WPF, MahApps, IB, NT, cTrader, or Alpaca. The canonical market-data pipeline lives in its own `MarketData` project below `Infrastructure` (it depends only on `Core`); the login flow (`Login`) and the AI analyst seam (`Ai`) are separate projects so the App shell stays thin. Each tool window and AI tool window is now its own flat `TradingTerminal.<Name>` project (Charts, OrderBook, VolumeFootprint, Heatmap, Correlation, AdvancedMarketRegime, BacktestStudio, Backtest, Recording, LseBacktest, QuantConnect, the `Ml.*` windows, plus `Ai.MarketAnalyst` / `Ai.FactorResearch` / `Ai.MlFeatures` / `Ai.BacktestAnalysis` / `Ai.PaperLab`); each ships its own `Add…Surface` DI extension that the shell's `App` startup calls, and `App` only references them — it hosts none of their views. New abstractions go into `Core`; new SDK calls go into `Infrastructure`.
 
 The per-strategy projects under `TradingTerminal.Strategies.<Name>/` are thin live-UI wrappers — they hold the `MetroWindow`, view-model, and `ITradingStrategy` descriptor, but the actual signal logic (which they instantiate inside `BuildStrategy(contract)`) lives in `Infrastructure/Backtest/Strategies/`. That split keeps the same `IBacktestStrategy` reusable from both the backtest engine and the live signal mode.
 
 ## Solution layout
 
-Each tree groups its projects into solution folders. The **Windows tree** is the superset; the
-**Linux tree** mirrors it minus the three Windows-only groups (the WebView2 chart, the ML windows,
-and the SDK).
+The Windows solution groups its projects into the following folders.
 
 ```
 TradingTerminal.Windows.slnx                       (src/windows/…)
@@ -166,10 +138,10 @@ TradingTerminal.Windows.slnx                       (src/windows/…)
 │   ├── TradingTerminal.App.Basic                   Basic-edition shell — independent full copy of the shell code; keyless brokers only, core charts/tools, no Pro project refs
 │   └── TradingTerminal.App.Intermediate            Intermediate-edition shell — independent full copy; all brokers + full login, same tools as Basic
 ├── UI/
-│   ├── TradingTerminal.UI.Core                     Toolkit-free MVVM bits shared with the Avalonia head (UiThread/UiFile seams)
+│   ├── TradingTerminal.UI.Core                     Toolkit-free MVVM bits (UiThread/UiFile seams)
 │   └── TradingTerminal.Settings                    Settings surface (notifications / research / archive tabs)
 ├── Charts/
-│   ├── TradingTerminal.Charts                      TradingView-style chart window (WebView2)        ⟵ Windows-only
+│   ├── TradingTerminal.Charts                      TradingView-style chart window (WebView2)
 │   ├── TradingTerminal.OrderBook                   L2 depth ladder window
 │   ├── TradingTerminal.VolumeFootprint             Volume footprint cluster chart (fits + predictor)
 │   └── TradingTerminal.Heatmap                     Bookmap + VolBook (liquidity heatmap + profile/VWAP/CVD/DOM)
@@ -181,7 +153,7 @@ TradingTerminal.Windows.slnx                       (src/windows/…)
 │   ├── TradingTerminal.Correlation                 Correlation matrix (historical + live)
 │   ├── TradingTerminal.LseBacktest                 LSE Tools → backtester (pulls history from the LSE broker)
 │   └── TradingTerminal.QuantConnect                QuantConnect / LEAN polyglot backtest window
-├── MachineLearning/                                                                    ⟵ Windows-only group
+├── MachineLearning/
 │   ├── TradingTerminal.Ml.Stationarity             Stationarity & differencing (ADF/KPSS/ACF)
 │   ├── TradingTerminal.Ml.ArimaGarch               ARIMA + GARCH forecasting
 │   └── TradingTerminal.Ml.KalmanFilter             Kalman filters (local level / trend / pairs hedge-β)
@@ -197,7 +169,7 @@ TradingTerminal.Windows.slnx                       (src/windows/…)
 ├── Backtest/
 │   ├── TradingTerminal.Backtest.Engine             Shared backtest engine assembly
 │   └── TradingTerminal.Backtest.Cli                Headless runner — run / synth / sweep / walkforward / mc / tca / features
-└── Sdk/                                                                                ⟵ Windows-only group
+└── Sdk/
     ├── DaxAlgo.Sdk                                 Public plugin contract (refs Core only)
     └── DaxAlgo.Sdk.Wpf                             WPF helpers for custom-UI plugins
 
@@ -205,11 +177,6 @@ tests/
 ├── TradingTerminal.Tests            xUnit + FluentAssertions + NSubstitute (WPF; [WpfFact] for UI-touching)
 └── TradingTerminal.Tests.Headless   non-UI fast suite
 ```
-
-The **Linux tree** (`TradingTerminal.Linux.slnx`, under `src/linux/…`) has the same folders and
-projects, except: the shell is `TradingTerminal.App.Avalonia`, `UI` is `TradingTerminal.UI.Avalonia`,
-and the `MachineLearning/`, `Sdk/`, and `Charts/TradingTerminal.Charts` projects are absent. Its
-tests live under `tests/linux/TradingTerminal.Tests.Headless`.
 
 ## Key interfaces
 

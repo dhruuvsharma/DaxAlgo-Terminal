@@ -184,7 +184,7 @@ public sealed partial class BacktestViewModel : ViewModelBase
     [RelayCommand]
     public async Task BrowseDataPath()
     {
-        // Portable file picker (WPF Win32 dialog / Avalonia StorageProvider) via the UiFile seam.
+        // Portable file picker wired by the WPF host through the UiFile seam.
         var path = await UiFile.OpenAsync("Parquet files", new[] { "parquet" });
         if (!string.IsNullOrEmpty(path)) DataPath = path;
     }

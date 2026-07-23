@@ -37,12 +37,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/Catalog/StrategyCatalogViewModel.cs
 ```cs
-   14: public sealed partial class StrategyCatalogViewModel : ObservableObject
-   18: public StrategyCatalogViewModel(IEnumerable<BacktestStrategyOption> options, Action<string>? onLog = null)
-   30: public ObservableCollection<StrategyCatalogItem> Items { get; }
-   32: public int Count => Items.Count;
-   38: public string Details => SelectedItem is { } s
-   53: public sealed record StrategyCatalogItem(string Id, string DisplayName, int ParameterCount, bool Fast);
+   13: public sealed partial class StrategyCatalogViewModel : ObservableObject
+   17: public StrategyCatalogViewModel(IEnumerable<BacktestStrategyOption> options, Action<string>? onLog = null)
+   29: public ObservableCollection<StrategyCatalogItem> Items { get; }
+   31: public int Count => Items.Count;
+   37: public string Details => SelectedItem is { } s
+   52: public sealed record StrategyCatalogItem(string Id, string DisplayName, int ParameterCount, bool Fast);
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/Diagnostics/PluginFaultTracker.cs
@@ -117,15 +117,15 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/Logging/InMemoryLogSink.cs
 ```cs
-   24: public sealed class InMemoryLogSink : INotifyPropertyChanged
-   33: public static Action<Action> UiPost { get; set; } = static action => action();
-   39: public InMemoryLogSink(int capacity = CapacityDefault)
-   45: public int Capacity { get; }
-   46: public ObservableCollection<LogEntry> Entries { get; }
-   48: public event PropertyChangedEventHandler? PropertyChanged;
-   50: public void Append(LogEntry entry)
-   68: public void Append(string source, string level, string message) =>
-   91: public sealed record LogEntry(DateTime TimestampUtc, string Source, string Level, string Message);
+   23: public sealed class InMemoryLogSink : INotifyPropertyChanged
+   31: public static Action<Action> UiPost { get; set; } = static action => action();
+   37: public InMemoryLogSink(int capacity = CapacityDefault)
+   43: public int Capacity { get; }
+   44: public ObservableCollection<LogEntry> Entries { get; }
+   46: public event PropertyChangedEventHandler? PropertyChanged;
+   48: public void Append(LogEntry entry)
+   66: public void Append(string source, string level, string message) =>
+   89: public sealed record LogEntry(DateTime TimestampUtc, string Source, string Level, string Message);
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/Presets/StrategyViewPreset.cs
@@ -189,13 +189,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/Strategies/StrategyFactory.cs
 ```cs
-   20: public sealed class StrategyFactory : IStrategyFactory
-   28: public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
-   35: public StrategyFactory(
-   45: public IReadOnlyList<ITradingStrategy> All
-   50: public event EventHandler<StrategyCatalogChange>? Changed;
-   52: public void Register(ITradingStrategy strategy, StrategyFactoryRegistration registration)
-   76: public StrategyHost Create(string strategyId)
+   19: public sealed class StrategyFactory : IStrategyFactory
+   26: public static Action<object, object> BindViewModel { get; set; } = DefaultBind;
+   33: public StrategyFactory(
+   43: public IReadOnlyList<ITradingStrategy> All
+   48: public event EventHandler<StrategyCatalogChange>? Changed;
+   50: public void Register(ITradingStrategy strategy, StrategyFactoryRegistration registration)
+   74: public StrategyHost Create(string strategyId)
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/Strategies/StrategyParametersViewModel.cs
@@ -226,9 +226,9 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/UiFile.cs
 ```cs
-   10: public static class UiFile
-   15: public static Func<string, IReadOnlyList<string>, Task<string?>> OpenAsync { get; set; }
-   20: public static Func<string, IReadOnlyList<string>, string, Task<string?>> SaveAsync { get; set; }
+    9: public static class UiFile
+   14: public static Func<string, IReadOnlyList<string>, Task<string?>> OpenAsync { get; set; }
+   19: public static Func<string, IReadOnlyList<string>, string, Task<string?>> SaveAsync { get; set; }
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/UiThread.cs

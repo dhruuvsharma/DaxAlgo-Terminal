@@ -1,6 +1,6 @@
 # Backtesting
 
-> Last updated: 2026-06-30
+> Last updated: 2026-07-21
 
 ### In plain terms
 
@@ -36,7 +36,9 @@ dependency closure. The worker validates those exact bytes again, creates the ma
 `IStrategyEngineFactory`, validates typed parameters against its schema, and runs the resulting
 `IBacktestStrategy` through the same `TradingTerminal.Backtest.Engine` used by built-in strategies. No
 second backtest implementation is required. See [strategy-bundles.md](strategy-bundles.md) for the trust,
-store, and same-user containment boundaries.
+store, and same-user containment boundaries. For component and sequence diagrams of the complete
+strategy callback/order/result flow, see
+[strategy-to-backtest engine communication](strategy-backtest-communication.md).
 
 Each request pins the deployed host `Backtest.Engine` assembly hash separately from the selected strategy
 assembly hash. For installed bundles it also retains the host's closed trust evidence: either unsigned

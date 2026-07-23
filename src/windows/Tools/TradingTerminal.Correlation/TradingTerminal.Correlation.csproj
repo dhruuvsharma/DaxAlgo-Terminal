@@ -1,9 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Multi-target: portable VMs on net9.0 (live sampler via UiThread; picker base #if-guards its
-         WPF grouped view). The WPF windows + custom CorrelationMatrixControl stay on the windows leg.
-         (The Avalonia head already has a native static Correlation window; here we add the LIVE one.) -->
+    <!-- WPF correlation views; the live sampler remains behind the UiThread seam. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
     <Description>Correlation Matrix tool: rolling return correlations across the instrument universe, rendered as a heat-map grid.</Description>
   </PropertyGroup>
@@ -23,18 +21,6 @@
     <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
     <PackageReference Include="ScottPlot.WPF" Version="5.0.55" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows7.0'">
-    <PackageReference Include="Avalonia" Version="11.2.1" />
-    <PackageReference Include="ScottPlot.Avalonia" Version="5.0.55" />
-    <!-- WPF windows + custom control don't compile off-Windows. -->
-    <Compile Remove="CorrelationMatrixWindow.xaml.cs" />
-    <Compile Remove="LiveCorrelationMatrixWindow.xaml.cs" />
-    <Compile Remove="CorrelationMatrixControl.cs" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows7.0'">
-    <Compile Remove="AvaloniaUi\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

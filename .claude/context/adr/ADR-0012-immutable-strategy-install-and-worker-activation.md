@@ -62,5 +62,5 @@ identity, cleanup, and fault-isolation boundary, not an OS security sandbox: str
 out-of-process under the same user token. Marketplace execution therefore remains trusted-publisher-only
 until an approved restricted-token/AppContainer or VM boundary exists, or strategy code runs in a
 separately constrained child with signal-only IPC. Marketplace attestations, revocation/freshness
-distribution, installed strategy discovery/schema UX, update/rollback/GC UI, and Linux/Avalonia remain
+distribution, installed strategy discovery/schema UX, update/rollback/GC UI, and external platforms remain
 later work.

@@ -53,7 +53,7 @@ flowchart LR
 
 | Doc | What it covers |
 |---|---|
-| [Getting started](getting-started.md) | Prereqs, clone, build, first launch — for **both** the Windows and Linux builds. The 10-minute path from zero to a running shell. |
+| [Getting started](getting-started.md) | Prereqs, clone, build, and first Windows launch. The 10-minute path from zero to a running shell. |
 | [User guide](user-guide.md) | A guided tour of the whole window: every menu, the header strip, the activity log, and a daily-use walkthrough. Start here if you just installed it. |
 | [Broker setup](brokers.md) | Per-broker configuration: credentials, ports, OAuth, what data each one gives you, and common pitfalls. The keyless Binance feed needs nothing. |
 | [IB / TWS setup](ib-tws-setup.md) | Interactive Brokers in depth — TWS/Gateway config, the API socket, and the DLL auto-discovery gate. |
@@ -66,6 +66,7 @@ flowchart LR
 | [Strategies](strategies.md) | All 12 strategies — what each one looks for, in plain terms and then in math, the parameters you can tune, and the recipe for adding your own. |
 | [Charts & order-flow windows](charts.md) | Every Charts-menu window and how to read it: TradingView-style charts, the L2 order book, the volume footprint, and the combined Bookmap + VolBook. |
 | [Backtesting](backtesting.md) | Backtest Studio and the tick-level engine — fees, risk caps, fills, the full stats glossary, plus the `daxalgo-backtest` CLI. |
+| [Strategy/backtest communication](strategy-backtest-communication.md) ([standalone HTML](strategy-backtest-communication.html)) | Component and sequence diagrams showing bundle selection, worker activation, callbacks, orders/fills, and verified results. |
 | [Strategy plugins & the SDK](plugins.md) | The open-core plugin system — installing a code-signed plugin from the **Plugins** menu, the trust model, and the SDK overview. *(Windows.)* |
 | [Authoring a plugin](plugin-authoring.md) | The full build walkthrough: `dotnet new daxalgo-strategy` (headless or `--ui`), the kernel, parameters, pills, the test harness, packaging, the version policy, and signing. |
 | [Plugin security](plugin-security.md) | The honest threat model — what the trust layers protect against, what they don't, the DEV badge, and what true isolation would take. |
@@ -87,20 +88,19 @@ flowchart LR
 
 | Doc | What it covers |
 |---|---|
-| [Architecture](architecture.md) | Design rationale, the **two independent trees** (Windows/WPF + Linux/Avalonia), key interfaces, the threading model, and the component + dependency diagrams. Read before adding abstractions. |
+| [Architecture](architecture.md) | Windows/WPF architecture, key interfaces, the threading model, and component/dependency diagrams. Read before adding abstractions. |
 | [Market-data pipeline](market-data.md) | The canonical pipeline (hub, ingest, store), the four store backends, the ER diagram, and the Telegram archive offloader. |
 | [Storage map](storage.md) | **Start here if the databases are confusing.** Every storage surface in one table — what each holds, where, and how to read it. |
 | [Configuration reference](configuration.md) | Full `appsettings.json` key reference + persistence locations + secret storage. |
 | [Polyglot architecture](polyglot.md) | The subprocess + JSON seam for the C++ tick backtester and the Python AI / Paper Lab sidecar. |
-| [Contributing](contributing.md) | Adding a strategy, broker, or notifier without breaking the layering rules — in **both** trees. |
+| [Contributing](contributing.md) | Adding a strategy, broker, or notifier without breaking the Windows layering rules. |
 
 ## Conventions used in this documentation
 
 - **Two-layer writing.** A plain-English section first, the technical/math depth below. Skip down as
   far as your background needs.
-- **Two builds.** Where something differs between the Windows (WPF) and Linux (Avalonia) trees, the
-  doc says so explicitly. Windows-only features (TradingView Charts, the Machine-Learning menu, the
-  plugin SDK) are flagged. See [architecture.md](architecture.md#two-independent-trees).
+- **Windows scope.** This documentation describes the Windows/WPF repository. The independently
+  maintained Linux edition is outside this workspace.
 - **Diagrams** are written in [Mermaid](https://mermaid.js.org/), which GitHub renders inline.
   Flowcharts show component/data flow, sequence diagrams show call ordering, and `erDiagram` blocks
   show database structure.
@@ -115,5 +115,5 @@ flowchart LR
   local store.
 - **Data and signals only.** This build has no live order-execution path; nothing here places a real
   order.
-- Source references use `file:line` so they stay valid in any editor. Paths are under
-  `src/windows/…` (WPF) or `src/linux/…` (Avalonia); the two trees mirror each other.
+- Source references use `file:line` so they stay valid in any editor. Product paths are under
+  `src/windows/`.

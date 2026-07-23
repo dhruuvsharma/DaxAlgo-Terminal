@@ -10,7 +10,7 @@ public sealed record ThemeDefinition(string Id, string Name, string PaletteUri);
 
 /// <summary>
 /// Swaps the active colour palette at runtime. A theme is just a palette <c>ResourceDictionary</c>
-/// (Themes/Brushes.xaml, Themes/Monochrome.xaml, …) defining the same key set; the structural style
+/// (Themes/TvDark.xaml or Themes/TvLight.xaml) defining the same application token contract; the structural style
 /// layer references those keys via <c>DynamicResource</c>, so replacing the palette dictionary in
 /// <see cref="Application.Resources"/> re-skins every open window live. The choice is persisted.
 ///
@@ -82,10 +82,6 @@ public sealed class ThemeManager : IThemeManager
         // First entry = the default for fresh installs (LoadSavedId falls back to it).
         new("daxalgo-dark",  "DaxAlgo Dark", BaseUri + "TvDark.xaml"),
         new("daxalgo-light", "DaxAlgo Light", BaseUri + "TvLight.xaml"),
-        new("amber", "Bloomberg Amber", BaseUri + "Brushes.xaml"),
-        new("mono",  "Monochrome (B&W)", BaseUri + "Monochrome.xaml"),
-        new("greek-light", "Greek — Marble (light)", BaseUri + "GreekLight.xaml"),
-        new("greek-dark",  "Greek — Obsidian (dark)", BaseUri + "GreekDark.xaml"),
     };
 
     private static readonly string AppDataDir = Path.Combine(

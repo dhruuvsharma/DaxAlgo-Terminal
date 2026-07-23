@@ -4,12 +4,6 @@ Generated from the current source tree. Declaration lines only; multi-line signa
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
-## src/windows/Tools/TradingTerminal.Backtest/AvaloniaUi/BacktestAvaloniaWindow.axaml.cs
-```cs
-   12: public partial class BacktestAvaloniaWindow : Window
-   16: public BacktestAvaloniaWindow()
-```
-
 ## src/windows/Tools/TradingTerminal.Backtest/BacktestServiceCollectionExtensions.cs
 ```cs
     9: public static class BacktestServiceCollectionExtensions

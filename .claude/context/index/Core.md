@@ -63,7 +63,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Configuration/IronBeamOptions.cs` | 42 | win | TradingTerminal.Core | B I P | Y | Ironbeam account username. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/KrakenOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | REST base for historical OHLC + the connectivity check. No trailing slash. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/LondonStrategicEdgeOptions.cs` | 38 | win | TradingTerminal.Core | B I P | Y | API key from londonstrategicedge.com/websockets (format |
-| `src/windows/Core/TradingTerminal.Core/Configuration/MarketDataStoreOptions.cs` | 122 | win | TradingTerminal.Core | B I P | Y | Which backend persists the canonical market-data store. |
+| `src/windows/Core/TradingTerminal.Core/Configuration/MarketDataStoreOptions.cs` | 130 | win | TradingTerminal.Core | B I P | Y | Which backend persists the canonical market-data store. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/MarketRegimeOptions.cs` | 51 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the service does not poll and the panel |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ModelRegistryOptions.cs` | 19 | win | TradingTerminal.Core | B I P | Y | SQLite database file path. Empty → a default ( |
 | `src/windows/Core/TradingTerminal.Core/Configuration/NinjaTraderOptions.cs` | 31 | win | TradingTerminal.Core | B I P | Y | NinjaTrader account name (e.g. "Sim101" for the bundled simulation account). |

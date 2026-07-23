@@ -26,7 +26,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Basic | B | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml.cs` | 113 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` | 1182 | win | TradingTerminal.App.Basic | B | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs` | 756 | win | TradingTerminal.App.Basic | B | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
+| `src/windows/Shell/TradingTerminal.App.Basic/MainWindowViewModel.cs` | 755 | win | TradingTerminal.App.Basic | B | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Basic | B | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Basic/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Basic | B | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Basic/Plugins/PluginConsentDialog.xaml.cs` | 83 | win | TradingTerminal.App.Basic | B | Y | Shows the dialog modally and returns the user's decision. Static so the |
@@ -70,7 +70,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Logging/ObservableCollectionLogSink.cs` | 23 | win | TradingTerminal.App.Intermediate | I | Y | Serilog sink that forwards rendered messages into an |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml.cs` | 113 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindow.xaml` | 1183 | win | TradingTerminal.App.Intermediate | I | N | XAML |
-| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindowViewModel.cs` | 756 | win | TradingTerminal.App.Intermediate | I | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
+| `src/windows/Shell/TradingTerminal.App.Intermediate/MainWindowViewModel.cs` | 755 | win | TradingTerminal.App.Intermediate | I | Y | Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml.cs` | 11 | win | TradingTerminal.App.Intermediate | I | Y |  |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Notifications/NotificationsSettingsView.xaml` | 206 | win | TradingTerminal.App.Intermediate | I | N | XAML |
 | `src/windows/Shell/TradingTerminal.App.Intermediate/Plugins/PluginConsentDialog.xaml.cs` | 83 | win | TradingTerminal.App.Intermediate | I | Y | Shows the dialog modally and returns the user's decision. Static so the |
@@ -135,7 +135,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.Login/Forms/UpstoxLoginForm.xaml` | 73 | win | TradingTerminal.Login | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.Login/Forms/UpstoxLoginFormViewModel.cs` | 200 | win | TradingTerminal.Login | B I P | Y | Status text shown beneath the auth buttons (success or a user-facing error). |
 | `src/windows/Shell/TradingTerminal.Login/LoginServiceCollectionExtensions.cs` | 91 | win | TradingTerminal.Login | B I P | Y | The login window/flow plus the KEYLESS broker forms (public crypto feeds — |
-| `src/windows/Shell/TradingTerminal.Login/LoginViewModel.cs` | 540 | win | TradingTerminal.Login | B I P | Y | The forms as their concrete base type, pre-sorted Keyless → Credentialed → |
+| `src/windows/Shell/TradingTerminal.Login/LoginViewModel.cs` | 539 | win | TradingTerminal.Login | B I P | Y | The forms as their concrete base type, pre-sorted Keyless → Credentialed → |
 | `src/windows/Shell/TradingTerminal.Login/LoginWindow.xaml.cs` | 37 | win | TradingTerminal.Login | B I P | Y | Shell-only code-behind. Every broker row is projected through the single DataTemplate in |
 | `src/windows/Shell/TradingTerminal.Login/LoginWindow.xaml` | 646 | win | TradingTerminal.Login | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.Login/ServiceDependencyViewModel.cs` | 185 | win | TradingTerminal.Login | B I P | Y | The live state of an external dependency the terminal talks to but |
@@ -196,15 +196,11 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Shell/TradingTerminal.UI/StrategyWindowBase.cs` | 137 | win | TradingTerminal.UI | B I P | Y | The WpfPlot hosts that should receive the dark-theme treatment. |
 | `src/windows/Shell/TradingTerminal.UI/StrategyWindowPlacementStore.cs` | 128 | win | TradingTerminal.UI | B I P | Y | One strategy window's remembered placement: the normal (restore) bounds plus whether it |
 | `src/windows/Shell/TradingTerminal.UI/Themes/AiStyles.xaml` | 222 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/Brushes.xaml` | 164 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/Components.xaml` | 254 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/Dark.xaml` | 406 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/GreekDark.xaml` | 163 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/GreekLight.xaml` | 176 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Themes/Monochrome.xaml` | 158 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/StrategyShellStyles.xaml` | 117 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/TvDark.xaml` | 167 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/TvLight.xaml` | 172 | win | TradingTerminal.UI | B I P | N | XAML |
 | `src/windows/Shell/TradingTerminal.UI/Themes/VibeQuantStyles.xaml` | 782 | win | TradingTerminal.UI | B I P | N | XAML |
-| `src/windows/Shell/TradingTerminal.UI/Theming/ThemeManager.cs` | 446 | win | TradingTerminal.UI | B I P | Y | A selectable app theme — an id, a display name, and the |
+| `src/windows/Shell/TradingTerminal.UI/Theming/ThemeManager.cs` | 442 | win | TradingTerminal.UI | B I P | Y | A selectable app theme — an id, a display name, and the |
 | `src/windows/Shell/TradingTerminal.UI/Theming/ThemeToken.cs` | 58 | win | TradingTerminal.UI | B I P | Y | Whether a |

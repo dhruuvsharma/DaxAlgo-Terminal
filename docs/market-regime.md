@@ -121,7 +121,7 @@ The exact boundaries are in `RegimeStateMapper` (Core).
 
 Each cell is colored bullish / bearish / neutral so you can read trend agreement across timeframes at a glance. Data comes from `IMarketDataRepository` history — it works against any connected broker (or the local store).
 
-Code: pure math + models in `Core/MarketData/AdvancedRegime/` (calculator, bar indicators, `BarTimeframeAggregator`), `AdvancedRegimeService` in Infrastructure, window in `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/` (with the Avalonia mirror under `src/linux/Tools/`).
+Code: pure math + models in `Core/MarketData/AdvancedRegime/` (calculator, bar indicators, `BarTimeframeAggregator`), `AdvancedRegimeService` in Infrastructure, window in `src/windows/Tools/TradingTerminal.AdvancedMarketRegime/`.
 
 ## Limitations
 
