@@ -6,11 +6,8 @@ using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.Core.Brokers;
-using TradingTerminal.Core.Configuration;
-using TradingTerminal.Core.Hosting;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.MarketData.Archive;
 using TradingTerminal.Core.Session;
@@ -37,8 +34,6 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private readonly SessionContext _session;
     private readonly IQuestDbLauncher _questDb;
     private readonly CredentialStore _credentialStore;
-    private readonly IOptionsMonitor<ResearchReproOptions> _research;
-    private readonly ISidecarController _sidecar;
     private readonly ITelegramArchiveLogin _telegramLogin;
     private readonly ILogger<LoginViewModel> _logger;
 
@@ -55,8 +50,6 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         SessionContext session,
         IQuestDbLauncher questDb,
         CredentialStore credentialStore,
-        IOptionsMonitor<ResearchReproOptions> research,
-        ISidecarController sidecar,
         ITelegramArchiveLogin telegramLogin,
         ILogger<LoginViewModel> logger)
     {
@@ -64,8 +57,6 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         _session = session;
         _questDb = questDb;
         _credentialStore = credentialStore;
-        _research = research;
-        _sidecar = sidecar;
         _telegramLogin = telegramLogin;
         _logger = logger;
 
@@ -431,26 +422,10 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     private void BuildServices()
     {
-        var sidecarBase = _research.CurrentValue.SidecarBaseUrl is { Length: > 0 } u
-            ? u.TrimEnd('/')
-            : "http://127.0.0.1:8765";
-        var healthz = sidecarBase + "/healthz";
-
-        Services.Add(new ServiceDependencyViewModel(
-            name: "AI / Research sidecar (daxalgo-ml)",
-            purpose: "Powers the AI Market Analyst and Paper Lab paper-resolution.",
-            requirement: "Optional",
-            howTo: $"Run the local Python sidecar on {sidecarBase}, then enable it under Settings → " +
-                   "Notifications (AI Analyst) and Settings → Research (Paper Lab). Loopback only. " +
-                   "No local model? Pick a cloud provider (OpenAI / Anthropic / Gemini / Groq / OpenRouter) " +
-                   "and paste your own API key under Settings → Notifications (AI Analyst) — " +
-                   "Gemini, Groq and OpenRouter all have free tiers.",
-            startCommand: "cd tools\\python-ml; .\\.venv\\Scripts\\Activate.ps1; " +
-                          "$env:DAXALGO_ML_PORT='8765'; python -m daxalgo_ml.app",
-            probe: ct => ServiceDependencyViewModel.HttpOkAsync(healthz, ct),
-            startAction: ct => _sidecar.EnsureRunningAsync(ct),
-            startActionLabel: "Start sidecar"));
-
+        // Broker desktop apps (TWS / IB Gateway, NinjaTrader 8) are NOT listed here — each broker form
+        // declares its own prerequisite via BrokerLoginFormBase.Prerequisite and renders it inside that
+        // broker's expander. Local AI dependencies (the daxalgo-ml sidecar, Ollama) are configured from
+        // Settings → Notifications / Research and no longer clutter the login screen.
         Services.Add(new ServiceDependencyViewModel(
             name: "Docker Desktop",
             purpose: "Runs the isolated Paper Lab sandbox container.",
@@ -458,31 +433,6 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             howTo: "Start Docker Desktop and wait for the engine to report Running before using Paper Lab.",
             startCommand: null,
             probe: ServiceDependencyViewModel.DockerRunningAsync));
-
-        Services.Add(new ServiceDependencyViewModel(
-            name: "Interactive Brokers — TWS / IB Gateway",
-            purpose: "Required to connect the Interactive Brokers data feed.",
-            requirement: "Only if using Interactive Brokers",
-            howTo: "Launch TWS or IB Gateway, log in, then enable API access: Config → API → Settings → " +
-                   "“Enable ActiveX and Socket Clients” (paper 7497 / live 7496).",
-            startCommand: null,
-            probe: ct => ServiceDependencyViewModel.TcpOpenAsync("127.0.0.1", new[] { 7497, 7496 }, ct)));
-
-        Services.Add(new ServiceDependencyViewModel(
-            name: "NinjaTrader 8",
-            purpose: "Required to connect the NinjaTrader feed (NTDirect).",
-            requirement: "Only if using NinjaTrader",
-            howTo: "Start NinjaTrader 8 and leave it running before connecting the NinjaTrader broker.",
-            startCommand: null,
-            probe: null));
-
-        Services.Add(new ServiceDependencyViewModel(
-            name: "Ollama (local LLM)",
-            purpose: "Optional local model that adds a one-line commentary to signal notifications.",
-            requirement: "Optional",
-            howTo: "Install from ollama.ai, run the server, then enable it under Settings → Notifications.",
-            startCommand: "ollama serve",
-            probe: ct => ServiceDependencyViewModel.HttpOkAsync("http://localhost:11434", ct)));
 
         _ = RecheckServicesAsync();
     }

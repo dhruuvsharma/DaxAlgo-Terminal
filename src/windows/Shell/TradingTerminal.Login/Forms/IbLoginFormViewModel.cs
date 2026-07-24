@@ -13,6 +13,7 @@ public sealed class IbLoginFormViewModel : BrokerLoginFormBase
 {
     private readonly InteractiveBrokersOptions _options;
     private readonly CredentialStore _credentialStore;
+    private readonly ServiceDependencyViewModel _prerequisite;
 
     public IbLoginFormViewModel(
         IOptions<InteractiveBrokersOptions> options,
@@ -23,6 +24,18 @@ public sealed class IbLoginFormViewModel : BrokerLoginFormBase
     {
         _options = options.Value;
         _credentialStore = credentialStore;
+
+        // The desktop app is IB's transport, so its status belongs on this form rather than in the
+        // shell's shared services panel. Probes whatever Host/Port this form will actually dial.
+        _prerequisite = new ServiceDependencyViewModel(
+            name: "TWS / IB Gateway",
+            purpose: "Interactive Brokers data arrives through the desktop app — it has to be running and signed in before Connect works.",
+            requirement: "Required",
+            howTo: "Launch TWS or IB Gateway and log in, then enable API access: Config → API → Settings → " +
+                   "“Enable ActiveX and Socket Clients”. Ports: TWS paper 7497 / live 7496, Gateway paper 4002 / live 4001. " +
+                   "With 2FA on, complete the prompt in TWS first — the API socket has no separate 2FA step.",
+            startCommand: null,
+            probe: ct => ServiceDependencyViewModel.TcpOpenAsync(Host, new[] { Port }, ct));
 
         AccountTypes = new[] { "Paper", "Live" };
         MarketDataTypes = new[]
@@ -36,6 +49,9 @@ public sealed class IbLoginFormViewModel : BrokerLoginFormBase
 
     public override BrokerKind Broker => BrokerKind.InteractiveBrokers;
     public override string DisplayName => "Interactive Brokers";
+
+    /// <summary>TWS / IB Gateway must be up — surfaced inside this row (see the base class).</summary>
+    public override ServiceDependencyViewModel? Prerequisite => _prerequisite;
 
     public IReadOnlyList<string> AccountTypes { get; }
     public IReadOnlyList<MarketDataTypeOption> MarketDataTypes { get; }

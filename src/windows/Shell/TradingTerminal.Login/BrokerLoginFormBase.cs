@@ -133,8 +133,27 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
     public bool IsExpanded
     {
         get => _isExpanded;
-        set => SetProperty(ref _isExpanded, value);
+        set
+        {
+            if (!SetProperty(ref _isExpanded, value)) return;
+            // Opening a row is the cheapest honest moment to probe its prerequisite (TWS socket,
+            // NinjaTrader process): the user is about to connect, and collapsed rows cost nothing.
+            if (value && Prerequisite is { } p) _ = p.CheckAsync();
+        }
     }
+
+    /// <summary>
+    /// Optional external app this broker needs running before Connect can succeed — TWS / IB Gateway,
+    /// NinjaTrader 8. Rendered at the top of this broker's expanded row (with its own live probe and
+    /// Re-check button) instead of in the shell's shared "Services &amp; dependencies" panel, so the
+    /// requirement sits where the user is actually signing in. Null for brokers that need nothing local.
+    /// </summary>
+    /// <remarks>Implementations must return a cached instance — a fresh object per get would break
+    /// the binding's status updates.</remarks>
+    public virtual ServiceDependencyViewModel? Prerequisite => null;
+
+    /// <summary>Gates the prerequisite block in the login row template.</summary>
+    public bool HasPrerequisite => Prerequisite is not null;
 
     private sealed record BrokerTile(
         string Badge, string BadgeColor, string BadgeForeground, string Subtitle, LoginCategory Category);

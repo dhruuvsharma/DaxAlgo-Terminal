@@ -41,6 +41,86 @@
             <GradientStop Color="#00FF8C00" Offset="1" />
         </LinearGradientBrush>
 
+        <!-- ── A broker's external prerequisite (DataContext = ServiceDependencyViewModel) ───────
+             The desktop app a local-bridge broker needs running (TWS / IB Gateway, NinjaTrader 8).
+             Rendered at the top of that broker's expanded row — the requirement sits where the user
+             signs in, not in the shell's shared "Services & dependencies" panel. -->
+        <DataTemplate x:Key="PrerequisiteTemplate">
+            <Border Margin="0,0,0,12" Padding="10,8" CornerRadius="0"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    Background="{DynamicResource Background.Surface}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Status dot -->
+                    <Ellipse Grid.Column="0"
+                             Width="8" Height="8"
+                             Margin="0,4,10,0" VerticalAlignment="Top">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State}" Value="Running">
+                                        <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Stopped">
+                                        <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Checking">
+                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+
+                    <!-- Name + requirement pill, purpose, how-to -->
+                    <StackPanel Grid.Column="1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold" FontSize="12" />
+                            <Border CornerRadius="0" Padding="5,1" Margin="7,1,0,0"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource Background.Elevated}"
+                                    BorderBrush="{DynamicResource Border.Brush}"
+                                    BorderThickness="1">
+                                <TextBlock Text="{Binding Requirement}"
+                                           FontSize="9"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Purpose}"
+                                   FontSize="11" Margin="0,2,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Text.Primary}" />
+                        <TextBlock Text="{Binding HowTo}"
+                                   FontSize="10" Margin="0,3,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                    </StackPanel>
+
+                    <!-- Live status + self-service re-probe -->
+                    <StackPanel Grid.Column="2"
+                                Margin="12,0,0,0"
+                                HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding StatusText}"
+                                   FontSize="11" HorizontalAlignment="Right"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <Button Content="Re-check"
+                                FontSize="10" Padding="7,2" Margin="0,5,0,0" MinWidth="0"
+                                Command="{Binding RecheckCommand}"
+                                Visibility="{Binding CanProbe, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                ToolTip="Probe this dependency again." />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
         <!-- ── One broker row (DataContext = BrokerLoginFormBase) ──────────────────────────────── -->
         <DataTemplate x:Key="BrokerRowTemplate">
             <Border Margin="0,0,0,4" CornerRadius="0" BorderThickness="1">
@@ -163,6 +243,12 @@
                             Padding="12,10,12,12"
                             Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
+                            <!-- External prerequisite this broker declares (TWS / IB Gateway, NinjaTrader 8);
+                                 collapsed for brokers that need nothing running locally. -->
+                            <ContentControl Content="{Binding Prerequisite}"
+                                            ContentTemplate="{StaticResource PrerequisiteTemplate}"
+                                            Visibility="{Binding HasPrerequisite, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
                             <ContentControl uic:InjectedFormHost.Form="{Binding}" />
 
                             <DockPanel Margin="0,10,0,0" LastChildFill="False">

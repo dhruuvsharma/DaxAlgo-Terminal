@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace TradingTerminal.App.Login;
 
@@ -24,10 +25,16 @@ public enum ServiceState
 }
 
 /// <summary>
-/// One row in the login screen's "Services &amp; external dependencies" panel. Describes an external
-/// process the terminal relies on but never starts itself (the Python sidecar, Docker, broker desktop
-/// apps, a local LLM), with a one-line purpose, how to launch it, an optional copy-paste start command,
-/// and — where it's cheap and safe — a live reachability probe so the user can see at a glance what's up.
+/// One external dependency the terminal relies on but never starts itself (Docker for the Paper Lab
+/// sandbox, a broker's desktop app), with a one-line purpose, how to launch it, an optional copy-paste
+/// start command, and — where it's cheap and safe — a live reachability probe so the user can see at a
+/// glance what's up.
+///
+/// <para>Used in two places on the login screen: the shared "Services &amp; dependencies" panel
+/// (<see cref="LoginViewModel.Services"/>) and, for broker-specific prerequisites like TWS or
+/// NinjaTrader 8, inside that broker's own expander via
+/// <see cref="BrokerLoginFormBase.Prerequisite"/> — which is why a row can re-probe itself through
+/// <see cref="RecheckCommand"/> without going through the panel's sweep.</para>
 /// </summary>
 public sealed partial class ServiceDependencyViewModel : ObservableObject
 {
@@ -80,6 +87,11 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
 
     [ObservableProperty] private ServiceState _state = ServiceState.Unknown;
     [ObservableProperty] private string _statusText;
+
+    /// <summary>Self-service re-probe, for rows rendered outside the panel's "Re-check" sweep
+    /// (a broker expander's prerequisite block). No-op when this row has no probe.</summary>
+    [RelayCommand]
+    private Task Recheck() => CheckAsync();
 
     /// <summary>Runs the reachability probe (if any) and folds the result into <see cref="State"/>.
     /// Never throws — a failed probe just reports <see cref="ServiceState.Stopped"/>.</summary>
@@ -153,6 +165,22 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
         }
         return false;
     }
+
+    /// <summary>True when at least one process named <paramref name="processName"/> (no extension) is
+    /// running. Cheap local check for broker desktop apps that expose no socket to probe.</summary>
+    public static Task<bool> ProcessRunningAsync(string processName, CancellationToken ct) => Task.Run(() =>
+    {
+        try
+        {
+            var found = Process.GetProcessesByName(processName);
+            foreach (var p in found) p.Dispose();
+            return found.Length > 0;
+        }
+        catch
+        {
+            return false; // access denied / process list unavailable — report unavailable, never throw
+        }
+    }, ct);
 
     /// <summary>True when <c>docker version</c> reports a running server engine within ~3s.</summary>
     public static Task<bool> DockerRunningAsync(CancellationToken ct) => Task.Run(() =>

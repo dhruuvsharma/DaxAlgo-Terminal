@@ -10,6 +10,7 @@ public sealed class NinjaLoginFormViewModel : BrokerLoginFormBase
 {
     private readonly NinjaTraderOptions _options;
     private readonly CredentialStore _credentialStore;
+    private readonly ServiceDependencyViewModel _prerequisite;
 
     public NinjaLoginFormViewModel(
         IOptions<NinjaTraderOptions> options,
@@ -20,10 +21,25 @@ public sealed class NinjaLoginFormViewModel : BrokerLoginFormBase
     {
         _options = options.Value;
         _credentialStore = credentialStore;
+
+        // NTDirect is a P/Invoke bridge into the running NinjaTrader process — no socket to probe, so
+        // the presence of the process is the signal. Lives on this form, not the shell services panel.
+        _prerequisite = new ServiceDependencyViewModel(
+            name: "NinjaTrader 8 (NTDirect)",
+            purpose: "The NinjaTrader feed is a bridge into the desktop app — it must be running and signed in before Connect works.",
+            requirement: "Required",
+            howTo: "Start NinjaTrader 8, sign in, and enable Tools → Options → AT Interface → “AT Interface enabled”. " +
+                   "NTDirect.dll auto-resolves from %USERPROFILE%\\Documents\\NinjaTrader 8\\bin64\\ — override the path " +
+                   "under Connection settings below if yours is installed elsewhere.",
+            startCommand: null,
+            probe: ct => ServiceDependencyViewModel.ProcessRunningAsync("NinjaTrader", ct));
     }
 
     public override BrokerKind Broker => BrokerKind.NinjaTrader;
     public override string DisplayName => "NinjaTrader";
+
+    /// <summary>NinjaTrader 8 must be up — surfaced inside this row (see the base class).</summary>
+    public override ServiceDependencyViewModel? Prerequisite => _prerequisite;
 
     private string _username = string.Empty;
     public string Username { get => _username; set => SetProperty(ref _username, value); }
