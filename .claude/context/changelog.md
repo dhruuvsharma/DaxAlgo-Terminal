@@ -1,5 +1,13 @@
 # context changelog — append-only session journal
 
+## 2026-07-25 — strategy-card actions and broker branding
+- Replaced inline installed-strategy tags and the research-paper pill with compact TAGS/LINK actions
+  in Basic and Intermediate; the flyout contains data, classification, and user-defined tags.
+- Added a binary-compatible `ITradingStrategy.LinkUrl` default member, an editable per-card HTTPS
+  override, and scheme-restricted navigation with research-paper URLs retained as the fallback.
+- Packaged sourced broker marks with a monogram fallback and used them only in existing login and
+  API-usage identity slots. Added WPF coverage for link behavior, flyout realization, and all marks.
+
 ## 2026-07-22 — local account access profile
 - Added first-choice Debug launch profiles for Basic and Intermediate that select DevSim and use
   the existing in-memory local account before bypassing broker login into the simulated terminal.

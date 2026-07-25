@@ -38,10 +38,18 @@ public interface ITradingStrategy
 
     /// <summary>
     /// When this strategy is derived from a published research paper, the canonical URL of that
-    /// paper (e.g. an arXiv abstract page). Drives the "Research paper" tag + info link rendered
-    /// in the Strategies pane. Defaults to <c>null</c> for strategies that aren't paper-derived.
+    /// paper (e.g. an arXiv abstract page). Defaults to <c>null</c> for strategies that aren't
+    /// paper-derived.
     /// </summary>
     string? ResearchPaperUrl => null;
+
+    /// <summary>
+    /// Optional public page associated with the strategy: a seller page, documentation, source,
+    /// social profile, or research paper. The strategy card opens only HTTPS links. Existing
+    /// paper-derived strategies inherit <see cref="ResearchPaperUrl"/> automatically; plugin authors
+    /// can override this member with a more appropriate destination.
+    /// </summary>
+    string? LinkUrl => ResearchPaperUrl;
 
     /// <summary>
     /// The asset classes this strategy is designed for, driving the asset-class pills in the

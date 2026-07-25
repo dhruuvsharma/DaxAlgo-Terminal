@@ -233,7 +233,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Severity of a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 36 | win | TradingTerminal.Core | B I P | Y | The name given to a single unnamed file (the AI didn't label |
 | `src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Fires when a strategy is added after startup, so a bound catalog |
-| `src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 72 | win | TradingTerminal.Core | B I P | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 80 | win | TradingTerminal.Core | B I P | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Whole number. Backed by |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameter.cs` | 100 | win | TradingTerminal.Core | B I P | Y | Stable machine key, used to read the value back. Unique within a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameterSchema.cs` | 45 | win | TradingTerminal.Core | B I P | Y | A schema with no tunables — the default for strategies that take |

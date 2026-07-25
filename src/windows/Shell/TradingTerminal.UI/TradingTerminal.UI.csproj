@@ -40,6 +40,7 @@
   <ItemGroup>
     <Resource Include="..\..\..\..\assets\DaxAlgoLogo-BackgroundLess.png" Link="Assets\DaxAlgoLogo-BackgroundLess.png" />
     <Resource Include="..\..\..\..\assets\DaxAlgoLogo.png" Link="Assets\DaxAlgoLogo.png" />
+    <Resource Include="..\..\..\..\assets\brokers\*.png" Link="Assets\Brokers\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

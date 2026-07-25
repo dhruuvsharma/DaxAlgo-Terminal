@@ -166,20 +166,27 @@
                                                 <Grid Margin="8,5" ToolTip="{Binding TooltipText}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="28" />
+                                                        <ColumnDefinition Width="36" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <Ellipse Grid.Column="0" Style="{StaticResource ApiRowDot}"
                                                              Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Label}" FontWeight="Bold" FontSize="11"
+                                                    <Grid Grid.Column="1" Width="20" Height="20" HorizontalAlignment="Left">
+                                                        <TextBlock Text="{Binding Label}" FontWeight="Bold" FontSize="7"
+                                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        <ctl:BrokerLogo Broker="{Binding Broker}" />
+                                                    </Grid>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Label}" FontWeight="Bold" FontSize="11"
                                                                Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11"
+                                                    <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="11"
                                                                Foreground="{DynamicResource Text.Secondary}">
                                                         <Run Text="{Binding UsageDisplay, Mode=OneWay}" Foreground="{DynamicResource Text.Primary}" />
                                                         <Run Text="/min" />
                                                     </TextBlock>
-                                                    <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="10"
+                                                    <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="10"
                                                                Foreground="{DynamicResource Text.Secondary}">
                                                         <Run Text="{Binding TotalCalls, Mode=OneWay, StringFormat=N0}" />
                                                         <Run Text="total" />
@@ -529,7 +536,7 @@
             <Grid.Resources>
                 <!-- One row per strategy. -->
                 <DataTemplate x:Key="StrategyCardTemplate">
-                    <!-- One list row, three columns: identity (name + tags + alpha formula) · description ·
+                    <!-- One list row, three columns: identity (name + actions + alpha formula) · description ·
                          a UI screenshot (the app logo when none is set). Binds to a StrategyCatalogItemViewModel,
                          which overlays the strategy's own metadata with the user's presentation edits. -->
                     <Border Background="{DynamicResource Gradient.Elevated}"
@@ -544,117 +551,42 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- ── Column 1 · name + id + DEV badge + pills + custom tags + alpha formula ── -->
+                            <!-- ── Column 1 · name + id + DEV badge + actions + alpha formula ── -->
                             <StackPanel Grid.Column="0" Margin="0,0,14,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="▸ "
-                                               Foreground="{DynamicResource Accent.Brush}"
-                                               FontWeight="Bold" />
-                                    <TextBlock Text="{Binding Name}"
-                                               Foreground="{DynamicResource Text.Header}"
-                                               FontWeight="Bold" FontSize="13" TextWrapping="Wrap" />
-                                    <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Strategy Manager). -->
-                                    <Border CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
-                                            Background="{DynamicResource Warning.Brush}">
-                                        <Border.Visibility>
-                                            <MultiBinding Converter="{StaticResource UnsignedStrategyConverter}">
-                                                <Binding Path="Id" />
-                                                <Binding Path="DataContext.UnsignedStrategyIds"
-                                                         RelativeSource="{RelativeSource AncestorType=ListBox}" />
-                                            </MultiBinding>
-                                        </Border.Visibility>
-                                        <TextBlock Text="DEV" FontSize="8" FontWeight="Bold"
-                                                   Foreground="{DynamicResource Background.Primary}"
-                                                   ToolTip="Unsigned plugin — running on your consent" />
-                                    </Border>
-                                </StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="▸ "
+                                                   Foreground="{DynamicResource Accent.Brush}"
+                                                   FontWeight="Bold" />
+                                        <TextBlock Text="{Binding Name}"
+                                                   Foreground="{DynamicResource Text.Header}"
+                                                   FontWeight="Bold" FontSize="13" TextWrapping="Wrap" />
+                                        <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Strategy Manager). -->
+                                        <Border CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                Background="{DynamicResource Warning.Brush}">
+                                            <Border.Visibility>
+                                                <MultiBinding Converter="{StaticResource UnsignedStrategyConverter}">
+                                                    <Binding Path="Id" />
+                                                    <Binding Path="DataContext.UnsignedStrategyIds"
+                                                             RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                                </MultiBinding>
+                                            </Border.Visibility>
+                                            <TextBlock Text="DEV" FontSize="8" FontWeight="Bold"
+                                                       Foreground="{DynamicResource Background.Primary}"
+                                                       ToolTip="Unsigned plugin — running on your consent" />
+                                        </Border>
+                                    </StackPanel>
+                                    <uistrat:StrategyCardActions Grid.Column="1" Margin="8,0,0,0"
+                                                                 VerticalAlignment="Top" />
+                                </Grid>
                                 <TextBlock Text="{Binding Id}"
                                            Foreground="{DynamicResource Text.Highlight}"
                                            FontSize="10"
                                            Margin="12,1,0,0" />
-                                <!-- Data-requirement pills (L1 / BAR / L2 / TAPE) via the shared
-                                     StrategyTagsConverter — reads the underlying strategy's DataRequirement. -->
-                                <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource StrategyTagsConverter}}"
-                                              Margin="12,5,0,0">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{Binding Background}"
-                                                    CornerRadius="0"
-                                                    Padding="5,1"
-                                                    Margin="0,0,3,3"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Text}"
-                                                           Foreground="{Binding Foreground}"
-                                                           FontSize="10"
-                                                           FontWeight="SemiBold" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <!-- Classification pills (asset class(es) / SINGLE-ASSET|MULTI-ASSET /
-                                     broker capability + supported broker chips) via StrategyClassConverter. -->
-                                <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource StrategyClassConverter}}"
-                                              Margin="12,0,0,0">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{Binding Background}"
-                                                    CornerRadius="0"
-                                                    Padding="5,1"
-                                                    Margin="0,0,3,3"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Text}"
-                                                           Foreground="{Binding Foreground}"
-                                                           FontSize="10"
-                                                           FontWeight="SemiBold" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <!-- User-added custom tags (from the card editor). -->
-                                <ItemsControl ItemsSource="{Binding CustomTags}"
-                                              Margin="12,0,0,0"
-                                              Visibility="{Binding HasCustomTags, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{DynamicResource Background.Surface}"
-                                                    BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1"
-                                                    CornerRadius="0" Padding="5,1" Margin="0,0,3,3"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding}" Foreground="{DynamicResource Accent.Brush}"
-                                                           FontSize="10" FontWeight="SemiBold" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <!-- "Research paper" tag + info link — shown only for paper-derived
-                                     strategies (ResearchPaperUrl set). Clicking opens the paper. -->
-                                <Border Margin="12,4,0,0"
-                                        HorizontalAlignment="Left"
-                                        Style="{StaticResource Ai.Pill}"
-                                        Visibility="{Binding Strategy.ResearchPaperUrl, Converter={StaticResource StringToVisibilityConverter}}">
-                                    <TextBlock FontSize="10" FontWeight="SemiBold">
-                                        <Hyperlink NavigateUri="{Binding Strategy.ResearchPaperUrl}"
-                                                   Foreground="{DynamicResource Ai.Text.Brush}"
-                                                   TextDecorations="None"
-                                                   ToolTip="{Binding Strategy.ResearchPaperUrl}"
-                                                   RequestNavigate="ResearchPaper_RequestNavigate">📄 RESEARCH PAPER ⓘ</Hyperlink>
-                                    </TextBlock>
-                                </Border>
                                 <!-- Alpha-generating formula — shown only when the user has added one. -->
                                 <Border Margin="12,6,0,0"
                                         Background="{DynamicResource Background.Surface}"

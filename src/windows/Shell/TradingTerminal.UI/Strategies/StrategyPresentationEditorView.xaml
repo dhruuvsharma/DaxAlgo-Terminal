@@ -60,6 +60,10 @@
                          AcceptsReturn="True" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" />
 
+                <TextBlock Text="Public link (optional)" FontWeight="SemiBold" Margin="0,12,0,3" />
+                <TextBox Text="{Binding LinkUrl, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="An HTTPS seller page, documentation, source, social profile, or research paper." />
+
                 <TextBlock Text="Alpha-generating formula (optional)" FontWeight="SemiBold" Margin="0,12,0,3" />
                 <TextBox Text="{Binding Formula, UpdateSourceTrigger=PropertyChanged}"
                          MinHeight="60" MaxHeight="160"

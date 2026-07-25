@@ -48,6 +48,7 @@ public static class StrategyPresentationStore
 
     private static bool IsBlank(StrategyPresentation p) =>
         string.IsNullOrWhiteSpace(p.Name) && string.IsNullOrWhiteSpace(p.Description)
+        && string.IsNullOrWhiteSpace(p.LinkUrl)
         && string.IsNullOrWhiteSpace(p.Formula) && string.IsNullOrWhiteSpace(p.ImagePath)
         && (p.Tags is null || p.Tags.Count == 0);
 

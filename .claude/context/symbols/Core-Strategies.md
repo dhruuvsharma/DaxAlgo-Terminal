@@ -136,9 +136,10 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    36:     StrategyDataRequirement DataRequirement =>
    37:     StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
    44:     string? ResearchPaperUrl => null;
-   53:     IReadOnlyList<AssetClass> AssetClasses => Array.Empty<AssetClass>();
-   61:     StrategyAssetScope AssetScope => StrategyAssetScope.SingleAsset;
-   71:     IReadOnlyList<BrokerKind> SupportedBrokers => StrategyBrokerCapability.ForRequirement(DataRequirement);
+   52:     string? LinkUrl => ResearchPaperUrl;
+   61:     IReadOnlyList<AssetClass> AssetClasses => Array.Empty<AssetClass>();
+   69:     StrategyAssetScope AssetScope => StrategyAssetScope.SingleAsset;
+   79:     IReadOnlyList<BrokerKind> SupportedBrokers => StrategyBrokerCapability.ForRequirement(DataRequirement);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs

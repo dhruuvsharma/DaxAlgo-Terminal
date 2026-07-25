@@ -1,0 +1,103 @@
+<UserControl x:Class="TradingTerminal.UI.Strategies.StrategyCardActions"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             Background="Transparent">
+    <Grid>
+        <StackPanel Orientation="Horizontal">
+            <ToggleButton x:Name="TagsToggle" Content="TAGS" Padding="7,2" MinWidth="0"
+                          FontSize="9" FontWeight="SemiBold"
+                          ToolTip="Show all strategy tags"
+                          automation:AutomationProperties.Name="Show strategy tags" />
+            <Button Content="LINK" Padding="7,2" MinWidth="0" Margin="5,0,0,0"
+                    FontSize="9" FontWeight="SemiBold"
+                    IsEnabled="{Binding HasLink}"
+                    ToolTip="{Binding LinkUrl, TargetNullValue=No link has been added}"
+                    Click="OpenLink_Click"
+                    automation:AutomationProperties.Name="Open strategy link" />
+        </StackPanel>
+
+        <Popup IsOpen="{Binding IsChecked, ElementName=TagsToggle, Mode=TwoWay}"
+               DataContext="{Binding DataContext, ElementName=Root}"
+               PlacementTarget="{Binding ElementName=TagsToggle}"
+               Placement="Bottom" HorizontalOffset="-270" VerticalOffset="5"
+               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+            <Border Width="350" Padding="12,10" Margin="8"
+                    Background="{DynamicResource Background.Surface}"
+                    BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.5" Color="#000000" />
+                </Border.Effect>
+                <StackPanel>
+                    <TextBlock Text="STRATEGY TAGS" FontSize="10" FontWeight="Bold"
+                               Foreground="{DynamicResource Text.Header}" Margin="0,0,0,8" />
+
+                    <TextBlock Text="DATA" FontSize="8" FontWeight="Bold"
+                               Foreground="{DynamicResource Text.Secondary}" />
+                    <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource StrategyTagsConverter}}"
+                                  Margin="0,3,0,7">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Background}" Padding="5,1" Margin="0,0,3,3">
+                                    <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
+                                               FontSize="10" FontWeight="SemiBold" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="CLASSIFICATION" FontSize="8" FontWeight="Bold"
+                               Foreground="{DynamicResource Text.Secondary}" />
+                    <ItemsControl ItemsSource="{Binding Strategy, Converter={StaticResource StrategyClassConverter}}"
+                                  Margin="0,3,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Background}" Padding="5,1" Margin="0,0,3,3">
+                                    <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
+                                               FontSize="10" FontWeight="SemiBold" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Margin="0,7,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasCustomTags}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="CUSTOM" FontSize="8" FontWeight="Bold"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <ItemsControl ItemsSource="{Binding CustomTags}" Margin="0,3,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource Background.Elevated}"
+                                            BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1"
+                                            Padding="5,1" Margin="0,0,3,3">
+                                        <TextBlock Text="{Binding}" Foreground="{DynamicResource Accent.Brush}"
+                                                   FontSize="10" FontWeight="SemiBold" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

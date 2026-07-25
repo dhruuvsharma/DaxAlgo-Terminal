@@ -6,10 +6,10 @@ using Microsoft.Win32;
 namespace TradingTerminal.UI.Strategies;
 
 /// <summary>
-/// Edits a strategy card's presentation overrides — name, tags, description, alpha-generating formula,
-/// and a UI screenshot. A blank name/description means "use the strategy's own"; "Reset to default"
-/// clears every override so later code changes to the strategy show through again. <see cref="Build"/>
-/// produces the minimal override set to persist.
+/// Edits a strategy card's presentation overrides — name, tags, description, public link,
+/// alpha-generating formula, and a UI screenshot. A blank name/description/link means "use the
+/// strategy's own"; "Reset to default" clears every override so later code changes to the strategy
+/// show through again. <see cref="Build"/> produces the minimal override set to persist.
 /// </summary>
 public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
 {
@@ -20,10 +20,12 @@ public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
         _item = item;
         DefaultName = item.Strategy.DisplayName;
         DefaultDescription = item.Strategy.Description;
+        DefaultLinkUrl = item.Strategy.LinkUrl ?? string.Empty;
 
         _name = item.Name;
         _description = item.Description;
         _tagsText = string.Join(", ", item.CustomTags);
+        _linkUrl = item.LinkUrl ?? string.Empty;
         _formula = item.Formula ?? string.Empty;
         _imagePath = item.ImagePath;
     }
@@ -31,10 +33,12 @@ public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
     public string StrategyId => _item.Id;
     public string DefaultName { get; }
     public string DefaultDescription { get; }
+    public string DefaultLinkUrl { get; }
 
     [ObservableProperty] private string _name;
     [ObservableProperty] private string _tagsText;
     [ObservableProperty] private string _description;
+    [ObservableProperty] private string _linkUrl;
     [ObservableProperty] private string _formula;
     [ObservableProperty] private string? _imagePath;
 
@@ -63,6 +67,7 @@ public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
         Name = DefaultName;
         Description = DefaultDescription;
         TagsText = string.Empty;
+        LinkUrl = DefaultLinkUrl;
         Formula = string.Empty;
         ImagePath = null;
     }
@@ -79,6 +84,9 @@ public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
             Name: string.IsNullOrWhiteSpace(Name) || string.Equals(Name.Trim(), DefaultName) ? null : Name.Trim(),
             Description: string.IsNullOrWhiteSpace(Description) || string.Equals(Description.Trim(), DefaultDescription) ? null : Description.Trim(),
             Tags: tags.Length == 0 ? null : tags,
+            LinkUrl: string.IsNullOrWhiteSpace(LinkUrl) || string.Equals(LinkUrl.Trim(), DefaultLinkUrl, StringComparison.Ordinal)
+                ? null
+                : LinkUrl.Trim(),
             Formula: string.IsNullOrWhiteSpace(Formula) ? null : Formula.Trim(),
             ImagePath: string.IsNullOrWhiteSpace(ImagePath) ? null : ImagePath);
     }

@@ -11,6 +11,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests/AssemblyInfo.cs` | 7 | win | TradingTerminal.Tests | dev | N |  |
 | `tests/TradingTerminal.Tests/Authoring/VibeQuantTranscriptTests.cs` | 137 | win | TradingTerminal.Tests | dev | Y | The pure logic under the Vibe Quant agent workspace (issue #29): the |
 | `tests/TradingTerminal.Tests/Backtest/DuckDbParquetQueryServiceTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y | Exercises against real Parquet files produced by |
+| `tests/TradingTerminal.Tests/Controls/BrokerLogoTests.cs` | 33 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Controls/ChartPanelTests.cs` | 103 | win | TradingTerminal.Tests | dev | Y | The three chart tools are now embeddable UserControls (an authored strategy composes |
 | `tests/TradingTerminal.Tests/Controls/ChartsViewModelLifetimeTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Controls/ComposedStrategyViewTests.cs` | 197 | win | TradingTerminal.Tests | dev | Y | Panel view-models resolve their pipeline seams from here; with no instrument pinned |
@@ -23,6 +24,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests/Login/LoginFormEditionCompositionTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y | The broker-neutral services every edition provides before AddLogin. |
 | `tests/TradingTerminal.Tests/Login/ServiceDependencyViewModelTests.cs` | 61 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/MarketData/LocalParquetLakeExporterTests.cs` | 132 | win | TradingTerminal.Tests | dev | Y | Minimal hand-rolled |
+| `tests/TradingTerminal.Tests/Strategies/StrategyCardPresentationTests.cs` | 106 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Strategies/StrategyFactoryTests.cs` | 65 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Analytics/CorrelationCalculatorTests.cs` | 103 | win | TradingTerminal.Tests.Headless | dev | Y |  |
 | `tests/TradingTerminal.Tests.Headless/Backtest/BacktestSessionTests.cs` | 106 | win | TradingTerminal.Tests.Headless | dev | Y |  |

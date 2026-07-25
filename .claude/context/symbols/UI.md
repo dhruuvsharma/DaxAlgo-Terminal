@@ -4,6 +4,14 @@ Generated from the current source tree. Declaration lines only; multi-line signa
 note: `[ObservableProperty]` private fields generate public properties that are NOT listed here.
 Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen-context.sh.
 
+## src/windows/Shell/TradingTerminal.UI/Controls/BrokerLogo.cs
+```cs
+   10: public sealed class BrokerLogo : Image
+   31: public BrokerLogo()
+   38: public static readonly DependencyProperty BrokerProperty = DependencyProperty.Register(
+   42: public BrokerKind Broker
+```
+
 ## src/windows/Shell/TradingTerminal.UI/Controls/BusyOverlay.xaml.cs
 ```cs
    16: public partial class BusyOverlay : UserControl
@@ -328,6 +336,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    20: public override DataTemplate? SelectTemplate(object? item, DependencyObject container) =>
 ```
 
+## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyCardActions.xaml.cs
+```cs
+    9: public partial class StrategyCardActions : UserControl
+   11: public StrategyCardActions()
+```
+
 ## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyCatalogItemViewModel.cs
 ```cs
    14: public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
@@ -335,10 +349,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    19: public StrategyCatalogItemViewModel(ITradingStrategy strategy, StrategyPresentation presentation)
    29: public ITradingStrategy Strategy { get; }
    31: public string Id => Strategy.Id;
-   39: public ObservableCollection<string> CustomTags { get; } = [];
-   41: public bool HasFormula => !string.IsNullOrWhiteSpace(Formula);
-   42: public bool HasCustomTags => CustomTags.Count > 0;
-   47: public void Apply(StrategyPresentation presentation)
+   40: public ObservableCollection<string> CustomTags { get; } = [];
+   42: public bool HasFormula => !string.IsNullOrWhiteSpace(Formula);
+   43: public bool HasCustomTags => CustomTags.Count > 0;
+   44: public Uri? LinkUri => Uri.TryCreate(LinkUrl, UriKind.Absolute, out var uri)
+   48: public bool HasLink => LinkUri is not null;
+   58: public void Apply(StrategyPresentation presentation)
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyImageTile.xaml.cs
@@ -359,8 +375,8 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentation.cs
 ```cs
-   11: public sealed record StrategyPresentation(
-   18: public static readonly StrategyPresentation Empty = new();
+   12: public sealed record StrategyPresentation(
+   20: public static readonly StrategyPresentation Empty = new();
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationEditor.cs
@@ -379,11 +395,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    14: public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
    18: public StrategyPresentationEditorViewModel(StrategyCatalogItemViewModel item)
-   31: public string StrategyId => _item.Id;
-   32: public string DefaultName { get; }
-   33: public string DefaultDescription { get; }
-   41: public bool HasImage => !string.IsNullOrWhiteSpace(ImagePath);
-   72: public StrategyPresentation Build()
+   33: public string StrategyId => _item.Id;
+   34: public string DefaultName { get; }
+   35: public string DefaultDescription { get; }
+   36: public string DefaultLinkUrl { get; }
+   45: public bool HasImage => !string.IsNullOrWhiteSpace(ImagePath);
+   77: public StrategyPresentation Build()
 ```
 
 ## src/windows/Shell/TradingTerminal.UI/Strategies/StrategyPresentationStore.cs
