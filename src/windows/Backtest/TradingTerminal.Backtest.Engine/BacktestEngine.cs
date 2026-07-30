@@ -81,7 +81,7 @@ public sealed class BacktestEngine
             orderTransitionCount++;
         };
 
-        var router = new EngineOrderRouter(book, spec.Universe);
+        var router = new EngineOrderRouter(book, spec.Universe, clock);
         var ctx = new StrategyContext(clock, router, new PortfolioView(portfolio), spec.Universe, spec.ParametersOrEmpty);
 
         var equity = new List<EquitySample>();
@@ -190,7 +190,10 @@ public sealed class BacktestEngine
             EventsProcessed: eventsProcessed,
             EngineMilliseconds: sw.Elapsed.TotalMilliseconds);
 
-        var report = ReportBuilder.Build(summary, equity, portfolio.Trades, spec.Universe);
+        var report = ReportBuilder.Build(summary, equity, portfolio.Trades, spec.Universe) with
+        {
+            Signals = router.Signals,
+        };
         return visual is null ? report : report with { Visual = visual.Build(report.Trades) };
     }
 

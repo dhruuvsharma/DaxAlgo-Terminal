@@ -6,11 +6,11 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.App.Basic/App.xaml.cs
 ```cs
-   22: public partial class App : Application
-   26: public IServiceProvider Services => _host!.Services;
-   28: public static new App Current => (App)Application.Current;
-   30: protected override async void OnStartup(StartupEventArgs e)
-  296: protected override async void OnExit(ExitEventArgs e)
+   23: public partial class App : Application
+   27: public IServiceProvider Services => _host!.Services;
+   29: public static new App Current => (App)Application.Current;
+   31: protected override async void OnStartup(StartupEventArgs e)
+  322: protected override void OnExit(ExitEventArgs e)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Archive/ArchiveActivityView.xaml.cs
@@ -93,11 +93,11 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ```cs
    45: public static class AppDependencyInjection
    57: public static IServiceCollection AddCoreShell(this IServiceCollection services, IConfiguration configuration)
-  109: public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
-  210: public static IServiceCollection AddShell(this IServiceCollection services)
-  237: public static IServiceCollection AddSupport(this IServiceCollection services)
-  247: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
-  262: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
+  112: public static IServiceCollection AddStrategyPlugins(
+  225: public static IServiceCollection AddShell(this IServiceCollection services)
+  252: public static IServiceCollection AddSupport(this IServiceCollection services)
+  262: public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
+  277: public static IServiceCollection AddArchiveSurface(this IServiceCollection services)
 ```
 
 ## src/windows/Shell/TradingTerminal.App.Basic/Logging/ObservableCollectionLogSink.cs

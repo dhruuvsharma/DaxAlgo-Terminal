@@ -19,6 +19,7 @@ public sealed record PluginHostContext(
     PluginStateStore? State = null)
 {
     private readonly List<LoadedPlugin> _authored = [];
+    private readonly List<LoadedPlugin> _runtimeInstalled = [];
 
     /// <summary>Plugins compiled and registered THIS session by the AI Strategy Builder — they were never
     /// seen by the startup loader, but they are running, so the Plugin Manager must show them. On the next
@@ -38,6 +39,27 @@ public sealed record PluginHostContext(
         {
             _authored.RemoveAll(p => string.Equals(p.AssemblyPath, plugin.AssemblyPath, StringComparison.OrdinalIgnoreCase));
             _authored.Add(plugin);
+        }
+    }
+
+    /// <summary>
+    /// Verified artifacts installed and activated after startup. They were not part of the immutable
+    /// startup report, but the Plugin Manager must still show their live lifecycle state.
+    /// </summary>
+    public IReadOnlyList<LoadedPlugin> RuntimeInstalledThisSession
+    {
+        get { lock (_runtimeInstalled) return [.. _runtimeInstalled]; }
+    }
+
+    /// <summary>Records or replaces one artifact activated after startup.</summary>
+    public void AddRuntimeInstalled(LoadedPlugin plugin)
+    {
+        ArgumentNullException.ThrowIfNull(plugin);
+        lock (_runtimeInstalled)
+        {
+            _runtimeInstalled.RemoveAll(p =>
+                string.Equals(p.AssemblyPath, plugin.AssemblyPath, StringComparison.OrdinalIgnoreCase));
+            _runtimeInstalled.Add(plugin);
         }
     }
 

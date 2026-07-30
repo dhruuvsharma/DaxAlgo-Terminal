@@ -43,13 +43,6 @@ jobs:
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Building version $v"
 
-      - name: Publish Intermediate edition (self-contained win-x64)
-        run: >
-          dotnet publish src/windows/Shell/TradingTerminal.App.Intermediate/TradingTerminal.App.Intermediate.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/DaxAlgo-Terminal-Intermediate
-
       - name: Publish Basic edition (self-contained win-x64)
         run: >
           dotnet publish src/windows/Shell/TradingTerminal.App.Basic/TradingTerminal.App.Basic.csproj
@@ -61,24 +54,19 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/stage-questdb.ps1 -Destination @(
-            'publish/DaxAlgo-Terminal-Intermediate/questdb',
             'publish/DaxAlgo-Terminal-Basic/questdb'
           )
 
       - name: Stage release docs
         shell: pwsh
         run: |
-          Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal-Intermediate -Force
           Copy-Item README.md, CHANGELOG.md, LICENSE publish/DaxAlgo-Terminal-Basic -Force
 
       - name: Zip (portable)
         shell: pwsh
         run: |
-          $inter = "DaxAlgo-Terminal-Intermediate-v${{ steps.ver.outputs.version }}-win-x64.zip"
           $basic = "DaxAlgo-Terminal-Basic-v${{ steps.ver.outputs.version }}-win-x64.zip"
-          Compress-Archive -Path publish/DaxAlgo-Terminal-Intermediate/* -DestinationPath $inter -Force
           Compress-Archive -Path publish/DaxAlgo-Terminal-Basic/* -DestinationPath $basic -Force
-          "inter=$inter" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "basic=$basic" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
         id: zip
 
@@ -89,5 +77,4 @@ jobs:
           body_path: CHANGELOG.md
           draft: true
           files: |
-            ${{ steps.zip.outputs.inter }}
             ${{ steps.zip.outputs.basic }}

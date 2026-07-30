@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using TradingTerminal.Accounts;
 using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Notifications;
@@ -31,6 +32,31 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? "Production";
+        var accountGateConfiguration = new ConfigurationBuilder()
+            .SetBasePath(assemblyDir)
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile($"appsettings.{environmentName}.json", optional: true)
+            .AddJsonFile("appsettings.local.json", optional: true)
+            .Build();
+        var startupDevOptions = accountGateConfiguration
+            .GetSection(DevOptions.SectionName)
+            .Get<DevOptions>() ?? new DevOptions();
+        var googleAuthOptions = accountGateConfiguration
+            .GetSection(GoogleAuthOptions.SectionName)
+            .Get<GoogleAuthOptions>() ?? new GoogleAuthOptions();
+        if (startupDevOptions.ResetAccountOnStart)
+            AccountGateRunner.ClearStoredAccount();
+
+        if (!AccountGateRunner.Show(AppEdition.Basic, googleAuthOptions))
+        {
+            Shutdown();
+            return;
+        }
+
         // Seed the shared strategy-pill converters into Application resources before any window is
         // shown, so {StaticResource StrategyTagsConverter} / {StaticResource StrategyClassConverter}
         // resolve in the MainWindow strategy list. Mirrors InstrumentPicker's ctor-time registration
@@ -39,7 +65,7 @@ public partial class App : Application
         StrategyClassificationConverter.EnsureConverterRegistered();
         UnsignedStrategyConverter.EnsureConverterRegistered();
 
-        // The Activity Log sink is now WPF-free (shared with the Avalonia head); point its UI-thread
+        // The Activity Log sink is WPF-free; point its UI-thread
         // marshaller at the WPF Dispatcher so background-thread appends (Serilog, strategies) are safe.
         InMemoryLogSink.UiPost = action =>
         {
@@ -54,7 +80,7 @@ public partial class App : Application
             if (d is null || d.CheckAccess()) return action();
             return d.InvokeAsync(action).Task.Unwrap();
         };
-        // File-picker seam (WPF-free in UI.Core; shared with the Avalonia head) — point it at the
+        // File-picker seam (WPF-free in UI.Core) — point it at the
         // WPF dialogs so tool VMs that load/save files keep working on the WPF shell.
         TradingTerminal.UI.UiFile.OpenAsync = (desc, exts) =>
         {
@@ -74,8 +100,6 @@ public partial class App : Application
         // callback must not hard-kill every live feed, and a distributed build must leave a
         // crash report behind. Wired before the host builds so even composition failures report.
         TradingTerminal.UI.CrashGuard.Install("DaxAlgo Terminal Basic", inMemoryLogSink.Append);
-        var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-
         _host = Host.CreateDefaultBuilder()
             .UseContentRoot(assemblyDir)
             .ConfigureAppConfiguration((ctx, cfg) =>
@@ -83,7 +107,7 @@ public partial class App : Application
                 cfg.SetBasePath(assemblyDir);
                 cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
                 // Per-environment dev overrides (selected via DOTNET_ENVIRONMENT from the launch
-                // profiles: DevSim / DevReplay). Layered over appsettings.json but under
+                // profiles). Layered over appsettings.json but under
                 // appsettings.local.json so a developer's local file still wins.
                 cfg.AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json",
                     optional: true, reloadOnChange: true);
@@ -127,6 +151,8 @@ public partial class App : Application
                 // turned on by the DevSim/DevReplay environment files).
                 services.Configure<DevOptions>(
                     ctx.Configuration.GetSection(DevOptions.SectionName));
+                services.Configure<GoogleAuthOptions>(
+                    ctx.Configuration.GetSection(GoogleAuthOptions.SectionName));
                 services.Configure<SimulatedBrokerOptions>(
                     ctx.Configuration.GetSection(SimulatedBrokerOptions.SectionName));
 
@@ -141,7 +167,7 @@ public partial class App : Application
 
                 // Broker layer: shared broker-neutral infrastructure + the keyless brokers only
                 // (public crypto feeds + Simulated). The credentialed set (IB/NT/cTrader/Alpaca/
-                // Ironbeam/LSE/Upstox) is an Intermediate-and-up surface and is NOT registered here,
+                // Ironbeam/LSE/Upstox) is a Professional-only surface and is NOT registered here,
                 // which also keeps their login tiles off the sign-in screen.
                 services.AddInfrastructureCore();
                 services.AddKeylessBrokers();
@@ -293,14 +319,33 @@ public partial class App : Application
         _host!.Services.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
             .MaybeShowOnLaunch(owner);
 
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
-        if (_host is not null)
+        var host = _host;
+        _host = null;
+        try
         {
-            await _host.StopAsync(TimeSpan.FromSeconds(2));
-            _host.Dispose();
+            if (host is not null)
+            {
+                try
+                {
+                    host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "The application host did not stop cleanly within the shutdown window.");
+                }
+                finally
+                {
+                    try { host.Dispose(); }
+                    catch (Exception ex) { Log.Warning(ex, "The application host could not be disposed cleanly."); }
+                }
+            }
         }
-        Log.CloseAndFlush();
-        base.OnExit(e);
+        finally
+        {
+            try { Log.CloseAndFlush(); }
+            finally { base.OnExit(e); }
+        }
     }
 }

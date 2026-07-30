@@ -1,4 +1,5 @@
 using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Trading;
 
 namespace TradingTerminal.Core.Backtesting;
@@ -108,4 +109,5 @@ public sealed record BacktestReport(
     IReadOnlyList<RoundTripTrade> Trades,
     IReadOnlyList<EquitySample> Equity,
     IReadOnlyList<InstrumentReport> PerInstrument,
-    VisualTimeline? Visual = null);
+    VisualTimeline? Visual = null,
+    IReadOnlyList<StrategySignalEvent>? Signals = null);

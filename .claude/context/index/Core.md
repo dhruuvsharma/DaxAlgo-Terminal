@@ -5,6 +5,13 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
+| `src/windows/Core/TradingTerminal.Core/Accounts/AccountContractGuards.cs` | 29 | win | TradingTerminal.Core | B I P | Y |  |
+| `src/windows/Core/TradingTerminal.Core/Accounts/AccountIdentity.cs` | 76 | win | TradingTerminal.Core | B I P | Y | The exclusive session-expiry instant, or |
+| `src/windows/Core/TradingTerminal.Core/Accounts/AccountServices.cs` | 22 | win | TradingTerminal.Core | B I P | Y | Retrieves the normalized product entitlement for an authenticated session. |
+| `src/windows/Core/TradingTerminal.Core/Accounts/EntitlementAccessEvaluator.cs` | 171 | win | TradingTerminal.Core | B I P | Y | Stable, provider-neutral explanation for an edition-access decision. |
+| `src/windows/Core/TradingTerminal.Core/Accounts/EntitlementLeaseWireDto.cs` | 143 | win | TradingTerminal.Core | B I P | Y | Versioned transport contract emitted by the product platform for one device-bound offline |
+| `src/windows/Core/TradingTerminal.Core/Accounts/OfflineEntitlementLease.cs` | 152 | win | TradingTerminal.Core | B I P | Y | Device installation identifier authenticated as part of the signed payload. |
+| `src/windows/Core/TradingTerminal.Core/Accounts/SubscriptionEntitlement.cs` | 96 | win | TradingTerminal.Core | B I P | Y | Inclusive start of the entitlement window. |
 | `src/windows/Core/TradingTerminal.Core/AiAnalyst/AiAnalystDecision.cs` | 9 | win | TradingTerminal.Core | B I P | Y | No actionable verdict — the analyst either declined to call or was |
 | `src/windows/Core/TradingTerminal.Core/AiAnalyst/AnalystBar.cs` | 13 | win | TradingTerminal.Core | B I P | Y | Wire-format OHLCV bar handed to the Python analyst. Mirrors Bar but lives |
 | `src/windows/Core/TradingTerminal.Core/AiAnalyst/AnalystReport.cs` | 68 | win | TradingTerminal.Core | B I P | Y | One indicator agent's read on the tape — text summary plus the |
@@ -13,7 +20,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Analytics/CorrelationCalculator.cs` | 126 | win | TradingTerminal.Core | B I P | Y | Bar-to-bar log returns |
 | `src/windows/Core/TradingTerminal.Core/Analytics/CorrelationResult.cs` | 18 | win | TradingTerminal.Core | B I P | Y | A computed correlation matrix over a set of instruments. indexes both |
 | `src/windows/Core/TradingTerminal.Core/Backtest/BacktestConfig.cs` | 50 | win | TradingTerminal.Core | B I P | Y | Where the engine pulls tick data from for a single backtest run. |
-| `src/windows/Core/TradingTerminal.Core/Backtest/BacktestResult.cs` | 15 | win | TradingTerminal.Core | B I P | Y | Output of a single backtest run. is null until Phase 4 wires |
+| `src/windows/Core/TradingTerminal.Core/Backtest/BacktestResult.cs` | 18 | win | TradingTerminal.Core | B I P | Y | Output of a single backtest run. is null until Phase 4 wires |
 | `src/windows/Core/TradingTerminal.Core/Backtest/BacktestStatistics.cs` | 35 | win | TradingTerminal.Core | B I P | Y | Aggregate performance metrics derived from a 's trades and |
 | `src/windows/Core/TradingTerminal.Core/Backtest/BacktestStrategyOption.cs` | 78 | win | TradingTerminal.Core | B I P | Y | Declared tunables. |
 | `src/windows/Core/TradingTerminal.Core/Backtest/EquityPoint.cs` | 4 | win | TradingTerminal.Core | B I P | Y | Sample of the equity curve at a point in time. |
@@ -22,13 +29,13 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Backtest/Fast/IFastBacktestRunner.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Out-of-process replay engine. Runs in a separate subprocess (the C++20 |
 | `src/windows/Core/TradingTerminal.Core/Backtest/FillRecord.cs` | 17 | win | TradingTerminal.Core | B I P | Y | One fill captured during a backtest. Used by transaction-cost analysis |
 | `src/windows/Core/TradingTerminal.Core/Backtest/IBacktestSession.cs` | 21 | win | TradingTerminal.Core | B I P | Y | View-model-facing seam over the backtest engine. The Backtest tab's view-model injects |
-| `src/windows/Core/TradingTerminal.Core/Backtest/IBacktestStrategy.cs` | 50 | win | TradingTerminal.Core | B I P | Y | Called once before any ticks. Use to read initial state or schedule |
+| `src/windows/Core/TradingTerminal.Core/Backtest/IBacktestStrategy.cs` | 57 | win | TradingTerminal.Core | B I P | Y | Called once before any ticks. Use to read initial state or schedule |
 | `src/windows/Core/TradingTerminal.Core/Backtest/IParquetQueryService.cs` | 68 | win | TradingTerminal.Core | B I P | Y | One resampled bar from |
 | `src/windows/Core/TradingTerminal.Core/Backtest/MonteCarlo.cs` | 147 | win | TradingTerminal.Core | B I P | Y | Trade-bootstrap Monte Carlo. Given a sequence of round-trip trade PnLs from a |
 | `src/windows/Core/TradingTerminal.Core/Backtest/Trade.cs` | 16 | win | TradingTerminal.Core | B I P | Y | A round-trip trade: an entry fill and the matching exit fill that |
 | `src/windows/Core/TradingTerminal.Core/Backtest/TransactionCostAnalysis.cs` | 112 | win | TradingTerminal.Core | B I P | Y | Transaction-cost analysis (TCA) — the standard post-trade report quant desks run to |
 | `src/windows/Core/TradingTerminal.Core/Backtest/WalkForward.cs` | 34 | win | TradingTerminal.Core | B I P | Y | All-empty axes with quantity 1 — every strategy grid falls back to |
-| `src/windows/Core/TradingTerminal.Core/Backtesting/BacktestReport.cs` | 111 | win | TradingTerminal.Core | B I P | Y | One sample of the account through time: mark-to-market |
+| `src/windows/Core/TradingTerminal.Core/Backtesting/BacktestReport.cs` | 113 | win | TradingTerminal.Core | B I P | Y | One sample of the account through time: mark-to-market |
 | `src/windows/Core/TradingTerminal.Core/Backtesting/IStrategyContext.cs` | 31 | win | TradingTerminal.Core | B I P | Y | Simulated clock in backtests, wall clock live. Never call |
 | `src/windows/Core/TradingTerminal.Core/Backtesting/IStrategyKernel.cs` | 45 | win | TradingTerminal.Core | B I P | Y | Called once before any market data. Read parameters, allocate per-instrument state. |
 | `src/windows/Core/TradingTerminal.Core/Backtesting/Optimization.cs` | 111 | win | TradingTerminal.Core | B I P | Y | What the optimizer ranks trials by. Every criterion is scored so that |
@@ -49,16 +56,17 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Brokers/IBrokerLoginFormFactory.cs` | 15 | win | TradingTerminal.Core | B I P | Y | Every form whose broker is currently available (i.e. its SDK was present |
 | `src/windows/Core/TradingTerminal.Core/Brokers/IBrokerSelector.cs` | 55 | win | TradingTerminal.Core | B I P | Y | Brokers that have a registered |
 | `src/windows/Core/TradingTerminal.Core/Brokers/Upstox/IUpstoxAuthService.cs` | 31 | win | TradingTerminal.Core | B I P | Y | One-shot helper for the Upstox login form's OAuth2 authorization-code flow. The interface |
-| `src/windows/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs` | 72 | win | TradingTerminal.Core | B I P | Y | Config for one BYO-key / local codegen provider. |
+| `src/windows/Core/TradingTerminal.Core/Configuration/AiCodegenOptions.cs` | 76 | win | TradingTerminal.Core | B I P | Y | Config for one BYO-key / local codegen provider. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | API key id (shown on the dashboard, prefixed with "PK" for paper |
-| `src/windows/Core/TradingTerminal.Core/Configuration/AppEdition.cs` | 22 | win | TradingTerminal.Core | B I P | Y | Keyless brokers only, core charts/tools/strategies. No ML / AI / LSE / |
+| `src/windows/Core/TradingTerminal.Core/Configuration/AppEdition.cs` | 19 | win | TradingTerminal.Core | B I P | Y | Keyless brokers only, core charts/tools/strategies. No ML / AI / LSE / |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ArchiveOptions.cs` | 51 | win | TradingTerminal.Core | B I P | Y | Master switch — when false the schedule service idles and the offload |
 | `src/windows/Core/TradingTerminal.Core/Configuration/BinanceOptions.cs` | 45 | win | TradingTerminal.Core | B I P | Y | REST base for the ping/connectivity check and historical klines. No trailing slash. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/BrokerEditionPolicy.cs` | 49 | win | TradingTerminal.Core | B I P | Y | Brokers usable with no API key or account. Available in every edition. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/BybitOptions.cs` | 36 | win | TradingTerminal.Core | B I P | Y | REST base for historical kline + the connectivity check. No trailing slash. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/CTraderOptions.cs` | 35 | win | TradingTerminal.Core | B I P | Y | OAuth application clientId (from connect.spotware.com/apps). |
 | `src/windows/Core/TradingTerminal.Core/Configuration/CoinbaseOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | REST base for historical candles + the connectivity check. No trailing slash. |
-| `src/windows/Core/TradingTerminal.Core/Configuration/DevOptions.cs` | 28 | win | TradingTerminal.Core | B I P | Y | Developer-only switches, bound from the Dev configuration section. These are off by |
+| `src/windows/Core/TradingTerminal.Core/Configuration/DevOptions.cs` | 40 | win | TradingTerminal.Core | B I P | Y | Developer-only switches, bound from the Dev configuration section. These are off by |
+| `src/windows/Core/TradingTerminal.Core/Configuration/GoogleAuthOptions.cs` | 17 | win | TradingTerminal.Core | B I P | Y | OAuth client id for the installed desktop application. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/InteractiveBrokersOptions.cs` | 24 | win | TradingTerminal.Core | B I P | Y | IB market-data subscription mode applied to all reqMktData requests. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/IronBeamOptions.cs` | 42 | win | TradingTerminal.Core | B I P | Y | Ironbeam account username. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/KrakenOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | REST base for historical OHLC + the connectivity check. No trailing slash. |
@@ -70,6 +78,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Configuration/OkxOptions.cs` | 31 | win | TradingTerminal.Core | B I P | Y | REST base for historical candles + the connectivity check. No trailing slash. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/OrderFlowPressureMapOptions.cs` | 129 | win | TradingTerminal.Core | B I P | Y | No notable pressure this candle. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ParquetLakeOptions.cs` | 34 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the export service idles (one cheap timer tick |
+| `src/windows/Core/TradingTerminal.Core/Configuration/PlatformOptions.cs` | 21 | win | TradingTerminal.Core | B I P | Y | Desktop connection settings for the DaxAlgo product platform. |
 | `src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs` | 63 | win | TradingTerminal.Core | B I P | Y | How much the host trusts the plugins it finds in its plugins |
 | `src/windows/Core/TradingTerminal.Core/Configuration/ResearchReproOptions.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Master switch. When false the ingest client is Null and no jobs |
 | `src/windows/Core/TradingTerminal.Core/Configuration/SandboxOptions.cs` | 39 | win | TradingTerminal.Core | B I P | Y | Which runner implementation |
@@ -130,6 +139,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Ml/DepthStepSampler.cs` | 67 | win | TradingTerminal.Core | B I P | Y | The last step boundary a summary was emitted for — the caller's |
 | `src/windows/Core/TradingTerminal.Core/Ml/EwmaForecaster.cs` | 67 | win | TradingTerminal.Core | B I P | Y | Algorithm discriminator stored in |
 | `src/windows/Core/TradingTerminal.Core/Ml/FactorComputation.cs` | 193 | win | TradingTerminal.Core | B I P | Y | One aggregated bar over |
+| `src/windows/Core/TradingTerminal.Core/Ml/FootprintForecastProvider.cs` | 488 | win | TradingTerminal.Core | B I P | Y | Identifies one footprint series without coupling callers to a model implementation. |
 | `src/windows/Core/TradingTerminal.Core/Ml/FootprintNextBarPredictor.cs` | 408 | win | TradingTerminal.Core | B I P | Y | Model-family discriminator this predictor's artifacts are filed under in the registry. |
 | `src/windows/Core/TradingTerminal.Core/Ml/FootprintPredictionModels.cs` | 89 | win | TradingTerminal.Core | B I P | Y | Projects a sealed Core bar (plus the render-layer argmax POCs and value |
 | `src/windows/Core/TradingTerminal.Core/Ml/Forecasters.cs` | 88 | win | TradingTerminal.Core | B I P | Y | Recursive least squares with exponential forgetting — adaptive, second-order, |
@@ -232,17 +242,20 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyCompileResult.cs` | 73 | win | TradingTerminal.Core | B I P | Y | True when the author supplied a complete hand-written window: the descriptor, a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyDiagnostic.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Severity of a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Authoring/StrategyScript.cs` | 36 | win | TradingTerminal.Core | B I P | Y | The name given to a single unnamed file (the AI didn't label |
+| `src/windows/Core/TradingTerminal.Core/Strategies/IPluginFaultAttribution.cs` | 10 | win | TradingTerminal.Core | B I P | Y | Marker for an exception that can name the runtime plugin responsible for |
 | `src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs` | 36 | win | TradingTerminal.Core | B I P | Y | Fires when a strategy is added after startup, so a bound catalog |
-| `src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 72 | win | TradingTerminal.Core | B I P | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/ITradingStrategy.cs` | 80 | win | TradingTerminal.Core | B I P | Y | Stable, unique identifier (e.g. "example.nvda.3m"). Used to dedupe tabs. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs` | 25 | win | TradingTerminal.Core | B I P | Y | Whole number. Backed by |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameter.cs` | 100 | win | TradingTerminal.Core | B I P | Y | Stable machine key, used to read the value back. Unique within a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameterSchema.cs` | 45 | win | TradingTerminal.Core | B I P | Y | A schema with no tunables — the default for strategies that take |
 | `src/windows/Core/TradingTerminal.Core/Strategies/Parameters/StrategyParameters.cs` | 162 | win | TradingTerminal.Core | B I P | Y | Sets a value, coercing and clamping it against the parameter declaration. |
+| `src/windows/Core/TradingTerminal.Core/Strategies/PluginFaultEvents.cs` | 21 | win | TradingTerminal.Core | B I P | Y | Relays strategy callback failures that a host catches to keep its stream |
 | `src/windows/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs` | 22 | win | TradingTerminal.Core | B I P | Y | Whether a strategy operates on a single instrument at a time or |
 | `src/windows/Core/TradingTerminal.Core/Strategies/StrategyBrokerCapability.cs` | 54 | win | TradingTerminal.Core | B I P | Y | The broker capability matrix that backs 's default: |
 | `src/windows/Core/TradingTerminal.Core/Strategies/StrategyDataRequirement.cs` | 38 | win | TradingTerminal.Core | B I P | Y | No declared requirement. |
 | `src/windows/Core/TradingTerminal.Core/Strategies/StrategyFactoryRegistration.cs` | 11 | win | TradingTerminal.Core | B I P | Y | Pure-data record describing how to build the (view, view-model) pair for a |
 | `src/windows/Core/TradingTerminal.Core/Strategies/StrategyHost.cs` | 12 | win | TradingTerminal.Core | B I P | Y | A concrete (view, view-model) pair plus metadata. The view and view-model are |
+| `src/windows/Core/TradingTerminal.Core/Strategies/StrategySignal.cs` | 33 | win | TradingTerminal.Core | B I P | Y | A strategy's direction-only signal, independent of order execution. |
 | `src/windows/Core/TradingTerminal.Core/Time/IClock.cs` | 13 | win | TradingTerminal.Core | B I P | Y | Wall-clock abstraction. Real code uses SystemClock (); |
 | `src/windows/Core/TradingTerminal.Core/Trading/IFeeModel.cs` | 70 | win | TradingTerminal.Core | B I P | Y | Whether a fill took (crossed the spread) or made (rested) liquidity. |
 | `src/windows/Core/TradingTerminal.Core/Trading/IOrderRouter.cs` | 22 | win | TradingTerminal.Core | B I P | Y | Cancels a working order by its client-assigned id. Idempotent. |

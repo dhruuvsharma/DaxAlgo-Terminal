@@ -18,8 +18,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Single neat toolbar: primary data selectors inline, every toggle/tuner grouped into
-             dropdown menus (Regression · Overlays · Display) so the chrome stays compact. -->
+        <!-- Single neat toolbar: primary data selectors inline, a directly discoverable Layers
+             flyout, and detailed tuners grouped into dropdown menus so the chrome stays compact. -->
         <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}"
                 Visibility="{Binding Features.Toolbar, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
             <Border.Resources>
@@ -76,6 +76,9 @@
                             ToolTip="Export the visible bars (POCs, value area, volumes, delta, stacked runs) as CSV" />
                     <Button Style="{StaticResource App.IconButton}" Content="📷" Click="ExportPng_Click"
                             ToolTip="Save a PNG snapshot of this window" />
+                    <ToggleButton x:Name="LayersToggle" Style="{StaticResource App.IconToggle}"
+                                  Content="Layers" Width="58" FontSize="11"
+                                  ToolTip="Show or hide footprint layers" />
                     <ToggleButton x:Name="HelpToggle" Style="{StaticResource App.IconToggle}" Content="?" Margin="0"
                                   ToolTip="What am I looking at?" />
                 </StackPanel>
@@ -101,7 +104,7 @@
                 <Menu Background="Transparent" IsMainMenu="False" VerticalAlignment="Center"
                       Foreground="{DynamicResource Text.Primary}">
                     <!-- Prediction: one checkbox per POC-fit curve flavour, the regression forward
-                         prediction, and the online-learned ML forecast. -->
+                         prediction, and the preferred batch forecast / online fallback. -->
                     <MenuItem Header="📈 Prediction ▾">
                         <MenuItem Header="Regression fits" IsEnabled="False" />
                         <Separator />
@@ -127,7 +130,7 @@
                         <MenuItem Header="Machine learning" IsEnabled="False" />
                         <MenuItem Header="ML prediction (online)" IsCheckable="True" IsChecked="{Binding ShowMlPrediction}" />
                         <MenuItem Header="Warm-start from history" IsCheckable="True" IsChecked="{Binding WarmStartFromHistory}"
-                                  ToolTip="Replay recent stored trade tape through the model on start so it isn't cold. Takes effect on the next restart (instrument/interval/tick change)." />
+                                  ToolTip="Rebuild provider context and warm the online fallback from recent stored tape. Takes effect on the next restart (instrument/interval/tick change)." />
                         <MenuItem StaysOpenOnClick="True">
                             <MenuItem.Header>
                                 <StackPanel Orientation="Horizontal">
@@ -136,7 +139,7 @@
                                               ItemsSource="{Binding Learners}"
                                               SelectedItem="{Binding SelectedLearner}"
                                               DisplayMemberPath="Name"
-                                              ToolTip="Online-learner algorithm for the ML bank. Switching retrains on the next restart (loads your saved model for that algorithm, or warm-starts fresh)." />
+                                              ToolTip="Online fallback algorithm. Switching reloads or warms that fallback on the next restart; an available batch provider remains preferred." />
                                 </StackPanel>
                             </MenuItem.Header>
                         </MenuItem>
@@ -205,6 +208,79 @@
             </DockPanel>
         </Border>
 
+        <!-- Directly visible layer controls (anchored to the Layers toolbar toggle). -->
+        <Popup PlacementTarget="{Binding ElementName=LayersToggle}" Placement="Bottom"
+               IsOpen="{Binding IsChecked, ElementName=LayersToggle, Mode=TwoWay}"
+               DataContext="{Binding DataContext, ElementName=LayersToggle}"
+               AllowsTransparency="True" StaysOpen="False"
+               HorizontalOffset="-414" VerticalOffset="6">
+            <Border Style="{StaticResource App.Card}" Width="480" Padding="14"
+                    Background="{DynamicResource Background.Elevated}">
+                <Border.Resources>
+                    <Style x:Key="LayerCheckBox" TargetType="CheckBox"
+                           BasedOn="{StaticResource {x:Type CheckBox}}">
+                        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Margin" Value="0,0,0,5" />
+                    </Style>
+                </Border.Resources>
+                <StackPanel>
+                    <TextBlock Text="LAYERS" Style="{StaticResource App.SectionHeader}" Margin="0,0,0,10" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="132" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="REGRESSION FITS" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,7" />
+                            <CheckBox Content="Linear" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowLinearFit, Mode=TwoWay}" />
+                            <CheckBox Content="Quadratic" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowQuadraticFit, Mode=TwoWay}" />
+                            <CheckBox Content="Cubic" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowCubicFit, Mode=TwoWay}" />
+                            <CheckBox Content="Theil–Sen" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowTheilSenFit, Mode=TwoWay}" />
+                            <CheckBox Content="Exponential" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowExponentialFit, Mode=TwoWay}" />
+                            <CheckBox Content="Logarithmic" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowLogarithmicFit, Mode=TwoWay}" />
+                            <CheckBox Content="LOWESS" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowLowessFit, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <TextBlock Text="PREDICTIONS" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,7" />
+                            <CheckBox Content="Predicted candles" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowPredictedBars, Mode=TwoWay}" />
+                            <CheckBox Content="ML prediction" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowMlPrediction, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="OVERLAYS" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,7" />
+                            <CheckBox Content="POC connectors" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowPocConnectors, Mode=TwoWay}"
+                                      ToolTip="Total, buy and sell POC paths and dots" />
+                            <CheckBox Content="POC markers" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowPocMarkers, Mode=TwoWay}"
+                                      ToolTip="Amber POC boxes on each footprint bar" />
+                            <CheckBox Content="Imbalances" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowImbalances, Mode=TwoWay}" />
+                            <CheckBox Content="Value area" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowValueArea, Mode=TwoWay}" />
+                            <CheckBox Content="Volume profile" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowVolumeProfile, Mode=TwoWay}" />
+                            <CheckBox Content="Cell volumes" Style="{StaticResource LayerCheckBox}"
+                                      IsChecked="{Binding ShowCellText, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Popup>
+
         <!-- Contextual help (anchored to the ? toggle) -->
         <Popup PlacementTarget="{Binding ElementName=HelpToggle}" Placement="Bottom"
                IsOpen="{Binding IsChecked, ElementName=HelpToggle}" AllowsTransparency="True"
@@ -219,7 +295,7 @@
                         <Run FontWeight="SemiBold" Text="Imbalances" /><Run Text=" — outlined cells mark 3:1 diagonal bid/ask imbalances; stacked runs of them flag initiative buying or selling." /><LineBreak />
                         <Run FontWeight="SemiBold" Text="Value area" /><Run Text=" — the shaded band holds ~70% of the bar's volume (VAH ↔ VAL); the right gutter is the composite session profile." /><LineBreak />
                         <Run FontWeight="SemiBold" Text="Predicted" /><Run Text=" — ghost candles extrapolate the enabled regression fits forward by the chosen horizon (consensus of the fits)." /><LineBreak />
-                        <Run FontWeight="SemiBold" Foreground="#B388FF" Text="ML ghosts (violet)" /><Run Text=" — an online-learned next-bar forecaster predicts POC, volume and delta per future bar; the stats panel scores its rolling MAE and hit-rate against the regression consensus, and warm-start pre-trains it from your stored tape." />
+                        <Run FontWeight="SemiBold" Foreground="#B388FF" Text="ML ghosts (violet)" /><Run Text=" — an optional batch provider is preferred, with online RLS as the safe fallback (both cap at 8 bars). Distributional batches add a low/high wick and POC quantile band; the stats panel scores the fallback against regression." />
                     </TextBlock>
                 </StackPanel>
             </Border>

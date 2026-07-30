@@ -51,7 +51,7 @@ public sealed class BacktestSession : IBacktestSession
         var clock = new SimulatedClock();
         var fillModel = new L1FillModel(config.TickSize, config.SlippageTicks);
         var orderBook = new SimulatedOrderBook(clock, fillModel);
-        var router = new BacktestOrderRouter(orderBook, risk);
+        var router = new BacktestOrderRouter(orderBook, risk, clock);
 
         var ledger = new TradeLedger(config.ContractMultiplier, config.StartingCash, config.FeeModel);
         var equity = new List<EquityPoint>();
@@ -128,7 +128,7 @@ public sealed class BacktestSession : IBacktestSession
 
         var bare = new BacktestResult(
             ledger.Trades, equity, config.StartingCash, endingCash,
-            TotalFees: ledger.TotalFees, Fills: fills);
+            TotalFees: ledger.TotalFees, Fills: fills, Signals: router.Signals);
         return bare with { Stats = StatisticsCalculator.Calculate(bare) };
     }
 }

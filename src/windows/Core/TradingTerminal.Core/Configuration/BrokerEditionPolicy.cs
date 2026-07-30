@@ -6,7 +6,7 @@ namespace TradingTerminal.Core.Configuration;
 /// Which brokers each <see cref="AppEdition"/> exposes, split by whether the broker needs
 /// credentials. The <b>keyless</b> set (public crypto feeds + the in-process Simulated feed) needs
 /// no API key or account, so it ships in every edition — including Basic, which never shows a
-/// credential form. The <b>credentialed</b> set is added from Intermediate up.
+/// credential form. The <b>credentialed</b> set is available only in Professional.
 /// </summary>
 /// <remarks>
 /// This is the single source of truth the shells and the login screen agree on. It carries no
@@ -26,7 +26,7 @@ public static class BrokerEditionPolicy
         BrokerKind.Simulated,
     ];
 
-    /// <summary>Brokers that require credentials / a login form. Added from Intermediate up.</summary>
+    /// <summary>Brokers that require credentials / a login form. Available only in Professional.</summary>
     public static readonly IReadOnlyList<BrokerKind> Credentialed =
     [
         BrokerKind.InteractiveBrokers,

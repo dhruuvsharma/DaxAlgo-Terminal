@@ -26,11 +26,11 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Charts/TradingTerminal.OrderBook/OrderBookViewModel.cs` | 1154 | win | TradingTerminal.OrderBook | B I P | Y | Cap on how many instruments the picker shows at once (the broker |
 | `src/windows/Charts/TradingTerminal.OrderBook/OrderBookWindow.xaml.cs` | 14 | win | TradingTerminal.OrderBook | B I P | Y | The standalone Order Book window: a frame around with every feature on. |
 | `src/windows/Charts/TradingTerminal.OrderBook/OrderBookWindow.xaml` | 18 | win | TradingTerminal.OrderBook | B I P | N | XAML |
-| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintModels.cs` | 137 | win | TradingTerminal.VolumeFootprint | B I P | Y | Which POC series an overlay fit curve belongs to (drives the brush |
-| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanel.xaml.cs` | 862 | win | TradingTerminal.VolumeFootprint | B I P | Y | Which parts of the panel are switched on. Set it before the |
-| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanel.xaml` | 444 | win | TradingTerminal.VolumeFootprint | B I P | N | XAML |
+| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintModels.cs` | 147 | win | TradingTerminal.VolumeFootprint | B I P | Y | Which POC series an overlay fit curve belongs to (drives the brush |
+| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanel.xaml.cs` | 895 | win | TradingTerminal.VolumeFootprint | B I P | Y | Which parts of the panel are switched on. Set it before the |
+| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanel.xaml` | 520 | win | TradingTerminal.VolumeFootprint | B I P | N | XAML |
 | `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintPanelFeatures.cs` | 74 | win | TradingTerminal.VolumeFootprint | B I P | Y | Instrument/timeframe selectors, the Regression · Overlays · Display menus, zoom, the ? |
-| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintServiceCollectionExtensions.cs` | 17 | win | TradingTerminal.VolumeFootprint | B I P | Y | DI registration for the Volume Footprint tool. Transient so each open gets |
-| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintViewModel.cs` | 1131 | win | TradingTerminal.VolumeFootprint | B I P | Y | Which brokers actually wire a native trade tape today (see the cube |
+| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintServiceCollectionExtensions.cs` | 22 | win | TradingTerminal.VolumeFootprint | B I P | Y | DI registration for the Volume Footprint tool. Transient so each open gets |
+| `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintViewModel.cs` | 1276 | win | TradingTerminal.VolumeFootprint | B I P | Y | Which brokers actually wire a native trade tape today (see the cube |
 | `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintWindow.xaml.cs` | 14 | win | TradingTerminal.VolumeFootprint | B I P | Y | The standalone Volume Footprint window: a frame around with every |
 | `src/windows/Charts/TradingTerminal.VolumeFootprint/VolumeFootprintWindow.xaml` | 18 | win | TradingTerminal.VolumeFootprint | B I P | N | XAML |

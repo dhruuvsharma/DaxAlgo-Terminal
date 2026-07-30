@@ -7,8 +7,8 @@ namespace TradingTerminal.VolumeFootprint;
 /// <para>
 /// These are <b>build-time</b> gates, not user toggles. A feature that is off is not merely hidden: the
 /// chrome is collapsed, the corresponding view-model toggle is forced off so the renderer skips that
-/// pass entirely, and (for the ML forecaster) the model is never trained at all. The user-facing toggles
-/// in the toolbar menus still decide what a switched-ON feature draws.
+/// pass entirely, and (for the learned forecast) provider context, requests and fallback training are
+/// all skipped. The user-facing toggles in the toolbar menus still decide what a switched-ON feature draws.
 /// </para>
 /// <para>
 /// The cluster grid itself — price ladders, cells, POC boxes — is the panel and is always drawn.
@@ -31,9 +31,9 @@ public sealed record VolumeFootprintPanelFeatures
     /// and the ghost bars that extrapolate them forward. Off skips the fitting and the ghost pass.</summary>
     public bool Regression { get; init; } = true;
 
-    /// <summary>The violet ML ghost bars (online-learned next-bar POC/volume/delta forecast).
-    /// <b>Off means the predictor is never created</b> — no warm-start replay over stored tape, no
-    /// per-bar training, no inference.</summary>
+    /// <summary>The violet learned ghost bars: an optional batch provider is preferred and online RLS
+    /// is the safe fallback. <b>Off disables the whole path</b> — no stored-tape context, fallback
+    /// training, provider request or inference.</summary>
     public bool MlForecast { get; init; } = true;
 
     /// <summary>Diagonal 3:1 bid/ask imbalance outlines and the stacked-run markers.</summary>

@@ -182,10 +182,13 @@
                                     Margin="0,0,10,0" BorderThickness="1"
                                     Background="{Binding BadgeColor, Converter={StaticResource HexToSoftBrushConverter}, ConverterParameter=0.16}"
                                     BorderBrush="{Binding BadgeColor, Converter={StaticResource HexToSoftBrushConverter}, ConverterParameter=0.45}">
-                                <TextBlock Text="{Binding Badge}"
-                                           FontWeight="SemiBold" FontSize="11"
-                                           Foreground="{DynamicResource Text.Primary}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Grid>
+                                    <TextBlock Text="{Binding Badge}"
+                                               FontWeight="SemiBold" FontSize="11"
+                                               Foreground="{DynamicResource Text.Primary}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <uic:BrokerLogo Broker="{Binding Broker}" Margin="4" />
+                                </Grid>
                             </Border>
 
                             <!-- Name + subtitle + "no key" pill -->
@@ -498,7 +501,7 @@
                                    FontSize="11" FontWeight="SemiBold"
                                    Foreground="{DynamicResource Text.Secondary}"
                                    VerticalAlignment="Center" />
-                        <TextBlock Text="— what to start outside the app"
+                        <TextBlock Text="— optional local services"
                                    FontSize="11"
                                    Foreground="{DynamicResource Text.Secondary}"
                                    Opacity="0.55"

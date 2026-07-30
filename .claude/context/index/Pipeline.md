@@ -6,7 +6,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Alpaca/RealAlpacaClient.cs` | 482 | win | TradingTerminal.Infrastructure | B I P | Y | Stock + trading must be wired (the primary product). Crypto is optional |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/BacktestOrderRouter.cs` | 72 | win | TradingTerminal.Infrastructure | B I P | Y | backed by a . Synchronous — |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/BacktestOrderRouter.cs` | 97 | win | TradingTerminal.Infrastructure | B I P | Y | backed by a . Synchronous — |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/BacktestSession.cs` | 134 | win | TradingTerminal.Infrastructure | B I P | Y | Parameterless ctor for parquet-only callers (CLI, existing tests). |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/BacktestStrategyCatalog.cs` | 76 | win | TradingTerminal.Infrastructure | B I P | Y | Seed list of strategies the backtest engine knows about. Held here as |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/Fast/FastBacktestServiceCollectionExtensions.cs` | 53 | win | TradingTerminal.Infrastructure | B I P | Y | Registers with a real |
@@ -70,6 +70,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Okx/RealOkxClient.cs` | 201 | win | TradingTerminal.Infrastructure | B I P | Y | OKX market-data client over the public v5 WebSocket + REST endpoints (no |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/AuthenticodeSignatureInspector.cs` | 125 | win | TradingTerminal.Infrastructure | B I P | Y | Verifies the file's embedded Authenticode signature (integrity + cert chain) via |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxPluginPackage.cs` | 707 | win | TradingTerminal.Infrastructure | B I P | Y | Packs every file under |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxqPackageDetector.cs` | 113 | win | TradingTerminal.Infrastructure | B I P | Y | Returns public discovery metadata for a DAXQ package, or |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSignatureVerifier.cs` | 95 | win | TradingTerminal.Infrastructure | B I P | Y | Why a feed was accepted or rejected. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSigner.cs` | 55 | win | TradingTerminal.Infrastructure | B I P | Y | A fresh feed-signing keypair. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginCatalog.cs` | 150 | win | TradingTerminal.Infrastructure | B I P | Y | Where a feed-listed plugin stands relative to what's installed locally. |
@@ -80,12 +81,13 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginIndex.cs` | 49 | win | TradingTerminal.Infrastructure | B I P | Y | One downloadable build of a plugin in the marketplace index. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/PluginRevocationSync.cs` | 23 | win | TradingTerminal.Infrastructure | B I P | Y | Merges the feed's revocations into |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/GuardedServiceCollection.cs` | 172 | win | TradingTerminal.Infrastructure | B I P | Y | Service types a plugin may legitimately contribute an ADDITIONAL registration of — |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/IProtectedStrategyEngine.cs` | 25 | win | TradingTerminal.Infrastructure | B I P | Y | Loads every strategy registration described by a protected |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginConsent.cs` | 29 | win | TradingTerminal.Infrastructure | B I P | Y | Everything the user needs in order to decide whether to run an |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 290 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs` | 146 | win | TradingTerminal.Infrastructure | B I P | Y | Whether a plugin folder matches the hashes the host pins for it. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs` | 312 | win | TradingTerminal.Infrastructure | B I P | Y | What the host knows about the plugin subsystem at runtime — surfaced |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs` | 176 | win | TradingTerminal.Infrastructure | B I P | Y | Whether a plugin folder matches the hashes the host pins for it. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs` | 63 | win | TradingTerminal.Infrastructure | B I P | Y | True for assemblies whose type identity MUST be shared between host and |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 70 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
-| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 467 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs` | 74 | win | TradingTerminal.Infrastructure | B I P | Y | Why a plugin folder did not contribute a loaded plugin (or that |
+| `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs` | 662 | win | TradingTerminal.Infrastructure | B I P | Y | Metadata about a plugin that was successfully discovered and registered. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs` | 52 | win | TradingTerminal.Infrastructure | B I P | Y | Reads |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginPolicyScanner.cs` | 259 | win | TradingTerminal.Infrastructure | B I P | Y | How serious a scan finding is. |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginRevocationList.cs` | 113 | win | TradingTerminal.Infrastructure | B I P | Y | A withdrawn plugin build. Matched by assembly |

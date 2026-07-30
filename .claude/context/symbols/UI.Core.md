@@ -104,10 +104,10 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   399: protected virtual void OnBarsUpdated() { }
   405: protected virtual Task OnWarmupBarsLoadedAsync(IReadOnlyList<Bar> bars) => Task.CompletedTask;
   409: protected void Log(string category, string message) =>
-  857: public ObservableCollection<string> PresetNames { get; }
-  872: protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
-  876: protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
-  968: public void Dispose()
+  896: public ObservableCollection<string> PresetNames { get; }
+  911: protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
+  915: protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
+ 1007: public void Dispose()
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/LiveStrategyHostServices.cs
@@ -146,20 +146,22 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/UI/TradingTerminal.UI.Core/SignalEntry.cs
 ```cs
-   10: public sealed record SignalEntry(
-   19: public string SideText => Side == OrderSide.Buy ? "BUY" : "SELL";
-   20: public string TypeText => OrderType.ToString();
-   21: public string TimeText => TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff");
+   11: public sealed record SignalEntry(
+   21: public string SideText => DirectSignal?.Kind switch
+   29: public string TypeText => DirectSignal is null ? OrderType.ToString() : "Signal";
+   31: public string QuantityText => DirectSignal is { } signal
+   35: public string TimeText => TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff");
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/SignalGeneratorRouter.cs
 ```cs
-   23: public sealed class SignalGeneratorRouter : IOrderRouter
-   29: public IObservable<OrderEvent> OrderEvents => _events.AsObservable();
-   31: public event Action<SignalEntry>? SignalEmitted;
-   34: public void UpdateMarketContext(Tick tick) => _lastTick = tick;
-   36: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
-   65: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
+   24: public sealed class SignalGeneratorRouter : IOrderRouter, IStrategySignalSink
+   30: public IObservable<OrderEvent> OrderEvents => _events.AsObservable();
+   32: public event Action<SignalEntry>? SignalEmitted;
+   35: public void UpdateMarketContext(Tick tick) => _lastTick = tick;
+   37: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
+   70: public Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default)
+  103: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
 ```
 
 ## src/windows/UI/TradingTerminal.UI.Core/Strategies/ParameterEditorItem.cs

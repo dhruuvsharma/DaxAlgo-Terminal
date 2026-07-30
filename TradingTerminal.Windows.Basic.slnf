@@ -16,6 +16,7 @@
       "src\\windows\\Pipeline\\TradingTerminal.MarketData\\TradingTerminal.MarketData.csproj",
       "src\\windows\\Sdk\\DaxAlgo.Sdk.Wpf\\DaxAlgo.Sdk.Wpf.csproj",
       "src\\windows\\Sdk\\DaxAlgo.Sdk\\DaxAlgo.Sdk.csproj",
+      "src\\windows\\Shell\\TradingTerminal.Accounts\\TradingTerminal.Accounts.csproj",
       "src\\windows\\Shell\\TradingTerminal.App.Basic\\TradingTerminal.App.Basic.csproj",
       "src\\windows\\Shell\\TradingTerminal.Login\\TradingTerminal.Login.csproj",
       "src\\windows\\Shell\\TradingTerminal.UI\\TradingTerminal.UI.csproj",

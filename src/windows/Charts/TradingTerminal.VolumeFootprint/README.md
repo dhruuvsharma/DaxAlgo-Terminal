@@ -8,10 +8,11 @@
 > right-edge **composite session volume profile**, a mouse **crosshair** with a per-cell read-out,
 > POC connector lines, **seven toggleable regression fits** through the POC series, a
 > **virtual predictor** that extrapolates the enabled fits into ghost candles, and an
-> **ML predictor** — an online-learned model that trains live on the footprint features and draws
-> its own violet forecast candles (with predicted volume and delta) next to the regression ones,
-> scoring both against realized bars so you can see which is winning. Brokers without a native
-> tape get a synthetic L1-derived fallback. **Display only.**
+> **a learned forecast** that prefers an optional external batch provider when one is available and
+> otherwise falls back safely to the built-in online RLS learner. It draws violet forecast candles
+> (with predicted volume and delta) next to the regression ones; distributional batches also show
+> uncertainty bands. Brokers without a native tape get a synthetic L1-derived fallback.
+> **Display only.**
 
 ## Data requirements
 
@@ -35,9 +36,9 @@ line and logged `WARN` to the Activity Log, and every bar carries a `FeedQuality
 | Bars | 2–40, default 14 | visible columns; oldest drop off as new bars form |
 | Fits | 7 checkboxes (Linear on by default) | regression overlays, see below |
 | Predicted candles | checkbox, default on | shows/hides the regression forecast |
-| Bars ahead | 1–30, default 5 | forecast horizon (ML caps itself at 8, see below) |
-| ML prediction (online) | checkbox, default on | shows/hides the learned forecast (violet dotted ghosts) |
-| Warm-start from history | checkbox, default on | pre-train the model from stored tape on (re)start |
+| Bars ahead | 1–30, default 5 | forecast horizon (the learned provider/fallback path caps at 8, see below) |
+| ML prediction (online) | checkbox, default on | shows/hides the preferred batch forecast or online RLS fallback (violet dotted ghosts) |
+| Warm-start from history | checkbox, default on | rebuilds provider context and warms the online fallback from stored tape on (re)start |
 | Cells | Bid×Ask / Delta / Volume (default Bid×Ask) | per-cell render mode, see **Advanced rendering** |
 | Imbalances | checkbox, default on | outline diagonal imbalanced cells + stacked-run markers |
 | Value area | checkbox, default on | shade each bar's 70% value area (VAH↔VAL) |
@@ -93,7 +94,7 @@ Cells and overlays (canvas palette is fixed, theme-independent):
 | `#4CAF50` / `#E57373` | footer Δ text, stats slopes, ghost candle stroke | rising/positive vs falling/negative |
 | `#29B6F6` @ 7% wash | right of the dashed boundary | the predictor's forecast region |
 | `#2E7D32` / `#C62828` @ 22% fill | ghost candle bodies | predicted up / down column |
-| `#B388FF` violet, **dotted** `1,3` | narrower ghost bodies + POC ticks + `Δ̂` footer | the **ML** forecast (dash = regression, dots = learned) |
+| `#B388FF` violet, **dotted** `1,3` | narrower ghost bodies + POC ticks + `Δ̂` footer | the learned forecast (dash = regression, dots = provider/fallback) |
 | violet-tinted green / red @ 19% fill | ML ghost bodies | predicted delta ≥ 0 / < 0 |
 | `#69F0AE` / `#FF8A80` outline | imbalanced cells, stacked-run footer | diagonal ask (buy) / bid (sell) imbalance |
 | `#90CAF9` @ 8% fill, 40% edge | band behind a column | the bar's 70% value area |
@@ -113,9 +114,9 @@ through.
 | Volume | total volume across visible bars |
 | Buy / Sell | aggressor split of that volume, in % |
 | POC | the last bar's POC price |
-| ML MAE / hit | rolling 1-step POC error (ticks) + directional hit-rate of the **ML** forecast — green when it's beating the regression consensus on MAE, red when losing |
+| ML MAE / hit | rolling 1-step POC error (ticks) + directional hit-rate of the online RLS fallback — green when it's beating the regression consensus on MAE, red when losing |
 | Reg MAE / hit | same two numbers for the **regression consensus**, scored on the same realized bars |
-| ML samples | sealed bars the model has trained on (warm-start bars included) |
+| ML samples | sealed bars the online RLS fallback has learned from (warm-start bars included) |
 
 ## Regression fits — the math
 
@@ -174,28 +175,43 @@ land at their true level instead of clamping to the chart edge.
 extrapolate sanely; quadratic, cubic and exponential can run away over long horizons *by design*
 — unchecking a fit removes it from both the overlay and the consensus.
 
-## ML predictor — the math
+## Learned forecast — provider first, online fallback
 
 ### In plain terms
 
 The regression predictor above only ever looks at *where the POC has been* and extends the curve.
-The **ML predictor** (`FootprintNextBarPredictor`, `Core/Ml/`) instead *learns* from everything a
-footprint bar knows — delta, CVD, imbalance runs, value-area width, relative volume, feed quality,
-and the regression consensus itself — and updates that knowledge on every completed bar. It is an
-**online** model: there is no training file and no fitting step; each sealed bar first *grades*
-the forecast the model made earlier, then *teaches* it, then asks for the next forecast. The stats
-panel shows the running score of model vs regression so the chart itself tells you which one has
-earned trust on the current instrument.
+The learned path can use more of each completed footprint bar — delta, CVD, imbalance runs,
+value-area width, relative volume and feed quality. The chart first asks an optional external batch
+forecast provider. When that provider returns an available batch, its forecast is preferred. If no
+provider is configured, its coordinate/history requirements are not met, or inference fails, the
+built-in online RLS learner remains the safe fallback. Neither path creates an order signal.
 
-### The model
+### Optional batch provider
+
+The provider receives complete, contiguous sealed bars through the neutral forecast contract and
+returns exact future intervals in one batch. The shared chart requests at most
+`FootprintPredictorOptions.MaxHorizon` — currently **8 bars** — even when **Bars ahead** is higher;
+regression ghosts may still extend to 30. Stored-tape warm-start also builds provider history, so an
+available provider can render before the next live bar seals.
+
+Each horizon can carry marginal q10/q50/q90 forecasts. The chart uses medians for the POC,
+buy/sell POCs, volume and delta point display. A distributional batch additionally draws a dotted
+median low→high wick and a translucent q10→q90 POC band. Provider identity and implementation stay
+outside the chart; unavailable or failed results simply leave the online fallback in place.
+
+### Online RLS fallback
+
+`FootprintNextBarPredictor` (`Core/Ml/`) learns on every completed bar. Each seal first grades the
+forecast made earlier, then teaches the model, then asks for the next forecast. The stats panel
+shows this fallback's running score against regression; those rows do not score an external batch.
 
 A bank of **recursive-least-squares** learners (`OnlineLinearRegression`, exponential forgetting
 $\lambda = 0.995$): one independent learner per (**target × horizon**) — 5 targets × 8 horizons —
 so an outlier in one target's residual can't destabilise another's coefficients. Horizons are
 **direct**: the horizon-$h$ learner fits $\text{target}(t+h) - \text{reference}(t)$ straight from
 the features at $t$, rather than iterating a 1-step model, which would need invented future
-feature vectors and compounds its own error. That is also why the ML horizon caps at
-$\min(\text{Bars ahead}, 8)$ while the regression ghosts run to 30.
+feature vectors and compounds its own error. The online bank and optional batch request share the
+$\min(\text{Bars ahead}, 8)$ learned-forecast cap while regression ghosts can run to 30.
 
 **Targets** (per horizon $h$, reference bar $t$, tick size $\tau$) — all stationary by
 construction:
@@ -223,45 +239,48 @@ Features are standardised by an **exponentially-weighted online scaler** (`Onlin
 Welford mean/variance with decay, output clamped to ±5) before both prediction and learning — raw
 prices into RLS would blow up the inverse-covariance matrix on the first outlier bar.
 
-### Training loop, warm-start, scoring
+### Fallback training loop, warm-start, scoring
 
-- **Walk-forward, ex-ante by construction:** at each seal the model scores/learns every pending
+- **Walk-forward, ex-ante by construction:** at each seal the fallback scores/learns every pending
   snapshot whose target bar just realised, then predicts. The regression baseline captured at
-  bar $t$ is `Predicted[0]` as published *before* bar $t+1$ existed — both forecasters are graded
+  bar $t$ is `Predicted[0]` as published *before* bar $t+1$ existed — fallback and regression are graded
   on identical realized bars (`RollingForecastMetrics`: MAE in ticks + directional hit-rate over a
   100-score window; a zero realized move counts as a hit only if the forecast was < 0.5 tick).
 - **Warm-start:** on (re)start the window replays up to **interval × 200 bars (≤ 24 h)** of stored
   tape (`IMarketDataStore.ReadTradesAsync`) through the *same* `FootprintTimeBucketer` the live
-  stream uses and trains through the result off the UI thread; a watermark prevents the seam bar
-  being learned twice. No stored tape ⇒ the model just starts cold.
-- **Readiness:** forecasts render only after ≥ 20 updates per learner ("ML samples" in the stats
-  panel); the model resets whenever instrument / interval / tick size changes (its coefficients
-  are scoped to all three).
+  stream uses. Those sealed bars become provider context and, when needed, train the online
+  fallback off the UI thread; a watermark prevents the seam bar being learned twice. No stored
+  tape ⇒ the fallback starts cold and the provider waits for live context.
+- **Readiness:** fallback forecasts render only after ≥ 20 updates per learner ("ML samples" in
+  the stats panel); the fallback resets whenever instrument / interval / tick size changes (its
+  coefficients are scoped to all three). Provider readiness is reported through its own result.
 
 ### Rendering
 
-ML ghosts share the forecast columns with the regression ghosts but are **violet and dotted**
+Learned ghosts share the forecast columns with the regression ghosts but are **violet and dotted**
 (`1,3` — regression bodies are dashed `3,2`): body spans the predicted buy↔sell POC, body
 **width scales with predicted volume** ($0.22 + 0.5\,\hat v/\bar v_{\text{visible}}$ of the
 column, clamped to $[0.22, 0.86]$), fill **tint follows the predicted delta sign**, a dotted
 violet tick marks the predicted total POC, and the footer prints $\hat\Delta$. With the
-regression predictor unchecked the ML forecast supplies its own wash/boundary/headers, so either
-predictor works alone.
+regression predictor unchecked the learned forecast supplies its own wash/boundary/headers, so
+either predictor works alone. Distributional provider results add the low→high wick and POC
+q10→q90 band described above; the online fallback keeps the median-only ghost.
 
-**Caveat:** the learner is linear in its 16 engineered features — it adapts to regime changes
+**Fallback caveat:** the RLS learner is linear in its 16 engineered features — it adapts to regime changes
 (forgetting) and quantifies itself honestly (the MAE/hit rows), but it is a lightweight online
-model, not a deep net. Treat a green "ML MAE / hit" row as *"the learned features currently carry
-signal here"*, not as a trading system.
+model. Treat a green "ML MAE / hit" row as *"the fallback features currently carry signal here"*,
+not as a trading system or as validation of an external batch.
 
 ## Code map
 
 | What | Where |
 |---|---|
-| VM (stream, seal hook, fits, ML warm-start) | `VolumeFootprintViewModel.cs` |
+| VM (stream, seal hook, fits, provider preference, RLS warm-start) | `VolumeFootprintViewModel.cs` |
 | Canvas renderer (cells, overlays, ghost candles) | `VolumeFootprintWindow.xaml.cs` |
 | Render models (`RenderBar`, `PocFitCurve`, `PredictedBar`, `MlPredictedBar`) | `VolumeFootprintModels.cs` |
 | Bar math | `Core/MarketData/FootprintFeatures` |
 | Time bucketing (shared live + warm-start) | `Core/MarketData/FootprintTimeBucketer.cs` (tests: `tests/…/MarketData/FootprintTimeBucketerTests.cs`) |
 | Fit math | `Core/Quant/CurveFitting.cs` (tests: `tests/…/Quant/CurveFittingTests.cs`) |
-| ML engine (RLS bank, features, targets) | `Core/Ml/FootprintNextBarPredictor.cs` (tests: `tests/…/Ml/FootprintNextBarPredictorTests.cs`) |
+| Batch-provider contract and null fallback | `Core/Ml/FootprintForecastProvider.cs` |
+| Online fallback (RLS bank, features, targets) | `Core/Ml/FootprintNextBarPredictor.cs` (tests: `tests/…/Ml/FootprintNextBarPredictorTests.cs`) |
 | Online standardiser / rolling scores | `Core/Ml/OnlineFeatureScaler.cs` · `Core/Ml/RollingForecastMetrics.cs` |

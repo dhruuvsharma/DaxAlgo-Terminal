@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using System.Windows;
 using System.Windows.Threading;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.UI.Diagnostics;
 
@@ -33,13 +34,17 @@ public static class PluginFaultWatchdog
             Observe(e.Exception, tracker, onStrikeOut, log);
         EventHandler<UnobservedTaskExceptionEventArgs> onTask = (_, e) =>
             Observe(e.Exception, tracker, onStrikeOut, log);
+        Action<Exception> onReported = exception =>
+            Observe(exception, tracker, onStrikeOut, log);
 
         app.DispatcherUnhandledException += onDispatcher;
         TaskScheduler.UnobservedTaskException += onTask;
+        PluginFaultEvents.Reported += onReported;
         return new Detach(() =>
         {
             app.DispatcherUnhandledException -= onDispatcher;
             TaskScheduler.UnobservedTaskException -= onTask;
+            PluginFaultEvents.Reported -= onReported;
         });
     }
 
@@ -72,6 +77,13 @@ public static class PluginFaultWatchdog
     {
         for (Exception? e = exception; e is not null; e = e.InnerException)
         {
+            if (e is IPluginFaultAttribution attributed &&
+                !string.IsNullOrWhiteSpace(attributed.PluginName))
+            {
+                plugin = attributed.PluginName;
+                return true;
+            }
+
             foreach (var frame in new StackTrace(e).GetFrames())
             {
                 var assembly = frame?.GetMethod()?.Module.Assembly;

@@ -1,5 +1,35 @@
 # context changelog — append-only session journal
 
+## 2026-07-28 — model-neutral footprint forecast seam
+- Added an immutable, model-neutral batch forecast provider contract with a null fallback, strict
+  request continuity/cutoff validation, bounded history and horizon, and focused headless tests.
+- Let the shared Volume Footprint chart prefer an optional trained provider while preserving its
+  existing online predictor as a safe fallback, rejecting stale results, and drawing distributional
+  low/high and POC ghosts without importing any Pro implementation or artifact identity.
+
+## 2026-07-26 — Codex CLI UTF-8 and named-profile codegen
+- Made installed-agent prompt stdin explicitly BOM-less UTF-8, fixing Codex rejection of non-ASCII
+  strategy context that Windows previously encoded through the console code page.
+- Added provider-scoped CLI profile configuration and Codex `--profile` argument propagation across
+  initial and rebuilt clients, with headless regression coverage. Personal profile names remain in
+  per-user Vibe Quant configuration rather than shared defaults.
+- Allowed the prompt-only Codex subprocess to run from Vibe Quant's non-repository working directory
+  while explicitly retaining a read-only sandbox; Claude Code and keyed providers are unchanged.
+
+## 2026-07-25 — strategy-card action polish
+- Replaced the installed-strategy card's text actions with a vertical, theme-native icon rail using
+  the shared toolbar button states, accessible names, and secure-link disabled behavior.
+- Reworked the tag flyout as a themed, left-anchored card with a structured header, scrollable data,
+  market/broker, and custom-label sections, plus Escape-key dismissal.
+
+## 2026-07-25 — strategy-card actions and broker branding
+- Replaced inline installed-strategy tags and the research-paper pill with compact TAGS/LINK actions
+  in Basic and Intermediate; the flyout contains data, classification, and user-defined tags.
+- Added a binary-compatible `ITradingStrategy.LinkUrl` default member, an editable per-card HTTPS
+  override, and scheme-restricted navigation with research-paper URLs retained as the fallback.
+- Packaged sourced broker marks with a monogram fallback and used them only in existing login and
+  API-usage identity slots. Added WPF coverage for link behavior, flyout realization, and all marks.
+
 ## 2026-07-22 — local account access profile
 - Added first-choice Debug launch profiles for Basic and Intermediate that select DevSim and use
   the existing in-memory local account before bypassing broker login into the simulated terminal.

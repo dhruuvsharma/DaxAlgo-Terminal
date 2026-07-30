@@ -12,7 +12,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Core/TradingTerminal.Core/Backtest/BacktestResult.cs
 ```cs
-    8: public sealed record BacktestResult(
+   10: public sealed record BacktestResult(
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Backtest/BacktestStatistics.cs
@@ -79,12 +79,14 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    16: public interface IBacktestStrategy
    19:     Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct);
    22:     Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct);
-   31:     Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
-   32:     => Task.CompletedTask;
-   42:     Task OnTradeAsync(TradePrint trade, IClock clock, IOrderRouter router, CancellationToken ct)
-   43:     => Task.CompletedTask;
-   46:     Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct);
-   49:     Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct);
+   28:     Task OnBarAsync(Bar bar, IClock clock, IOrderRouter router, CancellationToken ct)
+   29:     => Task.CompletedTask;
+   38:     Task OnDepthAsync(DepthSnapshot depth, IClock clock, IOrderRouter router, CancellationToken ct)
+   39:     => Task.CompletedTask;
+   49:     Task OnTradeAsync(TradePrint trade, IClock clock, IOrderRouter router, CancellationToken ct)
+   50:     => Task.CompletedTask;
+   53:     Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct);
+   56:     Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Backtest/IParquetQueryService.cs

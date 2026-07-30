@@ -11,6 +11,13 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- BaseIntermediateOutputPath is redirected to C:\DaxAlgoBuild below, so the SDK's default
+         item-excludes only cover the REDIRECTED obj. A stray LOCAL obj\ (WPF _wpftmp pass, or a build
+         that didn't pick up this props) is therefore NOT excluded, and its generated AssemblyInfo.cs
+         gets compiled alongside the redirected copy -> CS0579 duplicate-attribute. Exclude local
+         obj\/bin\ from the default globs so that can never happen (safe: generated, never real source). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**</DefaultItemExcludes>
     <Authors>DaxAlgo</Authors>
     <Product>TradingTerminal</Product>
     <Copyright>Copyright (c) $([System.DateTime]::UtcNow.Year)</Copyright>

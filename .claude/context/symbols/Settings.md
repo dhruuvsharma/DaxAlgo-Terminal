@@ -128,66 +128,67 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   463: public ObservableCollection<string> Activity { get; }
   472: public ObservableCollection<BuildTask> Tasks { get; }
   685: public string UsageText => InputTokens + OutputTokens == 0
-  961: public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
- 1093: public ObservableCollection<ReviewFileEntry> ReviewFiles { get; } = [];
- 1415: public void Dispose()
- 1439: public sealed class MyStrategy : IBacktestStrategy
- 1441: public static StrategyParameterSchema Schema { get; } = new(
- 1445: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
- 1452: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
- 1454: public MyStrategy(Contract contract, int lookback, double threshold)
- 1461: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
- 1464: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
- 1472: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
- 1474: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
- 1482: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
- 1496: public sealed partial class AuthoringMessage : ObservableObject
- 1498: public const string KindUser = "User";
- 1499: public const string KindAssistant = "Assistant";
- 1500: public const string KindNote = "Note";
- 1501: public const string KindTool = "Tool";
- 1502: public const string KindPlan = "Plan";
- 1503: public const string KindPlanText = "PlanText";
- 1504: public const string KindFiles = "Files";
- 1506: public AuthoringMessage(CodegenRole role, string text)
- 1522: public static AuthoringMessage System(string? text) => new(KindNote, text ?? string.Empty);
- 1527: public static AuthoringMessage Tool(string state, string title, string detail, string? more = null) =>
- 1538: public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
- 1542: public static AuthoringMessage PlanText(string text) => new(KindPlanText, text);
- 1544: public static AuthoringMessage FilesChanged(IReadOnlyList<FileChangeSummary> changes) =>
- 1550: public CodegenRole Role { get; }
- 1551: public bool IsSystem { get; }
- 1552: public string Kind { get; }
- 1553: public bool IsUser => !IsSystem && Role == CodegenRole.User;
- 1554: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
- 1556: public string? ToolState { get; private init; }
- 1557: public string? ToolTitle { get; private init; }
- 1558: public string? ToolDetail { get; private init; }
- 1559: public string? ToolMore { get; private init; }
- 1560: public bool HasMore => !string.IsNullOrEmpty(ToolMore);
- 1562: public IReadOnlyList<BuildTask>? PlanTasks { get; private init; }
- 1563: public IReadOnlyList<FileChangeSummary>? FileChanges { get; private init; }
- 1566: public string PlanSnapshotText() => PlanTasks is null
- 1579: public DateTime TimestampLocal { get; } = DateTime.Now;
- 1583: public sealed record FileChangeSummary(string Name, int Added, int Removed)
- 1585: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
- 1588: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
- 1591: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
- 1609: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
- 1611: public string Name { get; } = name;
- 1612: public IReadOnlyList<DiffLine> Lines { get; } = lines;
- 1613: public int Added { get; } = lines.Count(l => l.Kind == "add");
- 1614: public int Removed { get; } = lines.Count(l => l.Kind == "del");
- 1615: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
- 1620: public sealed class AiProviderChoice(IStrategyCodegenClient client)
- 1622: public IStrategyCodegenClient Client { get; } = client;
- 1623: public string ProviderId => Client.ProviderId;
- 1624: public string DisplayName => Client.DisplayName;
- 1625: public bool IsAvailable => Client.IsAvailable;
- 1626: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
- 1630: public enum BuildTaskState
- 1640: public sealed partial class BuildTask(string title) : ObservableObject
- 1642: public string Title { get; } = title;
+  963: public string ImportDraft(StrategyScript script)
+ 1011: public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
+ 1143: public ObservableCollection<ReviewFileEntry> ReviewFiles { get; } = [];
+ 1465: public void Dispose()
+ 1489: public sealed class MyStrategy : IBacktestStrategy
+ 1491: public static StrategyParameterSchema Schema { get; } = new(
+ 1495: public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+ 1502: public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+ 1504: public MyStrategy(Contract contract, int lookback, double threshold)
+ 1511: public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+ 1514: public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+ 1522: public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+ 1524: public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
+ 1532: public sealed partial class AuthoredFile(string name, string content) : ObservableObject
+ 1546: public sealed partial class AuthoringMessage : ObservableObject
+ 1548: public const string KindUser = "User";
+ 1549: public const string KindAssistant = "Assistant";
+ 1550: public const string KindNote = "Note";
+ 1551: public const string KindTool = "Tool";
+ 1552: public const string KindPlan = "Plan";
+ 1553: public const string KindPlanText = "PlanText";
+ 1554: public const string KindFiles = "Files";
+ 1556: public AuthoringMessage(CodegenRole role, string text)
+ 1572: public static AuthoringMessage System(string? text) => new(KindNote, text ?? string.Empty);
+ 1577: public static AuthoringMessage Tool(string state, string title, string detail, string? more = null) =>
+ 1588: public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
+ 1592: public static AuthoringMessage PlanText(string text) => new(KindPlanText, text);
+ 1594: public static AuthoringMessage FilesChanged(IReadOnlyList<FileChangeSummary> changes) =>
+ 1600: public CodegenRole Role { get; }
+ 1601: public bool IsSystem { get; }
+ 1602: public string Kind { get; }
+ 1603: public bool IsUser => !IsSystem && Role == CodegenRole.User;
+ 1604: public bool IsAssistant => !IsSystem && Role == CodegenRole.Assistant;
+ 1606: public string? ToolState { get; private init; }
+ 1607: public string? ToolTitle { get; private init; }
+ 1608: public string? ToolDetail { get; private init; }
+ 1609: public string? ToolMore { get; private init; }
+ 1610: public bool HasMore => !string.IsNullOrEmpty(ToolMore);
+ 1612: public IReadOnlyList<BuildTask>? PlanTasks { get; private init; }
+ 1613: public IReadOnlyList<FileChangeSummary>? FileChanges { get; private init; }
+ 1616: public string PlanSnapshotText() => PlanTasks is null
+ 1629: public DateTime TimestampLocal { get; } = DateTime.Now;
+ 1633: public sealed record FileChangeSummary(string Name, int Added, int Removed)
+ 1635: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 1638: public static string Pack(IReadOnlyList<FileChangeSummary> changes) =>
+ 1641: public static IReadOnlyList<FileChangeSummary>? Unpack(string? packed)
+ 1659: public sealed class ReviewFileEntry(string name, IReadOnlyList<DiffLine> lines)
+ 1661: public string Name { get; } = name;
+ 1662: public IReadOnlyList<DiffLine> Lines { get; } = lines;
+ 1663: public int Added { get; } = lines.Count(l => l.Kind == "add");
+ 1664: public int Removed { get; } = lines.Count(l => l.Kind == "del");
+ 1665: public string Counts => Removed > 0 ? $"+{Added} −{Removed}" : $"+{Added}";
+ 1670: public sealed class AiProviderChoice(IStrategyCodegenClient client)
+ 1672: public IStrategyCodegenClient Client { get; } = client;
+ 1673: public string ProviderId => Client.ProviderId;
+ 1674: public string DisplayName => Client.DisplayName;
+ 1675: public bool IsAvailable => Client.IsAvailable;
+ 1676: public string Label => IsAvailable ? DisplayName : $"{DisplayName} — not set up";
+ 1680: public enum BuildTaskState
+ 1690: public sealed partial class BuildTask(string title) : ObservableObject
+ 1692: public string Title { get; } = title;
 ```
 
 ## src/windows/UI/TradingTerminal.Settings/Notifications/NotificationsSettingsViewModel.cs

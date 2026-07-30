@@ -11,12 +11,12 @@ namespace TradingTerminal.VolumeFootprint;
 /// <summary>
 /// The Volume Footprint, as an embeddable control: the bid/ask cluster grid and everything the
 /// standalone window layers over it — imbalances, value area, composite session profile, POC connectors,
-/// regression fits, the virtual and ML forecasts, the crosshair read-out — with each part switchable via
+/// regression fits, the virtual and learned forecasts, the crosshair read-out — with each part switchable via
 /// <see cref="Features"/>.
 /// <para>
 /// The window is now a thin host around this. An authored strategy embeds it too, but usually with the
-/// chrome, the fits and the ML off: a panel is only as heavy as the features it is asked for, and a
-/// strategy that just reads order flow should not be paying to train a next-bar forecaster.
+/// chrome, fits and learned forecast off: a panel is only as heavy as the features it is asked for,
+/// and a strategy that just reads order flow should not build context or run forecast inference.
 /// </para>
 /// <para>
 /// Pure presentation: it draws onto a <see cref="Canvas"/> in response to
@@ -273,9 +273,12 @@ public partial class VolumeFootprintPanel : UserControl
     private void DrawPocOverlay(List<RenderBar> bars, List<double> rows, IReadOnlyDictionary<double, int> rowIndex, int decimals)
     {
         if (_vm is null) return;
-        DrawPocSeries(bars, rowIndex, b => b.PointOfControl, PocLineBrush, 2.5);
-        DrawPocSeries(bars, rowIndex, b => b.BuyPointOfControl, BuyPocBrush, 2.0);
-        DrawPocSeries(bars, rowIndex, b => b.SellPointOfControl, SellPocBrush, 2.0);
+        if (_vm.ShowPocConnectors)
+        {
+            DrawPocSeries(bars, rowIndex, b => b.PointOfControl, PocLineBrush, 2.5);
+            DrawPocSeries(bars, rowIndex, b => b.BuyPointOfControl, BuyPocBrush, 2.0);
+            DrawPocSeries(bars, rowIndex, b => b.SellPointOfControl, SellPocBrush, 2.0);
+        }
         var predicted = _vm.Predicted;
         DrawFitCurves(bars.Count + predicted.Count, rows);
         DrawPredictedBars(bars, predicted, rows, decimals);
@@ -401,13 +404,11 @@ public partial class VolumeFootprintPanel : UserControl
         }
     }
 
-    /// <summary>Draws the ML forecast as violet <em>dotted</em> ghost candles overlaid on the same
-    /// future columns as the regression ghosts (which are dashed): body spans the predicted
-    /// buy/sell POCs, its <b>width scales with the predicted volume</b> (vs the visible bars'
-    /// mean), its <b>tint follows the predicted delta sign</b>, a dotted violet tick marks the
-    /// predicted total POC and the footer prints the predicted delta. When the regression
-    /// predictor is off (or shorter), this also supplies the forecast wash / boundary / column
-    /// headers for the columns the regression didn't draw.</summary>
+    /// <summary>Draws the learned forecast as violet <em>dotted</em> ghost candles overlaid on the
+    /// regression columns. The body spans predicted buy/sell POCs, width follows predicted volume,
+    /// tint follows predicted delta, and the POC tick/footer show the median point forecast. A
+    /// distributional batch also adds the median low/high wick and POC quantile band. When regression
+    /// is off or shorter, this supplies the remaining wash, boundary and headers.</summary>
     private void DrawMlPredictedBars(List<RenderBar> bars, IReadOnlyList<MlPredictedBar> ml,
         int regressionCols, List<double> rows, int decimals)
     {
@@ -444,6 +445,36 @@ public partial class VolumeFootprintPanel : UserControl
             var x = x0 + j * ColumnWidth;
             if (j >= regressionCols)
                 AddText($"+{j + 1}", x, 0, ColumnWidth, HeaderHeight, DimText, 10.5, TextAlignment.Center);
+
+            if (p.IsDistributional && double.IsFinite(p.Low) && double.IsFinite(p.High))
+            {
+                var yHigh = PriceToY(p.High, rows);
+                var yLow = PriceToY(p.Low, rows);
+                FootprintCanvas.Children.Add(new Line
+                {
+                    X1 = x + ColumnWidth / 2.0,
+                    Y1 = yHigh,
+                    X2 = x + ColumnWidth / 2.0,
+                    Y2 = yLow,
+                    Stroke = MlGhostStroke,
+                    StrokeThickness = 1.2,
+                    StrokeDashArray = new DoubleCollection { 1, 3 },
+                    Opacity = 0.75,
+                });
+            }
+
+            if (p.IsDistributional && double.IsFinite(p.PocLow) && double.IsFinite(p.PocHigh))
+            {
+                var yTop = PriceToY(Math.Max(p.PocLow, p.PocHigh), rows);
+                var yBottom = PriceToY(Math.Min(p.PocLow, p.PocHigh), rows);
+                FootprintCanvas.Children.Add(Place(new Rectangle
+                {
+                    Width = ColumnWidth * 0.62,
+                    Height = Math.Max(2, yBottom - yTop),
+                    Fill = MlGhostUpFill,
+                    Opacity = 0.35,
+                }, x + ColumnWidth * 0.19, yTop));
+            }
 
             if (double.IsFinite(p.BuyPoc) && double.IsFinite(p.SellPoc))
             {
@@ -662,7 +693,9 @@ public partial class VolumeFootprintPanel : UserControl
                 }
             }
 
-            var isPoc = !double.IsNaN(bar.PointOfControl) && AreClose(cell.Price, bar.PointOfControl);
+            var isPoc = _vm.ShowPocMarkers
+                        && !double.IsNaN(bar.PointOfControl)
+                        && AreClose(cell.Price, bar.PointOfControl);
             if (isPoc)
                 FootprintCanvas.Children.Add(Place(new Rectangle
                 {

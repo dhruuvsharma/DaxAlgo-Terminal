@@ -955,6 +955,56 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
     }
 
+    /// <summary>
+    /// Replaces the editable draft with source produced outside the local provider loop. This
+    /// provider-neutral seam imports text only: it resets model and compile state, tracks later edits,
+    /// and never compiles, registers, installs, or executes the draft.
+    /// </summary>
+    public string ImportDraft(StrategyScript script)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+        if (IsGenerating)
+            throw new InvalidOperationException("Stop the active local generation before importing another draft.");
+        if (string.IsNullOrWhiteSpace(script.Id) || string.IsNullOrWhiteSpace(script.DisplayName) ||
+            script.Files is null || script.Files.Count == 0 ||
+            script.Files.Any(file => file is null || string.IsNullOrWhiteSpace(file.Name) || file.Content is null) ||
+            script.Files.Select(file => file.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != script.Files.Count)
+        {
+            throw new ArgumentException(
+                "An imported strategy draft requires an id, name, and uniquely named source files.",
+                nameof(script));
+        }
+
+        NewChat();
+        var requestedId = script.Id.Trim();
+        var importedId = FindAvailableImportId(requestedId);
+        StrategyId = importedId;
+        DisplayName = script.DisplayName.Trim();
+        SetFiles(script.Files);
+        _filesEditedByUser = true;
+        WorkbenchTab = 0;
+        Status = importedId == requestedId
+            ? $"Imported '{DisplayName}' as editable source. Compile and review it before registration."
+            : $"Imported '{DisplayName}' as '{importedId}' so the existing '{requestedId}' session was preserved. " +
+              "Compile and review it before registration.";
+        Save();
+        return importedId;
+    }
+
+    private static string FindAvailableImportId(string requestedId)
+    {
+        if (AuthoringSessionStore.Load(requestedId) is null) return requestedId;
+
+        for (var suffix = 2; suffix <= 999; suffix++)
+        {
+            var candidate = $"{requestedId}-imported-{suffix}";
+            if (AuthoringSessionStore.Load(candidate) is null) return candidate;
+        }
+
+        throw new InvalidOperationException(
+            $"No unused local authoring id is available for the imported '{requestedId}' draft.");
+    }
+
     // ── Saved sessions ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Every strategy the user has an authoring chat for, newest first.</summary>
@@ -1174,7 +1224,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>Step 2 of consent: the actual registration, only reachable from the review overlay.
     /// The installer makes this a real strategy (backtest registry, catalog card, plugin on disk);
-    /// without one (Basic/Intermediate, tests) it falls back to the backtest registry alone.</summary>
+    /// without one (Basic, tests) it falls back to the backtest registry alone.</summary>
     [RelayCommand]
     private void ConfirmRegister()
     {

@@ -13,7 +13,8 @@ public sealed record AgentCliAdapter(
     string Executable,
     IReadOnlyList<string> Arguments,
     string? ModelFlag = null,
-    string? EffortFlag = null)
+    string? EffortFlag = null,
+    string? ProfileFlag = null)
 {
     /// <summary>The stdin marker some CLIs take as a positional argument ("read the prompt from stdin").
     /// Flags must precede it, so <see cref="ArgumentsFor"/> inserts the model there.</summary>
@@ -33,9 +34,13 @@ public sealed record AgentCliAdapter(
         };
 
     /// <summary>OpenAI Codex CLI: <c>codex exec</c> runs a one-shot prompt from stdin, ChatGPT sign-in
-    /// handled by the CLI. No effort flag — it configures reasoning through its own config.</summary>
+    /// handled by the CLI. Vibe Quant is not itself a Git repository, so the repository-presence check
+    /// is skipped while its prompt-only subprocess stays read-only. No effort flag — it configures
+    /// reasoning through its own config.</summary>
     public static AgentCliAdapter Codex { get; } =
-        new("codex-cli", "Codex (installed CLI)", "codex", ["exec", StdinMarker], ModelFlag: "-m");
+        new("codex-cli", "Codex (installed CLI)", "codex",
+            ["exec", "--skip-git-repo-check", "--sandbox", "read-only", StdinMarker],
+            ModelFlag: "-m", ProfileFlag: "--profile");
 
     public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
 
@@ -47,9 +52,15 @@ public sealed record AgentCliAdapter(
     /// <summary>The argv for a run, with the model and effort flags inserted before the stdin marker (if
     /// any) so they parse as options and not as the prompt. Unset ⇒ the CLI uses its own defaults.</summary>
     public IReadOnlyList<string> ArgumentsFor(
-        string? model, CodegenEffort effort = CodegenEffort.Default, bool stream = false)
+        string? model, CodegenEffort effort = CodegenEffort.Default, bool stream = false,
+        string? cliProfile = null)
     {
         var flags = new List<string>();
+        if (!string.IsNullOrWhiteSpace(cliProfile) && ProfileFlag is not null)
+        {
+            flags.Add(ProfileFlag);
+            flags.Add(cliProfile.Trim());
+        }
         if (!string.IsNullOrWhiteSpace(model) && ModelFlag is not null)
         {
             flags.Add(ModelFlag);
@@ -86,10 +97,11 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     private readonly TimeSpan _timeout;
     private readonly string? _model;
     private readonly CodegenEffort _effort;
+    private readonly string? _cliProfile;
 
     public AgentCliCodegenClient(
         AgentCliAdapter adapter, Func<string, string?>? resolveOnPath = null, TimeSpan? timeout = null,
-        string? model = null, CodegenEffort effort = CodegenEffort.Default)
+        string? model = null, CodegenEffort effort = CodegenEffort.Default, string? cliProfile = null)
     {
         _adapter = adapter;
         _resolveOnPath = resolveOnPath ?? ResolveOnPath;
@@ -98,6 +110,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         _timeout = timeout ?? TimeSpan.FromMinutes(10);
         _model = model;
         _effort = effort;
+        _cliProfile = cliProfile;
     }
 
     public string ProviderId => _adapter.ProviderId;
@@ -234,17 +247,20 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             : StrategyCodegenResponse.Ok(files, text, usage);
     }
 
-    private ProcessStartInfo ProcessFor(string exe, bool stream)
+    internal ProcessStartInfo ProcessFor(string exe, bool stream)
     {
         var psi = new ProcessStartInfo(exe)
         {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // Redirected stdin otherwise inherits the Windows console code page. An em dash then becomes
+            // CP1252 byte 0x97, which Codex correctly rejects as invalid UTF-8.
+            StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var arg in _adapter.ArgumentsFor(_model, _effort, stream)) psi.ArgumentList.Add(arg);
+        foreach (var arg in _adapter.ArgumentsFor(_model, _effort, stream, _cliProfile)) psi.ArgumentList.Add(arg);
         return psi;
     }
 

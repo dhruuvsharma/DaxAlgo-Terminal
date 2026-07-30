@@ -5,7 +5,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 
 | File | LOC | Tree | Project | Ed | Pub | Purpose |
 |---|---|---|---|---|---|---|
-| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 347 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
+| `src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs` | 363 | win | DaxAlgo.Codegen | B I P | Y | Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others. |
 | `src/windows/Tools/DaxAlgo.Codegen/AiModelCatalog.cs` | 60 | win | DaxAlgo.Codegen | B I P | Y | Anthropic model ids — the same strings Claude Code's |
 | `src/windows/Tools/DaxAlgo.Codegen/AiStrategyBuilder.cs` | 106 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build, available or not — |
 | `src/windows/Tools/DaxAlgo.Codegen/AnthropicCodegenClient.cs` | 288 | win | DaxAlgo.Codegen | B I P | Y | The models this key can actually call. A failure here is not |
@@ -16,7 +16,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `src/windows/Tools/DaxAlgo.Codegen/OpenAiCompatibleCodegenClient.cs` | 275 | win | DaxAlgo.Codegen | B I P | Y | Every OpenAI-compatible endpoint (including Ollama) exposes |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyBacktestSmoke.cs` | 112 | win | DaxAlgo.Codegen | B I P | Y | Ticks fed through |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyBuildSession.cs` | 469 | win | DaxAlgo.Codegen | B I P | Y | What one turn of the conversation produced. |
-| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 154 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
+| `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenClientFactory.cs` | 161 | win | DaxAlgo.Codegen | B I P | Y | Every provider the app knows how to build — installed agent CLIs, |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs` | 80 | win | DaxAlgo.Codegen | B I P | Y | The result of a one-shot build: whether it produced a compiling strategy, |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenServiceCollectionExtensions.cs` | 56 | win | DaxAlgo.Codegen | B I P | Y | Wires the AI Strategy Builder into DI. Called once per shell from |
 | `src/windows/Tools/DaxAlgo.Codegen/StrategyContextPack.cs` | 31 | win | DaxAlgo.Codegen | B I P | Y | The pack text — the codegen system prompt. |

@@ -412,8 +412,8 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     // ── Services & external dependencies ─────────────────────────────────────────────────────────
 
-    /// <summary>External processes the terminal talks to but never launches itself — surfaced on the
-    /// login screen so users know what to start (and can see live status) before signing in.</summary>
+    /// <summary>External processes the terminal talks to — surfaced on the login screen so users know
+    /// what to start (and can see live status) before signing in.</summary>
     public ObservableCollection<ServiceDependencyViewModel> Services { get; } = new();
 
     /// <summary>True while a re-check sweep is running (drives the panel's spinner / button state).</summary>
@@ -433,6 +433,16 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             howTo: "Start Docker Desktop and wait for the engine to report Running before using Paper Lab.",
             startCommand: null,
             probe: ServiceDependencyViewModel.DockerRunningAsync));
+
+        Services.Add(new ServiceDependencyViewModel(
+            name: "QuestDB",
+            purpose: "Provides the local time-series database for market data.",
+            requirement: "Optional",
+            howTo: "Start Docker Desktop first, then start QuestDB here or copy the Docker command.",
+            startCommand: ServiceDependencyViewModel.QuestDbDockerRunCommand,
+            probe: ServiceDependencyViewModel.QuestDbRunningAsync,
+            startAction: ServiceDependencyViewModel.StartQuestDbAsync,
+            startActionLabel: "Start QuestDB"));
 
         _ = RecheckServicesAsync();
     }

@@ -7,21 +7,21 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Tools/DaxAlgo.Codegen/AgentCliCodegenClient.cs
 ```cs
    10: public sealed record AgentCliAdapter(
-   26: public static AgentCliAdapter ClaudeCode { get; } =
-   37: public static AgentCliAdapter Codex { get; } =
-   40: public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
-   45: public IReadOnlyList<string>? StreamFlags { get; init; }
-   49: public IReadOnlyList<string> ArgumentsFor(
-   82: public sealed class AgentCliCodegenClient : IStrategyCodegenClient
-   90: public AgentCliCodegenClient(
-  103: public string ProviderId => _adapter.ProviderId;
-  104: public string DisplayName => _adapter.DisplayName;
-  105: public bool IsAvailable => _resolveOnPath(_adapter.Executable) is not null;
-  108: public string Model => _model ?? string.Empty;
-  109: public CodegenEffort Effort => _effort;
-  110: public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
-  118: public async IAsyncEnumerable<CodegenEvent> StreamAsync(
-  251: public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
+   27: public static AgentCliAdapter ClaudeCode { get; } =
+   40: public static AgentCliAdapter Codex { get; } =
+   45: public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
+   50: public IReadOnlyList<string>? StreamFlags { get; init; }
+   54: public IReadOnlyList<string> ArgumentsFor(
+   93: public sealed class AgentCliCodegenClient : IStrategyCodegenClient
+  102: public AgentCliCodegenClient(
+  116: public string ProviderId => _adapter.ProviderId;
+  117: public string DisplayName => _adapter.DisplayName;
+  118: public bool IsAvailable => _resolveOnPath(_adapter.Executable) is not null;
+  121: public string Model => _model ?? string.Empty;
+  122: public CodegenEffort Effort => _effort;
+  123: public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
+  131: public async IAsyncEnumerable<CodegenEvent> StreamAsync(
+  267: public async Task<StrategyCodegenResponse> GenerateAsync(StrategyCodegenRequest request, CancellationToken ct = default)
 ```
 
 ## src/windows/Tools/DaxAlgo.Codegen/AiModelCatalog.cs
@@ -182,9 +182,9 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    19: public sealed class StrategyCodegenClientFactory
    28: public StrategyCodegenClientFactory(Func<HttpClient> httpFactory, AiCodegenOptions options, Func<string, string?> keyResolver)
    38: public IReadOnlyList<IStrategyCodegenClient> BuildAll()
-   66: public IStrategyCodegenClient? Build(string providerId, string? model, CodegenEffort effort = CodegenEffort.Default)
-   85: public IReadOnlyList<string> ModelsFor(string providerId) =>
-   90: public IStrategyCodegenClient? SelectDefault()
+   67: public IStrategyCodegenClient? Build(string providerId, string? model, CodegenEffort effort = CodegenEffort.Default)
+   87: public IReadOnlyList<string> ModelsFor(string providerId) =>
+   92: public IStrategyCodegenClient? SelectDefault()
 ```
 
 ## src/windows/Tools/DaxAlgo.Codegen/StrategyCodegenOrchestrator.cs

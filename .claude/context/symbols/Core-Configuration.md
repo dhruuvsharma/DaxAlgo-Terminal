@@ -10,15 +10,16 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
     8: public string BaseUrl { get; set; } = string.Empty;
    11: public string Model { get; set; } = string.Empty;
    16: public string Effort { get; set; } = string.Empty;
-   20: public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
-   24: public enum AiCodegenProviderKind
-   38: public sealed class AiCodegenOptions
-   40: public const string SectionName = "AiCodegen";
-   44: public string DefaultProvider { get; set; } = string.Empty;
-   49: public int MaxFixAttempts { get; set; } = 3;
-   55: public string BuildEffort { get; set; } = string.Empty;
-   67: public int TimeoutSeconds { get; set; } = 600;
-   70: public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
+   20: public string CliProfile { get; set; } = string.Empty;
+   24: public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
+   28: public enum AiCodegenProviderKind
+   42: public sealed class AiCodegenOptions
+   44: public const string SectionName = "AiCodegen";
+   48: public string DefaultProvider { get; set; } = string.Empty;
+   53: public int MaxFixAttempts { get; set; } = 3;
+   59: public string BuildEffort { get; set; } = string.Empty;
+   71: public int TimeoutSeconds { get; set; } = 600;
+   74: public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/AlpacaOptions.cs
@@ -124,6 +125,16 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    13: public const string SectionName = "Dev";
    20: public bool BypassLogin { get; set; }
    27: public BrokerKind[] AutoConnectBrokers { get; set; } = [];
+   33: public bool ResetAccountOnStart { get; set; }
+   39: public bool DisableStrategyPlugins { get; set; }
+```
+
+## src/windows/Core/TradingTerminal.Core/Configuration/GoogleAuthOptions.cs
+```cs
+    6: public sealed class GoogleAuthOptions
+    8: public const string SectionName = "GoogleAuth";
+   11: public string ClientId { get; set; } = string.Empty;
+   16: public string? ClientSecret { get; set; }
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/InteractiveBrokersOptions.cs
@@ -284,6 +295,16 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    26: public ArchivePeriod Period { get; set; } = ArchivePeriod.Monthly;
    29: public ArchiveTables Tables { get; set; } = ArchiveTables.Quotes | ArchiveTables.Bars | ArchiveTables.Trades;
    33: public int DailyCheckHourUtc { get; set; } = 4;
+```
+
+## src/windows/Core/TradingTerminal.Core/Configuration/PlatformOptions.cs
+```cs
+    4: public sealed class PlatformOptions
+    6: public const string SectionName = "Platform";
+    8: public const int DefaultTimeoutSeconds = 15;
+   11: public string BaseUrl { get; set; } = string.Empty;
+   17: public string EntitlementLeasePublicKey { get; set; } = string.Empty;
+   20: public int TimeoutSeconds { get; set; } = DefaultTimeoutSeconds;
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Configuration/PluginsOptions.cs

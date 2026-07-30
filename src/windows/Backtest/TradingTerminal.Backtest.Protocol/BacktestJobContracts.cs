@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using TradingTerminal.Core.Backtesting;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Backtest.Protocol;
 
@@ -353,7 +354,8 @@ public sealed record BacktestReportArtifact(
     IReadOnlyList<RoundTripTrade> Trades,
     IReadOnlyList<EquitySample> Equity,
     IReadOnlyList<InstrumentReport> PerInstrument,
-    VisualTimeline? Visual)
+    VisualTimeline? Visual,
+    IReadOnlyList<StrategySignalEvent>? Signals = null)
 {
     public static BacktestReportArtifact FromReport(BacktestReport report) =>
         new(
@@ -363,8 +365,9 @@ public sealed record BacktestReportArtifact(
             report.Trades,
             report.Equity,
             report.PerInstrument,
-            report.Visual);
+            report.Visual,
+            report.Signals);
 
     public BacktestReport ToReport() =>
-        new(Summary, new MetricSet(Metrics), Trades, Equity, PerInstrument, Visual);
+        new(Summary, new MetricSet(Metrics), Trades, Equity, PerInstrument, Visual, Signals);
 }

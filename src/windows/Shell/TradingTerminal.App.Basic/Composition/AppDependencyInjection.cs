@@ -73,13 +73,16 @@ public static class AppDependencyInjection
 
         // Python-sidecar controller seam. The login screen depends on ISidecarController, but the real
         // sidecar host is a Professional-only surface (AddSidecar). Register a no-op fallback here so
-        // Basic/Intermediate compose; Professional's AddSidecar (a plain AddSingleton) registers the real
+        // Basic composes; Professional's AddSidecar (a plain AddSingleton) registers the real
         // one after this and wins.
         services.TryAddSingleton<TradingTerminal.Core.Hosting.ISidecarController,
             TradingTerminal.Core.Hosting.NullSidecarController>();
 
         // Feature modules common to every edition.
-        services.AddStrategyPlugins(configuration);
+        var disableStrategyPlugins = configuration
+            .GetSection(DevOptions.SectionName)
+            .GetValue<bool>(nameof(DevOptions.DisableStrategyPlugins));
+        services.AddStrategyPlugins(configuration, loadRuntimePlugins: !disableStrategyPlugins);
         services.AddLogin();
         services.AddShell();
         services.AddSupport();
@@ -106,7 +109,10 @@ public static class AppDependencyInjection
 
     /// <summary>Strategy plug-ins: RSI, Cumulative Delta, plus the signal-mode wrappers
     /// around every entry in the backtest catalog.</summary>
-    public static IServiceCollection AddStrategyPlugins(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddStrategyPlugins(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool loadRuntimePlugins = true)
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
@@ -168,6 +174,15 @@ public static class AppDependencyInjection
         // local plugins load) or Curated (pinned publisher thumbprints + required manifest).
         var pluginOptions = configuration.GetSection(PluginsOptions.SectionName).Get<PluginsOptions>() ?? new PluginsOptions();
         var pluginPolicy = PluginTrustPolicy.From(pluginOptions);
+        if (!loadRuntimePlugins)
+        {
+            services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, []));
+            services.AddPluginFeed(pluginOptions);
+            services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
+            services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
+            return services;
+        }
+
         // Persisted lifecycle state (user disables, fault quarantines, pending uninstalls) — honoured
         // by the loader BEFORE any plugin code runs; mutated by the Plugin Manager.
         var pluginState = new PluginStateStore(pluginsRoot);

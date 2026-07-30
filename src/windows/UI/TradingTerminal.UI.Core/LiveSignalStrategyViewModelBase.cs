@@ -468,7 +468,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             _eventSubscription = router.OrderEvents.Subscribe(async evt =>
             {
                 try { await strategy.OnOrderEventAsync(evt, runToken); }
-                catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "{Strategy} OnOrderEventAsync threw", StrategyId);
+                    PluginFaultEvents.Report(ex);
+                }
             });
 
             Signals.Clear();
@@ -490,6 +494,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             {
                 if (!IsCurrentRun(runCts) || runToken.IsCancellationRequested) return;
                 _logger.LogError(ex, "{Strategy} OnStartAsync threw", StrategyId);
+                PluginFaultEvents.Report(ex);
                 Status = $"Failed to start: {ex.Message}";
                 await StopAsync();
                 return;
@@ -549,6 +554,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "{Strategy} OnEndAsync threw", StrategyId);
+            PluginFaultEvents.Report(ex);
         }
         finally
         {
@@ -557,6 +563,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             eventSubscription?.Dispose();
             if (router is not null) router.SignalEmitted -= OnSignalEmitted;
             streamCts?.Dispose();
+            await DisposeStrategyAsync(strategy);
         }
 
         IsStreaming = false;
@@ -629,10 +636,23 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                         LastAsk = tick.Ask;
                         LastMid = (tick.Bid + tick.Ask) * 0.5;
                         TicksSeen++;
-                        AggregateBar(tick);
+                        var completedBar = AggregateBar(tick);
                         _router.UpdateMarketContext(tick);
+                        if (completedBar is not null)
+                        {
+                            try { await _strategy.OnBarAsync(completedBar, _clock, _router, ct); }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "{Strategy} OnBarAsync threw", StrategyId);
+                                PluginFaultEvents.Report(ex);
+                            }
+                        }
                         try { await _strategy.OnTickAsync(tick, _clock, _router, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "{Strategy} OnTickAsync threw", StrategyId);
+                            PluginFaultEvents.Report(ex);
+                        }
                     }
                     // Per-batch redraw trigger — windows coalesce their own redraws off this anyway.
                     RaiseTickProcessed();
@@ -685,7 +705,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     {
                         if (_strategy is null || _router is null) break;
                         try { await _strategy.OnDepthAsync(snapshot, _clock, _router, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "{Strategy} OnDepthAsync threw", StrategyId);
+                            PluginFaultEvents.Report(ex);
+                        }
                     }
                     // The order-book pane only needs the freshest book; intermediates are stale.
                     LatestDepth = batch[^1];
@@ -773,7 +797,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     {
                         if (_strategy is null || _router is null) break;
                         try { await _strategy.OnTradeAsync(trade, _clock, _router, ct); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId); }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "{Strategy} OnTradeAsync threw", StrategyId);
+                            PluginFaultEvents.Report(ex);
+                        }
                     }
                 });
             }
@@ -789,7 +817,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
     }
 
-    private void AggregateBar(Tick tick)
+    private Bar? AggregateBar(Tick tick)
     {
         var mid = (tick.Bid + tick.Ask) * 0.5;
         var ts = tick.TimestampUtc;
@@ -800,7 +828,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             _currentBarStart = bucket;
             _barOpen = _barHigh = _barLow = _barClose = mid;
             _barVolume = 1;
-            return;
+            return null;
         }
 
         if (bucket != _currentBarStart)
@@ -815,14 +843,14 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             _currentBarStart = bucket;
             _barOpen = _barHigh = _barLow = _barClose = mid;
             _barVolume = 1;
+            return bar;
         }
-        else
-        {
-            if (mid > _barHigh) _barHigh = mid;
-            if (mid < _barLow) _barLow = mid;
-            _barClose = mid;
-            _barVolume++;
-        }
+
+        if (mid > _barHigh) _barHigh = mid;
+        if (mid < _barLow) _barLow = mid;
+        _barClose = mid;
+        _barVolume++;
+        return null;
     }
 
     private void OnSignalEmitted(SignalEntry entry)
@@ -830,13 +858,24 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Signals.Insert(0, entry);
         while (Signals.Count > MaxSignalsRetained) Signals.RemoveAt(Signals.Count - 1);
 
-        Log("SIGNAL", $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4}){(IsAlgoRunning ? "" : " [idle]")}");
+        var activity = entry.DirectSignal is { } emitted
+            ? $"{entry.SideText} strength {emitted.Strength:F3} @ {entry.Price:F4} (mid {entry.Mid:F4})"
+            : $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
+        Log("SIGNAL", activity + (IsAlgoRunning ? "" : " [idle]"));
 
         if (!IsAlgoRunning) return;
 
         var symbol = SelectedInstrument?.DisplayName ?? "(none)";
-        var direction = entry.Side == OrderSide.Buy ? "LONG" : "SHORT";
-        var msg = $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
+        var direction = entry.DirectSignal?.Kind switch
+        {
+            StrategySignalKind.Long => "LONG",
+            StrategySignalKind.Short => "SHORT",
+            StrategySignalKind.Flat => "FLAT",
+            _ => entry.Side == OrderSide.Buy ? "LONG" : "SHORT",
+        };
+        var msg = entry.DirectSignal is { } direct
+            ? $"{entry.SideText} strength {direct.Strength:F3} @ {entry.Price:F4} (mid {entry.Mid:F4})"
+            : $"{entry.SideText} {entry.Quantity} {entry.OrderType} @ {entry.Price:F4} (mid {entry.Mid:F4})";
 
         _notifications.PublishAsync(new StrategyNotification(
             Kind: NotificationKind.Signal,
@@ -934,10 +973,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         if (Signals.Count == 0) return;
         var sb = new StringBuilder();
-        sb.AppendLine("time_utc,side,quantity,order_type,price,mid,note");
+        sb.AppendLine("time_utc,side,quantity_or_strength,order_or_signal_type,price,mid,note");
         foreach (var s in Signals.Reverse())   // stored newest-first
             sb.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                $"{s.TimestampUtc:O},{s.SideText},{s.Quantity},{s.OrderType},{s.Price},{s.Mid},{CsvQuote(s.Note)}"));
+                $"{s.TimestampUtc:O},{s.SideText},{s.QuantityText},{s.TypeText},{s.Price},{s.Mid},{CsvQuote(s.Note)}"));
         await SaveCsvAsync($"{StrategyId}-signals-{SymbolToken()}", sb.ToString());
     }
 
@@ -977,7 +1016,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         var ingestHandle = Interlocked.Exchange(ref _ingestHandle, null);
         var tradeIngestHandle = Interlocked.Exchange(ref _tradeIngestHandle, null);
         var eventSubscription = Interlocked.Exchange(ref _eventSubscription, null);
-        Interlocked.Exchange(ref _strategy, null);
+        var strategy = Interlocked.Exchange(ref _strategy, null);
         try { streamCts?.Cancel(); }
         catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} stream cancellation threw during disposal", StrategyId); }
         streamCts?.Dispose();
@@ -985,5 +1024,42 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         tradeIngestHandle?.Dispose();
         eventSubscription?.Dispose();
         if (router is not null) router.SignalEmitted -= OnSignalEmitted;
+        DisposeStrategy(strategy);
+    }
+
+    private async ValueTask DisposeStrategyAsync(IBacktestStrategy? strategy)
+    {
+        if (strategy is null) return;
+        try
+        {
+            if (strategy is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync();
+            else if (strategy is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Strategy} runtime disposal threw", StrategyId);
+        }
+    }
+
+    private void DisposeStrategy(IBacktestStrategy? strategy)
+    {
+        if (strategy is null) return;
+        if (strategy is IDisposable disposable)
+        {
+            try { disposable.Dispose(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} runtime disposal threw", StrategyId); }
+            return;
+        }
+
+        if (strategy is IAsyncDisposable asyncDisposable)
+            _ = DisposeStrategyAsyncCore(asyncDisposable);
+    }
+
+    private async Task DisposeStrategyAsyncCore(IAsyncDisposable strategy)
+    {
+        try { await strategy.DisposeAsync(); }
+        catch (Exception ex) { _logger.LogDebug(ex, "{Strategy} runtime disposal threw", StrategyId); }
     }
 }

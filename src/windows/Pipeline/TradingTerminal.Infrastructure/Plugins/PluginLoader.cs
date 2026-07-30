@@ -28,6 +28,8 @@ public sealed record LoadedPlugin(
 /// must be compatible with the host SDK (<see cref="SdkInfo.Version"/>) or it is rejected. One bad
 /// plugin never blocks the host — per-plugin failures are classified into a
 /// <see cref="PluginLoadReport"/> (and optionally reported via <c>onError</c>) and skipped.
+/// Protected <c>.daxq</c> packages are discovered in a separate additive pass and delegated through
+/// <see cref="IProtectedStrategyEngine"/>; the public loader contains no protected-runtime reference.
 /// <para>
 /// With a <see cref="PluginStateStore"/>, the loader also honours persisted lifecycle state BEFORE
 /// any code loads: pending uninstalls are deleted, user-disabled and quarantined plugins are
@@ -84,9 +86,10 @@ public static class PluginLoader
         string pluginsRoot,
         string hostSdkVersion,
         PluginStateStore? state = null,
-        Action<string, Exception>? onError = null) =>
+        Action<string, Exception>? onError = null,
+        IProtectedStrategyEngine? protectedStrategyEngine = null) =>
         LoadWithReport(services, pluginsRoot, hostSdkVersion, PluginTrustPolicy.Permissive, DefaultInspector,
-            state, onError: onError);
+            state, onError: onError, protectedStrategyEngine: protectedStrategyEngine);
 
     /// <summary>Scan under a configured <paramref name="policy"/> and <paramref name="scanMode"/> with
     /// the default signature inspector (real Authenticode on Windows) — the shells' entry point.</summary>
@@ -98,8 +101,10 @@ public static class PluginLoader
         PluginStateStore? state = null,
         PluginScanMode scanMode = PluginScanMode.Enforce,
         IPluginConsentPrompt? consent = null,
-        Action<string, Exception>? onError = null) =>
-        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, scanMode, consent, onError);
+        Action<string, Exception>? onError = null,
+        IProtectedStrategyEngine? protectedStrategyEngine = null) =>
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, scanMode, consent, onError,
+            protectedStrategyEngine);
 
     /// <summary>Core scan: registers every loadable plugin and classifies every one that did NOT load
     /// (disabled / quarantined / trust-rejected / SDK-incompatible / bad manifest / faulted) so the
@@ -115,7 +120,8 @@ public static class PluginLoader
         PluginStateStore? state = null,
         PluginScanMode scanMode = PluginScanMode.Enforce,
         IPluginConsentPrompt? consent = null,
-        Action<string, Exception>? onError = null)
+        Action<string, Exception>? onError = null,
+        IProtectedStrategyEngine? protectedStrategyEngine = null)
     {
         var loaded = new List<LoadedPlugin>();
         var problems = new List<PluginLoadProblem>();
@@ -273,7 +279,173 @@ public static class PluginLoader
                 onError?.Invoke(dll, ex);
             }
         }
+
+        // Protected packages are deliberately additive and run only after the established managed
+        // plugin loop. Public discovery reads bounded cleartext metadata; only the installer-supplied
+        // engine knows the protected format or executes its payload.
+        var protectedStrategyIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var daxq in EnumerateProtectedStrategyCandidates(pluginsRoot))
+        {
+            var folder = Path.GetFileNameWithoutExtension(daxq);
+            DaxqPackageMetadata? metadata;
+            try
+            {
+                metadata = DaxqPackageDetector.TryRead(daxq);
+            }
+            catch (ProtectedStrategyManifestException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.ManifestInvalid, ex.Message));
+                onError?.Invoke(daxq, ex);
+                continue;
+            }
+            if (metadata is null) continue;
+            if (!string.IsNullOrWhiteSpace(metadata.StrategyId)
+                && !protectedStrategyIds.Add(metadata.StrategyId))
+            {
+                // The canonical folder install is enumerated first. A leftover direct-root import
+                // of the same strategy must not register a second catalog/backtest entry.
+                continue;
+            }
+
+            // The same persisted lifecycle gates apply before the protected engine is touched.
+            if (state is not null)
+            {
+                if (state.PendingUninstalls.Contains(folder, StringComparer.OrdinalIgnoreCase))
+                {
+                    problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.Disabled,
+                        "Uninstall pending â€” the artifact will be removed on a future start."));
+                    continue;
+                }
+                if (state.IsDisabled(folder))
+                {
+                    problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.Disabled,
+                        "Disabled in the Plugin Manager."));
+                    continue;
+                }
+                if (state.QuarantineFor(folder) is { } quarantine)
+                {
+                    problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.Quarantined,
+                        $"Quarantined {quarantine.QuarantinedUtc:u} â€” {quarantine.Reason}"));
+                    continue;
+                }
+            }
+
+            // A self-compiled open-core host has no protected runtime. This is an expected capability
+            // boundary, not an artifact fault: do not quarantine it or route it through onError.
+            if (protectedStrategyEngine is null)
+            {
+                problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.ProtectedEngineUnavailable,
+                    "Protected strategies require the official DaxAlgo installer."));
+                continue;
+            }
+
+            try
+            {
+                var hash = PluginIntegrity.Sha256(daxq);
+                var pin = pinned.VerifyArtifact(folder, daxq, out var pinDetail);
+                if (pin == PluginPinResult.Tampered)
+                    throw new PluginTamperedException(daxq,
+                        pinDetail ?? "the protected artifact does not match the shipped build");
+
+                if (revoked.IsRevoked(hash, metadata.StrategyId, out var revokedReason))
+                    throw new PluginRevokedException(daxq, revokedReason!);
+
+                if (pin != PluginPinResult.Match
+                    && state?.InstalledHash(folder) is { Length: > 0 } installedHash
+                    && !string.Equals(installedHash, hash, StringComparison.OrdinalIgnoreCase))
+                    throw new PluginTamperedException(daxq,
+                        "the protected artifact has changed since it was installed â€” something rewrote it outside the app");
+
+                loaded.Add(RegisterProtectedPackage(
+                    daxq, folder, metadata, protectedStrategyEngine, services, hostSdkVersion));
+            }
+            catch (PluginTamperedException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.Tampered, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(daxq, ex);
+            }
+            catch (PluginRevokedException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.Revoked, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(daxq, ex);
+            }
+            catch (PluginPolicyViolationException ex)
+            {
+                problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.PolicyViolation, ex.Reason));
+                state?.Quarantine(folder, ex.Reason);
+                onError?.Invoke(daxq, ex);
+            }
+            catch (Exception ex)
+            {
+                var reason = Flatten(ex);
+                problems.Add(new PluginLoadProblem(folder, daxq, PluginLoadOutcome.Faulted, reason));
+                state?.Quarantine(folder, reason);
+                onError?.Invoke(daxq, ex);
+            }
+        }
         return new PluginLoadReport(loaded, problems);
+    }
+
+    private static LoadedPlugin RegisterProtectedPackage(
+        string daxqPath,
+        string folder,
+        DaxqPackageMetadata metadata,
+        IProtectedStrategyEngine engine,
+        IServiceCollection services,
+        string hostSdkVersion)
+    {
+        var registrations = engine.LoadStrategies(daxqPath)
+            ?? throw new InvalidOperationException("The protected strategy engine returned no registration collection.");
+        if (registrations.Count == 0)
+            throw new InvalidOperationException("The protected strategy engine returned no strategies.");
+
+        var guarded = new GuardedServiceCollection(services, metadata.StrategyId ?? folder);
+        var committed = false;
+        try
+        {
+            foreach (var registration in registrations)
+            {
+                if (registration is null)
+                    throw new InvalidOperationException("The protected strategy engine returned a null registration.");
+                if (registration.Strategy is null || registration.BacktestStrategy is null
+                    || registration.StrategyFactory is null)
+                    throw new InvalidOperationException("The protected strategy engine returned an incomplete registration.");
+
+                // Resolve through a singleton factory so MS.DI owns and disposes an IDisposable VM
+                // strategy with the host provider. A pre-built singleton instance is not container-owned.
+                guarded.AddSingleton<ITradingStrategy>(_ => registration.Strategy);
+                guarded.AddSingleton(registration.BacktestStrategy);
+                guarded.AddSingleton(registration.StrategyFactory);
+            }
+
+            var strategyTypes = registrations
+                .Select(r => r.Strategy.GetType().FullName ?? r.Strategy.GetType().Name)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var name = registrations.Count == 1
+                ? registrations[0].Strategy.DisplayName
+                : metadata.StrategyId ?? folder;
+            var registered = guarded.Commit();
+            committed = true;
+            return new LoadedPlugin(name, hostSdkVersion, daxqPath, registered,
+                StrategyImplementationTypes: strategyTypes);
+        }
+        finally
+        {
+            if (!committed)
+            {
+                foreach (var disposable in registrations
+                             .Where(r => r is not null)
+                             .Select(r => r.Strategy)
+                             .OfType<IDisposable>()
+                             .Distinct())
+                {
+                    try { disposable.Dispose(); } catch { /* preserve the load/registration fault */ }
+                }
+            }
+        }
     }
 
     /// <summary>Deletes plugin folders the user uninstalled while their assemblies were file-locked
@@ -293,9 +465,11 @@ public static class PluginLoader
             }
 
             var dir = Path.Combine(pluginsRoot, plugin);
+            var protectedArtifact = Path.Combine(pluginsRoot, plugin + ".daxq");
             try
             {
                 if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+                if (File.Exists(protectedArtifact)) File.Delete(protectedArtifact);
                 state.ClearPendingUninstall(plugin);
             }
             catch
@@ -376,6 +550,27 @@ public static class PluginLoader
         {
             var candidate = Path.Combine(dir, Path.GetFileName(dir) + ".dll");
             if (File.Exists(candidate)) yield return candidate;
+        }
+    }
+
+    /// <summary>Finds protected packages in either supported install shape: directly under the
+    /// plugins root, or as <c>&lt;folder&gt;/&lt;folder&gt;.daxq</c>. Format detection is kept inside the
+    /// per-package loop so malformed manifests are classified independently.</summary>
+    internal static IEnumerable<string> EnumerateProtectedStrategyCandidates(string root)
+    {
+        // Prefer the persisted installer shape so a direct-root source copy cannot shadow it.
+        foreach (var dir in Directory.EnumerateDirectories(root))
+        {
+            var folder = Path.GetFileName(dir);
+            var candidate = Directory.EnumerateFiles(dir).FirstOrDefault(file =>
+                DaxqPackageDetector.HasPackageExtension(file)
+                && string.Equals(Path.GetFileNameWithoutExtension(file), folder, StringComparison.OrdinalIgnoreCase));
+            if (candidate is not null) yield return candidate;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(root))
+        {
+            if (DaxqPackageDetector.HasPackageExtension(file)) yield return file;
         }
     }
 

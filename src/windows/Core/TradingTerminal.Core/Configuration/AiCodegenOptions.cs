@@ -15,6 +15,10 @@ public sealed class AiCodegenProvider
     /// predates the parameter (it is then never sent).</summary>
     public string Effort { get; set; } = string.Empty;
 
+    /// <summary>Optional named configuration profile for an installed agent CLI (for example Codex
+    /// <c>--profile</c>). Ignored by keyed HTTP providers and CLIs without profile support.</summary>
+    public string CliProfile { get; set; } = string.Empty;
+
     /// <summary>Wire protocol. Keys are never stored here — they live in the DPAPI credential store,
     /// looked up by <see cref="AiCodegenOptions.SectionName"/> + provider id.</summary>
     public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;

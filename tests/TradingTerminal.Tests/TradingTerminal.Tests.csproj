@@ -11,7 +11,8 @@
     <ProjectReference Include="..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.App.Intermediate\TradingTerminal.App.Intermediate.csproj" />
+    <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj" />
+    <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.App.Basic\TradingTerminal.App.Basic.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,200 @@
+<UserControl x:Class="TradingTerminal.UI.Strategies.StrategyCardActions"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             Background="Transparent">
+    <UserControl.Resources>
+        <Style x:Key="StrategyCardActionToggle" TargetType="{x:Type ToggleButton}"
+               BasedOn="{StaticResource App.IconToggle}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="StrategyCardActionButton" TargetType="{x:Type Button}"
+               BasedOn="{StaticResource App.IconButton}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style x:Key="StrategyTagSectionLabel" TargetType="{x:Type TextBlock}"
+               BasedOn="{StaticResource App.GroupLabel}">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <StackPanel x:Name="ActionRail" Orientation="Vertical" HorizontalAlignment="Right">
+            <ToggleButton x:Name="TagsToggle" Style="{StaticResource StrategyCardActionToggle}"
+                          ToolTip="Show all strategy tags"
+                          automation:AutomationProperties.Name="Show strategy tags"
+                          automation:AutomationProperties.HelpText="Shows data requirements, market fit, broker compatibility and custom labels">
+                <Viewbox Width="16" Height="16" Stretch="Uniform">
+                    <Canvas Width="20" Height="20">
+                        <Path Data="M3,4 L10,4 L17,11 L10,18 L3,11 Z"
+                              Fill="Transparent" StrokeThickness="1.7"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
+                        <Ellipse Width="2.7" Height="2.7" Canvas.Left="5.4" Canvas.Top="7.4"
+                                 Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <Button x:Name="LinkButton" Style="{StaticResource StrategyCardActionButton}"
+                    IsEnabled="{Binding HasLink}"
+                    Click="OpenLink_Click"
+                    ToolTipService.ShowOnDisabled="True"
+                    automation:AutomationProperties.Name="Open strategy link"
+                    automation:AutomationProperties.HelpText="{Binding LinkUri, TargetNullValue=No secure strategy link available}">
+                <Button.ToolTip>
+                    <StackPanel MaxWidth="280">
+                        <TextBlock Text="Open strategy link" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding LinkUri, TargetNullValue=No secure strategy link available}"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Button.ToolTip>
+                <Viewbox Width="16" Height="16" Stretch="Uniform">
+                    <Canvas Width="20" Height="20">
+                        <Path Data="M11,3 H17 V9 M17,3 L8.5,11.5 M14,10 V17 H3 V6 H10"
+                              Fill="Transparent" StrokeThickness="1.7"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                    </Canvas>
+                </Viewbox>
+            </Button>
+        </StackPanel>
+
+        <Popup x:Name="TagsPopup"
+               IsOpen="{Binding IsChecked, ElementName=TagsToggle, Mode=TwoWay}"
+               DataContext="{Binding DataContext, ElementName=Root}"
+               PlacementTarget="{Binding ElementName=TagsToggle}"
+               Placement="Left" HorizontalOffset="-6" VerticalOffset="-2"
+               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+            <Border x:Name="TagsFlyout" Width="336" Margin="8"
+                    Style="{StaticResource App.Card}"
+                    Background="{DynamicResource Background.Elevated}"
+                    BorderBrush="{DynamicResource Border.Strong}"
+                    PreviewKeyDown="TagsFlyout_PreviewKeyDown">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Padding="14,11"
+                            Style="{StaticResource App.CardHeader}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="30" Height="30" Margin="0,0,10,0"
+                                    Background="{DynamicResource Accent.Soft}"
+                                    BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1">
+                                <Viewbox Width="15" Height="15" Stretch="Uniform">
+                                    <Canvas Width="20" Height="20">
+                                        <Path Data="M3,4 L10,4 L17,11 L10,18 L3,11 Z"
+                                              Fill="Transparent" StrokeThickness="1.7"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{DynamicResource Accent.Brush}" />
+                                        <Ellipse Width="2.7" Height="2.7" Canvas.Left="5.4" Canvas.Top="7.4"
+                                                 Fill="{DynamicResource Accent.Brush}" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="STRATEGY TAGS" Style="{StaticResource App.SectionHeader}" />
+                                <TextBlock Text="Requirements, market fit and custom labels"
+                                           Foreground="{DynamicResource Text.Secondary}"
+                                           FontSize="10" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" MaxHeight="320"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="14,12,14,14">
+                            <TextBlock Text="DATA REQUIREMENTS" Style="{StaticResource StrategyTagSectionLabel}" />
+                            <ItemsControl x:Name="DataTagList"
+                                          ItemsSource="{Binding Strategy, Converter={StaticResource StrategyTagsConverter}}"
+                                          automation:AutomationProperties.Name="Data requirements"
+                                          Margin="0,6,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding Background}" BorderBrush="{Binding Background}"
+                                                BorderThickness="1" Padding="6,2" Margin="0,0,4,4">
+                                            <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
+                                                       FontSize="10" FontWeight="SemiBold" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Border Height="1" Background="{DynamicResource Border.Brush}" Margin="0,8,0,10" />
+
+                            <TextBlock Text="MARKET &amp; BROKER FIT" Style="{StaticResource StrategyTagSectionLabel}" />
+                            <ItemsControl x:Name="ClassificationTagList"
+                                          ItemsSource="{Binding Strategy, Converter={StaticResource StrategyClassConverter}}"
+                                          automation:AutomationProperties.Name="Market and broker fit"
+                                          Margin="0,6,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding Background}" BorderBrush="{Binding Background}"
+                                                BorderThickness="1" Padding="6,2" Margin="0,0,4,4">
+                                            <TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}"
+                                                       FontSize="10" FontWeight="SemiBold" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCustomTags}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Border Height="1" Background="{DynamicResource Border.Brush}" Margin="0,8,0,10" />
+                                <TextBlock Text="CUSTOM LABELS" Style="{StaticResource StrategyTagSectionLabel}" />
+                                <ItemsControl x:Name="CustomTagList" ItemsSource="{Binding CustomTags}"
+                                              automation:AutomationProperties.Name="Custom labels"
+                                              Margin="0,6,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource Accent.Soft}"
+                                                    BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1"
+                                                    Padding="6,2" Margin="0,0,4,4">
+                                                <TextBlock Text="{Binding}" Foreground="{DynamicResource Accent.Brush}"
+                                                           FontSize="10" FontWeight="SemiBold" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

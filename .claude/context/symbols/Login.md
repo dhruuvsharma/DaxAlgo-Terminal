@@ -45,11 +45,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   126: public int CategoryOrder => (int)Category;
   129: public bool IsKeyless => Category == LoginCategory.Keyless;
   133: public bool IsExpanded
-  160: public IAsyncRelayCommand ConnectCommand { get; }
-  161: public IAsyncRelayCommand DisconnectCommand { get; }
-  165: public void Initialize()
-  257: public void Dispose()
-  267: public enum LoginCategory
+  153: public virtual ServiceDependencyViewModel? Prerequisite => null;
+  156: public bool HasPrerequisite => Prerequisite is not null;
+  179: public IAsyncRelayCommand ConnectCommand { get; }
+  180: public IAsyncRelayCommand DisconnectCommand { get; }
+  184: public void Initialize()
+  276: public void Dispose()
+  286: public enum LoginCategory
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/BrokerLoginFormFactory.cs
@@ -206,27 +208,28 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Shell/TradingTerminal.Login/Forms/IbLoginFormViewModel.cs
 ```cs
    12: public sealed class IbLoginFormViewModel : BrokerLoginFormBase
-   17: public IbLoginFormViewModel(
-   37: public override BrokerKind Broker => BrokerKind.InteractiveBrokers;
-   38: public override string DisplayName => "Interactive Brokers";
-   40: public IReadOnlyList<string> AccountTypes { get; }
-   41: public IReadOnlyList<MarketDataTypeOption> MarketDataTypes { get; }
-   44: public string Username { get => _username; set => SetProperty(ref _username, value); }
-   47: public string Password { get => _password; set => SetProperty(ref _password, value); }
-   50: public string Host { get => _host; set { if (SetProperty(ref _host, value)) RaiseCanSubmit(); } }
-   53: public int Port { get => _port; set { if (SetProperty(ref _port, value)) RaiseCanSubmit(); } }
-   56: public int ClientId { get => _clientId; set => SetProperty(ref _clientId, value); }
-   59: public string AccountType { get => _accountType; set => SetProperty(ref _accountType, value); }
-   62: public MarketDataTypeOption? SelectedMarketDataType
-   69: public bool RememberPassword { get => _rememberPassword; set => SetProperty(ref _rememberPassword, value); }
-   71: public override bool CanSubmit => !string.IsNullOrWhiteSpace(Host) && Port > 0;
-   79: public override void ApplyToOptions()
-   88: public override string GetSessionAccountLabel() => AccountType;
-   90: public override string GetTimeoutErrorMessage() =>
-   94: public override string GetFailureMessage() =>
-   99: public override void Load()
-  113: public override void Save()
-  129: public sealed record MarketDataTypeOption(int Value, string DisplayName);
+   18: public IbLoginFormViewModel(
+   50: public override BrokerKind Broker => BrokerKind.InteractiveBrokers;
+   51: public override string DisplayName => "Interactive Brokers";
+   54: public override ServiceDependencyViewModel? Prerequisite => _prerequisite;
+   56: public IReadOnlyList<string> AccountTypes { get; }
+   57: public IReadOnlyList<MarketDataTypeOption> MarketDataTypes { get; }
+   60: public string Username { get => _username; set => SetProperty(ref _username, value); }
+   63: public string Password { get => _password; set => SetProperty(ref _password, value); }
+   66: public string Host { get => _host; set { if (SetProperty(ref _host, value)) RaiseCanSubmit(); } }
+   69: public int Port { get => _port; set { if (SetProperty(ref _port, value)) RaiseCanSubmit(); } }
+   72: public int ClientId { get => _clientId; set => SetProperty(ref _clientId, value); }
+   75: public string AccountType { get => _accountType; set => SetProperty(ref _accountType, value); }
+   78: public MarketDataTypeOption? SelectedMarketDataType
+   85: public bool RememberPassword { get => _rememberPassword; set => SetProperty(ref _rememberPassword, value); }
+   87: public override bool CanSubmit => !string.IsNullOrWhiteSpace(Host) && Port > 0;
+   95: public override void ApplyToOptions()
+  104: public override string GetSessionAccountLabel() => AccountType;
+  106: public override string GetTimeoutErrorMessage() =>
+  110: public override string GetFailureMessage() =>
+  115: public override void Load()
+  129: public override void Save()
+  145: public sealed record MarketDataTypeOption(int Value, string DisplayName);
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/Forms/IronBeamLoginForm.xaml.cs
@@ -305,20 +308,21 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Shell/TradingTerminal.Login/Forms/NinjaLoginFormViewModel.cs
 ```cs
     9: public sealed class NinjaLoginFormViewModel : BrokerLoginFormBase
-   14: public NinjaLoginFormViewModel(
-   25: public override BrokerKind Broker => BrokerKind.NinjaTrader;
-   26: public override string DisplayName => "NinjaTrader";
-   29: public string Username { get => _username; set => SetProperty(ref _username, value); }
-   32: public string AccountName
-   39: public string DllPath { get => _dllPath; set => SetProperty(ref _dllPath, value); }
-   42: public string FuturesContractMonth { get => _futuresContractMonth; set => SetProperty(ref _futuresContractMonth, value); }
-   44: public override bool CanSubmit => !string.IsNullOrWhiteSpace(AccountName);
-   46: public override void ApplyToOptions()
-   53: public override string GetSessionAccountLabel() => AccountName;
-   55: public override string GetTimeoutErrorMessage() =>
-   58: public override string GetFailureMessage() =>
-   62: public override void Load()
-   71: public override void Save()
+   15: public NinjaLoginFormViewModel(
+   38: public override BrokerKind Broker => BrokerKind.NinjaTrader;
+   39: public override string DisplayName => "NinjaTrader";
+   42: public override ServiceDependencyViewModel? Prerequisite => _prerequisite;
+   45: public string Username { get => _username; set => SetProperty(ref _username, value); }
+   48: public string AccountName
+   55: public string DllPath { get => _dllPath; set => SetProperty(ref _dllPath, value); }
+   58: public string FuturesContractMonth { get => _futuresContractMonth; set => SetProperty(ref _futuresContractMonth, value); }
+   60: public override bool CanSubmit => !string.IsNullOrWhiteSpace(AccountName);
+   62: public override void ApplyToOptions()
+   69: public override string GetSessionAccountLabel() => AccountName;
+   71: public override string GetTimeoutErrorMessage() =>
+   74: public override string GetFailureMessage() =>
+   78: public override void Load()
+   87: public override void Save()
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/Forms/OkxLoginForm.xaml.cs
@@ -381,14 +385,14 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.Login/LoginViewModel.cs
 ```cs
-   34: public sealed partial class LoginViewModel : ViewModelBase, IDisposable
-   52: public LoginViewModel(
-  112: public IReadOnlyList<IBrokerLoginForm> AvailableForms { get; }
-  116: public ICollectionView FormsView { get; }
-  218: public bool CanLaunch => ConnectedCount > 0;
-  269: public event EventHandler<bool>? LoginCompleted;
-  426: public ObservableCollection<ServiceDependencyViewModel> Services { get; } = new();
-  530: public void Dispose()
+   31: public sealed partial class LoginViewModel : ViewModelBase, IDisposable
+   47: public LoginViewModel(
+  103: public IReadOnlyList<IBrokerLoginForm> AvailableForms { get; }
+  107: public ICollectionView FormsView { get; }
+  209: public bool CanLaunch => ConnectedCount > 0;
+  260: public event EventHandler<bool>? LoginCompleted;
+  417: public ObservableCollection<ServiceDependencyViewModel> Services { get; } = new();
+  490: public void Dispose()
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/LoginWindow.xaml.cs
@@ -399,23 +403,27 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Shell/TradingTerminal.Login/ServiceDependencyViewModel.cs
 ```cs
-   11: public enum ServiceState
-   32: public sealed partial class ServiceDependencyViewModel : ObservableObject
-   37: public ServiceDependencyViewModel(
-   58: public string Name { get; }
-   59: public string Purpose { get; }
-   60: public string Requirement { get; }
-   61: public string HowTo { get; }
-   62: public string? StartCommand { get; }
-   64: public bool HasStartCommand => !string.IsNullOrWhiteSpace(StartCommand);
-   65: public bool CanProbe => _probe is not null;
-   67: public string StartActionLabel { get; }
-   68: public bool HasStartAction => _startAction is not null;
-   71: public async Task RunStartAsync(CancellationToken ct = default)
-   86: public async Task CheckAsync(CancellationToken ct = default)
-  108: public static async Task<bool> HttpOkAsync(string url, CancellationToken ct)
-  123: public static async Task<bool> TcpOpenAsync(string host, int[] ports, CancellationToken ct)
-  158: public static Task<bool> DockerRunningAsync(CancellationToken ct) => Task.Run(() =>
+   12: public enum ServiceState
+   38: public sealed partial class ServiceDependencyViewModel : ObservableObject
+   40: public const string QuestDbDockerRunCommand =
+   55: public ServiceDependencyViewModel(
+   76: public string Name { get; }
+   77: public string Purpose { get; }
+   78: public string Requirement { get; }
+   79: public string HowTo { get; }
+   80: public string? StartCommand { get; }
+   82: public bool HasStartCommand => !string.IsNullOrWhiteSpace(StartCommand);
+   83: public bool CanProbe => _probe is not null;
+   85: public string StartActionLabel { get; }
+   86: public bool HasStartAction => _startAction is not null;
+   89: public async Task RunStartAsync(CancellationToken ct = default)
+  109: public async Task CheckAsync(CancellationToken ct = default)
+  131: public static async Task<bool> HttpOkAsync(string url, CancellationToken ct)
+  146: public static async Task<bool> TcpOpenAsync(string host, int[] ports, CancellationToken ct)
+  182: public static Task<bool> ProcessRunningAsync(string processName, CancellationToken ct) => Task.Run(() =>
+  197: public static Task<bool> DockerRunningAsync(CancellationToken ct) => Task.Run(() =>
+  226: public static async Task<bool> QuestDbRunningAsync(CancellationToken ct)
+  235: public static async Task StartQuestDbAsync(CancellationToken ct)
 ```
 
 ## src/windows/Shell/TradingTerminal.Login/StoredCredentials.cs

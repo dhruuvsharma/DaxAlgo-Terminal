@@ -22,6 +22,13 @@ public interface IBacktestStrategy
     Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct);
 
     /// <summary>
+    /// Called for each completed OHLCV bar. The default is a no-op so existing quote-driven managed
+    /// strategies remain behavior-compatible; bar-native runtimes can opt in without a second host seam.
+    /// </summary>
+    Task OnBarAsync(Bar bar, IClock clock, IOrderRouter router, CancellationToken ct)
+        => Task.CompletedTask;
+
+    /// <summary>
     /// Called for each L2 order-book snapshot, when the active broker supports depth and the
     /// host has subscribed (live signal mode). Default is a no-op so L1-only strategies are
     /// unaffected; book-aware strategies (e.g. the APEX scalper's OBI) override this to cache

@@ -6,16 +6,37 @@ using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Notifications;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
+using TradingTerminal.UI.Diagnostics;
 using Xunit;
 
 namespace TradingTerminal.Tests.Controls;
 
 public sealed class LiveSignalStrategyViewModelLifetimeTests
 {
+    [Fact]
+    public void Caught_attributed_strategy_faults_reach_the_watchdog_strike_policy()
+    {
+        WpfTestApp.Run(() =>
+        {
+            var struckOut = new List<string>();
+            using var attachment = PluginFaultWatchdog.Attach(
+                WpfTestApp.Current,
+                strikeLimit: 3,
+                (plugin, _) => struckOut.Add(plugin));
+
+            PluginFaultEvents.Report(new AttributedStrategyException("protected-test"));
+            PluginFaultEvents.Report(new AttributedStrategyException("protected-test"));
+            PluginFaultEvents.Report(new AttributedStrategyException("protected-test"));
+
+            struckOut.Should().Equal("protected-test");
+        });
+    }
+
     [Fact]
     public async Task Stop_during_a_pending_start_does_not_resume_the_stale_run()
     {
@@ -59,6 +80,7 @@ public sealed class LiveSignalStrategyViewModelLifetimeTests
 
         await viewModel.StopCommand.ExecuteAsync(null);
         strategy.StartToken.IsCancellationRequested.Should().BeTrue();
+        strategy.DisposeCount.Should().Be(1);
 
         strategy.Release.TrySetResult(true);
         await start.WaitAsync(TimeSpan.FromSeconds(5));
@@ -69,6 +91,7 @@ public sealed class LiveSignalStrategyViewModelLifetimeTests
         viewModel.Dispose();
         var disposeAgain = () => viewModel.Dispose();
         disposeAgain.Should().NotThrow();
+        strategy.DisposeCount.Should().Be(1);
     }
 
     private sealed class TestViewModel(
@@ -86,7 +109,7 @@ public sealed class LiveSignalStrategyViewModelLifetimeTests
         protected override IBacktestStrategy BuildStrategy(Contract contract) => strategy;
     }
 
-    private sealed class DelayedStartStrategy : IBacktestStrategy
+    private sealed class DelayedStartStrategy : IBacktestStrategy, IDisposable
     {
         public TaskCompletionSource<bool> Started { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -95,6 +118,8 @@ public sealed class LiveSignalStrategyViewModelLifetimeTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public CancellationToken StartToken { get; private set; }
+
+        public int DisposeCount { get; private set; }
 
         public async Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
         {
@@ -110,5 +135,13 @@ public sealed class LiveSignalStrategyViewModelLifetimeTests
 
         public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) =>
             Task.CompletedTask;
+
+        public void Dispose() => DisposeCount++;
+    }
+
+    private sealed class AttributedStrategyException(string pluginName)
+        : Exception("strategy callback failed"), IPluginFaultAttribution
+    {
+        public string PluginName { get; } = pluginName;
     }
 }

@@ -1,3 +1,5 @@
+using TradingTerminal.Core.Strategies;
+
 namespace TradingTerminal.Core.Backtest;
 
 /// <summary>
@@ -12,4 +14,5 @@ public sealed record BacktestResult(
     double EndingCash,
     BacktestStatistics? Stats = null,
     double TotalFees = 0d,
-    IReadOnlyList<FillRecord>? Fills = null);
+    IReadOnlyList<FillRecord>? Fills = null,
+    IReadOnlyList<StrategySignalEvent>? Signals = null);

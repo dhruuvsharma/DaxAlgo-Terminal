@@ -6,44 +6,44 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Core/TradingTerminal.Core/Backtesting/BacktestReport.cs
 ```cs
-    9: public sealed record EquitySample(DateTime TimestampUtc, double Equity, double Balance, double Drawdown);
-   16: public sealed record RoundTripTrade(
-   29: public double NetPnl => GrossPnl - Fees;
-   30: public TimeSpan HoldingTime => ExitUtc - EntryUtc;
-   31: public bool IsWin => NetPnl > 0;
-   36: public sealed record InstrumentReport(InstrumentId Instrument, double NetPnl, int TradeCount, double WinRate);
-   39: public sealed record RunSummary(
-   47: public double NetProfit => EndingEquity - StartingCash;
-   48: public double TotalReturn => StartingCash == 0 ? 0 : NetProfit / StartingCash;
-   57: public sealed class MetricSet
-   61: public MetricSet(IReadOnlyDictionary<string, double> metrics) => _metrics = metrics;
-   63: public static MetricSet Empty { get; } = new(new Dictionary<string, double>());
-   65: public double this[string key] => _metrics[key];
-   66: public bool Has(string key) => _metrics.ContainsKey(key);
-   67: public double GetOr(string key, double fallback = double.NaN) =>
-   69: public IReadOnlyDictionary<string, double> All => _metrics;
-   72: public double Sharpe => GetOr(Keys.Sharpe);
-   73: public double Sortino => GetOr(Keys.Sortino);
-   74: public double Calmar => GetOr(Keys.Calmar);
-   75: public double MaxDrawdown => GetOr(Keys.MaxDrawdown);
-   76: public double ProfitFactor => GetOr(Keys.ProfitFactor);
-   77: public double WinRate => GetOr(Keys.WinRate);
-   78: public double Expectancy => GetOr(Keys.Expectancy);
-   81: public static class Keys
-   83: public const string Sharpe = "sharpe";
-   84: public const string Sortino = "sortino";
-   85: public const string Calmar = "calmar";
-   86: public const string Omega = "omega";
-   87: public const string MaxDrawdown = "max_drawdown";
-   88: public const string UlcerIndex = "ulcer_index";
-   89: public const string ProfitFactor = "profit_factor";
-   90: public const string WinRate = "win_rate";
-   91: public const string Expectancy = "expectancy";
-   92: public const string RecoveryFactor = "recovery_factor";
-   93: public const string DownsideDeviation = "downside_deviation";
-   94: public const string MaxConsecutiveLosses = "max_consecutive_losses";
-   95: public const string AvgHoldingSeconds = "avg_holding_seconds";
-  105: public sealed record BacktestReport(
+   10: public sealed record EquitySample(DateTime TimestampUtc, double Equity, double Balance, double Drawdown);
+   17: public sealed record RoundTripTrade(
+   30: public double NetPnl => GrossPnl - Fees;
+   31: public TimeSpan HoldingTime => ExitUtc - EntryUtc;
+   32: public bool IsWin => NetPnl > 0;
+   37: public sealed record InstrumentReport(InstrumentId Instrument, double NetPnl, int TradeCount, double WinRate);
+   40: public sealed record RunSummary(
+   48: public double NetProfit => EndingEquity - StartingCash;
+   49: public double TotalReturn => StartingCash == 0 ? 0 : NetProfit / StartingCash;
+   58: public sealed class MetricSet
+   62: public MetricSet(IReadOnlyDictionary<string, double> metrics) => _metrics = metrics;
+   64: public static MetricSet Empty { get; } = new(new Dictionary<string, double>());
+   66: public double this[string key] => _metrics[key];
+   67: public bool Has(string key) => _metrics.ContainsKey(key);
+   68: public double GetOr(string key, double fallback = double.NaN) =>
+   70: public IReadOnlyDictionary<string, double> All => _metrics;
+   73: public double Sharpe => GetOr(Keys.Sharpe);
+   74: public double Sortino => GetOr(Keys.Sortino);
+   75: public double Calmar => GetOr(Keys.Calmar);
+   76: public double MaxDrawdown => GetOr(Keys.MaxDrawdown);
+   77: public double ProfitFactor => GetOr(Keys.ProfitFactor);
+   78: public double WinRate => GetOr(Keys.WinRate);
+   79: public double Expectancy => GetOr(Keys.Expectancy);
+   82: public static class Keys
+   84: public const string Sharpe = "sharpe";
+   85: public const string Sortino = "sortino";
+   86: public const string Calmar = "calmar";
+   87: public const string Omega = "omega";
+   88: public const string MaxDrawdown = "max_drawdown";
+   89: public const string UlcerIndex = "ulcer_index";
+   90: public const string ProfitFactor = "profit_factor";
+   91: public const string WinRate = "win_rate";
+   92: public const string Expectancy = "expectancy";
+   93: public const string RecoveryFactor = "recovery_factor";
+   94: public const string DownsideDeviation = "downside_deviation";
+   95: public const string MaxConsecutiveLosses = "max_consecutive_losses";
+   96: public const string AvgHoldingSeconds = "avg_holding_seconds";
+  106: public sealed record BacktestReport(
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Backtesting/IStrategyContext.cs

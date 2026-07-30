@@ -37,8 +37,12 @@ public enum PluginLoadOutcome
     /// <summary>Its declared TargetSdkVersion is incompatible with the host SDK.</summary>
     IncompatibleSdk,
 
-    /// <summary>A plugin.json is present but unreadable/malformed.</summary>
+    /// <summary>A managed <c>plugin.json</c> or protected <c>manifest.json</c> is unreadable/malformed.</summary>
     ManifestInvalid,
+
+    /// <summary>A valid protected strategy was discovered, but this open-core build has no protected
+    /// strategy engine. This is an expected, non-quarantining skip.</summary>
+    ProtectedEngineUnavailable,
 
     /// <summary>The assembly failed to load or threw inside <c>IStrategyPlugin.Register</c>.
     /// Auto-quarantined so a crash-looping plugin runs once, not at every startup.</summary>

@@ -10,8 +10,9 @@ namespace TradingTerminal.Backtest.Engine.Kernels;
 /// shipped strategies implement) under the new <see cref="IStrategyKernel"/> seam. This is the bridge
 /// that lets the new engine reuse all current strategy logic verbatim — no rewrite, one source of
 /// truth with the live windows. The new callbacks carry an <see cref="InstrumentId"/> the legacy
-/// strategy doesn't need, so it's dropped; clock and router are pulled from the context. The legacy
-/// contract has no bar callback, so <see cref="IStrategyKernel.OnBarAsync"/> stays a no-op.
+/// strategy doesn't need, so it's dropped; clock and router are pulled from the context. Completed
+/// bars flow through the legacy contract's defaultable callback, preserving existing strategies while
+/// allowing bar-native runtime adapters to share this bridge.
 /// </summary>
 public sealed class BacktestStrategyKernelAdapter : IStrategyKernel, IAsyncDisposable
 {
@@ -50,6 +51,9 @@ public sealed class BacktestStrategyKernelAdapter : IStrategyKernel, IAsyncDispo
 
     public Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyContext ctx, CancellationToken ct) =>
         Inner.OnDepthAsync(depth, ctx.Clock, ctx.Router, ct);
+
+    public Task OnBarAsync(InstrumentId instrument, OhlcvBar bar, IStrategyContext ctx, CancellationToken ct) =>
+        Inner.OnBarAsync(bar.ToBar(), ctx.Clock, ctx.Router, ct);
 
     public Task OnOrderEventAsync(OrderEvent evt, IStrategyContext ctx, CancellationToken ct) =>
         Inner.OnOrderEventAsync(evt, ct);

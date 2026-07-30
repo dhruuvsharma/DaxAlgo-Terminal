@@ -139,6 +139,36 @@ public sealed class PluginTrustedHashes
         return PluginPinResult.Match;
     }
 
+    /// <summary>Compares one self-contained artifact against its pinned hash. Protected DAXQ packages
+    /// may live directly in the plugins root, so their integrity check cannot enumerate the containing
+    /// directory as the managed-folder check above does.</summary>
+    public PluginPinResult VerifyArtifact(string pluginName, string artifactPath, out string? detail)
+    {
+        detail = null;
+        if (!_pinned.TryGetValue(pluginName, out var expected)) return PluginPinResult.NotPinned;
+
+        var fileName = Path.GetFileName(artifactPath);
+        if (!expected.TryGetValue(fileName, out var expectedHash))
+        {
+            detail = $"'{fileName}' is not the protected artifact this build shipped";
+            return PluginPinResult.Tampered;
+        }
+
+        if (expected.Count != 1)
+        {
+            detail = "the pinned protected-strategy package contains unexpected additional artifacts";
+            return PluginPinResult.Tampered;
+        }
+
+        if (!string.Equals(PluginIntegrity.Sha256(artifactPath), expectedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            detail = $"'{fileName}' does not match the protected artifact this build shipped";
+            return PluginPinResult.Tampered;
+        }
+
+        return PluginPinResult.Match;
+    }
+
     private sealed class TrustedDto
     {
         [JsonPropertyName("plugins")] public List<TrustedPlugin>? Plugins { get; set; }

@@ -1,4 +1,5 @@
 using TradingTerminal.Core.Trading;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.UI;
 
@@ -14,9 +15,22 @@ public sealed record SignalEntry(
     OrderType OrderType,
     double Price,
     double Mid,
-    string? Note = null)
+    string? Note = null,
+    StrategySignal? DirectSignal = null)
 {
-    public string SideText => Side == OrderSide.Buy ? "BUY" : "SELL";
-    public string TypeText => OrderType.ToString();
+    public string SideText => DirectSignal?.Kind switch
+    {
+        StrategySignalKind.Long => "LONG",
+        StrategySignalKind.Short => "SHORT",
+        StrategySignalKind.Flat => "FLAT",
+        _ => Side == OrderSide.Buy ? "BUY" : "SELL",
+    };
+
+    public string TypeText => DirectSignal is null ? OrderType.ToString() : "Signal";
+
+    public string QuantityText => DirectSignal is { } signal
+        ? signal.Strength.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+        : Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     public string TimeText => TimestampUtc.ToLocalTime().ToString("HH:mm:ss.fff");
 }

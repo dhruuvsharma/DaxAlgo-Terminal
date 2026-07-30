@@ -116,6 +116,12 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    32: public StrategyScript(string id, string displayName, string sourceCode)
 ```
 
+## src/windows/Core/TradingTerminal.Core/Strategies/IPluginFaultAttribution.cs
+```cs
+    7: public interface IPluginFaultAttribution
+    9:     string PluginName { get; }
+```
+
 ## src/windows/Core/TradingTerminal.Core/Strategies/IStrategyFactory.cs
 ```cs
    13: public interface IStrategyFactory
@@ -136,9 +142,10 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    36:     StrategyDataRequirement DataRequirement =>
    37:     StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
    44:     string? ResearchPaperUrl => null;
-   53:     IReadOnlyList<AssetClass> AssetClasses => Array.Empty<AssetClass>();
-   61:     StrategyAssetScope AssetScope => StrategyAssetScope.SingleAsset;
-   71:     IReadOnlyList<BrokerKind> SupportedBrokers => StrategyBrokerCapability.ForRequirement(DataRequirement);
+   52:     string? LinkUrl => ResearchPaperUrl;
+   61:     IReadOnlyList<AssetClass> AssetClasses => Array.Empty<AssetClass>();
+   69:     StrategyAssetScope AssetScope => StrategyAssetScope.SingleAsset;
+   79:     IReadOnlyList<BrokerKind> SupportedBrokers => StrategyBrokerCapability.ForRequirement(DataRequirement);
 ```
 
 ## src/windows/Core/TradingTerminal.Core/Strategies/Parameters/ParameterKind.cs
@@ -195,6 +202,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    72: public IReadOnlyList<string> Validate()
 ```
 
+## src/windows/Core/TradingTerminal.Core/Strategies/PluginFaultEvents.cs
+```cs
+    8: public static class PluginFaultEvents
+   10: public static event Action<Exception>? Reported;
+   12: public static void Report(Exception exception)
+```
+
 ## src/windows/Core/TradingTerminal.Core/Strategies/StrategyAssetScope.cs
 ```cs
     9: public enum StrategyAssetScope
@@ -221,4 +235,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Core/TradingTerminal.Core/Strategies/StrategyHost.cs
 ```cs
     8: public sealed record StrategyHost(
+```
+
+## src/windows/Core/TradingTerminal.Core/Strategies/StrategySignal.cs
+```cs
+    4: public enum StrategySignalKind : long
+   15: public readonly record struct StrategySignal(
+   21: public readonly record struct StrategySignalEvent(
+   30: public interface IStrategySignalSink
+   32:     Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default);
 ```

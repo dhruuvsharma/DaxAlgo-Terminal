@@ -48,6 +48,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     private readonly IMarketDataIngest _ingest;
     private readonly IMarketDataStore _store;
     private readonly IModelRegistry _modelRegistry;
+    private readonly IFootprintForecastProvider _footprintForecastProvider;
     private readonly IBrokerSelector _selector;
     private readonly InMemoryLogSink _log;
     private readonly ILogger<VolumeFootprintViewModel> _logger;
@@ -70,9 +71,17 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     // through the exact same path as live ones.
     private FootprintTimeBucketer? _bucketer;
 
-    /// <summary>Online next-bar forecaster. Recreated on every <see cref="Restart"/> (it is
+    /// <summary>Online RLS fallback. Recreated on every <see cref="Restart"/> (it is
     /// instrument/interval/tick scoped); null while the warm-start backfill is still training it.</summary>
     private FootprintNextBarPredictor? _ml;
+
+    /// <summary>Complete, contiguous sealed bars retained independently of the visible-bar cap for
+    /// an optional external batch provider. The shared chart knows only the neutral Core seam.</summary>
+    private readonly List<FootprintBar> _forecastHistory = new();
+    private FootprintForecastCoordinate? _forecastCoordinate;
+    private FootprintForecastResult? _trainedForecast;
+    private long _forecastRequestVersion;
+    private const int ForecastHistoryBars = 128;
 
     /// <summary>The (instrument, timeframe) key the current <see cref="_ml"/> is scoped to, captured
     /// when it is built/restored so a later checkpoint saves it under the same registry coordinate.</summary>
@@ -130,6 +139,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         IMarketDataIngest ingest,
         IMarketDataStore store,
         IModelRegistry modelRegistry,
+        IFootprintForecastProvider footprintForecastProvider,
         IBrokerSelector selector,
         InMemoryLogSink log,
         ILogger<VolumeFootprintViewModel> logger,
@@ -140,6 +150,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _ingest = ingest;
         _store = store;
         _modelRegistry = modelRegistry;
+        _footprintForecastProvider = footprintForecastProvider;
         _selector = selector;
         _log = log;
         _logger = logger;
@@ -234,6 +245,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private bool _showVolumeProfile = true;
     /// <summary>Show the per-cell volume figures (off = colour-only heatmap).</summary>
     [ObservableProperty] private bool _showCellText = true;
+    /// <summary>Draw the total / buy / sell POC connector paths and their vertex dots.</summary>
+    [ObservableProperty] private bool _showPocConnectors = true;
+    /// <summary>Outline each bar's total-volume POC cell in amber.</summary>
+    [ObservableProperty] private bool _showPocMarkers = true;
     /// <summary>Vertical zoom — scales the per-row pixel height in the renderer (1 = default).</summary>
     [ObservableProperty] private double _zoom = 1.0;
 
@@ -250,7 +265,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     [ObservableProperty] private bool _showPredictedBars = true;
     [ObservableProperty] private int _predictionBars = 5;
 
-    // ── ML predictor (online-learned next-bar forecast; see FootprintNextBarPredictor) ────────
+    // ── Learned forecast (optional batch provider preferred; online RLS fallback) ────────────
     [ObservableProperty] private bool _showMlPrediction = true;
 
     /// <summary>Whether this view-model may build a next-bar forecaster at all — the panel's
@@ -338,11 +353,13 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     {
         RefreshFitCurves();
         PublishMlForecast();
+        RequestTrainedForecast();
     }
 
     partial void OnShowMlPredictionChanged(bool value)
     {
         PublishMlForecast();
+        if (value) RequestTrainedForecast();
         RaiseRedraw();
     }
 
@@ -354,6 +371,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnShowValueAreaChanged(bool value) => RaiseRedraw();
     partial void OnShowVolumeProfileChanged(bool value) => RaiseRedraw();
     partial void OnShowCellTextChanged(bool value) => RaiseRedraw();
+    partial void OnShowPocConnectorsChanged(bool value) => RaiseRedraw();
+    partial void OnShowPocMarkersChanged(bool value) => RaiseRedraw();
     partial void OnZoomChanged(double value) => RaiseRedraw();
 
     partial void OnIsPausedChanged(bool value) =>
@@ -420,6 +439,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _bucketer = new FootprintTimeBucketer(interval.Span, TickSize,
             _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape);
         _ml = null;
+        _forecastCoordinate = null;
+        _forecastHistory.Clear();
+        _trainedForecast = null;
+        Interlocked.Increment(ref _forecastRequestVersion);
         _mlInstrumentKey = null;
         _mlTimeframe = null;
         _lastBackfillBarStart = DateTime.MinValue;
@@ -445,6 +468,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         try
         {
             instrumentId = _ingest.Resolve(contract, broker);
+            _forecastCoordinate = new FootprintForecastCoordinate(
+                contract.Symbol, broker, span, tickSize);
             // Quote pump always runs: it carries bid/ask context for the real tape's Lee-Ready
             // classification and is the source for the synthesizer in fallback mode.
             _quoteHandle = _ingest.Subscribe(contract, broker);
@@ -475,22 +500,23 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
               })
             : _hub.Trades(instrumentId).Subscribe(t => channel.Writer.TryWrite(t));
 
-        // Warm-start the ML forecaster from stored tape before the drain loop begins. Live prints
-        // buffer in the bounded channel meanwhile (DropOldest keeps that safe); the ML engine is
-        // only published to _ml once training is done, so live seals can never race the backfill.
-        // Prefer a saved checkpoint for this (instrument, timeframe): if one restores, the model is
-        // already warm and we skip the cold backfill. Otherwise warm-start from stored tape as before.
+        // Build provider context and warm the online fallback from stored tape before the drain loop.
+        // Live prints buffer in the bounded channel meanwhile (DropOldest keeps that safe); the RLS
+        // engine is only published to _ml once training is done, so live seals cannot race backfill.
+        // Prefer a saved checkpoint for this (instrument, timeframe): if one restores, the fallback
+        // skips retraining while the same stored-tape replay still builds provider context.
         if (MlEnabled)
         {
             var learner = SelectedLearner.Kind;
             var ml = new FootprintNextBarPredictor(tickSize, new FootprintPredictorOptions(Learner: learner));
             var instrumentKey = instrumentId.ToString();
             var restored = TryRestoreModel(ml, instrumentKey, timeframe, learner);
-            if (!restored && WarmStartFromHistory)
+            if (WarmStartFromHistory)
             {
                 try
                 {
-                    await WarmStartAsync(instrumentId, broker, span, tickSize, ml, ct);
+                    await WarmStartAsync(
+                        instrumentId, broker, span, tickSize, restored ? null : ml, ct);
                 }
                 catch (OperationCanceledException)
                 {
@@ -506,6 +532,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
             _mlInstrumentKey = instrumentKey;
             _mlTimeframe = timeframe;
             UpdateMlStats();
+            PublishMlForecast();
+            RequestTrainedForecast();
         }
 
         // Drain in batches: one UI-thread marshal per batch instead of one per trade. Aggregation
@@ -575,14 +603,13 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         }
     }
 
-    /// <summary>Trains the fresh predictor through recent stored tape (interval × <see cref="WarmStartBars"/>
-    /// bars, capped at 24 h) so it is useful from the first live seal instead of needing ~20 live
-    /// bars. Bars are rebuilt through the same <see cref="FootprintTimeBucketer"/> path the live
-    /// stream uses. Runs entirely on a thread-pool thread against local state — the engine is only
-    /// published to <see cref="_ml"/> by the caller after this completes, so nothing is shared. A
-    /// missing/empty store simply trains on nothing and the model starts cold.</summary>
+    /// <summary>Rebuilds recent stored tape (interval × <see cref="WarmStartBars"/> bars, capped at
+    /// 24 h) into contiguous provider context and optionally trains the online fallback. The same
+    /// <see cref="FootprintTimeBucketer"/> path builds live and historical bars. Work stays on a
+    /// thread-pool thread against local state; the caller publishes the engine only after completion.
+    /// A missing/empty store leaves the provider without context and the fallback cold.</summary>
     private async Task WarmStartAsync(InstrumentId instrumentId, BrokerKind broker, TimeSpan span,
-        double tickSize, FootprintNextBarPredictor ml, CancellationToken ct)
+        double tickSize, FootprintNextBarPredictor? ml, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         var to = new DateTime(now.Ticks - now.Ticks % span.Ticks, DateTimeKind.Utc);
@@ -591,29 +618,58 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
         var trainedBars = 0;
         var lastSealedStart = DateTime.MinValue;
+        var forecastHistory = new List<FootprintBar>(ForecastHistoryBars);
         await Task.Run(async () =>
         {
             var bucketer = new FootprintTimeBucketer(span, tickSize, FeedQuality.RealTape);
             await foreach (var trade in _store.ReadTradesAsync(instrumentId, from, to, broker, ct))
             {
                 if (bucketer.Add(FootprintPrint.From(trade)) is not { } sealedCore) continue;
-                ml.OnBarSealed(Summarize(new RenderBar(sealedCore)), double.NaN);
+                ml?.OnBarSealed(Summarize(new RenderBar(sealedCore)), double.NaN);
+                CaptureForecastBar(forecastHistory, sealedCore, span);
                 lastSealedStart = sealedCore.StartUtc;
                 trainedBars++;
             }
         }, ct);
 
         _lastBackfillBarStart = lastSealedStart;
-        if (trainedBars > 0)
+        _forecastHistory.Clear();
+        _forecastHistory.AddRange(forecastHistory);
+        if (trainedBars > 0 && ml is not null)
             _log.Append(LogSource, "INFO",
                 $"ML warm-start: trained on {trainedBars} stored bars ({(ml.IsReady ? "ready" : "still cold")})");
     }
 
-    /// <summary>Republishes <see cref="MlPredicted"/> from the engine's latest forecast, clamped
-    /// to the user's horizon, and refreshes the stats read-outs. Cheap; safe to call from toggle
-    /// handlers as well as the seal path.</summary>
+    /// <summary>Republishes <see cref="MlPredicted"/> from the preferred provider batch or the
+    /// online fallback, clamped to the user's horizon, and refreshes the stats read-outs. Cheap;
+    /// safe to call from toggle handlers as well as the seal path.</summary>
     private void PublishMlForecast()
     {
+        if (ShowMlPrediction && _trainedForecast is { Status: FootprintForecastStatus.Available } trained)
+        {
+            var take = Math.Min(trained.Forecasts.Count, Math.Clamp(PredictionBars, 1, 60));
+            var columns = new MlPredictedBar[take];
+            for (var i = 0; i < take; i++)
+            {
+                var f = trained.Forecasts[i];
+                columns[i] = new MlPredictedBar(
+                    f.Poc.Q50,
+                    f.BuyPoc.Q50,
+                    f.SellPoc.Q50,
+                    f.Volume.Q50,
+                    f.DeltaMedian ?? f.Volume.Q50 * f.DeltaFraction.Q50,
+                    f.HorizonBars,
+                    f.Low.Q50,
+                    f.High.Q50,
+                    f.Poc.Q10,
+                    f.Poc.Q90,
+                    IsDistributional: true);
+            }
+            MlPredicted = columns;
+            UpdateMlStats();
+            return;
+        }
+
         var forecast = _ml?.LastForecast ?? Array.Empty<FootprintForecastBar>();
         if (!ShowMlPrediction || forecast.Count == 0)
         {
@@ -679,11 +735,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         _dirty = true;
     }
 
-    /// <summary>Folds a sealed Core bar into the visible bars, then runs the ML step: score the
-    /// previous forecast against this realized bar, learn, and predict the next horizon. The
-    /// regression consensus published <em>before</em> this seal is captured as the baseline —
-    /// a genuine ex-ante forecast made from the bars visible before this bar completed. Seals
-    /// happen at most once per interval, so this stays off the hot per-trade path.</summary>
+    /// <summary>Folds a sealed Core bar into the visible and provider histories, then updates the
+    /// online fallback: score the prior forecast, learn, and predict the next horizon. The regression
+    /// consensus published <em>before</em> this seal is the ex-ante baseline. Finally requests a fresh
+    /// preferred batch; seals occur once per interval, away from the hot per-trade path.</summary>
     private void OnBarSealed(FootprintBar sealedCore)
     {
         var finalized = new RenderBar(sealedCore);
@@ -691,10 +746,95 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         else Bars.Add(finalized);
         while (Bars.Count > Math.Max(2, MaxBars)) Bars.RemoveAt(0);
 
-        if (_ml is null || sealedCore.StartUtc <= _lastBackfillBarStart) return;
-        var baseline = Predicted.Count > 0 ? Predicted[0].Poc : double.NaN;
-        _ml.OnBarSealed(Summarize(finalized), baseline);
+        if (sealedCore.StartUtc <= _lastBackfillBarStart) return;
+
+        CaptureForecastBar(_forecastHistory, sealedCore, _forecastCoordinate?.Interval);
+        _trainedForecast = null;
+        Interlocked.Increment(ref _forecastRequestVersion);
+        if (_ml is not null)
+        {
+            var baseline = Predicted.Count > 0 ? Predicted[0].Poc : double.NaN;
+            _ml.OnBarSealed(Summarize(finalized), baseline);
+        }
         PublishMlForecast();
+        RequestTrainedForecast();
+    }
+
+    private static void CaptureForecastBar(
+        List<FootprintBar> history,
+        FootprintBar bar,
+        TimeSpan? expectedInterval)
+    {
+        if (expectedInterval is null || bar.EndUtc - bar.StartUtc != expectedInterval.Value)
+        {
+            history.Clear();
+            return;
+        }
+        if (history.Count > 0 && history[^1].EndUtc != bar.StartUtc)
+            history.Clear();
+        history.Add(bar);
+        if (history.Count > ForecastHistoryBars)
+            history.RemoveRange(0, history.Count - ForecastHistoryBars);
+    }
+
+    /// <summary>Requests the optional provider's direct batch, capped at the shared learned-forecast
+    /// horizon so a larger regression horizon cannot make an otherwise supported request unavailable.</summary>
+    private void RequestTrainedForecast()
+    {
+        if (!MlEnabled || !ShowMlPrediction || _forecastCoordinate is null || _forecastHistory.Count == 0)
+            return;
+
+        FootprintForecastRequest request;
+        try
+        {
+            request = new FootprintForecastRequest(
+                _forecastCoordinate,
+                _forecastHistory,
+                _forecastHistory[^1].EndUtc,
+                Math.Clamp(PredictionBars, 1, new FootprintPredictorOptions().MaxHorizon));
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogDebug(ex, "Footprint: batch forecast request was not complete");
+            return;
+        }
+
+        var version = Interlocked.Increment(ref _forecastRequestVersion);
+        var cancellationToken = _streamCts?.Token ?? CancellationToken.None;
+        _ = RunTrainedForecastAsync(request, version, cancellationToken);
+    }
+
+    private async Task RunTrainedForecastAsync(
+        FootprintForecastRequest request,
+        long version,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _footprintForecastProvider
+                .ForecastAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.Status != FootprintForecastStatus.Available || cancellationToken.IsCancellationRequested)
+                return;
+
+            await UiThread.RunAsync(() =>
+            {
+                if (version != Volatile.Read(ref _forecastRequestVersion) ||
+                    _forecastHistory.Count == 0 ||
+                    _forecastHistory[^1].EndUtc != result.CutoffUtc)
+                    return;
+                _trainedForecast = result;
+                PublishMlForecast();
+                RaiseRedraw();
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Footprint: batch forecast provider failed");
+        }
     }
 
     private static FootprintBarSummary Summarize(RenderBar bar) =>
@@ -949,7 +1089,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
             ShowCellText, Zoom,
             ShowLinearFit, ShowQuadraticFit, ShowCubicFit, ShowTheilSenFit,
             ShowExponentialFit, ShowLogarithmicFit, ShowLowessFit,
-            ShowPredictedBars, PredictionBars, ShowMlPrediction, WarmStartFromHistory));
+            ShowPredictedBars, PredictionBars, ShowMlPrediction, WarmStartFromHistory,
+            ShowPocConnectors, ShowPocMarkers));
         RefreshPresetNames(selected: name);
         _log.Append(LogSource, "INFO", $"Preset '{name}' saved");
     }
@@ -979,6 +1120,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         ShowValueArea = preset.ShowValueArea;
         ShowVolumeProfile = preset.ShowVolumeProfile;
         ShowCellText = preset.ShowCellText;
+        ShowPocConnectors = preset.ShowPocConnectors ?? true;
+        ShowPocMarkers = preset.ShowPocMarkers ?? true;
         Zoom = Math.Clamp(preset.Zoom, 0.5, 3.0);
         ShowLinearFit = preset.ShowLinearFit;
         ShowQuadraticFit = preset.ShowQuadraticFit;
@@ -1073,10 +1216,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 /// <summary>
 /// How an embedding host — a composed strategy window — wants the <see cref="VolumeFootprintViewModel"/>
 /// born, passed as an <c>ActivatorUtilities</c> argument so the choices land <b>before</b> the first
-/// <c>Restart()</c>: the pinned instrument (null = wait for the host to assign one), and whether the ML
-/// ghost-bar forecaster may exist at all (default off — an embedded footprint should not pay to train a
-/// model). The standalone window resolves the view-model without this and keeps today's behaviour:
-/// persisted instrument, broker-universe picker swap, ML on.
+/// <c>Restart()</c>: the pinned instrument (null = wait for the host to assign one), and whether the
+/// learned ghost-bar pipeline may exist at all (default off — an embedded footprint should not build
+/// provider context, warm a fallback, or run inference). The standalone window resolves the view-model
+/// without this and keeps today's behaviour: persisted instrument, broker-universe picker, forecast on.
 /// </summary>
 public sealed record VolumeFootprintEmbedOptions(SignalInstrument? Instrument = null, bool MlEnabled = false);
 
@@ -1103,7 +1246,9 @@ public sealed record FootprintPreset(
     bool ShowPredictedBars,
     int PredictionBars,
     bool ShowMlPrediction,
-    bool WarmStartFromHistory);
+    bool WarmStartFromHistory,
+    bool? ShowPocConnectors = null,
+    bool? ShowPocMarkers = null);
 
 /// <summary>
 /// L1 tick-rule synthesizer: derives <see cref="TradePrint"/>s from a quote stream when the broker

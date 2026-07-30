@@ -53,6 +53,41 @@ public sealed class ExternalPluginLoadTests
     }
 
     [Fact]
+    public void Daxplugin_package_installs_then_loads_through_the_collectible_managed_path()
+    {
+        var root = Path.Combine(
+            Directory.GetCurrentDirectory(), "tmp", "managed-package-tests", Guid.NewGuid().ToString("N"));
+        var pluginsRoot = Path.Combine(root, "plugins");
+        Directory.CreateDirectory(pluginsRoot);
+        var package = Path.Combine(root, "sample" + DaxPluginPackage.Extension);
+        try
+        {
+            var source = Path.Combine(StagedPluginsRoot, "DaxAlgo.SamplePlugin");
+            DaxPluginPackage.Write(source, "DaxAlgo.SamplePlugin.dll", package);
+            var installed = PluginInstaller.InstallFromPackage(
+                package,
+                pluginsRoot,
+                PluginTrustPolicy.Permissive,
+                new NullSignatureInspector());
+            installed.Success.Should().BeTrue(installed.Message);
+
+            var services = new ServiceCollection();
+            var loaded = PluginLoader.LoadInto(services, pluginsRoot, SdkInfo.Version);
+
+            loaded.Should().ContainSingle(plugin => plugin.Name == "Sample Strategy Plugin");
+            using var provider = services.BuildServiceProvider();
+            var strategy = provider.GetServices<ITradingStrategy>()
+                .Should().ContainSingle(item => item.Id == "sample.plugin").Subject;
+            System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(strategy.GetType().Assembly)!
+                .Name.Should().StartWith("Plugin:");
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { /* collectible ALC may retain the file */ }
+        }
+    }
+
+    [Fact]
     public void LoadInto_missing_directory_is_a_noop()
     {
         var services = new ServiceCollection();

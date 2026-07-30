@@ -7,15 +7,12 @@ namespace TradingTerminal.Core.Configuration;
 /// </summary>
 /// <remarks>
 /// Ordered least-to-most capable so <c>&gt;=</c> comparisons read naturally
-/// (e.g. "credentialed brokers when <c>edition &gt;= Intermediate</c>").
+/// (e.g. "credentialed brokers when <c>edition == Professional</c>").
 /// </remarks>
 public enum AppEdition
 {
     /// <summary>Keyless brokers only, core charts/tools/strategies. No ML / AI / LSE / QuantConnect / experimental.</summary>
     Basic,
-
-    /// <summary>All brokers (credentialed login) with the same tool set as <see cref="Basic"/>.</summary>
-    Intermediate,
 
     /// <summary>Everything — every broker, tool, ML / AI / LSE / QuantConnect / Paper Lab / experimental surface.</summary>
     Professional,

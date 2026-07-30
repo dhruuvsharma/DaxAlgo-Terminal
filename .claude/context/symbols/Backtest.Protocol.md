@@ -6,115 +6,115 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestJobContracts.cs
 ```cs
-    6: public enum BacktestInputKind
-   12: public enum BacktestStrategySource
-   18: public enum BacktestStrategyParameterKind
-   27: public enum BacktestBundleTrustKind
-   34: public sealed record BacktestBundleTrustEvidence
-   36: public const string PublisherSignatureAlgorithm = "ECDSA-P256-SHA256-IEEE-P1363";
-   38: public required BacktestBundleTrustKind Kind { get; init; }
-   39: public string? PublisherKeyId { get; init; }
-   40: public string? PublisherKeyFingerprintSha256 { get; init; }
-   41: public string SignatureAlgorithm { get; init; } = PublisherSignatureAlgorithm;
-   45: public sealed record BacktestStrategyParameter
-   47: public required string Key { get; init; }
-   48: public required BacktestStrategyParameterKind Kind { get; init; }
-   49: public long? IntegerValue { get; init; }
-   50: public double? NumberValue { get; init; }
-   51: public bool? BooleanValue { get; init; }
-   52: public string? StringValue { get; init; }
-   59: public sealed record BacktestInstalledBundleReference
-   61: public required string PublisherId { get; init; }
-   62: public required string StrategyVersion { get; init; }
-   63: public required string ContentRootSha256 { get; init; }
-   64: public required string ArchiveSha256 { get; init; }
-   65: public required BacktestBundleTrustEvidence TrustEvidence { get; init; }
-   68: public enum BacktestWorkerPhase
-   80: public enum BacktestTerminalStatus
-   92: public enum BacktestArtifactKind
-   98: public sealed record BacktestStrategyReference
-  100: public required string Id { get; init; }
-  101: public BacktestStrategySource Source { get; init; } = BacktestStrategySource.Native;
-  103: public string ContractVersion { get; init; } = BacktestProtocolVersions.StrategyContract;
-  109: public string? ExpectedAssemblySha256 { get; init; }
-  111: public BacktestInstalledBundleReference? InstalledBundle { get; init; }
-  117: public IReadOnlyList<BacktestStrategyParameter> ActivationParameters { get; init; } = [];
-  121: public sealed record SyntheticInputSpec(
-  130: public sealed record BacktestInputReference
-  132: public required BacktestInputKind Kind { get; init; }
-  133: public required string Schema { get; init; }
-  134: public required string Provenance { get; init; }
-  135: public string OrderingPolicy { get; init; } = "timestamp_utc_ascending";
-  136: public string? Path { get; init; }
-  137: public string? Sha256 { get; init; }
-  138: public long? LengthBytes { get; init; }
-  139: public SyntheticInputSpec? Synthetic { get; init; }
-  141: public static BacktestInputReference CreateSynthetic(
-  154: public static BacktestInputReference CreateParquet(
-  171: public sealed record BacktestArtifactRequest(bool IncludeReport = true);
-  174: public sealed record BacktestResourceLimits(
-  181: public static BacktestResourceLimits Default { get; } = new();
-  185: public sealed record BacktestJobRequest
-  188: public int ProtocolVersion { get; init; } = BacktestProtocolVersions.Current;
-  189: public required string JobId { get; init; }
-  191: public string EngineVersion { get; init; } = BacktestProtocolVersions.ManagedEngine;
-  193: public string SdkVersion { get; init; } = BacktestProtocolVersions.Sdk;
-  195: public string StrategyContractVersion { get; init; } = BacktestProtocolVersions.StrategyContract;
-  196: public required string ExpectedHostEngineAssemblySha256 { get; init; }
-  197: public int DeterministicSeed { get; init; } = 1;
-  198: public required BacktestStrategyReference Strategy { get; init; }
-  199: public required string ParametersSha256 { get; init; }
-  200: public required RunSpec Run { get; init; }
-  201: public required BacktestInputReference Input { get; init; }
-  202: public BacktestArtifactRequest Artifacts { get; init; } = new();
-  203: public BacktestResourceLimits Limits { get; init; } = BacktestResourceLimits.Default;
-  204: public DateTime? DeadlineUtc { get; init; }
-  206: public static BacktestJobRequest Create(
-  227: public static BacktestJobRequest CreateInstalledBundle(
-  261: public sealed record BacktestJobProgress
-  264: public int ProtocolVersion { get; init; } = BacktestProtocolVersions.Current;
-  265: public required string JobId { get; init; }
-  266: public required long Sequence { get; init; }
-  267: public required DateTime TimestampUtc { get; init; }
-  268: public required BacktestWorkerPhase Phase { get; init; }
-  269: public string? Message { get; init; }
-  270: public long? EventsProcessed { get; init; }
-  271: public long? EventsTotal { get; init; }
-  272: public DateTime? SimulatedTimeUtc { get; init; }
-  274: public double? PercentComplete { get; init; }
-  275: public int WarningCount { get; init; }
-  276: public bool IsHeartbeat { get; init; }
-  279: public sealed record BacktestJobError(
-  285: public sealed record BacktestArtifactDescriptor(
-  296: public sealed record BacktestResultManifest
-  299: public int ProtocolVersion { get; init; } = BacktestProtocolVersions.Current;
-  300: public required string JobId { get; init; }
-  301: public required BacktestTerminalStatus TerminalStatus { get; init; }
-  302: public required DateTime StartedUtc { get; init; }
-  303: public required DateTime CompletedUtc { get; init; }
-  304: public required string RequestSha256 { get; init; }
-  306: public required string EngineVersion { get; init; }
-  308: public required string SdkVersion { get; init; }
-  310: public required string StrategyContractVersion { get; init; }
-  311: public required string EngineFingerprint { get; init; }
-  312: public required string HostEngineAssemblySha256 { get; init; }
-  313: public required string BackendFingerprint { get; init; }
-  314: public required string StrategyId { get; init; }
-  315: public required string StrategyAssemblySha256 { get; init; }
-  316: public string? StrategyContentRootSha256 { get; init; }
-  317: public string? StrategyArchiveSha256 { get; init; }
-  318: public BacktestBundleTrustEvidence? StrategyTrustEvidence { get; init; }
-  323: public IReadOnlyList<BacktestLoadedAssemblyFingerprint> StrategyAssemblyClosure { get; init; } = [];
-  324: public required string ParametersSha256 { get; init; }
-  325: public required string InputSha256 { get; init; }
-  326: public required IReadOnlyList<BacktestArtifactDescriptor> Artifacts { get; init; }
-  327: public BacktestJobError? Error { get; init; }
-  330: public sealed record BacktestLoadedAssemblyFingerprint(
-  335: public sealed record BacktestJobOutcome(
-  345: public bool IsSuccess => Status == BacktestTerminalStatus.Succeeded;
-  349: public sealed record BacktestReportArtifact(
-  358: public static BacktestReportArtifact FromReport(BacktestReport report) =>
-  368: public BacktestReport ToReport() =>
+    7: public enum BacktestInputKind
+   13: public enum BacktestStrategySource
+   19: public enum BacktestStrategyParameterKind
+   28: public enum BacktestBundleTrustKind
+   35: public sealed record BacktestBundleTrustEvidence
+   37: public const string PublisherSignatureAlgorithm = "ECDSA-P256-SHA256-IEEE-P1363";
+   39: public required BacktestBundleTrustKind Kind { get; init; }
+   40: public string? PublisherKeyId { get; init; }
+   41: public string? PublisherKeyFingerprintSha256 { get; init; }
+   42: public string SignatureAlgorithm { get; init; } = PublisherSignatureAlgorithm;
+   46: public sealed record BacktestStrategyParameter
+   48: public required string Key { get; init; }
+   49: public required BacktestStrategyParameterKind Kind { get; init; }
+   50: public long? IntegerValue { get; init; }
+   51: public double? NumberValue { get; init; }
+   52: public bool? BooleanValue { get; init; }
+   53: public string? StringValue { get; init; }
+   60: public sealed record BacktestInstalledBundleReference
+   62: public required string PublisherId { get; init; }
+   63: public required string StrategyVersion { get; init; }
+   64: public required string ContentRootSha256 { get; init; }
+   65: public required string ArchiveSha256 { get; init; }
+   66: public required BacktestBundleTrustEvidence TrustEvidence { get; init; }
+   69: public enum BacktestWorkerPhase
+   81: public enum BacktestTerminalStatus
+   93: public enum BacktestArtifactKind
+   99: public sealed record BacktestStrategyReference
+  101: public required string Id { get; init; }
+  102: public BacktestStrategySource Source { get; init; } = BacktestStrategySource.Native;
+  104: public string ContractVersion { get; init; } = BacktestProtocolVersions.StrategyContract;
+  110: public string? ExpectedAssemblySha256 { get; init; }
+  112: public BacktestInstalledBundleReference? InstalledBundle { get; init; }
+  118: public IReadOnlyList<BacktestStrategyParameter> ActivationParameters { get; init; } = [];
+  122: public sealed record SyntheticInputSpec(
+  131: public sealed record BacktestInputReference
+  133: public required BacktestInputKind Kind { get; init; }
+  134: public required string Schema { get; init; }
+  135: public required string Provenance { get; init; }
+  136: public string OrderingPolicy { get; init; } = "timestamp_utc_ascending";
+  137: public string? Path { get; init; }
+  138: public string? Sha256 { get; init; }
+  139: public long? LengthBytes { get; init; }
+  140: public SyntheticInputSpec? Synthetic { get; init; }
+  142: public static BacktestInputReference CreateSynthetic(
+  155: public static BacktestInputReference CreateParquet(
+  172: public sealed record BacktestArtifactRequest(bool IncludeReport = true);
+  175: public sealed record BacktestResourceLimits(
+  182: public static BacktestResourceLimits Default { get; } = new();
+  186: public sealed record BacktestJobRequest
+  189: public int ProtocolVersion { get; init; } = BacktestProtocolVersions.Current;
+  190: public required string JobId { get; init; }
+  192: public string EngineVersion { get; init; } = BacktestProtocolVersions.ManagedEngine;
+  194: public string SdkVersion { get; init; } = BacktestProtocolVersions.Sdk;
+  196: public string StrategyContractVersion { get; init; } = BacktestProtocolVersions.StrategyContract;
+  197: public required string ExpectedHostEngineAssemblySha256 { get; init; }
+  198: public int DeterministicSeed { get; init; } = 1;
+  199: public required BacktestStrategyReference Strategy { get; init; }
+  200: public required string ParametersSha256 { get; init; }
+  201: public required RunSpec Run { get; init; }
+  202: public required BacktestInputReference Input { get; init; }
+  203: public BacktestArtifactRequest Artifacts { get; init; } = new();
+  204: public BacktestResourceLimits Limits { get; init; } = BacktestResourceLimits.Default;
+  205: public DateTime? DeadlineUtc { get; init; }
+  207: public static BacktestJobRequest Create(
+  228: public static BacktestJobRequest CreateInstalledBundle(
+  262: public sealed record BacktestJobProgress
+  265: public int ProtocolVersion { get; init; } = BacktestProtocolVersions.Current;
+  266: public required string JobId { get; init; }
+  267: public required long Sequence { get; init; }
+  268: public required DateTime TimestampUtc { get; init; }
+  269: public required BacktestWorkerPhase Phase { get; init; }
+  270: public string? Message { get; init; }
+  271: public long? EventsProcessed { get; init; }
+  272: public long? EventsTotal { get; init; }
+  273: public DateTime? SimulatedTimeUtc { get; init; }
+  275: public double? PercentComplete { get; init; }
+  276: public int WarningCount { get; init; }
+  277: public bool IsHeartbeat { get; init; }
+  280: public sealed record BacktestJobError(
+  286: public sealed record BacktestArtifactDescriptor(
+  297: public sealed record BacktestResultManifest
+  300: public int ProtocolVersion { get; init; } = BacktestProtocolVersions.Current;
+  301: public required string JobId { get; init; }
+  302: public required BacktestTerminalStatus TerminalStatus { get; init; }
+  303: public required DateTime StartedUtc { get; init; }
+  304: public required DateTime CompletedUtc { get; init; }
+  305: public required string RequestSha256 { get; init; }
+  307: public required string EngineVersion { get; init; }
+  309: public required string SdkVersion { get; init; }
+  311: public required string StrategyContractVersion { get; init; }
+  312: public required string EngineFingerprint { get; init; }
+  313: public required string HostEngineAssemblySha256 { get; init; }
+  314: public required string BackendFingerprint { get; init; }
+  315: public required string StrategyId { get; init; }
+  316: public required string StrategyAssemblySha256 { get; init; }
+  317: public string? StrategyContentRootSha256 { get; init; }
+  318: public string? StrategyArchiveSha256 { get; init; }
+  319: public BacktestBundleTrustEvidence? StrategyTrustEvidence { get; init; }
+  324: public IReadOnlyList<BacktestLoadedAssemblyFingerprint> StrategyAssemblyClosure { get; init; } = [];
+  325: public required string ParametersSha256 { get; init; }
+  326: public required string InputSha256 { get; init; }
+  327: public required IReadOnlyList<BacktestArtifactDescriptor> Artifacts { get; init; }
+  328: public BacktestJobError? Error { get; init; }
+  331: public sealed record BacktestLoadedAssemblyFingerprint(
+  336: public sealed record BacktestJobOutcome(
+  346: public bool IsSuccess => Status == BacktestTerminalStatus.Succeeded;
+  350: public sealed record BacktestReportArtifact(
+  360: public static BacktestReportArtifact FromReport(BacktestReport report) =>
+  371: public BacktestReport ToReport() =>
 ```
 
 ## src/windows/Backtest/TradingTerminal.Backtest.Protocol/BacktestProtocolJson.cs

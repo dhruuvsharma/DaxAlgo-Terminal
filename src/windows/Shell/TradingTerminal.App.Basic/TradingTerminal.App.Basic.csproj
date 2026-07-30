@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <!-- The shared AI-analyst SEAM only (Null client) — the notification enricher resolves
          IAiAnalystClient in every edition. The AI tool windows are Professional-only. -->

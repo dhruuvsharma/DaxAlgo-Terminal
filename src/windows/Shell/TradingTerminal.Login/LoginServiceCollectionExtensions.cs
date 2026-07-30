@@ -61,7 +61,7 @@ public static class LoginServiceCollectionExtensions
 
     /// <summary>The CREDENTIALED broker forms (IB / NinjaTrader / cTrader / Alpaca / Ironbeam /
     /// LSE / Upstox). Call from every shell that also calls <c>AddCredentialedBrokers()</c>
-    /// (Intermediate and Professional); the keyless-only Basic shell must not, because these
+    /// (Professional); the keyless-only Basic shell must not, because these
     /// forms resolve broker services only the credentialed registration provides.</summary>
     public static IServiceCollection AddCredentialedLoginForms(this IServiceCollection services)
     {

@@ -4,6 +4,7 @@ using TradingTerminal.Backtest.Engine.Feeds;
 using TradingTerminal.Backtest.Engine.Kernels;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Backtesting;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
@@ -55,6 +56,24 @@ public sealed class LegacyBridgeTests
         strategy.DisposeCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Completed_bars_are_forwarded_to_the_legacy_strategy_contract()
+    {
+        var start = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var expected = new OhlcvBar(
+            Id, BarSize.OneMinute, start, 100, 104, 99, 103, 42,
+            BrokerKind.Simulated, IsFinal: true);
+        var strategy = new BarCapturingStrategy();
+        var spec = new RunSpec(
+            Universe.Single(new InstrumentSpec(Id, Contract.UsStock("TEST"), 0.01, 1.0)),
+            new DataSpec());
+
+        await new BacktestEngine(new InMemoryMarketDataFeed([MarketEvent.OfBar(Id, expected)]))
+            .RunAsync(spec, new BacktestStrategyKernelAdapter(strategy));
+
+        strategy.Bars.Should().ContainSingle().Which.Should().Be(expected.ToBar());
+    }
+
     private sealed class AsyncDisposableStrategy : IBacktestStrategy, IAsyncDisposable
     {
         public int DisposeCount { get; private set; }
@@ -75,5 +94,27 @@ public sealed class LegacyBridgeTests
             DisposeCount++;
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class BarCapturingStrategy : IBacktestStrategy
+    {
+        public List<Bar> Bars { get; } = [];
+
+        public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task OnBarAsync(Bar bar, IClock clock, IOrderRouter router, CancellationToken ct)
+        {
+            Bars.Add(bar);
+            return Task.CompletedTask;
+        }
+
+        public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+
+        public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) =>
+            Task.CompletedTask;
     }
 }

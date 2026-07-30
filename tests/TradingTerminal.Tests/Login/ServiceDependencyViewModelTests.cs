@@ -10,6 +10,44 @@ namespace TradingTerminal.Tests.Login;
 public sealed class ServiceDependencyViewModelTests
 {
     [Fact]
+    public void QuestDb_copy_command_uses_the_expected_container_ports_and_image()
+    {
+        ServiceDependencyViewModel.QuestDbDockerRunCommand.Should().Be(
+            "docker run -d --name questdb -p 9000:9000 -p 8812:8812 -p 9009:9009 questdb/questdb");
+    }
+
+    [Fact]
+    public async Task Start_action_runs_then_rechecks_service_status()
+    {
+        var startCalls = 0;
+        var probeCalls = 0;
+        var service = new ServiceDependencyViewModel(
+            "QuestDB",
+            "Purpose",
+            "Optional",
+            "How to",
+            probe: _ =>
+            {
+                probeCalls++;
+                return Task.FromResult(true);
+            },
+            startAction: _ =>
+            {
+                startCalls++;
+                return Task.CompletedTask;
+            },
+            startActionLabel: "Start QuestDB");
+
+        await service.RunStartAsync();
+
+        startCalls.Should().Be(1);
+        probeCalls.Should().Be(1);
+        service.StartActionLabel.Should().Be("Start QuestDB");
+        service.State.Should().Be(ServiceState.Running);
+        service.StatusText.Should().Be("Running");
+    }
+
+    [Fact]
     public async Task Tcp_probe_returns_true_when_one_candidate_port_is_listening()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

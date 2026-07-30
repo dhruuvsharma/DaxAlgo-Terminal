@@ -1,6 +1,8 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using TradingTerminal.Core.Risk;
+using TradingTerminal.Core.Strategies;
+using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
 namespace TradingTerminal.Infrastructure.Backtest;
@@ -16,17 +18,23 @@ namespace TradingTerminal.Infrastructure.Backtest;
 /// terminal state. Fills are forwarded back into the risk manager to keep its position and
 /// daily-PnL accounting in sync.
 /// </summary>
-public sealed class BacktestOrderRouter : IOrderRouter
+public sealed class BacktestOrderRouter : IOrderRouter, IStrategySignalSink
 {
     private readonly SimulatedOrderBook _book;
     private readonly IRiskManager? _risk;
     private readonly Subject<OrderEvent> _localEvents = new();
     private readonly Dictionary<string, string> _symbolByClientId = new(StringComparer.Ordinal);
+    private readonly IClock? _clock;
+    private readonly List<StrategySignalEvent> _signals = [];
 
-    public BacktestOrderRouter(SimulatedOrderBook book, IRiskManager? risk = null)
+    public BacktestOrderRouter(
+        SimulatedOrderBook book,
+        IRiskManager? risk = null,
+        IClock? clock = null)
     {
         _book = book;
         _risk = risk;
+        _clock = clock;
         if (_risk is not null)
         {
             _book.Events.Subscribe(evt =>
@@ -38,6 +46,16 @@ public sealed class BacktestOrderRouter : IOrderRouter
     }
 
     public IObservable<OrderEvent> OrderEvents => _book.Events.Merge(_localEvents);
+
+    public IReadOnlyList<StrategySignalEvent> Signals => _signals;
+
+    public Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        ValidateSignal(signal);
+        _signals.Add(new StrategySignalEvent(_clock?.UtcNow ?? DateTime.UtcNow, signal));
+        return Task.CompletedTask;
+    }
 
     public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
     {
@@ -68,5 +86,12 @@ public sealed class BacktestOrderRouter : IOrderRouter
     {
         _book.Cancel(clientOrderId);
         return Task.CompletedTask;
+    }
+
+    private static void ValidateSignal(StrategySignal signal)
+    {
+        if (!Enum.IsDefined(signal.Kind) || !double.IsFinite(signal.Strength) ||
+            signal.Strength is < 0d or > 1d || signal.NoteId < 0)
+            throw new ArgumentOutOfRangeException(nameof(signal), "Invalid strategy signal.");
     }
 }

@@ -45,7 +45,8 @@ public sealed class StrategyCodegenClientFactory
                 adapter,
                 timeout: Timeout,
                 model: ConfiguredModel(adapter.ProviderId),
-                effort: ConfiguredEffort(adapter.ProviderId)));
+                effort: ConfiguredEffort(adapter.ProviderId),
+                cliProfile: ConfiguredCliProfile(adapter.ProviderId)));
 
         // Keyed / local providers from config. An agent CLI may ALSO appear here (to pin its model), and
         // must not be built a second time as an HTTP provider — it has no BaseUrl or key.
@@ -72,7 +73,8 @@ public sealed class StrategyCodegenClientFactory
                 adapter,
                 timeout: Timeout,
                 model: Blank(model) ? ConfiguredModel(providerId) : model,
-                effort: effort);
+                effort: effort,
+                cliProfile: ConfiguredCliProfile(providerId));
 
         var configured = _options.Providers.FirstOrDefault(p =>
             p.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase));
@@ -139,6 +141,11 @@ public sealed class StrategyCodegenClientFactory
         _options.Providers.TryGetValue(providerId, out var provider)
             ? CodegenEfforts.Parse(provider.Effort)
             : CodegenEffort.Default;
+
+    private string? ConfiguredCliProfile(string providerId) =>
+        _options.Providers.TryGetValue(providerId, out var provider) && !string.IsNullOrWhiteSpace(provider.CliProfile)
+            ? provider.CliProfile
+            : null;
 
     private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
 

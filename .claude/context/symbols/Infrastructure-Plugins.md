@@ -36,6 +36,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   666: public void Add(ValidatedPath path)
 ```
 
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/DaxqPackageDetector.cs
+```cs
+   22: public static bool HasPackageExtension(string path) =>
+   28: public static DaxqPackageMetadata? TryRead(string path)
+  109: public ProtectedStrategyManifestException(string packagePath, string reason, Exception? inner = null)
+```
+
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/Feed/FeedSignatureVerifier.cs
 ```cs
     8: public enum FeedVerifyOutcome
@@ -151,6 +158,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   171: public string Reason { get; } = reason;
 ```
 
+## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/IProtectedStrategyEngine.cs
+```cs
+   11: public interface IProtectedStrategyEngine
+   14:     IReadOnlyList<ProtectedStrategyRegistration> LoadStrategies(string daxqPath);
+   22: public sealed record ProtectedStrategyRegistration(
+```
+
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginConsent.cs
 ```cs
     6: public sealed record PluginConsentRequest(
@@ -161,14 +175,16 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginInstaller.cs
 ```cs
    14: public sealed record PluginHostContext(
-   27: public IReadOnlyList<LoadedPlugin> AuthoredThisSession
-   34: public void AddAuthored(LoadedPlugin plugin)
-   48: public IReadOnlySet<string> UnsignedStrategyTypeNames { get; } =
-   56: public sealed record PluginInstallResult(bool Success, string Message, string? InstalledPath = null);
-   70: public static class PluginInstaller
-   78: public static PluginInstallResult InstallFromDll(
-  109: public static PluginInstallResult InstallFromPackage(
-  149: public static PluginInstallResult Uninstall(
+   28: public IReadOnlyList<LoadedPlugin> AuthoredThisSession
+   35: public void AddAuthored(LoadedPlugin plugin)
+   49: public IReadOnlyList<LoadedPlugin> RuntimeInstalledThisSession
+   55: public void AddRuntimeInstalled(LoadedPlugin plugin)
+   70: public IReadOnlySet<string> UnsignedStrategyTypeNames { get; } =
+   78: public sealed record PluginInstallResult(bool Success, string Message, string? InstalledPath = null);
+   92: public static class PluginInstaller
+  100: public static PluginInstallResult InstallFromDll(
+  131: public static PluginInstallResult InstallFromPackage(
+  171: public static PluginInstallResult Uninstall(
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginIntegrity.cs
@@ -183,6 +199,7 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
    77: public bool IsEmpty => _pinned.Count == 0;
    81: public static PluginTrustedHashes Load(string pluginsRoot)
   108: public PluginPinResult Verify(string pluginFolderName, string pluginDirectory, out string? detail)
+  145: public PluginPinResult VerifyArtifact(string pluginName, string artifactPath, out string? detail)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadContext.cs
@@ -194,42 +211,42 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoadReport.cs
 ```cs
     4: public enum PluginLoadOutcome
-   50: public sealed record PluginLoadProblem(
-   61: public sealed record PluginLoadReport(
-   65: public static PluginLoadReport Empty { get; } = new([], []);
-   69: public int AttentionCount => Problems.Count(p => p.Outcome is not PluginLoadOutcome.Disabled);
+   54: public sealed record PluginLoadProblem(
+   65: public sealed record PluginLoadReport(
+   69: public static PluginLoadReport Empty { get; } = new([], []);
+   73: public int AttentionCount => Problems.Count(p => p.Outcome is not PluginLoadOutcome.Disabled);
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginLoader.cs
 ```cs
    14: public sealed record LoadedPlugin(
-   42: public static class PluginLoader
-   58: public static IReadOnlyList<LoadedPlugin> LoadInto(
-   71: public static IReadOnlyList<LoadedPlugin> LoadInto(
-   82: public static PluginLoadReport LoadWithReport(
-   93: public static PluginLoadReport LoadWithReport(
-  109: public static PluginLoadReport LoadWithReport(
-  346: public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
-  384: public static bool IsCompatible(string pluginVersion, string hostVersion)
-  417: public IServiceCollection Services { get; } = services;
-  418: public PluginContext Context { get; } = context;
-  422: public sealed class PluginIncompatibleException(string pluginName, string pluginVersion, string hostVersion)
-  425: public string PluginName { get; } = pluginName;
-  426: public string PluginVersion { get; } = pluginVersion;
-  427: public string HostVersion { get; } = hostVersion;
-  432: public sealed class PluginRejectedException(string assemblyPath, string reason)
-  435: public string AssemblyPath { get; } = assemblyPath;
-  436: public string Reason { get; } = reason;
-  442: public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
-  445: public string AssemblyPath { get; } = assemblyPath;
-  446: public PluginScanReport Scan { get; } = scan;
-  447: public string Reason { get; } = scan.Summary;
-  453: public sealed class PluginTamperedException(string assemblyPath, string reason)
-  456: public string AssemblyPath { get; } = assemblyPath;
-  457: public string Reason { get; } = reason;
-  462: public sealed class PluginRevokedException(string assemblyPath, string reason)
-  465: public string AssemblyPath { get; } = assemblyPath;
-  466: public string Reason { get; } = reason;
+   44: public static class PluginLoader
+   60: public static IReadOnlyList<LoadedPlugin> LoadInto(
+   73: public static IReadOnlyList<LoadedPlugin> LoadInto(
+   84: public static PluginLoadReport LoadWithReport(
+   96: public static PluginLoadReport LoadWithReport(
+  114: public static PluginLoadReport LoadWithReport(
+  520: public static LoadedPlugin? RegisterFromAssembly(Assembly assembly, IServiceCollection services, string hostSdkVersion)
+  579: public static bool IsCompatible(string pluginVersion, string hostVersion)
+  612: public IServiceCollection Services { get; } = services;
+  613: public PluginContext Context { get; } = context;
+  617: public sealed class PluginIncompatibleException(string pluginName, string pluginVersion, string hostVersion)
+  620: public string PluginName { get; } = pluginName;
+  621: public string PluginVersion { get; } = pluginVersion;
+  622: public string HostVersion { get; } = hostVersion;
+  627: public sealed class PluginRejectedException(string assemblyPath, string reason)
+  630: public string AssemblyPath { get; } = assemblyPath;
+  631: public string Reason { get; } = reason;
+  637: public sealed class PluginBlockedException(string assemblyPath, PluginScanReport scan)
+  640: public string AssemblyPath { get; } = assemblyPath;
+  641: public PluginScanReport Scan { get; } = scan;
+  642: public string Reason { get; } = scan.Summary;
+  648: public sealed class PluginTamperedException(string assemblyPath, string reason)
+  651: public string AssemblyPath { get; } = assemblyPath;
+  652: public string Reason { get; } = reason;
+  657: public sealed class PluginRevokedException(string assemblyPath, string reason)
+  660: public string AssemblyPath { get; } = assemblyPath;
+  661: public string Reason { get; } = reason;
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Plugins/PluginManifest.cs

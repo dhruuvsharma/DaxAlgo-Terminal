@@ -6,11 +6,13 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/BacktestOrderRouter.cs
 ```cs
-   19: public sealed class BacktestOrderRouter : IOrderRouter
-   26: public BacktestOrderRouter(SimulatedOrderBook book, IRiskManager? risk = null)
-   40: public IObservable<OrderEvent> OrderEvents => _book.Events.Merge(_localEvents);
-   42: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
-   67: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
+   21: public sealed class BacktestOrderRouter : IOrderRouter, IStrategySignalSink
+   30: public BacktestOrderRouter(
+   48: public IObservable<OrderEvent> OrderEvents => _book.Events.Merge(_localEvents);
+   50: public IReadOnlyList<StrategySignalEvent> Signals => _signals;
+   52: public Task EmitSignalAsync(StrategySignal signal, CancellationToken ct = default)
+   60: public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
+   85: public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
 ```
 
 ## src/windows/Pipeline/TradingTerminal.Infrastructure/Backtest/BacktestSession.cs

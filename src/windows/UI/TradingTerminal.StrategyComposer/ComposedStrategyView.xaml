@@ -126,6 +126,12 @@
                                                         <DataTrigger Binding="{Binding SideText}" Value="SELL">
                                                             <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SideText}" Value="SHORT">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SideText}" Value="FLAT">
+                                                            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
@@ -134,7 +140,7 @@
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
                             <GridViewColumn Header="Type" Width="80" DisplayMemberBinding="{Binding TypeText}" />
-                            <GridViewColumn Header="Qty" Width="60" DisplayMemberBinding="{Binding Quantity}" />
+                            <GridViewColumn Header="Qty / Strength" Width="90" DisplayMemberBinding="{Binding QuantityText}" />
                             <GridViewColumn Header="Price" Width="100" DisplayMemberBinding="{Binding Price, StringFormat=0.#####}" />
                             <GridViewColumn Header="Mid" Width="100" DisplayMemberBinding="{Binding Mid, StringFormat=0.#####}" />
                             <GridViewColumn Header="Note" Width="420" DisplayMemberBinding="{Binding Note}" />

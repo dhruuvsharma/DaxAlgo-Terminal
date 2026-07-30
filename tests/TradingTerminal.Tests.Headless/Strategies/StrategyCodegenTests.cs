@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -492,6 +493,34 @@ public sealed class StrategyCodegenTests
         // Guessing a flag the CLI doesn't have would make every generation fail on an arg parse error.
         AgentCliAdapter.Codex.ArgumentsFor("gpt-x", CodegenEffort.High)
             .Should().Contain("-m").And.NotContain("--effort");
+        AgentCliAdapter.Codex.ArgumentsFor(model: null)
+            .Should().Equal("exec", "--skip-git-repo-check", "--sandbox", "read-only", "-");
+    }
+
+    [Fact]
+    public void Installed_cli_prompt_stdin_is_bomless_utf8()
+    {
+        var client = new AgentCliCodegenClient(AgentCliAdapter.Codex, _ => "codex");
+
+        var encoding = client.ProcessFor("codex", stream: false).StandardInputEncoding;
+
+        encoding.Should().NotBeNull();
+        encoding!.CodePage.Should().Be(Encoding.UTF8.CodePage);
+        encoding.GetPreamble().Should().BeEmpty("stdin must begin with prompt text, not a UTF-8 BOM");
+        encoding.GetBytes("\u2014 \u20ac \u6f22\u5b57")
+            .Should().Equal(Encoding.UTF8.GetBytes("\u2014 \u20ac \u6f22\u5b57"));
+    }
+
+    [Fact]
+    public void Codex_profile_flag_precedes_the_stdin_marker_and_other_clis_ignore_it()
+    {
+        AgentCliAdapter.Codex.ArgumentsFor(model: null, cliProfile: "test-profile")
+            .Should().Equal(
+                "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--profile", "test-profile", "-");
+        AgentCliAdapter.Codex.ArgumentsFor(model: null, cliProfile: " ")
+            .Should().Equal("exec", "--skip-git-repo-check", "--sandbox", "read-only", "-");
+        AgentCliAdapter.ClaudeCode.ArgumentsFor(model: null, cliProfile: "test-profile")
+            .Should().NotContain("--profile");
     }
 
     private static async Task<(string Body, StrategyCodegenResponse Response)> CaptureAnthropicRequest(CodegenEffort effort)
@@ -826,6 +855,29 @@ public sealed class StrategyCodegenTests
         all.Single(c => c.ProviderId == "deepseek").IsAvailable.Should().BeTrue("it has a key");
         all.Single(c => c.ProviderId == "ollama").IsAvailable.Should().BeTrue("local endpoint is keyless");
         all.Single(c => c.ProviderId == "anthropic").IsAvailable.Should().BeFalse("no key configured");
+    }
+
+    [Fact]
+    public void Factory_keeps_the_codex_profile_for_initial_and_rebuilt_clients()
+    {
+        var options = new TradingTerminal.Core.Configuration.AiCodegenOptions
+        {
+            Providers = { ["codex-cli"] = new() { CliProfile = "test-profile" } },
+        };
+        var factory = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => null);
+
+        var initial = factory.BuildAll().OfType<AgentCliCodegenClient>()
+            .Single(c => c.ProviderId == "codex-cli");
+        initial.ProcessFor("codex", stream: false).ArgumentList
+            .Should().Equal(
+                "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--profile", "test-profile", "-");
+
+        var rebuilt = factory.Build("codex-cli", "gpt-x", CodegenEffort.High)
+            .Should().BeOfType<AgentCliCodegenClient>().Subject;
+        rebuilt.ProcessFor("codex", stream: false).ArgumentList
+            .Should().Equal(
+                "exec", "--skip-git-repo-check", "--sandbox", "read-only",
+                "--profile", "test-profile", "-m", "gpt-x", "-");
     }
 
     [Fact]

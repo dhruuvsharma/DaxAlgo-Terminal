@@ -39,6 +39,64 @@ Use: grep this file for a symbol, then open the cited file:line. Regenerate: gen
   149: public static DecileSortResult DecileSort(
 ```
 
+## src/windows/Core/TradingTerminal.Core/Ml/FootprintForecastProvider.cs
+```cs
+    7: public sealed record FootprintForecastCoordinate
+    9: public FootprintForecastCoordinate(
+   29: public string InstrumentKey { get; }
+   30: public BrokerKind Source { get; }
+   31: public TimeSpan Interval { get; }
+   32: public double RowSize { get; }
+   39: public sealed class FootprintForecastRequest
+   41: public const int MaximumHistoryBars = 4_096;
+   42: public const int MaximumHorizonBars = 256;
+   44: public FootprintForecastRequest(
+  103: public FootprintForecastCoordinate Coordinate { get; }
+  104: public IReadOnlyList<FootprintBar> History { get; }
+  105: public DateTime CutoffUtc { get; }
+  106: public int HorizonBars { get; }
+  230: public sealed record FootprintForecastQuantiles
+  232: public FootprintForecastQuantiles(double q10, double q50, double q90)
+  244: public double Q10 { get; }
+  245: public double Q50 { get; }
+  246: public double Q90 { get; }
+  250: public sealed class FootprintHorizonForecast
+  252: public FootprintHorizonForecast(
+  314: public int HorizonBars { get; }
+  315: public DateTime TargetStartUtc { get; }
+  316: public DateTime TargetEndUtc { get; }
+  317: public FootprintForecastQuantiles Poc { get; }
+  318: public FootprintForecastQuantiles Low { get; }
+  319: public FootprintForecastQuantiles High { get; }
+  320: public FootprintForecastQuantiles BuyPoc { get; }
+  321: public FootprintForecastQuantiles SellPoc { get; }
+  322: public FootprintForecastQuantiles Volume { get; }
+  323: public FootprintForecastQuantiles DeltaFraction { get; }
+  329: public double? DeltaMedian { get; }
+  355: public sealed record FootprintForecastModelMetadata
+  357: public FootprintForecastModelMetadata(string provider, string model, string version)
+  367: public string Provider { get; }
+  368: public string Model { get; }
+  369: public string Version { get; }
+  372: public enum FootprintForecastStatus
+  381: public sealed class FootprintForecastResult
+  399: public FootprintForecastCoordinate Coordinate { get; }
+  400: public DateTime CutoffUtc { get; }
+  401: public int HorizonBars { get; }
+  402: public FootprintForecastStatus Status { get; }
+  403: public FootprintForecastModelMetadata? Model { get; }
+  404: public IReadOnlyList<FootprintHorizonForecast> Forecasts { get; }
+  405: public string? Message { get; }
+  407: public static FootprintForecastResult CreateAvailable(
+  449: public static FootprintForecastResult CreateUnavailable(
+  469: public interface IFootprintForecastProvider
+  471:     Task<FootprintForecastResult> ForecastAsync(
+  472:     FootprintForecastRequest request,
+  473:     CancellationToken cancellationToken = default);
+  477: public sealed class NullFootprintForecastProvider : IFootprintForecastProvider
+  479: public Task<FootprintForecastResult> ForecastAsync(
+```
+
 ## src/windows/Core/TradingTerminal.Core/Ml/FootprintNextBarPredictor.cs
 ```cs
    24: public sealed class FootprintNextBarPredictor

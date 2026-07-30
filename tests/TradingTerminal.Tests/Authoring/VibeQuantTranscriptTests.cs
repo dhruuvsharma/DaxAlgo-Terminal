@@ -1,7 +1,10 @@
 using System.Linq;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Backtest;
 using Xunit;
 
 namespace TradingTerminal.Tests.Authoring;
@@ -133,5 +136,40 @@ public sealed class VibeQuantTranscriptTests
         entry.Added.Should().Be(2);
         entry.Removed.Should().Be(1);
         entry.Counts.Should().Be("+2 −1");
+    }
+
+    [Fact]
+    public void Imported_source_resets_the_workspace_and_never_compiles()
+    {
+        var strategyId = $"import-test-{Guid.NewGuid():N}";
+        var compiler = Substitute.For<IStrategyCompiler>();
+        using var workspace = new StrategyAuthoringViewModel(
+            compiler,
+            Substitute.For<IBacktestStrategyRegistry>(),
+            NullLogger<StrategyAuthoringViewModel>.Instance);
+        workspace.Messages.Add(new AuthoringMessage(CodegenRole.User, "Old conversation"));
+
+        try
+        {
+            var importedId = workspace.ImportDraft(new StrategyScript(
+                strategyId,
+                "Imported draft",
+                [new StrategyFile("Imported.cs", "public sealed class Imported { }")]));
+
+            importedId.Should().Be(strategyId);
+            workspace.StrategyId.Should().Be(strategyId);
+            workspace.DisplayName.Should().Be("Imported draft");
+            workspace.Messages.Should().BeEmpty();
+            workspace.Files.Should().ContainSingle(file =>
+                file.Name == "Imported.cs" && file.Content == "public sealed class Imported { }");
+            workspace.CompiledOk.Should().BeFalse();
+            workspace.IsRegistered.Should().BeFalse();
+            AuthoringSessionStore.Load(strategyId).Should().NotBeNull();
+            compiler.DidNotReceive().Compile(Arg.Any<StrategyScript>());
+        }
+        finally
+        {
+            AuthoringSessionStore.Delete(strategyId);
+        }
     }
 }

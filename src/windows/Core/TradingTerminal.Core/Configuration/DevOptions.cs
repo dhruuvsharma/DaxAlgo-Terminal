@@ -5,7 +5,7 @@ namespace TradingTerminal.Core.Configuration;
 /// <summary>
 /// Developer-only switches, bound from the <c>Dev</c> configuration section. These are off by
 /// default in the shipped <c>appsettings.json</c> and only turned on by the per-environment dev
-/// files (<c>appsettings.DevSim.json</c> / <c>appsettings.DevReplay.json</c> / <c>appsettings.DevLive.json</c>)
+/// files (<c>appsettings.Dev*.json</c>)
 /// selected via the launch profiles' <c>DOTNET_ENVIRONMENT</c>. Never enable in a release build.
 /// </summary>
 public sealed class DevOptions
@@ -25,4 +25,16 @@ public sealed class DevOptions
     /// fails (e.g. no saved credentials) is logged and skipped, never fatal. Empty by default.
     /// </summary>
     public BrokerKind[] AutoConnectBrokers { get; set; } = [];
+
+    /// <summary>
+    /// Clears the locally stored product-account session before the account gate opens, forcing a
+    /// fresh interactive sign-in. Intended for signup and first-run testing only.
+    /// </summary>
+    public bool ResetAccountOnStart { get; set; }
+
+    /// <summary>
+    /// Prevents runtime strategy plugins from loading while keeping the empty host catalog
+    /// resolvable. Intended for validating the terminal's no-strategies state.
+    /// </summary>
+    public bool DisableStrategyPlugins { get; set; }
 }
