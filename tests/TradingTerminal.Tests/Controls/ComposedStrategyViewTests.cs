@@ -51,6 +51,7 @@ public sealed class ComposedStrategyViewTests
         services.AddSingleton(Substitute.For<IMarketDataIngest>());
         services.AddSingleton(Substitute.For<IMarketDataStore>());
         services.AddSingleton(Substitute.For<IModelRegistry>());
+        services.AddSingleton<IFootprintForecastProvider, NullFootprintForecastProvider>();
         services.AddSingleton(Substitute.For<IBrokerSelector>());
         services.AddSingleton(new InMemoryLogSink());
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));

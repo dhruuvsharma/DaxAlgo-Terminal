@@ -21,7 +21,7 @@ Editions: B=Basic, I=Intermediate, P=Pro (private repo consumes this tree); dev=
 | `tests/TradingTerminal.Tests/Controls/BrokerLogoTests.cs` | 33 | win | TradingTerminal.Tests | dev | Y |  |
 | `tests/TradingTerminal.Tests/Controls/ChartPanelTests.cs` | 103 | win | TradingTerminal.Tests | dev | Y | The three chart tools are now embeddable UserControls (an authored strategy composes |
 | `tests/TradingTerminal.Tests/Controls/ChartsViewModelLifetimeTests.cs` | 98 | win | TradingTerminal.Tests | dev | Y |  |
-| `tests/TradingTerminal.Tests/Controls/ComposedStrategyViewTests.cs` | 197 | win | TradingTerminal.Tests | dev | Y | Panel view-models resolve their pipeline seams from here; with no instrument pinned |
+| `tests/TradingTerminal.Tests/Controls/ComposedStrategyViewTests.cs` | 198 | win | TradingTerminal.Tests | dev | Y | Panel view-models resolve their pipeline seams from here; with no instrument pinned |
 | `tests/TradingTerminal.Tests/Controls/InstrumentPickerFilterTests.cs` | 190 | win | TradingTerminal.Tests | dev | Y | Unit tests for — the shared logic behind every instrument |
 | `tests/TradingTerminal.Tests/Controls/InstrumentPickerTests.cs` | 57 | win | TradingTerminal.Tests | dev | Y | Regression test for the strategy-window crash "Cannot find resource named |
 | `tests/TradingTerminal.Tests/Controls/LiveSignalStrategyViewModelLifetimeTests.cs` | 147 | win | TradingTerminal.Tests | dev | Y |  |
