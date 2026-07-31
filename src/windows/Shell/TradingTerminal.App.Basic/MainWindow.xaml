@@ -222,42 +222,6 @@
                         </Popup>
                     </Grid>
 
-                    <!-- Market-data recorder — opens the recorder panel. The dot lights while the
-                         background recording service is capturing, so a long run is visible from the
-                         shell without opening the panel. -->
-                    <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
-                            Command="{Binding OpenRecorderCommand}"
-                            Background="Transparent" BorderThickness="1" Cursor="Hand"
-                            ToolTip="Market data recorder — pick instruments and capture L1 / L2 / bars / tape in the background.">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Recorder.IsRecording}" Value="True">
-                                        <Setter Property="BorderBrush" Value="{DynamicResource Danger.Brush}" />
-                                        <Setter Property="Background" Value="{DynamicResource Bullish.Soft}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0">
-                                <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Recorder.IsRecording}" Value="True">
-                                                <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Ellipse.Style>
-                            </Ellipse>
-                            <TextBlock Text="REC" FontWeight="Bold" FontSize="10" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource Text.Header}" />
-                        </StackPanel>
-                    </Button>
-
                     <!-- Strategy-plugin problem chip — appears only when a plugin failed to load or
                          sits quarantined (user disables don't count). Click opens the Plugin Manager. -->
                     <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
@@ -357,11 +321,8 @@
             </Grid>
         </Border>
 
-        <!-- Top menu — the Basic-edition menu, owned inline by this shell (each edition's
-             MainWindow carries its own copy; there is no shared menu control). No LSE Tools /
-             Machine learning / QuantConnect / AI tools menus, no Surface Lab / bubble-chart
-             entries, no Research settings — those surfaces are Professional-only and this exe
-             does not reference their projects. -->
+        <!-- Top menu — the Basic-edition menu, owned inline by this shell; each edition carries
+             its own copy rather than sharing a menu control. -->
         <Menu Grid.Row="1"
               Background="{DynamicResource Gradient.Chrome}"
               Foreground="{DynamicResource Text.Primary}"
@@ -402,27 +363,7 @@
                           ToolTip="Open the live colour editor — tweak any palette token, then save and share custom themes." />
             </MenuItem>
 
-            <MenuItem Header="_Tools">
-                <MenuItem Icon="📊" Header="_Backtest Studio…"
-                          Command="{Binding OpenBacktestStudioCommand}" />
-                <MenuItem Icon="🌡️" Header="_Advanced market regime…"
-                          Command="{Binding OpenAdvancedRegimeCommand}" />
-                <MenuItem Icon="🔗" Header="_Correlation matrix…"
-                          Command="{Binding OpenCorrelationCommand}" />
-                <MenuItem Icon="📡" Header="_Live correlation matrix…"
-                          Command="{Binding OpenLiveCorrelationCommand}" />
-            </MenuItem>
-
-            <MenuItem>
-                <MenuItem.Header>
-                    <!-- AI-native feature: gradient-ink title + soft violet glow (shared AI language). -->
-                    <TextBlock Text="Strategy Studio" Style="{StaticResource Ai.TextAccent}">
-                        <TextBlock.Effect>
-                            <!-- fixed brand violet — resource lookups inside Effects are unreliable -->
-                            <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.55" Color="#8B5CF6" />
-                        </TextBlock.Effect>
-                    </TextBlock>
-                </MenuItem.Header>
+            <MenuItem Header="_Strategy Studio">
                 <MenuItem Header="_Vibe Code">
                     <MenuItem.Icon>
                         <StaticResource ResourceKey="Ai.MenuIconChip" />
@@ -451,17 +392,6 @@
                 <MenuItem Icon="🧩" Header="_Strategy Manager…"
                           Command="{Binding OpenPluginManagerCommand}"
                           ToolTip="Enable, disable, or remove installed strategies and plugins." />
-            </MenuItem>
-
-            <MenuItem Header="_Charts">
-                <MenuItem Icon="📈" Header="C_harts…"
-                          Command="{Binding OpenChartsCommand}" />
-                <MenuItem Icon="📚" Header="_Order book…"
-                          Command="{Binding OpenOrderBookCommand}" />
-                <MenuItem Icon="👣" Header="_Volume footprint…"
-                          Command="{Binding OpenFootprintCommand}" />
-                <MenuItem Icon="🗺️" Header="_Bookmap + VolBook…"
-                          Command="{Binding OpenBookmapCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Data">
@@ -564,12 +494,9 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="▸ "
-                                                   Foreground="{DynamicResource Accent.Brush}"
-                                                   FontWeight="Bold" />
                                         <TextBlock Text="{Binding Name}"
                                                    Foreground="{DynamicResource Text.Header}"
-                                                   FontWeight="Bold" FontSize="13" TextWrapping="Wrap" />
+                                                   FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
                                         <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Strategy Manager). -->
                                         <Border CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
                                                 Background="{DynamicResource Warning.Brush}">
@@ -673,6 +600,7 @@
                      BorderThickness="0"
                      Background="{DynamicResource Background.Surface}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingPanel.ScrollUnit="Pixel"
                      ItemsSource="{Binding ElementName=RootWindow, Path=DataContext.CatalogItems}"
                      SelectedItem="{Binding ElementName=RootWindow, Path=DataContext.SelectedCatalogItem, Mode=TwoWay}"
                      HorizontalContentAlignment="Stretch"
@@ -693,9 +621,6 @@
                     <ContextMenu>
                         <MenuItem Icon="▶️" Header="Open"
                                   Click="OpenStrategy_Click" />
-                        <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
-                                  Click="QuickBacktest_Click" />
-                        <Separator />
                         <MenuItem Icon="✏️" Header="Edit strategy card…"
                                   Click="EditStrategy_Click" />
                     </ContextMenu>
@@ -834,10 +759,9 @@
             <!-- Floating Vibe Quant button — pinned bottom-right over the catalog. Left-click opens Vibe
                  Quant; right-click drops the Vibe Quant · Launch CLI menu (the attached ContextMenu
                  inherits this window's DataContext, so its bindings resolve without a proxy). -->
-            <!-- Bottom-right FAB, wrapped so the empty-catalog check gates the WRAPPER's visibility.
-                 Do NOT gate via a style derived (BasedOn) from Ai.HeroButton: that template runs a
-                 Loaded storyboard targeting a template part, and a BasedOn style fires it in the
-                 container namescope → InvalidOperationException 'HeroSweep' not found. -->
+            <!-- Bottom-right FAB stays realized while the catalog is empty-state collapsed. Gating the
+                 wrapper's opacity preserves the hero template namescope; collapsing the button makes
+                 its Loaded storyboard fail to resolve the HeroSweep template part. -->
             <Grid Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,28,28">
               <Grid.Style>
                 <Style TargetType="Grid">
@@ -873,7 +797,7 @@
                     <StaticResource ResourceKey="Ai.HeroButton" />
                 </Button.Style>
                 <StackPanel Orientation="Horizontal" Background="Transparent">
-                    <TextBlock Text="⚡" FontSize="15" VerticalAlignment="Center"
+                    <TextBlock Text="⚡" FontSize="20" VerticalAlignment="Center"
                                Foreground="{DynamicResource Text.Primary}" Margin="0,0,8,0" />
                     <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
                                Foreground="{DynamicResource Text.Primary}" />

@@ -11,6 +11,7 @@ using TradingTerminal.Accounts;
 using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Notifications;
+using TradingTerminal.App.Security;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
@@ -30,7 +31,16 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        var processMitigations = ProcessMitigations.ApplyEarly();
         base.OnStartup(e);
+
+        if (e.Args.Any(a => string.Equals(a, "--mitigation-smoke", StringComparison.OrdinalIgnoreCase)))
+        {
+            Shutdown(processMitigations.SmokePassed ? 0 : 2);
+            return;
+        }
+        if (!processMitigations.SmokePassed)
+            throw new InvalidOperationException(processMitigations.Failure);
 
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
         var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
@@ -51,7 +61,23 @@ public partial class App : Application
         if (startupDevOptions.ResetAccountOnStart)
             AccountGateRunner.ClearStoredAccount();
 
-        if (!AccountGateRunner.Show(AppEdition.Basic, googleAuthOptions))
+        // Dev/QA escape hatch: `--bypass-login` (alias `--no-login`) walks past both sign-in surfaces
+        // and opens the shell directly. `--bypass-account-login` skips only the product-account gate,
+        // leaving the broker connection window in place.
+        var bypassLoginRequested = e.Args.Any(a =>
+            string.Equals(a, "--bypass-login", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a, "--no-login", StringComparison.OrdinalIgnoreCase));
+        var bypassAccountLoginRequested = e.Args.Any(a =>
+            string.Equals(a, "--bypass-account-login", StringComparison.OrdinalIgnoreCase));
+
+        // The account/entitlement gate is only waived in Debug builds; a shipped Basic executable
+        // still gates even if someone passes a bypass flag.
+        var skipAccountGate = false;
+#if DEBUG
+        skipAccountGate = bypassLoginRequested || bypassAccountLoginRequested;
+#endif
+
+        if (!skipAccountGate && !AccountGateRunner.Show(AppEdition.Basic, googleAuthOptions))
         {
             Shutdown();
             return;
@@ -114,10 +140,10 @@ public partial class App : Application
                 cfg.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
                 // Per-user override files edited by the Settings tabs. Layered last so the
-                // UI's writes win over what's shipped in appsettings.json. (No Research user file —
-                // the Paper Lab / sidecar surface is Professional-only.)
+                // UI's writes win over what's shipped in appsettings.json.
                 cfg.AddJsonFile(NotificationsUserFile.Path, optional: true, reloadOnChange: true);
                 cfg.AddJsonFile(TradingTerminal.App.Archive.ArchiveUserFile.Path, optional: true, reloadOnChange: true);
+                cfg.AddJsonFile(TradingTerminal.App.Authoring.AiCodegenUserFile.Path, optional: true, reloadOnChange: true);
             })
             .UseSerilog((ctx, services, lc) =>
             {
@@ -243,12 +269,21 @@ public partial class App : Application
             return;
         }
 
-        // Dev launch profiles can skip the login window entirely (see DevOptions).
+        // Dev launch profiles or the full `--bypass-login` flag skip the broker window. The
+        // account-only flag deliberately leaves that window in place.
         var dev = _host.Services.GetRequiredService<IOptions<DevOptions>>().Value;
-        if (dev.BypassLogin)
+        if (!bypassAccountLoginRequested && (dev.BypassLogin || bypassLoginRequested))
+        {
+            // A command-line bypass has no broker list of its own. Fall back to the always-registered
+            // Simulated feed so the shell opens with data instead of a dead session.
+            if (dev.AutoConnectBrokers.Length == 0)
+                dev = new DevOptions { BypassLogin = true, AutoConnectBrokers = [BrokerKind.Simulated] };
             await ConnectAndShowMainAsync(dev);
+        }
         else
+        {
             ShowLoginAndProceed();
+        }
     }
 
     private void ShowLoginAndProceed()

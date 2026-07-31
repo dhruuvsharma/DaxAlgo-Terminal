@@ -12,7 +12,7 @@ using Xunit;
 namespace TradingTerminal.Tests.Research;
 
 /// <summary>
-/// Contract tests for the paper-ingest HTTP client, mirroring <c>HttpAiAnalystClientTests</c>: the
+/// Contract tests for the paper-ingest HTTP client: the
 /// loopback-only guard, the disabled/empty-URL short-circuits, and the snake_case response mapping —
 /// all under the never-throw seam contract (every failure folds into <c>PaperIngestResult.Empty</c>).
 /// </summary>

@@ -12,16 +12,6 @@ using TradingTerminal.App.Archive;
 using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
-// Common per-tool projects: Charts menu, Tools menu (every edition ships these).
-using TradingTerminal.Charts;
-using TradingTerminal.OrderBook;
-using TradingTerminal.VolumeFootprint;
-using TradingTerminal.Correlation;
-using TradingTerminal.Heatmap;
-using TradingTerminal.Backtest;
-using TradingTerminal.BacktestStudio;
-using TradingTerminal.Recording;
-using TradingTerminal.AdvancedMarketRegime;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -44,15 +34,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string AiProvidersSettingsWindowId = "settings.aiproviders";
     private const string PluginManagerWindowId = "plugins.manager";
     private const string StrategyAuthoringWindowId = "authoring.strategy";
-    private const string BacktestStudioWindowId = "tools.backtest-studio";
-    private const string RecorderWindowId = "tools.recorder";
-    private const string AdvancedRegimeWindowId = "tools.regime.advanced";
-    private const string CorrelationWindowId = "tools.correlation";
-    private const string LiveCorrelationWindowId = "tools.correlation.live";
-    private const string ChartsWindowId = "tools.charts";
-    private const string OrderBookWindowId = "tools.orderbook";
-    private const string FootprintWindowId = "tools.footprint";
-    private const string BookmapWindowId = "tools.heatmap.bookmap";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
@@ -90,10 +71,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host = host;
         _services = services;
         _logger = logger;
-        // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
-        // chip only observes, and this ctor is already at its parameter budget.
-        Recorder = services.GetRequiredService<TickRecordingService>();
-
         // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
         // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
         _cliLauncher = cliLauncher;
@@ -108,17 +85,40 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         Strategies = new ObservableCollection<ITradingStrategy>(factory.All);
         // Catalog rows: each strategy wrapped with its user presentation overrides (custom name /
         // description / tags / alpha formula / UI image). The list binds to these; the underlying
-        // strategy stays reachable for Open / Quick-backtest / the pill converters.
+        // strategy stays reachable for Open and the pill converters.
         CatalogItems = new ObservableCollection<StrategyCatalogItemViewModel>(
             factory.All.Select(s => new StrategyCatalogItemViewModel(s)));
         // Strategies contributed by an UNSIGNED plugin (neither shipped-by-us nor from a pinned
         // publisher) wear the DEV badge on their catalog card, mirroring the Plugin Manager.
-        UnsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
+        _unsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
             System.Linq.Enumerable.Select(
                 System.Linq.Enumerable.Where(factory.All,
                     s => pluginContext.UnsignedStrategyTypeNames.Contains(s.GetType().FullName ?? string.Empty)),
                 s => s.Id),
             System.StringComparer.Ordinal);
+        // A strategy registered while the app is running should appear immediately in both backing
+        // collections. Runtime-authored strategies are unsigned, so add the badge id before the card.
+        factory.Changed += (_, change) =>
+        {
+            void Apply()
+            {
+                _unsignedStrategyIds.Add(change.Strategy.Id);
+                var existing = Strategies.FirstOrDefault(s => s.Id == change.Strategy.Id);
+                if (existing is not null) Strategies[Strategies.IndexOf(existing)] = change.Strategy;
+                else Strategies.Add(change.Strategy);
+
+                var existingItem = CatalogItems.FirstOrDefault(i => i.Id == change.Strategy.Id);
+                if (existingItem is not null)
+                    CatalogItems[CatalogItems.IndexOf(existingItem)] = new StrategyCatalogItemViewModel(change.Strategy);
+                else
+                    CatalogItems.Add(new StrategyCatalogItemViewModel(change.Strategy));
+            }
+
+            if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess())
+                d.BeginInvoke(new Action(Apply));
+            else
+                Apply();
+        };
         LogSink = logSink;
         ActivityLog = CollectionViewSource.GetDefaultView(logSink.Entries);
         ActivityLog.Filter = FilterActivityEntry;
@@ -241,9 +241,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// The list binds to this; <see cref="Strategies"/> stays the lookup for Open / backtest.</summary>
     public ObservableCollection<StrategyCatalogItemViewModel> CatalogItems { get; }
 
-    /// <summary>Ids of strategies contributed by unsigned plugins — the catalog card shows a DEV badge
-    /// for these (see UnsignedStrategyConverter). Empty in a fully-curated install.</summary>
-    public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds { get; }
+    /// <summary>Ids of strategies contributed by unsigned plugins or registered by the runtime
+    /// authoring flow. The mutable backing set is updated before its catalog card is added.</summary>
+    public System.Collections.Generic.IReadOnlySet<string> UnsignedStrategyIds => _unsignedStrategyIds;
+
+    private readonly System.Collections.Generic.HashSet<string> _unsignedStrategyIds;
     public InMemoryLogSink LogSink { get; }
 
     /// <summary>Filtered view over the universal activity log shown in the bottom log drawer —
@@ -454,52 +456,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         });
     }
 
-    /// <summary>
-    /// Strategy-catalog "Quick backtest": opens a single-instance-per-strategy results window that
-    /// auto-runs a 1-year backtest of the chosen strategy over historical bars (real broker when one
-    /// is connected, Simulated synthetic otherwise) and shows P&amp;L + headline statistics. Strategies
-    /// that declare no engine-side counterpart (<see cref="ITradingStrategy.BacktestStrategyId"/> is
-    /// null) get a message instead of a run.
-    /// </summary>
-    [RelayCommand]
-    public void QuickBacktest(string? strategyId)
-    {
-        if (string.IsNullOrWhiteSpace(strategyId))
-        {
-            if (SelectedStrategy is null) return;
-            strategyId = SelectedStrategy.Id;
-        }
-
-        var strategy = Strategies.FirstOrDefault(s => s.Id == strategyId);
-        if (strategy is null) return;
-
-        var windowId = "quickbacktest." + strategyId;
-        if (_host.TryActivate(windowId)) return;
-
-        _host.OpenWithOverlay($"Quick backtest — {strategy.DisplayName}…", "Fetching history and replaying through the engine…", () =>
-        {
-            var vm = _services.GetRequiredService<QuickBacktestViewModel>();
-            var view = _services.GetRequiredService<QuickBacktestView>();
-            view.DataContext = vm;
-
-            var window = ToolHostWindow.Create($"Quick backtest — {strategy.DisplayName}", view);
-            window.Owner = Application.Current.MainWindow;
-            window.Closed += (_, _) =>
-            {
-                _host.Unregister(windowId);
-                if (vm is IDisposable d) d.Dispose();
-            };
-            _host.Register(windowId, window);
-            window.Show();
-
-            // Bind the VM to the strategy and kick off the first run after the window is up.
-            // Tape-primary strategies (SigmaIcFlow) default to Binance + real-tape mode for a full backtest.
-            var preferFullTape = strategy.DataRequirement.HasFlag(Core.Strategies.StrategyDataRequirement.TradeTape);
-            vm.Initialize(strategy.BacktestStrategyId, strategy.DisplayName, preferFullTape);
-            _logger.LogInformation("Opened quick backtest for {Id} ({Name})", strategy.Id, strategy.DisplayName);
-        });
-    }
-
     [RelayCommand]
     public async Task ReconnectAsync()
     {
@@ -626,60 +582,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _logger.LogInformation("Launched CLI {Cli}: {Message}", choice.DisplayName, result.Message);
     }
 
-    [RelayCommand]
-    public void OpenBacktestStudio() =>
-        _host.OpenHostedTool<BacktestStudioViewModel, BacktestStudioView>(BacktestStudioWindowId, "Backtest Studio", "Loading the backtest studio…");
-
-    /// <summary>The app-lifetime recording service, exposed so the header REC chip can light while a
-    /// background recording is running. The panel window is only a view onto it — closing the panel
-    /// does not stop the recording.</summary>
-    public TickRecordingService Recorder { get; }
-
-    /// <summary>Header REC chip → the recorder panel. Small window: it's a watchlist + a toggle, not
-    /// a workspace.</summary>
-    [RelayCommand]
-    public void OpenRecorder() =>
-        _host.OpenHostedTool<RecorderPanelViewModel, RecorderPanelView>(
-            RecorderWindowId, "Market data recorder", "Preparing the recorder…", width: 470, height: 600);
-
-    [RelayCommand]
-    public void OpenCorrelation() =>
-        _host.OpenWindowTool<CorrelationMatrixViewModel, CorrelationMatrixWindow>(
-            CorrelationWindowId, "Correlation matrix", "Computing the correlation matrix…");
-
-    [RelayCommand]
-    public void OpenLiveCorrelation() =>
-        _host.OpenWindowTool<LiveCorrelationMatrixViewModel, LiveCorrelationMatrixWindow>(
-            LiveCorrelationWindowId, "Live correlation matrix", "Wiring the live correlation feed…");
-
     /// <summary>Help → Support the developer. Routes through the shared prompt service so the window
     /// is single-instance whether opened here or auto-shown on launch.</summary>
     [RelayCommand]
     public void OpenSupport() =>
         _services.GetRequiredService<TradingTerminal.App.Support.ISupportPrompt>()
             .Show(Application.Current.MainWindow);
-
-    [RelayCommand]
-    public void OpenCharts() =>
-        _host.OpenWindowTool<ChartsViewModel, ChartsWindow>(ChartsWindowId, "Charts", "Starting the charting engine…");
-
-    [RelayCommand]
-    public void OpenOrderBook() =>
-        _host.OpenWindowTool<OrderBookViewModel, OrderBookWindow>(OrderBookWindowId, "Order book", "Wiring the depth-of-book feed…");
-
-    [RelayCommand]
-    public void OpenFootprint() =>
-        _host.OpenWindowTool<VolumeFootprintViewModel, VolumeFootprintWindow>(FootprintWindowId, "Volume footprint", "Preparing the volume-footprint grid…");
-
-    [RelayCommand]
-    public void OpenBookmap() =>
-        _host.OpenWindowTool<BookmapHeatmapViewModel, BookmapHeatmapWindow>(BookmapWindowId, "Bookmap + VolBook", "Building the liquidity heatmap…");
-
-    [RelayCommand]
-    public void OpenAdvancedRegime() =>
-        // The VM runs an auto-refresh loop; it is IDisposable and stopped when the window closes.
-        _host.OpenHostedTool<AdvancedMarketRegimeViewModel, AdvancedMarketRegimeView>(
-            AdvancedRegimeWindowId, "Advanced market regime", "Running the regime indicator stack…");
 
     [RelayCommand]
     public void OpenNotificationsSettings() =>

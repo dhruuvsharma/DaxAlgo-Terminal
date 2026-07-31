@@ -13,7 +13,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   BacktestAnalysis / PaperLab), the Machine Learning windows (Stationarity / ArimaGarch /
   KalmanFilter), SurfaceLab, BubbleChart, LseBacktest, QuantConnect, the `daxalgo-backtest` CLI
   and the installer moved to a private overlay repo that consumes this repo as a git submodule.
-  Basic and Intermediate remain fully open source here.
+  The Basic edition remains fully open source here.
 - **License changed MIT → AGPL-3.0** for all code going forward (the `src/windows/Sdk/` plugin SDK
   stays MIT so third-party plugins aren't AGPL-bound). Previously published code remains MIT in
   the repo history.

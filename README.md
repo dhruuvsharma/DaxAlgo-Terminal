@@ -112,7 +112,7 @@ real money. This is a deliberate safety boundary, not a missing feature.
 ## Repository scope
 
 This repository contains the **Windows/WPF open-core implementation only**: `src/windows/`, the
-Basic and Intermediate shells, Windows tests, SDK, templates, and shared tooling. The independent
+Basic shell, Windows tests, SDK, templates, and shared tooling. The independent
 Linux/Avalonia edition moved to a separate private repository on 2026-07-22. Windows changes here
 have no Linux parity or mirror obligation.
 
@@ -214,20 +214,19 @@ live crypto data (bars, L1, **L2 depth**, trades) with **no API key and no accou
 git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
 cd "DaxAlgo Terminal"
 dotnet build TradingTerminal.Windows.slnx
-dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate
+dotnet run --project src/windows/Shell/TradingTerminal.App.Basic
 ```
 
-The Windows terminal ships as **three editions** — three fully independent shell exes with **no
-shared shell code** (each carries its own complete copy, so lower tiers physically exclude the
-higher-tier feature DLLs):
+The Windows terminal ships as **two editions** — two fully independent shell exes with **no
+shared shell code** (each carries its own complete copy, so Basic physically excludes the
+Professional feature DLLs):
 
 | Edition | Run | What you get |
 |---|---|---|
 | **Basic** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Basic` | Keyless brokers only (crypto + Simulated), full strategies catalog, core charts & tools |
-| **Intermediate** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Intermediate` | All 12 brokers with the full credentialed login; same tools as Basic |
 | **Professional** | *closed source* | Everything — adds Machine Learning, AI tools (Paper Lab + sidecar), LSE Tools, QuantConnect / LEAN, 3D Surface Lab, experimental charts. Developed in a private overlay repo on top of this one; distributed as a binary release. |
 
-Basic and Intermediate are fully open source in this repo. The Professional edition's exclusive
+Basic is fully open source in this repo. The Professional edition's exclusive
 surfaces live in a private repo that consumes this one as a git submodule.
 
 Always name the Windows solution or edition filter; do not use a bare `dotnet build`. The

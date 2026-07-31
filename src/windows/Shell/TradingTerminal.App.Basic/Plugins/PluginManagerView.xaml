@@ -44,8 +44,8 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Orientation="Horizontal">
-                        <Button Content="Install plugin…" Command="{Binding InstallPluginCommand}" Padding="14,6" Margin="0,0,8,0" />
-                        <Button Content="Open plugins folder" Command="{Binding OpenPluginsFolderCommand}" Padding="14,6" />
+                        <Button Content="Install Strategies" Command="{Binding InstallPluginCommand}" Padding="14,6" Margin="0,0,8,0" />
+                        <Button Content="Open Strategies folder" Command="{Binding OpenPluginsFolderCommand}" Padding="14,6" />
                     </StackPanel>
 
                     <TextBlock Grid.Row="1" Margin="0,10,0,0" Opacity="0.65" TextWrapping="Wrap" FontSize="11">

@@ -2,15 +2,10 @@
   "solution": {
     "path": "TradingTerminal.Windows.slnx",
     "projects": [
-      "src\\windows\\AI\\TradingTerminal.Ai\\TradingTerminal.Ai.csproj",
       "src\\windows\\Backtest\\TradingTerminal.Backtest.Client\\TradingTerminal.Backtest.Client.csproj",
       "src\\windows\\Backtest\\TradingTerminal.Backtest.Engine\\TradingTerminal.Backtest.Engine.csproj",
       "src\\windows\\Backtest\\TradingTerminal.Backtest.Protocol\\TradingTerminal.Backtest.Protocol.csproj",
       "src\\windows\\Backtest\\TradingTerminal.Backtest.Worker\\TradingTerminal.Backtest.Worker.csproj",
-      "src\\windows\\Charts\\TradingTerminal.Charts\\TradingTerminal.Charts.csproj",
-      "src\\windows\\Charts\\TradingTerminal.Heatmap\\TradingTerminal.Heatmap.csproj",
-      "src\\windows\\Charts\\TradingTerminal.OrderBook\\TradingTerminal.OrderBook.csproj",
-      "src\\windows\\Charts\\TradingTerminal.VolumeFootprint\\TradingTerminal.VolumeFootprint.csproj",
       "src\\windows\\Core\\TradingTerminal.Core\\TradingTerminal.Core.csproj",
       "src\\windows\\Pipeline\\TradingTerminal.Infrastructure\\TradingTerminal.Infrastructure.csproj",
       "src\\windows\\Pipeline\\TradingTerminal.MarketData\\TradingTerminal.MarketData.csproj",
@@ -20,13 +15,7 @@
       "src\\windows\\Shell\\TradingTerminal.App.Basic\\TradingTerminal.App.Basic.csproj",
       "src\\windows\\Shell\\TradingTerminal.Login\\TradingTerminal.Login.csproj",
       "src\\windows\\Shell\\TradingTerminal.UI\\TradingTerminal.UI.csproj",
-      "src\\windows\\Tools\\TradingTerminal.AdvancedMarketRegime\\TradingTerminal.AdvancedMarketRegime.csproj",
-      "src\\windows\\Tools\\TradingTerminal.BacktestStudio\\TradingTerminal.BacktestStudio.csproj",
-      "src\\windows\\Tools\\TradingTerminal.Backtest\\TradingTerminal.Backtest.csproj",
-      "src\\windows\\Tools\\TradingTerminal.Correlation\\TradingTerminal.Correlation.csproj",
-      "src\\windows\\Tools\\TradingTerminal.Recording\\TradingTerminal.Recording.csproj",
       "src\\windows\\UI\\TradingTerminal.Settings\\TradingTerminal.Settings.csproj",
-      "src\\windows\\UI\\TradingTerminal.StrategyComposer\\TradingTerminal.StrategyComposer.csproj",
       "src\\windows\\UI\\TradingTerminal.UI.Core\\TradingTerminal.UI.Core.csproj"
     ]
   }

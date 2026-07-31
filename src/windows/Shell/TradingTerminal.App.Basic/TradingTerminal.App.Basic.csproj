@@ -9,7 +9,7 @@
     <RootNamespace>TradingTerminal.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon\DaxAlgoLogo.ico</ApplicationIcon>
-    <Description>Basic-edition WPF shell — fully self-contained (no shared shell library): keyless brokers only (Binance / Coinbase / Bybit / Kraken / OKX / Simulated), the full strategies catalog, core charts and core tools. No ML / AI / LSE / QuantConnect / Paper Lab / experimental surfaces. A shell fix here must be applied to the other editions' copies separately.</Description>
+    <Description>Basic-edition WPF shell — fully self-contained (no shared shell library): keyless brokers only (Binance / Coinbase / Bybit / Kraken / OKX / Simulated), the strategy-plugin catalog, and basic data/settings surfaces. No standalone tool/chart windows or market-analyst / ML / LSE / QuantConnect / Paper Lab / experimental surfaces. A shell fix here must be applied to the other editions' copies separately.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -28,23 +28,7 @@
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
-    <!-- The shared AI-analyst SEAM only (Null client) — the notification enricher resolves
-         IAiAnalystClient in every edition. The AI tool windows are Professional-only. -->
-    <ProjectReference Include="..\..\AI\TradingTerminal.Ai\TradingTerminal.Ai.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
-    <!-- Core Charts-menu tools -->
-    <ProjectReference Include="..\..\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
-    <ProjectReference Include="..\..\Charts\TradingTerminal.OrderBook\TradingTerminal.OrderBook.csproj" />
-    <ProjectReference Include="..\..\Charts\TradingTerminal.VolumeFootprint\TradingTerminal.VolumeFootprint.csproj" />
-    <ProjectReference Include="..\..\Charts\TradingTerminal.Heatmap\TradingTerminal.Heatmap.csproj" />
-    <!-- Composed default window for AI-authored strategies that ship no view -->
-    <ProjectReference Include="..\..\UI\TradingTerminal.StrategyComposer\TradingTerminal.StrategyComposer.csproj" />
-    <!-- Core Tools-menu surfaces -->
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Correlation\TradingTerminal.Correlation.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.AdvancedMarketRegime\TradingTerminal.AdvancedMarketRegime.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -83,9 +67,9 @@
   </ItemGroup>
 
   <!--
-    Polyglot bridge: copy the C++ tick_backtester.exe / gpu_optimizer.exe to the output when built
-    (Backtest Studio is a core tool, so every edition gets the fast-backtest path when present).
-    Missing files are silently skipped — the DI layer falls back to NullFastBacktestRunner.
+    Polyglot bridge: copy the C++ tick_backtester.exe / gpu_optimizer.exe to the output when built.
+    The retained backtest-engine/authoring path can use the accelerator when present; missing files
+    are silently skipped and the DI layer falls back to NullFastBacktestRunner.
   -->
   <ItemGroup>
     <None Include="..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe')" Link="tick_backtester.exe">

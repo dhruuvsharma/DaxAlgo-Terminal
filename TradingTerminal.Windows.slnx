@@ -19,7 +19,6 @@
   </Folder>
   <Folder Name="/UI/">
     <Project Path="src/windows/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />
-    <Project Path="src/windows/UI/TradingTerminal.StrategyComposer/TradingTerminal.StrategyComposer.csproj" />
     <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
   </Folder>
   <Folder Name="/Shell/">
@@ -35,22 +34,6 @@
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.Strategy.BundleTool/DaxAlgo.Strategy.BundleTool.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
-  </Folder>
-  <Folder Name="/AI/">
-    <Project Path="src/windows/AI/TradingTerminal.Ai/TradingTerminal.Ai.csproj" />
-  </Folder>
-  <Folder Name="/Charts/">
-    <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
-    <Project Path="src/windows/Charts/TradingTerminal.Heatmap/TradingTerminal.Heatmap.csproj" />
-    <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />
-    <Project Path="src/windows/Charts/TradingTerminal.VolumeFootprint/TradingTerminal.VolumeFootprint.csproj" />
-  </Folder>
-  <Folder Name="/Tools/">
-    <Project Path="src/windows/Tools/TradingTerminal.AdvancedMarketRegime/TradingTerminal.AdvancedMarketRegime.csproj" />
-    <Project Path="src/windows/Tools/TradingTerminal.Backtest/TradingTerminal.Backtest.csproj" />
-    <Project Path="src/windows/Tools/TradingTerminal.BacktestStudio/TradingTerminal.BacktestStudio.csproj" />
-    <Project Path="src/windows/Tools/TradingTerminal.Correlation/TradingTerminal.Correlation.csproj" />
-    <Project Path="src/windows/Tools/TradingTerminal.Recording/TradingTerminal.Recording.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/DaxAlgo.SamplePlugin/DaxAlgo.SamplePlugin.csproj" />

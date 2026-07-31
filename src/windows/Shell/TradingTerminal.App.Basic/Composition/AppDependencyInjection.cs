@@ -9,7 +9,6 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Theming;
-using TradingTerminal.Infrastructure.AiAnalyst;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -21,18 +20,8 @@ using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.UI;
-// Common per-tool surfaces (Add…Surface extensions) — every edition ships these.
+// Feature-module extensions used by this edition.
 using TradingTerminal.Login;
-using TradingTerminal.Charts;
-using TradingTerminal.OrderBook;
-using TradingTerminal.StrategyComposer;
-using TradingTerminal.VolumeFootprint;
-using TradingTerminal.Heatmap;
-using TradingTerminal.Correlation;
-using TradingTerminal.Backtest;
-using TradingTerminal.BacktestStudio;
-using TradingTerminal.Recording;
-using TradingTerminal.AdvancedMarketRegime;
 
 namespace TradingTerminal.App.Composition;
 
@@ -47,11 +36,8 @@ public static class AppDependencyInjection
     /// <summary>
     /// The core composition of THIS edition shell (each edition owns its own copy of this file) —
     /// the canonical market-data pipeline, archive, Parquet lake, notifications, market regime,
-    /// strategy plug-ins, login, the shell + window host, support/settings, the AI-analyst seam
-    /// (Null client by default; the notification enricher depends on it, so it ships in every
-    /// edition), and the core tool/chart surfaces (Backtest / Backtest Studio / Recorder /
-    /// Correlation / Charts / Order book / Footprint / Bookmap+Heatmap / Advanced market regime),
-    /// plus the cross-cutting singletons. <c>App.xaml.cs</c> calls this after registering the
+    /// strategy plug-ins, login, the shell + window host, support/settings, and the cross-cutting
+    /// singletons. <c>App.xaml.cs</c> calls this after registering the
     /// edition (<see cref="AppEdition"/>) and the broker layer.
     /// </summary>
     public static IServiceCollection AddCoreShell(this IServiceCollection services, IConfiguration configuration)
@@ -89,21 +75,6 @@ public static class AppDependencyInjection
         services.AddSettingsSurface();
         services.AddArchiveSurface();
 
-        // Common tool/chart surfaces.
-        services.AddBacktestSurface();
-        services.AddBacktestStudioSurface();
-        services.AddRecordingSurface();
-        services.AddCorrelationSurface();
-        services.AddChartsSurface();
-        services.AddOrderBookSurface();
-        services.AddFootprintSurface();
-        services.AddHeatmapSurface();
-        services.AddAdvancedMarketRegimeSurface();
-
-        // AI-analyst client seam (Null/Http). Ships in every edition because the notification enricher
-        // resolves IAiAnalystClient; the Pro AI *panels* are added by the Professional shell on top.
-        services.AddAiAnalyst(configuration);
-
         return services;
     }
 
@@ -119,12 +90,13 @@ public static class AppDependencyInjection
         // Runtime strategy authoring: Roslyn compiler + the authoring pane VM. Lets users
         // write a strategy and register it into the catalog with no recompile of the host.
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
+        // Turns a compiled authored strategy into a catalog entry and persistent plugin so it is
+        // available immediately and survives restart.
+        services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredStrategyInstaller>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
-        // Composed default window for authored strategies that ship no view: built from the strategy's
-        // DataRequirement (depth → order-book ladder, tape → footprint, bars → chart; Embedded ML-off
-        // presets). Also what lets a plugin-loaded authored strategy open after a restart.
-        services.AddStrategyViewComposer();
+        // Basic does not register a default live-view composer. Authored strategies without their own
+        // view remain backtest-only; plugin strategies that ship a view continue to open normally.
         services.AddFastBacktestRunner();
         // AI Strategy Builder backend (codegen providers + build-loop orchestrator + context pack) — the
         // authoring pane's AI panel resolves IAiStrategyBuilder from here. Keyless by default (installed
@@ -136,9 +108,8 @@ public static class AppDependencyInjection
         // Lives here once so the 22 Add<Name>Strategy() extensions stay one-liners.
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
 
-        // The Index Regime Graph strategy consumes the Advanced Market Regime engine. The tool
-        // surface (AddAdvancedMarketRegimeSurface) also registers it, but TryAdd here keeps the
-        // strategy resolvable even if that surface isn't wired.
+        // The Index Regime Graph strategy consumes the Advanced Market Regime engine. Register it
+        // here so the strategy remains resolvable without the standalone dashboard surface.
         services.TryAddSingleton<
             Core.MarketData.AdvancedRegime.IAdvancedRegimeProvider,
             TradingTerminal.Infrastructure.Regime.AdvancedRegime.AdvancedRegimeService>();
@@ -233,11 +204,8 @@ public static class AppDependencyInjection
         // from Infrastructure (registered alongside the broker clients).
         services.AddSingleton<TradingTerminal.App.BrokerMetering.BrokerApiMeterViewModel>();
 
-        // MainWindowViewModel is Singleton because there's one main shell at a time and
-        // it holds the docked tab collection / active strategy list. It resolves
-        // BacktestViewModel / NotificationsSettingsViewModel transiently on each open,
-        // so opening a tab twice gets a fresh VM — service-locator pattern is intentional
-        // for lazy tab construction.
+        // MainWindowViewModel is Singleton because there's one main shell at a time and it holds the
+        // active strategy list. Settings views are resolved transiently on each open.
         services.AddSingleton<MainWindowViewModel>();
         services.AddTransient<MainWindow>();
 
@@ -257,8 +225,7 @@ public static class AppDependencyInjection
         return services;
     }
 
-    /// <summary>Settings dialogs (notifications + the Theme Studio). Add new settings tabs here.
-    /// (No Research settings — the Paper Lab / sidecar surface is Professional-only.)</summary>
+    /// <summary>Settings dialogs (notifications + the Theme Studio). Add new settings tabs here.</summary>
     public static IServiceCollection AddSettingsSurface(this IServiceCollection services)
     {
         services.AddTransient<NotificationsSettingsViewModel>();

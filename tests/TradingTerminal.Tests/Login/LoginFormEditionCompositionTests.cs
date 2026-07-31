@@ -51,7 +51,7 @@ public sealed class LoginFormEditionCompositionTests
             "AddLogin must carry exactly the keyless-broker forms (Simulated has no login form)");
     }
 
-    [Fact(Skip="edition-consolidation: Intermediate composition moved to Professional (Tests.Pro)")]
+    [Fact]
     public void Professional_composition_resolves_every_form()
     {
         // Professional: AddLogin() + AddCredentialedLoginForms(), alongside the

@@ -55,7 +55,7 @@ public partial class MainWindow : MetroWindow
             vm.EditStrategyCommand.Execute(null);
     }
 
-    // Right-click selects the row under the cursor, so Open / Quick-backtest / Edit act on it.
+    // Right-click selects the row under the cursor, so Open / Edit act on it.
     private void StrategyItem_RightClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListBoxItem item)
@@ -66,12 +66,6 @@ public partial class MainWindow : MetroWindow
     {
         if (DataContext is MainWindowViewModel vm && vm.SelectedStrategy is not null)
             vm.OpenStrategyCommand.Execute(vm.SelectedStrategy.Id);
-    }
-
-    private void QuickBacktest_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel vm && vm.SelectedStrategy is not null)
-            vm.QuickBacktestCommand.Execute(vm.SelectedStrategy.Id);
     }
 
     // A "Launch CLI" menu item (in the top Strategy Studio menu, or the Vibe Quant button's right-click
