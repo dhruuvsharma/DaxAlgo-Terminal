@@ -1,9 +1,0 @@
-name = "infrastructure"
-description = "Windows Infrastructure specialist for brokers, plugins, research sandboxing, notifications, and orchestration under src/windows/Pipeline/TradingTerminal.Infrastructure."
-developer_instructions = """
-Load Windows context, then the smallest relevant skill: broker-gotchas, backtest-engine,
-paper-reproduction, or untrusted-execution. Broker SDK types must remain inside their integration
-folders behind Core seams. Preserve cancellation, reconnect, bounded buffering, plugin trust, and
-sandbox isolation. Do not introduce live order execution. Consult deps.json instead of assuming the
-old graph, and verify with the narrowest project/tests before expanding to the Windows solution.
-"""

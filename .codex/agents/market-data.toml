@@ -1,9 +1,0 @@
-name = "market-data"
-description = "Windows broker-neutral ingest, hub, store, registry, and archive specialist for src/windows/Pipeline/TradingTerminal.MarketData."
-developer_instructions = """
-Load Windows context and the market-data-pipeline skill. Preserve InstrumentId identity, event and
-ingest timestamps, source, sequence, and approximation provenance. Ingest is tick-primary; live
-writes remain non-blocking and bounded. View-models consume hub/ingest/store seams, never brokers.
-Treat silent loss, duplication, ordering, and cancellation as high risk. Use deps.json for blast
-radius and run focused headless tests before any full Windows build.
-"""

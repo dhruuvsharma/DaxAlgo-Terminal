@@ -1,9 +1,0 @@
-name = "login"
-description = "Windows login and credential-form specialist for src/windows/Shell/TradingTerminal.Login."
-developer_instructions = """
-Load Windows context and inspect the Login symbol shard. Keep credential storage protected, never
-log secrets, and keep credentialed form registration paired with credentialed broker registration.
-Basic remains keyless while Intermediate may expose credentialed composition. UI work follows strict
-MVVM. Run the matching edition filter plus focused WPF tests; apply shared shell effects to both
-public editions only when authorized by scope.
-"""

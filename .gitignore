@@ -80,3 +80,21 @@ __pycache__/
 
 # Claude agent worktrees (temporary)
 .claude/worktrees/
+
+# Local agent tooling (Claude Code / Codex). Kept on disk for local use, deliberately
+# untracked: the public repository ships the product, not the authoring workflow.
+.claude/
+.agents/
+.codex/
+CLAUDE.md
+AGENTS.md
+claude-here.bat
+claude-launch.bat
+# Not part of the base application: authored documentation, task records, screenshots,
+# polyglot sidecars (Python ML / C++), and forward-looking idea notes. Kept on disk locally,
+# deliberately untracked -- the public repository ships the base application source only.
+docs/
+tasks/
+images/
+tools/
+ideas.md
