@@ -98,7 +98,6 @@ tasks/
 images/
 tools/
 ideas.md
-sdk/ai-context/
 build/gen-ai-context.ps1
 scripts/setup-claude-code.bat
 researchpapers/
