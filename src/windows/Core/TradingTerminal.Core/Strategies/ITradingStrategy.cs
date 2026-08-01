@@ -14,11 +14,11 @@ public interface ITradingStrategy
 
     /// <summary>
     /// The id of the engine-side <c>BacktestStrategyOption</c> (in <c>BacktestStrategyCatalog</c>)
-    /// that this live strategy maps to, e.g. <c>"sigmaIcFlow"</c>. Drives the Strategy-catalog
-    /// "Quick backtest" command, which resolves the engine strategy from this id. Live ids
+    /// that this live strategy maps to, e.g. <c>"sigmaIcFlow"</c>. Backtest composition resolves
+    /// the engine strategy from this id. Live ids
     /// (dotted, e.g. <c>"sigma.ic.flow"</c>) and engine ids (camelCase) intentionally differ, so
     /// the mapping is declared here rather than inferred. <c>null</c> (the default) means the
-    /// strategy has no backtest counterpart and Quick backtest is unavailable for it.
+    /// strategy has no backtest counterpart.
     /// </summary>
     string? BacktestStrategyId => null;
 

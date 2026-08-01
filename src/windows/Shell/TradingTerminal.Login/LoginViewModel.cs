@@ -425,14 +425,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         // Broker desktop apps (TWS / IB Gateway, NinjaTrader 8) are NOT listed here — each broker form
         // declares its own prerequisite via BrokerLoginFormBase.Prerequisite and renders it inside that
         // broker's expander. Local AI dependencies (the daxalgo-ml sidecar, Ollama) are configured from
-        // Settings → Notifications / Research and no longer clutter the login screen.
-        Services.Add(new ServiceDependencyViewModel(
-            name: "Docker Desktop",
-            purpose: "Runs the isolated Paper Lab sandbox container.",
-            requirement: "Optional",
-            howTo: "Start Docker Desktop and wait for the engine to report Running before using Paper Lab.",
-            startCommand: null,
-            probe: ServiceDependencyViewModel.DockerRunningAsync));
+        // Settings → Notifications and no longer clutter the login screen.
 
         Services.Add(new ServiceDependencyViewModel(
             name: "QuestDB",

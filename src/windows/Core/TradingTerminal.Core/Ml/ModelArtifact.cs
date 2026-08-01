@@ -119,6 +119,10 @@ public sealed record FeatureContract(int Dimension, IReadOnlyList<string> Names)
 /// The producing predictor owns the ordering and mirrors it on restore.</summary>
 public sealed record BankState(string Name, IReadOnlyList<ForecasterState> Learners);
 
+/// <summary>Serializable per-dimension feature-standardizer state stored with a model artifact:
+/// the running mean and variance plus the sample count.</summary>
+public sealed record FeatureScalerState(int Dimensions, long Samples, double[] Mean, double[] Variance);
+
 /// <summary>A named running scalar (EWMA, tick estimate, initialization flag as 0/1, …) captured so
 /// the predictor can resume exactly. A flat bag rather than bespoke fields keeps the artifact schema
 /// stable as predictors evolve their internal scalars.</summary>

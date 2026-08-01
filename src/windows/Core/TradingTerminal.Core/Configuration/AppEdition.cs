@@ -11,9 +11,9 @@ namespace TradingTerminal.Core.Configuration;
 /// </remarks>
 public enum AppEdition
 {
-    /// <summary>Keyless brokers only, core charts/tools/strategies. No ML / AI / LSE / QuantConnect / experimental.</summary>
+    /// <summary>Keyless brokers with the base strategy, data, and settings surfaces.</summary>
     Basic,
 
-    /// <summary>Everything — every broker, tool, ML / AI / LSE / QuantConnect / Paper Lab / experimental surface.</summary>
+    /// <summary>The private overlay's higher-tier broker and feature composition.</summary>
     Professional,
 }

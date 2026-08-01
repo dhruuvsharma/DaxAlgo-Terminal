@@ -9,7 +9,7 @@ namespace TradingTerminal.Infrastructure.Plugins;
 /// The <see cref="IServiceCollection"/> a plugin actually sees inside
 /// <see cref="DaxAlgo.Sdk.IStrategyPlugin.Register"/>. MS.DI resolves the LAST registration of a
 /// service type, so handing a plugin the raw host collection lets it replace
-/// <c>ICredentialStore</c> / <c>IBrokerSelector</c> / <c>IMarketDataStore</c> / <c>IAiAnalystClient</c>
+/// <c>ICredentialStore</c> / <c>IBrokerSelector</c> / <c>IMarketDataStore</c>
 /// and quietly intercept the user's broker session, credentials, or market data. This wrapper makes
 /// the seam <b>add-only</b>:
 /// <list type="bullet">

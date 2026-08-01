@@ -3,10 +3,9 @@
 namespace TradingTerminal.App.Shell;
 
 /// <summary>
-/// Generic single-instance window machinery shared by the shell view-model and the per-edition
-/// tier-exclusive launch commands (<see cref="IShellExtendedToolCommands"/>). Lifted out of
-/// <c>MainWindowViewModel</c> so a Professional-only launcher can live outside App.Core yet still
-/// reuse the exact same open/focus/dispose behaviour and the shell's "Opening…" loading curtain.
+/// Generic single-instance window machinery shared by shell launchers. Lifted out of
+/// <c>MainWindowViewModel</c> so callers reuse the same open/focus/dispose behaviour and the shell's
+/// "Opening…" loading curtain.
 /// Registered as a singleton by <c>AddShell()</c>.
 /// </summary>
 public interface IShellWindowHost
@@ -32,14 +31,14 @@ public interface IShellWindowHost
     /// construction freezes the UI thread. The curtain is always taken down afterwards, even on throw.</summary>
     void OpenWithOverlay(string title, string detail, Action build);
 
-    /// <summary>Opens (or focuses) a single-instance tool whose view is a <see cref="FrameworkElement"/>
+    /// <summary>Opens (or focuses) a single-instance surface whose view is a <see cref="FrameworkElement"/>
     /// (a UserControl), wrapped in a themed <see cref="ToolHostWindow"/>. VM disposed on close.</summary>
     void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
         double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
         where TVm : class
         where TView : FrameworkElement;
 
-    /// <summary>Opens (or focuses) a single-instance tool that ships its own <see cref="Window"/>.
+    /// <summary>Opens (or focuses) a single-instance surface that ships its own <see cref="Window"/>.
     /// VM disposed on close.</summary>
     void OpenWindowTool<TVm, TWindow>(string windowId, string title, string detail)
         where TVm : class

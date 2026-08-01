@@ -24,7 +24,7 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
         Apply(presentation);
     }
 
-    /// <summary>The underlying strategy — the catalog's pill converters, Open and Quick-backtest all key
+    /// <summary>The underlying strategy — the catalog's pill converters and Open action key
     /// off this, so it stays exposed even as the display fields are overridden.</summary>
     public ITradingStrategy Strategy { get; }
 

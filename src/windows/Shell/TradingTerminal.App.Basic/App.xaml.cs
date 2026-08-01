@@ -7,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
-using TradingTerminal.Accounts;
 using TradingTerminal.App.Composition;
 using TradingTerminal.App.Logging;
 using TradingTerminal.App.Notifications;
@@ -43,45 +42,12 @@ public partial class App : Application
             throw new InvalidOperationException(processMitigations.Failure);
 
         var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? "Production";
-        var accountGateConfiguration = new ConfigurationBuilder()
-            .SetBasePath(assemblyDir)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile($"appsettings.{environmentName}.json", optional: true)
-            .AddJsonFile("appsettings.local.json", optional: true)
-            .Build();
-        var startupDevOptions = accountGateConfiguration
-            .GetSection(DevOptions.SectionName)
-            .Get<DevOptions>() ?? new DevOptions();
-        var googleAuthOptions = accountGateConfiguration
-            .GetSection(GoogleAuthOptions.SectionName)
-            .Get<GoogleAuthOptions>() ?? new GoogleAuthOptions();
-        if (startupDevOptions.ResetAccountOnStart)
-            AccountGateRunner.ClearStoredAccount();
 
-        // Dev/QA escape hatch: `--bypass-login` (alias `--no-login`) walks past both sign-in surfaces
-        // and opens the shell directly. `--bypass-account-login` skips only the product-account gate,
-        // leaving the broker connection window in place.
+        // Dev/QA escape hatch: `--bypass-login` (alias `--no-login`) skips the broker sign-in
+        // surface and opens the shell directly.
         var bypassLoginRequested = e.Args.Any(a =>
             string.Equals(a, "--bypass-login", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "--no-login", StringComparison.OrdinalIgnoreCase));
-        var bypassAccountLoginRequested = e.Args.Any(a =>
-            string.Equals(a, "--bypass-account-login", StringComparison.OrdinalIgnoreCase));
-
-        // The account/entitlement gate is only waived in Debug builds; a shipped Basic executable
-        // still gates even if someone passes a bypass flag.
-        var skipAccountGate = false;
-#if DEBUG
-        skipAccountGate = bypassLoginRequested || bypassAccountLoginRequested;
-#endif
-
-        if (!skipAccountGate && !AccountGateRunner.Show(AppEdition.Basic, googleAuthOptions))
-        {
-            Shutdown();
-            return;
-        }
 
         // Seed the shared strategy-pill converters into Application resources before any window is
         // shown, so {StaticResource StrategyTagsConverter} / {StaticResource StrategyClassConverter}
@@ -174,11 +140,9 @@ public partial class App : Application
                     ctx.Configuration.GetSection(OkxOptions.SectionName));
 
                 // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
-                // turned on by the DevSim/DevReplay environment files).
+                // turned on by the DevSim environment file).
                 services.Configure<DevOptions>(
                     ctx.Configuration.GetSection(DevOptions.SectionName));
-                services.Configure<GoogleAuthOptions>(
-                    ctx.Configuration.GetSection(GoogleAuthOptions.SectionName));
                 services.Configure<SimulatedBrokerOptions>(
                     ctx.Configuration.GetSection(SimulatedBrokerOptions.SectionName));
 
@@ -198,9 +162,9 @@ public partial class App : Application
                 services.AddInfrastructureCore();
                 services.AddKeylessBrokers();
 
-                // The core composition (pipeline / archive / notifications / regime / strategy plug-ins /
-                // login / shell + window host / support / settings / AI-analyst seam + the common tool &
-                // chart surfaces + cross-cutting singletons). No Professional surface is registered —
+                // The core composition (pipeline / archive / notifications / strategy plug-ins /
+                // login / shell + window host / support / settings + cross-cutting singletons).
+                // No Professional surface is registered —
                 // this edition's exe does not even reference those projects.
                 services.AddCoreShell(ctx.Configuration);
             })
@@ -223,7 +187,7 @@ public partial class App : Application
                 },
                 log: (source, level, message) => inMemoryLogSink.Append(source, level, message));
 
-        // Point every instrument picker (strategies, tools, charts) at the canonical registry instead
+        // Point every strategy instrument picker at the canonical registry instead
         // of the hardcoded fallback. The registry is loaded by the pipeline at startup and keeps
         // filling as brokers connect, so all dropdowns show the real discovered universe. Mirrors the
         // UiThread.Marshal / InMemoryLogSink.UiPost startup hooks above.
@@ -269,10 +233,9 @@ public partial class App : Application
             return;
         }
 
-        // Dev launch profiles or the full `--bypass-login` flag skip the broker window. The
-        // account-only flag deliberately leaves that window in place.
+        // Dev launch profiles or the full `--bypass-login` flag skip the broker window.
         var dev = _host.Services.GetRequiredService<IOptions<DevOptions>>().Value;
-        if (!bypassAccountLoginRequested && (dev.BypassLogin || bypassLoginRequested))
+        if (dev.BypassLogin || bypassLoginRequested)
         {
             // A command-line bypass has no broker list of its own. Fall back to the always-registered
             // Simulated feed so the shell opens with data instead of a dead session.

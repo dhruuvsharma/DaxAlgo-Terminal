@@ -44,7 +44,7 @@ public interface IParquetQueryService
     /// Ad-hoc research escape hatch: runs arbitrary read-only SQL and returns a column-oriented
     /// result. The caller references Parquet inputs directly, e.g.
     /// <c>SELECT count(*) FROM read_parquet('C:/data/*.parquet')</c>. Intended for the
-    /// Research/AI tabs; not on any hot path. The implementation opens an in-memory database, so
+    /// analytical query consumers; not on any hot path. The implementation opens an in-memory database, so
     /// statements that attempt to write to disk have nowhere persistent to land.
     /// </summary>
     Task<ParquetQueryResult> QueryAsync(string sql, CancellationToken ct = default);

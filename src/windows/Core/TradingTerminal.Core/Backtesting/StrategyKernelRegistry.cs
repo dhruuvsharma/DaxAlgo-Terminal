@@ -16,9 +16,8 @@ public sealed record StrategyKernelDescriptor(
 {
     /// <summary>
     /// Optional canonical URL of the source research paper, mirroring
-    /// <c>ITradingStrategy.ResearchPaperUrl</c>. Set on a descriptor bridged from a Paper Lab
-    /// reproduction so the Studio can show the paper pill and the provenance survives. Defaults to
-    /// <c>null</c> for non-paper-derived kernels.
+    /// <c>ITradingStrategy.ResearchPaperUrl</c>, so a host can show the source link and preserve
+    /// provenance. Defaults to <c>null</c> for kernels without a paper source.
     /// </summary>
     public string? ResearchPaperUrl { get; init; }
 }

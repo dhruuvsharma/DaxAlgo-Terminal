@@ -22,7 +22,6 @@
     <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
   </Folder>
   <Folder Name="/Shell/">
-    <Project Path="src/windows/Shell/TradingTerminal.Accounts/TradingTerminal.Accounts.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.App.Basic/TradingTerminal.App.Basic.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.Login/TradingTerminal.Login.csproj" />
     <Project Path="src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj" />
@@ -34,12 +33,5 @@
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.Strategy.BundleTool/DaxAlgo.Strategy.BundleTool.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
-  </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/DaxAlgo.SamplePlugin/DaxAlgo.SamplePlugin.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/TradingTerminal.Tests/TradingTerminal.Tests.csproj" />
-    <Project Path="tests/TradingTerminal.Tests.Headless/TradingTerminal.Tests.Headless.csproj" />
   </Folder>
 </Solution>

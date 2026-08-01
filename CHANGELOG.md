@@ -72,8 +72,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   random-walk (**Synthetic**) or speed-scaled **Replay** of the local market-data store. Supports
   trade tape and L2 depth. Configured via the `SimulatedBroker` section (`SimulatedBrokerOptions`).
 - **Dev launch profiles** — `Dev: Simulated (offline)` / `Dev: Replay (local DB)` /
-  `Dev: Live (no login)` in `launchSettings.json`, selected by `DOTNET_ENVIRONMENT`
-  (`DevSim` / `DevReplay` / `DevLive`), each layering an `appsettings.{Env}.json` over the base.
+  `Dev: Live (no login)` were added in `launchSettings.json`, selected by `DOTNET_ENVIRONMENT`
+  and layering environment-specific settings over the base. The replay profile was later retired.
 - **`Dev` config section** (`DevOptions`) — `BypassLogin` skips the login window and auto-connects
   `AutoConnectBrokers` (a failed connect is logged, never fatal). Off in the shipped build.
 

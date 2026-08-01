@@ -7,9 +7,7 @@ namespace TradingTerminal.App.Shell;
 
 /// <summary>
 /// Default <see cref="IShellWindowHost"/>: owns the single-instance window registry and the generic
-/// open/focus/dispose behaviour behind the shell "Opening…" loading curtain. This is the machinery
-/// lifted out of <c>MainWindowViewModel</c> so tier-exclusive launchers
-/// (<see cref="IShellExtendedToolCommands"/> implementations shipped by the Professional shell) reuse it.
+/// open/focus/dispose behaviour behind the shell "Opening…" loading curtain.
 /// </summary>
 internal sealed class ShellWindowHost : IShellWindowHost
 {
@@ -86,7 +84,7 @@ internal sealed class ShellWindowHost : IShellWindowHost
             var vm = _services.GetRequiredService<TVm>();
             var window = _services.GetRequiredService<TWindow>();
             window.DataContext = vm;
-            // Standalone tool/chart windows own their XAML, so top the same amber "SIMULATED DATA"
+            // Standalone windows own their XAML, so top the same amber "SIMULATED DATA"
             // strip generically here (collapsed unless the Simulated broker is connected).
             UI.Controls.SimulatedDataBanner.AttachTo(window);
             window.Owner = Application.Current.MainWindow;

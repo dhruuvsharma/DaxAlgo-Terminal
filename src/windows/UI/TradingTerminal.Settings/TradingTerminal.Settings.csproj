@@ -4,7 +4,7 @@
     <!-- WPF-free settings view models shared by the Windows shells. Namespaces remain
          TradingTerminal.App.* so existing views and composition require no migration. -->
     <TargetFramework>net9.0-windows7.0</TargetFramework>
-    <Description>Settings view models for Notifications, Research, Authoring, Support, and Archive.</Description>
+    <Description>Settings view models for Notifications, Authoring, Support, and Archive.</Description>
   </PropertyGroup>
 
   <!-- Enable Windows DPAPI credential protection for Telegram archive credentials. -->

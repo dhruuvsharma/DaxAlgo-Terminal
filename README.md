@@ -79,33 +79,27 @@ real money. This is a deliberate safety boundary, not a missing feature.
   crypto feeds Binance / Coinbase / Bybit / Kraken / OKX — **plus an always-available offline
   `Simulated` broker** so the app runs end-to-end with no account at all.
   [docs/brokers.md](docs/brokers.md).
-- **Charts & order-flow windows** — TradingView-style charts (Windows), a live L2 order-book
-  ladder, a bid/ask **volume footprint** with curve-fit POC predictors, and the combined
-  **Bookmap + VolBook** liquidity-heatmap window. [docs/charts.md](docs/charts.md).
 - **Strategy plugins (open-core)** — install third-party strategies as code-signed plugins from the
   **Plugins** menu, or build your own against the **DaxAlgo SDK**. [docs/plugins.md](docs/plugins.md).
-- **Paper Lab** — turn a research paper (e.g. an arXiv link) into a sandboxed reproduction that
-  bridges into the backtest engine as a paper-tagged strategy. [docs/paper-lab.md](docs/paper-lab.md).
 - **Machine-Learning menu** (Windows) — a stationarity & differencing lab (ADF/KPSS/ACF, fractional
   differencing), ARIMA + GARCH forecasting with confidence bands, and Kalman filters.
   [docs/machine-learning.md](docs/machine-learning.md).
-- **Market-regime suite** — a 0–100 risk-on / risk-off composite blended from free public data,
-  plus an 18-indicator × 8-timeframe **Advanced regime** board. [docs/market-regime.md](docs/market-regime.md).
 - **Canonical market-data pipeline** — a broker-neutral identity (`InstrumentId`), an Rx fan-out
   hub, tick-primary ingest, and a four-backend store (per-broker SQLite by default, single-file
   SQLite, PostgreSQL + TimescaleDB, or QuestDB), with an optional Telegram **archive offloader**.
   [docs/market-data.md](docs/market-data.md) · [docs/storage.md](docs/storage.md).
-- **Tick-level backtest engine + Backtest Studio** — fee models, risk caps, an L1 fill model, a
-  full statistics suite (Sharpe, Sortino, Calmar, Omega, Ulcer…), plus a headless CLI with
-  `run` / `sweep` / `walkforward` / `mc` / `tca` / `features`. [docs/backtesting.md](docs/backtesting.md).
+- **Retained tick-level backtest engine** — reusable engine, protocol, client, and worker libraries
+  with fee models, risk caps, an L1 fill model, and performance statistics. These support strategy
+  authoring and programmatic verification; the public shell exposes no backtest workbench or CLI.
+  [docs/backtesting.md](docs/backtesting.md).
 - **Notifications** — fan signals out to Telegram and Discord, with an optional local-LLM (Ollama)
   commentary enricher. [docs/notifications.md](docs/notifications.md).
 - **AI Market Analyst** — a four-agent Python sidecar (indicator → pattern → trend → decision) over
   loopback HTTP/JSON that annotates charts and gives a plain-language read.
   [docs/ai-analyst.md](docs/ai-analyst.md).
-- **Bloomberg-style shell** — black canvas, amber accent, monospace throughout. Every tool,
-  strategy and chart opens as its own window; a live theme editor (**Theme Studio**) lets you
-  recolour the whole app. [docs/theme-studio.md](docs/theme-studio.md).
+- **Bloomberg-style shell** — black canvas, amber accent, monospace throughout. The base shell
+  provides strategy authoring and management, data/archive controls, settings, and a live theme
+  editor (**Theme Studio**). [docs/theme-studio.md](docs/theme-studio.md).
 
 ---
 
@@ -127,15 +121,10 @@ own window unless noted):
 |---|---|
 | **File** | Reconnect to broker · Start QuestDB · Exit |
 | **View** | Activity log (toggle) · Theme (Bloomberg Amber / Monochrome) · Customize theme… (Theme Studio) |
-| **Tools** | Backtest Studio · Record live ticks · Advanced market regime · Correlation matrix · Live correlation matrix |
-| **Plugins** | Manage strategy plugins… |
-| **LSE Tools** | LSE backtester |
-| **Charts** | Charts · Order book · Volume footprint · Bookmap + VolBook |
-| **Machine learning** *(Windows)* | Stationarity & differencing · ARIMA & GARCH · Kalman filter |
-| **QuantConnect / LEAN** | Backtest runner · Projects · Data sync · Settings & status |
-| **AI tools** | Factor research · ML features · Backtest analysis · Market analyst · Paper Lab |
+| **Strategy Studio** | Vibe Code (Vibe Quant · Launch CLI) · Strategy Manager |
 | **Data** | Market data archive · Archive history · Instant offload |
-| **Settings** | Notifications · Research (Paper Lab) |
+| **Execution Engine** | Not yet available — the public terminal remains data/signals only |
+| **Settings** | Notifications · AI providers |
 | **Help** | Support the developer · About |
 
 A guided tour of every one of these lives in [docs/user-guide.md](docs/user-guide.md).
@@ -146,7 +135,7 @@ A guided tour of every one of these lives in [docs/user-guide.md](docs/user-guid
 
 The big idea: **brokers are interchangeable, and everything downstream speaks one canonical
 language.** A quote from Interactive Brokers and a quote from Binance become the same kind of record
-the moment they enter the app, so a strategy, a chart, or the database never has to care where the
+the moment they enter the app, so a consumer or the database never has to care where the
 data came from.
 
 ```mermaid
@@ -175,12 +164,10 @@ flowchart TB
         ARCH[Archive offloader<br/>→ Telegram]
     end
 
-    subgraph Consumers["Consumers — UI + engine projects"]
-        STRAT[Live strategies ×12]
-        TOOLS[Charts · OrderBook · Footprint · Bookmap]
-        REGML[Regime · Correlation · Machine Learning]
-        BT[Backtest engine + Studio + CLI]
-        AI[AI analyst + Paper Lab sidecar]
+    subgraph Consumers["Consumers — shell + retained engines"]
+        STRAT[Runtime strategy plugins]
+        BT[Backtest engine]
+        AI[Strategy Studio]
         NOTIF[Notifications: Telegram · Discord]
     end
 
@@ -190,11 +177,9 @@ flowchart TB
     STORE --> ARCH
     REG -.identity.-> ING
     HUB --> STRAT
-    HUB --> TOOLS
-    STORE --> REGML
     STORE --> BT
     STRAT --> NOTIF
-    STRAT --> AI
+    AI --> STRAT
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full design rationale, the threading
@@ -223,7 +208,7 @@ Professional feature DLLs):
 
 | Edition | Run | What you get |
 |---|---|---|
-| **Basic** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Basic` | Keyless brokers only (crypto + Simulated), full strategies catalog, core charts & tools |
+| **Basic** | `dotnet run --project src/windows/Shell/TradingTerminal.App.Basic` | Keyless brokers (crypto + Simulated), Strategy Studio and manager, data/archive controls, settings, and help |
 | **Professional** | *closed source* | Everything — adds Machine Learning, AI tools (Paper Lab + sidecar), LSE Tools, QuantConnect / LEAN, 3D Surface Lab, experimental charts. Developed in a private overlay repo on top of this one; distributed as a binary release. |
 
 Basic is fully open source in this repo. The Professional edition's exclusive
@@ -250,13 +235,9 @@ go straight to the main window. See [docs/getting-started.md](docs/getting-start
 | `images/shell-main.png` | The shell — strategy catalog + menus |
 | `images/login-window.png` | Multi-broker login |
 | `images/strategy-sigmaicflow-window.png` | Σ⁻¹·IC Order-Flow Optimizer |
-| `images/chart-bookmap.png` | Bookmap + VolBook liquidity heatmap |
-| `images/chart-footprint.png` | Volume footprint |
-| `images/tool-backteststudio.png` | Backtest Studio |
 | `images/ai-marketanalyst.png` | AI Market Analyst |
-| `images/tool-advancedregime.png` | Advanced market-regime board |
 
-The full list (every strategy, tool, chart and window) is in
+The remaining capture list is in
 [docs/MEDIA-CHECKLIST.md](docs/MEDIA-CHECKLIST.md).
 
 ---
@@ -273,10 +254,8 @@ mathematical depth below it. Quick links:
 | Setting up a broker | [brokers.md](docs/brokers.md), [ib-tws-setup.md](docs/ib-tws-setup.md) |
 | Understanding the strategies | [strategies.md](docs/strategies.md) |
 | The actual math (from scratch) | [math-reference.md](docs/math-reference.md) |
-| Charts & order-flow windows | [charts.md](docs/charts.md) |
 | Backtesting | [backtesting.md](docs/backtesting.md) |
 | Plugins & the SDK | [plugins.md](docs/plugins.md) |
-| Paper Lab (reproduce a paper) | [paper-lab.md](docs/paper-lab.md) |
 | Storage & databases | [storage.md](docs/storage.md), [market-data.md](docs/market-data.md) |
 | Tuning configuration | [configuration.md](docs/configuration.md) |
 | Architecture & contributing | [architecture.md](docs/architecture.md), [contributing.md](docs/contributing.md) |
@@ -292,15 +271,11 @@ top. Adding a broker or a strategy is a new leaf + one registration line — the
 
 ```mermaid
 flowchart TD
-    App --> Core & MarketData & Infrastructure & UI & Login & Ai
-    App --> Strategies["Strategies.* ×12"]
-    App --> ToolWins["Tool / chart / ML / AI windows<br/>Charts · OrderBook · VolumeFootprint · Heatmap ·<br/>Correlation · AdvancedMarketRegime · BacktestStudio ·<br/>Recording · Ml.* · Ai.* · QuantConnect · LseBacktest"]
-    App --> Plugins["Plugins (DaxAlgo SDK)"]
-    Login --> Core & UI & Infrastructure
-    Ai --> Core & UI & Infrastructure & MarketData
-    Strategies --> Infrastructure & UI & Core
-    ToolWins --> Infrastructure & UI & Core & MarketData
-    Plugins --> SDK[DaxAlgo.Sdk] --> Core
+    App[App.Basic] --> Settings & UI & Login & Infrastructure & MarketData & Core
+    Login --> Core & UI
+    Settings --> Infrastructure & UI & Core
+    Plugins[Runtime strategy plugins] --> SDK[DaxAlgo.Sdk] --> Core
+    App --> Plugins
     Infrastructure --> MarketData & Core
     MarketData --> Core
     UI --> Core

@@ -16,7 +16,6 @@
             <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
             <converters:HexToSoftBrushConverter x:Key="HexToSoftBrushConverter" />
             <converters:HaloBrushConverter x:Key="HaloBrushConverter" />
-            <converters:CorrelationToBrushConverter x:Key="CorrelationToBrushConverter" />
 
             <ResourceDictionary.MergedDictionaries>
                 <!-- MahApps base -->

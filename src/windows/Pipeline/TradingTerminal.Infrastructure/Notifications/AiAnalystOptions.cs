@@ -5,15 +5,14 @@ using System.Text.Json.Serialization;
 namespace TradingTerminal.Infrastructure.AiAnalyst;
 
 /// <summary>
-/// Configuration for the AI Market Analyst feature. Lives under
-/// <c>Notifications:AiAnalyst</c> in <c>notifications.json</c>, alongside Telegram /
-/// Discord / Ollama. The API key is DPAPI-encrypted on disk under
+/// Compatibility settings retained under <c>Notifications:AiAnalyst</c> in
+/// <c>notifications.json</c>. The managed sidecar activation predicate and shared settings
+/// persistence still consume this shape. The API key is DPAPI-encrypted on disk under
 /// <see cref="DataProtectionScope.CurrentUser"/> — never in <c>appsettings.json</c>.
 /// </summary>
 public sealed class AiAnalystOptions
 {
-    /// <summary>True when the user has wired up the Python sidecar. When false the DI
-    /// registration installs <c>NullAiAnalystClient</c> and the UI shows "unavailable".</summary>
+    /// <summary>Persisted enablement flag read by the managed sidecar activation predicate.</summary>
     public bool Enabled { get; set; }
 
     /// <summary>Loopback URL of the FastAPI sidecar. The default port matches the
@@ -39,8 +38,7 @@ public sealed class AiAnalystOptions
     /// own 60s top-level ceiling — keep this at or below that.</summary>
     public int TimeoutSeconds { get; set; } = 60;
 
-    /// <summary>When true, <c>AiAnalystEnricher</c> appends an AI verdict line to every
-    /// Signal/Trade notification before the dispatcher fans it out.</summary>
+    /// <summary>Legacy notification-enrichment preference retained for settings compatibility.</summary>
     public bool IncludeInEnricher { get; set; }
 
     /// <summary>Base64-encoded DPAPI ciphertext for the LLM provider's API key. Bound

@@ -15,7 +15,7 @@ namespace TradingTerminal.Infrastructure.Sidecar;
 /// <summary>
 /// Manages the local Python sidecar (<c>daxalgo-ml</c>) as a child process so the user never launches it
 /// by hand. On app start it auto-launches the sidecar when <see cref="SidecarOptions.AutoStart"/> is on
-/// AND a feature that needs it is enabled (AI Market Analyst or Paper Lab research); it waits for the
+/// AND the AI Market Analyst is enabled; it waits for the
 /// sidecar's <c>/healthz</c>, drains its output to the log, and kills it on app exit (a Windows Job
 /// Object guarantees it can't be orphaned). It also exposes <see cref="ISidecarController"/> so the login
 /// screen / settings can start it on demand.
@@ -23,12 +23,11 @@ namespace TradingTerminal.Infrastructure.Sidecar;
 /// <para>Launch resolution is exe-first: an explicit path, then a bundled <c>daxalgo-ml.exe</c> next to
 /// the app or under <c>tools/python-ml/{dist,bin}</c>, then a dev fallback of <c>python -m
 /// daxalgo_ml.app</c> using the repo venv. If nothing is found it logs and no-ops — the app still runs;
-/// the AI/research clients just report unavailable, exactly as before.</para>
+/// the AI client just reports unavailable, exactly as before.</para>
 /// </summary>
 internal sealed class SidecarHostService : IHostedService, ISidecarController, IDisposable
 {
     private readonly IOptionsMonitor<SidecarOptions> _sidecar;
-    private readonly IOptionsMonitor<ResearchReproOptions> _research;
     private readonly IOptionsMonitor<NotificationsOptions> _notifications;
     private readonly ILogger<SidecarHostService> _logger;
 
@@ -38,12 +37,10 @@ internal sealed class SidecarHostService : IHostedService, ISidecarController, I
 
     public SidecarHostService(
         IOptionsMonitor<SidecarOptions> sidecar,
-        IOptionsMonitor<ResearchReproOptions> research,
         IOptionsMonitor<NotificationsOptions> notifications,
         ILogger<SidecarHostService> logger)
     {
         _sidecar = sidecar;
-        _research = research;
         _notifications = notifications;
         _logger = logger;
     }
@@ -53,8 +50,7 @@ internal sealed class SidecarHostService : IHostedService, ISidecarController, I
     private int Port => _sidecar.CurrentValue.Port > 0 ? _sidecar.CurrentValue.Port : 8765;
     private string HealthzUrl => $"http://127.0.0.1:{Port.ToString(CultureInfo.InvariantCulture)}/healthz";
 
-    private bool FeatureNeedsSidecar =>
-        _research.CurrentValue.Enabled || _notifications.CurrentValue.AiAnalyst.Enabled;
+    private bool FeatureNeedsSidecar => _notifications.CurrentValue.AiAnalyst.Enabled;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {

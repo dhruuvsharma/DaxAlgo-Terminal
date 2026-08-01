@@ -9,13 +9,10 @@ namespace TradingTerminal.UI;
 /// lists, tagged with their source broker, falling back to the canonical instrument registry when no
 /// broker contributed anything.
 ///
-/// <para>This exists because the same twenty lines were copy-pasted into ten view-models
-/// (<see cref="LiveSignalStrategyViewModelBase"/>, the chart tools, the regime tool, correlation…),
-/// and the windows that <i>didn't</i> get the copy — the recorder and Quick backtest — fell back to
-/// <see cref="SignalInstrumentCatalog.All"/>. That is registry-backed rather than hardcoded, so it is
-/// not empty — but its rows are broker-<i>agnostic</i>: <c>Broker</c> is null, so there's no broker
-/// pill, no "· IB" disambiguation of the same ticker across two brokers, and no reflection of what a
-/// given broker actually offers right now. One implementation means that drift can't recur.</para>
+/// <para>This centralizes broker-aware picker population. The registry fallback is not empty, but its
+/// rows are broker-<i>agnostic</i>: <c>Broker</c> is null, so there is no broker pill, no "· IB"
+/// disambiguation of the same ticker across two brokers, and no reflection of what a given broker
+/// actually offers right now. One implementation keeps every consumer consistent.</para>
 ///
 /// <para>Pair it with <see cref="IBrokerSelector.StateChanged"/>: a tool window usually opens
 /// <i>before</i> a broker has finished connecting (IB + 2FA especially), so without a reload on
@@ -28,8 +25,8 @@ public static class BrokerInstrumentUniverse
     /// returned nothing. Never throws: on failure it logs and returns the registry rows, because a
     /// dropdown that fails to populate must not take the window down with it.
     /// </summary>
-    /// <param name="only">Restrict to one broker's universe (Quick backtest scopes its picker to the
-    /// broker it will pull history from). Null = every connected broker, each row tagged by source.</param>
+    /// <param name="only">Restrict to one broker's universe. Null = every connected broker, each row
+    /// tagged by source.</param>
     public static async Task<IReadOnlyList<SignalInstrument>> LoadAsync(
         IMarketDataRepository repository,
         IInstrumentRegistry registry,

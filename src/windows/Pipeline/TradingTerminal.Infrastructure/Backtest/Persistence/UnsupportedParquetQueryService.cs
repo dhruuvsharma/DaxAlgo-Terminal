@@ -8,7 +8,7 @@ namespace TradingTerminal.Infrastructure.Backtest.Persistence;
 /// Windows-only in this build (the bundled DuckDB native engine crashes the runtime on Linux/ARM),
 /// so this stub fails loudly if the optional Parquet analytical-query path is invoked off-Windows.
 /// The canonical stores (SQLite/Postgres/QuestDB) and <c>ParquetTickReader</c> are unaffected — only
-/// the DuckDB-over-Parquet SQL layer (used by the Research/AI tabs, all Windows-only UI) is gated.
+/// the optional DuckDB-over-Parquet SQL layer is gated.
 /// </summary>
 public sealed class UnsupportedParquetQueryService : IParquetQueryService
 {

@@ -27,12 +27,6 @@ public sealed class DevOptions
     public BrokerKind[] AutoConnectBrokers { get; set; } = [];
 
     /// <summary>
-    /// Clears the locally stored product-account session before the account gate opens, forcing a
-    /// fresh interactive sign-in. Intended for signup and first-run testing only.
-    /// </summary>
-    public bool ResetAccountOnStart { get; set; }
-
-    /// <summary>
     /// Prevents runtime strategy plugins from loading while keeping the empty host catalog
     /// resolvable. Intended for validating the terminal's no-strategies state.
     /// </summary>

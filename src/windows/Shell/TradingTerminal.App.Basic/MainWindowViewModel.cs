@@ -238,7 +238,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     /// <summary>The catalog rows — each strategy wrapped with its user presentation overrides (custom
     /// name / description / tags / alpha formula / UI image), editable from the card's right-click menu.
-    /// The list binds to this; <see cref="Strategies"/> stays the lookup for Open / backtest.</summary>
+    /// The list binds to this; <see cref="Strategies"/> stays the lookup for opening a strategy.</summary>
     public ObservableCollection<StrategyCatalogItemViewModel> CatalogItems { get; }
 
     /// <summary>Ids of strategies contributed by unsigned plugins or registered by the runtime
@@ -337,7 +337,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private ITradingStrategy? _selectedStrategy;
 
     /// <summary>The selected catalog row. Bound to the list; it drives <see cref="SelectedStrategy"/> so
-    /// the Open / Quick-backtest / Edit actions keep working off the underlying strategy.</summary>
+    /// the Open / Edit actions keep working off the underlying strategy.</summary>
     [ObservableProperty]
     private StrategyCatalogItemViewModel? _selectedCatalogItem;
 

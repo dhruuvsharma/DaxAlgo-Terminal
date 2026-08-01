@@ -18,7 +18,6 @@ using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
-using TradingTerminal.Infrastructure.Regime;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
@@ -35,7 +34,7 @@ public static class AppDependencyInjection
 {
     /// <summary>
     /// The core composition of THIS edition shell (each edition owns its own copy of this file) —
-    /// the canonical market-data pipeline, archive, Parquet lake, notifications, market regime,
+    /// the canonical market-data pipeline, archive, Parquet lake, notifications,
     /// strategy plug-ins, login, the shell + window host, support/settings, and the cross-cutting
     /// singletons. <c>App.xaml.cs</c> calls this after registering the
     /// edition (<see cref="AppEdition"/>) and the broker layer.
@@ -48,14 +47,11 @@ public static class AppDependencyInjection
         services.TryAddSingleton<InMemoryLogSink>();
         services.TryAddSingleton<IThemeManager, ThemeManager>();
 
-        // Canonical pipeline + archive + parquet + notifications + regime.
+        // Canonical pipeline + archive + parquet + notifications.
         services.AddMarketDataPipeline(configuration);
         services.AddMarketDataArchive(configuration);
         services.AddParquetLake(configuration);
         services.AddNotifications(configuration);
-        // Market regime — registered after AddNotifications so its risk-off signal gate supersedes the
-        // notifications module's no-op default.
-        services.AddMarketRegime(configuration);
 
         // Python-sidecar controller seam. The login screen depends on ISidecarController, but the real
         // sidecar host is a Professional-only surface (AddSidecar). Register a no-op fallback here so
@@ -108,12 +104,6 @@ public static class AppDependencyInjection
         // Lives here once so the 22 Add<Name>Strategy() extensions stay one-liners.
         services.AddSingleton<ISignalGeneratorRouterFactory, SignalGeneratorRouterFactory>();
 
-        // The Index Regime Graph strategy consumes the Advanced Market Regime engine. Register it
-        // here so the strategy remains resolvable without the standalone dashboard surface.
-        services.TryAddSingleton<
-            Core.MarketData.AdvancedRegime.IAdvancedRegimeProvider,
-            TradingTerminal.Infrastructure.Regime.AdvancedRegime.AdvancedRegimeService>();
-
         // Bundle of canonical-pipeline deps every live strategy VM needs. Resolved once and
         // injected into each per-strategy VM ctor so adding a new strategy doesn't need to
         // touch DI here. The pipeline pieces themselves (IMarketDataHub/Ingest/Store) are
@@ -128,13 +118,8 @@ public static class AppDependencyInjection
             sp.GetRequiredService<TradingTerminal.UI.Logging.InMemoryLogSink>(),
             sp.GetRequiredService<Core.MarketData.IInstrumentRegistry>()));
 
-        // NOTE: every first-party strategy is now compile-registered NOWHERE here — each ships as an
-        // EXTERNAL plugin (SigmaIcFlow, IndexRegimeGraph, CumulativeDelta, FilteredOrderFlow,
-        // OrderFlowCube, OrderFlowSurfaceSpike, ImbalanceHeatFront, IndexKScoreSurface,
-        // OrderFlowPressureMap). App.csproj builds each with ReferenceOutputAssembly=false and stages its
-        // DLL + plugin.json into {BaseDirectory}/plugins; PluginLoader (below) discovers and registers
-        // them at runtime through the SAME DI seam. IndexRegimeGraph consumes only the host-registered
-        // Core IAdvancedRegimeProvider (TryAdd'd above), so it needs no host-internal reference.
+        // First-party strategies ship as external plugins; this shell neither references nor stages
+        // their implementations. PluginLoader discovers installed packages through the common DI seam.
 
         // Strategy plugins — discovered at runtime from the app's plugins/ folder (the first-party ones
         // staged by App.csproj, plus any third-party drop-ins), each loaded in its own collectible
@@ -195,8 +180,7 @@ public static class AppDependencyInjection
     /// TradingTerminal.Login project.</summary>
     public static IServiceCollection AddShell(this IServiceCollection services)
     {
-        // Generic single-instance window machinery shared by the shell VM and the per-edition
-        // tier-exclusive launchers (IShellExtendedToolCommands).
+        // Generic single-instance window machinery shared by shell launchers.
         services.AddSingleton<IShellWindowHost, ShellWindowHost>();
 
         // Broker-API meter VM — singleton because it owns a DispatcherTimer and a stable

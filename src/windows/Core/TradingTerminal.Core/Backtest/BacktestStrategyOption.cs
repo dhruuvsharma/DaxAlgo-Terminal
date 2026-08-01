@@ -60,9 +60,8 @@ public sealed record BacktestStrategyOption(
 
     /// <summary>
     /// Optional canonical URL of the source research paper, mirroring
-    /// <c>ITradingStrategy.ResearchPaperUrl</c>. Set by strategies bridged from a Paper Lab
-    /// reproduction so the provenance (and the clickable paper pill) survives into the backtest
-    /// catalog. Defaults to <c>null</c> for non-paper-derived strategies.
+    /// <c>ITradingStrategy.ResearchPaperUrl</c>, so source provenance survives into the backtest
+    /// catalog. Defaults to <c>null</c> for strategies without a paper source.
     /// </summary>
     public string? ResearchPaperUrl { get; init; }
 

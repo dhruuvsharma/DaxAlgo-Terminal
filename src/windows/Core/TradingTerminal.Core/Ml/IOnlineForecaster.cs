@@ -2,11 +2,8 @@ namespace TradingTerminal.Core.Ml;
 
 /// <summary>
 /// The pluggable online-learner seam the chart/strategy forecasters build their banks from. The
-/// feature engineering, walk-forward score-then-learn harness, warm-start and metrics all live in
-/// the predictors and are algorithm-agnostic; only the learner behind each (target × horizon) slot
-/// varies. Today the sole implementation is <see cref="OnlineLinearRegression"/> (RLS); defining the
-/// seam now lets alternative online learners (logistic, passive-aggressive, AR/EWMA baselines, …) be
-/// dropped in behind a factory without touching the harness.
+/// feature engineering, walk-forward score-then-learn harness, warm-start and metrics are
+/// algorithm-agnostic; only the learner behind each (target × horizon) slot varies.
 ///
 /// <para>The two serialization hooks are what make a learner checkpointable into a
 /// <see cref="ModelArtifact"/>: <see cref="SaveState"/> captures everything that took data to learn,

@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="DaxNewStrategy/Engine/DaxNewStrategy.Engine.csproj" />
-  <Project Path="DaxNewStrategy/DaxNewStrategy.csproj" />
-  <Project Path="DaxNewStrategy.Tests/DaxNewStrategy.Tests.csproj" />
-</Solution>

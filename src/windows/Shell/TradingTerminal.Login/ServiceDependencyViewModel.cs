@@ -25,8 +25,8 @@ public enum ServiceState
 }
 
 /// <summary>
-/// One external dependency the terminal relies on (Docker for the Paper Lab sandbox, a broker's desktop
-/// app), with a one-line purpose, how to launch it, optional copy-paste and one-click start actions, and —
+/// One external dependency the terminal relies on (for example, a broker's desktop app), with a one-line
+/// purpose, how to launch it, optional copy-paste and one-click start actions, and —
 /// where it's cheap and safe — a live reachability probe so the user can see at a glance what's up.
 ///
 /// <para>Used in two places on the login screen: the shared "Services &amp; dependencies" panel
@@ -190,35 +190,6 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
         catch
         {
             return false; // access denied / process list unavailable — report unavailable, never throw
-        }
-    }, ct);
-
-    /// <summary>True when <c>docker version</c> reports a running server engine within ~3s.</summary>
-    public static Task<bool> DockerRunningAsync(CancellationToken ct) => Task.Run(() =>
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("docker", "version --format {{.Server.Version}}")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using var p = Process.Start(psi);
-            if (p is null) return false;
-
-            var stdout = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(3000))
-            {
-                try { p.Kill(entireProcessTree: true); } catch { /* best effort */ }
-                return false;
-            }
-            return p.ExitCode == 0 && !string.IsNullOrWhiteSpace(stdout);
-        }
-        catch
-        {
-            return false; // docker not on PATH / not installed
         }
     }, ct);
 
