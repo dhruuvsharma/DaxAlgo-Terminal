@@ -12,6 +12,7 @@ public partial class MainWindow : MetroWindow
     public MainWindow()
     {
         InitializeComponent();
+        AccessKeyManager.Register("S", StrategyStudioMenuItem);
         Loaded += OnLoaded;
 
         // Auto-scroll the Activity Log to the newest entry (console "tail" behaviour).
@@ -37,7 +38,7 @@ public partial class MainWindow : MetroWindow
         // on empty list space does nothing.
         var container = ItemsControl.ContainerFromElement(StrategiesList, e.OriginalSource as DependencyObject) as ListBoxItem;
         if (container?.DataContext is StrategyCatalogItemViewModel item)
-            vm.OpenStrategyCommand.Execute(item.Id);
+            ExecutePrimaryCatalogAction(vm, item);
     }
 
     // The floating Hyperion button — left-click opens the builder. Right-click is left to its attached
@@ -62,16 +63,25 @@ public partial class MainWindow : MetroWindow
             item.IsSelected = true;
     }
 
-    private void OpenStrategy_Click(object sender, RoutedEventArgs e)
+    private void PrimaryCatalogAction_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MainWindowViewModel vm && vm.SelectedStrategy is not null)
-            vm.OpenStrategyCommand.Execute(vm.SelectedStrategy.Id);
+        if (DataContext is MainWindowViewModel vm && vm.SelectedCatalogItem is { } item)
+            ExecutePrimaryCatalogAction(vm, item);
     }
 
     private void QuickBacktest_Click(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MainWindowViewModel vm && vm.SelectedStrategy is not null)
-            vm.QuickBacktestCommand.Execute(vm.SelectedStrategy.Id);
+        if (DataContext is MainWindowViewModel vm
+            && vm.SelectedCatalogItem is { HasQuickBacktest: true, Strategy: { } strategy })
+            vm.QuickBacktestCommand.Execute(strategy.Id);
+    }
+
+    private static void ExecutePrimaryCatalogAction(MainWindowViewModel vm, StrategyCatalogItemViewModel item)
+    {
+        if (item.Kind == CatalogItemKind.Visualizer)
+            vm.AddVisualizerToChartCommand.Execute(item.Id);
+        else
+            vm.OpenStrategyCommand.Execute(item.Id);
     }
 
     // A "Launch CLI" menu item (in the top Strategy Studio menu, or the Hyperion button's right-click
@@ -85,7 +95,7 @@ public partial class MainWindow : MetroWindow
 
     // The strategy marketplace WEBSITE isn't built yet — this opens a placeholder URL so the
     // empty-state's "Browse Marketplace" button is wired end to end. Swap MarketplaceUrl when the
-    // site ships. (This is the public storefront, NOT the in-app plugin catalog in Strategy Manager.)
+    // site ships. (This is the public storefront, NOT the in-app plugin catalog in Extensions.)
     private const string MarketplaceUrl = "https://daxalgo.com/marketplace";
 
     private void Marketplace_Click(object sender, RoutedEventArgs e)

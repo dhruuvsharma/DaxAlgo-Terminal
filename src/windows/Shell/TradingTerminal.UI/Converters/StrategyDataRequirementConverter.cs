@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using TradingTerminal.Core.Strategies;
+using TradingTerminal.UI.Strategies;
 
 namespace TradingTerminal.UI.Converters;
 
@@ -64,6 +65,16 @@ public sealed class StrategyDataRequirementConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
+        if (value is StrategyCatalogItemViewModel item)
+        {
+            if (item.Strategy is { } strategy)
+                value = strategy;
+            else
+                return item.DataRequirementTags
+                    .Select(tag => new InstrumentTag(tag, BaselineBg, BaselineFg))
+                    .ToList();
+        }
+
         var req = value switch
         {
             StrategyDataRequirement r  => r,

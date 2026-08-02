@@ -18,9 +18,9 @@ public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
     public StrategyPresentationEditorViewModel(StrategyCatalogItemViewModel item)
     {
         _item = item;
-        DefaultName = item.Strategy.DisplayName;
-        DefaultDescription = item.Strategy.Description;
-        DefaultLinkUrl = item.Strategy.LinkUrl ?? string.Empty;
+        DefaultName = item.Strategy?.DisplayName ?? item.Visualizer!.DisplayName;
+        DefaultDescription = item.Strategy?.Description ?? item.Visualizer!.Description;
+        DefaultLinkUrl = item.Strategy?.LinkUrl ?? string.Empty;
 
         _name = item.Name;
         _description = item.Description;

@@ -185,7 +185,7 @@ public partial class App : Application
                 {
                     pluginFaultState.Quarantine(plugin, reason);
                     inMemoryLogSink.Append("Plugins", "Warning",
-                        $"Strategy plugin '{plugin}' quarantined after repeated faults — it will not load on the next start (re-enable in the Plugin Manager). {reason}");
+                        $"Strategy plugin '{plugin}' quarantined after repeated faults — it will not load on the next start (re-enable in Extensions). {reason}");
                 },
                 log: (source, level, message) => inMemoryLogSink.Append(source, level, message));
 

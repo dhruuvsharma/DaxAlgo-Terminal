@@ -465,6 +465,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         });
     }
 
+    [RelayCommand]
+    public void AddVisualizerToChart(string? visualizerId)
+    {
+        if (string.IsNullOrWhiteSpace(visualizerId))
+            visualizerId = SelectedCatalogItem?.Visualizer?.Id;
+        if (!string.IsNullOrWhiteSpace(visualizerId))
+            _logger.LogWarning("Visualizer {VisualizerId} is not registered in this edition", visualizerId);
+    }
+
     /// <summary>
     /// Strategy-catalog "Quick backtest": opens a single-instance-per-strategy results window that
     /// auto-runs a 1-year backtest of the chosen strategy over historical bars (real broker when one
@@ -603,7 +612,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [RelayCommand]
     public void OpenPluginManager() =>
         _host.OpenHostedTool<TradingTerminal.App.Plugins.PluginManagerViewModel, TradingTerminal.App.Plugins.PluginManagerView>(
-            PluginManagerWindowId, "Strategy Manager", "Loading the strategy manager…");
+            PluginManagerWindowId, "Extensions", "Loading Extensions…");
 
     [RelayCommand]
     public void OpenStrategyAuthoring() =>

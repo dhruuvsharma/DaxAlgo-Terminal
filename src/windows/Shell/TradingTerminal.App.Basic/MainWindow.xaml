@@ -20,6 +20,10 @@
                  FontFamily="{DynamicResource Font.Mono}"
                  FontSize="12">
 
+    <mah:MetroWindow.Resources>
+        <uistrat:CatalogItemKindToVisibilityConverter x:Key="CatalogItemKindToVisibilityConverter" />
+    </mah:MetroWindow.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />  <!-- Header strip -->
@@ -259,11 +263,11 @@
                     </Button>
 
                     <!-- Strategy-plugin problem chip — appears only when a plugin failed to load or
-                         sits quarantined (user disables don't count). Click opens the Plugin Manager. -->
+                         sits quarantined (user disables don't count). Click opens Extensions. -->
                     <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
                             Command="{Binding OpenPluginManagerCommand}"
                             Background="Transparent" BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
-                            ToolTip="Some strategy plugins did not load — click for details in the Strategy Manager.">
+                            ToolTip="Some strategy plugins did not load — click for details in Extensions.">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -404,7 +408,16 @@
                           Command="{Binding OpenBacktestStudioCommand}" />
             </MenuItem>
 
-            <MenuItem Header="_Strategy Studio">
+            <MenuItem x:Name="StrategyStudioMenuItem">
+                <MenuItem.Header>
+                    <!-- AI-native feature: gradient-ink title + soft violet glow (shared AI language). -->
+                    <TextBlock Text="Strategy Studio" Style="{StaticResource Ai.TextAccent}">
+                        <TextBlock.Effect>
+                            <!-- fixed brand violet — resource lookups inside Effects are unreliable -->
+                            <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.55" Color="#8B5CF6" />
+                        </TextBlock.Effect>
+                    </TextBlock>
+                </MenuItem.Header>
                 <MenuItem Header="_Vibe Code">
                     <MenuItem.Icon>
                         <StaticResource ResourceKey="Ai.MenuIconChip" />
@@ -430,9 +443,9 @@
                     </MenuItem>
                 </MenuItem>
                 <Separator />
-                <MenuItem Icon="🧩" Header="_Strategy Manager…"
+                <MenuItem Icon="🧩" Header="_Extensions…"
                           Command="{Binding OpenPluginManagerCommand}"
-                          ToolTip="Enable, disable, or remove installed strategies and plugins." />
+                          ToolTip="Enable, disable, or remove installed strategies and visualizers." />
             </MenuItem>
 
             <MenuItem Header="_Data">
@@ -505,7 +518,6 @@
         <!-- Strategy catalog — fills the whole central area now that the dock is gone. -->
         <Grid Grid.Row="3" Background="{DynamicResource Background.Surface}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -538,7 +550,7 @@
                                         <TextBlock Text="{Binding Name}"
                                                    Foreground="{DynamicResource Text.Header}"
                                                    FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
-                                        <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors the Strategy Manager). -->
+                                        <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors Extensions). -->
                                         <Border CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
                                                 Background="{DynamicResource Warning.Brush}">
                                             <Border.Visibility>
@@ -576,11 +588,33 @@
                                                              VerticalAlignment="Top" />
                             </Grid>
 
-                            <!-- ── Column 2 · description ── -->
-                            <TextBlock Grid.Column="1" Text="{Binding Description}"
-                                       Foreground="{DynamicResource Text.Secondary}"
-                                       TextWrapping="Wrap" FontSize="12"
-                                       VerticalAlignment="Top" Margin="0,2,14,0" />
+                            <!-- ── Column 2 · description + primary action ── -->
+                            <Grid Grid.Column="1" Margin="0,2,14,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{Binding Description}"
+                                           Foreground="{DynamicResource Text.Secondary}"
+                                           TextWrapping="Wrap" FontSize="12"
+                                           VerticalAlignment="Top" />
+                                <Button Grid.Row="1" Content="{Binding PrimaryActionLabel}"
+                                        CommandParameter="{Binding Id}"
+                                        HorizontalAlignment="Left" Padding="10,4" Margin="0,8,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Command"
+                                                    Value="{Binding DataContext.OpenStrategyCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Kind}" Value="{x:Static uistrat:CatalogItemKind.Visualizer}">
+                                                    <Setter Property="Command"
+                                                            Value="{Binding DataContext.AddVisualizerToChartCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
 
                             <!-- ── Column 3 · UI image — the user's screenshot, else the DaxAlgo mark on a
                                  lifted gradient (the mark is solid black, invisible on our surfaces bare). ── -->
@@ -592,52 +626,8 @@
                 </DataTemplate>
             </Grid.Resources>
 
-            <!-- Section header -->
-            <Border Grid.Row="0"
-                    Background="{DynamicResource Gradient.Elevated}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="10,8">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="3" Height="13" Background="{DynamicResource Accent.Brush}" Margin="0,0,8,0" />
-                        <TextBlock Text="STRATEGY CATALOG"
-                                   Foreground="{DynamicResource Text.Header}"
-                                   FontWeight="Bold"
-                                   FontSize="11"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="double-click to open"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   FontSize="10"
-                                   Margin="12,0,0,0"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <!-- Strategy editor. The Vibe-code entry point now lives as a call-to-action card at
-                         the END of the catalog below (double-click to open · right-click for options). -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                        <Button Content="✎ Edit strategies" Padding="10,5" Cursor="Hand"
-                                Command="{Binding OpenPluginManagerCommand}"
-                                ToolTip="Open the Strategy Manager to enable, disable, or remove strategies and plugins." />
-                    </StackPanel>
-
-                    <TextBlock Grid.Column="2"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               FontSize="10"
-                               VerticalAlignment="Center">
-                        <Run Text="N=" />
-                        <Run Text="{Binding Strategies.Count, Mode=OneWay}" />
-                    </TextBlock>
-                </Grid>
-            </Border>
-
             <ListBox x:Name="StrategiesList"
-                     Grid.Row="1"
+                     Grid.Row="0"
                      BorderThickness="0"
                      Background="{DynamicResource Background.Surface}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -660,12 +650,15 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Icon="▶️" Header="Open"
-                                  Click="OpenStrategy_Click" />
+                        <MenuItem Icon="▶️"
+                                  Header="{Binding PlacementTarget.SelectedItem.PrimaryActionLabel, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  Click="PrimaryCatalogAction_Click" />
                         <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
+                                  Visibility="{Binding PlacementTarget.SelectedItem.Kind, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CatalogItemKindToVisibilityConverter}, ConverterParameter=Strategy}"
                                   Click="QuickBacktest_Click" />
                         <Separator />
-                        <MenuItem Icon="✏️" Header="Edit strategy card…"
+                        <MenuItem Icon="✏️"
+                                  Header="{Binding PlacementTarget.SelectedItem.EditActionLabel, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   Click="EditStrategy_Click" />
                     </ContextMenu>
                 </ListBox.ContextMenu>
@@ -676,7 +669,7 @@
              ways forward: build one with Hyperion (the AI hero), or get one from the marketplace
              (placeholder until the site ships). The floating VibeFab hides while this is up so its
              Hyperion CTA doesn't duplicate the one here. -->
-        <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Margin="24">
+        <Grid Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Margin="24">
           <Grid.Style>
             <Style TargetType="Grid">
               <Setter Property="Visibility" Value="Collapsed" />
@@ -793,8 +786,8 @@
             <TextBlock HorizontalAlignment="Center" Margin="0,18,0,0" FontSize="11.5">
               <Hyperlink Command="{Binding DataContext.OpenPluginManagerCommand, ElementName=RootWindow}"
                          Foreground="{DynamicResource Text.Secondary}" TextDecorations="{x:Null}"
-                         ToolTip="Open the Strategy Manager to install a .daxplugin or manage plugins.">
-                Already have a .daxplugin? Install it in Strategy Manager →
+                         ToolTip="Open Extensions to install a .daxplugin or manage plugins.">
+                Already have a .daxplugin? Install it in Extensions →
               </Hyperlink>
             </TextBlock>
           </StackPanel>
@@ -806,7 +799,7 @@
             <!-- Bottom-right FAB stays realized while the catalog is empty-state collapsed. Gating the
                  wrapper's opacity preserves the hero template namescope; collapsing the button makes
                  its Loaded storyboard fail to resolve the HeroSweep template part. -->
-            <Grid Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,28,28">
+            <Grid Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,28,28">
               <Grid.Style>
                 <Style TargetType="Grid">
                   <Style.Triggers>
@@ -817,6 +810,19 @@
                   </Style.Triggers>
                 </Style>
               </Grid.Style>
+              <StackPanel Orientation="Horizontal">
+                <Button x:Name="EditFab"
+                        Cursor="Hand"
+                        Margin="0,0,12,0"
+                        Command="{Binding OpenPluginManagerCommand}"
+                        ToolTip="Open Extensions to enable, disable, or remove installed strategies and visualizers."
+                        AutomationProperties.Name="Open Extensions">
+                  <Button.Style>
+                    <StaticResource ResourceKey="Ai.HeroButton" />
+                  </Button.Style>
+                  <TextBlock Text="Edit" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Text.Primary}" />
+                </Button>
             <Button x:Name="VibeFab"
                     Cursor="Hand"
                     Click="VibeFab_Click"
@@ -847,6 +853,7 @@
                                Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
             </Button>
+              </StackPanel>
             </Grid>
         </Grid>
 

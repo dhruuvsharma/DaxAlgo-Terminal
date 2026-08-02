@@ -31,4 +31,9 @@ public sealed class DevOptions
     /// resolvable. Intended for validating the terminal's no-strategies state.
     /// </summary>
     public bool DisableStrategyPlugins { get; set; }
+
+    /// <summary>
+    /// Adds Pro-only visualizer examples to the catalog for local UI comparison. Off by default.
+    /// </summary>
+    public bool SeedDemoVisualizers { get; set; }
 }

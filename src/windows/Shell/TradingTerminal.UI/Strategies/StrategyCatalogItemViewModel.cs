@@ -6,10 +6,8 @@ using TradingTerminal.Core.Strategies;
 namespace TradingTerminal.UI.Strategies;
 
 /// <summary>
-/// One row in the strategy catalog: the compiled <see cref="ITradingStrategy"/> plus the user's
-/// presentation overrides (name / description / tags / link / alpha formula / UI image). Effective
-/// values fall back to the strategy's own metadata, and the image falls back to the app logo in XAML.
-/// Observable, so an in-place edit refreshes the card live without rebuilding the catalog.
+/// One catalog row backed by either a compiled strategy or a lightweight visualizer descriptor,
+/// plus the user's presentation overrides.
 /// </summary>
 public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
 {
@@ -24,11 +22,30 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
         Apply(presentation);
     }
 
-    /// <summary>The underlying strategy — the catalog's pill converters and Open action key
-    /// off this, so it stays exposed even as the display fields are overridden.</summary>
-    public ITradingStrategy Strategy { get; }
+    public StrategyCatalogItemViewModel(VisualizerDescriptor visualizer)
+        : this(visualizer, StrategyPresentationStore.Get(visualizer.Id)) { }
 
-    public string Id => Strategy.Id;
+    public StrategyCatalogItemViewModel(VisualizerDescriptor visualizer, StrategyPresentation presentation)
+    {
+        Visualizer = visualizer;
+        Kind = CatalogItemKind.Visualizer;
+        _name = visualizer.DisplayName;
+        _description = visualizer.Description;
+        Apply(presentation);
+    }
+
+    public CatalogItemKind Kind { get; } = CatalogItemKind.Strategy;
+    public ITradingStrategy? Strategy { get; }
+    public VisualizerDescriptor? Visualizer { get; }
+
+    public string Id => Strategy?.Id ?? Visualizer!.Id;
+    public string KindLabel => Kind == CatalogItemKind.Strategy ? "STRATEGY" : "VISUALIZER";
+    public string KindForegroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Glow.Brush" : "Accent.Brush";
+    public string KindBackgroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Soft" : "Accent.Soft";
+    public string PrimaryActionLabel => Kind == CatalogItemKind.Strategy ? "Open" : "Add to chart";
+    public string EditActionLabel => Kind == CatalogItemKind.Strategy ? "Edit strategy card…" : "Edit card";
+    public bool HasQuickBacktest => Kind == CatalogItemKind.Strategy;
+    public IReadOnlyList<string> DataRequirementTags => Visualizer?.DataRequirementTags ?? [];
 
     [ObservableProperty] private string _name;
     [ObservableProperty] private string _description;
@@ -36,7 +53,6 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
     [ObservableProperty] private string? _formula;
     [ObservableProperty] private string? _imagePath;
 
-    /// <summary>Extra free-text tags the user added — rendered alongside the auto data/asset pills.</summary>
     public ObservableCollection<string> CustomTags { get; } = [];
 
     public bool HasFormula => !string.IsNullOrWhiteSpace(Formula);
@@ -54,14 +70,17 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasLink));
     }
 
-    /// <summary>Overlay the strategy's compiled metadata with a set of overrides (blank ⇒ fall back).</summary>
     public void Apply(StrategyPresentation presentation)
     {
-        Name = string.IsNullOrWhiteSpace(presentation.Name) ? Strategy.DisplayName : presentation.Name!;
-        Description = string.IsNullOrWhiteSpace(presentation.Description) ? Strategy.Description : presentation.Description!;
-        LinkUrl = string.IsNullOrWhiteSpace(presentation.LinkUrl) ? Strategy.LinkUrl : presentation.LinkUrl.Trim();
+        var defaultName = Strategy?.DisplayName ?? Visualizer!.DisplayName;
+        var defaultDescription = Strategy?.Description ?? Visualizer!.Description;
+        var defaultImagePath = Visualizer?.ImagePath;
+
+        Name = string.IsNullOrWhiteSpace(presentation.Name) ? defaultName : presentation.Name!;
+        Description = string.IsNullOrWhiteSpace(presentation.Description) ? defaultDescription : presentation.Description!;
+        LinkUrl = string.IsNullOrWhiteSpace(presentation.LinkUrl) ? Strategy?.LinkUrl : presentation.LinkUrl.Trim();
         Formula = string.IsNullOrWhiteSpace(presentation.Formula) ? null : presentation.Formula;
-        ImagePath = string.IsNullOrWhiteSpace(presentation.ImagePath) ? null : presentation.ImagePath;
+        ImagePath = string.IsNullOrWhiteSpace(presentation.ImagePath) ? defaultImagePath : presentation.ImagePath;
 
         CustomTags.Clear();
         foreach (var tag in presentation.Tags ?? new List<string>())
