@@ -389,7 +389,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// or when the launcher isn't wired — either way the UI hides the hand-off.</summary>
     public IReadOnlyList<AgentCliAdapter> AvailableClis => _cliLauncher?.AvailableClis() ?? [];
 
-    /// <summary>Scaffolds this strategy's Vibe Quant workspace (context pack, skills, starter project)
+    /// <summary>Scaffolds this strategy's Hyperion workspace (context pack, skills, starter project)
     /// and opens the CLI there in a real terminal — interactive, never headless.</summary>
     [RelayCommand]
     private void LaunchCli(AgentCliAdapter? adapter)

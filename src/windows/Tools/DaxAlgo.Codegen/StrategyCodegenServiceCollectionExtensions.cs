@@ -47,7 +47,7 @@ public static class StrategyCodegenServiceCollectionExtensions
                 sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiCodegenOptions>>().Value));
         services.AddSingleton<IAiStrategyBuilder>(sp => sp.GetRequiredService<AiStrategyBuilder>());
 
-        // The interactive escape hatch: scaffolds a Vibe Quant workspace (context pack + skill packs +
+        // The interactive escape hatch: scaffolds a Hyperion workspace (context pack + skill packs +
         // starter project) and opens an installed agent CLI in a real terminal there.
         services.AddSingleton<ICliWorkspaceLauncher, CliWorkspaceLauncher>();
 

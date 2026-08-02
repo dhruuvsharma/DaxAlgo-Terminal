@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Windows;
@@ -12,6 +12,9 @@ using TradingTerminal.App.Archive;
 using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
+using TradingTerminal.Backtest;
+using TradingTerminal.BacktestStudio;
+using TradingTerminal.Recording;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -34,6 +37,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string AiProvidersSettingsWindowId = "settings.aiproviders";
     private const string PluginManagerWindowId = "plugins.manager";
     private const string StrategyAuthoringWindowId = "authoring.strategy";
+    private const string BacktestStudioWindowId = "tools.backtest-studio";
+    private const string RecorderWindowId = "tools.recorder";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
@@ -71,6 +76,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host = host;
         _services = services;
         _logger = logger;
+        // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
+        // chip only observes, and this ctor is already at its parameter budget.
+        Recorder = services.GetRequiredService<TickRecordingService>();
+
         // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
         // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
         _cliLauncher = cliLauncher;
@@ -456,6 +465,52 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         });
     }
 
+    /// <summary>
+    /// Strategy-catalog "Quick backtest": opens a single-instance-per-strategy results window that
+    /// auto-runs a 1-year backtest of the chosen strategy over historical bars (real broker when one
+    /// is connected, Simulated synthetic otherwise) and shows P&amp;L + headline statistics. Strategies
+    /// that declare no engine-side counterpart (<see cref="ITradingStrategy.BacktestStrategyId"/> is
+    /// null) get a message instead of a run.
+    /// </summary>
+    [RelayCommand]
+    public void QuickBacktest(string? strategyId)
+    {
+        if (string.IsNullOrWhiteSpace(strategyId))
+        {
+            if (SelectedStrategy is null) return;
+            strategyId = SelectedStrategy.Id;
+        }
+
+        var strategy = Strategies.FirstOrDefault(s => s.Id == strategyId);
+        if (strategy is null) return;
+
+        var windowId = "quickbacktest." + strategyId;
+        if (_host.TryActivate(windowId)) return;
+
+        _host.OpenWithOverlay($"Quick backtest — {strategy.DisplayName}…", "Fetching history and replaying through the engine…", () =>
+        {
+            var vm = _services.GetRequiredService<QuickBacktestViewModel>();
+            var view = _services.GetRequiredService<QuickBacktestView>();
+            view.DataContext = vm;
+
+            var window = ToolHostWindow.Create($"Quick backtest — {strategy.DisplayName}", view);
+            window.Owner = Application.Current.MainWindow;
+            window.Closed += (_, _) =>
+            {
+                _host.Unregister(windowId);
+                if (vm is IDisposable d) d.Dispose();
+            };
+            _host.Register(windowId, window);
+            window.Show();
+
+            // Bind the VM to the strategy and kick off the first run after the window is up.
+            // Tape-primary strategies (SigmaIcFlow) default to Binance + real-tape mode for a full backtest.
+            var preferFullTape = strategy.DataRequirement.HasFlag(Core.Strategies.StrategyDataRequirement.TradeTape);
+            vm.Initialize(strategy.BacktestStrategyId, strategy.DisplayName, preferFullTape);
+            _logger.LogInformation("Opened quick backtest for {Id} ({Name})", strategy.Id, strategy.DisplayName);
+        });
+    }
+
     [RelayCommand]
     public async Task ReconnectAsync()
     {
@@ -553,7 +608,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [RelayCommand]
     public void OpenStrategyAuthoring() =>
         _host.OpenHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
-            StrategyAuthoringWindowId, "Vibe Quant", "Loading Vibe Quant…");
+            StrategyAuthoringWindowId, "Hyperion", "Loading Hyperion…");
 
     /// <summary>The agent CLIs the "Launch CLI" menu offers — installed ones enabled, the rest shown
     /// disabled with an "install it" hint. Built once from what resolved on PATH at start.</summary>
@@ -572,15 +627,31 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         if (choice is null) return;
         if (_cliLauncher is null || !choice.IsAvailable)
         {
-            LogSink.Append("Vibe Quant", "Warning",
+            LogSink.Append("Hyperion", "Warning",
                 $"{choice.DisplayName} isn't available — install it and make sure it's on your PATH.");
             return;
         }
 
         var result = _cliLauncher.Launch(choice.Adapter, "vibe-scratch", "Vibe scratch strategy", StrategyBuildEffort.Standard);
-        LogSink.Append("Vibe Quant", result.Success ? "Info" : "Warning", result.Message);
+        LogSink.Append("Hyperion", result.Success ? "Info" : "Warning", result.Message);
         _logger.LogInformation("Launched CLI {Cli}: {Message}", choice.DisplayName, result.Message);
     }
+
+    [RelayCommand]
+    public void OpenBacktestStudio() =>
+        _host.OpenHostedTool<BacktestStudioViewModel, BacktestStudioView>(BacktestStudioWindowId, "Backtest Studio", "Loading the backtest studio…");
+
+    /// <summary>The app-lifetime recording service, exposed so the header REC chip can light while a
+    /// background recording is running. The panel window is only a view onto it — closing the panel
+    /// does not stop the recording.</summary>
+    public TickRecordingService Recorder { get; }
+
+    /// <summary>Header REC chip → the recorder panel. Small window: it's a watchlist + a toggle, not
+    /// a workspace.</summary>
+    [RelayCommand]
+    public void OpenRecorder() =>
+        _host.OpenHostedTool<RecorderPanelViewModel, RecorderPanelView>(
+            RecorderWindowId, "Market data recorder", "Preparing the recorder…", width: 470, height: 600);
 
     /// <summary>Help → Support the developer. Routes through the shared prompt service so the window
     /// is single-instance whether opened here or auto-shown on launch.</summary>

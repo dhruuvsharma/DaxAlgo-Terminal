@@ -29,7 +29,7 @@
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/Components.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/StrategyShellStyles.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/AiStyles.xaml" />
-                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/VibeQuantStyles.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/HyperionStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

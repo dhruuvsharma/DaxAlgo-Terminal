@@ -96,7 +96,7 @@ claude-launch.bat
 docs/
 tasks/
 images/
-tools/
+/tools/
 ideas.md
 build/gen-ai-context.ps1
 scripts/setup-claude-code.bat

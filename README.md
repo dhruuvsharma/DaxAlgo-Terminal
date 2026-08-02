@@ -121,7 +121,7 @@ own window unless noted):
 |---|---|
 | **File** | Reconnect to broker · Start QuestDB · Exit |
 | **View** | Activity log (toggle) · Theme (Bloomberg Amber / Monochrome) · Customize theme… (Theme Studio) |
-| **Strategy Studio** | Vibe Code (Vibe Quant · Launch CLI) · Strategy Manager |
+| **Strategy Studio** | Vibe Code (Hyperion · Launch CLI) · Strategy Manager |
 | **Data** | Market data archive · Archive history · Instant offload |
 | **Execution Engine** | Not yet available — the public terminal remains data/signals only |
 | **Settings** | Notifications · AI providers |

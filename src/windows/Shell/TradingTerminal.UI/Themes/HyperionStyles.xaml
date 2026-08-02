@@ -3,8 +3,8 @@
                     xmlns:converters="clr-namespace:TradingTerminal.UI.Converters">
 
     <!-- ===================================================================================
-         VIBE QUANT WORKSPACE — the one sanctioned soft zone (issue #29). The terminal is
-         sharp everywhere; INSIDE the Vibe Quant window these styles reintroduce a small
+         HYPERION WORKSPACE — the one sanctioned soft zone (issue #29). The terminal is
+         sharp everywhere; INSIDE the Hyperion window these styles reintroduce a small
          radius scale (7 / 10 / 14), glass washes and the violet→cyan AI language. Nothing
          here is used outside the authoring views.
 
@@ -20,21 +20,21 @@
          static fills ride the palette's Ai.* tokens.
          =================================================================================== -->
 
-    <BooleanToVisibilityConverter x:Key="VQ.B2V" />
-    <converters:StripCodeFencesConverter x:Key="VQ.StripFences" />
+    <BooleanToVisibilityConverter x:Key="HYP.B2V" />
+    <converters:StripCodeFencesConverter x:Key="HYP.StripFences" />
 
-    <CornerRadius x:Key="VQ.Radius.S">7</CornerRadius>
-    <CornerRadius x:Key="VQ.Radius.M">10</CornerRadius>
-    <CornerRadius x:Key="VQ.Radius.L">14</CornerRadius>
+    <CornerRadius x:Key="HYP.Radius.S">7</CornerRadius>
+    <CornerRadius x:Key="HYP.Radius.M">10</CornerRadius>
+    <CornerRadius x:Key="HYP.Radius.L">14</CornerRadius>
 
     <!-- Diff washes: fixed low-alpha bull/bear — legible over Surface in every palette. -->
-    <SolidColorBrush x:Key="VQ.Diff.Add.Bg" Color="#17089981" />
-    <SolidColorBrush x:Key="VQ.Diff.Del.Bg" Color="#17F23645" />
+    <SolidColorBrush x:Key="HYP.Diff.Add.Bg" Color="#17089981" />
+    <SolidColorBrush x:Key="HYP.Diff.Del.Bg" Color="#17F23645" />
 
     <!-- ═══ Small shared pieces ══════════════════════════════════════════════════════════ -->
 
     <!-- Section label ("PLAN", "PROVIDERS"). -->
-    <Style x:Key="VQ.SectionLabel" TargetType="TextBlock">
+    <Style x:Key="HYP.SectionLabel" TargetType="TextBlock">
         <Setter Property="FontSize" Value="9.5" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
@@ -42,7 +42,7 @@
     </Style>
 
     <!-- Dim metadata ("step 3 of 6 · tokens: …"). -->
-    <Style x:Key="VQ.GhostText" TargetType="TextBlock">
+    <Style x:Key="HYP.GhostText" TargetType="TextBlock">
         <Setter Property="FontSize" Value="10.5" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
         <Setter Property="Opacity" Value="0.8" />
@@ -50,9 +50,9 @@
     </Style>
 
     <!-- The gradient brand mark (rail + empty state). Size set at the use site. -->
-    <Style x:Key="VQ.HeroMark" TargetType="Border">
+    <Style x:Key="HYP.HeroMark" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Gradient.Ai}" />
-        <Setter Property="CornerRadius" Value="{StaticResource VQ.Radius.M}" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#8B5CF6" BlurRadius="16" ShadowDepth="0" Opacity="0.45" />
@@ -62,14 +62,14 @@
 
     <!-- ═══ Session rail ═════════════════════════════════════════════════════════════════ -->
 
-    <Style x:Key="VQ.RailBorder" TargetType="Border">
+    <Style x:Key="HYP.RailBorder" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="0,0,1,0" />
     </Style>
 
     <!-- "+ New strategy": quiet glass, the rail's only strong affordance. -->
-    <Style x:Key="VQ.NewButton" TargetType="Button">
+    <Style x:Key="HYP.NewButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -77,7 +77,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="{StaticResource VQ.Radius.S}"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}"
                             Background="{DynamicResource Ai.Soft}"
                             BorderBrush="{DynamicResource Ai.Accent.Brush}" BorderThickness="1"
                             Padding="10,6" SnapsToDevicePixels="True">
@@ -98,13 +98,13 @@
 
     <!-- Session cards: quiet, selected = violet inset edge + soft wash (never the theme's
          list highlight — the rail reads as cards, not a ListBox). -->
-    <Style x:Key="VQ.SessionItem" TargetType="ListBoxItem">
+    <Style x:Key="HYP.SessionItem" TargetType="ListBoxItem">
         <Setter Property="Focusable" Value="True" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="bd" CornerRadius="{StaticResource VQ.Radius.S}" Margin="0,2"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Margin="0,2"
                             Background="{DynamicResource Background.Elevated}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             Padding="9,7" SnapsToDevicePixels="True">
@@ -131,7 +131,7 @@
     </Style>
 
     <!-- One session card's content (duck-typed over AuthoringSessionSnapshot). -->
-    <DataTemplate x:Key="VQ.SessionTemplate">
+    <DataTemplate x:Key="HYP.SessionTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -147,7 +147,7 @@
                 </TextBlock>
                 <TextBlock Text="registered" FontSize="9" FontWeight="SemiBold" Margin="0,2,0,0"
                            Foreground="{DynamicResource Bullish.Brush}"
-                           Visibility="{Binding Registered, Converter={StaticResource VQ.B2V}}" />
+                           Visibility="{Binding Registered, Converter={StaticResource HYP.B2V}}" />
             </StackPanel>
             <!-- Delete, revealed on hover. The rail is the only place a chat can be forgotten. -->
             <Button x:Name="Del" Grid.Column="1" Content="✕" FontSize="10" Padding="4,1"
@@ -166,7 +166,7 @@
     </DataTemplate>
 
     <!-- Provider health row (rail footer): green dot when usable. -->
-    <DataTemplate x:Key="VQ.ProviderRow">
+    <DataTemplate x:Key="HYP.ProviderRow">
         <StackPanel Orientation="Horizontal" Margin="0,1.5">
             <Ellipse x:Name="Dot" Width="6" Height="6" VerticalAlignment="Center"
                      Fill="{DynamicResource Text.Secondary}" Opacity="0.5" />
@@ -184,7 +184,7 @@
     <!-- ═══ Transcript templates (defined before the switch that references them) ════════ -->
 
     <!-- User turn: the only contained bubble — violet wash, right-shouldered. -->
-    <DataTemplate x:Key="VQ.Msg.User">
+    <DataTemplate x:Key="HYP.Msg.User">
         <Border HorizontalAlignment="Right" MaxWidth="560" Margin="48,5,0,5"
                 CornerRadius="12,12,3,12" Padding="11,8"
                 Background="{DynamicResource Ai.Soft}"
@@ -197,25 +197,25 @@
 
     <!-- Assistant turn: flat document text, no container. Code fences are stripped to a
          marker — the code itself lives in the workbench and the file chips point at it. -->
-    <DataTemplate x:Key="VQ.Msg.Assistant">
+    <DataTemplate x:Key="HYP.Msg.Assistant">
         <TextBox Margin="0,5,24,5" MaxWidth="720" HorizontalAlignment="Left"
-                 Text="{Binding Text, Mode=OneWay, Converter={StaticResource VQ.StripFences}}"
+                 Text="{Binding Text, Mode=OneWay, Converter={StaticResource HYP.StripFences}}"
                  IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0"
                  TextWrapping="Wrap" FontSize="12.5"
                  Foreground="{DynamicResource Text.Primary}" />
     </DataTemplate>
 
     <!-- Builder aside ("Switched provider…"): small, centered, out of the way. -->
-    <DataTemplate x:Key="VQ.Msg.Note">
+    <DataTemplate x:Key="HYP.Msg.Note">
         <TextBlock Text="{Binding Text}" HorizontalAlignment="Center" Margin="0,6" MaxWidth="560"
                    TextWrapping="Wrap" FontSize="10.5" FontStyle="Italic" TextAlignment="Center"
                    Foreground="{DynamicResource Text.Secondary}" Opacity="0.85" />
     </DataTemplate>
 
     <!-- Tool card: one line — glyph · title · numbers — expandable when there's full output. -->
-    <DataTemplate x:Key="VQ.Msg.Tool">
+    <DataTemplate x:Key="HYP.Msg.Tool">
         <Border HorizontalAlignment="Left" MaxWidth="640" Margin="0,3"
-                CornerRadius="{StaticResource VQ.Radius.S}" Padding="10,5"
+                CornerRadius="{StaticResource HYP.Radius.S}" Padding="10,5"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
             <StackPanel>
@@ -227,7 +227,7 @@
                                   Background="Transparent" BorderThickness="0" Cursor="Hand"
                                   VerticalAlignment="Center" Padding="2,0"
                                   Foreground="{DynamicResource Text.Secondary}"
-                                  Visibility="{Binding HasMore, Converter={StaticResource VQ.B2V}}">
+                                  Visibility="{Binding HasMore, Converter={StaticResource HYP.B2V}}">
                         <TextBlock Text="▸" FontSize="10">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -251,7 +251,7 @@
                          Background="Transparent" TextWrapping="Wrap" Margin="18,5,0,1" Padding="0"
                          FontFamily="{DynamicResource Font.Data}" FontSize="11"
                          Foreground="{DynamicResource Text.Secondary}"
-                         Visibility="{Binding IsChecked, ElementName=MoreToggle, Converter={StaticResource VQ.B2V}}" />
+                         Visibility="{Binding IsChecked, ElementName=MoreToggle, Converter={StaticResource HYP.B2V}}" />
             </StackPanel>
         </Border>
         <DataTemplate.Triggers>
@@ -271,13 +271,13 @@
     </DataTemplate>
 
     <!-- The live plan card: this turn's checklist, states animating in place. -->
-    <DataTemplate x:Key="VQ.Msg.Plan">
+    <DataTemplate x:Key="HYP.Msg.Plan">
         <Border HorizontalAlignment="Left" MaxWidth="640" MinWidth="300" Margin="0,4"
-                CornerRadius="{StaticResource VQ.Radius.M}" Padding="12,8"
+                CornerRadius="{StaticResource HYP.Radius.M}" Padding="12,8"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Ai.Accent.Brush}" BorderThickness="1">
             <StackPanel>
-                <TextBlock Text="PLAN" Style="{StaticResource VQ.SectionLabel}" Margin="0,0,0,5" />
+                <TextBlock Text="PLAN" Style="{StaticResource HYP.SectionLabel}" Margin="0,0,0,5" />
                 <ItemsControl ItemsSource="{Binding PlanTasks}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -322,13 +322,13 @@
     </DataTemplate>
 
     <!-- A plan restored from disk: the same card, frozen glyph lines. -->
-    <DataTemplate x:Key="VQ.Msg.PlanText">
+    <DataTemplate x:Key="HYP.Msg.PlanText">
         <Border HorizontalAlignment="Left" MaxWidth="640" MinWidth="300" Margin="0,4"
-                CornerRadius="{StaticResource VQ.Radius.M}" Padding="12,8"
+                CornerRadius="{StaticResource HYP.Radius.M}" Padding="12,8"
                 Background="{DynamicResource Background.Elevated}"
                 BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1">
             <StackPanel>
-                <TextBlock Text="PLAN" Style="{StaticResource VQ.SectionLabel}" Margin="0,0,0,5" Opacity="0.6" />
+                <TextBlock Text="PLAN" Style="{StaticResource HYP.SectionLabel}" Margin="0,0,0,5" Opacity="0.6" />
                 <TextBlock Text="{Binding Text}" FontSize="11.5" LineHeight="18"
                            Foreground="{DynamicResource Text.Secondary}" />
             </StackPanel>
@@ -336,7 +336,7 @@
     </DataTemplate>
 
     <!-- Files-changed chips: click focuses the file in the workbench. -->
-    <DataTemplate x:Key="VQ.Msg.Files">
+    <DataTemplate x:Key="HYP.Msg.Files">
         <ItemsControl ItemsSource="{Binding FileChanges}" Margin="0,3" HorizontalAlignment="Left">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -351,7 +351,7 @@
                             ToolTip="Open this file in the workbench">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
-                                <Border x:Name="bd" CornerRadius="{StaticResource VQ.Radius.S}"
+                                <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}"
                                         Background="{DynamicResource Background.Elevated}"
                                         BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                                         Padding="8,3" SnapsToDevicePixels="True">
@@ -375,27 +375,27 @@
     </DataTemplate>
 
     <!-- The transcript switch: one ContentControl per message, template picked by Kind. -->
-    <Style x:Key="VQ.MessageSwitch" TargetType="ContentControl">
+    <Style x:Key="HYP.MessageSwitch" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False" />
-        <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.Assistant}" />
+        <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Assistant}" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding Kind}" Value="User">
-                <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.User}" />
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.User}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="Note">
-                <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.Note}" />
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Note}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="Tool">
-                <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.Tool}" />
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Tool}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="Plan">
-                <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.Plan}" />
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Plan}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="PlanText">
-                <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.PlanText}" />
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.PlanText}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="Files">
-                <Setter Property="ContentTemplate" Value="{StaticResource VQ.Msg.Files}" />
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Files}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -404,20 +404,20 @@
 
     <!-- The cockpit shell. Bind Tag to IsGenerating: the gradient ring fades in and sweeps
          only while a turn runs — motion is the working signal, an idle composer is static. -->
-    <Style x:Key="VQ.ComposerShell" TargetType="ContentControl">
+    <Style x:Key="HYP.ComposerShell" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <Grid>
-                        <Border CornerRadius="{StaticResource VQ.Radius.L}"
+                        <Border CornerRadius="{StaticResource HYP.Radius.L}"
                                 Background="{DynamicResource Gradient.AiGlass}"
                                 BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
                                 Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
                             <ContentPresenter />
                         </Border>
                         <!-- The working ring: opacity-gated overlay so layout never changes. -->
-                        <Border x:Name="Ring" CornerRadius="{StaticResource VQ.Radius.L}"
+                        <Border x:Name="Ring" CornerRadius="{StaticResource HYP.Radius.L}"
                                 BorderThickness="1.5" Opacity="0" IsHitTestVisible="False">
                             <Border.BorderBrush>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -465,7 +465,7 @@
 
     <!-- Composer pills (model / build effort / reasoning): quiet capsule ToggleButtons that
          open their flyout Popup; checked = flyout open. -->
-    <Style x:Key="VQ.PillButton" TargetType="ToggleButton">
+    <Style x:Key="HYP.PillButton" TargetType="ToggleButton">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="FontSize" Value="10.5" />
@@ -496,16 +496,16 @@
     </Style>
 
     <!-- Accented pill variant for the model picker — it is the choice that matters most. -->
-    <Style x:Key="VQ.PillButton.Ai" TargetType="ToggleButton" BasedOn="{StaticResource VQ.PillButton}">
+    <Style x:Key="HYP.PillButton.Ai" TargetType="ToggleButton" BasedOn="{StaticResource HYP.PillButton}">
         <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
     </Style>
 
     <!-- Flyout body (the Popup's child). -->
-    <Style x:Key="VQ.FlyoutCard" TargetType="Border">
+    <Style x:Key="HYP.FlyoutCard" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource VQ.Radius.M}" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
         <Setter Property="Padding" Value="8" />
         <Setter Property="Effect">
             <Setter.Value>
@@ -515,7 +515,7 @@
     </Style>
 
     <!-- Send: the gradient primary. Stop shares the geometry, bearish outline. -->
-    <Style x:Key="VQ.SendButton" TargetType="Button">
+    <Style x:Key="HYP.SendButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="FontWeight" Value="Bold" />
@@ -547,7 +547,7 @@
         </Setter>
     </Style>
 
-    <Style x:Key="VQ.StopButton" TargetType="Button">
+    <Style x:Key="HYP.StopButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" />
         <Setter Property="FontWeight" Value="Bold" />
@@ -563,7 +563,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource VQ.Diff.Del.Bg}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource HYP.Diff.Del.Bg}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -572,14 +572,14 @@
     </Style>
 
     <!-- Suggestion briefs on the empty state. -->
-    <Style x:Key="VQ.SuggestionChip" TargetType="Button">
+    <Style x:Key="HYP.SuggestionChip" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="{StaticResource VQ.Radius.M}" Padding="11,5"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.M}" Padding="11,5"
                             Background="{DynamicResource Background.Elevated}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             SnapsToDevicePixels="True">
@@ -598,16 +598,16 @@
     </Style>
 
     <!-- The question-back moment: an inline accent card, not a beige banner. -->
-    <Style x:Key="VQ.QuestionCard" TargetType="Border">
+    <Style x:Key="HYP.QuestionCard" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Ai.Soft}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource VQ.Radius.M}" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
 
     <!-- Shimmering status verb — animated only while it is on screen. -->
-    <Style x:Key="VQ.ShimmerLabel" TargetType="ContentControl">
+    <Style x:Key="HYP.ShimmerLabel" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
@@ -648,14 +648,14 @@
 
     <!-- ═══ Workbench ════════════════════════════════════════════════════════════════════ -->
 
-    <Style x:Key="VQ.WorkbenchBorder" TargetType="Border">
+    <Style x:Key="HYP.WorkbenchBorder" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="1,0,0,0" />
     </Style>
 
     <!-- Compile & Register — the workspace's one gradient CTA. -->
-    <Style x:Key="VQ.CtaButton" TargetType="Button">
+    <Style x:Key="HYP.CtaButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="FontWeight" Value="Bold" />
@@ -663,7 +663,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="{StaticResource VQ.Radius.S}" Padding="12,7"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="12,7"
                             Background="{DynamicResource Gradient.Ai}" SnapsToDevicePixels="True">
                         <Border.Effect>
                             <DropShadowEffect x:Name="CtaGlow" Color="#8B5CF6" BlurRadius="14" ShadowDepth="0" Opacity="0.3" />
@@ -704,7 +704,7 @@
     </Style>
 
     <!-- DRAFT / REGISTERED chip. -->
-    <Style x:Key="VQ.StateChip" TargetType="Border">
+    <Style x:Key="HYP.StateChip" TargetType="Border">
         <Setter Property="CornerRadius" Value="9" />
         <Setter Property="Padding" Value="8,2" />
         <Setter Property="HorizontalAlignment" Value="Center" />
@@ -714,12 +714,12 @@
     </Style>
 
     <!-- Workbench file chips (strip above the editor): selected = violet border. -->
-    <Style x:Key="VQ.FileTab" TargetType="ListBoxItem">
+    <Style x:Key="HYP.FileTab" TargetType="ListBoxItem">
         <Setter Property="Focusable" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="bd" CornerRadius="{StaticResource VQ.Radius.S}" Margin="0,0,5,4"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Margin="0,0,5,4"
                             Background="{DynamicResource Background.Elevated}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             Padding="9,3" SnapsToDevicePixels="True">
@@ -741,15 +741,15 @@
 
     <!-- ═══ Review overlay ═══════════════════════════════════════════════════════════════ -->
 
-    <Style x:Key="VQ.OverlayDim" TargetType="Border">
+    <Style x:Key="HYP.OverlayDim" TargetType="Border">
         <Setter Property="Background" Value="#99000000" />
     </Style>
 
-    <Style x:Key="VQ.OverlayCard" TargetType="Border">
+    <Style x:Key="HYP.OverlayCard" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource VQ.Radius.L}" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.L}" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#000000" BlurRadius="40" ShadowDepth="8" Opacity="0.55" />
@@ -758,7 +758,7 @@
     </Style>
 
     <!-- One diff line: mono, wash + gutter glyph by kind ("add"/"del"/"ctx"). -->
-    <DataTemplate x:Key="VQ.DiffLine">
+    <DataTemplate x:Key="HYP.DiffLine">
         <Border x:Name="bg" Padding="8,0">
             <TextBlock FontFamily="{DynamicResource Font.Data}" FontSize="11" TextWrapping="NoWrap">
                 <Run x:Name="Gutter" Text="  " /><Run Text="{Binding Text, Mode=OneWay}"
@@ -767,12 +767,12 @@
         </Border>
         <DataTemplate.Triggers>
             <DataTrigger Binding="{Binding Kind}" Value="add">
-                <Setter TargetName="bg" Property="Background" Value="{StaticResource VQ.Diff.Add.Bg}" />
+                <Setter TargetName="bg" Property="Background" Value="{StaticResource HYP.Diff.Add.Bg}" />
                 <Setter TargetName="Gutter" Property="Text" Value="+ " />
                 <Setter TargetName="Gutter" Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="del">
-                <Setter TargetName="bg" Property="Background" Value="{StaticResource VQ.Diff.Del.Bg}" />
+                <Setter TargetName="bg" Property="Background" Value="{StaticResource HYP.Diff.Del.Bg}" />
                 <Setter TargetName="Gutter" Property="Text" Value="− " />
                 <Setter TargetName="Gutter" Property="Foreground" Value="{DynamicResource Danger.Brush}" />
             </DataTrigger>

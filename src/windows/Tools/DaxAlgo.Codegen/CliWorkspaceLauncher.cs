@@ -29,7 +29,7 @@ public interface ICliWorkspaceLauncher
 }
 
 /// <summary>
-/// Scaffolds <c>%LOCALAPPDATA%\DaxAlgo\VibeQuant\&lt;strategy-id&gt;\</c> and opens the CLI in the first
+/// Scaffolds <c>%LOCALAPPDATA%\DaxAlgo\Hyperion\&lt;strategy-id&gt;\</c> and opens the CLI in the first
 /// terminal that exists: Windows Terminal → pwsh → Windows PowerShell → cmd. Guide files (the context
 /// pack, the skills) are refreshed on every launch so they never go stale; the user's own code
 /// (<c>MyStrategy.cs</c>, the project files) is written once and never overwritten.
@@ -57,7 +57,7 @@ public sealed class CliWorkspaceLauncher(
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            logger?.LogWarning(ex, "Could not scaffold the Vibe Quant workspace for {Id}", strategyId);
+            logger?.LogWarning(ex, "Could not scaffold the Hyperion workspace for {Id}", strategyId);
             return new(false, $"Couldn't scaffold the workspace: {ex.Message}", string.Empty);
         }
 
@@ -70,7 +70,7 @@ public sealed class CliWorkspaceLauncher(
         }
 
         logger?.LogInformation(
-            "Opened {Cli} via {Terminal} in the Vibe Quant workspace {Workspace}", adapter.DisplayName, terminal, workspace);
+            "Opened {Cli} via {Terminal} in the Hyperion workspace {Workspace}", adapter.DisplayName, terminal, workspace);
         return new(true,
             $"Opened {adapter.DisplayName} ({terminal}) in {workspace} — the context pack and skills are already in the folder.",
             workspace);
@@ -85,7 +85,7 @@ public sealed class CliWorkspaceLauncher(
         var safeId = Sanitize(strategyId);
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DaxAlgo", "VibeQuant", safeId);
+            "DaxAlgo", "Hyperion", safeId);
         var skillsDir = Path.Combine(root, ".claude", "skills");
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(skillsDir);
@@ -116,7 +116,7 @@ public sealed class CliWorkspaceLauncher(
     }
 
     /// <summary>A strategy id is user input and becomes a folder name — same replacement rule as the
-    /// session store, so an id can never escape the VibeQuant directory.</summary>
+    /// session store, so an id can never escape the Hyperion directory.</summary>
     private static string Sanitize(string strategyId)
     {
         var safe = new string((strategyId ?? string.Empty).Trim()
@@ -182,7 +182,7 @@ public sealed class CliWorkspaceLauncher(
         var sb = new StringBuilder();
         sb.AppendLine($"# {displayName} — DaxAlgo strategy-authoring workspace");
         sb.AppendLine();
-        sb.AppendLine($"Scaffolded by DaxAlgo Terminal's AI Strategy Builder (\"Vibe Quant\") for strategy id " +
+        sb.AppendLine($"Scaffolded by DaxAlgo Terminal's AI Strategy Builder (\"Hyperion\") for strategy id " +
                       $"`{strategyId}` at build effort **{effort.Wire()}**. You are writing a DaxAlgo Terminal " +
                       "strategy plugin: an `IBacktestStrategy` kernel (required), plus an `ITradingStrategy` " +
                       "descriptor and a live view-model (`LiveSignalStrategyViewModelBase`) for a catalog card. " +
@@ -213,7 +213,7 @@ public sealed class CliWorkspaceLauncher(
     }
 
     private static string Readme(string displayName, string strategyId, StrategyBuildEffort effort) => $"""
-        # {displayName} (Vibe Quant workspace)
+        # {displayName} (Hyperion workspace)
 
         A DaxAlgo Terminal strategy-authoring workspace for `{strategyId}`, scaffolded at build effort
         `{effort.Wire()}`.
@@ -233,7 +233,7 @@ public sealed class CliWorkspaceLauncher(
     /// present so workspace hooks are visibly wired, harmless so it can never surprise anyone.</summary>
     private const string SettingsJson = """
         {
-          "$comment": "DaxAlgo Vibe Quant workspace settings. The hook below is a benign example (it only echoes) - extend or delete it as you like.",
+          "$comment": "DaxAlgo Hyperion workspace settings. The hook below is a benign example (it only echoes) - extend or delete it as you like.",
           "hooks": {
             "SessionStart": [
               {

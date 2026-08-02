@@ -15,6 +15,7 @@ using TradingTerminal.App.Shell;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure;
+using TradingTerminal.Login;
 using TradingTerminal.UI.Converters;
 using TradingTerminal.UI.Logging;
 
@@ -155,12 +156,13 @@ public partial class App : Application
                 // Type/instance overload.)
                 services.AddSingleton(typeof(AppEdition), AppEdition.Basic);
 
-                // Broker layer: shared broker-neutral infrastructure + the keyless brokers only
-                // (public crypto feeds + Simulated). The credentialed set (IB/NT/cTrader/Alpaca/
-                // Ironbeam/LSE/Upstox) is a Professional-only surface and is NOT registered here,
-                // which also keeps their login tiles off the sign-in screen.
+                // Broker layer: shared broker-neutral infrastructure + every broker. Keep the
+                // credentialed forms paired with their brokers because the login factory resolves
+                // every registered form while constructing the sign-in window.
                 services.AddInfrastructureCore();
                 services.AddKeylessBrokers();
+                services.AddCredentialedBrokers();
+                services.AddCredentialedLoginForms();
 
                 // The core composition (pipeline / archive / notifications / strategy plug-ins /
                 // login / shell + window host / support / settings + cross-cutting singletons).

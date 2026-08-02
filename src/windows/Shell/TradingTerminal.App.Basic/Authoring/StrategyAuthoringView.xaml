@@ -12,10 +12,10 @@
              Foreground="{DynamicResource Text.Primary}">
 
     <!-- ═══════════════════════════════════════════════════════════════════════════════════
-         VIBE QUANT — the agent workspace (issue #29). Three regions: session rail · agent
+         HYPERION — the agent workspace (issue #29). Three regions: session rail · agent
          canvas (document transcript + cockpit composer) · workbench (identity, review gate,
-         Code/Parameters/Activity). All VQ.* styles/templates come from the app-merged
-         TradingTerminal.UI/Themes/VibeQuantStyles.xaml; this file is layout + typed wiring.
+         Code/Parameters/Activity). All HYP.* styles/templates come from the app-merged
+         TradingTerminal.UI/Themes/HyperionStyles.xaml; this file is layout + typed wiring.
          ═══════════════════════════════════════════════════════════════════════════════════ -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="B2V" />
@@ -43,7 +43,7 @@
                     </Style>
                 </Border.Resources>
                 <Border.Style>
-                    <Style TargetType="Border" BasedOn="{StaticResource VQ.RailBorder}">
+                    <Style TargetType="Border" BasedOn="{StaticResource HYP.RailBorder}">
                         <Setter Property="Width" Value="234" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
@@ -57,13 +57,13 @@
                     <!-- Brand + collapse toggle -->
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
                         <StackPanel Orientation="Horizontal">
-                            <Border Style="{StaticResource VQ.HeroMark}" Width="26" Height="26">
+                            <Border Style="{StaticResource HYP.HeroMark}" Width="26" Height="26">
                                 <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="10"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <StackPanel Margin="9,0,0,0" VerticalAlignment="Center"
                                         Style="{StaticResource RailPanel}">
-                                <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13"
+                                <TextBlock Text="Hyperion" FontWeight="Bold" FontSize="13"
                                            Foreground="{DynamicResource Text.Header}" />
                                 <TextBlock Text="AI strategy builder" FontSize="9"
                                            Foreground="{DynamicResource Text.Secondary}" />
@@ -89,7 +89,7 @@
                         </Button>
                     </Grid>
 
-                    <Button DockPanel.Dock="Top" Style="{StaticResource VQ.NewButton}" Margin="0,0,0,10"
+                    <Button DockPanel.Dock="Top" Style="{StaticResource HYP.NewButton}" Margin="0,0,0,10"
                             Command="{Binding NewChatCommand}"
                             ToolTip="Start a fresh strategy conversation — the current one stays in the rail.">
                         <TextBlock>
@@ -112,10 +112,10 @@
                         <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
                                 Padding="0,7,0,0">
                             <StackPanel>
-                                <TextBlock Text="PROVIDERS" Style="{StaticResource VQ.SectionLabel}"
+                                <TextBlock Text="PROVIDERS" Style="{StaticResource HYP.SectionLabel}"
                                            Margin="0,0,0,4" />
                                 <ItemsControl ItemsSource="{Binding AiProviders}"
-                                              ItemTemplate="{StaticResource VQ.ProviderRow}" />
+                                              ItemTemplate="{StaticResource HYP.ProviderRow}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -125,8 +125,8 @@
                              SelectedItem="{Binding SelectedSavedSession}"
                              HorizontalContentAlignment="Stretch"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ItemContainerStyle="{StaticResource VQ.SessionItem}"
-                             ItemTemplate="{StaticResource VQ.SessionTemplate}">
+                             ItemContainerStyle="{StaticResource HYP.SessionItem}"
+                             ItemTemplate="{StaticResource HYP.SessionTemplate}">
                         <ListBox.Style>
                             <Style TargetType="ListBox">
                                 <Setter Property="Background" Value="Transparent" />
@@ -155,7 +155,7 @@
                 <!-- Session header -->
                 <DockPanel Grid.Row="0" Margin="2,0,2,8"
                            Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
-                    <Border DockPanel.Dock="Right" Style="{StaticResource VQ.StateChip}" Padding="8,2"
+                    <Border DockPanel.Dock="Right" Style="{StaticResource HYP.StateChip}" Padding="8,2"
                             Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
                         <TextBlock FontSize="10" Foreground="{DynamicResource Ai.Text.Brush}"
                                    FontFamily="{DynamicResource Font.Data}">
@@ -177,7 +177,7 @@
                         <ItemsControl ItemsSource="{Binding Messages}" Margin="0,0,6,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <ContentControl Style="{StaticResource VQ.MessageSwitch}"
+                                    <ContentControl Style="{StaticResource HYP.MessageSwitch}"
                                                     Content="{Binding}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -187,7 +187,7 @@
                     <!-- Hero: first-run and every New strategy. -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560"
                                 Visibility="{Binding HasConversation, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                        <Border Style="{StaticResource VQ.HeroMark}" Width="46" Height="46"
+                        <Border Style="{StaticResource HYP.HeroMark}" Width="46" Height="46"
                                 HorizontalAlignment="Center">
                             <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="16"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -196,7 +196,7 @@
                                    FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource Text.Header}" />
-                        <TextBlock Text="Vibe Quant plans, writes, compiles and smoke-tests it — you review and register."
+                        <TextBlock Text="Hyperion plans, writes, compiles and smoke-tests it — you review and register."
                                    FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}" />
@@ -207,7 +207,7 @@
                                       Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource VQ.SuggestionChip}" Margin="0,3"
+                                    <Button Style="{StaticResource HYP.SuggestionChip}" Margin="0,3"
                                             HorizontalAlignment="Stretch"
                                             Command="{Binding DataContext.UseSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
@@ -219,7 +219,7 @@
                         </ItemsControl>
 
                         <!-- …or the setup nudge when none is. -->
-                        <Border Style="{StaticResource VQ.QuestionCard}" Margin="0,18,0,0"
+                        <Border Style="{StaticResource HYP.QuestionCard}" Margin="0,18,0,0"
                                 Visibility="{Binding AiHasProvider, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                             <TextBlock TextWrapping="Wrap" FontSize="11.5"
                                        Foreground="{DynamicResource Text.Primary}">
@@ -231,7 +231,7 @@
                 </Grid>
 
                 <!-- The model asked something back — a good turn, made unmissable. -->
-                <Border Grid.Row="2" Style="{StaticResource VQ.QuestionCard}" Margin="0,8,0,0"
+                <Border Grid.Row="2" Style="{StaticResource HYP.QuestionCard}" Margin="0,8,0,0"
                         Visibility="{Binding AwaitingAnswer, Converter={StaticResource B2V}}">
                     <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" FontSize="11.5"
                                Foreground="{DynamicResource Text.Primary}"
@@ -243,12 +243,12 @@
                     <Grid>
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
-                            <ContentControl Style="{StaticResource VQ.ShimmerLabel}"
+                            <ContentControl Style="{StaticResource HYP.ShimmerLabel}"
                                             Content="{Binding WorkingVerb}" />
-                            <TextBlock Style="{StaticResource VQ.GhostText}" Margin="10,0,0,0"
+                            <TextBlock Style="{StaticResource HYP.GhostText}" Margin="10,0,0,0"
                                        Text="{Binding StepText}" />
                         </StackPanel>
-                        <TextBlock Style="{StaticResource VQ.GhostText}" HorizontalAlignment="Right"
+                        <TextBlock Style="{StaticResource HYP.GhostText}" HorizontalAlignment="Right"
                                    FontFamily="{DynamicResource Font.Data}"
                                    Text="{Binding UsageText}" />
                     </Grid>
@@ -259,7 +259,7 @@
                 </StackPanel>
 
                 <!-- Cockpit composer -->
-                <ContentControl Grid.Row="4" Style="{StaticResource VQ.ComposerShell}" Margin="0,10,0,0"
+                <ContentControl Grid.Row="4" Style="{StaticResource HYP.ComposerShell}" Margin="0,10,0,0"
                                 Padding="12,10" Tag="{Binding IsGenerating}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -296,27 +296,27 @@
 
                         <!-- Pill row: model · build effort · reasoning · send -->
                         <DockPanel Grid.Row="1" Margin="0,8,0,0">
-                            <Button DockPanel.Dock="Right" Style="{StaticResource VQ.SendButton}"
+                            <Button DockPanel.Dock="Right" Style="{StaticResource HYP.SendButton}"
                                     Command="{Binding SendCommand}" Content="Send  ⌃⏎"
                                     Visibility="{Binding IsGenerating, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                            <Button DockPanel.Dock="Right" Style="{StaticResource VQ.StopButton}"
+                            <Button DockPanel.Dock="Right" Style="{StaticResource HYP.StopButton}"
                                     Command="{Binding StopCommand}" Content="■  Stop"
                                     Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
 
                             <StackPanel Orientation="Horizontal">
-                                <ToggleButton x:Name="ModelPill" Style="{StaticResource VQ.PillButton.Ai}"
+                                <ToggleButton x:Name="ModelPill" Style="{StaticResource HYP.PillButton.Ai}"
                                               ToolTip="Every model the app can reach, tagged by provider — plus a custom-id box.">
                                     <TextBlock>
                                         <Run Text="◇ " /><Run Text="{Binding ModelPillText, Mode=OneWay}" /><Run Text="  ▾" />
                                     </TextBlock>
                                 </ToggleButton>
-                                <ToggleButton x:Name="BuildPill" Style="{StaticResource VQ.PillButton}" Margin="6,0,0,0"
+                                <ToggleButton x:Name="BuildPill" Style="{StaticResource HYP.PillButton}" Margin="6,0,0,0"
                                               ToolTip="How much the BUILDER puts in — skills, auto-fix retries, self-review + backtest smoke at Deep/Max.">
                                     <TextBlock>
                                         <Run Text="Build: " /><Run Text="{Binding BuildEffort, Mode=OneWay}" /><Run Text="  ▾" />
                                     </TextBlock>
                                 </ToggleButton>
-                                <ToggleButton x:Name="ReasonPill" Style="{StaticResource VQ.PillButton}" Margin="6,0,0,0"
+                                <ToggleButton x:Name="ReasonPill" Style="{StaticResource HYP.PillButton}" Margin="6,0,0,0"
                                               IsEnabled="{Binding EffortSupported}"
                                               ToolTip="How hard the MODEL thinks. 'Default' sends nothing — for models that reject the parameter.">
                                     <TextBlock>
@@ -330,7 +330,7 @@
                         <Popup IsOpen="{Binding IsChecked, ElementName=ModelPill, Mode=TwoWay}"
                                PlacementTarget="{Binding ElementName=ModelPill}" Placement="Top"
                                StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
-                            <Border Style="{StaticResource VQ.FlyoutCard}" MinWidth="340" MaxWidth="440">
+                            <Border Style="{StaticResource HYP.FlyoutCard}" MinWidth="340" MaxWidth="440">
                                 <StackPanel>
                                     <ListBox x:Name="ModelList" ItemsSource="{Binding AllModels}"
                                              SelectedItem="{Binding SelectedModelChoice}"
@@ -369,7 +369,7 @@
                         <Popup IsOpen="{Binding IsChecked, ElementName=BuildPill, Mode=TwoWay}"
                                PlacementTarget="{Binding ElementName=BuildPill}" Placement="Top"
                                StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
-                            <Border Style="{StaticResource VQ.FlyoutCard}" MinWidth="150">
+                            <Border Style="{StaticResource HYP.FlyoutCard}" MinWidth="150">
                                 <ListBox x:Name="BuildList" ItemsSource="{Binding BuildEfforts}"
                                          SelectedItem="{Binding BuildEffort}"
                                          BorderThickness="0" Background="Transparent"
@@ -379,7 +379,7 @@
                         <Popup IsOpen="{Binding IsChecked, ElementName=ReasonPill, Mode=TwoWay}"
                                PlacementTarget="{Binding ElementName=ReasonPill}" Placement="Top"
                                StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
-                            <Border Style="{StaticResource VQ.FlyoutCard}" MinWidth="150">
+                            <Border Style="{StaticResource HYP.FlyoutCard}" MinWidth="150">
                                 <ListBox x:Name="ReasonList" ItemsSource="{Binding Efforts}"
                                          SelectedItem="{Binding SelectedEffort}"
                                          BorderThickness="0" Background="Transparent"
@@ -394,7 +394,7 @@
                           Background="Transparent" />
 
             <!-- ═══ Workbench ══════════════════════════════════════════════════════════════ -->
-            <Border Grid.Column="3" Style="{StaticResource VQ.WorkbenchBorder}">
+            <Border Grid.Column="3" Style="{StaticResource HYP.WorkbenchBorder}">
                 <DockPanel>
                     <!-- Identity + the review gate's entry point -->
                     <Border DockPanel.Dock="Top" Padding="12,12,12,10"
@@ -419,11 +419,11 @@
                                              Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
-                            <Button Style="{StaticResource VQ.CtaButton}" Content="⚡  Compile &amp; Register"
+                            <Button Style="{StaticResource HYP.CtaButton}" Content="⚡  Compile &amp; Register"
                                     Command="{Binding CompileCommand}"
                                     ToolTip="Compile every file, then review the code before it is registered — it runs in-process." />
                             <Grid Margin="0,7,0,0">
-                                <Border Style="{StaticResource VQ.StateChip}" HorizontalAlignment="Left">
+                                <Border Style="{StaticResource HYP.StateChip}" HorizontalAlignment="Left">
                                     <TextBlock FontSize="9" FontWeight="Bold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -463,7 +463,7 @@
                             </Style>
                         </Border.Style>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Open workspace in" Style="{StaticResource VQ.GhostText}"
+                            <TextBlock Text="Open workspace in" Style="{StaticResource HYP.GhostText}"
                                        Margin="0,0,8,0" />
                             <ItemsControl ItemsSource="{Binding AvailableClis}">
                                 <ItemsControl.ItemsPanel>
@@ -498,7 +498,7 @@
                                     </StackPanel>
                                     <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}"
                                              Background="Transparent" BorderThickness="0"
-                                             ItemContainerStyle="{StaticResource VQ.FileTab}"
+                                             ItemContainerStyle="{StaticResource HYP.FileTab}"
                                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
                                         <ListBox.ItemsPanel>
@@ -597,8 +597,8 @@
 
         <!-- ═══ Review gate overlay — the ONLY path to registration ════════════════════════ -->
         <Grid Visibility="{Binding ReviewOpen, Converter={StaticResource B2V}}">
-            <Border Style="{StaticResource VQ.OverlayDim}" />
-            <Border Style="{StaticResource VQ.OverlayCard}" MaxWidth="880" MaxHeight="620"
+            <Border Style="{StaticResource HYP.OverlayDim}" />
+            <Border Style="{StaticResource HYP.OverlayCard}" MaxWidth="880" MaxHeight="620"
                     Margin="40" Padding="18,14" VerticalAlignment="Center">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -612,7 +612,7 @@
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button Content="Back" Padding="14,5" Margin="0,0,8,0"
                                     Command="{Binding CancelReviewCommand}" />
-                            <Button Style="{StaticResource VQ.CtaButton}" Content="Register strategy"
+                            <Button Style="{StaticResource HYP.CtaButton}" Content="Register strategy"
                                     Command="{Binding ConfirmRegisterCommand}" />
                         </StackPanel>
                         <TextBlock VerticalAlignment="Center" FontSize="10" TextWrapping="Wrap"
@@ -623,7 +623,7 @@
                     <ListBox DockPanel.Dock="Top" ItemsSource="{Binding ReviewFiles}"
                              SelectedItem="{Binding SelectedReviewFile}"
                              Background="Transparent" BorderThickness="0"
-                             ItemContainerStyle="{StaticResource VQ.FileTab}"
+                             ItemContainerStyle="{StaticResource HYP.FileTab}"
                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
                         <ListBox.ItemsPanel>
@@ -644,11 +644,11 @@
 
                     <Border Background="{DynamicResource Background.Surface}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                            CornerRadius="{StaticResource VQ.Radius.S}" Margin="0,6,0,0">
+                            CornerRadius="{StaticResource HYP.Radius.S}" Margin="0,6,0,0">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Auto" Padding="0,4">
                             <ItemsControl ItemsSource="{Binding SelectedReviewFile.Lines}"
-                                          ItemTemplate="{StaticResource VQ.DiffLine}" />
+                                          ItemTemplate="{StaticResource HYP.DiffLine}" />
                         </ScrollViewer>
                     </Border>
                 </DockPanel>

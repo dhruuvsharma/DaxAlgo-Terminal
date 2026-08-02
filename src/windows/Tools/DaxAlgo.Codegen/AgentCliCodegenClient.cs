@@ -34,7 +34,7 @@ public sealed record AgentCliAdapter(
         };
 
     /// <summary>OpenAI Codex CLI: <c>codex exec</c> runs a one-shot prompt from stdin, ChatGPT sign-in
-    /// handled by the CLI. Vibe Quant is not itself a Git repository, so the repository-presence check
+    /// handled by the CLI. Hyperion is not itself a Git repository, so the repository-presence check
     /// is skipped while its prompt-only subprocess stays read-only. No effort flag — it configures
     /// reasoning through its own config.</summary>
     public static AgentCliAdapter Codex { get; } =

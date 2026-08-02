@@ -40,8 +40,8 @@ public partial class MainWindow : MetroWindow
             vm.OpenStrategyCommand.Execute(item.Id);
     }
 
-    // The floating Vibe Quant button — left-click opens the builder. Right-click is left to its attached
-    // ContextMenu (Vibe Quant · Launch CLI), which WPF opens for us.
+    // The floating Hyperion button — left-click opens the builder. Right-click is left to its attached
+    // ContextMenu (Hyperion · Launch CLI), which WPF opens for us.
     private void VibeFab_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainWindowViewModel vm)
@@ -55,7 +55,7 @@ public partial class MainWindow : MetroWindow
             vm.EditStrategyCommand.Execute(null);
     }
 
-    // Right-click selects the row under the cursor, so Open / Edit act on it.
+    // Right-click selects the row under the cursor, so Open / Quick-backtest / Edit act on it.
     private void StrategyItem_RightClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListBoxItem item)
@@ -68,7 +68,13 @@ public partial class MainWindow : MetroWindow
             vm.OpenStrategyCommand.Execute(vm.SelectedStrategy.Id);
     }
 
-    // A "Launch CLI" menu item (in the top Strategy Studio menu, or the Vibe Quant button's right-click
+    private void QuickBacktest_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm && vm.SelectedStrategy is not null)
+            vm.QuickBacktestCommand.Execute(vm.SelectedStrategy.Id);
+    }
+
+    // A "Launch CLI" menu item (in the top Strategy Studio menu, or the Hyperion button's right-click
     // menu). Bound by EventSetter so it works regardless of how deep the item sits in the menu tree.
     private void LaunchCliMenuItem_Click(object sender, RoutedEventArgs e)
     {

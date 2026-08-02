@@ -94,8 +94,7 @@ public static class DependencyInjection
 
     /// <summary>
     /// Credentialed brokers — Interactive Brokers, NinjaTrader, cTrader, Alpaca, Ironbeam, London
-    /// Strategic Edge, Upstox — plus their login helpers. Registered by the Professional edition
-    /// (Basic ships keyless brokers only). IB/NT ride their build-time DLL gates.
+    /// Strategic Edge, Upstox — plus their login helpers. IB/NT ride their build-time DLL gates.
     /// </summary>
     public static IServiceCollection AddCredentialedBrokers(this IServiceCollection services)
     {

@@ -5,8 +5,8 @@ namespace TradingTerminal.Core.Configuration;
 /// <summary>
 /// Which brokers each <see cref="AppEdition"/> exposes, split by whether the broker needs
 /// credentials. The <b>keyless</b> set (public crypto feeds + the in-process Simulated feed) needs
-/// no API key or account, so it ships in every edition — including Basic, which never shows a
-/// credential form. The <b>credentialed</b> set is available only in Professional.
+/// no API key or account. The <b>credentialed</b> set requires the matching broker and login-form
+/// registrations. Both sets are available in every current edition.
 /// </summary>
 /// <remarks>
 /// This is the single source of truth the shells and the login screen agree on. It carries no
@@ -26,7 +26,7 @@ public static class BrokerEditionPolicy
         BrokerKind.Simulated,
     ];
 
-    /// <summary>Brokers that require credentials / a login form. Available only in Professional.</summary>
+    /// <summary>Brokers that require credentials / a login form.</summary>
     public static readonly IReadOnlyList<BrokerKind> Credentialed =
     [
         BrokerKind.InteractiveBrokers,
@@ -38,11 +38,9 @@ public static class BrokerEditionPolicy
         BrokerKind.Upstox,
     ];
 
-    /// <summary>The brokers a given edition exposes.</summary>
+    /// <summary>The brokers a given edition exposes. Current editions share the full set.</summary>
     public static IReadOnlyList<BrokerKind> BrokersFor(AppEdition edition) =>
-        edition == AppEdition.Basic
-            ? Keyless
-            : [.. Keyless, .. Credentialed];
+        [.. Keyless, .. Credentialed];
 
     /// <summary>Whether a broker needs credentials (drives the login screen's keyless-vs-form path).</summary>
     public static bool RequiresCredentials(BrokerKind broker) => Credentialed.Contains(broker);

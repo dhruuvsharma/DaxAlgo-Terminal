@@ -1,19 +1,13 @@
 {
   "profiles": {
-    "Basic — Local developer (enter app)": {
+    "Simulated": {
       "commandName": "Project",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "DevSim"
       }
     },
-    "Basic (Login)": {
+    "Live": {
       "commandName": "Project"
-    },
-    "Basic — Dev: Simulated (offline)": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "DevSim"
-      }
     }
   }
 }

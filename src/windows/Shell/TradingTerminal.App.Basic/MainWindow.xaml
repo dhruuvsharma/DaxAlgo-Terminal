@@ -1,4 +1,4 @@
-﻿<mah:MetroWindow x:Class="TradingTerminal.App.MainWindow"
+<mah:MetroWindow x:Class="TradingTerminal.App.MainWindow"
                  x:Name="RootWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -222,6 +222,42 @@
                         </Popup>
                     </Grid>
 
+                    <!-- Market-data recorder — opens the recorder panel. The dot lights while the
+                         background recording service is capturing, so a long run is visible from the
+                         shell without opening the panel. -->
+                    <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
+                            Command="{Binding OpenRecorderCommand}"
+                            Background="Transparent" BorderThickness="1" Cursor="Hand"
+                            ToolTip="Market data recorder — pick instruments and capture L1 / L2 / bars / tape in the background.">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Recorder.IsRecording}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Danger.Brush}" />
+                                        <Setter Property="Background" Value="{DynamicResource Bullish.Soft}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Recorder.IsRecording}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource Danger.Brush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="REC" FontWeight="Bold" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Text.Header}" />
+                        </StackPanel>
+                    </Button>
+
                     <!-- Strategy-plugin problem chip — appears only when a plugin failed to load or
                          sits quarantined (user disables don't count). Click opens the Plugin Manager. -->
                     <Button Margin="0,0,16,0" VerticalAlignment="Center" Padding="9,3"
@@ -363,12 +399,17 @@
                           ToolTip="Open the live colour editor — tweak any palette token, then save and share custom themes." />
             </MenuItem>
 
+            <MenuItem Header="_Backtest Engine">
+                <MenuItem Icon="📊" Header="_Backtest Studio…"
+                          Command="{Binding OpenBacktestStudioCommand}" />
+            </MenuItem>
+
             <MenuItem Header="_Strategy Studio">
                 <MenuItem Header="_Vibe Code">
                     <MenuItem.Icon>
                         <StaticResource ResourceKey="Ai.MenuIconChip" />
                     </MenuItem.Icon>
-                    <MenuItem Header="⚡ _Vibe Quant…"
+                    <MenuItem Header="⚡ _Hyperion…"
                               Command="{Binding OpenStrategyAuthoringCommand}"
                               ToolTip="Describe a strategy in chat and watch the AI build, compile, and register it.">
                         <MenuItem.Icon>
@@ -608,7 +649,7 @@
                      MouseDoubleClick="StrategiesList_MouseDoubleClick"
                      Padding="0,0,0,76">
                 <!-- One strategy per full-width row — a vertical list (default panel). The bottom padding
-                     keeps the last row clear of the floating Vibe Quant button. -->
+                     keeps the last row clear of the floating Hyperion button. -->
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="Margin" Value="6,3" />
@@ -621,6 +662,9 @@
                     <ContextMenu>
                         <MenuItem Icon="▶️" Header="Open"
                                   Click="OpenStrategy_Click" />
+                        <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
+                                  Click="QuickBacktest_Click" />
+                        <Separator />
                         <MenuItem Icon="✏️" Header="Edit strategy card…"
                                   Click="EditStrategy_Click" />
                     </ContextMenu>
@@ -629,9 +673,9 @@
 
         <!-- ── Empty-catalog sandbox state ─────────────────────────────────────────────────────
              Shown only when the catalog is empty (a fresh install ships with no strategies). Two
-             ways forward: build one with Vibe Quant (the AI hero), or get one from the marketplace
+             ways forward: build one with Hyperion (the AI hero), or get one from the marketplace
              (placeholder until the site ships). The floating VibeFab hides while this is up so its
-             Vibe Quant CTA doesn't duplicate the one here. -->
+             Hyperion CTA doesn't duplicate the one here. -->
         <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Margin="24">
           <Grid.Style>
             <Style TargetType="Grid">
@@ -665,13 +709,13 @@
 
             <TextBlock Foreground="{DynamicResource Text.Secondary}" FontSize="12.5"
                        TextAlignment="Center" TextWrapping="Wrap" MaxWidth="450" Margin="0,8,0,0"
-                       Text="Describe a strategy and Vibe Quant writes, compiles and backtests it for you — or install a ready-made one from the marketplace. Everything you build lands right here." />
+                       Text="Describe a strategy and Hyperion writes, compiles and backtests it for you — or install a ready-made one from the marketplace. Everything you build lands right here." />
 
             <!-- the two paths -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
-              <!-- Primary · Vibe Quant (the AI hero treatment) -->
+              <!-- Primary · Hyperion (the AI hero treatment) -->
               <Button Command="{Binding DataContext.OpenStrategyAuthoringCommand, ElementName=RootWindow}"
-                      ToolTip="Vibe Quant — describe a strategy and let the AI build it.">
+                      ToolTip="Hyperion — describe a strategy and let the AI build it.">
                 <!-- Static glass-hero look (NOT Ai.HeroButton): this button lives in the empty-state
                      Grid, which COLLAPSES when the catalog fills. A collapsed Ai.HeroButton crashes on
                      resize — its Loaded sweep storyboard can't resolve 'HeroSweep' in a collapsed
@@ -704,7 +748,7 @@
                 <StackPanel Orientation="Horizontal" Background="Transparent">
                   <TextBlock Text="⚡" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"
                              Foreground="{DynamicResource Text.Primary}" />
-                  <TextBlock Text="Build with Vibe Quant" FontWeight="Bold" FontSize="13"
+                  <TextBlock Text="Build with Hyperion" FontWeight="Bold" FontSize="13"
                              VerticalAlignment="Center" Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
               </Button>
@@ -756,8 +800,8 @@
           </StackPanel>
         </Grid>
 
-            <!-- Floating Vibe Quant button — pinned bottom-right over the catalog. Left-click opens Vibe
-                 Quant; right-click drops the Vibe Quant · Launch CLI menu (the attached ContextMenu
+            <!-- Floating Hyperion button — pinned bottom-right over the catalog. Left-click opens Vibe
+                 Quant; right-click drops the Hyperion · Launch CLI menu (the attached ContextMenu
                  inherits this window's DataContext, so its bindings resolve without a proxy). -->
             <!-- Bottom-right FAB stays realized while the catalog is empty-state collapsed. Gating the
                  wrapper's opacity preserves the hero template namescope; collapsing the button makes
@@ -776,10 +820,10 @@
             <Button x:Name="VibeFab"
                     Cursor="Hand"
                     Click="VibeFab_Click"
-                    ToolTip="Vibe Quant — describe a strategy and let the AI build it. Right-click for options (Launch CLI).">
+                    ToolTip="Hyperion — describe a strategy and let the AI build it. Right-click for options (Launch CLI).">
                 <Button.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="⚡ Vibe Quant…" Command="{Binding OpenStrategyAuthoringCommand}" />
+                        <MenuItem Header="⚡ Hyperion…" Command="{Binding OpenStrategyAuthoringCommand}" />
                         <Separator />
                         <MenuItem Header="Launch CLI" ItemsSource="{Binding CliLaunchChoices}">
                             <MenuItem.ItemContainerStyle>
@@ -799,7 +843,7 @@
                 <StackPanel Orientation="Horizontal" Background="Transparent">
                     <TextBlock Text="⚡" FontSize="20" VerticalAlignment="Center"
                                Foreground="{DynamicResource Text.Primary}" Margin="0,0,8,0" />
-                    <TextBlock Text="Vibe Quant" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                    <TextBlock Text="Hyperion" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
                                Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
             </Button>

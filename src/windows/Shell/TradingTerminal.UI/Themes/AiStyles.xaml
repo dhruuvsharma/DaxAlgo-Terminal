@@ -3,7 +3,7 @@
 
     <!-- ===================================================================================
          AI-NATIVE VISUAL LANGUAGE — structural layer, theme-agnostic. Every AI-powered feature
-         (Vibe Quant and AI providers) is marked with this shared
+         (Hyperion and AI providers) is marked with this shared
          violet→cyan language: gradient badges, glass panels, glow, and a slowly sweeping
          gradient border. Solid fills / text / soft washes come from the palette's Ai.* tokens
          (Theme-Studio-editable); the ANIMATED sweep brushes inside templates use fixed brand
@@ -15,8 +15,8 @@
          =================================================================================== -->
 
     <!-- ===== AI badge: small gradient tag, e.g. next to a feature title. Sharp like the rest
-         of the app — rounding is sanctioned only INSIDE the Vibe Quant window (the hero button
-         below + everything in VibeQuantStyles.xaml, issue #29). ===== -->
+         of the app — rounding is sanctioned only INSIDE the Hyperion window (the hero button
+         below + everything in HyperionStyles.xaml, issue #29). ===== -->
     <Style x:Key="Ai.Badge" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource Gradient.Ai}" />
         <Setter Property="CornerRadius" Value="0" />
@@ -114,7 +114,7 @@
         </Setter>
     </Style>
 
-    <!-- ===== Hero button — the flagship AI entry point (the floating Vibe Quant button).
+    <!-- ===== Hero button — the flagship AI entry point (the floating Hyperion button).
          Glass over an elevated backing (text stays legible on every theme), sweeping gradient
          ring, violet glow that breathes up on hover, gentle press scale. ===== -->
     <Style x:Key="Ai.HeroButton" TargetType="Button">

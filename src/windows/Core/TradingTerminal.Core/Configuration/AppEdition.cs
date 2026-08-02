@@ -11,7 +11,7 @@ namespace TradingTerminal.Core.Configuration;
 /// </remarks>
 public enum AppEdition
 {
-    /// <summary>Keyless brokers with the base strategy, data, and settings surfaces.</summary>
+    /// <summary>Full broker selection with the base strategy, data, and settings surfaces.</summary>
     Basic,
 
     /// <summary>The private overlay's higher-tier broker and feature composition.</summary>

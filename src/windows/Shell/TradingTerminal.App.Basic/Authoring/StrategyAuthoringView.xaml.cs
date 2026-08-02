@@ -5,7 +5,7 @@ using System.Windows.Controls;
 namespace TradingTerminal.App.Authoring;
 
 /// <summary>
-/// The Vibe Quant agent workspace. No behaviour here — it all lives in
+/// The Hyperion agent workspace. No behaviour here — it all lives in
 /// <see cref="StrategyAuthoringViewModel"/>. The only code-behind is pure view plumbing: keeping the
 /// transcript scrolled to the newest message (unhooked on unload so a closed window doesn't keep the
 /// view-model's collection alive), and closing the composer's pill flyouts after a pick.

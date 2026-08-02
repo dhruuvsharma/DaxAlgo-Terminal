@@ -9,7 +9,7 @@
     <RootNamespace>TradingTerminal.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon\DaxAlgoLogo.ico</ApplicationIcon>
-    <Description>Basic-edition WPF shell — fully self-contained (no shared shell library): keyless brokers only (Binance / Coinbase / Bybit / Kraken / OKX / Simulated), the strategy-plugin catalog, and base data/settings surfaces. A shell fix here must be applied to the other editions' copies separately.</Description>
+    <Description>Basic-edition WPF shell — fully self-contained (no shared shell library): full broker selection, the strategy-plugin catalog, recorder, and base data/settings surfaces. A shell fix here must be applied to the other editions' copies separately.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -28,6 +28,9 @@
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
+    <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,9 +57,8 @@
     <None Include="..\..\..\..\appsettings.local.json" Link="appsettings.local.json" Condition="Exists('..\..\..\..\appsettings.local.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <!-- Dev launch-profile override selected via DOTNET_ENVIRONMENT=DevSim from
-         Properties/launchSettings.json. Basic has no DevLive profile — the credentialed brokers
-         it would auto-connect are not registered in this edition. -->
+    <!-- Offline launch-profile override selected via DOTNET_ENVIRONMENT=DevSim from
+         Properties/launchSettings.json. The Live profile uses the normal configuration and login. -->
     <None Include="..\..\..\..\appsettings.DevSim.json" Link="appsettings.DevSim.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

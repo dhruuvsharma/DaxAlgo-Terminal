@@ -8,7 +8,7 @@ namespace TradingTerminal.UI.Controls;
 
 /// <summary>
 /// AvalonEdit wrapped for MVVM: <see cref="TextEditor"/> exposes <c>Text</c> as a plain CLR property,
-/// so this adds the bindable <see cref="Code"/> DP the Vibe Quant workbench binds to
+/// so this adds the bindable <see cref="Code"/> DP the Hyperion workbench binds to
 /// (<c>SelectedFile.Content</c>, two-way). Line numbers on, C# highlighting from the embedded
 /// theme-neutral definition (falls back to AvalonEdit's stock C# if the resource fails to load —
 /// worst case is ugly colors, never a crash).
@@ -85,7 +85,7 @@ public sealed class CodeEditor : TextEditor
         try
         {
             using var stream = typeof(CodeEditor).Assembly
-                .GetManifestResourceStream("TradingTerminal.UI.Controls.CSharpVibeQuant.xshd");
+                .GetManifestResourceStream("TradingTerminal.UI.Controls.CSharpHyperion.xshd");
             if (stream is null) return null;
 
             using var reader = XmlReader.Create(stream);
