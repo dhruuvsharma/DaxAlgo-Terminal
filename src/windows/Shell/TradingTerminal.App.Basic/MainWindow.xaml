@@ -524,28 +524,72 @@
             <Grid.Resources>
                 <!-- One row per strategy. -->
                 <DataTemplate x:Key="StrategyCardTemplate">
-                    <!-- One list row, three columns: identity (name + actions + alpha formula) · description ·
+                    <!-- One list row, four columns: kind spine · identity (name + actions + alpha formula) · description ·
                          a UI screenshot (the app logo when none is set). Binds to a StrategyCatalogItemViewModel,
                          which overlays the strategy's own metadata with the user's presentation edits. -->
                     <Border Background="{DynamicResource Gradient.Elevated}"
                             BorderBrush="{DynamicResource Border.Brush}"
                             BorderThickness="1"
                             CornerRadius="0"
-                            Padding="12,10">
+                            Padding="0">
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="340" />
                                 <ColumnDefinition Width="*" MinWidth="160" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- ── Column 1 · name + id + DEV badge + actions + alpha formula ── -->
-                            <Grid Grid.Column="0" Margin="0,0,14,0">
+                            <Border Grid.Column="0"
+                                    Width="20"
+                                    VerticalAlignment="Stretch"
+                                    BorderThickness="0,0,1,0"
+                                    AutomationProperties.Name="{Binding KindLabel}">
+                                <Border.Style>
+                                    <Style TargetType="{x:Type Border}">
+                                        <Setter Property="Background" Value="{DynamicResource Ai.Soft}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Ai.Glow.Brush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="{x:Static uistrat:CatalogItemKind.Visualizer}">
+                                                <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock FontSize="9"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.LayoutTransform>
+                                        <RotateTransform Angle="-90" />
+                                    </TextBlock.LayoutTransform>
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}">
+                                            <Setter Property="Text" Value="S T R A T E G Y" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Ai.Glow.Brush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Kind}" Value="{x:Static uistrat:CatalogItemKind.Visualizer}">
+                                                    <Setter Property="Text" Value="V I S U A L I Z E R" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+
+                            <!-- ── Column 1 · name + id + primary action + actions + alpha formula ── -->
+                            <Grid Grid.Column="1" Margin="12,10,14,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Grid.Column="0">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Name}"
                                                    Foreground="{DynamicResource Text.Header}"
@@ -568,7 +612,8 @@
                                     <TextBlock Text="{Binding Id}"
                                                Foreground="{DynamicResource Text.Highlight}"
                                                FontSize="10"
-                                               Margin="12,1,0,0" />
+                                               Margin="12,1,0,0"
+                                               Visibility="{Binding Kind, Converter={StaticResource CatalogItemKindToVisibilityConverter}, ConverterParameter=Strategy}" />
                                     <!-- Alpha-generating formula — shown only when the user has added one. -->
                                     <Border Margin="12,6,0,0"
                                             Background="{DynamicResource Background.Surface}"
@@ -584,25 +629,17 @@
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
-                                <uistrat:StrategyCardActions Grid.Column="1" Margin="10,0,0,0"
-                                                             VerticalAlignment="Top" />
-                            </Grid>
-
-                            <!-- ── Column 2 · description + primary action ── -->
-                            <Grid Grid.Column="1" Margin="0,2,14,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="{Binding Description}"
-                                           Foreground="{DynamicResource Text.Secondary}"
-                                           TextWrapping="Wrap" FontSize="12"
-                                           VerticalAlignment="Top" />
-                                <Button Grid.Row="1" Content="{Binding PrimaryActionLabel}"
+                                <Button Grid.Row="1"
+                                        Grid.Column="0"
+                                        Content="{Binding PrimaryActionLabel}"
                                         CommandParameter="{Binding Id}"
-                                        HorizontalAlignment="Left" Padding="10,4" Margin="0,8,0,0">
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Bottom"
+                                        Padding="10,4"
+                                        Margin="0,8,0,0">
                                     <Button.Style>
-                                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+                                        <Style TargetType="{x:Type Button}"
+                                               BasedOn="{StaticResource {x:Type Button}}">
                                             <Setter Property="Command"
                                                     Value="{Binding DataContext.OpenStrategyCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" />
                                             <Style.Triggers>
@@ -614,12 +651,22 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
+                                <uistrat:StrategyCardActions Grid.RowSpan="2" Grid.Column="1" Margin="10,0,0,0"
+                                                             VerticalAlignment="Top" />
                             </Grid>
+
+                            <!-- ── Column 2 · description ── -->
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Description}"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       TextWrapping="Wrap" FontSize="12"
+                                       VerticalAlignment="Top" Margin="0,12,14,10" />
 
                             <!-- ── Column 3 · UI image — the user's screenshot, else the DaxAlgo mark on a
                                  lifted gradient (the mark is solid black, invisible on our surfaces bare). ── -->
-                            <uistrat:StrategyImageTile Grid.Column="2" Width="190" Height="112"
+                            <uistrat:StrategyImageTile Grid.Column="3" Width="190" Height="112"
                                                        VerticalAlignment="Top"
+                                                       Margin="0,10,12,10"
                                                        ImagePath="{Binding ImagePath}" />
                         </Grid>
                     </Border>
@@ -810,19 +857,6 @@
                   </Style.Triggers>
                 </Style>
               </Grid.Style>
-              <StackPanel Orientation="Horizontal">
-                <Button x:Name="EditFab"
-                        Cursor="Hand"
-                        Margin="0,0,12,0"
-                        Command="{Binding OpenPluginManagerCommand}"
-                        ToolTip="Open Extensions to enable, disable, or remove installed strategies and visualizers."
-                        AutomationProperties.Name="Open Extensions">
-                  <Button.Style>
-                    <StaticResource ResourceKey="Ai.HeroButton" />
-                  </Button.Style>
-                  <TextBlock Text="Edit" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
-                             Foreground="{DynamicResource Text.Primary}" />
-                </Button>
             <Button x:Name="VibeFab"
                     Cursor="Hand"
                     Click="VibeFab_Click"
@@ -853,7 +887,6 @@
                                Foreground="{DynamicResource Text.Primary}" />
                 </StackPanel>
             </Button>
-              </StackPanel>
             </Grid>
         </Grid>
 

@@ -3,7 +3,6 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
-             xmlns:local="clr-namespace:TradingTerminal.UI.Strategies"
              Background="Transparent">
     <UserControl.Resources>
         <Style x:Key="StrategyCardActionToggle" TargetType="{x:Type ToggleButton}"
@@ -31,33 +30,6 @@
 
     <Grid>
         <StackPanel x:Name="ActionRail" Orientation="Vertical" HorizontalAlignment="Right">
-            <Border Padding="6,2" Margin="0,0,0,6" BorderThickness="1" HorizontalAlignment="Right"
-                    automation:AutomationProperties.Name="{Binding KindLabel}">
-                <Border.Style>
-                    <Style TargetType="{x:Type Border}">
-                        <Setter Property="Background" Value="{DynamicResource Ai.Soft}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource Ai.Glow.Brush}" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Kind}" Value="{x:Static local:CatalogItemKind.Visualizer}">
-                                <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock Text="{Binding KindLabel}" FontSize="9" FontWeight="SemiBold">
-                    <TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}">
-                            <Setter Property="Foreground" Value="{DynamicResource Ai.Glow.Brush}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Kind}" Value="{x:Static local:CatalogItemKind.Visualizer}">
-                                    <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
             <ToggleButton x:Name="TagsToggle" Style="{StaticResource StrategyCardActionToggle}"
                           ToolTip="Show all catalog tags"
                           automation:AutomationProperties.Name="Show catalog tags"
