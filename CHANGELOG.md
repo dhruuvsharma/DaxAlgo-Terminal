@@ -13,35 +13,45 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   BacktestAnalysis / PaperLab), the Machine Learning windows (Stationarity / ArimaGarch /
   KalmanFilter), SurfaceLab, BubbleChart, LseBacktest, QuantConnect, the `daxalgo-backtest` CLI
   and the installer moved to a private overlay repo that consumes this repo as a git submodule.
-  The Basic edition remains fully open source here.
+  The Basic edition remains fully open source here and is now the only application shell in this
+  repository.
 - **License changed MIT → AGPL-3.0** for all code going forward (the `src/windows/Sdk/` plugin SDK
-  stays MIT so third-party plugins aren't AGPL-bound). Previously published code remains MIT in
-  the repo history.
+  stays MIT). The proposed plugin linking exception is still a draft and is not in force, so the SDK's
+  MIT package license must not be represented as an active exception from the linked AGPL host.
+  Previously published code remains MIT in the repo history.
 
 - **Strategy renamed — "APEX microstructure scalper v2" → "Σ⁻¹·IC Order-Flow Optimizer".** Live
   project `TradingTerminal.Strategies.ApexScalper` → `TradingTerminal.Strategies.SigmaIcFlow`
   (classes, namespace, DI `AddSigmaIcFlowStrategy()`); live strategy id `apex.scalper` →
   `sigma.ic.flow`; backtest/CLI id `apexScalper` → `sigmaIcFlow` (legacy `apex`/`apexscalper`
-  aliases still resolve). The engine-side class stays `ApexScalperStrategy`
-  (`Infrastructure/Backtest/Strategies/`) — internal name retained.
+  aliases resolved at the time). The then-current engine-side class retained the internal name
+  `ApexScalperStrategy` (`Infrastructure/Backtest/Strategies/`).
 - **Main window launches maximized** (`WindowState="Maximized"`).
-- **Shell redesign — AvalonDock removed.** The docking framework is gone; every tool, strategy and
-  chart now opens as its own `Window`. The 13 tools that used to be dock document tabs (Backtest,
-  Factor research, Recorder, ML features, Backtest analysis, AI analyst, Markov regime, Stationarity,
-  ARIMA/GARCH, Kalman, Notifications, Archive settings, Archive history) open via a new generic
-  `App/Shell/ToolHostWindow`. The `MainWindow` is now a full-width strategy catalog (tiled cards) with
-  a collapsible **activity-log drawer** pinned at the bottom (closed by default). The header strip lost
-  the centre broker/mode badge and the `user · account` text; the live ticker tape and command line were
-  removed; the status bar was trimmed to connection state · live-broker count · clock.
-- **Docs overhaul** — every doc under `docs/` (plus the root README and CLAUDE.md) refreshed for the
-  windowed shell, the four store backends, and per-broker L2 persistence; added Mermaid component /
-  pipeline / sequence / database-ER diagrams; reserved per-tool/strategy/window screenshot + video
-  "coming soon" media slots.
+- **Shell redesign — AvalonDock removed.** The current `MainWindow` is a full-width
+  strategy/visualizer catalog with a collapsible Activity Log. Retained surfaces open in standalone
+  host windows: Backtest Studio, recorder, notifications, archive settings/history, and Theme Studio.
+  The recorder is opened by the header's REC chip rather than a menu item. The public menu bar is
+  limited to File, View, Backtest Engine, Strategy Studio, Data, the deliberately disabled Execution
+  Engine, Settings, and Help.
+- **Basic broker composition expanded.** The sole public shell now registers both keyless and
+  credentialed broker sets and starts at broker selection. There is no product-account or entitlement
+  gate. Interactive Brokers and NinjaTrader remain conditional on their local vendor DLLs.
+- **Strategies moved to runtime plugins.** The live strategy catalog now ships empty; first-party
+  strategies are external plugins built on the published SDK. Backtest Studio retains its own built-in
+  demonstration kernels. Catalog cards now model strategies and visualizers, while installable
+  visualizers remain pending a package/contribution format.
+- **Public documentation consolidated.** The general `docs/` tree moved out of the public repository.
+  The root README and CONTRIBUTING guide are now self-contained; `docs/strategy-bundles.md` remains at
+  its package-readme path.
 
 ### Removed
 
 - `Shell/DockTab.cs`, `Shell/TickerTapeViewModel.cs`, `UI/DockTabStyleSelector.cs`, and the
   `Dirkster.AvalonDock` + `Dirkster.AvalonDock.Themes.VS2013` package references.
+- The public Intermediate and Professional shell projects, the product-account gate, and the public
+  Tools, Charts, and Research menus and their former windows. Removed surfaces include the correlation
+  matrix, volume footprint, order book, Bookmap/heatmap, 3D surface lab, bubble chart, Paper Lab,
+  machine-learning windows, and market-regime windows.
 
 ## [1.1.0] — 2026-06-15
 

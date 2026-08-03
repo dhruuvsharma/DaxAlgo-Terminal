@@ -14,7 +14,7 @@
                  Height="860" Width="1440"
                  WindowState="Maximized"
                  WindowStartupLocation="CenterScreen"
-                 Icon="pack://application:,,,/Icon/DaxAlgoLogo.ico"
+                 Icon="pack://application:,,,/TradingTerminal.App.Basic;component/Icon/DaxAlgoLogo.ico"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}"
                  FontFamily="{DynamicResource Font.Mono}"

@@ -1,66 +1,119 @@
 # Contributing to DaxAlgo Terminal
 
-Thanks for helping out! This page is the **environment onboarding** — how to get a working
-dev setup, including Claude Code with the project's AI config. For the **code conventions**
-(layering rules, MVVM, how to add a strategy/broker/notifier), see
-[docs/contributing.md](docs/contributing.md) and [CLAUDE.md](CLAUDE.md).
-
-## TL;DR
-
-```powershell
-git clone https://github.com/dhruuvsharma/DaxAlgo-Terminal.git
-cd "DaxAlgo Terminal"
-scripts\setup-claude-code.bat   # one-time: installs Git, .NET 9 SDK, Claude Code
-# reopen your terminal, then:
-claude-here.bat                 # launches Claude Code in the project
-```
+This repository ships one Windows application, `TradingTerminal.App.Basic`, plus its shared libraries,
+backtest engine, SDK, tools, and tests. Propose changes against what is present here. Do not describe or
+depend on private-edition code.
 
 ## Prerequisites
 
-| Tool | Why | Notes |
-|---|---|---|
-| **Windows 10/11** | The app is `net9.0-windows` (WPF) | The helper `.bat` files and the project hooks are Windows-only. |
-| **Git** | Source control + Claude Code's Bash tool | `setup-claude-code.bat` installs it via winget if missing. |
-| **.NET 9 SDK** | Build / run the terminal | Must be a **9.x** SDK (bundles the matching desktop runtime). |
-| **Claude Code** | The AI dev CLI | Installed by the setup script (native build, auto-updates). |
-| **A paid Claude plan** | Required to *use* Claude Code | Pro / Max / Team / Enterprise, or an API provider key. **Not** on the free claude.ai tier. Each contributor signs in with their own account. |
+- Windows 10 or Windows 11.
+- .NET 9 SDK.
+- Git.
 
-No broker account is needed to build or run — connect the **Binance** tile (real, keyless
-crypto data) or the offline **Simulated** broker. See [docs/getting-started.md](docs/getting-started.md).
+No broker account is needed for development. Use the Simulated source for an offline session or one of
+the keyless public crypto feeds for network data. Interactive Brokers and NinjaTrader compile only when
+their vendor DLLs resolve locally; their absence must not break the rest of the solution.
 
-## The Claude Code setup is already in the repo
+## Build and test
 
-You don't install agents, skills, or plugins separately — they're **committed to the repo** and
-load automatically when you open Claude Code in this folder:
+From the repository root:
 
-- **`CLAUDE.md`** — the always-loaded project guide (architecture, rules, do/don't).
-- **`.claude/agents/`** — 38 subagents: a 3-agent orchestration tier (`manager`/`build-runner`/`verifier`) over per-area implementer + specialist agents (see [`.claude/agents/README.md`](.claude/agents/README.md)).
-- **`.claude/skills/`** — 14 lazy-loaded skills (`navigator`, `add-strategy`, `software-architecture`, `quant-math`, …).
-- **`.claude/MULTI-AGENT.md`** — "the spine": how the manager plans → workers build → build-runner + verifier gate.
-- **`.claude/hooks/`** — session-start orientation + a build/doc-sync check on stop (PowerShell).
-- **`.claude/MULTI-AGENT.md`** — how the multi-agent workflow is meant to be driven.
+```powershell
+dotnet restore TradingTerminal.Windows.slnx
+dotnet build TradingTerminal.Windows.slnx
+```
 
-`scripts/setup-claude-code.bat` installs the *tooling* (Git, .NET 9 SDK, Claude Code, and checks for
-PowerShell, which the hooks need), then **verifies** the committed `.claude/` workflow and reports what's
-wired (`✓ 38 agents, ✓ 14 skills, ✓ 4 hooks, ✓ settings.json/MULTI-AGENT.md/CLAUDE.md`). Cloning the repo
-is what *delivers* the AI config — the script never copies it into your global `~/.claude/` (a global copy
-would drift from the repo and break the agents' repo-relative paths). `claude-here.bat` just `cd`s to the
-repo root and runs `claude` so that project-scoped config is picked up automatically.
+Run the application with:
 
-> **Personal vs shared settings.** `.claude/settings.json` is the **shared** project config (checked
-> in) and ships **conservative defaults** — `acceptEdits` mode (edits auto-apply; they're
-> git-reviewable) with a read-only command allowlist, so a fresh clone never runs shell commands
-> without a prompt. Anything personal — a bypass/no-prompt mode, a wider command allowlist, your
-> model choice — belongs in `.claude/settings.local.json`, which is git-ignored and never shipped to
-> others.
+```powershell
+dotnet run --project src/windows/Shell/TradingTerminal.App.Basic
+```
 
-## Workflow
+Run the narrowest relevant test project while developing, then build the named solution before opening
+a pull request. Do not use an unqualified `dotnet build`; always name the project or solution being
+checked.
 
-1. Branch off `main`.
-2. Make your change. Keep the layering rules in [CLAUDE.md](CLAUDE.md) intact (`Core` depends on
-   nothing; brokers/strategies are plug-ins behind their seams; strict MVVM).
-3. `dotnet build` and `dotnet test` must be green.
-4. Open a PR. The repo's stop-hook reminds you to update docs when project structure changes.
+Documentation-only changes do not require product refactoring. They still require a solution build,
+link validation against `git ls-files`, spelling/terminology review, and `git diff --check`.
 
-For the deeper "how do I add X" recipes, ask Claude to load the matching skill (e.g.
-`/add-strategy`) or read [docs/contributing.md](docs/contributing.md).
+## Layering rules
+
+Keep dependencies pointing inward:
+
+| Layer | Rule |
+|---|---|
+| Core | Domain and contracts only; no WPF, storage implementation, application, or broker-SDK dependency |
+| MarketData | Canonical ingest, identity, hub, stores, queries, and archives; remains below Infrastructure |
+| Infrastructure | Concrete brokers and adapters; broker SDK types do not escape this layer |
+| UI and feature surfaces | Consume Core/MarketData seams; view-models do not subscribe directly to broker SDK streams |
+| App.Basic | Composition and shell behavior only; it is the sole public application shell |
+| Strategies | External runtime plugins built against the published SDK; never add a strategy ProjectReference to the shell |
+
+Preserve canonical `InstrumentId` identity, event provenance, tick-primary non-blocking ingest, bounded
+UI streams, deterministic disposal, strict MVVM, and the data/signals-only boundary. A contribution must
+not introduce live broker order execution.
+
+## Common change types
+
+### Broker changes
+
+Keep the broker-neutral contract in Core and the implementation in Infrastructure. Add or update its
+configuration and broker-selection form together, declare whether credentials are required in
+`BrokerEditionPolicy`, and keep vendor DTOs behind the adapter. Test connection cancellation, reconnect,
+subscription cleanup, canonical identity, and capability reporting.
+
+### Strategy changes
+
+Do not add first-party strategy implementations to this repository. Build strategies as runtime plugins
+against the matching `DaxAlgo.Sdk` and, when needed, `DaxAlgo.Sdk.Wpf` contract version. A plugin
+registers its descriptor, live view/view-model factory, and `BacktestStrategyOption` through
+`IStrategyPlugin`. The clean live catalog must remain valid when no plugins are installed.
+
+The catalog can display strategy and visualizer cards, but installable visualizers are not complete: the
+card contract exists and the package/contribution format does not. Discuss that format in an issue before
+implementing a visualizer installer.
+
+### UI changes
+
+Keep code-behind limited to view concerns, commands and state in view-models, streaming collections
+bounded, and timers/subscriptions disposable. A shell behavior change belongs in App.Basic; there is no
+second public shell to update.
+
+### Generated context
+
+When source, project references, or public symbols change, refresh generated context through the locked
+manager rather than editing generated files by hand:
+
+```powershell
+powershell -File .claude/context/manage-context.ps1 sync
+powershell -File .claude/context/manage-context.ps1 deep-check
+```
+
+## Proposing a change
+
+1. Search existing issues and open one for a feature, behavioral change, or architecture decision.
+2. State the user-visible problem, the public-repository scope, compatibility impact, and proposed tests.
+3. Make the smallest coherent change on a branch. Do not mix cleanup or unrelated formatting into it.
+4. Add focused tests and update public documentation when behavior, configuration, or contracts change.
+5. Verify the relevant project/tests and `TradingTerminal.Windows.slnx`; report exactly what ran.
+6. Open a pull request that links the issue and summarizes files changed, observable behavior, checks,
+   risks, and deferred work.
+
+Never include credentials, account identifiers, recorded market data, private implementation details,
+or unlicensed vendor binaries in an issue or pull request.
+
+## Documentation and links
+
+Public documentation must describe only tracked public code. Relative links must resolve to paths
+returned by `git ls-files`; an untracked local file does not exist for a clone or GitHub reader. Do not
+add links to private repositories or restore the former public `docs/` tree. The retained
+`docs/strategy-bundles.md` file is package documentation and must stay at that path.
+
+## Licensing
+
+Contributions to the application are under [AGPL-3.0](LICENSE). The projects under `src/windows/Sdk/`
+carry a separate [MIT license](src/windows/Sdk/LICENSE). The proposed exception in
+[LICENSE-EXCEPTIONS.md](LICENSE-EXCEPTIONS.md) is a draft and is not in force; do not represent it as an
+active permission.
+
+For the shipping behavior and repository map, start with [README.md](README.md).
