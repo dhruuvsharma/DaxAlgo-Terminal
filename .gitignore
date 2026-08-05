@@ -90,12 +90,11 @@ CLAUDE.md
 AGENTS.md
 claude-here.bat
 claude-launch.bat
-# Not part of the base application: authored documentation, task records, screenshots,
-# polyglot sidecars (Python ML / C++), and forward-looking idea notes. Kept on disk locally,
-# deliberately untracked -- the public repository ships the base application source only.
-docs/
+# Not part of the base application: task records, polyglot sidecars (Python ML / C++), and
+# forward-looking idea notes. Kept on disk locally, deliberately untracked. Authored
+# documentation and its screenshots under docs/ ARE tracked and ship with the repository.
 tasks/
-images/
+/images/
 /tools/
 ideas.md
 build/gen-ai-context.ps1

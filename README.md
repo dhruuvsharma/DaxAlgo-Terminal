@@ -13,6 +13,9 @@ The application has no DaxAlgo product account, subscription sign-in, or entitle
 start it opens the broker-selection window. Broker credentials are requested only when the selected data
 source needs them.
 
+> 🖼️ **Screenshot —** _DaxAlgo Terminal main window: the strategy catalog with the header chips and the Activity Log drawer._
+> <sub>Placeholder → `docs/images/main-window.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
 ## Repository scope
 
 This repository contains the open-source Windows application, shared libraries, backtest engine, runtime
@@ -67,6 +70,12 @@ suitable.
 At startup, select one or more brokers. Choose **Simulated** for a fully offline session. The keyless
 crypto sources use public network feeds. Credentialed sources require their normal broker setup.
 
+> 🖼️ **Screenshot —** _Broker-selection window at startup, with the keyless crypto sources and Simulated selected._
+> <sub>Placeholder → `docs/images/broker-selection.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
+> 🎬 **Video —** _Getting started: clone, build, run, pick **Simulated**, and run a first backtest (≈60s)._
+> <sub>Placeholder → `docs/media/getting-started.mp4` (host on a GitHub release or link out) · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
 ## Brokers
 
 `TradingTerminal.App.Basic` calls both `AddKeylessBrokers()` and `AddCredentialedBrokers()`. The broker
@@ -109,6 +118,9 @@ The menu bar in `TradingTerminal.App.Basic/MainWindow.xaml` is:
 The **REC** chip sits in the header rather than a menu. Its indicator lights while the background
 recorder is capturing selected L1, L2, bar, or trade-tape streams.
 
+> 🖼️ **Screenshot —** _The menu bar and header, with the **REC** chip and the connection/status indicators._
+> <sub>Placeholder → `docs/images/shell-menu-bar.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
 ## Catalog, strategies, and visualizers
 
 The main catalog is intentionally empty in a clean installation. It aggregates runtime registrations
@@ -125,6 +137,9 @@ Installable visualizers are **in progress**. The descriptor, card kind, styling,
 **Add to chart** action contract exist, but there is no visualizer package/contribution format yet.
 Do not treat a visualizer card as evidence of a working visualizer marketplace.
 
+> 🖼️ **Screenshot —** _Catalog cards: a strategy card (purple spine, **Open**) beside a visualizer card (blue spine, **Add to chart**), with the context menu open._
+> <sub>Placeholder → `docs/images/catalog-cards.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
 ### Author a strategy in the application
 
 Open **Strategy Studio > Vibe Code > Hyperion** to describe, generate, compile, review, and install a
@@ -134,6 +149,12 @@ workspace. Provider selection and credentials are configured under **Settings > 
 An authored strategy becomes the same kind of runtime plugin as an externally built strategy. It can
 contribute a backtest kernel, catalog metadata, and an optional live signal view. Generated or authored
 code is still subject to compiler, SDK-compatibility, trust, and policy checks.
+
+> 🖼️ **Screenshot —** _Strategy Studio › Vibe Code › Hyperion: describe → generate → review the compiled strategy._
+> <sub>Placeholder → `docs/images/strategy-studio-hyperion.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
+> 🎬 **Video —** _Authoring walkthrough: generate a strategy in Hyperion, install it, and quick-backtest the new card._
+> <sub>Placeholder → `docs/media/authoring-walkthrough.mp4` (host on a GitHub release or link out) · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
 
 ### Author an external runtime plugin
 
@@ -206,6 +227,9 @@ historical or synthetic feeds, results, optimization, and playback. They do not 
 For an installed strategy card, **Quick backtest (last 1 year)** opens a focused run for the card's
 declared backtest strategy. Visualizer cards do not show this action.
 
+> 🖼️ **Screenshot —** _Backtest Studio: strategy/parameter setup with the results panel — equity curve, stats, and trade list._
+> <sub>Placeholder → `docs/images/backtest-studio.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+
 ## Market data, storage, and archives
 
 Every broker implements the `IBrokerClient` seam. Downstream code receives normalized records identified
@@ -231,6 +255,9 @@ The selectable persistence providers are:
 The recorder captures chosen streams in the background. The archive subsystem can package normalized
 quotes, bars, trades, and depth as Parquet data, track archive history, and process pending offloads. It
 is disabled by default and configured from the **Data** menu.
+
+> 🖼️ **Screenshot —** _The background recorder panel (opened from the **REC** chip) with L1/L2/bar/trade-tape capture toggles._
+> <sub>Placeholder → `docs/images/recorder-panel.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
 
 ## Architecture and project map
 
