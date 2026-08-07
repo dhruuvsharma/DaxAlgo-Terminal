@@ -9,17 +9,26 @@ namespace TradingTerminal.Core.Strategies.Parameters;
 public enum ParameterKind
 {
     /// <summary>Whole number. Backed by <see cref="long"/>; exposed via <c>GetInt</c>.</summary>
-    Integer,
+    Integer = 0,
 
     /// <summary>Real number. Backed by <see cref="double"/>; exposed via <c>GetDouble</c>.</summary>
-    Number,
+    Number = 1,
 
     /// <summary>True/false toggle. Backed by <see cref="bool"/>; exposed via <c>GetBool</c>.</summary>
-    Boolean,
+    Boolean = 2,
 
     /// <summary>One of a fixed set of <see cref="StrategyParameter.Choices"/>. Backed by <see cref="string"/>.</summary>
-    Choice,
+    Choice = 3,
+
+    /// <summary>
+    /// Compatibility name for an enum-valued <see cref="Choice"/>. It intentionally shares the
+    /// same wire value so existing choice parameters and persisted schemas remain compatible.
+    /// </summary>
+    Enum = Choice,
 
     /// <summary>Free-form text. Backed by <see cref="string"/>.</summary>
-    Text,
+    Text = 4,
+
+    /// <summary>A canonical instrument selection. Backed by <c>InstrumentId</c>.</summary>
+    Instrument = 5,
 }

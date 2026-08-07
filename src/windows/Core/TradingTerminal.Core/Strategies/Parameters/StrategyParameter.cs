@@ -1,3 +1,5 @@
+using TradingTerminal.Core.Domain;
+
 namespace TradingTerminal.Core.Strategies.Parameters;
 
 /// <summary>
@@ -15,6 +17,9 @@ public sealed record StrategyParameter
 {
     /// <summary>Stable machine key, used to read the value back. Unique within a schema.</summary>
     public required string Key { get; init; }
+
+    /// <summary>Descriptor-compatible alias for <see cref="Key"/>.</summary>
+    public string Name => Key;
 
     /// <summary>Human-friendly label shown next to the editor.</summary>
     public required string DisplayName { get; init; }
@@ -87,6 +92,41 @@ public sealed record StrategyParameter
         {
             Key = key, DisplayName = displayName, Kind = ParameterKind.Choice,
             Default = @default, Choices = choices, Group = group, Description = description,
+        };
+
+    public static StrategyParameter Enum<TEnum>(
+        string key, string displayName, TEnum @default,
+        IReadOnlyList<TEnum>? choices = null,
+        string? group = null, string? description = null)
+        where TEnum : struct, System.Enum
+    {
+        var allowed = (choices ?? System.Enum.GetValues<TEnum>())
+            .Select(static value => value.ToString())
+            .ToArray();
+
+        return new StrategyParameter
+        {
+            Key = key,
+            DisplayName = displayName,
+            Kind = ParameterKind.Enum,
+            Default = @default.ToString(),
+            Choices = allowed,
+            Group = group,
+            Description = description,
+        };
+    }
+
+    public static StrategyParameter Instrument(
+        string key, string displayName, InstrumentId @default,
+        string? group = null, string? description = null) =>
+        new()
+        {
+            Key = key,
+            DisplayName = displayName,
+            Kind = ParameterKind.Instrument,
+            Default = @default,
+            Group = group,
+            Description = description,
         };
 
     public static StrategyParameter Text(

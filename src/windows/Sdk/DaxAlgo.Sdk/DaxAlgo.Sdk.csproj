@@ -22,12 +22,27 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- Build the policy analyzer with the SDK and run it over this project, but keep it out of
+         compile references and NuGet dependency metadata. Its assembly is embedded below. -->
+    <ProjectReference Include="..\DaxAlgo.Sdk.Analyzers\DaxAlgo.Sdk.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- IPluginRegistrar exposes IServiceCollection so a plugin's Register() body mirrors a
          first-party AddXxxStrategy(). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- NuGet automatically loads analyzers from this path for every direct DaxAlgo.Sdk package
+         consumer. DaxAlgoOutputBase handles both the Windows redirected build and normal CI output. -->
+    <None Include="$(DaxAlgoOutputBase)src/windows/Sdk/DaxAlgo.Sdk.Analyzers/bin/$(Configuration)/netstandard2.0/DaxAlgo.Sdk.Analyzers.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
   </ItemGroup>
 
 </Project>

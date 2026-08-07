@@ -1,4 +1,5 @@
 using System.Globalization;
+using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.Core.Strategies.Parameters;
 
@@ -57,6 +58,25 @@ public sealed class StrategyParameters
     public string GetString(string key) =>
         _values[Require(key).Key]?.ToString() ?? string.Empty;
 
+    /// <summary>Reads a free-text parameter. Alias for <see cref="GetString"/>.</summary>
+    public string GetText(string key) => GetString(key);
+
+    /// <summary>Reads an enum/choice parameter as the requested enum type.</summary>
+    public TEnum GetEnum<TEnum>(string key) where TEnum : struct, System.Enum
+    {
+        var value = GetString(key);
+        if (System.Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed))
+            return parsed;
+
+        throw new InvalidCastException($"Parameter '{key}' value '{value}' is not a valid {typeof(TEnum).Name}.");
+    }
+
+    /// <summary>Reads a canonical instrument parameter.</summary>
+    public InstrumentId GetInstrument(string key) =>
+        _values[Require(key).Key] is InstrumentId instrument
+            ? instrument
+            : ToInstrument(_values[key], InstrumentId.None);
+
     /// <summary>Raw boxed value, of the natural CLR type for the parameter's kind.</summary>
     public object? GetRaw(string key) => _values[Require(key).Key];
 
@@ -104,6 +124,7 @@ public sealed class StrategyParameters
         ParameterKind.Boolean => ToBool(value, p.Default),
         ParameterKind.Choice => ToChoice(p, value),
         ParameterKind.Text => value?.ToString() ?? (p.Default?.ToString() ?? string.Empty),
+        ParameterKind.Instrument => ToInstrument(value, p.Default),
         _ => value,
     };
 
@@ -158,5 +179,42 @@ public sealed class StrategyParameters
         // Fall back to the declared default, else the first allowed choice, else empty.
         return p.Default?.ToString()
             ?? (p.Choices is { Count: > 0 } c ? c[0] : string.Empty);
+    }
+
+    private static InstrumentId ToInstrument(object? value, object? fallback)
+    {
+        if (value is InstrumentId instrument)
+            return instrument;
+
+        if (TryInstrument(value, out instrument))
+            return instrument;
+
+        return fallback is InstrumentId fallbackInstrument || TryInstrument(fallback, out fallbackInstrument)
+            ? fallbackInstrument
+            : InstrumentId.None;
+    }
+
+    private static bool TryInstrument(object? value, out InstrumentId instrument)
+    {
+        switch (value)
+        {
+            case int number:
+                instrument = new InstrumentId(number);
+                return true;
+            case long number when number is >= int.MinValue and <= int.MaxValue:
+                instrument = new InstrumentId((int)number);
+                return true;
+            case string text:
+                var normalized = text.TrimStart('#');
+                if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    instrument = new InstrumentId(parsed);
+                    return true;
+                }
+                break;
+        }
+
+        instrument = InstrumentId.None;
+        return false;
     }
 }

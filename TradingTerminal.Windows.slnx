@@ -4,8 +4,12 @@
   </Folder>
   <Folder Name="/Sdk/">
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
+    <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Analyzers/DaxAlgo.Sdk.Analyzers.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxAlgo.Strategy.Bundle.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/DaxAlgo.Sdk.Analyzers.Tests/DaxAlgo.Sdk.Analyzers.Tests.csproj" />
   </Folder>
   <Folder Name="/Pipeline/">
     <Project Path="src/windows/Pipeline/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj" />
