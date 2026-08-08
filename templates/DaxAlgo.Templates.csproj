@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── dotnet new template package ────────────────────────────────────────────────────────────
+       Packs templates/content/* as `dotnet new` templates (currently: daxalgo-sandbox-strategy,
+       daxalgo-sandbox-visualizer). Not part of any solution — packed by the nuget-publish workflow
+       alongside the SDK packages, versioned in lockstep (a scaffolded project pins its DaxAlgo.Sdk
+       PackageReference to the matching SDK version).
+       Install:  dotnet new install DaxAlgo.Templates
+       Use:      dotnet new daxalgo-sandbox-strategy -n MyStrategy -->
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageId>DaxAlgo.Templates</PackageId>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <Description>dotnet new templates for sandboxed DaxAlgo strategies and visualizers: a data-only IStrategyKernel or IVisualizer against the DaxAlgo.Sdk capability contract, with offline unit tests and CLAUDE.md/AGENTS.md authoring guides.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>daxalgo;templates;dotnet-new;trading;strategy;visualizer;sandbox;plugin</PackageTags>
+
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <!-- Template content must never be compiled/expanded by THIS project. -->
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- Dotfiles (.template.config, .gitignore) must pack. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!-- No symbols for a content-only package (overrides the repo-wide snupkg default). -->
+    <IncludeSymbols>false</IncludeSymbols>
+    <NoWarn>$(NoWarn);NU5128;NU5110;NU5111</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="content\**\*" PackagePath="content" />
+  </ItemGroup>
+
+</Project>

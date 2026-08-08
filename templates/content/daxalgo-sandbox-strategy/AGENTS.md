@@ -1,7 +1,7 @@
 # DaxSandboxStrategy sandbox contract
 
 This project was created by `dotnet new daxalgo-sandbox-strategy`. It targets `DaxAlgo.Sdk`
-`0.3.0-alpha`; the package supplies the `DAX3001` sandbox analyzer automatically. Keep the project
+`0.3.0`; the package supplies the `DAX3001` sandbox analyzer automatically. Keep the project
 analyzer-clean.
 
 ## Unit contract
@@ -39,6 +39,6 @@ allowed. Compiler lowering may emit `MemoryMarshal`; author-written interop rema
 ## Workflow
 
 Change the kernel and add a direct unit test using public interface test doubles. Once SDK
-`0.3.0-alpha` is published, run `dotnet test DaxSandboxStrategy.slnx`. Product backtests and live
+`0.3.0` is published, run `dotnet test DaxSandboxStrategy.slnx`. Product backtests and live
 execution run inside DaxAlgo Terminal; this scaffold does not contain an account, backtest runner,
 broker, or execution engine.

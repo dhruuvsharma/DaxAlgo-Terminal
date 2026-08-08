@@ -198,8 +198,8 @@ dotnet new install ./templates/content/daxalgo-sandbox-visualizer
 dotnet new daxalgo-sandbox-visualizer -o "$env:TEMP/MySandboxVisualizer"
 ```
 
-Both templates reference `DaxAlgo.Sdk` `0.3.0-alpha` through NuGet and include a direct unit test plus
-`AGENTS.md` and `CLAUDE.md`. SDK `0.3.0-alpha` is not yet published at the time of this guide: template
+Both templates reference `DaxAlgo.Sdk` `0.3.0` through NuGet and include a direct unit test plus
+`AGENTS.md` and `CLAUDE.md`. SDK `0.3.0` is not yet published at the time of this guide: template
 installation and scaffolding can be verified now, but scaffold restore/build/test must wait for the
 owner's NuGet publication. Do not replace the package reference with private Pro projects.
 
@@ -208,7 +208,7 @@ owner's NuGet publication. Do not replace the package reference with private Pro
 The verified public sample is at
 [`samples/DaxAlgo.Sandbox.Samples/`](../samples/DaxAlgo.Sandbox.Samples/). Its main project references
 the SDK project directly and attaches the shipped analyzer project, so it proves the code against the
-current checkout without pretending the `0.3.0-alpha` package is already published.
+current checkout without pretending the `0.3.0` package is already published.
 
 ### `MovingAverageCrossKernel`
 
@@ -260,7 +260,7 @@ Hyperion and other generators must treat this JSON as a generation constraint, n
 {
   "contract": "daxalgo-sandbox-authoring/1",
   "sdkPackage": "DaxAlgo.Sdk",
-  "sdkVersion": "0.3.0-alpha",
+  "sdkVersion": "0.3.0",
   "unitKinds": {
     "strategy": {
       "implements": "DaxAlgo.Sdk.IStrategyKernel",
