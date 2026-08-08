@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DaxAlgo.Sdk ships DAX3001 as a transitive compiler analyzer. -->
+    <PackageReference Include="DaxAlgo.Sdk" Version="$(DaxAlgoSdkVersion)" />
+  </ItemGroup>
+
+</Project>

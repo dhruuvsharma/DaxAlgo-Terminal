@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DaxSandboxStrategy/DaxSandboxStrategy.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DaxSandboxStrategy.Tests/DaxSandboxStrategy.Tests.csproj" />
+  </Folder>
+</Solution>

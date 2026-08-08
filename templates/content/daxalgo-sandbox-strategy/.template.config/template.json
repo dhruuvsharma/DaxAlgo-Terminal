@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "DaxAlgo",
+  "classifications": ["DaxAlgo", "Trading", "Sandbox", "Strategy"],
+  "identity": "DaxAlgo.Sandbox.Strategy.CSharp",
+  "name": "DaxAlgo sandbox strategy",
+  "description": "A capability-scoped DaxAlgo strategy kernel with an analyzer-enforced SDK reference, direct unit test, and human/agent authoring contract.",
+  "shortName": "daxalgo-sandbox-strategy",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  }
+}

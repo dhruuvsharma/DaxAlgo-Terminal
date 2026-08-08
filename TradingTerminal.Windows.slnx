@@ -10,7 +10,11 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/DaxAlgo.Sdk.Analyzers.Tests/DaxAlgo.Sdk.Analyzers.Tests.csproj" />
+    <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.Tests/DaxAlgo.Sandbox.Samples.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Tests/TradingTerminal.Sandbox.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.csproj" />
   </Folder>
   <Folder Name="/Pipeline/">
     <Project Path="src/windows/Pipeline/TradingTerminal.Infrastructure/TradingTerminal.Infrastructure.csproj" />

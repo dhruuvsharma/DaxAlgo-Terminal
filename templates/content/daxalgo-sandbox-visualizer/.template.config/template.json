@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "DaxAlgo",
+  "classifications": ["DaxAlgo", "Trading", "Sandbox", "Visualizer"],
+  "identity": "DaxAlgo.Sandbox.Visualizer.CSharp",
+  "name": "DaxAlgo sandbox visualizer",
+  "description": "A capability-scoped DaxAlgo visualizer with an analyzer-enforced SDK reference, direct unit test, and human/agent authoring contract.",
+  "shortName": "daxalgo-sandbox-visualizer",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  }
+}

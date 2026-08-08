@@ -1,0 +1,20 @@
+// FORBIDDEN — documentation only. The .cs.txt extension deliberately excludes this file from compilation.
+// Renaming it to .cs in a project that contains IStrategyKernel or IVisualizer makes the shipped
+// DaxAlgo.Sdk.Analyzers.ForbiddenApiAnalyzer fail the build with DAX3001.
+
+namespace DaxAlgo.Sandbox.Samples;
+
+internal static class ForbiddenApiExamples
+{
+    internal static string ReadFromDisk() =>
+        System.IO.File.ReadAllText("prices.csv");
+
+    internal static System.Diagnostics.Process? LaunchProcess() =>
+        System.Diagnostics.Process.Start("external-tool");
+
+    internal static nint AllocateNativeMemory() =>
+        System.Runtime.InteropServices.Marshal.AllocHGlobal(16);
+}
+
+// Use context.Data for scoped market data, context.Book for declarative strategy targets,
+// context.Alerts for mediated notifications, and context.Clock for host-controlled time instead.
