@@ -106,6 +106,27 @@ public static class PluginLoader
         LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, scanMode, consent, onError,
             protectedStrategyEngine);
 
+    /// <summary>Explicit entry point for a root that contains only sandbox-authored kernels or
+    /// visualizers. It uses the strict, non-relaxable scan profile while preserving the established
+    /// blocked-artifact quarantine lifecycle; a non-null <paramref name="state"/> is mandatory so every
+    /// blocked artifact is persisted there. Existing mixed/marketplace plugin roots must continue to use
+    /// <c>LoadWithReport</c>.</summary>
+    public static PluginLoadReport LoadSandboxedWithReport(
+        IServiceCollection services,
+        string pluginsRoot,
+        string hostSdkVersion,
+        PluginTrustPolicy policy,
+        PluginStateStore state,
+        IPluginConsentPrompt? consent = null,
+        Action<string, Exception>? onError = null,
+        IProtectedStrategyEngine? protectedStrategyEngine = null)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return LoadWithReport(
+            services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, PluginScanMode.Enforce,
+            consent, onError, protectedStrategyEngine, PluginScanProfile.Sandbox);
+    }
+
     /// <summary>Core scan: registers every loadable plugin and classifies every one that did NOT load
     /// (disabled / quarantined / trust-rejected / SDK-incompatible / bad manifest / faulted) so the
     /// host can surface problems instead of plugins silently vanishing from the catalog. When
@@ -121,7 +142,22 @@ public static class PluginLoader
         PluginScanMode scanMode = PluginScanMode.Enforce,
         IPluginConsentPrompt? consent = null,
         Action<string, Exception>? onError = null,
-        IProtectedStrategyEngine? protectedStrategyEngine = null)
+        IProtectedStrategyEngine? protectedStrategyEngine = null) =>
+        LoadWithReport(services, pluginsRoot, hostSdkVersion, policy, inspector, state, scanMode, consent, onError,
+            protectedStrategyEngine, PluginScanProfile.Curated);
+
+    private static PluginLoadReport LoadWithReport(
+        IServiceCollection services,
+        string pluginsRoot,
+        string hostSdkVersion,
+        PluginTrustPolicy policy,
+        IPluginSignatureInspector inspector,
+        PluginStateStore? state,
+        PluginScanMode scanMode,
+        IPluginConsentPrompt? consent,
+        Action<string, Exception>? onError,
+        IProtectedStrategyEngine? protectedStrategyEngine,
+        PluginScanProfile scanProfile)
     {
         var loaded = new List<LoadedPlugin>();
         var problems = new List<PluginLoadProblem>();
@@ -192,7 +228,7 @@ public static class PluginLoader
                 //    Still no code loaded: the assembly is read as DATA.
                 var scan = scanMode == PluginScanMode.Off
                     ? PluginScanReport.Clean
-                    : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions);
+                    : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions, scanProfile);
                 if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
                     throw new PluginBlockedException(dll, scan);
 
