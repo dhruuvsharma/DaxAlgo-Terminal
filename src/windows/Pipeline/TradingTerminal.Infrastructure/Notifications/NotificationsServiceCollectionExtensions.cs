@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using TradingTerminal.Core.Notifications;
 using TradingTerminal.Infrastructure.Notifications.Discord;
-using TradingTerminal.Infrastructure.Notifications.Ollama;
 using TradingTerminal.Infrastructure.Notifications.Telegram;
 
 namespace TradingTerminal.Infrastructure.Notifications;
@@ -42,12 +41,6 @@ public static class NotificationsServiceCollectionExtensions
         });
         services.AddSingleton<DiscordTransport>();
         services.AddSingleton<INotificationTransport>(sp => sp.GetRequiredService<DiscordTransport>());
-
-        services.AddHttpClient(OllamaCommentaryEnricher.HttpClientName, c =>
-        {
-            c.Timeout = TimeSpan.FromSeconds(30); // outer ceiling; per-call timeout is set in the enricher
-        });
-        services.AddSingleton<INotificationEnricher, OllamaCommentaryEnricher>();
 
         return services;
     }

@@ -467,13 +467,6 @@
             <MenuItem Header="_Settings">
                 <MenuItem Icon="🔔" Header="_Notifications…"
                           Command="{Binding OpenNotificationsSettingsCommand}" />
-                <MenuItem Header="_AI providers…"
-                          Command="{Binding OpenAiProvidersSettingsCommand}"
-                          ToolTip="Set up the AI Strategy Builder — installed agent CLIs and API keys.">
-                    <MenuItem.Icon>
-                        <StaticResource ResourceKey="Ai.MenuIconChip" />
-                    </MenuItem.Icon>
-                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="_Help">

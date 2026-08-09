@@ -11,8 +11,8 @@ public static class SidecarServiceCollectionExtensions
     /// <summary>
     /// Registers the managed Python sidecar launcher: binds <see cref="SidecarOptions"/>, registers the
     /// <see cref="SidecarHostService"/> as a singleton, exposes it as <see cref="ISidecarController"/>
-    /// (on-demand start from the UI) and as an <see cref="IHostedService"/> (auto-start on launch + kill
-    /// on exit). Defaults degrade gracefully — with no sidecar present nothing starts and the app runs.
+    /// (on-demand start from the UI) and as an <see cref="IHostedService"/> for process cleanup on exit.
+    /// Defaults degrade gracefully — with no sidecar present nothing starts and the app runs.
     /// </summary>
     public static IServiceCollection AddSidecar(this IServiceCollection services, IConfiguration configuration)
     {

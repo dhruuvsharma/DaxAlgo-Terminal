@@ -424,8 +424,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     {
         // Broker desktop apps (TWS / IB Gateway, NinjaTrader 8) are NOT listed here — each broker form
         // declares its own prerequisite via BrokerLoginFormBase.Prerequisite and renders it inside that
-        // broker's expander. Local AI dependencies (the daxalgo-ml sidecar, Ollama) are configured from
-        // Settings → Notifications and no longer clutter the login screen.
+        // broker's expander. This list contains app-managed optional services such as QuestDB.
 
         Services.Add(new ServiceDependencyViewModel(
             name: "QuestDB",
@@ -461,7 +460,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>One-click start for a service that supports it (e.g. launches the managed sidecar), then
+    /// <summary>One-click start for a service that supports it (for example, QuestDB), then
     /// re-probes its status.</summary>
     [RelayCommand]
     private async Task StartServiceAsync(ServiceDependencyViewModel? service)

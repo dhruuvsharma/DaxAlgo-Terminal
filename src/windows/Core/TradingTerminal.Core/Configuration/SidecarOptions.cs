@@ -1,21 +1,18 @@
 namespace TradingTerminal.Core.Configuration;
 
 /// <summary>
-/// Controls the managed local Python sidecar (<c>daxalgo-ml</c>) — the loopback HTTP service that
-/// powers the AI Market Analyst. Bound from the <c>Sidecar</c> section.
-/// When <see cref="AutoStart"/> is on AND a feature that needs the sidecar is enabled, the app launches
-/// it as a child process on startup (and kills it on exit) — so the user never copy-pastes a command.
+/// Controls the managed local Python sidecar (<c>daxalgo-ml</c>), an optional loopback HTTP service
+/// retained for on-demand Python/ML workloads. Bound from the <c>Sidecar</c> section.
 /// </summary>
 public sealed class SidecarOptions
 {
     public const string SectionName = "Sidecar";
 
-    /// <summary>Master switch. When true, the app auto-launches the sidecar on startup if the AI analyst
-    /// is enabled. Turn off to manage the sidecar yourself.</summary>
+    /// <summary>Startup preference retained for on-demand consumers. Registering the sidecar does not
+    /// launch it; a consumer must explicitly request it.</summary>
     public bool AutoStart { get; set; } = true;
 
-    /// <summary>Loopback port the sidecar binds. Keep it aligned with the AI analyst endpoint
-    /// (default 8765).</summary>
+    /// <summary>Loopback port used by the sidecar health and API endpoints (default 8765).</summary>
     public int Port { get; set; } = 8765;
 
     /// <summary>Optional explicit path to the frozen <c>daxalgo-ml.exe</c>. Empty → auto-discover next to

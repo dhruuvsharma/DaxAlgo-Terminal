@@ -8,14 +8,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Hosting;
-using TradingTerminal.Infrastructure.Notifications;
 
 namespace TradingTerminal.Infrastructure.Sidecar;
 
 /// <summary>
 /// Manages the local Python sidecar (<c>daxalgo-ml</c>) as a child process so the user never launches it
-/// by hand. On app start it auto-launches the sidecar when <see cref="SidecarOptions.AutoStart"/> is on
-/// AND the AI Market Analyst is enabled; it waits for the
+/// by hand. It can be launched on demand through <see cref="ISidecarController"/>, waits for the
 /// sidecar's <c>/healthz</c>, drains its output to the log, and kills it on app exit (a Windows Job
 /// Object guarantees it can't be orphaned). It also exposes <see cref="ISidecarController"/> so the login
 /// screen / settings can start it on demand.
@@ -28,7 +26,6 @@ namespace TradingTerminal.Infrastructure.Sidecar;
 internal sealed class SidecarHostService : IHostedService, ISidecarController, IDisposable
 {
     private readonly IOptionsMonitor<SidecarOptions> _sidecar;
-    private readonly IOptionsMonitor<NotificationsOptions> _notifications;
     private readonly ILogger<SidecarHostService> _logger;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -37,11 +34,9 @@ internal sealed class SidecarHostService : IHostedService, ISidecarController, I
 
     public SidecarHostService(
         IOptionsMonitor<SidecarOptions> sidecar,
-        IOptionsMonitor<NotificationsOptions> notifications,
         ILogger<SidecarHostService> logger)
     {
         _sidecar = sidecar;
-        _notifications = notifications;
         _logger = logger;
     }
 
@@ -50,18 +45,7 @@ internal sealed class SidecarHostService : IHostedService, ISidecarController, I
     private int Port => _sidecar.CurrentValue.Port > 0 ? _sidecar.CurrentValue.Port : 8765;
     private string HealthzUrl => $"http://127.0.0.1:{Port.ToString(CultureInfo.InvariantCulture)}/healthz";
 
-    private bool FeatureNeedsSidecar => _notifications.CurrentValue.AiAnalyst.Enabled;
-
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        if (_sidecar.CurrentValue.AutoStart && FeatureNeedsSidecar)
-            // Fire-and-forget — don't block app startup on the sidecar warming up.
-            _ = Task.Run(() => EnsureRunningAsync(CancellationToken.None));
-        else
-            _logger.LogDebug("Sidecar auto-start skipped (AutoStart={Auto}, feature enabled={Feat}).",
-                _sidecar.CurrentValue.AutoStart, FeatureNeedsSidecar);
-        return Task.CompletedTask;
-    }
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task StopAsync(CancellationToken cancellationToken)
     {

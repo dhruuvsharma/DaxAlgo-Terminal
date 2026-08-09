@@ -34,7 +34,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 {
     // Stable per-window keys for the single-instance window registry (owned by IShellWindowHost).
     private const string NotificationsWindowId = "settings.notifications";
-    private const string AiProvidersSettingsWindowId = "settings.aiproviders";
     private const string PluginManagerWindowId = "plugins.manager";
     private const string StrategyAuthoringWindowId = "authoring.strategy";
     private const string BacktestStudioWindowId = "tools.backtest-studio";
@@ -672,11 +671,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [RelayCommand]
     public void OpenNotificationsSettings() =>
         _host.OpenHostedTool<NotificationsSettingsViewModel, NotificationsSettingsView>(NotificationsWindowId, "Notifications", "Loading settings…");
-
-    [RelayCommand]
-    public void OpenAiProvidersSettings() =>
-        _host.OpenHostedTool<TradingTerminal.App.Authoring.AiProvidersSettingsViewModel, TradingTerminal.App.Authoring.AiProvidersSettingsView>(
-            AiProvidersSettingsWindowId, "AI providers", "Loading settings…");
 
     [RelayCommand]
     public void OpenArchiveSettings() =>

@@ -5,9 +5,8 @@ namespace TradingTerminal.Core.Notifications;
 /// hands it to transports. Multiple enrichers are applied in registration order; each
 /// returns a possibly-modified notification (or the same instance for no-op).
 ///
-/// Typical use: append context from an external service — e.g. an LLM commentary tag
-/// from a local Ollama instance, a sentiment score from a news API, a regime-detection
-/// label from a hosted model.
+/// Typical use: append context from an external service, such as a sentiment score from
+/// a news API or a regime-detection label from a hosted model.
 /// </summary>
 public interface INotificationEnricher
 {

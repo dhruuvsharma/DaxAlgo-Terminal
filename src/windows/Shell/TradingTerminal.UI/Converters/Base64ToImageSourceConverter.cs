@@ -7,8 +7,7 @@ namespace TradingTerminal.UI.Converters;
 
 /// <summary>
 /// Binds a base64-encoded PNG string to a WPF <c>ImageSource</c>. Returns <c>null</c> on
-/// empty / malformed input so the bound Image control collapses cleanly to its empty
-/// state — used by the AI Analyst pane for the pattern + trend chart slots.
+/// empty / malformed input so the bound Image control collapses cleanly to its empty state.
 /// </summary>
 public sealed class Base64ToImageSourceConverter : IValueConverter
 {
