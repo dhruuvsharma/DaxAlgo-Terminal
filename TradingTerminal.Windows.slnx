@@ -12,6 +12,7 @@
     <Project Path="tests/DaxAlgo.Sdk.Analyzers.Tests/DaxAlgo.Sdk.Analyzers.Tests.csproj" />
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.Tests/DaxAlgo.Sandbox.Samples.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Tests/TradingTerminal.Sandbox.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Sandbox.Portfolio.Tests/TradingTerminal.Sandbox.Portfolio.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.csproj" />
@@ -46,5 +47,8 @@
     <Project Path="src/windows/Tools/TradingTerminal.Backtest/TradingTerminal.Backtest.csproj" />
     <Project Path="src/windows/Tools/TradingTerminal.BacktestStudio/TradingTerminal.BacktestStudio.csproj" />
     <Project Path="src/windows/Tools/TradingTerminal.Recording/TradingTerminal.Recording.csproj" />
+  </Folder>
+  <Folder Name="/src/windows/Sandbox/">
+    <Project Path="src/windows/Sandbox/TradingTerminal.Sandbox.Portfolio/TradingTerminal.Sandbox.Portfolio.csproj" />
   </Folder>
 </Solution>
