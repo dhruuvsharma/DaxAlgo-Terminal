@@ -1,25 +1,29 @@
-# AI context pack
+# Legacy AI context pack
 
-`daxalgo-strategy-context.md` is the **generated system prompt** that teaches an LLM to write a correct
-DaxAlgo Terminal strategy — the SDK contract, the hard rules, a worked example, and two output contracts
-(a single-file kernel for the in-app AI pane, a full plugin project for the template / CLI).
+`daxalgo-strategy-context.md` is the generated prompt for the existing Hyperion/legacy `.daxplugin`
+authoring path. It describes the older `IBacktestStrategy` workflow and is **not** the SDK 0.3 sandbox
+contract.
 
-It is **generated, not hand-maintained**, so it can't drift from the code:
+For new agent or human authoring, use the public
+[`docs/sandbox-authoring.md`](../../docs/sandbox-authoring.md) contract and the
+`daxalgo-sandbox-strategy` / `daxalgo-sandbox-visualizer` templates. Those target `DaxAlgo.Sdk` 0.3 and
+use `IStrategyKernel` / `IVisualizer` capability contexts.
+
+The legacy pack is generated rather than hand-maintained. Its generator still references the retired
+`templates/content/daxalgo-strategy/` scaffold, so do not run it until the Hyperion compatibility path
+is migrated or formally retired:
 
 ```powershell
-pwsh build/gen-ai-context.ps1     # from the repo root; regenerates daxalgo-strategy-context.md
+# Currently blocked by the removed legacy template; retained for migration work only.
+pwsh build/gen-ai-context.ps1
 ```
 
-The drift-prone pieces — the SDK version and the worked-example kernel — are read from source
-(`SdkInfo.cs`, the template kernel); the rest is canonical guidance in the generator. Output is
-byte-stable across runs (the only stamp is `SdkInfo.Version`), so CI diffs the committed pack against a
-fresh generation and fails if they differ. **Don't hand-edit the `.md`** — change a source or the
-generator and regenerate.
+Do not hand-edit the generated pack to make it look current. Migrating it changes runtime authoring
+behavior and must update the generator, embedded consumer, tests, and generated output together.
 
-## Consumers (issue #26)
+## Current legacy consumers
 
-- **In-app AI builder pane** — the system prompt (output contract *a*).
-- **`dotnet new daxalgo-strategy`** — the scaffold's `CLAUDE.md`/`AGENTS.md` (output contract *b*).
-- **`daxalgo strategy ai` CLI** — the orchestrator's system prompt.
+- **Hyperion / in-app AI builder** — the embedded legacy output contract.
+- **`daxalgo strategy ai`** — the older source-run authoring CLI.
 
 Everything the pack drives is local except the prompt + pack sent to the user's chosen provider.

@@ -91,10 +91,10 @@ and zero is flat. The optional stop and target are model-book prices. The call d
 portfolio state; it is not an order and cannot name a broker, order type, time-in-force, account, venue,
 or execution route.
 
-The one host-owned model portfolio is used for the live strategy run and for backtests. The gated
-execution engine may replicate changes from that same model portfolio into an authorized execution
-book. Replication, sizing, risk checks, broker translation, and live authorization remain outside the
-kernel. The kernel always emits the same declarative target.
+The host-owned model portfolio is used for strategy runs and backtests. The kernel always emits the
+same declarative target; it never creates or routes a broker order. Any future replication, sizing,
+risk, broker translation, or execution authorization remains outside the kernel and outside this
+public application's current data-and-signals-only boundary.
 
 ## 5. Parameter schema, defaults, run, and pause
 
@@ -185,30 +185,35 @@ hub.
 
 The public tree does **not** provide a strategy account, `SandboxStrategyRuntime`, or
 `SandboxBacktestRunner`. Do not reference them from an open-core sample or test. Product launch,
-strategy backtests, the live model portfolio, gated replication, and live execution happen inside
-DaxAlgo Terminal/Pro. A visualizer auto-runs inside the Terminal and never participates in execution.
+strategy backtests, and model portfolios are host-owned. The public application has no live broker-order
+execution path. A visualizer auto-runs inside a compatible host and never participates in execution.
 
 Create a project with either public template:
 
 ```powershell
-dotnet new install ./templates/content/daxalgo-sandbox-strategy
-dotnet new daxalgo-sandbox-strategy -o "$env:TEMP/MySandboxStrategy"
+dotnet new install DaxAlgo.Templates::0.3.0 --force
 
-dotnet new install ./templates/content/daxalgo-sandbox-visualizer
-dotnet new daxalgo-sandbox-visualizer -o "$env:TEMP/MySandboxVisualizer"
+dotnet new daxalgo-sandbox-strategy -n MySandboxStrategy -o "$env:TEMP/MySandboxStrategy"
+dotnet build "$env:TEMP/MySandboxStrategy/DaxSandboxStrategy.slnx" -c Release
+dotnet test "$env:TEMP/MySandboxStrategy/DaxSandboxStrategy.slnx" -c Release --no-build
+
+dotnet new daxalgo-sandbox-visualizer -n MySandboxVisualizer -o "$env:TEMP/MySandboxVisualizer"
+dotnet build "$env:TEMP/MySandboxVisualizer/DaxSandboxVisualizer.slnx" -c Release
+dotnet test "$env:TEMP/MySandboxVisualizer/DaxSandboxVisualizer.slnx" -c Release --no-build
 ```
 
 Both templates reference `DaxAlgo.Sdk` `0.3.0` through NuGet and include a direct unit test plus
-`AGENTS.md` and `CLAUDE.md`. SDK `0.3.0` is not yet published at the time of this guide: template
-installation and scaffolding can be verified now, but scaffold restore/build/test must wait for the
-owner's NuGet publication. Do not replace the package reference with private Pro projects.
+`AGENTS.md` and `CLAUDE.md`. SDK and template version `0.3.0` are published on NuGet, and the repository's
+template-smoke workflow scaffolds, builds, and tests both templates against the matching package chain.
+When developing this repository itself, the two template source directories under `templates/content/`
+can also be installed directly. Do not replace the package reference with private product projects.
 
 ## 9. Worked sample
 
 The verified public sample is at
 [`samples/DaxAlgo.Sandbox.Samples/`](../samples/DaxAlgo.Sandbox.Samples/). Its main project references
 the SDK project directly and attaches the shipped analyzer project, so it proves the code against the
-current checkout without pretending the `0.3.0` package is already published.
+current checkout independently of NuGet package resolution.
 
 ### `MovingAverageCrossKernel`
 
@@ -358,13 +363,11 @@ Hyperion and other generators must treat this JSON as a generation constraint, n
     "Require an analyzer-clean build before acceptance"
   ],
   "publicBoundary": "author and unit-test against public DaxAlgo.Sdk; public runtime hosting exists for visualizers",
-  "terminalBoundary": "run/backtest/live-execute strategies and auto-run visualizers inside DaxAlgo Terminal/Pro"
+  "terminalBoundary": "run and backtest strategies and auto-run visualizers inside a compatible DaxAlgo host; no public live broker-order execution path"
 }
 ```
 
 ## Design rationale
 
-The internal/private
-[`ADR: Sandboxed strategy & visualizer authoring pipeline`](https://github.com/dhruuvsharma/DaxAlgo-Docs/blob/main/pro/architecture/adr-sandboxed-strategy-authoring-pipeline.md)
-records the design decision and threat-model rationale. This public document remains the implementation
-and authoring how-to.
+This public guide is the self-contained implementation and authoring contract. Private product design
+records are intentionally not required to understand or use the public SDK.

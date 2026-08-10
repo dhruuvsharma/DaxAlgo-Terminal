@@ -1,12 +1,8 @@
 # Media checklist
 
-This file tracks every screenshot and video the documentation references. Each entry maps a placeholder
-in the docs to the exact file to drop in, and describes what to capture. When you add a file, delete the
-matching placeholder blockquote in the doc and replace it with the real embed:
-
-```markdown
-![Strategy catalog](docs/images/main-window.png)
-```
+This file is the planned media backlog. The public README does not embed placeholder assets; add an
+embed or reference to public documentation only after the corresponding file or hosted video exists.
+Use image paths relative to the document that contains the embed.
 
 Screenshots live in `docs/images/`. Videos are large binaries — prefer uploading them to a GitHub
 release (or an issue/PR, then copy the generated URL) or a hosted demo, and link out rather than
@@ -25,7 +21,7 @@ keep a local copy (for example via Git LFS).
 
 ## Screenshots
 
-| # | File | Used in (README section) | What to capture |
+| # | File | Suggested README section | What to capture |
 |---|------|--------------------------|-----------------|
 | 1 | `docs/images/main-window.png` | Intro (hero) | Main window: strategy catalog, header chips, Activity Log drawer open at the bottom. |
 | 2 | `docs/images/broker-selection.png` | Build and run | Broker-selection window at startup with the keyless crypto sources and **Simulated** checked. |
@@ -37,25 +33,23 @@ keep a local copy (for example via Git LFS).
 
 ### Optional / additional shots
 
-These are not yet referenced in `README.md`. Add them if you want deeper coverage; wire each into the
-relevant section and move its row up to the table above.
+These are optional deeper-coverage assets. Wire one into the relevant section only after the image is
+tracked.
 
 | File | Suggested placement | What to capture |
 |------|---------------------|-----------------|
 | `docs/images/theme-studio.png` | View menu / themes | Theme Studio editing a palette token live, with the preview updating. |
 | `docs/images/extensions-manager.png` | Author an external runtime plugin | Strategy Studio › Extensions: an installed `.daxplugin` with enable/disable/quarantine controls. |
 | `docs/images/activity-log.png` | The current shell | The Activity Log drawer expanded, showing System + strategy sources. |
-| `docs/images/ai-providers.png` | Author a strategy in the application | Settings › AI providers with a provider configured (keys redacted). |
 | `docs/images/backtest-optimization.png` | Backtesting | Backtest Studio optimization/walk-forward view with the score surface. |
 
 ## Videos
 
-| # | File / link | Used in (README section) | Storyboard |
+| # | File / link | Suggested README section | Storyboard |
 |---|-------------|--------------------------|------------|
 | V1 | `docs/media/getting-started.mp4` | Build and run | Clone → `dotnet build` → `dotnet run` → broker-selection picks **Simulated** → open Backtest Studio → run → results appear. ≈60s. |
 | V2 | `docs/media/authoring-walkthrough.mp4` | Author a strategy in the application | Open Hyperion → describe a strategy → generate → review the compiled code → install → the new card appears → **Quick backtest**. ≈60–90s. |
 
 ## Status
 
-Nothing captured yet — every entry above is a placeholder. Update this table (or tick the boxes) as
-files land so it stays the single source of truth for what still needs a shot.
+Nothing is captured yet. Update this file as assets land; do not add broken media links to public docs.

@@ -33,8 +33,9 @@ Run the narrowest relevant test project while developing, then build the named s
 a pull request. Do not use an unqualified `dotnet build`; always name the project or solution being
 checked.
 
-Documentation-only changes do not require product refactoring. They still require a solution build,
-link validation against `git ls-files`, spelling/terminology review, and `git diff --check`.
+Documentation-only changes require tracked-link validation, spelling/terminology review, and
+`git diff --check`. A product build is needed only when the change also touches generated, compiled,
+or executable examples.
 
 ## Layering rules
 
@@ -47,7 +48,7 @@ Keep dependencies pointing inward:
 | Infrastructure | Concrete brokers and adapters; broker SDK types do not escape this layer |
 | UI and feature surfaces | Consume Core/MarketData seams; view-models do not subscribe directly to broker SDK streams |
 | App.Basic | Composition and shell behavior only; it is the sole public application shell |
-| Strategies | External runtime plugins built against the published SDK; never add a strategy ProjectReference to the shell |
+| Strategies | External SDK units or runtime plugins; never add a strategy ProjectReference to the shell |
 
 Preserve canonical `InstrumentId` identity, event provenance, tick-primary non-blocking ingest, bounded
 UI streams, deterministic disposal, strict MVVM, and the data/signals-only boundary. A contribution must
@@ -64,10 +65,15 @@ subscription cleanup, canonical identity, and capability reporting.
 
 ### Strategy changes
 
-Do not add first-party strategy implementations to this repository. Build strategies as runtime plugins
-against the matching `DaxAlgo.Sdk` and, when needed, `DaxAlgo.Sdk.Wpf` contract version. A plugin
-registers its descriptor, live view/view-model factory, and `BacktestStrategyOption` through
-`IStrategyPlugin`. The clean live catalog must remain valid when no plugins are installed.
+Do not add first-party strategy implementations to the host tree. The supported SDK 0.3 authoring path
+starts with `DaxAlgo.Templates` and either `daxalgo-sandbox-strategy` (`IStrategyKernel`) or
+`daxalgo-sandbox-visualizer` (`IVisualizer`). Keep computation capability-scoped, declare exact data
+requirements, use the supplied clock and parameters, and keep the generated direct tests green. The
+`DAX3001` analyzer must remain active.
+
+The existing `.daxplugin` loader is a separate legacy live-catalog path. Do not describe the retired
+`daxalgo-strategy` template or the older `DaxAlgo.StrategyTool` packaging command as the SDK 0.3
+workflow. The clean catalog must remain valid when no plugins are installed.
 
 The catalog can display strategy and visualizer cards, but installable visualizers are not complete: the
 card contract exists and the package/contribution format does not. Discuss that format in an issue before
@@ -106,8 +112,8 @@ or unlicensed vendor binaries in an issue or pull request.
 
 Public documentation must describe only tracked public code. Relative links must resolve to paths
 returned by `git ls-files`; an untracked local file does not exist for a clone or GitHub reader. Do not
-add links to private repositories or restore the former public `docs/` tree. The retained
-`docs/strategy-bundles.md` file is package documentation and must stay at that path.
+link to private repositories. Keep implementation guides under `docs/`, SDK/agent material under
+`sdk/`, and package-specific guidance beside the package or tool it documents.
 
 ## Licensing
 

@@ -17,7 +17,7 @@ daxalgo-bundle pack `
   --name "Acme Mean Reversion" `
   --version 1.2.0 `
   --publisher acme-research `
-  --sdk 0.2.0-alpha `
+  --sdk 0.3.0 `
   --engine .\bin\Acme.MeanReversion.Engine.dll `
   --entry-type Acme.MeanReversion.Engine.StrategyFactory `
   --ui .\bin\Acme.MeanReversion.Wpf.dll `

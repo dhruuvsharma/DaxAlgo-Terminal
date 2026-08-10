@@ -76,7 +76,7 @@ The schema records:
 An abbreviated example is:
 
 ```json
-{"format":"daxstrategy","formatVersion":1,"identity":{"id":"acme.mean-reversion","name":"Acme Mean Reversion","publisherId":"acme-research","version":"1.2.0"},"compatibility":{"targetSdkVersion":"0.2.0-alpha","minimumHostVersion":"1.0.0","maximumHostVersion":null},"engine":{"assemblyPath":"payload/engine/Acme.MeanReversion.Engine.dll","typeName":"Acme.MeanReversion.Engine.StrategyFactory","contract":"daxalgo.strategy-engine-factory/1","activation":"public-parameterless-constructor"},"managedAssemblies":[{"path":"payload/engine/Acme.MeanReversion.Engine.dll","name":"Acme.MeanReversion.Engine","references":["DaxAlgo.Sdk","System.Runtime"]}],"capabilities":["market-data.bars"],"payloads":[{"path":"payload/engine/Acme.MeanReversion.Engine.dll","role":"engine","length":48128,"sha256":"0123456789abcdef..."}]}
+{"format":"daxstrategy","formatVersion":1,"identity":{"id":"acme.mean-reversion","name":"Acme Mean Reversion","publisherId":"acme-research","version":"1.2.0"},"compatibility":{"targetSdkVersion":"0.3.0","minimumHostVersion":"1.0.0","maximumHostVersion":null},"engine":{"assemblyPath":"payload/engine/Acme.MeanReversion.Engine.dll","typeName":"Acme.MeanReversion.Engine.StrategyFactory","contract":"daxalgo.strategy-engine-factory/1","activation":"public-parameterless-constructor"},"managedAssemblies":[{"path":"payload/engine/Acme.MeanReversion.Engine.dll","name":"Acme.MeanReversion.Engine","references":["DaxAlgo.Sdk","System.Runtime"]}],"capabilities":["market-data.bars"],"payloads":[{"path":"payload/engine/Acme.MeanReversion.Engine.dll","role":"engine","length":48128,"sha256":"0123456789abcdef..."}]}
 ```
 
 The unsigned content identity is:
@@ -129,7 +129,7 @@ daxalgo-bundle pack `
   --name "Acme Mean Reversion" `
   --version 1.2.0 `
   --publisher acme-research `
-  --sdk 0.2.0-alpha `
+  --sdk 0.3.0 `
   --engine .\bin\Acme.MeanReversion.Engine.dll `
   --entry-type Acme.MeanReversion.Engine.StrategyFactory `
   --ui .\bin\Acme.MeanReversion.Wpf.dll `
@@ -234,9 +234,9 @@ type. Runtime values must exactly match the factory's declarative schema before 
 `IBacktestStrategy` implementation is adapted into the canonical engine. The strategy and load context
 are disposed after the one-shot run.
 
-See [strategy-to-backtest engine communication](strategy-backtest-communication.md) for component and
-sequence diagrams covering selection, staging, factory activation, market callbacks, the order/fill
-round trip, and result acceptance.
+The component and sequence boundary for selection, staging, factory activation, and result acceptance
+is recorded in
+[ADR-0012](../.claude/context/adr/ADR-0012-immutable-strategy-install-and-worker-activation.md).
 
 The result's `StrategyAssemblyClosure` records that verified, staged engine closure. It is evidence of the
 files made available to the strategy load context, not a claim that every listed assembly was actually
@@ -264,6 +264,4 @@ discovery, trust-registry, and parameter-schema UX are connected in the next UI/
 
 See also: [ADR-0011](../.claude/context/adr/ADR-0011-signed-strategy-bundles.md) ·
 [ADR-0012](../.claude/context/adr/ADR-0012-immutable-strategy-install-and-worker-activation.md) ·
-[strategy/backtest communication](strategy-backtest-communication.md) ·
-[plugin security](plugin-security.md) · [plugin authoring](plugin-authoring.md) ·
-[marketplace hosting](marketplace-hosting.md).
+[sandbox authoring](sandbox-authoring.md).

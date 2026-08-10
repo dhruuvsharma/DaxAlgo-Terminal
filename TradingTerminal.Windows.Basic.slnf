@@ -1,0 +1,8 @@
+{
+  "solution": {
+    "path": "TradingTerminal.Windows.slnx",
+    "projects": [
+      "src\\windows\\Shell\\TradingTerminal.App.Basic\\TradingTerminal.App.Basic.csproj"
+    ]
+  }
+}

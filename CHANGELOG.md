@@ -40,9 +40,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   strategies are external plugins built on the published SDK. Backtest Studio retains its own built-in
   demonstration kernels. Catalog cards now model strategies and visualizers, while installable
   visualizers remain pending a package/contribution format.
-- **Public documentation consolidated.** The general `docs/` tree moved out of the public repository.
-  The root README and CONTRIBUTING guide are now self-contained; `docs/strategy-bundles.md` remains at
-  its package-readme path.
+- **SDK 0.3 sandbox authoring published.** `DaxAlgo.Sdk`, `DaxAlgo.Templates`, the strategy-bundle
+  packages, and both `daxalgo-sandbox-*` templates are available at version `0.3.0`. The templates
+  scaffold capability-scoped `IStrategyKernel` / `IVisualizer` units with direct tests and the
+  `DAX3001` analyzer.
+- **Public documentation refreshed.** The README now leads with the AI-native Vibe Code workflow,
+  distinguishes SDK 0.3 sandbox units from legacy `.daxplugin` and `.daxstrategy` artifacts, restores
+  accurate author/dependency/trademark credits, and removes unshipped media placeholders. Focused
+  implementation guides remain under `docs/`.
 
 ### Removed
 

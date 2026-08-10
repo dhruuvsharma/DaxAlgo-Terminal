@@ -1,8 +1,18 @@
 # DaxAlgo Terminal
 
-DaxAlgo Terminal is a Windows desktop application for receiving, normalizing, recording, archiving,
-visualizing, and backtesting market data and strategy signals. The public repository ships one WPF
-application: `TradingTerminal.App.Basic`, targeting .NET 9.
+> **AI-native trading terminal. Vibe code your strategies.**
+
+DaxAlgo Terminal is a Windows workspace for market data, strategy research, and backtesting. Describe
+a strategy in **Hyperion**, launch Codex or Claude Code from **Vibe Code**, or scaffold a capability-
+scoped strategy with the **DaxAlgo SDK**. The public repository ships one .NET 9 WPF application:
+`TradingTerminal.App.Basic`.
+
+```text
+strategy idea
+    -> Hyperion, an agent CLI, or the DaxAlgo SDK
+    -> compile + tests + capability checks
+    -> review and run in a compatible host
+```
 
 > **Data and signals only.** DaxAlgo Terminal has no live order-execution path. A strategy can emit
 > simulated orders during a backtest and signals during a live data session, but the application does
@@ -13,13 +23,10 @@ The application has no DaxAlgo product account, subscription sign-in, or entitle
 start it opens the broker-selection window. Broker credentials are requested only when the selected data
 source needs them.
 
-> 🖼️ **Screenshot —** _DaxAlgo Terminal main window: the strategy catalog with the header chips and the Activity Log drawer._
-> <sub>Placeholder → `docs/images/main-window.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
-
 ## Repository scope
 
-This repository contains the open-source Windows application, shared libraries, backtest engine, runtime
-plugin host, SDK packages, authoring tools, and tests. It contains exactly one application shell:
+This repository contains the public Windows application, shared libraries, backtest engine, runtime
+plugin host, SDK packages, authoring tools, templates, samples, and tests. It contains exactly one shell:
 `src/windows/Shell/TradingTerminal.App.Basic`.
 
 A Professional product exists in a separate private overlay. It is not built by this repository and its
@@ -31,6 +38,8 @@ strategy in the application or installing a compatible `.daxplugin` runtime plug
 
 ## What ships
 
+- **Strategy Studio** with Hyperion and agent-CLI launch workflows for AI-assisted strategy authoring.
+- Published DaxAlgo SDK 0.3 packages, sandbox strategy/visualizer templates, analyzer policy, and samples.
 - Full broker selection across keyless and credentialed data sources.
 - A broker-neutral market-data pipeline with canonical instrument identity, live fan-out, persistence,
   replay/query support, and configurable archives.
@@ -41,7 +50,6 @@ strategy in the application or installing a compatible `.daxplugin` runtime plug
   quarantine, and removal workflows.
 - A catalog UI that can represent both strategies and visualizers.
 - Built-in themes, Theme Studio, notifications settings, archive controls, and a universal Activity Log.
-- An in-app AI strategy builder and agent-CLI launch workflow under **Strategy Studio**.
 
 ## Build and run
 
@@ -69,12 +77,6 @@ suitable.
 
 At startup, select one or more brokers. Choose **Simulated** for a fully offline session. The keyless
 crypto sources use public network feeds. Credentialed sources require their normal broker setup.
-
-> 🖼️ **Screenshot —** _Broker-selection window at startup, with the keyless crypto sources and Simulated selected._
-> <sub>Placeholder → `docs/images/broker-selection.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
-
-> 🎬 **Video —** _Getting started: clone, build, run, pick **Simulated**, and run a first backtest (≈60s)._
-> <sub>Placeholder → `docs/media/getting-started.mp4` (host on a GitHub release or link out) · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
 
 ## Brokers
 
@@ -112,14 +114,11 @@ The menu bar in `TradingTerminal.App.Basic/MainWindow.xaml` is:
 | **Strategy Studio** | Vibe Code > Hyperion; Launch CLI; Extensions |
 | **Data** | Market data archive; Archive history; Instant offload (all pending) |
 | **Execution Engine** | Not yet available (disabled; data/signals-only boundary) |
-| **Settings** | Notifications; AI providers |
+| **Settings** | Notifications |
 | **Help** | Support the developer; About DaxAlgo Terminal |
 
 The **REC** chip sits in the header rather than a menu. Its indicator lights while the background
 recorder is capturing selected L1, L2, bar, or trade-tape streams.
-
-> 🖼️ **Screenshot —** _The menu bar and header, with the **REC** chip and the connection/status indicators._
-> <sub>Placeholder → `docs/images/shell-menu-bar.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
 
 ## Catalog, strategies, and visualizers
 
@@ -137,83 +136,57 @@ Installable visualizers are **in progress**. The descriptor, card kind, styling,
 **Add to chart** action contract exist, but there is no visualizer package/contribution format yet.
 Do not treat a visualizer card as evidence of a working visualizer marketplace.
 
-> 🖼️ **Screenshot —** _Catalog cards: a strategy card (purple spine, **Open**) beside a visualizer card (blue spine, **Add to chart**), with the context menu open._
-> <sub>Placeholder → `docs/images/catalog-cards.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
-
 ### Author a strategy in the application
 
 Open **Strategy Studio > Vibe Code > Hyperion** to describe, generate, compile, review, and install a
 strategy. **Strategy Studio > Launch CLI** opens an installed supported agent CLI in an authoring
-workspace. Provider selection and credentials are configured under **Settings > AI providers**.
+workspace with the host contract and task brief already prepared.
 
 An authored strategy becomes the same kind of runtime plugin as an externally built strategy. It can
 contribute a backtest kernel, catalog metadata, and an optional live signal view. Generated or authored
 code is still subject to compiler, SDK-compatibility, trust, and policy checks.
 
-> 🖼️ **Screenshot —** _Strategy Studio › Vibe Code › Hyperion: describe → generate → review the compiled strategy._
-> <sub>Placeholder → `docs/images/strategy-studio-hyperion.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+### Vibe code with the DaxAlgo SDK 0.3
 
-> 🎬 **Video —** _Authoring walkthrough: generate a strategy in Hyperion, install it, and quick-backtest the new card._
-> <sub>Placeholder → `docs/media/authoring-walkthrough.mp4` (host on a GitHub release or link out) · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
+SDK 0.3 is published on NuGet and ships two supported templates. A sandbox strategy implements
+`IStrategyKernel`; a sandbox visualizer implements `IVisualizer`. Both receive only scoped market data,
+a deterministic clock, typed parameters, mediated alerts, and—for strategies—a virtual model book.
+The SDK carries the `DAX3001` analyzer, and every scaffold includes a direct unit test.
 
-### Author an external runtime plugin
-
-The source tree declares SDK version `0.2.0-alpha` and contains the SDK projects and authoring CLI, but
-it does not contain the strategy template sources or a sample plugin. The CLI's `strategy new` action
-expects the separately packaged `DaxAlgo.Templates` template.
-
-At the time of this rewrite, the public NuGet feed contains only `0.1.x` releases of `DaxAlgo.Sdk` and
-`DaxAlgo.Templates`. Those packages do not match this host: before SDK 1.0, the loader requires the same
-major/minor version. The external scaffold path is therefore blocked for a public reader until matching
-`0.2.x` packages are published. Use the in-app authoring path for the current host; do not retarget an
-old template and assume it will load.
-
-Once matching packages exist, the intended scaffold workflow is:
+Create and verify a strategy:
 
 ```powershell
-dotnet new install DaxAlgo.Templates::0.2.0-alpha --force
-dotnet new daxalgo-strategy -n MyStrategy -o MyStrategy --ui
-dotnet build MyStrategy/MyStrategy.slnx
-dotnet test MyStrategy/MyStrategy.slnx
+dotnet new install DaxAlgo.Templates::0.3.0 --force
+dotnet new daxalgo-sandbox-strategy -n MyStrategy -o MyStrategy
+dotnet build MyStrategy/DaxSandboxStrategy.slnx -c Release
+dotnet test MyStrategy/DaxSandboxStrategy.slnx -c Release --no-build
 ```
 
-The repository's authoring CLI wraps the same workflow after a matching template is installed:
+Or create a data-only visualizer:
 
 ```powershell
-dotnet run --project src/windows/Tools/DaxAlgo.StrategyTool -- strategy new --name MyStrategy --output MyStrategy --ui
-dotnet run --project src/windows/Tools/DaxAlgo.StrategyTool -- strategy build --project MyStrategy
-dotnet run --project src/windows/Tools/DaxAlgo.StrategyTool -- strategy test --project MyStrategy
-dotnet run --project src/windows/Tools/DaxAlgo.StrategyTool -- strategy package --project MyStrategy
+dotnet new daxalgo-sandbox-visualizer -n MyVisualizer -o MyVisualizer
+dotnet build MyVisualizer/DaxSandboxVisualizer.slnx -c Release
+dotnet test MyVisualizer/DaxSandboxVisualizer.slnx -c Release --no-build
 ```
 
-Install the resulting `.daxplugin` from **Strategy Studio > Extensions**, then restart the terminal.
-The manager also accepts the main plugin DLL for local development. These external commands document
-the implemented workflow but were not end-to-end runnable against the current public package feed.
+The scaffolded `AGENTS.md` and `CLAUDE.md` give coding agents the same capability contract as a human
+author. See the [sandbox authoring guide](docs/sandbox-authoring.md) and the build-verified
+[`DaxAlgo.Sandbox.Samples`](samples/DaxAlgo.Sandbox.Samples/) project for the complete API and examples.
+Older examples using `dotnet new daxalgo-strategy` describe a retired scaffold and are not the SDK 0.3
+workflow.
 
-The runtime contract is small:
+### Know the artifact boundary
 
-1. Put signal and backtest logic in an `IBacktestStrategy` kernel.
-2. Use the supplied `IClock`; never use wall-clock time in strategy logic.
-3. Send simulated orders only through `IOrderRouter`, with a unique client order ID.
-4. Declare the exact `StrategyDataRequirement` flags used: L1, bars, depth, and/or trade tape.
-5. Implement catalog metadata through `ITradingStrategy`. A live card also needs a compatible view-model
-   and either a custom view or the host-composed view path.
-6. Expose one public, parameterless `IStrategyPlugin`. Its `Register(IPluginRegistrar)` method adds the
-   strategy metadata, view/view-model factory registration, and `BacktestStrategyOption` to the guarded
-   service collection.
-7. Keep plugin state instance-local, warm up before emitting signals, flatten simulated positions at the
-   end of a run, and do not use file, network, registry, process, or reflection-emit access from the
-   kernel.
-8. Build and test against the published SDK packages. Do not reference host projects or package copies
-   of `TradingTerminal.*` host assemblies.
+| Artifact | Current role |
+|---|---|
+| Sandbox strategy | `IStrategyKernel` plus direct tests; authored against SDK 0.3 for a compatible product host |
+| Sandbox visualizer | `IVisualizer` plus direct tests; public runtime support is available for in-memory visualizer testing |
+| `.daxplugin` | Legacy live-catalog package accepted by **Strategy Studio > Extensions**; the SDK 0.3 sandbox templates do not emit it |
+| `.daxstrategy` | Signed, inspectable bundle for immutable storage and isolated backtests; not the live-catalog format |
 
-`.daxplugin` is the package consumed by the current live catalog and Extensions manager. The separate
-`.daxstrategy` format is an isolated-backtest bundle format; it is not a replacement name for a live
-plugin and is not currently loaded into the live catalog.
-
-The generated [strategy authoring contract](sdk/ai-context/daxalgo-strategy-context.md) contains the full
-kernel API, parameter schema, worked example, and data-specific reference packs used by the in-app
-builder.
+The public repository supports authoring and unit-testing sandbox units. Product hosting, strategy runs,
+and backtests remain host-owned. The public application has no live broker-order execution path.
 
 ## Backtesting
 
@@ -226,9 +199,6 @@ historical or synthetic feeds, results, optimization, and playback. They do not 
 
 For an installed strategy card, **Quick backtest (last 1 year)** opens a focused run for the card's
 declared backtest strategy. Visualizer cards do not show this action.
-
-> 🖼️ **Screenshot —** _Backtest Studio: strategy/parameter setup with the results panel — equity curve, stats, and trade list._
-> <sub>Placeholder → `docs/images/backtest-studio.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
 
 ## Market data, storage, and archives
 
@@ -256,9 +226,6 @@ The recorder captures chosen streams in the background. The archive subsystem ca
 quotes, bars, trades, and depth as Parquet data, track archive history, and process pending offloads. It
 is disabled by default and configured from the **Data** menu.
 
-> 🖼️ **Screenshot —** _The background recorder panel (opened from the **REC** chip) with L1/L2/bar/trade-tape capture toggles._
-> <sub>Placeholder → `docs/images/recorder-panel.png` · see [MEDIA-CHECKLIST](docs/MEDIA-CHECKLIST.md)</sub>
-
 ## Architecture and project map
 
 Dependencies point inward:
@@ -270,9 +237,9 @@ TradingTerminal.App.Basic
     -> MarketData
     -> Core
 
-Runtime strategy plugin
-    -> DaxAlgo.Sdk / DaxAlgo.Sdk.Wpf
-    -> published contracts
+Sandbox strategy or visualizer
+    -> DaxAlgo.Sdk 0.3
+    -> capability-scoped contracts + analyzer
 ```
 
 Key directories:
@@ -291,8 +258,20 @@ Key directories:
 
 The main rules are: Core has no application-specific dependencies; MarketData stays below
 Infrastructure; broker SDK types stay inside Infrastructure; view-models consume market-data seams, not
-broker streams; and strategy implementations remain runtime plugins rather than shell project
-references.
+broker streams; and strategy implementations never become shell project references.
+
+## Credits and attribution
+
+DaxAlgo Terminal is created and maintained by [Dhruv Sharma](https://github.com/dhruuvsharma).
+
+The project builds on .NET/WPF and open-source work including
+[CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet),
+[MahApps.Metro](https://github.com/MahApps/MahApps.Metro),
+[ScottPlot](https://github.com/ScottPlot/ScottPlot),
+[Reactive Extensions](https://github.com/dotnet/reactive), and
+[Serilog](https://github.com/serilog/serilog). Each dependency remains governed by its upstream license.
+Broker names and marks belong to their respective owners and identify compatible integrations only;
+see the [broker asset attribution](assets/brokers/README.md). No endorsement is implied.
 
 ## License
 

@@ -43,11 +43,11 @@ lets plugins link the SDK without themselves becoming AGPL.
 
 - The exception is about **linking**, not about the terminal's own AGPL obligations: if you modify the
   *terminal* and distribute or run it as a network service, the AGPL source-offer requirement is unchanged.
-- A plugin distributed **outside** the curated feed is still bound by this exception's conditions if it
-  links the SDK; the feed's [marketplace policy](docs/marketplace-policy.md) adds review/signing on top.
+- A plugin distributed **outside** any future curated feed is still bound by this exception's conditions
+  if it links the SDK. This repository currently contains no marketplace review or signing policy.
 - MIT applies to the SDK packages themselves; this file only concerns the AGPL *linked* code.
 
 ---
 
 *Sign-off:* pending. When approved, replace this line with the approving commit and remove the DRAFT
-banner. The SDK package readme and `docs/marketplace-policy.md` reference this file.
+banner. Update every SDK and distribution document that links to these terms at the same time.
