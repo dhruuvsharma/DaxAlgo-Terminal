@@ -13,6 +13,9 @@
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.Tests/DaxAlgo.Sandbox.Samples.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Tests/TradingTerminal.Sandbox.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Portfolio.Tests/TradingTerminal.Sandbox.Portfolio.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Sandbox.Runtime.Tests/TradingTerminal.Sandbox.Runtime.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Execution.Tests/TradingTerminal.Execution.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.ExecutionUi.Tests/TradingTerminal.ExecutionUi.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.csproj" />
@@ -30,7 +33,18 @@
   </Folder>
   <Folder Name="/UI/">
     <Project Path="src/windows/UI/TradingTerminal.Settings/TradingTerminal.Settings.csproj" />
+    <Project Path="src/windows/UI/TradingTerminal.StrategyComposer/TradingTerminal.StrategyComposer.csproj" />
     <Project Path="src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj" />
+  </Folder>
+  <Folder Name="/Charts/">
+    <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.VolumeFootprint/TradingTerminal.VolumeFootprint.csproj" />
+  </Folder>
+  <Folder Name="/Execution/">
+    <Project Path="src/windows/Execution/TradingTerminal.Execution/TradingTerminal.Execution.csproj" />
+    <Project Path="src/windows/Execution/TradingTerminal.Execution.Service/TradingTerminal.Execution.Service.csproj" />
+    <Project Path="src/windows/Execution/TradingTerminal.ExecutionUi/TradingTerminal.ExecutionUi.csproj" />
   </Folder>
   <Folder Name="/Shell/">
     <Project Path="src/windows/Shell/TradingTerminal.App.Basic/TradingTerminal.App.Basic.csproj" />
@@ -50,5 +64,6 @@
   </Folder>
   <Folder Name="/src/windows/Sandbox/">
     <Project Path="src/windows/Sandbox/TradingTerminal.Sandbox.Portfolio/TradingTerminal.Sandbox.Portfolio.csproj" />
+    <Project Path="src/windows/Sandbox/TradingTerminal.Sandbox.Runtime/TradingTerminal.Sandbox.Runtime.csproj" />
   </Folder>
 </Solution>

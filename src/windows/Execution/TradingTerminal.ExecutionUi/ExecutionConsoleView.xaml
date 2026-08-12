@@ -1,0 +1,1154 @@
+<UserControl x:Class="TradingTerminal.ExecutionUi.ExecutionConsoleView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:TradingTerminal.ExecutionUi"
+             xmlns:brokers="clr-namespace:TradingTerminal.Core.Brokers;assembly=TradingTerminal.Core"
+             xmlns:loginForms="clr-namespace:TradingTerminal.App.Login.Forms;assembly=TradingTerminal.Login"
+             xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+             xmlns:uiConverters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
+             xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
+             MinWidth="1040"
+             MinHeight="640"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}"
+             FontFamily="{DynamicResource Font.Base}"
+             FontSize="12.5"
+             TextOptions.TextFormattingMode="Display">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <uiConverters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+        <uiConverters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+
+        <DataTemplate DataType="{x:Type loginForms:AlpacaLoginFormViewModel}">
+            <loginForms:AlpacaLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:CTraderLoginFormViewModel}">
+            <loginForms:CTraderLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:IbLoginFormViewModel}">
+            <loginForms:IbLoginForm />
+        </DataTemplate>
+
+        <Style x:Key="Execution.Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+
+        <Style x:Key="Execution.SectionTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="Execution.FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
+
+        <Style x:Key="Execution.DataText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+
+        <Style x:Key="Execution.ToneText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Positive}">
+                    <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Negative}">
+                    <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Warning}">
+                    <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Info}">
+                    <Setter Property="Foreground" Value="{DynamicResource Text.Highlight}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Accent}">
+                    <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Execution.SideText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SideTone}" Value="{x:Static local:ExecutionTone.Positive}">
+                    <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SideTone}" Value="{x:Static local:ExecutionTone.Negative}">
+                    <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Execution.StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Fill" Value="{DynamicResource Border.Strong}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Positive}">
+                    <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Negative}">
+                    <Setter Property="Fill" Value="{DynamicResource Bearish.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Warning}">
+                    <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Info}">
+                    <Setter Property="Fill" Value="{DynamicResource Text.Highlight}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tone}" Value="{x:Static local:ExecutionTone.Accent}">
+                    <Setter Property="Fill" Value="{DynamicResource Accent.Brush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Execution.Button" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+            <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Base}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.76" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.38" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Execution.WarningButton" TargetType="Button" BasedOn="{StaticResource Execution.Button}">
+            <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
+            <Setter Property="Background" Value="{DynamicResource Warning.Soft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Warning.Brush}" />
+        </Style>
+
+        <Style x:Key="Execution.DangerButton" TargetType="Button" BasedOn="{StaticResource Execution.Button}">
+            <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+            <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Bearish.Brush}" />
+        </Style>
+
+        <Style x:Key="Execution.LinkButton" TargetType="Button" BasedOn="{StaticResource Execution.Button}">
+            <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+
+        <Style x:Key="Execution.SegmentButton" TargetType="Button" BasedOn="{StaticResource Execution.Button}">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="FontSize" Value="11.5" />
+        </Style>
+
+        <Style x:Key="Execution.KpiTile" TargetType="Border" BasedOn="{StaticResource Execution.Card}">
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+
+        <Style x:Key="Execution.KpiLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="Execution.KpiValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+
+        <Style x:Key="Execution.Grid" TargetType="DataGrid">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserDeleteRows" Value="False" />
+            <Setter Property="CanUserReorderColumns" Value="False" />
+            <Setter Property="CanUserResizeRows" Value="False" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+            <Setter Property="ColumnHeaderHeight" Value="29" />
+            <Setter Property="RowHeight" Value="34" />
+            <Setter Property="SelectionUnit" Value="FullRow" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="Execution.NumericCell" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource Background.Primary}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="31" />
+        </Grid.RowDefinitions>
+
+        <!-- Top operator bar. -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="4" Height="18" CornerRadius="2" Background="{DynamicResource Accent.Brush}" Margin="0,0,9,0" />
+                    <TextBlock Text="EXECUTION ENGINE" Foreground="{DynamicResource Text.Header}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        BorderThickness="1"
+                        CornerRadius="5"
+                        Padding="18,5">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasLiveExecution}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Bearish.Brush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding ExecutionModeBannerLabel}" FontSize="10.5" FontWeight="Bold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasLiveExecution}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                    <ItemsControl ItemsSource="{Binding Adapters}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Ellipse Style="{StaticResource Execution.StatusDot}"
+                                         Margin="3,0"
+                                         ToolTip="{Binding DisplayName, StringFormat={}{0} execution adapter}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding ConnectionSummary}" Foreground="{DynamicResource Text.Secondary}" FontSize="11" Margin="6,0,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                    <Ellipse Width="7" Height="7" Margin="0,0,6,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LeaseTone}" Value="{x:Static local:ExecutionTone.Neutral}">
+                                        <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LeaseTone}" Value="{x:Static local:ExecutionTone.Warning}">
+                                        <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LeaseTone}" Value="{x:Static local:ExecutionTone.Negative}">
+                                        <Setter Property="Fill" Value="{DynamicResource Bearish.Brush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding LeaseSummary}" FontSize="11" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LeaseTone}" Value="{x:Static local:ExecutionTone.Neutral}"><Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding LeaseTone}" Value="{x:Static local:ExecutionTone.Warning}"><Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding LeaseTone}" Value="{x:Static local:ExecutionTone.Negative}"><Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="{Binding IntakeToggleLabel}"
+                            Command="{Binding ToggleIntakeCommand}"
+                            IsEnabled="{Binding CanIssueCommands}"
+                            Style="{StaticResource Execution.WarningButton}"
+                            Margin="0,0,8,0"
+                            ToolTip="Start or stop new-order intake. Working orders remain managed while stopped." />
+                    <Button Content="Kill..."
+                            Command="{Binding KillCommand}"
+                            IsEnabled="{Binding CanKill}"
+                            Style="{StaticResource Execution.DangerButton}"
+                            ToolTip="Confirmation required. Stops intake, cancels working orders, and flattens positions through the selected book's registered adapter." />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Collapsed-by-default broker manager. -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource Background.Primary}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel>
+                <Button Command="{Binding ToggleBrokersCommand}"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="16,8"
+                        Cursor="Hand"
+                        FocusVisualStyle="{x:Null}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Foreground="{DynamicResource Text.Secondary}" FontSize="11" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="&gt;" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AreBrokersExpanded}" Value="True">
+                                            <Setter Property="Text" Value="v" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                            <Border Style="{StaticResource App.SectionBar}" Height="14" />
+                            <TextBlock Text="BROKERS" Style="{StaticResource Execution.SectionTitle}" />
+                        </StackPanel>
+                        <ItemsControl Grid.Column="2" ItemsSource="{Binding Adapters}" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
+                                        <Ellipse Style="{StaticResource Execution.StatusDot}" Margin="0,0,5,0" />
+                                        <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource Text.Secondary}" FontSize="11.5" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Grid.Column="3" Text="Manage connections -&gt;" Foreground="{DynamicResource Accent.Brush}" FontSize="11.5" />
+                    </Grid>
+                </Button>
+
+                <Border Margin="14,0,14,12">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AreBrokersExpanded}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <ItemsControl ItemsSource="{Binding Adapters}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Execution.Card}" Width="300" MinHeight="176" Padding="12" Margin="0,0,10,10">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Style="{StaticResource Execution.StatusDot}" Margin="0,0,8,0" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource Text.Header}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding AccountLabel}" Foreground="{DynamicResource Text.Secondary}" FontSize="10" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                                <Border BorderThickness="1" CornerRadius="4" Padding="6,1" HorizontalAlignment="Right">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                                                    <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource Bearish.Brush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding ModeLabel}" FontSize="9" FontWeight="Bold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsLive}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+                                                <Border Background="{DynamicResource Warning.Soft}"
+                                                        BorderBrush="{DynamicResource Warning.Brush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="5,1"
+                                                        Margin="0,4,0,0"
+                                                        HorizontalAlignment="Right">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsDemoOnly}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding EnvironmentLabel}" Foreground="{DynamicResource Warning.Brush}" FontSize="9" FontWeight="Bold" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <StackPanel Grid.Row="1" Margin="0,9,0,0">
+                                            <TextBlock Text="{Binding StatusLabel}" Style="{StaticResource Execution.ToneText}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding StatusDetail}" Foreground="{DynamicResource Text.Secondary}" FontSize="10.5" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <Border Grid.Row="2" Background="{DynamicResource Background.Elevated}" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,9,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding CredentialLabel}" Style="{StaticResource Execution.FieldLabel}" />
+                                                <TextBlock x:Name="CredentialDetailText" Text="{Binding CredentialDetail}" Foreground="{DynamicResource Text.Primary}" FontSize="10.5" TextWrapping="Wrap" />
+                                                <ContentControl x:Name="LoginFormHost"
+                                                                Content="{Binding LoginForm}"
+                                                                Visibility="Collapsed"
+                                                                Margin="0,5,0,0" />
+                                                <StackPanel x:Name="AlpacaExecutionAccountBinding" Visibility="Collapsed" Margin="0,8,0,0">
+                                                    <TextBlock Text="Expected LIVE execution account ID" Style="{StaticResource Execution.FieldLabel}" />
+                                                    <TextBox Text="{Binding DataContext.AlpacaLiveAccountId, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="CTraderExecutionAccountBinding" Visibility="Collapsed" Margin="0,8,0,0">
+                                                    <TextBlock Text="Exact cTrader execution account ID" Style="{StaticResource Execution.FieldLabel}" />
+                                                    <TextBox Text="{Binding DataContext.CTraderExecutionAccountId, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Text="This separate execution binding is authoritative for authorization; the shared Login form's account picker is not used by the execution adapter."
+                                                               Foreground="{DynamicResource Text.Secondary}"
+                                                               FontSize="9"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,4,0,0" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="InteractiveBrokersExecutionAccountBinding" Visibility="Collapsed" Margin="0,8,0,0">
+                                                    <TextBlock Text="Exact Interactive Brokers execution account ID" Style="{StaticResource Execution.FieldLabel}" />
+                                                    <TextBox Text="{Binding DataContext.InteractiveBrokersAccountId, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="InMemoryCredentialNotice"
+                                                           Text="Only credential and connection fields from the shared form are consumed; the Execution console's mode toggle and separate exact account binding remain authoritative. Values stay in memory here: this console never calls Login load, save, or connect actions and never persists credentials."
+                                                           Foreground="{DynamicResource Text.Secondary}"
+                                                           FontSize="9"
+                                                           TextWrapping="Wrap"
+                                                           Visibility="Collapsed"
+                                                           Margin="0,7,0,0" />
+                                             </StackPanel>
+                                        </Border>
+
+                                        <ItemsControl Grid.Row="3" ItemsSource="{Binding Capabilities}" Margin="0,8,0,4">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{DynamicResource Accent.Soft}" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="8" Padding="6,1" Margin="0,0,4,4">
+                                                        <TextBlock Text="{Binding}" Foreground="{DynamicResource Text.Secondary}" FontSize="9.5" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="{Binding ModeSwitchLabel}"
+                                                    Command="{Binding DataContext.SetExecutionModeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    IsEnabled="{Binding CanChangeExecutionMode}"
+                                                    Padding="10,4"
+                                                    Margin="0,0,6,0">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource Execution.Button}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsLive}" Value="False">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                                                                <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Bearish.Brush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Content="Connect"
+                                                    Command="{Binding DataContext.ConnectAdapterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding Id}"
+                                                    IsEnabled="{Binding CanConnect}"
+                                                    Style="{StaticResource Execution.Button}"
+                                                    Padding="10,4"
+                                                    Margin="0,0,6,0" />
+                                            <Button Content="Disconnect"
+                                                    Command="{Binding DataContext.DisconnectAdapterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding Id}"
+                                                    IsEnabled="{Binding CanDisconnect}"
+                                                    Style="{StaticResource Execution.Button}"
+                                                    Padding="10,4" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding HasLoginForm}" Value="True">
+                                        <Setter TargetName="CredentialDetailText" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="LoginFormHost" Property="Visibility" Value="Visible" />
+                                        <Setter TargetName="InMemoryCredentialNotice" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LoginBroker}" Value="{x:Static brokers:BrokerKind.Alpaca}">
+                                        <Setter TargetName="AlpacaExecutionAccountBinding" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LoginBroker}" Value="{x:Static brokers:BrokerKind.CTrader}">
+                                        <Setter TargetName="CTraderExecutionAccountBinding" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LoginBroker}" Value="{x:Static brokers:BrokerKind.InteractiveBrokers}">
+                                        <Setter TargetName="InteractiveBrokersExecutionAccountBinding" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Books rail and context-aware portfolio dashboard. -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{DynamicResource Background.Primary}"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="10,10,8,6">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource App.SectionBar}" Height="14" />
+                            <TextBlock Text="BOOKS" Style="{StaticResource Execution.SectionTitle}" />
+                        </StackPanel>
+                        <Button Content="+ New book"
+                                Command="{Binding NewBookCommand}"
+                                Style="{StaticResource Execution.LinkButton}"
+                                HorizontalAlignment="Right" />
+                    </Grid>
+
+                    <Border DockPanel.Dock="Top" Padding="10" Margin="7,0,7,7">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource Execution.Card}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsNewBookOpen}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock Text="NEW BOOK" Foreground="{DynamicResource Text.Header}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                            <TextBlock Text="Unique name" Style="{StaticResource Execution.FieldLabel}" />
+                            <TextBox Text="{Binding NewBookName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                            <TextBlock Text="Execution adapter" Style="{StaticResource Execution.FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding AvailableAdapters}"
+                                      SelectedItem="{Binding SelectedNewBookAdapter}"
+                                      Margin="0,0,0,8">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Style="{StaticResource Execution.StatusDot}" Margin="0,0,6,0" />
+                                            <TextBlock Text="{Binding DisplayName}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="Strategies (comma separated)" Style="{StaticResource Execution.FieldLabel}" />
+                            <TextBox Text="{Binding NewBookStrategies, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,9" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="Cancel" Command="{Binding CancelNewBookCommand}" Style="{StaticResource Execution.Button}" Padding="8,4" Margin="0,0,4,0" />
+                                <Button Grid.Column="1" Content="Create" Command="{Binding CreateBookCommand}" Style="{StaticResource Execution.Button}" Padding="8,4" Margin="4,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <ListBox ItemsSource="{Binding BookEntries}"
+                             SelectedItem="{Binding SelectedBookEntry, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="6,0,6,8"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,2" />
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="BookCard"
+                                        Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="3,0,0,0"
+                                        CornerRadius="7"
+                                        Padding="8,8,7,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Grid.Column="0" Style="{StaticResource Execution.StatusDot}" Margin="0,0,8,0" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Text.Primary}" FontWeight="SemiBold" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border BorderThickness="1" CornerRadius="3" Padding="4,0" Margin="0,2,5,0">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsAllBooks}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Book.IsLive}" Value="True">
+                                                                    <Setter Property="Background" Value="{DynamicResource Bearish.Soft}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource Bearish.Brush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding Book.ModeLabel}" FontSize="8" FontWeight="Bold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Accent.Brush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Book.IsLive}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+                                                <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Text.Secondary}" FontSize="9.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding ProfitAndLoss}"
+                                                   Style="{StaticResource Execution.ToneText}"
+                                                   FontFamily="{DynamicResource Font.Data}"
+                                                   FontSize="11.5"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,0,0" />
+                                    </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
+                                        <Setter TargetName="BookCard" Property="Background" Value="{DynamicResource Background.Elevated}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                        <Setter TargetName="BookCard" Property="Background" Value="{DynamicResource Accent.Soft}" />
+                                        <Setter TargetName="BookCard" Property="BorderBrush" Value="{DynamicResource Accent.Brush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="16,14,16,20">
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <Border Style="{StaticResource App.SectionBar}" Height="14" />
+                            <TextBlock Text="PORTFOLIO MANAGER" Style="{StaticResource Execution.SectionTitle}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="10,0,10,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DashboardContextLabel}" Foreground="{DynamicResource Text.Header}" FontSize="11.5" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding AnalyticsProvenanceLabel}" Foreground="{DynamicResource Text.Secondary}" FontSize="9.5" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Border Grid.Column="2" Background="{DynamicResource Background.Elevated}" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" CornerRadius="7" Padding="2">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="7D" Command="{Binding SelectRangeCommand}" CommandParameter="{x:Static local:ExecutionTimeRange.SevenDays}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRange}" Value="{x:Static local:ExecutionTimeRange.SevenDays}">
+                                                    <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="30D" Command="{Binding SelectRangeCommand}" CommandParameter="{x:Static local:ExecutionTimeRange.ThirtyDays}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRange}" Value="{x:Static local:ExecutionTimeRange.ThirtyDays}">
+                                                    <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="90D" Command="{Binding SelectRangeCommand}" CommandParameter="{x:Static local:ExecutionTimeRange.NinetyDays}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRange}" Value="{x:Static local:ExecutionTimeRange.NinetyDays}">
+                                                    <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="YTD" Command="{Binding SelectRangeCommand}" CommandParameter="{x:Static local:ExecutionTimeRange.YearToDate}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRange}" Value="{x:Static local:ExecutionTimeRange.YearToDate}">
+                                                    <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Text.Header}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Deliberately small operator-only order path. The existing book rail is the book picker. -->
+                    <Border Padding="12,9" Margin="0,0,0,12">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource Execution.Card}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CanShowTestOrderTicket}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="2*" MinWidth="150" />
+                                <ColumnDefinition Width="*" MinWidth="82" />
+                                <ColumnDefinition Width="*" MinWidth="82" />
+                                <ColumnDefinition Width="*" MinWidth="92" />
+                                <ColumnDefinition Width="*" MinWidth="110" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,14,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding OrderTicketModeLabel}" FontSize="10" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelectedBookLive}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="Selected book OMS route" Foreground="{DynamicResource Text.Secondary}" FontSize="9" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="Instrument" Style="{StaticResource Execution.FieldLabel}" />
+                                <uic:InstrumentPicker ItemsSource="{Binding AvailableOrderInstruments}"
+                                                      SelectedInstrument="{Binding SelectedOrderInstrument, Mode=TwoWay}"
+                                                      MaxDropDownHeight="280" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                <TextBlock Text="Side" Style="{StaticResource Execution.FieldLabel}" />
+                                <ComboBox ItemsSource="{Binding TestOrderSides}" SelectedItem="{Binding SelectedTestOrderSide}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3" Margin="0,0,8,0">
+                                <TextBlock Text="Whole qty" Style="{StaticResource Execution.FieldLabel}" />
+                                <TextBox Text="{Binding TestOrderQuantity, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4" Margin="0,0,8,0">
+                                <TextBlock Text="Type" Style="{StaticResource Execution.FieldLabel}" />
+                                <ComboBox ItemsSource="{Binding TestOrderTypes}" SelectedItem="{Binding SelectedTestOrderType}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="5" Margin="0,0,8,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTestLimitOrder}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Exact limit" Style="{StaticResource Execution.FieldLabel}" />
+                                <TextBox Text="{Binding TestOrderLimitPrice, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <Button Grid.Column="6"
+                                    Content="Send"
+                                    Command="{Binding SendTestOrderCommand}"
+                                    IsEnabled="{Binding CanSendTestOrder}"
+                                    Style="{StaticResource Execution.WarningButton}"
+                                    Padding="14,5"
+                                    VerticalAlignment="Bottom"
+                                    ToolTip="Submits through the selected book's mode-gated OMS, coordinator, adapter, and ledger." />
+                        </Grid>
+                    </Border>
+
+                    <!-- Portfolio KPIs. -->
+                    <UniformGrid Columns="8" Margin="0,0,-8,12">
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="EQUITY" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.EquityDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="NET P&amp;L" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.NetProfitAndLossDisplay}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Execution.KpiValue}"><Style.Triggers><DataTrigger Binding="{Binding Metrics.ProfitAndLossTone}" Value="{x:Static local:ExecutionTone.Positive}"><Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger><DataTrigger Binding="{Binding Metrics.ProfitAndLossTone}" Value="{x:Static local:ExecutionTone.Negative}"><Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="RETURN" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.ReturnDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="SHARPE" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.SharpeDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="MAX DRAWDOWN" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.MaxDrawdownDisplay}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Execution.KpiValue}"><Style.Triggers><DataTrigger Binding="{Binding Metrics.DrawdownTone}" Value="{x:Static local:ExecutionTone.Negative}"><Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="WIN RATE" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.WinRateDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="OPEN" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.OpenPositionsDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Execution.KpiTile}">
+                            <StackPanel><TextBlock Text="NET EXPOSURE" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding Metrics.NetExposureDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <!-- Equity hero. -->
+                    <Border Style="{StaticResource Execution.Card}" Margin="0,0,0,12" ClipToBounds="True">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="220" /></Grid.RowDefinitions>
+                            <Grid Margin="13,0">
+                                <TextBlock Text="EQUITY CURVE" Style="{StaticResource Execution.SectionTitle}" />
+                                <TextBlock Text="{Binding Metrics.EquityDisplay}" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="{DynamicResource Font.Data}" Foreground="{DynamicResource Text.Header}" />
+                            </Grid>
+                            <Border Grid.Row="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+                                <sp:WpfPlot x:Name="EquityPlot" Background="{DynamicResource Background.Primary}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource Execution.Card}" ClipToBounds="True">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="180" /></Grid.RowDefinitions>
+                                <TextBlock Text="DAILY REALIZED P&amp;L" Style="{StaticResource Execution.SectionTitle}" Margin="13,0" />
+                                <Border Grid.Row="1" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0">
+                                    <sp:WpfPlot x:Name="DailyPnlPlot" Background="{DynamicResource Background.Primary}" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource Execution.Card}" Padding="13,0,13,10">
+                            <StackPanel>
+                                <Grid Height="38"><TextBlock Text="EXPOSURE BY BOOK" Style="{StaticResource Execution.SectionTitle}" /></Grid>
+                                <ItemsControl ItemsSource="{Binding ExposureByBook}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4,0,7">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="74" /></Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding BookName}" Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" Margin="8,0,4,0">
+                                                    <TextBlock Text="{Binding LongDisplay}" Foreground="{DynamicResource Bullish.Brush}" FontFamily="{DynamicResource Font.Data}" FontSize="9" TextAlignment="Right" />
+                                                    <ProgressBar Value="{Binding LongPercentage}" Maximum="100" Height="7" Background="{DynamicResource Background.Primary}" Foreground="{DynamicResource Bullish.Brush}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Margin="4,0,8,0">
+                                                    <TextBlock Text="{Binding ShortDisplay}" Foreground="{DynamicResource Bearish.Brush}" FontFamily="{DynamicResource Font.Data}" FontSize="9" />
+                                                    <ProgressBar Value="{Binding ShortPercentage}" Maximum="100" Height="7" Background="{DynamicResource Background.Primary}" Foreground="{DynamicResource Bearish.Brush}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="3" Text="{Binding NetDisplay}" Style="{StaticResource Execution.ToneText}" FontFamily="{DynamicResource Font.Data}" TextAlignment="Right" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource Execution.Card}" ClipToBounds="True">
+                            <DataGrid ItemsSource="{Binding BookBreakdown}" Style="{StaticResource Execution.Grid}" MaxHeight="210">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="BOOK" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><Ellipse Style="{StaticResource Execution.StatusDot}" Margin="0,0,7,0" /><TextBlock Text="{Binding BookName}" Foreground="{DynamicResource Text.Header}" FontWeight="SemiBold" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="EQUITY" Binding="{Binding Equity}" ElementStyle="{StaticResource Execution.NumericCell}" Width="86" />
+                                    <DataGridTemplateColumn Header="DAY P&amp;L" Width="82"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding DayProfitAndLoss}" FontFamily="{DynamicResource Font.Data}" HorizontalAlignment="Right"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" /><Style.Triggers><DataTrigger Binding="{Binding DayProfitAndLossTone}" Value="{x:Static local:ExecutionTone.Positive}"><Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" /></DataTrigger><DataTrigger Binding="{Binding DayProfitAndLossTone}" Value="{x:Static local:ExecutionTone.Negative}"><Setter Property="Foreground" Value="{DynamicResource Bearish.Brush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="RETURN" Binding="{Binding Return}" ElementStyle="{StaticResource Execution.NumericCell}" Width="64" />
+                                    <DataGridTextColumn Header="SHARPE" Binding="{Binding Sharpe}" ElementStyle="{StaticResource Execution.NumericCell}" Width="58" />
+                                    <DataGridTextColumn Header="TRADES" Binding="{Binding Trades}" ElementStyle="{StaticResource Execution.NumericCell}" Width="52" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource Execution.Card}" Padding="13,0,13,12">
+                            <StackPanel>
+                                <Grid Height="38"><TextBlock Text="EXECUTION QUALITY" Style="{StaticResource Execution.SectionTitle}" /></Grid>
+                                <UniformGrid Columns="4" Margin="0,4,0,0">
+                                    <StackPanel Margin="0,0,8,10"><TextBlock Text="FILL RATE" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.FillRateDisplay}" Style="{StaticResource Execution.KpiValue}" Foreground="{DynamicResource Bullish.Brush}" /></StackPanel>
+                                    <StackPanel Margin="0,0,8,10"><TextBlock Text="AVG SLIPPAGE" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.AverageSlippageDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                                    <StackPanel Margin="0,0,8,10"><TextBlock Text="REJECTS" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.RejectRateDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                                    <StackPanel Margin="0,0,0,10"><TextBlock Text="AVG ACK" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.AverageAcknowledgementDisplay}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                                    <StackPanel Margin="0,0,8,0"><TextBlock Text="ORDERS" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.Orders}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                                    <StackPanel Margin="0,0,8,0"><TextBlock Text="CANCELS" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.Cancels}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                                    <StackPanel Margin="0,0,8,0"><TextBlock Text="RECON CASES" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.ReconciliationCases}" Style="{StaticResource Execution.KpiValue}" Foreground="{DynamicResource Warning.Brush}" /></StackPanel>
+                                    <StackPanel><TextBlock Text="UNKNOWN" Style="{StaticResource Execution.KpiLabel}" /><TextBlock Text="{Binding ExecutionQuality.UnknownOutcomes}" Style="{StaticResource Execution.KpiValue}" /></StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Operational drill-down. -->
+                    <Border Style="{StaticResource Execution.Card}" ClipToBounds="True">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="12,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Positions" Command="{Binding SelectTabCommand}" CommandParameter="{x:Static local:ExecutionDetailTab.Positions}">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}"><Setter Property="Padding" Value="12,8" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static local:ExecutionDetailTab.Positions}"><Setter Property="Foreground" Value="{DynamicResource Text.Header}" /><Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" /><Setter Property="BorderThickness" Value="0,0,0,2" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    </Button>
+                                    <Button Content="Open orders" Command="{Binding SelectTabCommand}" CommandParameter="{x:Static local:ExecutionDetailTab.OpenOrders}">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}"><Setter Property="Padding" Value="12,8" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static local:ExecutionDetailTab.OpenOrders}"><Setter Property="Foreground" Value="{DynamicResource Text.Header}" /><Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" /><Setter Property="BorderThickness" Value="0,0,0,2" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    </Button>
+                                    <Button Content="History" Command="{Binding SelectTabCommand}" CommandParameter="{x:Static local:ExecutionDetailTab.History}">
+                                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource Execution.SegmentButton}"><Setter Property="Padding" Value="12,8" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static local:ExecutionDetailTab.History}"><Setter Property="Foreground" Value="{DynamicResource Text.Header}" /><Setter Property="BorderBrush" Value="{DynamicResource Accent.Brush}" /><Setter Property="BorderThickness" Value="0,0,0,2" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <Grid Grid.Row="1">
+                                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static local:ExecutionDetailTab.Positions}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+                                <DataGrid ItemsSource="{Binding Positions}" Style="{StaticResource Execution.Grid}" MinHeight="145" MaxHeight="310">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="INSTRUMENT" Width="*" MinWidth="105"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Instrument}" Foreground="{DynamicResource Text.Header}" FontWeight="SemiBold" /><TextBlock Text="{Binding Side}" Style="{StaticResource Execution.SideText}" FontSize="9.5" Margin="6,0,0,0" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="BOOK" Binding="{Binding BookName}" Width="80" />
+                                        <DataGridTextColumn Header="QTY" Binding="{Binding RealQuantity}" ElementStyle="{StaticResource Execution.NumericCell}" Width="72" />
+                                        <DataGridTextColumn Header="AVG" Binding="{Binding AveragePrice}" ElementStyle="{StaticResource Execution.NumericCell}" Width="82" />
+                                        <DataGridTextColumn Header="LAST" Binding="{Binding LastPrice}" ElementStyle="{StaticResource Execution.NumericCell}" Width="82" />
+                                        <DataGridTextColumn Header="UNREAL." Binding="{Binding UnrealizedProfitAndLoss}" ElementStyle="{StaticResource Execution.NumericCell}" Width="82" />
+                                        <DataGridTextColumn Header="REAL." Binding="{Binding RealizedProfitAndLoss}" ElementStyle="{StaticResource Execution.NumericCell}" Width="76" />
+                                        <DataGridTextColumn Header="TARGET" Binding="{Binding TargetQuantity}" ElementStyle="{StaticResource Execution.NumericCell}" Width="68" />
+                                        <DataGridTemplateColumn Header="DRIFT" Width="62"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Delta}" FontFamily="{DynamicResource Font.Data}" HorizontalAlignment="Right"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" /><Style.Triggers><DataTrigger Binding="{Binding HasDivergence}" Value="True"><Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" /><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+
+                            <Grid Grid.Row="1">
+                                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static local:ExecutionDetailTab.OpenOrders}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+                                <DataGrid ItemsSource="{Binding OpenOrders}" Style="{StaticResource Execution.Grid}" MinHeight="145" MaxHeight="310">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="CLIENT ID" Binding="{Binding ClientOrderId}" Width="1.2*" />
+                                        <DataGridTextColumn Header="INSTRUMENT" Binding="{Binding Instrument}" Width="*" />
+                                        <DataGridTextColumn Header="BOOK" Binding="{Binding BookName}" Width="85" />
+                                        <DataGridTextColumn Header="SIDE" Binding="{Binding Side}" Width="58" />
+                                        <DataGridTextColumn Header="QTY" Binding="{Binding Quantity}" ElementStyle="{StaticResource Execution.NumericCell}" Width="68" />
+                                        <DataGridTextColumn Header="TYPE" Binding="{Binding OrderType}" Width="70" />
+                                        <DataGridTextColumn Header="STATE" Binding="{Binding State}" Width="92" />
+                                        <DataGridTextColumn Header="BROKER" Binding="{Binding ConfiguredBroker}" Width="*" />
+                                        <DataGridTextColumn Header="AGE" Binding="{Binding Age}" ElementStyle="{StaticResource Execution.NumericCell}" Width="54" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+
+                            <Grid Grid.Row="1">
+                                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTab}" Value="{x:Static local:ExecutionDetailTab.History}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Border Background="{DynamicResource Background.Elevated}" BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,0,0,1" Padding="10,7">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Instrument" Style="{StaticResource Execution.FieldLabel}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBox Text="{Binding HistoryInstrumentFilter, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,14,0" />
+                                        <TextBlock Text="From" Style="{StaticResource Execution.FieldLabel}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <DatePicker SelectedDate="{Binding HistoryFromDate}" Width="125" Margin="0,0,14,0" />
+                                        <TextBlock Text="To" Style="{StaticResource Execution.FieldLabel}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <DatePicker SelectedDate="{Binding HistoryToDate}" Width="125" />
+                                    </StackPanel>
+                                </Border>
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredHistory}" Style="{StaticResource Execution.Grid}" MinHeight="145" MaxHeight="310">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="DATE" Binding="{Binding Date}" ElementStyle="{StaticResource Execution.NumericCell}" Width="82" />
+                                        <DataGridTextColumn Header="TIME" Binding="{Binding Time}" ElementStyle="{StaticResource Execution.NumericCell}" Width="68" />
+                                        <DataGridTextColumn Header="INSTRUMENT" Binding="{Binding Instrument}" Width="*" />
+                                        <DataGridTextColumn Header="BOOK" Binding="{Binding BookName}" Width="80" />
+                                        <DataGridTextColumn Header="EVENT" Binding="{Binding Event}" Width="100" />
+                                        <DataGridTextColumn Header="DETAIL" Binding="{Binding Detail}" Width="1.4*" />
+                                        <DataGridTextColumn Header="QTY" Binding="{Binding Quantity}" ElementStyle="{StaticResource Execution.NumericCell}" Width="62" />
+                                        <DataGridTextColumn Header="PRICE" Binding="{Binding Price}" ElementStyle="{StaticResource Execution.NumericCell}" Width="74" />
+                                        <DataGridTextColumn Header="P&amp;L" Binding="{Binding ProfitAndLoss}" ElementStyle="{StaticResource Execution.NumericCell}" Width="74" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="3"
+                Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,0">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding OperationMessage}" VerticalAlignment="Center" Foreground="{DynamicResource Text.Secondary}" FontSize="10.5" TextTrimming="CharacterEllipsis" Margin="0,0,16,0" />
+                <TextBlock Grid.Column="1"
+                           Text="SAMPLE PORTFOLIO ANALYTICS  |  OMS HISTORY + QUALITY FROM LEDGER  |  SIMULATED + cTRADER DEMO ONLY"
+                           Foreground="{DynamicResource Warning.Brush}"
+                           FontSize="9.5"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

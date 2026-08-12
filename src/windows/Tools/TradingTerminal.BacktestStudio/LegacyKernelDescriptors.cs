@@ -1,4 +1,5 @@
 using TradingTerminal.Backtest.Engine.Kernels;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Infrastructure.Backtest;
 
@@ -14,8 +15,13 @@ namespace TradingTerminal.BacktestStudio;
 public static class LegacyKernelDescriptors
 {
     public static IEnumerable<StrategyKernelDescriptor> From(IBacktestStrategyRegistry registry, ISet<string> excludeIds)
+        => From(registry.All, excludeIds);
+
+    public static IEnumerable<StrategyKernelDescriptor> From(
+        IEnumerable<BacktestStrategyOption> options,
+        ISet<string> excludeIds)
     {
-        foreach (var option in registry.All)
+        foreach (var option in options)
         {
             if (excludeIds.Contains(option.Id)) continue;
             var captured = option;

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- WPF ScottPlot visual-replay view; playback and file access use UI seams. -->
@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Execution\TradingTerminal.Execution\TradingTerminal.Execution.csproj" />
     <ProjectReference Include="..\..\..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\..\..\src\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <ProjectReference Include="..\..\..\..\src\windows\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />

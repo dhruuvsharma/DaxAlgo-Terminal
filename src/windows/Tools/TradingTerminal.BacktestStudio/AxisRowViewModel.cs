@@ -1,23 +1,28 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TradingTerminal.Core.Backtesting;
+using TradingTerminal.Core.Strategies.Parameters;
+using RichParameterKind = TradingTerminal.Core.Strategies.Parameters.ParameterKind;
 
 namespace TradingTerminal.BacktestStudio;
 
-/// <summary>One row in the optimization axis editor: a parameter the user can turn into a sweep axis
-/// with its own min/max/step. Defaults seed from the parameter descriptor's domain.</summary>
+/// <summary>One optional numeric optimization axis projected from a catalog parameter.</summary>
 public sealed partial class AxisRowViewModel : ObservableObject
 {
-    public AxisRowViewModel(ParameterDescriptor descriptor)
+    public AxisRowViewModel(StrategyParameter descriptor)
     {
         Descriptor = descriptor;
-        _min = double.IsFinite(descriptor.Min) ? descriptor.Min : descriptor.Default;
-        _max = double.IsFinite(descriptor.Max) ? descriptor.Max : descriptor.Default * 2 + 1;
-        _step = descriptor.Step > 0 ? descriptor.Step : 1;
+        var defaultValue = descriptor.Kind == RichParameterKind.Boolean
+            ? descriptor.Default is true ? 1d : 0d
+            : Convert.ToDouble(descriptor.Default ?? 0d, CultureInfo.InvariantCulture);
+        _min = descriptor.Kind == RichParameterKind.Boolean ? 0 : descriptor.Min ?? defaultValue;
+        _max = descriptor.Kind == RichParameterKind.Boolean ? 1 : descriptor.Max ?? defaultValue * 2 + 1;
+        _step = descriptor.Kind == RichParameterKind.Boolean ? 1 : descriptor.Step is > 0 ? descriptor.Step.Value : 1;
     }
 
-    public ParameterDescriptor Descriptor { get; }
-    public string Name => Descriptor.Name;
-    public string Label => Descriptor.Label;
+    public StrategyParameter Descriptor { get; }
+    public string Name => Descriptor.Key;
+    public string Label => Descriptor.DisplayName;
 
     [ObservableProperty] private bool _enabled;
     [ObservableProperty] private double _min;

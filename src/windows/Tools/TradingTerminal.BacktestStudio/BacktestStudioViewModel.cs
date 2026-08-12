@@ -8,7 +8,6 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Backtest.Engine.Feeds;
-using TradingTerminal.Backtest.Engine.Kernels;
 using TradingTerminal.Backtest.Engine.Optimization;
 using TradingTerminal.Backtest.Engine.Optimization.Gpu;
 using TradingTerminal.Backtest.Protocol;
@@ -16,6 +15,8 @@ using TradingTerminal.Core.Backtesting;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
+using RichParameterKind = TradingTerminal.Core.Strategies.Parameters.ParameterKind;
+using RichParameters = TradingTerminal.Core.Strategies.Parameters.StrategyParameters;
 using TradingTerminal.Infrastructure.Backtest.Worker;
 using TradingTerminal.UI;
 
@@ -31,7 +32,8 @@ namespace TradingTerminal.BacktestStudio;
 /// </summary>
 public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 {
-    private readonly IStrategyKernelRegistry _registry;
+    private readonly IStrategyCatalog _catalog;
+    private readonly BacktestStudioRunner _studioRunner;
     private readonly IMarketDataStore _store;
     private readonly IInstrumentRegistry _instruments;
     private readonly IBacktestJobClient _jobClient;
@@ -39,23 +41,31 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private IDisposable? _playback;
     private static readonly InstrumentId SynthInstrument = new(1);
 
+    /// <summary>The instrument universe the picker filters from (the shared 37-instrument catalog).
+    /// The search box narrows this into <see cref="Instruments"/>; <see cref="Symbol"/> tracks the
+    /// selection so the existing run-context builders stay unchanged.</summary>
+    private readonly IReadOnlyList<SignalInstrument> _instrumentUniverse = SignalInstrumentCatalog.All;
+
     private CancellationTokenSource? _runCts;
     private CancellationTokenSource? _optCts;
     private string? _activeWorkerJobId;
     private int _playbackGeneration;
 
     public BacktestStudioViewModel(
-        IStrategyKernelRegistry registry, IMarketDataStore store, IInstrumentRegistry instruments,
+        IStrategyCatalog catalog, BacktestStudioRunner studioRunner,
+        IMarketDataStore store, IInstrumentRegistry instruments,
         IBacktestJobClient jobClient,
         ILogger<BacktestStudioViewModel> logger)
     {
-        _registry = registry;
+        _catalog = catalog;
+        _studioRunner = studioRunner;
         _store = store;
         _instruments = instruments;
         _jobClient = jobClient;
         _logger = logger;
 
-        Strategies = new ObservableCollection<StrategyKernelDescriptor>(registry.All);
+        Strategies = new ObservableCollection<StrategyCatalogDescriptor>(catalog.All);
+        Instruments = new ObservableCollection<SignalInstrument>();
         Parameters = new ObservableCollection<ParamRowViewModel>();
         Trades = new ObservableCollection<RoundTripTrade>();
         Axes = new ObservableCollection<AxisRowViewModel>();
@@ -63,9 +73,15 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         WalkForwardRows = new ObservableCollection<WalkForwardRowViewModel>();
         Criteria = Enum.GetValues<OptimizationCriterion>();
         Methods = Enum.GetValues<OptimizationMethod>();
+        Timeframes = StudioTimeframeOption.All;
+        SelectedTimeframe = Timeframes.First(option => option.Value == BarSize.OneMinute);
 
         SelectedCriterion = OptimizationCriterion.Sharpe;
         SelectedStrategy = Strategies.FirstOrDefault();
+        SelectedInstrument = _instrumentUniverse.FirstOrDefault(i => i.Contract.Symbol == Symbol)
+                             ?? _instrumentUniverse.FirstOrDefault();
+        ApplyFilter();
+        _catalog.Changed += OnCatalogChanged;
     }
 
     // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──
@@ -113,7 +129,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public ObservableCollection<StrategyKernelDescriptor> Strategies { get; }
+    public ObservableCollection<StrategyCatalogDescriptor> Strategies { get; }
+    public ObservableCollection<SignalInstrument> Instruments { get; }
     public ObservableCollection<ParamRowViewModel> Parameters { get; }
     public ObservableCollection<RoundTripTrade> Trades { get; }
     public ObservableCollection<AxisRowViewModel> Axes { get; }
@@ -123,6 +140,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     public IReadOnlyList<OptimizationMethod> Methods { get; }
     public IReadOnlyList<DataSourceKind> DataSources { get; } = Enum.GetValues<DataSourceKind>();
     public IReadOnlyList<BrokerKind> Brokers { get; } = Enum.GetValues<BrokerKind>();
+    public IReadOnlyList<StudioTimeframeOption> Timeframes { get; }
 
     private static string GpuExePath => Path.Combine(AppContext.BaseDirectory, "gpu_optimizer.exe");
 
@@ -131,10 +149,18 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(ExecutionTarget))]
     private DataSourceKind _selectedDataSource = DataSourceKind.Synthetic;
     [ObservableProperty] private string _parquetPath = "";
+
+    // Instrument selection via the shared picker. Symbol mirrors the selection so the run-context
+    // builders (synthetic label, store resolve) keep reading a plain symbol string.
+    [ObservableProperty] private SignalInstrument? _selectedInstrument;
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private string _symbol = "ES";
     [ObservableProperty] private BrokerKind _selectedBroker = BrokerKind.Simulated;
+    [ObservableProperty] private StudioTimeframeOption _selectedTimeframe = null!;
     [ObservableProperty] private DateTime? _fromDate;
     [ObservableProperty] private DateTime? _toDate;
+    [ObservableProperty] private string _fromTime = "00:00";
+    [ObservableProperty] private string _toTime = "23:59";
 
     /// <summary>The last completed report — read by the view to draw the equity curve.</summary>
     public BacktestReport? Report { get; private set; }
@@ -142,11 +168,16 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _hasReport;
     [ObservableProperty] private string? _lastRunStrategyName;
     [ObservableProperty] private string? _lastRunDataSource;
-    [ObservableProperty] private double _lastRunStartingCash;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReturnPercent))]
+    private double _lastRunStartingCash;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ExecutionTarget))]
-    private StrategyKernelDescriptor? _selectedStrategy;
+    [NotifyPropertyChangedFor(nameof(CanOptimizeSelected))]
+    private StrategyCatalogDescriptor? _selectedStrategy;
+
+    [ObservableProperty] private RoundTripTrade? _selectedTrade;
 
     [ObservableProperty] private double _startingCash = 100_000;
     [ObservableProperty] private int _syntheticTicks = 20_000;
@@ -163,11 +194,17 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string? _status;
 
     // Report metrics (set after a run).
-    [ObservableProperty] private double _netProfit;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReturnPercent))]
+    private double _netProfit;
     [ObservableProperty] private double _sharpe;
     [ObservableProperty] private double _maxDrawdown;
-    [ObservableProperty] private double _winRate;
-    [ObservableProperty] private double _profitFactor;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WinRateDelta))]
+    private double _winRate;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ProfitFactorDelta))]
+    private double _profitFactor;
     [ObservableProperty] private int _tradeCount;
 
     // Visual replay.
@@ -208,7 +245,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     public bool IsNotRunning => !IsBusy;
     public bool IsNotOptimizing => !IsBusy;
     public string CurrentBarText => $"{CurrentBar} / {BarCount}";
-    public string ExecutionTarget => SelectedStrategy is { } strategy && SupportsWorker(strategy)
+    public bool CanOptimizeSelected => SelectedStrategy?.SupportsOptimization == true;
+    public double ReturnPercent => LastRunStartingCash == 0 ? 0 : NetProfit / LastRunStartingCash;
+    public double WinRateDelta => WinRate - 0.5;
+    public double ProfitFactorDelta => ProfitFactor - 1.0;
+    public string ExecutionTarget => SelectedStrategy?.ExecutionRoute == StrategyExecutionRoute.Signal
+        ? "SINGLE RUN · SIGNAL EXECUTION SEAM"
+        : SelectedStrategy is { } strategy && SupportsWorker(strategy)
         ? "SINGLE RUN · ISOLATED WORKER"
         : "SINGLE RUN · IN-PROCESS";
 
@@ -221,7 +264,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     /// <summary>Raised each replay frame (and on seek) so the view redraws candles up to <see cref="CurrentBar"/>.</summary>
     public event EventHandler? ReplayFrameChanged;
 
-    partial void OnSelectedStrategyChanged(StrategyKernelDescriptor? value)
+    partial void OnSelectedStrategyChanged(StrategyCatalogDescriptor? value)
     {
         Parameters.Clear();
         Axes.Clear();
@@ -229,8 +272,35 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         foreach (var p in value.Schema.Parameters)
         {
             Parameters.Add(new ParamRowViewModel(p));
-            Axes.Add(new AxisRowViewModel(p));
+            if (p.Kind is RichParameterKind.Integer or RichParameterKind.Number or RichParameterKind.Boolean)
+                Axes.Add(new AxisRowViewModel(p));
         }
+    }
+
+    partial void OnSelectedInstrumentChanged(SignalInstrument? value)
+    {
+        if (value is not null) Symbol = value.Contract.Symbol;
+    }
+
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
+
+    /// <summary>Hide-until-search: with no term the picker shows only the current selection; typing
+    /// filters the catalog. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_instrumentUniverse, InstrumentSearchText, SelectedInstrument, 500));
+
+    private void OnCatalogChanged(object? sender, EventArgs e) =>
+        _ = UiThread.RunAsync(RefreshStrategies);
+
+    private void RefreshStrategies()
+    {
+        var selectedKey = SelectedStrategy?.CatalogKey;
+        Strategies.Clear();
+        foreach (var strategy in _catalog.All)
+            Strategies.Add(strategy);
+        SelectedStrategy = Strategies.FirstOrDefault(strategy => strategy.CatalogKey == selectedKey)
+                           ?? Strategies.FirstOrDefault();
     }
 
     partial void OnCurrentBarChanged(int value) => ReplayFrameChanged?.Invoke(this, EventArgs.Empty);
@@ -251,8 +321,25 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         error = null;
         feedFactory = null!;
         baseSpec = null!;
-        var from = NormalizeUtcDate(FromDate);
-        var to = NormalizeUtcDate(ToDate);
+        if (!TryCombineUtc(FromDate, FromTime, out var from) ||
+            !TryCombineUtc(ToDate, ToTime, out var to))
+        {
+            error = "Enter UTC times as HH:mm or HH:mm:ss.";
+            return false;
+        }
+        if (from is { } fromValue && to is { } toValue && toValue <= fromValue)
+        {
+            error = "To must be later than From.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(Symbol))
+        {
+            error = "Enter a symbol.";
+            return false;
+        }
+
+        var symbol = Symbol.Trim();
+        var timeframe = SelectedTimeframe.Value;
 
         switch (SelectedDataSource)
         {
@@ -264,10 +351,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
                 // active (London/NY) session with momentum bursts, so tape-primary, session-gated
                 // strategies (e.g. SigmaIcFlow) actually arm and trade. Quote-only kernels ignore the
                 // extra trade events.
-                feedFactory = () => new SyntheticTapeFeed(SynthInstrument, ticks, seed);
+                feedFactory = () => new TimeframeMarketDataFeed(
+                    new SyntheticTapeFeed(SynthInstrument, ticks, seed), timeframe);
                 baseSpec = new RunSpec(
-                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("SYN"), 0.25, 1.0)),
-                    new DataSpec(), strategyId, parameters, StartingCash: StartingCash);
+                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock(symbol), 0.25, 1.0)),
+                    new DataSpec(FromUtc: from, ToUtc: to), strategyId, parameters, StartingCash: StartingCash);
                 return true;
             }
             case DataSourceKind.Parquet:
@@ -278,9 +366,10 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
                     return false;
                 }
                 var path = ParquetPath;
-                feedFactory = () => new ParquetMarketDataFeed(SynthInstrument, path, from, to);
+                feedFactory = () => new TimeframeMarketDataFeed(
+                    new ParquetMarketDataFeed(SynthInstrument, path, from, to), timeframe);
                 baseSpec = new RunSpec(
-                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock("FILE"), 0.01, 1.0)),
+                    Universe.Single(new InstrumentSpec(SynthInstrument, Contract.UsStock(symbol), 0.01, 1.0)),
                     new DataSpec(BacktestDataSource.ParquetFile, from, to, ParquetPath: path),
                     strategyId, parameters, StartingCash: StartingCash);
                 return true;
@@ -288,14 +377,14 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             case DataSourceKind.Store:
             {
                 if (from is null || to is null) { error = "Store mode needs both From and To dates."; return false; }
-                if (_instruments.Resolve(SelectedBroker, Symbol) is not { } iid)
+                if (_instruments.Resolve(SelectedBroker, symbol) is not { } iid)
                 {
-                    error = $"'{Symbol}' is not in the store for {SelectedBroker}.";
+                    error = $"'{symbol}' is not in the store for {SelectedBroker}.";
                     return false;
                 }
-                feedFactory = () => new StoreMarketDataFeed(_store);
+                feedFactory = () => new TimeframeMarketDataFeed(new StoreMarketDataFeed(_store), timeframe);
                 baseSpec = new RunSpec(
-                    Universe.Single(new InstrumentSpec(iid, Contract.UsStock(Symbol), 0.01, 1.0, SelectedBroker)),
+                    Universe.Single(new InstrumentSpec(iid, Contract.UsStock(symbol), 0.01, 1.0, SelectedBroker)),
                     new DataSpec(BacktestDataSource.LocalStore, from, to),
                     strategyId, parameters, StartingCash: StartingCash);
                 return true;
@@ -306,13 +395,18 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private static DateTime? NormalizeUtcDate(DateTime? value) => value?.Kind switch
+    private static bool TryCombineUtc(DateTime? date, string timeText, out DateTime? value)
     {
-        null => null,
-        DateTimeKind.Utc => value.Value,
-        DateTimeKind.Local => value.Value.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc),
-    };
+        value = null;
+        if (date is null)
+            return true;
+        if (!TimeSpan.TryParse(timeText, CultureInfo.InvariantCulture, out var time) ||
+            time < TimeSpan.Zero || time >= TimeSpan.FromDays(1))
+            return false;
+
+        value = DateTime.SpecifyKind(date.Value.Date + time, DateTimeKind.Utc);
+        return true;
+    }
 
     [RelayCommand]
     private async Task RunAsync()
@@ -323,7 +417,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         ResetReportPresentation();
         IsRunning = true;
         RunProgress = 0;
-        Status = "Preparing isolated run…";
+        Status = "Preparing run…";
 
         _runCts = new CancellationTokenSource();
         var ct = _runCts.Token;
@@ -332,14 +426,15 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         {
             var overrides = Parameters.ToDictionary(p => p.Name, p => p.Resolved);
             var descriptor = SelectedStrategy;
-            var parameters = descriptor.Schema.Resolve(overrides);
-            if (!TryBuildContext(descriptor.Id, parameters, out var feedFactory, out var baseSpec, out var error))
+            var selectedParameters = descriptor.ResolveParameters(overrides);
+            var runParameters = descriptor.CreateRunParameters(selectedParameters);
+            if (!TryBuildContext(descriptor.Id, runParameters, out var feedFactory, out var baseSpec, out var error))
             {
                 Status = error;
                 return;
             }
             var spec = baseSpec with { Visual = RecordVisual ? VisualRecording.On : VisualRecording.Off };
-            var report = await RunSingleAsync(descriptor, feedFactory, spec, ct);
+            var report = await RunSingleAsync(descriptor, selectedParameters, feedFactory, spec, ct);
 
             Report = report;
             foreach (var t in report.Trades) Trades.Add(t);
@@ -354,8 +449,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             HasVisual = report.Visual is { Bars.Count: > 0 };
             BarCount = report.Visual?.Bars.Count ?? 0;
             CurrentBar = BarCount; // show the whole run; replay rewinds from here
-            LastRunStrategyName = descriptor.Name;
-            LastRunDataSource = SelectedDataSource.ToString();
+            LastRunStrategyName = descriptor.DisplayName;
+            LastRunDataSource = $"{SelectedDataSource} · {SelectedTimeframe.Label}";
             LastRunStartingCash = spec.StartingCash;
             HasReport = true;
 
@@ -385,6 +480,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     {
         Report = null;
         Trades.Clear();
+        SelectedTrade = null;
         NetProfit = 0;
         Sharpe = 0;
         MaxDrawdown = 0;
@@ -403,7 +499,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     }
 
     private async Task<BacktestReport> RunSingleAsync(
-        StrategyKernelDescriptor descriptor,
+        StrategyCatalogDescriptor descriptor,
+        RichParameters parameters,
         Func<IMarketDataFeed> feedFactory,
         RunSpec spec,
         CancellationToken ct)
@@ -411,9 +508,10 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         if (!SupportsWorker(descriptor))
         {
             RunProgress = 5;
-            Status = "Running in-process; this strategy/data source has not migrated to the worker yet…";
-            return await Task.Run(
-                () => new BacktestEngine(feedFactory()).RunAsync(spec, descriptor.Create(), ct), ct);
+            Status = descriptor.ExecutionRoute == StrategyExecutionRoute.Signal
+                ? "Running through the signal execution seam…"
+                : "Running in-process with the selected timeframe…";
+            return await _studioRunner.RunAsync(descriptor, parameters, feedFactory, spec, ct);
         }
 
         var input = await CreateWorkerInputAsync(ct);
@@ -462,16 +560,13 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         if (mayFallback && IsWorkerFallbackEnabled())
         {
             Status = $"Worker {outcome.Status}; using the temporary in-process fallback…";
-            return await RunWorkerEquivalentFallbackAsync(input, spec, descriptor, ct);
+            return await RunWorkerEquivalentFallbackAsync(input, spec, descriptor, parameters, ct);
         }
 
         throw new InvalidOperationException($"Backtest worker {outcome.Status}: {error}");
     }
 
-    private bool SupportsWorker(StrategyKernelDescriptor descriptor) =>
-        (SelectedDataSource is DataSourceKind.Synthetic or DataSourceKind.Parquet) &&
-        NativeKernels.All.Any(native =>
-            string.Equals(native.Id, descriptor.Id, StringComparison.OrdinalIgnoreCase));
+    private bool SupportsWorker(StrategyCatalogDescriptor descriptor) => false;
 
     private async Task<BacktestInputReference> CreateWorkerInputAsync(CancellationToken ct)
     {
@@ -504,7 +599,8 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private async Task<BacktestReport> RunWorkerEquivalentFallbackAsync(
         BacktestInputReference input,
         RunSpec spec,
-        StrategyKernelDescriptor descriptor,
+        StrategyCatalogDescriptor descriptor,
+        RichParameters parameters,
         CancellationToken ct)
     {
         FileStream? parquetLease = null;
@@ -513,9 +609,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             if (input.Kind == BacktestInputKind.Parquet)
                 parquetLease = await OpenVerifiedParquetLeaseAsync(input, ct);
 
-            return await Task.Run(
-                () => new BacktestEngine(CreateWorkerEquivalentFeed(input, spec))
-                    .RunAsync(spec, descriptor.Create(), ct),
+            return await _studioRunner.RunAsync(
+                descriptor,
+                parameters,
+                () => CreateWorkerEquivalentFeed(input, spec),
+                spec,
                 ct);
         }
         finally
@@ -642,6 +740,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private async Task OptimizeAsync()
     {
         if (IsBusy || SelectedStrategy is null) return;
+        if (!SelectedStrategy.SupportsOptimization)
+        {
+            OptimizeStatus = "Optimization is available for kernel-native catalog entries only.";
+            return;
+        }
 
         var axisRows = Axes.Where(a => a.Enabled).ToList();
         if (axisRows.Count == 0) { OptimizeStatus = "Enable at least one parameter as a sweep axis."; return; }
@@ -659,7 +762,9 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             var axes = axisRows.Select(a => a.ToAxis()).ToList();
             var total = axes.Aggregate(1L, (acc, ax) => acc * Math.Max(1, ax.Values.Count));
 
-            var baseParams = new StrategyParameters(Parameters.ToDictionary(p => p.Name, p => p.Resolved));
+            var selectedParameters = descriptor.ResolveParameters(
+                Parameters.ToDictionary(p => p.Name, p => p.Resolved));
+            var baseParams = descriptor.CreateRunParameters(selectedParameters);
             if (!TryBuildContext(descriptor.Id, baseParams, out var feedFactory, out var baseSpec, out var error))
             {
                 OptimizeStatus = error;
@@ -667,7 +772,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
             }
             var optSpec = new OptimizationSpec(baseSpec, axes, SelectedCriterion, SelectedMethod);
 
-            IStrategyKernel KernelFactory() => descriptor.Create();
+            IStrategyKernel KernelFactory() => descriptor.CreateKernel(selectedParameters);
             var progress = new Progress<int>(done => OptimizeStatus = $"Evaluating {done:N0} / {total:N0}…");
 
             OptimizationResult result;
@@ -716,6 +821,11 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
     private async Task WalkForwardAsync()
     {
         if (IsBusy || SelectedStrategy is null) return;
+        if (!SelectedStrategy.SupportsOptimization)
+        {
+            OptimizeStatus = "Walk-forward is available for kernel-native catalog entries only.";
+            return;
+        }
 
         var axisRows = Axes.Where(a => a.Enabled).ToList();
         if (axisRows.Count == 0) { OptimizeStatus = "Enable at least one axis for walk-forward."; return; }
@@ -730,7 +840,9 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
         {
             var descriptor = SelectedStrategy;
             var axes = axisRows.Select(a => a.ToAxis()).ToList();
-            var baseParams = new StrategyParameters(Parameters.ToDictionary(p => p.Name, p => p.Resolved));
+            var selectedParameters = descriptor.ResolveParameters(
+                Parameters.ToDictionary(p => p.Name, p => p.Resolved));
+            var baseParams = descriptor.CreateRunParameters(selectedParameters);
             if (!TryBuildContext(descriptor.Id, baseParams, out var feedFactory, out var baseSpec, out var error))
             {
                 OptimizeStatus = error;
@@ -744,7 +856,9 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
                 var events = new List<MarketEvent>();
                 await foreach (var ev in feedFactory().StreamAsync(baseSpec, ct))
                     events.Add(ev);
-                return await new WalkForwardOptimizer(events, () => descriptor.Create()).RunAsync(optSpec, folds, ct);
+                return await new WalkForwardOptimizer(
+                    events,
+                    () => descriptor.CreateKernel(selectedParameters)).RunAsync(optSpec, folds, ct);
             }, ct);
 
             foreach (var fold in result.Folds) WalkForwardRows.Add(new WalkForwardRowViewModel(fold));
@@ -821,6 +935,7 @@ public sealed partial class BacktestStudioViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        _catalog.Changed -= OnCatalogChanged;
         StopPlayback();
         _runCts?.Cancel();
         _runCts?.Dispose();

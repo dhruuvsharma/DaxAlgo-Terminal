@@ -1,0 +1,560 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Domain;
+using TradingTerminal.Core.MarketData;
+using TradingTerminal.UI;
+using TradingTerminal.UI.Presets;
+using static TradingTerminal.Core.MarketData.Indicators;
+
+namespace TradingTerminal.Charts;
+
+/// <summary>
+/// Drives the TradingView-style Charts window. Mirrors <c>CorrelationMatrixViewModel</c>: pulls the
+/// broker instrument universe + historical bars from <see cref="IMarketDataRepository"/>, computes
+/// indicators in C# (so chart / backtest / live numbers agree), and streams the forming candle from
+/// <see cref="IMarketDataHub"/>. The window renders everything via Lightweight Charts in a WebView2 —
+/// this VM holds no view code, it just raises <see cref="SnapshotReady"/> / <see cref="CandleUpdated"/>.
+/// </summary>
+public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
+{
+    public const int MaxInstrumentsDisplayed = 500;
+
+    private readonly IMarketDataRepository _repository;
+    private readonly IMarketDataHub _hub;
+    private readonly IMarketDataIngest _ingest;
+    private readonly IBrokerSelector _selector;
+    private readonly ILogger<ChartsViewModel> _logger;
+
+    /// <summary>Non-null when this view-model lives inside a strategy window rather than the
+    /// standalone tool — see <see cref="ChartsEmbedOptions"/>.</summary>
+    private readonly ChartsEmbedOptions? _embed;
+
+    private IReadOnlyList<TradableInstrument> _allInstruments = Array.Empty<TradableInstrument>();
+    private bool _chartReady;
+    private CancellationTokenSource? _loadCts;
+    private IDisposable? _liveSub;
+    private IDisposable? _ingestHandle;
+    private int _disposeState;
+
+    // Retained for CSV export; refreshed on every successful reload.
+    private IReadOnlyList<Bar> _lastBars = Array.Empty<Bar>();
+    private ChartSnapshot? _lastSnapshot;
+
+    /// <summary>Set when a live candle arrived while paused, so resume can catch up exactly
+    /// (full reload) instead of splicing a stale <c>series.update</c>.</summary>
+    private bool _pausedDirty;
+    private bool _applyingPreset;
+
+    private static readonly IReadOnlyList<ChartTimeframe> AllTimeframes = new[]
+    {
+        new ChartTimeframe("1m",  BarSize.OneMinute,      TimeSpan.FromDays(2)),
+        new ChartTimeframe("5m",  BarSize.FiveMinutes,    TimeSpan.FromDays(5)),
+        new ChartTimeframe("15m", BarSize.FifteenMinutes, TimeSpan.FromDays(15)),
+        new ChartTimeframe("1h",  BarSize.OneHour,        TimeSpan.FromDays(60)),
+        new ChartTimeframe("1D",  BarSize.OneDay,         TimeSpan.FromDays(365)),
+    };
+
+    public ChartsViewModel(
+        IMarketDataRepository repository,
+        IMarketDataHub hub,
+        IMarketDataIngest ingest,
+        IBrokerSelector selector,
+        ILogger<ChartsViewModel> logger,
+        ChartsEmbedOptions? embed = null)
+    {
+        _repository = repository;
+        _hub = hub;
+        _ingest = ingest;
+        _selector = selector;
+        _logger = logger;
+        _embed = embed;
+
+        Timeframes = new ObservableCollection<ChartTimeframe>(AllTimeframes);
+        // Embedded (inside a strategy window): the host pins the instrument; the timeframe defaults to
+        // the strategy warm-up granularity (1m) since the gated-off toolbar leaves nothing to change it
+        // with. Nothing loads either way until the WebView reports ready.
+        SelectedTimeframe =
+            Timeframes.FirstOrDefault(t => t.BarSize == (embed?.BarSize ?? BarSize.OneHour))
+            ?? Timeframes.First(t => t.BarSize == BarSize.OneMinute);
+        Instruments = new ObservableCollection<TradableInstrument>();
+        PresetNames = new ObservableCollection<string>(_presetStore.Names);
+
+        if (embed is not null)
+        {
+            SelectedInstrument = embed.Instrument;
+            return; // no picker ⇒ no broker-universe swap; the host owns the selection
+        }
+        _ = LoadInstrumentsAsync();
+    }
+
+    public ObservableCollection<ChartTimeframe> Timeframes { get; }
+    public ObservableCollection<TradableInstrument> Instruments { get; }
+    public ObservableCollection<string> PresetNames { get; }
+
+    /// <summary>Series styles the JS side knows how to render (see index.html · setData).</summary>
+    public IReadOnlyList<string> ChartTypes { get; } = new[] { "Candles", "Bars", "Line", "Area" };
+
+    [ObservableProperty] private TradableInstrument? _selectedInstrument;
+    [ObservableProperty] private ChartTimeframe? _selectedTimeframe;
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
+    [ObservableProperty] private string _selectedChartType = "Candles";
+    [ObservableProperty] private bool _showSma = true;
+    [ObservableProperty] private bool _showEma = true;
+    [ObservableProperty] private bool _showRsi;
+    [ObservableProperty] private bool _showMacd;
+    [ObservableProperty] private string _status = "Loading instruments…";
+
+    /// <summary>Display pause: live candle pushes stop; the hub subscription keeps running so
+    /// resume is instant (a dirty flag triggers one exact catch-up reload).</summary>
+    [ObservableProperty] private bool _isPaused;
+
+    /// <summary>True once the current load produced at least one bar — drives the CSV button.</summary>
+    [ObservableProperty] private bool _hasData;
+
+    // ── Presets (named chart setups; unlike other tools these include symbol + interval) ────────
+    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
+    [ObservableProperty] private string _presetName = string.Empty;
+    [ObservableProperty] private string? _selectedPreset;
+
+    /// <summary>Raised after a history load with the full chart payload (candles + volume + indicators).</summary>
+    public event EventHandler<ChartSnapshot>? SnapshotReady;
+
+    /// <summary>Raised on each live forming/closed candle for the active instrument.</summary>
+    public event EventHandler<ChartCandle>? CandleUpdated;
+
+    /// <summary>Key under which this window remembers the last selected instrument (see
+    /// <see cref="LastInstrumentStore"/>).</summary>
+    private const string InstrumentPersistKey = "tool.charts";
+
+    partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
+    partial void OnSelectedInstrumentChanged(TradableInstrument? value) => QueueReload();
+    partial void OnSelectedTimeframeChanged(ChartTimeframe? value) => QueueReload();
+    partial void OnSelectedChartTypeChanged(string value) => QueueReload();
+    partial void OnShowSmaChanged(bool value) => QueueReload();
+    partial void OnShowEmaChanged(bool value) => QueueReload();
+    partial void OnShowRsiChanged(bool value) => QueueReload();
+    partial void OnShowMacdChanged(bool value) => QueueReload();
+
+    partial void OnIsPausedChanged(bool value)
+    {
+        if (value)
+        {
+            Status = $"⏸ Paused — live updates buffer in the background ({SelectedInstrument?.DisplayName}).";
+            return;
+        }
+        Status = $"Resumed — {SelectedInstrument?.DisplayName}.";
+        if (_pausedDirty)
+        {
+            _pausedDirty = false;
+            QueueReload();
+        }
+    }
+
+    partial void OnSelectedPresetChanged(string? value)
+    {
+        if (value is null) return;
+        PresetName = value;
+        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
+    }
+
+    /// <summary>Called by the window once the WebView2 page has loaded and can receive data.</summary>
+    public Task NotifyChartReadyAsync()
+    {
+        if (Volatile.Read(ref _disposeState) != 0) return Task.CompletedTask;
+        _chartReady = true;
+        return ReloadAsync();
+    }
+
+    private void QueueReload()
+    {
+        if (Volatile.Read(ref _disposeState) == 0 && _chartReady && !_applyingPreset)
+            _ = ReloadAsync();
+    }
+
+    private async Task LoadInstrumentsAsync()
+    {
+        try
+        {
+            var list = await _repository.ListInstrumentsAsync();
+            if (list is null || list.Count == 0)
+            {
+                Status = "No instruments — connect a broker first.";
+                return;
+            }
+            _allInstruments = list;
+            SelectedInstrument =
+                (SelectedInstrument?.Contract.Symbol is { } prev
+                    ? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == prev) : null)
+                ?? InstrumentPickerFilter.Remembered(InstrumentPersistKey, _allInstruments, i => i.Contract.Symbol)
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                ?? _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                ?? _allInstruments.FirstOrDefault();
+            ApplyFilter();
+            Status = $"{_allInstruments.Count} instruments.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Charts: instrument load failed");
+            Status = $"Instrument load failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Hide-until-search: no term shows only the current selection; typing filters
+    /// <see cref="_allInstruments"/>. Rebuilt in place so the selection never flickers out.</summary>
+    private void ApplyFilter() => InstrumentPickerFilter.Apply(
+        Instruments,
+        InstrumentPickerFilter.Visible(_allInstruments, InstrumentSearchText, SelectedInstrument,
+            MaxInstrumentsDisplayed, i => i.DisplayName));
+
+    private async Task ReloadAsync()
+    {
+        if (Volatile.Read(ref _disposeState) != 0) return;
+
+        var instrument = SelectedInstrument;
+        var tf = SelectedTimeframe;
+        if (instrument is null || tf is null) return;
+
+        // Publish the next source atomically so each reload/dispose caller owns exactly one source.
+        // Capture the token before publication: another reload can cancel and dispose the source as
+        // soon as it becomes current, but an already-captured token remains safe to observe.
+        var nextCts = new CancellationTokenSource();
+        var ct = nextCts.Token;
+        var previousCts = Interlocked.Exchange(ref _loadCts, nextCts);
+        try { previousCts?.Cancel(); }
+        finally { previousCts?.Dispose(); }
+
+        // Dispose may have won between the entry check and the exchange above. Withdraw the source
+        // only if it is still ours; otherwise the reload/dispose that replaced it owns cleanup.
+        if (Volatile.Read(ref _disposeState) != 0)
+        {
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _loadCts, null, nextCts), nextCts))
+            {
+                nextCts.Cancel();
+                nextCts.Dispose();
+            }
+            return;
+        }
+
+        StopLive();
+
+        BrokerKind broker;
+        try { broker = ResolveBroker(instrument); }
+        catch (InvalidOperationException ex) { Status = ex.Message; return; }
+
+        Status = $"Loading {instrument.DisplayName} ({tf.Label})…";
+        try
+        {
+            var bars = await _repository.GetHistoricalBarsAsync(instrument.Contract, broker, tf.BarSize, tf.Lookback, ct)
+                       ?? Array.Empty<Bar>();
+
+            var candles = new ChartCandle[bars.Count];
+            var volume = new ChartVolume[bars.Count];
+            for (int i = 0; i < bars.Count; i++)
+            {
+                var b = bars[i];
+                var t = ToEpoch(b.TimestampUtc);
+                candles[i] = new ChartCandle(t, b.Open, b.High, b.Low, b.Close);
+                volume[i] = new ChartVolume(t, b.Volume, b.Close >= b.Open ? "#26a69a80" : "#ef535080");
+            }
+
+            var snapshot = new ChartSnapshot(
+                Symbol: instrument.DisplayName,
+                Timeframe: tf.Label,
+                ChartType: SelectedChartType,
+                Candles: candles,
+                Volume: volume,
+                Sma: ShowSma ? Sma(bars, 20) : null,
+                Ema: ShowEma ? Ema(bars, 50) : null,
+                Rsi: ShowRsi ? Rsi(bars, 14) : null,
+                Macd: ShowMacd ? Macd(bars, 12, 26, 9) : null);
+
+            if (ct.IsCancellationRequested) return;
+            _lastBars = bars;
+            _lastSnapshot = snapshot;
+            HasData = bars.Count > 0;
+            SnapshotReady?.Invoke(this, snapshot);
+            Status = bars.Count == 0
+                ? $"No history for {instrument.DisplayName} — is the broker connected and streaming?"
+                : $"{instrument.DisplayName} · {tf.Label} · {bars.Count} bars";
+
+            StartLive(instrument, broker, tf.BarSize);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Charts: load failed for {Symbol}", instrument.Contract.Symbol);
+            Status = $"Load failed: {ex.Message}";
+        }
+    }
+
+    private void StartLive(TradableInstrument instrument, BrokerKind broker, BarSize size)
+    {
+        try
+        {
+            var id = _ingest.Resolve(instrument.Contract, broker);
+            _ingestHandle = _ingest.SubscribeBars(instrument.Contract, broker, size);
+            _liveSub = _hub.Bars(id, size).Subscribe(bar =>
+                _ = UiThread.RunAsync(() =>
+                {
+                    if (IsPaused) { _pausedDirty = true; return; }
+                    CandleUpdated?.Invoke(this,
+                        new ChartCandle(ToEpoch(bar.OpenTimeUtc), bar.Open, bar.High, bar.Low, bar.Close));
+                }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Charts: live subscription failed (continuing with history only)");
+        }
+    }
+
+    private void StopLive()
+    {
+        _liveSub?.Dispose(); _liveSub = null;
+        _ingestHandle?.Dispose(); _ingestHandle = null;
+    }
+
+    private BrokerKind ResolveBroker(TradableInstrument instrument)
+    {
+        if (_selector.IsConnected(instrument.Broker)) return instrument.Broker;
+        var connected = _selector.Connected;
+        if (connected.Count == 0)
+            throw new InvalidOperationException("No broker is connected. Connect at least one broker first.");
+        return connected[0];
+    }
+
+    private static long ToEpoch(DateTime utc) =>
+        new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeSeconds();
+
+    // ── Presets ──────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ToolPresetStore<ChartsPreset> _presetStore = new("charts");
+
+    [RelayCommand]
+    private void SavePreset()
+    {
+        var name = PresetName.Trim();
+        if (name.Length == 0) return;
+        _presetStore.Save(name, new ChartsPreset(
+            SelectedInstrument?.Contract.Symbol, SelectedTimeframe?.Label, SelectedChartType,
+            ShowSma, ShowEma, ShowRsi, ShowMacd));
+        RefreshPresetNames(selected: name);
+        _logger.LogInformation("Charts: preset '{Name}' saved", name);
+    }
+
+    [RelayCommand]
+    private void DeletePreset()
+    {
+        var name = SelectedPreset ?? PresetName.Trim();
+        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
+        RefreshPresetNames(selected: null);
+        _logger.LogInformation("Charts: preset '{Name}' deleted", name);
+    }
+
+    /// <summary>Applies a preset behind <see cref="_applyingPreset"/> so the individual property
+    /// changes don't each fire a reload; one reload runs at the end.</summary>
+    private void ApplyPreset(ChartsPreset preset)
+    {
+        _applyingPreset = true;
+        try
+        {
+            if (preset.Symbol is { Length: > 0 } symbol &&
+                _allInstruments.FirstOrDefault(i => i.Contract.Symbol == symbol) is { } match)
+            {
+                SelectedInstrument = match;
+                ApplyFilter();   // keep the hide-until-search combo showing the new selection
+            }
+            if (preset.Timeframe is { Length: > 0 } label &&
+                Timeframes.FirstOrDefault(t => t.Label == label) is { } tf)
+                SelectedTimeframe = tf;
+            if (preset.ChartType is { Length: > 0 } type && ChartTypes.Contains(type))
+                SelectedChartType = type;
+            ShowSma = preset.ShowSma;
+            ShowEma = preset.ShowEma;
+            ShowRsi = preset.ShowRsi;
+            ShowMacd = preset.ShowMacd;
+        }
+        finally
+        {
+            _applyingPreset = false;
+        }
+        QueueReload();
+    }
+
+    private void RefreshPresetNames(string? selected)
+    {
+        PresetNames.Clear();
+        foreach (var n in _presetStore.Names) PresetNames.Add(n);
+        SelectedPreset = selected;
+    }
+
+    // ── CSV export (VM-side via the portable UiFile seam; PNG stays view-side) ──────────────────
+
+    [RelayCommand]
+    private async Task ExportCsvAsync()
+    {
+        var bars = _lastBars;
+        var snap = _lastSnapshot;
+        if (bars.Count == 0 || snap is null) return;
+
+        var sma = ToMap(snap.Sma);
+        var ema = ToMap(snap.Ema);
+        var rsi = ToMap(snap.Rsi);
+        var macd = snap.Macd?.ToDictionary(m => m.Time);
+
+        var sb = new StringBuilder();
+        sb.Append("time_utc,open,high,low,close,volume");
+        if (sma is not null) sb.Append(",sma20");
+        if (ema is not null) sb.Append(",ema50");
+        if (rsi is not null) sb.Append(",rsi14");
+        if (macd is not null) sb.Append(",macd,macd_signal,macd_hist");
+        sb.AppendLine();
+
+        foreach (var b in bars)
+        {
+            var t = ToEpoch(b.TimestampUtc);
+            sb.Append(string.Create(CultureInfo.InvariantCulture,
+                $"{b.TimestampUtc:O},{b.Open},{b.High},{b.Low},{b.Close},{b.Volume}"));
+            if (sma is not null) AppendOptional(sb, sma, t);
+            if (ema is not null) AppendOptional(sb, ema, t);
+            if (rsi is not null) AppendOptional(sb, rsi, t);
+            if (macd is not null)
+                sb.Append(macd.TryGetValue(t, out var m)
+                    ? string.Create(CultureInfo.InvariantCulture, $",{m.Macd},{m.Signal},{m.Hist}")
+                    : ",,,");
+            sb.AppendLine();
+        }
+
+        try
+        {
+            var path = await UiFile.SaveAsync("CSV", new[] { "csv" },
+                $"chart-{SymbolToken()}-{snap.Timeframe}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+            if (path is null) return;
+            await File.WriteAllTextAsync(path, sb.ToString());
+            Status = $"Exported → {path}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Charts: CSV export failed");
+            Status = $"Export failed: {ex.Message}";
+        }
+
+        static Dictionary<long, double>? ToMap(ChartLinePoint[]? pts) =>
+            pts?.ToDictionary(p => p.Time, p => p.Value);
+
+        static void AppendOptional(StringBuilder sb, Dictionary<long, double> map, long t) =>
+            sb.Append(map.TryGetValue(t, out var v)
+                ? string.Create(CultureInfo.InvariantCulture, $",{v}")
+                : ",");
+    }
+
+    private string SymbolToken() =>
+        (SelectedInstrument?.Contract.Symbol ?? "chart").Replace('/', '-').Replace(':', '-');
+
+    // ── Indicators (computed in C# over closes; reuse Core primitives) ──────────────────────────
+
+    private static ChartLinePoint[] Sma(IReadOnlyList<Bar> bars, int period)
+    {
+        var ind = new SimpleMovingAverage(period);
+        var pts = new List<ChartLinePoint>(bars.Count);
+        foreach (var b in bars) { ind.Push(b.Close); if (ind.IsReady) pts.Add(new ChartLinePoint(ToEpoch(b.TimestampUtc), Round(ind.Value))); }
+        return pts.ToArray();
+    }
+
+    private static ChartLinePoint[] Ema(IReadOnlyList<Bar> bars, int period)
+    {
+        var ind = new ExponentialMovingAverage(period);
+        var pts = new List<ChartLinePoint>(bars.Count);
+        foreach (var b in bars) { ind.Push(b.Close); if (ind.IsReady) pts.Add(new ChartLinePoint(ToEpoch(b.TimestampUtc), Round(ind.Value))); }
+        return pts.ToArray();
+    }
+
+    private static ChartLinePoint[] Rsi(IReadOnlyList<Bar> bars, int period)
+    {
+        var ind = new RelativeStrengthIndex(period);
+        var pts = new List<ChartLinePoint>(bars.Count);
+        foreach (var b in bars) { ind.Push(b.Close); if (ind.IsReady) pts.Add(new ChartLinePoint(ToEpoch(b.TimestampUtc), Round(ind.Value))); }
+        return pts.ToArray();
+    }
+
+    private static MacdPoint[] Macd(IReadOnlyList<Bar> bars, int fast, int slow, int signal)
+    {
+        var emaFast = new ExponentialMovingAverage(fast);
+        var emaSlow = new ExponentialMovingAverage(slow);
+        var emaSig = new ExponentialMovingAverage(signal);
+        var pts = new List<MacdPoint>(bars.Count);
+        foreach (var b in bars)
+        {
+            emaFast.Push(b.Close);
+            emaSlow.Push(b.Close);
+            if (!emaSlow.IsReady) continue;
+            var macd = emaFast.Value - emaSlow.Value;
+            emaSig.Push(macd);
+            var sig = emaSig.Value;
+            pts.Add(new MacdPoint(ToEpoch(b.TimestampUtc), Round(macd), Round(sig), Round(macd - sig)));
+        }
+        return pts.ToArray();
+    }
+
+    private static double Round(double v) => Math.Round(v, 6);
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        // Remember the instrument the user was last charting so the window reopens on it — but never
+        // from an embedded panel, whose instrument belongs to the strategy, not to the standalone tool.
+        if (_embed is null)
+            LastInstrumentStore.Save(InstrumentPersistKey, SelectedInstrument?.Contract.Symbol);
+        var loadCts = Interlocked.Exchange(ref _loadCts, null);
+        loadCts?.Cancel();
+        loadCts?.Dispose();
+        StopLive();
+    }
+}
+
+/// <summary>A selectable timeframe — label, the canonical <see cref="BarSize"/>, and how much history to pull.</summary>
+public sealed record ChartTimeframe(string Label, BarSize BarSize, TimeSpan Lookback);
+
+/// <summary>
+/// How an embedding host — a composed strategy window — wants the <see cref="ChartsViewModel"/> born:
+/// the pinned instrument (null = wait for the host to assign one) and the fixed timeframe (default 1m,
+/// the strategy warm-up granularity). Passed as an <c>ActivatorUtilities</c> argument. The standalone
+/// window resolves the view-model without this and keeps today's behaviour: persisted instrument,
+/// broker-universe picker, 1h default.
+/// </summary>
+public sealed record ChartsEmbedOptions(TradableInstrument? Instrument = null, BarSize BarSize = BarSize.OneMinute);
+
+/// <summary>A named snapshot of the Charts window's setup, persisted per user by
+/// <see cref="ToolPresetStore{T}"/> (LocalAppData\DaxAlgo Terminal\tool-presets\charts.json).
+/// Unlike the other tools, chart presets deliberately include symbol + interval — a preset here is
+/// "my SPY hourly setup", not just view toggles. All fields are optional so older files apply.</summary>
+public sealed record ChartsPreset(
+    string? Symbol,
+    string? Timeframe,
+    string? ChartType,
+    bool ShowSma,
+    bool ShowEma,
+    bool ShowRsi,
+    bool ShowMacd);
+
+// ── JSON bridge DTOs (camelCase via the window's serializer) → Lightweight Charts shapes ─────────
+public sealed record ChartCandle(long Time, double Open, double High, double Low, double Close);
+public sealed record ChartVolume(long Time, double Value, string Color);
+public sealed record ChartLinePoint(long Time, double Value);
+public sealed record MacdPoint(long Time, double Macd, double Signal, double Hist);
+public sealed record ChartSnapshot(
+    string Symbol,
+    string Timeframe,
+    string ChartType,
+    ChartCandle[] Candles,
+    ChartVolume[] Volume,
+    ChartLinePoint[]? Sma,
+    ChartLinePoint[]? Ema,
+    ChartLinePoint[]? Rsi,
+    MacdPoint[]? Macd);

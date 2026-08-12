@@ -14,10 +14,13 @@ strategy idea
     -> review and run in a compatible host
 ```
 
-> **Data and signals only.** DaxAlgo Terminal has no live order-execution path. A strategy can emit
-> simulated orders during a backtest and signals during a live data session, but the application does
-> not place orders with a broker. The disabled **Execution Engine > Not yet available** menu item makes
-> this boundary explicit in the UI.
+> **The shipped build places no broker orders.** Since 2026-08-12 the execution engine, OMS, risk
+> engine, and the Interactive Brokers / cTrader / Alpaca execution adapters live in this repository
+> under `src/windows/Execution/` — but the Basic shell **composes none of them**: no execution service
+> is registered, no order-entry surface is exposed, and the disabled **Execution Engine > Not yet
+> available** menu item still marks the boundary in the UI. A strategy emits simulated orders during a
+> backtest and signals during a live data session. The source to build a live order path is now here
+> and AGPL-licensed; wiring it into a shell is deliberately left undone.
 
 The application has no DaxAlgo product account, subscription sign-in, or entitlement gate. On a normal
 start it opens the broker-selection window. Broker credentials are requested only when the selected data

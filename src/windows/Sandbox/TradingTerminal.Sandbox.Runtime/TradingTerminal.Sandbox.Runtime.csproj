@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <Description>Write-side sandbox bridge backed by the deterministic model-portfolio simulator.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\windows\Pipeline\TradingTerminal.Sandbox\TradingTerminal.Sandbox.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\TradingTerminal.Sandbox.Portfolio\TradingTerminal.Sandbox.Portfolio.csproj" />
+  </ItemGroup>
+
+</Project>

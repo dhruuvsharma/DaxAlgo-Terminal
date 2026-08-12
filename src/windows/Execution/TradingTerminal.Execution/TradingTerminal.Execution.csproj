@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>Exact trade-intent policy, paper-default/live-gated broker adapters, durable OMS ledger, and local execution-service contracts.</Description>
+  </PropertyGroup>
+
+  <!--
+    Resolve the same IB CSharpAPI.dll used by the public data client. Search order:
+      1. lib/CSharpAPI.dll (or the legacy lib/IBApi.dll name)
+      2. $(TwsApiClientDll) supplied externally
+      3. The default TWS API install path
+    The SDK-free seam and mock path always compile; only the real socket transport is HAS_IBAPI-gated.
+  -->
+  <PropertyGroup>
+    <_LocalCSharpApiDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\CSharpAPI.dll</_LocalCSharpApiDll>
+    <_LocalLegacyIbApiDll>$(MSBuildThisFileDirectory)..\..\..\..\lib\IBApi.dll</_LocalLegacyIbApiDll>
+    <_DefaultTwsInstallDll>C:\TWS API\source\CSharpClient\client\bin\Release\net8.0\CSharpAPI.dll</_DefaultTwsInstallDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalCSharpApiDll)')">
+    <_ResolvedTwsApiDll>$(_LocalCSharpApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_LocalLegacyIbApiDll)')">
+    <_ResolvedTwsApiDll>$(_LocalLegacyIbApiDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND '$(TwsApiClientDll)' != '' AND Exists('$(TwsApiClientDll)')">
+    <_ResolvedTwsApiDll>$(TwsApiClientDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' == '' AND Exists('$(_DefaultTwsInstallDll)')">
+    <_ResolvedTwsApiDll>$(_DefaultTwsInstallDll)</_ResolvedTwsApiDll>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <DefineConstants>$(DefineConstants);HAS_IBAPI</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <Reference Include="CSharpAPI">
+      <HintPath>$(_ResolvedTwsApiDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ReportIbApiResolution" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedTwsApiDll)' != ''">
+    <Message Importance="high" Text="IB CSharpAPI resolved from: $(_ResolvedTwsApiDll)" />
+  </Target>
+
+  <!--
+    Fail loudly on a stale layout. Resolution failing is legitimate (no TWS API installed => the
+    SDK-free seam and mock path still compile), but it is otherwise indistinguishable from the
+    relative path above having gone stale, which would silently compile out the real IB transport
+    and leave a build that succeeds with a broker that does nothing. Warn only when the anchor
+    directory itself is absent; report the benign case as a message.
+  -->
+  <Target Name="ReportIbApiUnresolved" AfterTargets="ResolveAssemblyReferences" Condition="'$(_ResolvedTwsApiDll)' == ''">
+    <Warning Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\..\lib')"
+             Text="Shared-core path '$(MSBuildThisFileDirectory)..\..\..\..\lib' does not exist, so the local IB DLL probe can never succeed. If the repository layout changed, update _LocalCSharpApiDll/_LocalLegacyIbApiDll. HAS_IBAPI is undefined and the real IB socket transport is compiled out." />
+    <Message Importance="high" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\..\lib')"
+             Text="IB CSharpAPI not resolved; HAS_IBAPI undefined and the real IB socket transport is compiled out (mock path still builds)." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
+    <ProjectReference Include="..\..\Sandbox\TradingTerminal.Sandbox.Runtime\TradingTerminal.Sandbox.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="cTrader.OpenAPI.Net" Version="1.4.4" />
+    <PackageReference Include="Google.Protobuf" Version="3.29.5" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

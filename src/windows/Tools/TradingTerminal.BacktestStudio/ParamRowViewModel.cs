@@ -1,24 +1,37 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
-using TradingTerminal.Core.Backtesting;
+using TradingTerminal.Core.Strategies.Parameters;
 
 namespace TradingTerminal.BacktestStudio;
 
-/// <summary>One editable row in the parameter panel, generated from a kernel's
-/// <see cref="ParameterDescriptor"/> so the Studio's tuning surface always matches the schema.</summary>
+/// <summary>One typed editor row generated from the catalog's canonical rich parameter schema.</summary>
 public sealed partial class ParamRowViewModel : ObservableObject
 {
-    public ParamRowViewModel(ParameterDescriptor descriptor)
+    public ParamRowViewModel(StrategyParameter descriptor)
     {
         Descriptor = descriptor;
         _value = descriptor.Default;
     }
 
-    public ParameterDescriptor Descriptor { get; }
-    public string Name => Descriptor.Name;
-    public string Label => Descriptor.Label;
+    public StrategyParameter Descriptor { get; }
+    public string Name => Descriptor.Key;
+    public string Label => Descriptor.DisplayName;
+    public ParameterKind Kind => Descriptor.Kind;
+    public IReadOnlyList<string> Choices => Descriptor.Choices ?? [];
+    public string? Description => Descriptor.Description;
+    public bool IsBoolean => Kind == ParameterKind.Boolean;
+    public bool IsChoice => Kind == ParameterKind.Choice;
+    public bool IsText => Kind == ParameterKind.Text;
+    public bool IsNumeric => Kind is ParameterKind.Integer or ParameterKind.Number;
+    public string DefaultText => Convert.ToString(Descriptor.Default, CultureInfo.InvariantCulture) ?? string.Empty;
+    public string RangeText => Descriptor.Min is null && Descriptor.Max is null
+        ? "Unbounded"
+        : $"{Format(Descriptor.Min, "-∞")} to {Format(Descriptor.Max, "+∞")}";
 
-    [ObservableProperty] private double _value;
+    [ObservableProperty] private object? _value;
 
-    /// <summary>The value clamped into the descriptor's domain — what actually feeds the run.</summary>
-    public double Resolved => Descriptor.Clamp(Value);
+    public object? Resolved => Value;
+
+    private static string Format(double? value, string fallback) =>
+        value?.ToString("G", CultureInfo.InvariantCulture) ?? fallback;
 }
