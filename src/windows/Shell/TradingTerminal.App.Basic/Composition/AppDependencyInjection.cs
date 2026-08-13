@@ -57,8 +57,8 @@ public static class AppDependencyInjection
         services.AddNotifications(configuration);
 
         // Python-sidecar controller seam. The login screen depends on ISidecarController, but the real
-        // sidecar host is a Professional-only surface (AddSidecar). Register a no-op fallback here so
-        // Basic composes; Professional's AddSidecar (a plain AddSingleton) registers the real
+        // sidecar host is a Pro-only surface (AddSidecar). Register a no-op fallback here so
+        // Basic composes; Pro's AddSidecar (a plain AddSingleton) registers the real
         // one after this and wins.
         services.TryAddSingleton<TradingTerminal.Core.Hosting.ISidecarController,
             TradingTerminal.Core.Hosting.NullSidecarController>();

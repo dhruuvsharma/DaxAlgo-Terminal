@@ -166,7 +166,7 @@ public partial class App : Application
 
                 // The core composition (pipeline / archive / notifications / strategy plug-ins /
                 // login / shell + window host / support / settings + cross-cutting singletons).
-                // No Professional surface is registered —
+                // No Pro surface is registered —
                 // this edition's exe does not even reference those projects.
                 services.AddCoreShell(ctx.Configuration);
             })
