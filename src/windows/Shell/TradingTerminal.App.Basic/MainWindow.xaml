@@ -583,12 +583,20 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" Grid.Column="0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Name}"
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- Name wraps within the * column; a horizontal StackPanel would give it
+                                             infinite measure width, defeating TextWrapping and overflowing the tags. -->
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
                                                    Foreground="{DynamicResource Text.Header}"
                                                    FontWeight="Bold" FontSize="15" TextWrapping="Wrap" />
                                         <!-- DEV badge for strategies contributed by an unsigned plugin (mirrors Extensions). -->
-                                        <Border CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
+                                        <Border Grid.Column="1"
+                                                CornerRadius="0" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Top"
                                                 Background="{DynamicResource Warning.Brush}">
                                             <Border.Visibility>
                                                 <MultiBinding Converter="{StaticResource UnsignedStrategyConverter}">
@@ -601,12 +609,7 @@
                                                        Foreground="{DynamicResource Background.Primary}"
                                                        ToolTip="Unsigned plugin — running on your consent" />
                                         </Border>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding Id}"
-                                               Foreground="{DynamicResource Text.Highlight}"
-                                               FontSize="10"
-                                               Margin="12,1,0,0"
-                                               Visibility="{Binding Kind, Converter={StaticResource CatalogItemKindToVisibilityConverter}, ConverterParameter=Strategy}" />
+                                    </Grid>
                                     <!-- Alpha-generating formula — shown only when the user has added one. -->
                                     <Border Margin="12,6,0,0"
                                             Background="{DynamicResource Background.Surface}"
