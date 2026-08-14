@@ -29,7 +29,6 @@
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.BacktestStudio\TradingTerminal.BacktestStudio.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
   </ItemGroup>
 
