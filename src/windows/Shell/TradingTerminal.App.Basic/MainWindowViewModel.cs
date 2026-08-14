@@ -13,7 +13,6 @@ using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
 using TradingTerminal.Backtest;
-using TradingTerminal.BacktestStudio;
 using TradingTerminal.Recording;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
@@ -36,7 +35,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string NotificationsWindowId = "settings.notifications";
     private const string PluginManagerWindowId = "plugins.manager";
     private const string StrategyAuthoringWindowId = "authoring.strategy";
-    private const string BacktestStudioWindowId = "tools.backtest-studio";
     private const string RecorderWindowId = "tools.recorder";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
@@ -645,9 +643,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _logger.LogInformation("Launched CLI {Cli}: {Message}", choice.DisplayName, result.Message);
     }
 
-    [RelayCommand]
-    public void OpenBacktestStudio() =>
-        _host.OpenHostedTool<BacktestStudioViewModel, BacktestStudioView>(BacktestStudioWindowId, "Backtest Studio", "Loading the backtest studio…");
 
     /// <summary>The app-lifetime recording service, exposed so the header REC chip can light while a
     /// background recording is running. The panel window is only a view onto it — closing the panel

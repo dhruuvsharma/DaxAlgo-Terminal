@@ -403,10 +403,6 @@
                           ToolTip="Open the live colour editor — tweak any palette token, then save and share custom themes." />
             </MenuItem>
 
-            <MenuItem Header="_Backtest Engine">
-                <MenuItem Icon="📊" Header="_Backtest Studio…"
-                          Command="{Binding OpenBacktestStudioCommand}" />
-            </MenuItem>
 
             <MenuItem x:Name="StrategyStudioMenuItem">
                 <MenuItem.Header>
