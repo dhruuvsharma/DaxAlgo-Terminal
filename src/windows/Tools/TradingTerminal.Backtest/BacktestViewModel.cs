@@ -9,7 +9,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Backtest;
-using TradingTerminal.Core.Backtest.Fast;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.UI;
@@ -27,18 +26,15 @@ public sealed partial class BacktestViewModel : ViewModelBase
 {
     private readonly ILogger<BacktestViewModel> _logger;
     private readonly IBacktestSession _session;
-    private readonly IFastBacktestRunner _fastRunner;
     private CancellationTokenSource? _runCts;
 
     public BacktestViewModel(
         IBacktestStrategyRegistry registry,
         IBacktestSession session,
-        IFastBacktestRunner fastRunner,
         ILogger<BacktestViewModel> logger)
     {
         _logger = logger;
         _session = session;
-        _fastRunner = fastRunner;
         Strategies = new ObservableCollection<BacktestStrategyOption>(registry.All);
         SelectedStrategy = Strategies.FirstOrDefault();
         Trades = new ObservableCollection<Trade>();
@@ -68,7 +64,7 @@ public sealed partial class BacktestViewModel : ViewModelBase
         var name = PresetName.Trim();
         if (name.Length == 0) return;
         _presetStore.Save(name, new BacktestRunPreset(
-            SelectedStrategy?.Id, UseFastEngine, TickSize, SlippageTicks, ContractMultiplier, StartingCash));
+            SelectedStrategy?.Id, TickSize, SlippageTicks, ContractMultiplier, StartingCash));
         RefreshPresetNames(selected: name);
         _logger.LogInformation("Backtest: preset '{Name}' saved", name);
     }
@@ -87,7 +83,6 @@ public sealed partial class BacktestViewModel : ViewModelBase
         if (preset.StrategyId is { Length: > 0 } id &&
             Strategies.FirstOrDefault(o => o.Id == id) is { } match)
             SelectedStrategy = match;
-        UseFastEngine = preset.UseFastEngine;
         if (preset.TickSize > 0) TickSize = preset.TickSize;
         if (preset.SlippageTicks >= 0) SlippageTicks = preset.SlippageTicks;
         if (preset.ContractMultiplier > 0) ContractMultiplier = preset.ContractMultiplier;
@@ -151,10 +146,8 @@ public sealed partial class BacktestViewModel : ViewModelBase
     public ObservableCollection<EquityPoint> EquityCurve { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFastAvailable))]
     private BacktestStrategyOption? _selectedStrategy;
 
-    [ObservableProperty] private bool _useFastEngine;
     [ObservableProperty] private string _symbol = "ES";
     [ObservableProperty] private string _dataPath = "";
     [ObservableProperty] private DateTime? _fromUtc;
@@ -175,8 +168,6 @@ public sealed partial class BacktestViewModel : ViewModelBase
     /// on the C++ side (BacktestStrategyOption.Fast). The Fast checkbox in the XAML
     /// binds IsEnabled to this so it greys out for unsupported strategies.
     /// </summary>
-    public bool IsFastAvailable =>
-        _fastRunner.IsAvailable && (SelectedStrategy?.Fast ?? false);
 
     /// <summary>Raised after a run completes so the view can redraw the ScottPlot equity curve.</summary>
     public event EventHandler? EquityCurveUpdated;
@@ -214,26 +205,7 @@ public sealed partial class BacktestViewModel : ViewModelBase
 
         try
         {
-            if (UseFastEngine && IsFastAvailable)
-            {
-                var request = new FastBacktestRequest(
-                    StrategyId: SelectedStrategy.Id,
-                    Symbol: Symbol,
-                    TickDataParquetPath: DataPath,
-                    TickSize: TickSize,
-                    ContractMultiplier: ContractMultiplier,
-                    StartingCash: StartingCash,
-                    SlippageTicks: SlippageTicks);
-
-                var fast = await _fastRunner.RunAsync(request, ct);
-
-                Stats = fast.Stats;
-                TotalPnl = fast.EndingCash - StartingCash;
-                Status = $"Done (Fast / C++). {fast.Stats.TradeCount} trades, P&L {TotalPnl.ToString("C2", CultureInfo.CurrentCulture)} in {fast.EngineMilliseconds:F0} ms.";
-                EquityCurveUpdated?.Invoke(this, EventArgs.Empty);
-            }
-            else
-            {
+{
                 var config = new BacktestConfig(
                     Contract: contract,
                     TickDataPath: DataPath,
@@ -288,7 +260,6 @@ public sealed partial class BacktestViewModel : ViewModelBase
 /// Symbol, data path and date range are run-specific and deliberately excluded.</summary>
 public sealed record BacktestRunPreset(
     string? StrategyId,
-    bool UseFastEngine,
     double TickSize,
     int SlippageTicks,
     double ContractMultiplier,

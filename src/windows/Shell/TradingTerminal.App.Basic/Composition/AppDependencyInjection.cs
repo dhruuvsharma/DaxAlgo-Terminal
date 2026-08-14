@@ -10,7 +10,6 @@ using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Theming;
 using TradingTerminal.Infrastructure.Backtest;
-using TradingTerminal.Infrastructure.Backtest.Fast;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
@@ -97,7 +96,6 @@ public static class AppDependencyInjection
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
         // Basic does not register a default live-view composer. Authored strategies without their own
         // view remain backtest-only; plugin strategies that ship a view continue to open normally.
-        services.AddFastBacktestRunner();
         // AI Strategy Builder backend (codegen providers + build-loop orchestrator + context pack) — the
         // authoring pane's AI panel resolves IAiStrategyBuilder from here. Keyless by default (installed
         // agent CLIs + local Ollama); a shell that registers an IAiKeyResolver over its credential store

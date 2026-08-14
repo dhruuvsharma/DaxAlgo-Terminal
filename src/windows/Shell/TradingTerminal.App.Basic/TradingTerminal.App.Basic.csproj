@@ -63,22 +63,6 @@
     </None>
   </ItemGroup>
 
-  <!--
-    Polyglot bridge: copy the C++ tick_backtester.exe / gpu_optimizer.exe to the output when built.
-    The retained backtest-engine/authoring path can use the accelerator when present; missing files
-    are silently skipped and the DI layer falls back to NullFastBacktestRunner.
-  -->
-  <ItemGroup>
-    <None Include="..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe')" Link="tick_backtester.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\..\..\..\tools\cpp-backtester\build\tick_backtester.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\build\tick_backtester.exe') And !Exists('..\..\..\..\tools\cpp-backtester\build\Release\tick_backtester.exe')" Link="tick_backtester.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe" Condition="Exists('..\..\..\..\tools\cpp-backtester\gpu\build\gpu_optimizer.exe')" Link="gpu_optimizer.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
   <Import Project="..\..\Backtest\BacktestWorker.Staging.targets" />
 
