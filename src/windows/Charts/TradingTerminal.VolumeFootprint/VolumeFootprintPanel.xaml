@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="TradingTerminal.VolumeFootprint.VolumeFootprintPanel"
+<UserControl x:Class="TradingTerminal.VolumeFootprint.VolumeFootprintPanel"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -54,20 +54,8 @@
             </Border.Resources>
 
             <DockPanel LastChildFill="True">
-                <!-- ── Actions (right): presets · pause · export · help ── -->
+                <!-- ── Actions (right): pause · export · help ── -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
-                    <ComboBox Width="120" IsEditable="True"
-                              ItemsSource="{Binding PresetNames}"
-                              SelectedItem="{Binding SelectedPreset}"
-                              Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
-                              ToolTip="Pick a preset to apply it, or type a new name and press save" />
-                    <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
-                            Command="{Binding SavePresetCommand}"
-                            ToolTip="Save the current view options (interval, tick, overlays, fits, ML) as a named preset" />
-                    <Button Style="{StaticResource App.IconButton}" Content="🗑"
-                            Command="{Binding DeletePresetCommand}"
-                            ToolTip="Delete the selected preset" />
                     <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
                                   IsChecked="{Binding IsPaused}"
                                   ToolTip="Pause the display — the tape keeps accumulating underneath, resume is instant" />
@@ -84,14 +72,9 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal">
-                <!-- ── Primary data selectors (kept inline; changed most often) ── -->
-                <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
-                <uic:InstrumentPicker Width="240"
-                                      ItemsSource="{Binding Instruments}"
-                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
-                                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
-                                      MaxDropDownHeight="460" Margin="0,0,12,0" />
-
+                <!-- ── Primary data selectors (kept inline; changed most often). The instrument
+                     picker was removed 2026-08-14: an artifact may span instruments or an external
+                     source, so a single-instrument selector no longer fits. ── -->
                 <TextBlock Text="Interval" Style="{StaticResource ToolLabel}" />
                 <ComboBox Width="70" VerticalAlignment="Center"
                           ItemsSource="{Binding Intervals}"
