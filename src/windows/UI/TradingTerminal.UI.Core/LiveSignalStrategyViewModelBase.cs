@@ -13,7 +13,6 @@ using TradingTerminal.Core.Notifications;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
-using TradingTerminal.UI.Presets;
 
 namespace TradingTerminal.UI;
 
@@ -103,16 +102,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         _routerFactory = routerFactory;
         _logger = logger;
 
-        _presetStore = new ToolPresetStore<StrategyViewPreset>($"strategy-{strategyId}");
-        PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         // Seed from the canonical instrument registry (no hardcoded catalog). Instrument-discovery
         // fills the registry the moment a broker connects, so if any broker is already up this is the
         // real, discovered universe; if none is up yet it's empty and the picker fills on connect.
         AllInstruments = RegistryRows();
-        // Hide-until-search: start with an empty visible list (ApplyInstrumentFilter collapses it to
-        // just the selection) and restore the instrument last used in this strategy window, falling
-        // back to the old SPY default only on first-ever use. See InstrumentPickerFilter.
         Instruments = new ObservableCollection<SignalInstrument>();
         if (RequiresInstrument)
         {
@@ -911,66 +905,6 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     // ---------- Named view presets (chart-axis controls + window-specific extras) ----------
 
-    private readonly ToolPresetStore<StrategyViewPreset> _presetStore;
-
-    /// <summary>Preset names for the picker; per strategy (tool-presets\strategy-{id}.json).</summary>
-    public ObservableCollection<string> PresetNames { get; }
-
-    /// <summary>Editable preset-picker text: type a name and Save, or pick an existing preset to apply.</summary>
-    [ObservableProperty] private string _presetName = string.Empty;
-    [ObservableProperty] private string? _selectedPreset;
-
-    partial void OnSelectedPresetChanged(string? value)
-    {
-        if (value is null) return;
-        PresetName = value;
-        if (_presetStore.Get(value) is { } preset) ApplyPreset(preset);
-    }
-
-    /// <summary>Window-specific display toggles to persist inside a preset — override and return
-    /// a string bag (each window owns its keys). Base returns null (no extras).</summary>
-    protected virtual Dictionary<string, string>? CaptureExtraPreset() => null;
-
-    /// <summary>Counterpart of <see cref="CaptureExtraPreset"/> — apply the window-specific bag.
-    /// Called before the catch-up redraw; missing keys should keep current values.</summary>
-    protected virtual void ApplyExtraPreset(IReadOnlyDictionary<string, string> extras) { }
-
-    [RelayCommand]
-    private void SavePreset()
-    {
-        var name = PresetName.Trim();
-        if (name.Length == 0) return;
-        _presetStore.Save(name, new StrategyViewPreset(
-            ChartBarsShown, YAutoScale, YAxisMin, YAxisMax, CaptureExtraPreset()));
-        RefreshPresetNames(selected: name);
-        Log("PRESET", $"Preset '{name}' saved");
-    }
-
-    [RelayCommand]
-    private void DeletePreset()
-    {
-        var name = SelectedPreset ?? PresetName.Trim();
-        if (string.IsNullOrEmpty(name) || !_presetStore.Delete(name)) return;
-        RefreshPresetNames(selected: null);
-        Log("PRESET", $"Preset '{name}' deleted");
-    }
-
-    private void ApplyPreset(StrategyViewPreset preset)
-    {
-        if (preset.ChartBarsShown > 0) ChartBarsShown = preset.ChartBarsShown;
-        YAutoScale = preset.YAutoScale;
-        YAxisMin = preset.YAxisMin;
-        YAxisMax = preset.YAxisMax;
-        if (preset.Extras is not null) ApplyExtraPreset(preset.Extras);
-        RaiseBarsChanged();
-    }
-
-    private void RefreshPresetNames(string? selected)
-    {
-        PresetNames.Clear();
-        foreach (var n in _presetStore.Names) PresetNames.Add(n);
-        SelectedPreset = selected;
-    }
 
     // ---------- CSV export (portable UiFile seam; PNG snapshots stay view-side) ----------
 

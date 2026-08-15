@@ -62,10 +62,7 @@ public static class AppDependencyInjection
             TradingTerminal.Core.Hosting.NullSidecarController>();
 
         // Feature modules common to every edition.
-        var disableStrategyPlugins = configuration
-            .GetSection(DevOptions.SectionName)
-            .GetValue<bool>(nameof(DevOptions.DisableStrategyPlugins));
-        services.AddStrategyPlugins(configuration, loadRuntimePlugins: !disableStrategyPlugins);
+        services.AddStrategyPlugins(configuration);
         services.AddLogin();
         services.AddShell();
         services.AddSupport();
@@ -81,8 +78,7 @@ public static class AppDependencyInjection
     /// around every entry in the backtest catalog.</summary>
     public static IServiceCollection AddStrategyPlugins(
         this IServiceCollection services,
-        IConfiguration configuration,
-        bool loadRuntimePlugins = true)
+        IConfiguration configuration)
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
@@ -121,7 +117,7 @@ public static class AppDependencyInjection
             sp.GetRequiredService<Core.MarketData.IInstrumentRegistry>()));
 
         // First-party strategies ship as external plugins; this shell neither references nor stages
-        // their implementations. PluginLoader discovers installed packages through the common DI seam.
+        // their implementations, and no strategy DLL is loaded at all since 2026-08-15.
 
         // Strategy plugins — discovered at runtime from the app's plugins/ folder (the first-party ones
         // staged by App.csproj, plus any third-party drop-ins), each loaded in its own collectible
@@ -132,46 +128,16 @@ public static class AppDependencyInjection
         // local plugins load) or Curated (pinned publisher thumbprints + required manifest).
         var pluginOptions = configuration.GetSection(PluginsOptions.SectionName).Get<PluginsOptions>() ?? new PluginsOptions();
         var pluginPolicy = PluginTrustPolicy.From(pluginOptions);
-        if (!loadRuntimePlugins)
-        {
-            services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, []));
-            services.AddPluginFeed(pluginOptions);
-            services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
-            services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
-            return services;
-        }
-
-        // Persisted lifecycle state (user disables, fault quarantines, pending uninstalls) — honoured
-        // by the loader BEFORE any plugin code runs; mutated by the Plugin Manager.
-        var pluginState = new PluginStateStore(pluginsRoot);
-        if (pluginState.LoadError is not null)
-            Serilog.Log.Warning("Plugin state reset: {Reason}", pluginState.LoadError);
-        // A plugin the host can't vouch for (unsigned, not one of ours, no pinned publisher) is not
-        // silently loaded and not silently dropped: the user is shown what it is and what its code
-        // reaches for, and decides. The decision is remembered against the file's sha256, so an update
-        // has to ask again.
-        var pluginReport = PluginLoader.LoadWithReport(services, pluginsRoot, DaxAlgo.Sdk.SdkInfo.Version,
-            pluginPolicy, pluginState, pluginOptions.ScanMode, new TradingTerminal.App.Plugins.PluginConsentPrompt());
-        foreach (var plugin in pluginReport.Loaded)
-            // Attribution: every DI registration in the app is traceable to the plugin that made it.
-            Serilog.Log.Information("Loaded strategy plugin {Name} (DaxAlgo.Sdk {Sdk}) registering {Services}",
-                plugin.Name, plugin.TargetSdkVersion, plugin.RegisteredServices ?? []);
-        foreach (var problem in pluginReport.Problems)
-            Serilog.Log.Warning("Strategy plugin {Plugin} did not load ({Outcome}): {Reason}",
-                problem.PluginFolderName, problem.Outcome, problem.Reason);
-
-        // Surface the plugin subsystem to the Plugin Manager UI + the header problem chip
-        // (what loaded, what didn't and why, and the mutable lifecycle state).
-        services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, pluginReport.Loaded, pluginReport, pluginState));
-
-        // Marketplace feed (issue #25): background-refreshing signed catalog + revocation sync, plus the
-        // HttpClient the catalog installer downloads through. Off until Plugins:FeedUrl/FeedPublicKey are
-        // set — the Plugin Manager's Catalog tab is then simply hidden.
+        // Strategy DLLs are no longer loaded (2026-08-15). The terminal runs DAXQ artifacts
+        // only, so PluginLoader is never invoked; the host context is registered empty so the
+        // Plugin Manager and the marketplace feed still resolve. Restoring DLL loading means
+        // bringing back PluginLoader.LoadWithReport here - see the archived strategies repo.
+        services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, []));
         services.AddPluginFeed(pluginOptions);
-
-        // Plugin Manager tool window (View → "Manage strategy plugins…").
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
+        return services;
+        
 
         return services;
     }

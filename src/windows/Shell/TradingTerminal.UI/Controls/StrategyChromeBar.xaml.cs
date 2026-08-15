@@ -13,7 +13,7 @@ namespace TradingTerminal.UI.Controls;
 /// <c>PresetNames</c> / <c>PresetName</c> / <c>SelectedPreset</c>, <c>SavePresetCommand</c> /
 /// <c>DeletePresetCommand</c>, <c>ExportBarsCsvCommand</c> / <c>ExportSignalsCsvCommand</c>).
 /// Bespoke strategy VMs adopt the same names to light the buttons up; hide what a VM doesn't
-/// implement via <see cref="ShowPresets"/> / <see cref="ShowPause"/> / <see cref="ShowBarsCsv"/> /
+/// implement via <see cref="ShowPause"/> / <see cref="ShowBarsCsv"/> /
 /// <see cref="ShowSignalsCsv"/>. The PNG snapshot needs no VM support at all — the control
 /// captures its host window's content root itself.
 /// </summary>
@@ -24,8 +24,6 @@ public partial class StrategyChromeBar : UserControl
         InitializeComponent();
     }
 
-    public static readonly DependencyProperty ShowPresetsProperty = DependencyProperty.Register(
-        nameof(ShowPresets), typeof(bool), typeof(StrategyChromeBar), new PropertyMetadata(true));
 
     public static readonly DependencyProperty ShowPauseProperty = DependencyProperty.Register(
         nameof(ShowPause), typeof(bool), typeof(StrategyChromeBar), new PropertyMetadata(true));
@@ -48,11 +46,6 @@ public partial class StrategyChromeBar : UserControl
     public static readonly DependencyProperty ExtraActionsProperty = DependencyProperty.Register(
         nameof(ExtraActions), typeof(object), typeof(StrategyChromeBar), new PropertyMetadata(null));
 
-    public bool ShowPresets
-    {
-        get => (bool)GetValue(ShowPresetsProperty);
-        set => SetValue(ShowPresetsProperty, value);
-    }
 
     public bool ShowPause
     {

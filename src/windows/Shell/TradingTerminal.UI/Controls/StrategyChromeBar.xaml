@@ -10,24 +10,6 @@
     </UserControl.Resources>
 
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <!-- Named view presets (binds the host VM's preset surface by convention) -->
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                    Visibility="{Binding ShowPresets, ElementName=Root, Converter={StaticResource ChromeBoolToVis}}">
-            <Border Style="{StaticResource App.ParamDivider}" />
-            <TextBlock Text="PRESET" Style="{StaticResource App.GroupLabel}" />
-            <ComboBox Width="130" IsEditable="True"
-                      ItemsSource="{Binding PresetNames}"
-                      SelectedItem="{Binding SelectedPreset}"
-                      Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}"
-                      ToolTip="Pick a preset to apply it, or type a new name and press save. Presets remember view options, never the instrument." />
-            <Button Style="{StaticResource App.IconButton}" Margin="6,0,0,0" Content="💾"
-                    Command="{Binding SavePresetCommand}"
-                    ToolTip="Save the current view options as a named preset" />
-            <Button Style="{StaticResource App.IconButton}" Content="🗑"
-                    Command="{Binding DeletePresetCommand}"
-                    ToolTip="Delete the selected preset" />
-            <Border Style="{StaticResource App.ParamDivider}" />
-        </StackPanel>
 
         <ToggleButton Style="{StaticResource App.IconToggle}" Content="⏸"
                       IsChecked="{Binding IsPaused}"
