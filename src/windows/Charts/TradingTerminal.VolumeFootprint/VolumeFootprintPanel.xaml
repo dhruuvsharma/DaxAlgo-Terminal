@@ -75,6 +75,16 @@
                 <!-- ── Primary data selectors (kept inline; changed most often). The instrument
                      picker was removed 2026-08-14: an artifact may span instruments or an external
                      source, so a single-instrument selector no longer fits. ── -->
+                <!-- This panel reads exactly ONE instrument, so it declares its own picker. The host
+                     no longer supplies one by default: an artifact may span instruments or an external
+                     source, so single-instrument selection is opt-in per artifact (2026-08-15). -->
+                <TextBlock Text="Instrument" Style="{StaticResource ToolLabel}" />
+                <uic:InstrumentPicker Width="240"
+                                      ItemsSource="{Binding Instruments}"
+                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                      MaxDropDownHeight="460" Margin="0,0,12,0" />
+
                 <TextBlock Text="Interval" Style="{StaticResource ToolLabel}" />
                 <ComboBox Width="70" VerticalAlignment="Center"
                           ItemsSource="{Binding Intervals}"

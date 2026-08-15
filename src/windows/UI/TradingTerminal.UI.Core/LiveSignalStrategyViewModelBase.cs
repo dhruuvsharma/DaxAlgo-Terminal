@@ -91,8 +91,10 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         INotificationPublisher notifications,
         IClock clock,
         ISignalGeneratorRouterFactory routerFactory,
-        ILogger logger)
+        ILogger logger,
+        bool requiresInstrument = false)
     {
+        RequiresInstrument = requiresInstrument;
         StrategyId = strategyId;
         StrategyDisplayName = strategyDisplayName;
         _services = services;
@@ -112,9 +114,12 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         // just the selection) and restore the instrument last used in this strategy window, falling
         // back to the old SPY default only on first-ever use. See InstrumentPickerFilter.
         Instruments = new ObservableCollection<SignalInstrument>();
-        SelectedInstrument = InstrumentPickerFilter.InitialSelection(StrategyId, AllInstruments,
-            () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
-        ApplyInstrumentFilter();
+        if (RequiresInstrument)
+        {
+            SelectedInstrument = InstrumentPickerFilter.InitialSelection(StrategyId, AllInstruments,
+                () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
+            ApplyInstrumentFilter();
+        }
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
 
@@ -145,6 +150,19 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     /// <summary>Full tradable universe from the connected broker (or the static fallback);
     /// <see cref="InstrumentSearchText"/> filters this into <see cref="Instruments"/>.</summary>
+    /// <summary>
+    /// Whether this artifact binds exactly one instrument. **Defaults to false**: an artifact may span
+    /// several instruments or asset classes, or pull an external data source, so the host no longer
+    /// assumes a single one and no longer auto-selects. A single-instrument artifact opts in by passing
+    /// <c>requiresInstrument: true</c>, which restores the remembered selection and the filtered list.
+    ///
+    /// Opting in is about BINDING, not UI: it does not add a picker. An artifact that wants the operator
+    /// to choose adds its own picker bound to <see cref="Instruments"/> / <see cref="SelectedInstrument"/>.
+    /// Set on the constructor rather than as a virtual, because the binding happens during construction
+    /// and a virtual read there would see uninitialised derived state.
+    /// </summary>
+    public bool RequiresInstrument { get; }
+
     public IReadOnlyList<SignalInstrument> AllInstruments { get; private set; }
 
     public ObservableCollection<SignalEntry> Signals { get; }
@@ -329,14 +347,17 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             // Preserve the user's current pick across a reload (this method also runs when a broker
             // connects after the window opened — see OnBrokerStateChanged). Match by symbol since the
             // broker-tagged DisplayName differs from any registry row the user may have selected.
-            var prevSymbol = SelectedInstrument?.Contract.Symbol;
-            SelectedInstrument =
-                (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
-                ?? InstrumentPickerFilter.Remembered(StrategyId, AllInstruments)
-                ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
-                ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
-                ?? AllInstruments.FirstOrDefault();
-            ApplyInstrumentFilter();
+            if (RequiresInstrument)
+            {
+                var prevSymbol = SelectedInstrument?.Contract.Symbol;
+                SelectedInstrument =
+                    (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
+                    ?? InstrumentPickerFilter.Remembered(StrategyId, AllInstruments)
+                    ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
+                    ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                    ?? AllInstruments.FirstOrDefault();
+                ApplyInstrumentFilter();
+            }
         }
         catch (Exception ex)
         {
