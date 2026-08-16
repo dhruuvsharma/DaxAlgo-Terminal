@@ -42,9 +42,20 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
     public string KindLabel => Kind == CatalogItemKind.Strategy ? "STRATEGY" : "VISUALIZER";
     public string KindForegroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Glow.Brush" : "Accent.Brush";
     public string KindBackgroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Soft" : "Accent.Soft";
-    public string PrimaryActionLabel => Kind == CatalogItemKind.Strategy ? "Open" : "Add to chart";
+    public string PrimaryActionLabel => Kind == CatalogItemKind.Strategy ? "Open" : "Add to chart (Basic)";
     public string EditActionLabel => Kind == CatalogItemKind.Strategy ? "Edit strategy card…" : "Edit card";
-    public bool HasQuickBacktest => Kind == CatalogItemKind.Strategy;
+
+    /// <summary>Engine id for Quick Backtest — explicit mapping, else the live strategy id
+    /// (authored strategies register under their script id).</summary>
+    public string? ResolvedBacktestStrategyId =>
+        Strategy is null ? null
+        : !string.IsNullOrWhiteSpace(Strategy.BacktestStrategyId) ? Strategy.BacktestStrategyId
+        : Strategy.Id;
+
+    /// <summary>Set by the shell from <c>IBacktestStrategyRegistry</c> so the Quick Backtest
+    /// menu only appears when a runnable engine option exists.</summary>
+    [ObservableProperty] private bool _hasQuickBacktest;
+
     public IReadOnlyList<string> DataRequirementTags => Visualizer?.DataRequirementTags ?? [];
 
     [ObservableProperty] private string _name;

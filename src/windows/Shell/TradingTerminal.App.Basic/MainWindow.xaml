@@ -692,8 +692,8 @@
                         <MenuItem Icon="▶️"
                                   Header="{Binding PlacementTarget.SelectedItem.PrimaryActionLabel, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   Click="PrimaryCatalogAction_Click" />
-                        <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
-                                  Visibility="{Binding PlacementTarget.SelectedItem.Kind, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CatalogItemKindToVisibilityConverter}, ConverterParameter=Strategy}"
+                        <MenuItem Icon="⏱️" Header="Quick backtest…"
+                                  Visibility="{Binding PlacementTarget.SelectedItem.HasQuickBacktest, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   Click="QuickBacktest_Click" />
                         <Separator />
                         <MenuItem Icon="✏️"
@@ -741,7 +741,7 @@
 
             <TextBlock Foreground="{DynamicResource Text.Secondary}" FontSize="12.5"
                        TextAlignment="Center" TextWrapping="Wrap" MaxWidth="450" Margin="0,8,0,0"
-                       Text="Describe a strategy and Hyperion writes, compiles and backtests it for you — or install a ready-made one from the marketplace. Everything you build lands right here." />
+                       Text="Describe a strategy — Hyperion writes it, you Compile &amp; Register, then Prove with real Sharpe / MDD. Cards land here when the strategy can open live." />
 
             <!-- the two paths -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">

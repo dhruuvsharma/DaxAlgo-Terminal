@@ -197,7 +197,7 @@
                                    FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource Text.Header}" />
-                        <TextBlock Text="Hyperion plans, writes, compiles — then you Prove with real Sharpe / MDD."
+                        <TextBlock Text="Hyperion plans, writes, compiles - then you Prove with real Sharpe / MDD."
                                    FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}" />

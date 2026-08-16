@@ -22,6 +22,7 @@ using TradingTerminal.UI;
 using TradingTerminal.Login;
 using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
+using TradingTerminal.StrategyComposer;
 
 namespace TradingTerminal.App.Composition;
 
@@ -90,8 +91,9 @@ public static class AppDependencyInjection
         services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredStrategyInstaller>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
-        // Basic does not register a default live-view composer. Authored strategies without their own
-        // view remain backtest-only; plugin strategies that ship a view continue to open normally.
+        // Compose a default live window for authored strategies that shipped descriptor + VM but no
+        // custom view — without this, Basic leaves them backtest-only with no catalog Open target.
+        services.AddStrategyViewComposer();
         // AI Strategy Builder backend (codegen providers + build-loop orchestrator + context pack) — the
         // authoring pane's AI panel resolves IAiStrategyBuilder from here. Keyless by default (installed
         // agent CLIs + local Ollama); a shell that registers an IAiKeyResolver over its credential store
