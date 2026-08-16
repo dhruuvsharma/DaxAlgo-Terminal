@@ -159,7 +159,7 @@
                 Background="{DynamicResource Background.Surface}"
                 BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                 Padding="8">
-            <UniformGrid Columns="8" Rows="1">
+            <UniformGrid Columns="8" Rows="2">
                 <StackPanel>
                     <TextBlock Text="P&amp;L" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
                     <TextBlock Text="{Binding TotalPnl, StringFormat=C2}" FontWeight="SemiBold" />
@@ -191,6 +191,42 @@
                 <StackPanel>
                     <TextBlock Text="Trades" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
                     <TextBlock Text="{Binding Stats.TradeCount, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Avg win" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.AvgWin, StringFormat=F2, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Avg loss" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.AvgLoss, StringFormat=F2, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Expectancy" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.Expectancy, StringFormat=F2, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Calmar" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.Calmar, StringFormat=F2, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Omega" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.Omega, StringFormat=F2, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Downside" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.DownsideDeviation, StringFormat=F4, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Recovery" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock Text="{Binding Stats.RecoveryFactor, StringFormat=F2, FallbackValue=—}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Ulcer / streak" Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <TextBlock>
+                        <Run Text="{Binding Stats.UlcerIndex, StringFormat=F2, FallbackValue=—}" />
+                        <Run Text=" / " />
+                        <Run Text="{Binding Stats.MaxConsecutiveLosses, FallbackValue=—}" />
+                    </TextBlock>
                 </StackPanel>
             </UniformGrid>
         </Border>

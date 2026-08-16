@@ -361,16 +361,16 @@ public sealed class StrategyBuildSession
     {
         if (compile.Option is null) return compile;
 
-        activity?.Report("Backtest smoke: driving the compiled strategy over synthetic ticks…");
+        activity?.Report("Lifecycle check: driving the compiled strategy over synthetic ticks…");
         var failure = await StrategyBacktestSmoke.RunAsync(compile.Option, ct).ConfigureAwait(false);
         if (failure is null)
         {
-            activity?.Report("Backtest smoke passed.");
+            activity?.Report("Lifecycle check passed.");
             return compile;
         }
 
-        _logger?.LogWarning("Backtest smoke failed for {Id}: {Failure}", StrategyId, failure);
-        activity?.Report($"Backtest smoke failed: {failure}");
+        _logger?.LogWarning("Lifecycle check failed for {Id}: {Failure}", StrategyId, failure);
+        activity?.Report($"Lifecycle check failed: {failure}");
         return compile with
         {
             Diagnostics =
@@ -378,7 +378,7 @@ public sealed class StrategyBuildSession
                 .. compile.Diagnostics,
                 new StrategyDiagnostic(
                     StrategyDiagnosticSeverity.Warning, "SMOKE001",
-                    $"Backtest smoke (advisory): {failure}", 0, 0),
+                    $"Lifecycle check (advisory, not a backtest): {failure}", 0, 0),
             ],
         };
     }
