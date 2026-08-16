@@ -41,6 +41,10 @@ public sealed record AuthoringSessionSnapshot(
     int InputTokens = 0,
     int OutputTokens = 0,
     bool Registered = false,
+    bool Persisted = false,
+    string? PersistedPath = null,
+    string? LastRunSummary = null,
+    bool LastRunOk = false,
     DateTime UpdatedUtc = default)
 {
     /// <summary>"2 hours ago" — what the session picker shows next to the name.</summary>

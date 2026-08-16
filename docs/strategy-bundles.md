@@ -3,6 +3,15 @@
 > Windows strategy-distribution and isolated-backtest format. Immutable installation and exact worker
 > activation are implemented; marketplace integration, automatic updates, and live-host loading remain
 > later slices. Existing `.daxplugin` behavior stays a separate legacy path.
+>
+> **Runtime state (since `6af254d`, 2026-08-15):** strategies run as DAXQ artifacts only — no strategy
+> DLL is loaded. `IProtectedStrategyEngine` is the open-core seam that turns a `.daxq` into a
+> `ProtectedStrategyRegistration`; the concrete verify/decrypt/execute engine ships in the closed Pro
+> build. Two threads remain open on top of this format: (1) a **server compile endpoint** to replace the
+> now-orphaned in-app Roslyn authoring path (emit a packed artifact, not a loose DLL), and (2) an
+> execution story for **Basic/Basic-Installer**, which register no engine today and so cannot yet run an
+> artifact. The backtest engine (`src/windows/Backtest/`) continues against protocol v2's
+> `installed_bundle` source independently of that authoring rewrite.
 
 A `.daxstrategy` is one portable file, not one merged DLL. It is a passive ZIP whose contents can be
 inspected and verified without executing them. Strategy math stays in one canonical WPF-free engine;

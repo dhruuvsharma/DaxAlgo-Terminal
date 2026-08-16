@@ -5,33 +5,83 @@ using System.Windows.Controls;
 namespace TradingTerminal.App.Authoring;
 
 /// <summary>
-/// The Hyperion agent workspace. No behaviour here — it all lives in
-/// <see cref="StrategyAuthoringViewModel"/>. The only code-behind is pure view plumbing: keeping the
-/// transcript scrolled to the newest message (unhooked on unload so a closed window doesn't keep the
-/// view-model's collection alive), and closing the composer's pill flyouts after a pick.
+/// Hyperion agent workspace. Behaviour lives in <see cref="StrategyAuthoringViewModel"/>; code-behind
+/// only scrolls the transcript and redraws the Prove equity curve.
 /// </summary>
 public partial class StrategyAuthoringView : UserControl
 {
     private INotifyCollectionChanged? _messages;
+    private StrategyAuthoringViewModel? _vm;
 
     public StrategyAuthoringView()
     {
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        DetachProve();
+        if (e.NewValue is StrategyAuthoringViewModel vm)
+            AttachProve(vm);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Detach();
+        DetachMessages();
         if (DataContext is not StrategyAuthoringViewModel vm) return;
 
         _messages = vm.Messages;
         _messages.CollectionChanged += OnMessagesChanged;
         ChatScroll.ScrollToEnd();
+
+        if (!ReferenceEquals(_vm, vm))
+            AttachProve(vm);
+        else
+            RedrawProveEquity();
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e) => Detach();
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        DetachMessages();
+        DetachProve();
+    }
+
+    private void AttachProve(StrategyAuthoringViewModel vm)
+    {
+        DetachProve();
+        _vm = vm;
+        _vm.ProveEquityUpdated += OnProveEquityUpdated;
+        RedrawProveEquity();
+    }
+
+    private void DetachProve()
+    {
+        if (_vm is null) return;
+        _vm.ProveEquityUpdated -= OnProveEquityUpdated;
+        _vm = null;
+    }
+
+    private void OnProveEquityUpdated(object? sender, EventArgs e) => RedrawProveEquity();
+
+    private void RedrawProveEquity()
+    {
+        if (_vm is null || ProveEquityPlot is null) return;
+
+        ProveEquityPlot.Plot.Clear();
+        if (_vm.ProveEquityCurve.Count >= 2)
+        {
+            var xs = _vm.ProveEquityCurve.Select(p => p.TimestampUtc.ToOADate()).ToArray();
+            var ys = _vm.ProveEquityCurve.Select(p => p.Equity).ToArray();
+            ProveEquityPlot.Plot.Add.Scatter(xs, ys);
+            ProveEquityPlot.Plot.Axes.DateTimeTicksBottom();
+            ProveEquityPlot.Plot.Axes.AutoScale();
+        }
+
+        ProveEquityPlot.Refresh();
+    }
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -48,7 +98,7 @@ public partial class StrategyAuthoringView : UserControl
         ReasonPill.IsChecked = false;
     }
 
-    private void Detach()
+    private void DetachMessages()
     {
         if (_messages is null) return;
         _messages.CollectionChanged -= OnMessagesChanged;

@@ -6,6 +6,7 @@
              xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
              xmlns:uicontrols="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
              xmlns:converters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
+             xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1380"
              Background="{DynamicResource Background.Primary}"
@@ -196,7 +197,7 @@
                                    FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource Text.Header}" />
-                        <TextBlock Text="Hyperion plans, writes, compiles and smoke-tests it — you review and register."
+                        <TextBlock Text="Hyperion plans, writes, compiles — then you Prove with real Sharpe / MDD."
                                    FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}" />
@@ -224,7 +225,7 @@
                             <TextBlock TextWrapping="Wrap" FontSize="11.5"
                                        Foreground="{DynamicResource Text.Primary}">
                                 <Run Text="No AI provider is set up yet." FontWeight="SemiBold" />
-                                <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or write the strategy yourself in the workbench and press Compile &amp; Register." />
+                                <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or write the strategy yourself, Compile &amp; Register, then Prove." />
                             </TextBlock>
                         </Border>
                     </StackPanel>
@@ -280,7 +281,7 @@
                             </TextBox>
                             <TextBlock Margin="4,4,0,0" FontSize="12.5" IsHitTestVisible="False"
                                        Foreground="{DynamicResource Text.Secondary}" Opacity="0.55"
-                                       Text="Describe the strategy — or refine what's there. Ctrl+Enter sends.">
+                                       Text="Describe, refine, or paste prove metrics — Ctrl+Enter sends.">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -421,27 +422,17 @@
                             </Grid>
                             <Button Style="{StaticResource HYP.CtaButton}" Content="⚡  Compile &amp; Register"
                                     Command="{Binding CompileCommand}"
-                                    ToolTip="Compile every file, then review the code before it is registered — it runs in-process." />
+                                    ToolTip="Compile every file, then review before it is registered — Prove runs the real backtest afterward." />
                             <Grid Margin="0,7,0,0">
                                 <Border Style="{StaticResource HYP.StateChip}" HorizontalAlignment="Left">
-                                    <TextBlock FontSize="9" FontWeight="Bold">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="DRAFT" />
-                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsRegistered}" Value="True">
-                                                        <Setter Property="Text" Value="REGISTERED" />
-                                                        <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <TextBlock FontSize="9" FontWeight="Bold"
+                                               Text="{Binding LifecycleLabel}"
+                                               Foreground="{DynamicResource Text.Primary}" />
                                 </Border>
                                 <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
                                            FontSize="9.5" Foreground="{DynamicResource Text.Secondary}"
-                                           Opacity="0.8" Text="reviewed code runs in-process" />
+                                           Opacity="0.8"
+                                           Text="{Binding PersistedPath, FallbackValue='Library: not on disk yet', TargetNullValue='Library: session only'}" />
                             </Grid>
                             <TextBlock Margin="1,7,0,0" TextWrapping="Wrap" FontSize="10.5"
                                        Foreground="{DynamicResource Text.Secondary}"
@@ -486,6 +477,122 @@
 
                     <TabControl SelectedIndex="{Binding WorkbenchTab}" Margin="12,4,12,8"
                                 Background="Transparent">
+                        <TabItem Header="Prove">
+                            <DockPanel Margin="0,6,0,0">
+                                <StackPanel DockPanel.Dock="Top">
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
+                                               Foreground="{DynamicResource Text.Secondary}"
+                                               Text="Real session backtest (same engine as Quick Backtest). Lifecycle check during generate is not a prove run." />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button Style="{StaticResource HYP.CtaButton}" Content="▶  Run prove"
+                                                Command="{Binding RunProveCommand}"
+                                                IsEnabled="{Binding CanProve}"
+                                                ToolTip="Replay recent bars through the registered strategy and fill the 16-metric strip." />
+                                        <Button Content="Cancel" Margin="8,0,0,0" Padding="12,4"
+                                                Command="{Binding CancelProveCommand}"
+                                                IsEnabled="{Binding IsProving}" />
+                                        <Button Content="Refine in chat" Margin="8,0,0,0" Padding="12,4"
+                                                Command="{Binding RefineFromProveCommand}"
+                                                ToolTip="Put Sharpe / MDD / return into the composer so the agent can iterate." />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="11"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                    <TextBlock Text="{Binding ProveFeedQuality}" TextWrapping="Wrap" FontSize="10.5"
+                                               Margin="0,2,0,6" Foreground="{DynamicResource Accent.Brush}"
+                                               Visibility="{Binding ProveFeedQuality, Converter={StaticResource S2V}}" />
+                                </StackPanel>
+
+                                <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
+                                        Background="{DynamicResource Background.Surface}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                        Padding="8" MaxHeight="160">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <UniformGrid Columns="4" Rows="4">
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Return" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.TotalReturn, StringFormat=P2, FallbackValue=—}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Sharpe" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Sharpe, StringFormat=F2, FallbackValue=—}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Sortino" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Sortino, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Max DD" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.MaxDrawdown, StringFormat=P2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Trades" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.TradeCount, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Win rate" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.WinRate, StringFormat=P1, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Avg win" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.AvgWin, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Avg loss" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.AvgLoss, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Profit factor" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.ProfitFactor, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Expectancy" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Expectancy, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Calmar" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Calmar, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Omega" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Omega, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Downside dev" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.DownsideDeviation, StringFormat=F4, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Recovery" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.RecoveryFactor, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Max loss streak" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.MaxConsecutiveLosses, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Ulcer" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.UlcerIndex, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,0,6">
+                                    <sp:WpfPlot x:Name="ProveEquityPlot" MinHeight="140" />
+                                </Border>
+                            </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="Parameters">
+                            <DockPanel Margin="0,6,0,0">
+                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource Text.Secondary}"
+                                           Text="Tunables from StrategyParameterSchema. Change a knob, then re-run Prove." />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
+                                </ScrollViewer>
+                            </DockPanel>
+                        </TabItem>
+
                         <TabItem Header="Code">
                             <DockPanel Margin="0,6,0,0">
                                 <DockPanel DockPanel.Dock="Top">
@@ -528,11 +635,11 @@
                                         </Style>
                                     </Border.Style>
                                     <DockPanel>
-                                        <ToggleButton x:Name="DiagToggle" DockPanel.Dock="Top" IsChecked="True"
+                                        <ToggleButton x:Name="DiagToggle" DockPanel.Dock="Top" IsChecked="False"
                                                       Background="Transparent" BorderThickness="0" Cursor="Hand"
                                                       HorizontalContentAlignment="Left" Padding="0,5,0,3">
                                             <TextBlock FontSize="10.5" Foreground="{DynamicResource Warning.Brush}">
-                                                <Run Text="⚠ Diagnostics · " /><Run Text="{Binding Diagnostics.Count, Mode=OneWay}" /><Run Text="  (click a row to jump to its file)" Foreground="{DynamicResource Text.Secondary}" />
+                                                <Run Text="⚠ Diagnostics · " /><Run Text="{Binding Diagnostics.Count, Mode=OneWay}" /><Run Text="  (secondary — click to expand)" Foreground="{DynamicResource Text.Secondary}" />
                                             </TextBlock>
                                         </ToggleButton>
                                         <ListView ItemsSource="{Binding Diagnostics}" MaxHeight="130"
@@ -562,17 +669,6 @@
                                                        LineNumbersForeground="{DynamicResource Text.Secondary}"
                                                        HorizontalScrollBarVisibility="Auto"
                                                        VerticalScrollBarVisibility="Auto" />
-                            </DockPanel>
-                        </TabItem>
-
-                        <TabItem Header="Parameters">
-                            <DockPanel Margin="0,6,0,0">
-                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
-                                           Foreground="{DynamicResource Text.Secondary}"
-                                           Text="A strategy that declares a static Schema gets this editor for free. Compile to populate it." />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
-                                </ScrollViewer>
                             </DockPanel>
                         </TabItem>
 

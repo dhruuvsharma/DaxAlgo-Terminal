@@ -1,12 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using System.Text;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Backtest;
@@ -45,8 +47,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly AiCodegenOptions _options;
     private readonly AuthoredStrategyInstaller? _installer;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
+    private readonly IAuthoringProveService? _prove;
 
     private CancellationTokenSource? _generateCts;
+    private CancellationTokenSource? _proveCts;
     private StrategyBuildSession? _session;
     private bool _filesEditedByUser;
 
@@ -70,7 +74,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IAiStrategyBuilder? ai = null,
         IOptions<AiCodegenOptions>? options = null,
         AuthoredStrategyInstaller? installer = null,
-        ICliWorkspaceLauncher? cliLauncher = null)
+        ICliWorkspaceLauncher? cliLauncher = null,
+        IAuthoringProveService? prove = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -79,6 +84,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
         _cliLauncher = cliLauncher;
+        _prove = prove;
 
         Diagnostics = [];
         Messages = [];
@@ -150,8 +156,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void ToggleRail() => RailCollapsed = !RailCollapsed;
 
-    /// <summary>Selected workbench tab: 0 Code · 1 Parameters · 2 Activity. A file chip in the chat
-    /// sets it back to Code so the click always lands on the file it names.</summary>
+    /// <summary>Selected workbench tab: 0 Prove · 1 Parameters · 2 Code · 3 Activity.
+    /// A file chip in the chat sets it to Code so the click always lands on the file it names.</summary>
     [ObservableProperty] private int _workbenchTab;
 
     [RelayCommand]
@@ -161,7 +167,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (Files.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } file)
         {
             SelectedFile = file;
-            WorkbenchTab = 0;
+            WorkbenchTab = 2; // Code
         }
     }
 
@@ -175,7 +181,64 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// drives the DRAFT/REGISTERED chip and the rail's status line.</summary>
     [ObservableProperty] private bool _isRegistered;
 
-    [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+    /// <summary>True when Install wrote a plugin folder — survives restart.</summary>
+    [ObservableProperty] private bool _isPersisted;
+
+    [ObservableProperty] private string? _persistedPath;
+
+    /// <summary>True after a successful Prove (real session backtest), not the lifecycle smoke.</summary>
+    [ObservableProperty] private bool _hasLastRun;
+
+    [ObservableProperty] private bool _lastRunOk;
+
+    [ObservableProperty] private string? _lastRunSummary;
+
+    [ObservableProperty] private BacktestStatistics? _proveStats;
+
+    [ObservableProperty] private double _proveTotalPnl;
+
+    [ObservableProperty] private string? _proveFeedQuality;
+
+    [ObservableProperty] private bool _isProving;
+
+    /// <summary>Raised after Prove fills equity samples so the view can redraw the curve.</summary>
+    public event EventHandler? ProveEquityUpdated;
+
+    public ObservableCollection<EquityPoint> ProveEquityCurve { get; } = [];
+
+    public bool CanProve => IsRegistered && _prove is not null && !IsProving;
+
+    partial void OnIsRegisteredChanged(bool value)
+    {
+        RunProveCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanProve));
+        OnPropertyChanged(nameof(LifecycleLabel));
+    }
+
+    partial void OnIsPersistedChanged(bool value) => OnPropertyChanged(nameof(LifecycleLabel));
+    partial void OnHasLastRunChanged(bool value) => OnPropertyChanged(nameof(LifecycleLabel));
+    partial void OnLastRunOkChanged(bool value) => OnPropertyChanged(nameof(LifecycleLabel));
+    partial void OnIsProvingChanged(bool value)
+    {
+        RunProveCommand.NotifyCanExecuteChanged();
+        CancelProveCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanProve));
+    }
+
+    /// <summary>Single chip text: Draft → Registered → Saved → Last run ✓/✗</summary>
+    public string LifecycleLabel
+    {
+        get
+        {
+            if (!IsRegistered) return "DRAFT";
+            var parts = new List<string> { "REGISTERED" };
+            parts.Add(IsPersisted ? "SAVED" : "SESSION ONLY");
+            if (HasLastRun) parts.Add(LastRunOk ? "LAST RUN ✓" : "LAST RUN ✗");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    [ObservableProperty] private string? _status = "Describe a strategy, then Compile & Register — next, Prove it with a real backtest.";
     [ObservableProperty] private bool _compiledOk;
 
     /// <summary>Auto-generated editor for the compiled strategy's tunables, or null when it declares none
@@ -488,7 +551,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Tasks.Add(_taskAutoFix = new BuildTask("Auto-fix"));
         _taskReview = profile.SelfReview ? new BuildTask("Self-review") : null;
         if (_taskReview is not null) Tasks.Add(_taskReview);
-        _taskSmoke = profile.BacktestSmoke ? new BuildTask("Backtest smoke") : null;
+        _taskSmoke = profile.BacktestSmoke ? new BuildTask("Lifecycle check") : null;
         if (_taskSmoke is not null) Tasks.Add(_taskSmoke);
 
         _taskBrief!.State = BuildTaskState.Running;
@@ -540,7 +603,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 }
             }
         }
-        else if (step.StartsWith("Backtest smoke", StringComparison.Ordinal))
+        else if (step.StartsWith("Backtest smoke", StringComparison.Ordinal) ||
+                 step.StartsWith("Lifecycle check", StringComparison.Ordinal))
         {
             if (step.Contains("passed", StringComparison.Ordinal))
             {
@@ -578,7 +642,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         if (_smokeCardEmitted) return;
         _smokeCardEmitted = true;
-        Append(AuthoringMessage.Tool(state, "Backtest smoke", step));
+        // Smoke is not a real backtest — keep the card honest for the user and the model.
+        var detail = step
+            .Replace("Backtest smoke", "Lifecycle check", StringComparison.Ordinal)
+            .Replace("backtest smoke", "lifecycle check", StringComparison.Ordinal);
+        Append(AuthoringMessage.Tool(state, "Lifecycle check", detail));
     }
 
     /// <summary>Settles the checklist when the turn ends: a compiled turn closes everything that didn't
@@ -663,7 +731,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             "Compile" => "Compiling…",
             "Auto-fix" => "Fixing compile errors…",
             "Self-review" => "Self-reviewing the code…",
-            "Backtest smoke" => "Running the backtest smoke…",
+            "Lifecycle check" or "Backtest smoke" => "Checking the strategy survives synthetic ticks…",
             _ => running.Title + "…",
         };
     }
@@ -940,6 +1008,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CompiledOk = false;
             AwaitingAnswer = false;
             IsRegistered = false;
+            IsPersisted = false;
+            PersistedPath = null;
+            HasLastRun = false;
+            LastRunOk = false;
+            LastRunSummary = null;
+            ProveStats = null;
+            ProveTotalPnl = 0;
+            ProveFeedQuality = null;
+            ProveEquityCurve.Clear();
+            ProveEquityUpdated?.Invoke(this, EventArgs.Empty);
             CloseReview();
             _registeredBaseline.Clear();
             RefreshWorkStatus();
@@ -947,7 +1025,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
             _filesEditedByUser = false;
             AiStatus = null;
-            Status = "New conversation. Give it a strategy id, then describe what you want.";
+            Status = "New conversation. Describe the strategy, Compile & Register, then Prove.";
         }
         finally
         {
@@ -1089,14 +1167,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CompiledOk = false;
             AwaitingAnswer = false;
             IsRegistered = session.Registered;
+            IsPersisted = session.Persisted;
+            PersistedPath = session.PersistedPath;
+            HasLastRun = !string.IsNullOrEmpty(session.LastRunSummary);
+            LastRunOk = session.LastRunOk;
+            LastRunSummary = session.LastRunSummary;
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
 
             SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == session.StrategyId);
             Status = Messages.Count > 0
-                ? $"Restored the chat for '{session.DisplayName}' ({session.Age}). Carry on where you left off."
-                : "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+                ? $"Restored '{session.DisplayName}' ({session.Age}). " +
+                  (session.Registered ? "Registered — open Prove to run a real backtest." : "Compile & Register, then Prove.")
+                : "Describe a strategy, Compile & Register, then Prove.";
         }
         finally
         {
@@ -1125,7 +1209,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             BuildEffort: BuildEffort.Wire(),
             InputTokens: InputTokens,
             OutputTokens: OutputTokens,
-            Registered: IsRegistered);
+            Registered: IsRegistered,
+            Persisted: IsPersisted,
+            PersistedPath: PersistedPath,
+            LastRunSummary: LastRunSummary,
+            LastRunOk: LastRunOk);
 
         if (!AuthoringSessionStore.Save(snapshot))
         {
@@ -1153,6 +1241,123 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>File contents as of the last successful register (per process). Keys are file names.</summary>
     private readonly Dictionary<string, string> _registeredBaseline = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Real session backtest for the registered strategy — not the lifecycle smoke.</summary>
+    [RelayCommand(CanExecute = nameof(CanProve))]
+    private async Task RunProveAsync()
+    {
+        if (_prove is null)
+        {
+            Status = "Prove is not wired in this host.";
+            return;
+        }
+
+        if (!IsRegistered)
+        {
+            Status = "Register the strategy first, then Prove.";
+            WorkbenchTab = 0;
+            return;
+        }
+
+        IsProving = true;
+        ProveStats = null;
+        ProveFeedQuality = null;
+        ProveEquityCurve.Clear();
+        _proveCts = new CancellationTokenSource();
+        var ct = _proveCts.Token;
+        Status = "Running prove backtest…";
+
+        try
+        {
+            var result = await _prove.RunAsync(StrategyId, ct).ConfigureAwait(true);
+            ApplyProveResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Prove cancelled.";
+            HasLastRun = true;
+            LastRunOk = false;
+            LastRunSummary = Status;
+            Append(AuthoringMessage.Tool("Info", "Prove", "Cancelled."));
+        }
+        finally
+        {
+            IsProving = false;
+            _proveCts?.Dispose();
+            _proveCts = null;
+            Save();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsProving))]
+    private void CancelProve() => _proveCts?.Cancel();
+
+    /// <summary>Push metrics into chat + composer so the agent can refine from numbers, not warnings.</summary>
+    private void ApplyProveResult(AuthoringProveResult result)
+    {
+        Status = result.Message;
+        ProveFeedQuality = result.FeedQuality;
+        ProveTotalPnl = result.TotalPnl;
+        ProveStats = result.Stats;
+        HasLastRun = true;
+        LastRunOk = result.Ok;
+        LastRunSummary = result.Message;
+
+        ProveEquityCurve.Clear();
+        if (result.EquityCurve is { Count: > 0 } curve)
+            foreach (var p in curve) ProveEquityCurve.Add(p);
+        ProveEquityUpdated?.Invoke(this, EventArgs.Empty);
+
+        if (!result.Ok || result.Stats is null)
+        {
+            Append(AuthoringMessage.Tool("Fail", "Prove", result.Message));
+            return;
+        }
+
+        var s = result.Stats;
+        var inv = CultureInfo.InvariantCulture;
+        var strip =
+            $"Return {s.TotalReturn.ToString("P2", inv)} · Sharpe {s.Sharpe.ToString("F2", inv)} · " +
+            $"Sortino {s.Sortino.ToString("F2", inv)} · Max DD {s.MaxDrawdown.ToString("P2", inv)} · " +
+            $"Trades {s.TradeCount} · Win {s.WinRate.ToString("P1", inv)} · PF {s.ProfitFactor.ToString("F2", inv)}";
+        var more =
+            $"Avg win {s.AvgWin.ToString("F4", inv)} · Avg loss {s.AvgLoss.ToString("F4", inv)} · " +
+            $"Expectancy {s.Expectancy.ToString("F4", inv)} · Calmar {s.Calmar.ToString("F2", inv)} · " +
+            $"Omega {s.Omega.ToString("F2", inv)} · Downside dev {s.DownsideDeviation.ToString("F4", inv)} · " +
+            $"Recovery {s.RecoveryFactor.ToString("F2", inv)} · Max loss streak {s.MaxConsecutiveLosses} · " +
+            $"Ulcer {s.UlcerIndex.ToString("F2", inv)}" +
+            (result.FeedQuality is { } fq ? $"\n{fq}" : string.Empty);
+
+        Append(AuthoringMessage.Tool("Ok", "Prove", strip, more));
+        SeedComposerFromProve(s);
+        WorkbenchTab = 0;
+    }
+
+    [RelayCommand]
+    private void RefineFromProve()
+    {
+        if (ProveStats is null)
+        {
+            Status = "Run Prove first — then the agent can refine from metrics.";
+            return;
+        }
+
+        SeedComposerFromProve(ProveStats);
+    }
+
+    private void SeedComposerFromProve(BacktestStatistics s)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        Composer =
+            "Last prove run (real backtest, not lifecycle smoke):\n" +
+            $"Return {s.TotalReturn.ToString("P2", inv)}, Sharpe {s.Sharpe.ToString("F2", inv)}, " +
+            $"Sortino {s.Sortino.ToString("F2", inv)}, Max DD {s.MaxDrawdown.ToString("P2", inv)}, " +
+            $"Trades {s.TradeCount}, Win rate {s.WinRate.ToString("P1", inv)}, " +
+            $"Profit factor {s.ProfitFactor.ToString("F2", inv)}, Expectancy {s.Expectancy.ToString("F4", inv)}, " +
+            $"Calmar {s.Calmar.ToString("F2", inv)}, Omega {s.Omega.ToString("F2", inv)}, " +
+            $"Ulcer {s.UlcerIndex.ToString("F2", inv)}, Max consecutive losses {s.MaxConsecutiveLosses}.\n" +
+            "Please improve the strategy to raise Sharpe and cut max drawdown — keep the same idea.";
+    }
 
     /// <summary>
     /// Step 1 of consent: compile everything and, if clean, open the review overlay — per-file diffs
@@ -1240,22 +1445,34 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (_installer is null)
         {
             _registry.Register(result.Option!);
-            Status = $"Registered '{result.Option!.DisplayName}' from {script.Files.Count} file(s) — DEV (unsigned).{caveat}";
+            IsPersisted = false;
+            PersistedPath = null;
+            Status = $"Registered '{result.Option!.DisplayName}' for this session — Prove it next (not saved to disk).{caveat}";
         }
         else
         {
             var install = _installer.Install(script, result);
+            IsPersisted = install.Persisted is not null;
+            PersistedPath = install.Persisted;
             Status = install.Message + caveat;
             _logger.LogInformation(
-                "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog}",
-                result.Option!.Id, script.Files.Count, install.InCatalog);
+                "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog} persisted={Path}",
+                result.Option!.Id, script.Files.Count, install.InCatalog, install.Persisted);
         }
 
         _registeredBaseline.Clear();
         foreach (var file in script.Files) _registeredBaseline[file.Name] = file.Content;
 
         IsRegistered = true;
-        Append(AuthoringMessage.Tool("Ok", "Registered", Status ?? "The strategy is registered."));
+        var keepNote = IsPersisted
+            ? "Saved to the plugin library — survives restart."
+            : "Session only — will be gone after restart until persistence is available.";
+        Append(AuthoringMessage.Tool(
+            "Ok",
+            "Registered",
+            $"{result.Option!.DisplayName} is backtestable. {keepNote}",
+            Status));
+        WorkbenchTab = 0; // Prove
         CloseReview();
         Save();
     }
@@ -1470,6 +1687,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _generateCts?.Cancel();
         _generateCts?.Dispose();
         _generateCts = null;
+        _proveCts?.Cancel();
+        _proveCts?.Dispose();
+        _proveCts = null;
         foreach (var file in Files) file.PropertyChanged -= OnFileEdited;
     }
 
