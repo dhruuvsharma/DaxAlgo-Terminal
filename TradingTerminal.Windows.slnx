@@ -16,6 +16,7 @@
     <Project Path="tests/TradingTerminal.Sandbox.Runtime.Tests/TradingTerminal.Sandbox.Runtime.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Execution.Tests/TradingTerminal.Execution.Tests.csproj" />
     <Project Path="tests/TradingTerminal.ExecutionUi.Tests/TradingTerminal.ExecutionUi.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Updates.Tests/TradingTerminal.Updates.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.csproj" />

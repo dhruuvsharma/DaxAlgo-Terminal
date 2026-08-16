@@ -474,7 +474,7 @@
             </MenuItem>
         </Menu>
 
-        <!-- Row 2 banners: SIMULATED-DATA warning + disconnect banner, stacked. -->
+        <!-- Row 2 banners: SIMULATED-DATA warning + disconnect banner + update notice, stacked. -->
         <StackPanel Grid.Row="2">
             <!-- Persistent amber "simulated data" banner — visible while the Simulated broker is
                  connected so a synthetic feed is never mistaken for a live one. -->
@@ -501,6 +501,33 @@
                             Margin="16,0,0,0"
                             Command="{Binding ReconnectCommand}" />
                 </StackPanel>
+            </Border>
+
+            <!-- Update notice. Informational, so it sits below the two warning banners and uses the
+                 accent brush rather than amber/danger — a new release is good news, not a fault.
+                 It links to the release notes; the app never downloads or runs an installer. -->
+            <Border Background="{DynamicResource Accent.Brush}"
+                    Padding="12,6"
+                    Visibility="{Binding Update.IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <DockPanel LastChildFill="False">
+                    <TextBlock Text="⬆"
+                               Foreground="White" FontWeight="Bold" FontSize="13"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding Update.Message}"
+                               Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                    <Button DockPanel.Dock="Right"
+                            Content="Dismiss"
+                            Margin="8,0,0,0"
+                            Command="{Binding Update.DismissCommand}"
+                            ToolTip="Hide this notice. It won't return for this version." />
+                    <Button DockPanel.Dock="Right"
+                            Content="Release notes"
+                            Margin="16,0,0,0"
+                            Command="{Binding Update.OpenReleaseNotesCommand}"
+                            Visibility="{Binding Update.HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            ToolTip="Open the release notes in your browser to download the update." />
+                </DockPanel>
             </Border>
         </StackPanel>
 

@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using System.Text;
+using TradingTerminal.Infrastructure.Security;
 using System.Text.Json;
 
 namespace TradingTerminal.Infrastructure.Plugins.Feed;
@@ -36,33 +36,28 @@ public sealed class FeedSignatureVerifier
         ReadCommentHandling = JsonCommentHandling.Skip,
     };
 
-    private readonly string _pinnedPublicKeyBase64;
+    private readonly PinnedEcdsaVerifier _signature;
 
     /// <param name="pinnedPublicKeyBase64">Base64 SubjectPublicKeyInfo of the ECDSA P-256 public key
     /// (from <c>PluginsOptions.FeedPublicKey</c>). Empty ⇒ the feature is off.</param>
-    public FeedSignatureVerifier(string pinnedPublicKeyBase64) => _pinnedPublicKeyBase64 = pinnedPublicKeyBase64;
+    public FeedSignatureVerifier(string pinnedPublicKeyBase64) =>
+        _signature = new PinnedEcdsaVerifier(pinnedPublicKeyBase64);
 
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(_pinnedPublicKeyBase64);
+    public bool IsConfigured => _signature.IsConfigured;
 
     /// <summary>Verifies <paramref name="indexBytes"/> against <paramref name="signatureBytes"/> (a raw
     /// ECDSA signature, base64-decoded by the caller) with the pinned key, then parses the index. Any
     /// failure returns a classified outcome — this never throws, so a bad feed degrades to "no feed".</summary>
     public FeedVerifyResult Verify(byte[] indexBytes, byte[] signatureBytes)
     {
-        if (!IsConfigured)
-            return new FeedVerifyResult(FeedVerifyOutcome.NoPinnedKey, null, "No feed public key is pinned.");
-
-        try
+        // The byte-exact ECDSA check lives in one place (Security.PinnedEcdsaVerifier) and is shared
+        // with the application update feed; only the outcome mapping and parsing are feed-specific.
+        switch (_signature.Verify(indexBytes, signatureBytes, out var detail))
         {
-            using var ecdsa = ECDsa.Create();
-            ecdsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(_pinnedPublicKeyBase64), out _);
-            if (!ecdsa.VerifyData(indexBytes, signatureBytes, HashAlgorithmName.SHA256))
-                return new FeedVerifyResult(FeedVerifyOutcome.BadSignature, null,
-                    "The feed signature does not verify against the pinned key.");
-        }
-        catch (Exception ex) when (ex is CryptographicException or FormatException)
-        {
-            return new FeedVerifyResult(FeedVerifyOutcome.BadSignature, null, $"Signature check failed: {ex.Message}");
+            case PinnedSignatureOutcome.NoPinnedKey:
+                return new FeedVerifyResult(FeedVerifyOutcome.NoPinnedKey, null, "No feed public key is pinned.");
+            case PinnedSignatureOutcome.BadSignature:
+                return new FeedVerifyResult(FeedVerifyOutcome.BadSignature, null, detail);
         }
 
         PluginIndex? index;

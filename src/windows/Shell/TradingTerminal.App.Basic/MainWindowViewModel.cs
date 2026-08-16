@@ -21,11 +21,13 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Core.Updates;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Theming;
+using TradingTerminal.UI.Updates;
 
 namespace TradingTerminal.App;
 
@@ -76,6 +78,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
         // chip only observes, and this ctor is already at its parameter budget.
         Recorder = services.GetRequiredService<TickRecordingService>();
+        // Same reasoning for the update strip. GetService, not GetRequiredService: a shell that
+        // never calls AddUpdates should compose fine and simply never show the notice.
+        Update = new UpdateNoticeViewModel(services.GetService<IUpdateNotifier>());
 
         // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
         // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
@@ -648,6 +653,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// background recording is running. The panel window is only a view onto it — closing the panel
     /// does not stop the recording.</summary>
     public TickRecordingService Recorder { get; }
+
+    /// <summary>Backs the "a new version is available" strip in the row-2 banner stack. Always
+    /// present; it simply never becomes visible when no update feed is configured.</summary>
+    public UpdateNoticeViewModel Update { get; }
 
     /// <summary>Header REC chip → the recorder panel. Small window: it's a watchlist + a toggle, not
     /// a workspace.</summary>

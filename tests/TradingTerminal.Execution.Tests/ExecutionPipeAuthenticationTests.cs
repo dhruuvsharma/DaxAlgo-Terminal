@@ -8,7 +8,7 @@ namespace TradingTerminal.Execution.Tests;
 
 public sealed class ExecutionPipeAuthenticationTests
 {
-    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan TestTimeout = TestTimeouts.Deadlock;
 
     [Fact]
     public async Task Mutual_handshake_succeeds_over_current_user_named_pipe()
@@ -218,7 +218,7 @@ public sealed class ExecutionPipeAuthenticationTests
             pipeName,
             PipeDirection.InOut,
             PipeOptions.Asynchronous);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var timeout = new CancellationTokenSource(TestTimeouts.Deadlock);
 
         var failure = await Record.ExceptionAsync(async () =>
             await remoteStyleClient.ConnectAsync(timeout.Token));

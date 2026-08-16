@@ -214,7 +214,7 @@ public sealed class AlpacaExecutionClientTests
             false,
             90d,
             110d));
-        var outcome = await replication.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var outcome = await replication.Task.WaitAsync(TestTimeouts.Deadlock);
 
         Assert.False(modeChange.IsSuccess);
         Assert.Contains("authorization gate", modeChange.Message, StringComparison.OrdinalIgnoreCase);

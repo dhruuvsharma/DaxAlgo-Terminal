@@ -17,6 +17,7 @@ using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
+using TradingTerminal.Infrastructure.Updates;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
@@ -60,6 +61,10 @@ public static class AppDependencyInjection
         // one after this and wins.
         services.TryAddSingleton<TradingTerminal.Core.Hosting.ISidecarController,
             TradingTerminal.Core.Hosting.NullSidecarController>();
+
+        // Application update check. Inert unless BOTH Updates:FeedUrl and Updates:FeedPublicKey are
+        // configured, which they are not in the shipped build — see AddUpdates.
+        services.AddUpdates(configuration);
 
         // Feature modules common to every edition.
         services.AddStrategyPlugins(configuration);

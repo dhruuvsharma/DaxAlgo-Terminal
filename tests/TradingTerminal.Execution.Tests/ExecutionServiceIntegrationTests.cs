@@ -10,7 +10,7 @@ namespace TradingTerminal.Execution.Tests;
 [Collection(SqliteOrderEventStoreCollection.Name)]
 public sealed class ExecutionServiceIntegrationTests
 {
-    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan TestTimeout = TestTimeouts.Deadlock;
 
     [Fact]
     public async Task RealNamedPipe_SubmitStreamsSimulatedFillAndLedgerEvents()
