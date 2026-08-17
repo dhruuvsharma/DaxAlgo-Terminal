@@ -60,7 +60,8 @@ public partial class ComposedStrategyView : UserControl, IDisposable
 
         Setup.Title = descriptor.DisplayName;
         Setup.Subtitle = "AI-AUTHORED STRATEGY";
-        Setup.Description = SanitizeDescription(descriptor.Description);
+        var brief = SanitizeDescription(descriptor.Description);
+        Setup.Description = brief + "\n\nData needed: " + DataNeedsCopy(requirement);
         Setup.Tags = TagsFor(requirement);
 
         Chrome.SnapshotName = Sanitize(descriptor.Id);
@@ -162,6 +163,24 @@ public partial class ComposedStrategyView : UserControl, IDisposable
         if (requirement.HasFlag(StrategyDataRequirement.Depth)) tags.Add("Depth");
         if (requirement.HasFlag(StrategyDataRequirement.TradeTape)) tags.Add("Trade tape");
         return string.Join(", ", tags);
+    }
+
+    private static string DataNeedsCopy(StrategyDataRequirement requirement)
+    {
+        var parts = new List<string>();
+        if (requirement.HasFlag(StrategyDataRequirement.L1))
+            parts.Add("L1 quotes (any connected broker)");
+        if (requirement.HasFlag(StrategyDataRequirement.Bars))
+            parts.Add("Bars (any connected broker)");
+        if (requirement.HasFlag(StrategyDataRequirement.TradeTape))
+            parts.Add("Trade tape — pick a symbol on Binance, Interactive Brokers, or IronBeam");
+        if (requirement.HasFlag(StrategyDataRequirement.Depth))
+            parts.Add("Depth (L2) — broker must serve order book");
+
+        if (parts.Count == 0)
+            return "No special data feeds declared.";
+
+        return string.Join(" · ", parts) + ". Continue checks that your selected instrument's broker can serve these.";
     }
 
     private static TextBlock BuildHelp(StrategyDataRequirement requirement)

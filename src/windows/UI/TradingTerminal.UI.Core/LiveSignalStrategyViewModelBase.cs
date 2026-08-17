@@ -450,11 +450,43 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     {
         ValidationError = null;
         if (SelectedInstrument is null) { ValidationError = "Pick an instrument before continuing."; return; }
+
+        var feedError = ValidateDataRequirement(SelectedInstrument);
+        if (feedError is not null) { ValidationError = feedError; return; }
+
         var setupError = ValidateSetup();
         if (setupError is not null) { ValidationError = setupError; return; }
 
         IsConfigured = true;
         await StartAsync();
+    }
+
+    /// <summary>
+    /// Blocks Continue when the strategy's data tags (Trade tape / Depth) need a broker that
+    /// cannot serve them — same matrix as <see cref="StrategyBrokerCapability"/>.
+    /// </summary>
+    private string? ValidateDataRequirement(SignalInstrument instrument)
+    {
+        Core.Brokers.BrokerKind broker;
+        try { broker = ResolveBroker(instrument); }
+        catch (InvalidOperationException ex) { return ex.Message; }
+
+        var req = DataRequirement;
+        if (req.HasFlag(StrategyDataRequirement.TradeTape) &&
+            !StrategyBrokerCapability.TapeBrokers.Contains(broker))
+        {
+            return $"This strategy needs Trade tape. {broker} does not provide it. " +
+                   "Connect Binance, Interactive Brokers, or IronBeam, then pick a symbol from that broker.";
+        }
+
+        if (req.HasFlag(StrategyDataRequirement.Depth) &&
+            !StrategyBrokerCapability.DepthBrokers.Contains(broker))
+        {
+            return $"This strategy needs Depth (order book). {broker} does not provide it. " +
+                   "Connect a depth-capable broker (e.g. Binance, IB, cTrader), then pick again.";
+        }
+
+        return null;
     }
 
     [RelayCommand]
