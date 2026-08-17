@@ -126,6 +126,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // rest in the picker — a chat that dies with the process is no use for anything serious.
         RefreshSavedSessions();
         if (SavedSessions.FirstOrDefault() is { } latest) Restore(latest);
+
+        // Mid-session restore skips the AI gate; a blank canvas always starts with "choose AI first".
+        AiAuthoringReady = HasConversation;
     }
 
     /// <summary>True when the AI builder is wired at all — drives the chat pane's visibility. When wired
@@ -137,14 +140,69 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// mark, tagline, suggestion briefs) instead of an empty transcript.</summary>
     public bool HasConversation => Messages.Count > 0;
 
+    /// <summary>User confirmed provider/model (or chose to write without AI). Empty Hyperion shows the
+    /// AI setup gate until this is true; New strategy keeps it so the gate is not a every-time tax.</summary>
+    [ObservableProperty] private bool _aiAuthoringReady;
+
+    /// <summary>Empty canvas + AI not confirmed yet — pick provider/model before briefs / generate.</summary>
+    public bool ShowAiSetup => !HasConversation && !AiAuthoringReady;
+
+    /// <summary>Empty canvas after AI setup — "Describe the strategy" + suggestion briefs.</summary>
+    public bool ShowStrategyHero => !HasConversation && AiAuthoringReady;
+
+    /// <summary>Composer + send only after the setup gate (or once a conversation is underway).</summary>
+    public bool ShowComposer => HasConversation || AiAuthoringReady;
+
+    partial void OnAiAuthoringReadyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowAiSetup));
+        OnPropertyChanged(nameof(ShowStrategyHero));
+        OnPropertyChanged(nameof(ShowComposer));
+    }
+
     /// <summary>Live build tags inferred from chat (direction, signal, data, legs) — shown on the
     /// workbench so the user can see what they are making before Register. Same idea as catalog tags.</summary>
     public ObservableCollection<string> BuildTags { get; } = [];
 
     public bool HasBuildTags => BuildTags.Count > 0;
 
-    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
         OnPropertyChanged(nameof(HasConversation));
+        OnPropertyChanged(nameof(ShowAiSetup));
+        OnPropertyChanged(nameof(ShowStrategyHero));
+        OnPropertyChanged(nameof(ShowComposer));
+    }
+
+    /// <summary>Leave the AI setup gate with the current provider/model locked in for authoring.</summary>
+    private bool CanConfirmAiSetup => SelectedAiProvider is { IsAvailable: true };
+
+    [RelayCommand(CanExecute = nameof(CanConfirmAiSetup))]
+    private void ConfirmAiSetup()
+    {
+        if (SelectedAiProvider is not { IsAvailable: true } choice) return;
+        PersistSelection(choice.ProviderId, SelectedModel, SelectedEffort);
+        AiAuthoringReady = true;
+        Status = $"Ready with {choice.DisplayName}" +
+                 (string.IsNullOrEmpty(SelectedModel) ? "." : $" · {SelectedModel}.");
+    }
+
+    /// <summary>Skip the provider gate — Compile &amp; Register / Prove still work without chat generate.</summary>
+    [RelayCommand]
+    private void ContinueWithoutAi()
+    {
+        AiAuthoringReady = true;
+        Status = "Continuing without AI — write the strategy yourself, Compile & Register, then Prove.";
+    }
+
+    /// <summary>From the empty strategy hero: reopen the provider/model gate before generating.</summary>
+    [RelayCommand]
+    private void ChangeAiSetup()
+    {
+        if (HasConversation) return;
+        AiAuthoringReady = false;
+        Status = "Choose an AI provider, then continue.";
+    }
 
     private void AbsorbBuildTagsFrom(string? text)
     {
@@ -431,6 +489,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ResetSession("Switched provider.");
         Models.Clear();
         OnPropertyChanged(nameof(EffortSupported));
+        ConfirmAiSetupCommand.NotifyCanExecuteChanged();
         if (value is null)
         {
             SyncModelChoice();
@@ -1322,6 +1381,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 ? $"Restored '{session.DisplayName}' ({session.Age}). " +
                   (session.Registered ? "Registered — open Prove to run a real backtest." : "Compile & Register, then Prove.")
                 : "Describe a strategy, Compile & Register, then Prove.";
+
+            // Library open = already past the AI gate for this canvas.
+            if (Messages.Count > 0) AiAuthoringReady = true;
         }
         finally
         {

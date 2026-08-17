@@ -120,21 +120,7 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <!-- Provider health footer -->
-                    <StackPanel DockPanel.Dock="Bottom" Style="{StaticResource RailPanel}"
-                                Margin="0,8,0,0">
-                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
-                                Padding="0,7,0,0">
-                            <StackPanel>
-                                <TextBlock Text="PROVIDERS" Style="{StaticResource HYP.SectionLabel}"
-                                           Margin="0,0,0,4" />
-                                <ItemsControl ItemsSource="{Binding AiProviders}"
-                                              ItemTemplate="{StaticResource HYP.ProviderRow}" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-
-                    <!-- Library (saved authoring sessions) -->
+                    <!-- Library (saved authoring sessions) — AI setup lives on the canvas gate, not here. -->
                     <ListBox ItemsSource="{Binding SavedSessions}"
                              SelectedItem="{Binding SelectedSavedSession}"
                              HorizontalContentAlignment="Stretch"
@@ -204,7 +190,7 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <!-- Transcript / hero empty state -->
+                <!-- Transcript / empty states: AI setup gate → strategy hero → chat -->
                 <Grid Grid.Row="1">
                     <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
@@ -218,9 +204,105 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!-- Hero: first-run and every New strategy. -->
+                    <!-- Gate: choose AI before New strategy / briefs / generate. -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420"
+                                Visibility="{Binding ShowAiSetup, Converter={StaticResource B2V}}">
+                        <Border Style="{StaticResource HYP.HeroMark}" Width="46" Height="46"
+                                HorizontalAlignment="Center">
+                            <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="16"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="Choose an AI provider"
+                                   FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Header}" />
+                        <TextBlock Text="Pick who writes the strategy. Then describe it, Compile &amp; Register, and Prove."
+                                   FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+
+                        <TextBlock Text="PROVIDER" Style="{StaticResource HYP.SectionLabel}"
+                                   Margin="0,18,0,6" HorizontalAlignment="Left" />
+                        <ListBox ItemsSource="{Binding AiProviders}"
+                                 SelectedItem="{Binding SelectedAiProvider}"
+                                 MaxHeight="200" BorderThickness="0" Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource HYP.SessionItem}">
+                                    <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="Margin" Value="0,0,0,4" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                 Fill="{DynamicResource Bullish.Brush}">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                            <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                            <Setter Property="Opacity" Value="0.45" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                        <TextBlock Text="{Binding Label}" FontSize="12" Margin="8,0,0,0"
+                                                   Foreground="{DynamicResource Text.Primary}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock Text="MODEL" Style="{StaticResource HYP.SectionLabel}"
+                                   Margin="0,14,0,6" HorizontalAlignment="Left"
+                                   Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}" />
+                        <ComboBox ItemsSource="{Binding Models}"
+                                  SelectedItem="{Binding SelectedModel}"
+                                  IsEditable="True"
+                                  FontSize="12"
+                                  FontFamily="{DynamicResource Font.Data}"
+                                  Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}"
+                                  ToolTip="Curated list for this provider — type any model id it accepts." />
+
+                        <StackPanel Margin="0,18,0,0"
+                                    Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}">
+                            <Button Style="{StaticResource HYP.SendButton}" HorizontalAlignment="Stretch"
+                                    Command="{Binding ConfirmAiSetupCommand}"
+                                    Content="Continue — start strategy" />
+                            <Button Margin="0,8,0,0" HorizontalAlignment="Center" Cursor="Hand"
+                                    Background="Transparent" BorderThickness="0" Padding="4"
+                                    Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                                    Command="{Binding ContinueWithoutAiCommand}"
+                                    Content="Continue without AI" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource HYP.QuestionCard}" Margin="0,18,0,0"
+                                Visibility="{Binding AiHasProvider, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                           Foreground="{DynamicResource Text.Primary}">
+                                    <Run Text="No AI provider is set up yet." FontWeight="SemiBold" />
+                                    <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or continue without AI and write the strategy yourself." />
+                                </TextBlock>
+                                <Button Margin="0,10,0,0" HorizontalAlignment="Left" Cursor="Hand"
+                                        Background="Transparent" BorderThickness="0" Padding="0"
+                                        Foreground="{DynamicResource Ai.Text.Brush}" FontSize="11.5"
+                                        FontWeight="SemiBold"
+                                        Command="{Binding ContinueWithoutAiCommand}"
+                                        Content="Continue without AI →" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Hero after AI setup: briefs + Change AI. -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560"
-                                Visibility="{Binding HasConversation, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                Visibility="{Binding ShowStrategyHero, Converter={StaticResource B2V}}">
                         <Border Style="{StaticResource HYP.HeroMark}" Width="46" Height="46"
                                 HorizontalAlignment="Center">
                             <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="16"
@@ -235,8 +317,19 @@
                                    TextAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}" />
 
-                        <!-- Suggestion briefs (when a provider is usable)… -->
-                        <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,18,0,0"
+                        <Button Margin="0,10,0,0" HorizontalAlignment="Center" Cursor="Hand"
+                                Background="Transparent" BorderThickness="0" Padding="4"
+                                Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                                Command="{Binding ChangeAiSetupCommand}"
+                                ToolTip="Change provider or model before generating.">
+                            <TextBlock>
+                                <Run Text="AI: " />
+                                <Run Text="{Binding ModelPillText, Mode=OneWay}" />
+                                <Run Text="  ·  Change" />
+                            </TextBlock>
+                        </Button>
+
+                        <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,14,0,0"
                                       HorizontalAlignment="Center"
                                       Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}">
                             <ItemsControl.ItemTemplate>
@@ -252,13 +345,12 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- …or the setup nudge when none is. -->
                         <Border Style="{StaticResource HYP.QuestionCard}" Margin="0,18,0,0"
                                 Visibility="{Binding AiHasProvider, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                             <TextBlock TextWrapping="Wrap" FontSize="11.5"
                                        Foreground="{DynamicResource Text.Primary}">
-                                <Run Text="No AI provider is set up yet." FontWeight="SemiBold" />
-                                <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or write the strategy yourself, Compile &amp; Register, then Prove." />
+                                <Run Text="No AI provider is available." FontWeight="SemiBold" />
+                                <Run Text="Write the strategy yourself, Compile &amp; Register, then Prove — or Change AI after adding a key under Settings → AI providers." />
                             </TextBlock>
                         </Border>
                     </StackPanel>
@@ -292,9 +384,10 @@
                                Visibility="{Binding AiStatus, Converter={StaticResource S2V}}" />
                 </StackPanel>
 
-                <!-- Cockpit composer -->
+                <!-- Cockpit composer — after AI setup (or once a conversation is underway). -->
                 <ContentControl Grid.Row="4" Style="{StaticResource HYP.ComposerShell}" Margin="0,10,0,0"
-                                Padding="12,10" Tag="{Binding IsGenerating}">
+                                Padding="12,10" Tag="{Binding IsGenerating}"
+                                Visibility="{Binding ShowComposer, Converter={StaticResource B2V}}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
