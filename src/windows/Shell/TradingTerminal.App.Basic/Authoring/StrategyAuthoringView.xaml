@@ -467,8 +467,10 @@
                                            Opacity="0.8"
                                            Text="{Binding PersistedPath, FallbackValue='Library: not on disk yet', TargetNullValue='Library: session only'}" />
                             </Grid>
-                            <!-- Build tags: inferred from chat while authoring — same idea as catalog tags. -->
-                            <ItemsControl ItemsSource="{Binding BuildTags}" Margin="0,8,0,0"
+                            <!-- DATA chips = Strategy Studio L1/BAR/L2/TAPE (from descriptor when built). -->
+                            <TextBlock Text="DATA" FontSize="8.5" FontWeight="Bold" Margin="1,10,0,4"
+                                       Foreground="{DynamicResource Text.Secondary}" />
+                            <ItemsControl ItemsSource="{Binding BuildTags}"
                                           Visibility="{Binding HasBuildTags, Converter={StaticResource B2V}}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -487,6 +489,9 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <TextBlock FontSize="10.5" Foreground="{DynamicResource Text.Secondary}"
+                                       Text="L1 · BAR · L2 · TAPE appear when the strategy compiles (Charts / Book / Footprint)."
+                                       Visibility="{Binding HasBuildTags, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                             <TextBlock Margin="1,7,0,0" TextWrapping="Wrap" FontSize="10.5"
                                        Foreground="{DynamicResource Text.Secondary}"
                                        Text="{Binding Status}"

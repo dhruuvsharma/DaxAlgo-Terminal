@@ -156,10 +156,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void AbsorbDataRequirementTags(StrategyCompileResult? compile)
     {
-        if (compile?.Authored?.DescriptorType is not { } descriptorType) return;
+        if (compile?.Authored?.DescriptorType is not { } descriptorType)
+        {
+            AbsorbDataRequirementFromSource();
+            return;
+        }
+
         try
         {
-            if (Activator.CreateInstance(descriptorType) is not ITradingStrategy descriptor) return;
+            if (Activator.CreateInstance(descriptorType) is not ITradingStrategy descriptor)
+            {
+                AbsorbDataRequirementFromSource();
+                return;
+            }
+
             var before = BuildTags.Count;
             BuildTagInferrer.AbsorbDataRequirement(descriptor.DataRequirement, BuildTags);
             if (BuildTags.Count != before)
@@ -168,7 +178,57 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Could not read DataRequirement tags from authored descriptor");
+            AbsorbDataRequirementFromSource();
         }
+    }
+
+    /// <summary>
+    /// Re-compile current files (or scan source) so Library restores / already-built sessions still
+    /// show L1·BAR·L2·TAPE even when the saved snapshot had no BuildTags yet.
+    /// </summary>
+    private void RefreshDataTagsFromFiles()
+    {
+        if (Files.Count == 0) return;
+        try
+        {
+            var result = _compiler.Compile(CurrentScript());
+            if (result.Success)
+            {
+                AbsorbDataRequirementTags(result);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "RefreshDataTagsFromFiles compile failed for {Id}", StrategyId);
+        }
+
+        AbsorbDataRequirementFromSource();
+    }
+
+    /// <summary>Fallback when compile/reflection fails — read StrategyDataRequirement flags from source text.</summary>
+    private void AbsorbDataRequirementFromSource()
+    {
+        if (Files.Count == 0) return;
+        var text = string.Join('\n', Files.Select(f => f.Content));
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        var req = StrategyDataRequirement.None;
+        if (text.Contains("StrategyDataRequirement.L1", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.L1;
+        if (text.Contains("StrategyDataRequirement.Bars", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.Bars;
+        if (text.Contains("StrategyDataRequirement.Depth", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.Depth;
+        if (text.Contains("StrategyDataRequirement.TradeTape", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.TradeTape;
+
+        if (req == StrategyDataRequirement.None) return;
+
+        var before = BuildTags.Count;
+        BuildTagInferrer.AbsorbDataRequirement(req, BuildTags);
+        if (BuildTags.Count != before)
+            OnPropertyChanged(nameof(HasBuildTags));
     }
 
     private void ReplaceBuildTags(IEnumerable<string>? tags)
@@ -1252,6 +1312,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             LastRunOk = session.LastRunOk;
             LastRunSummary = session.LastRunSummary;
             ReplaceBuildTags(session.BuildTags);
+            RefreshDataTagsFromFiles(); // already-built sessions: derive L1/BAR/L2/TAPE from files
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
@@ -1266,6 +1327,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             _restoring = false;
         }
+
+        // Persist newly derived DATA chips so the next open already has them.
+        if (BuildTags.Count > 0) Save();
     }
 
     /// <summary>Writes the current session out. Called after anything worth not losing: a turn, a compile,
