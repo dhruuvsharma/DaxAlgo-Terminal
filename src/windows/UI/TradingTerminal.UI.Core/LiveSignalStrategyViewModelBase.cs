@@ -105,15 +105,20 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
         // Seed from the canonical instrument registry (no hardcoded catalog). Instrument-discovery
         // fills the registry the moment a broker connects, so if any broker is already up this is the
-        // real, discovered universe; if none is up yet it's empty and the picker fills on connect.
+        // real, discovered universe; if none is up yet fall back to SignalInstrumentCatalog so the
+        // composed Open picker is never an empty box (authored VMs often leave RequiresInstrument false).
         AllInstruments = RegistryRows();
+        if (AllInstruments.Count == 0)
+            AllInstruments = SignalInstrumentCatalog.All;
         Instruments = new ObservableCollection<SignalInstrument>();
         if (RequiresInstrument)
         {
             SelectedInstrument = InstrumentPickerFilter.InitialSelection(StrategyId, AllInstruments,
                 () => AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? AllInstruments.FirstOrDefault());
-            ApplyInstrumentFilter();
         }
+        // Always fill the visible list — ComposeStrategyView shows InstrumentPicker even when
+        // RequiresInstrument is false; without this the dropdown has zero rows and looks broken.
+        ApplyInstrumentFilter();
         Signals = new ObservableCollection<SignalEntry>();
         Bars = new ObservableCollection<Bar>();
 
@@ -320,9 +325,11 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
                     i.Broker))
                 .ToList();
 
-            // Broker-tagged rows are richer (pills show the source broker); fall back to the registry
-            // when a broker contributed nothing so the picker reflects the discovered universe.
+            // Broker-tagged rows are richer (pills show the source broker); fall back to the registry,
+            // then the curated catalog, so composed Open never shows an empty instrument dropdown.
             IReadOnlyList<SignalInstrument> rows = brokerRows.Count > 0 ? brokerRows : RegistryRows();
+            if (rows.Count == 0)
+                rows = SignalInstrumentCatalog.All;
 
             if (rows.Count == 0)
             {
@@ -334,30 +341,44 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
             }
 
             AllInstruments = rows;
-            var source = brokerRows.Count > 0 ? string.Join(", ", connected) : "instrument registry";
+            var source = brokerRows.Count > 0
+                ? string.Join(", ", connected)
+                : "instrument registry / catalog";
             _services.ActivityLog.Append(StrategyDisplayName, "INFO",
                 $"Loaded {AllInstruments.Count} instruments from {source}.");
 
             // Preserve the user's current pick across a reload (this method also runs when a broker
             // connects after the window opened — see OnBrokerStateChanged). Match by symbol since the
             // broker-tagged DisplayName differs from any registry row the user may have selected.
-            if (RequiresInstrument)
+            var prevSymbol = SelectedInstrument?.Contract.Symbol;
+            if (prevSymbol is not null)
             {
-                var prevSymbol = SelectedInstrument?.Contract.Symbol;
                 SelectedInstrument =
-                    (prevSymbol is not null ? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol) : null)
-                    ?? InstrumentPickerFilter.Remembered(StrategyId, AllInstruments)
+                    AllInstruments.FirstOrDefault(i => i.Contract.Symbol == prevSymbol)
+                    ?? SelectedInstrument;
+            }
+            else if (RequiresInstrument)
+            {
+                SelectedInstrument =
+                    InstrumentPickerFilter.Remembered(StrategyId, AllInstruments)
                     ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY")
                     ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "AAPL")
+                    ?? AllInstruments.FirstOrDefault(i => i.Contract.Symbol == "BTCUSDT")
                     ?? AllInstruments.FirstOrDefault();
-                ApplyInstrumentFilter();
             }
+
+            // Always refresh picker rows — authored/composed windows show InstrumentPicker even when
+            // RequiresInstrument is false; skipping Apply left Instruments empty (user could pick nothing).
+            ApplyInstrumentFilter();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "{Strategy} instrument list load failed", StrategyId);
             _services.ActivityLog.Append(StrategyDisplayName, "WARN",
                 $"Instrument list load failed ({ex.GetType().Name}: {ex.Message}).");
+            if (AllInstruments.Count == 0)
+                AllInstruments = SignalInstrumentCatalog.All;
+            ApplyInstrumentFilter();
         }
     }
 

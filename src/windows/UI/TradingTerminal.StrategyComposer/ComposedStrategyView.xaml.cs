@@ -60,9 +60,7 @@ public partial class ComposedStrategyView : UserControl, IDisposable
 
         Setup.Title = descriptor.DisplayName;
         Setup.Subtitle = "AI-AUTHORED STRATEGY";
-        Setup.Description = string.IsNullOrWhiteSpace(descriptor.Description)
-            ? "Authored in the AI Strategy Builder. The host composed this live window from the data the strategy declares it consumes."
-            : descriptor.Description;
+        Setup.Description = SanitizeDescription(descriptor.Description);
         Setup.Tags = TagsFor(requirement);
 
         Chrome.SnapshotName = Sanitize(descriptor.Id);
@@ -197,6 +195,20 @@ public partial class ComposedStrategyView : UserControl, IDisposable
 
     private static string Sanitize(string id) =>
         new(id.Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+
+    /// <summary>AI briefs sometimes emit broken arrows (→ → ??) — clean for the setup hero.</summary>
+    private static string SanitizeDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return "Authored in the AI Strategy Builder. The host composed this live window from the data the strategy declares it consumes.";
+        }
+
+        return description
+            .Replace("??", " — ", StringComparison.Ordinal)
+            .Replace('\uFFFD', '-')
+            .Trim();
+    }
 
     // ── strategy view-model wiring ──────────────────────────────────────────────────────────────────
 
