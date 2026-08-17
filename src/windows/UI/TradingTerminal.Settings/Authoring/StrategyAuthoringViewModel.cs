@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -151,6 +152,23 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         BuildTagInferrer.Absorb(text, BuildTags);
         if (BuildTags.Count != before)
             OnPropertyChanged(nameof(HasBuildTags));
+    }
+
+    private void AbsorbDataRequirementTags(StrategyCompileResult? compile)
+    {
+        if (compile?.Authored?.DescriptorType is not { } descriptorType) return;
+        try
+        {
+            if (Activator.CreateInstance(descriptorType) is not ITradingStrategy descriptor) return;
+            var before = BuildTags.Count;
+            BuildTagInferrer.AbsorbDataRequirement(descriptor.DataRequirement, BuildTags);
+            if (BuildTags.Count != before)
+                OnPropertyChanged(nameof(HasBuildTags));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not read DataRequirement tags from authored descriptor");
+        }
     }
 
     private void ReplaceBuildTags(IEnumerable<string>? tags)
@@ -895,6 +913,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             if (_streamingReply is null) Append(new AuthoringMessage(CodegenRole.Assistant, turn.AssistantText));
             else _streamingReply.Text = turn.AssistantText;
 
+            // Free-form TAGS: from the model + DaxAlgo DataRequirement tags after a clean compile.
+            AbsorbBuildTagsFrom(turn.AssistantText);
+            if (turn.Kind == BuildTurnKind.Compiled)
+                AbsorbDataRequirementTags(turn.Compile);
+
             AwaitingAnswer = turn.Kind == BuildTurnKind.Question;
 
             if (turn.Files.Count > 0)
@@ -1468,6 +1491,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
 
         CompiledOk = true;
+        AbsorbDataRequirementTags(result);
         if (result.Option.HasParameters)
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 

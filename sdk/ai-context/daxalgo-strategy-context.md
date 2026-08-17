@@ -327,6 +327,17 @@ tape) - **reply with your questions and NO code block**. That is a normal turn: 
 questions to the user and sends their answer back to you. Ask once, concisely (2-4 questions), then
 write the strategy. Do not ask about things you can reasonably default, and do not ask twice.
 
+### Free-form TAGS line (workbench chips)
+
+On every substantive reply (questions or code), include exactly one line of the form:
+
+`TAGS: short-label-1, short-label-2, …`
+
+Tags are free-form — they do not limit which strategies you may write. Prefer the host's existing data
+tags when they apply: `L1`, `Bars`, `Depth`, `Trade tape` (these match `StrategyDataRequirement` and
+the composed live window). Add other short labels for the idea itself (e.g. `ema-cross`, `BTCUSDT`,
+`mean-reversion`) as needed. Keep the list short (about 2–8 tags).
+
 ### Compiler errors come back to you
 
 If the code does not compile, the builder sends you the compiler's own diagnostics (with file and line)

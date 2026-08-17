@@ -328,7 +328,11 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             "`// file: <Name>.cs` line. Write the COMPLETE plugin — kernel + ITradingStrategy descriptor + " +
             "live view-model + code-built view — unless the user explicitly asked for a backtest kernel only; " +
             "a kernel on its own gets no catalog card and no window. Ask a question instead of guessing if the " +
-            "brief is ambiguous about the instrument, timeframe, sizing or risk.");
+            "brief is ambiguous about the instrument, timeframe, sizing or risk. " +
+            "When you write code (or answer clarifying questions), include one free-form line " +
+            "`TAGS: tag1, tag2, …` — short labels for what this strategy is (signal idea, instrument hint, " +
+            "and data needs). Prefer DaxAlgo data tags when they apply: L1, Bars, Depth, Trade tape. " +
+            "TAGS do not limit the strategy space; invent concise tags as needed.");
         return sb.ToString();
     }
 
