@@ -323,7 +323,9 @@ internal static class WorkerApplication
         if (!request.Run.Universe.IsSingleInstrument)
             throw new BacktestProtocolException(
                 "unsupported_parquet_universe",
-                "P2 parquet jobs support exactly one instrument.");
+                "Parquet input is single-instrument today. For multi-leg arb/spread runs use a LocalStore " +
+                "(StoreMarketDataFeed) job with Universe.Instruments covering every leg — feed merge + " +
+                "LatencyMs + DepthWalk are supported there.");
 
         var path = Path.GetFullPath(request.Input.Path!);
         EnsureNoReparseComponents(path);

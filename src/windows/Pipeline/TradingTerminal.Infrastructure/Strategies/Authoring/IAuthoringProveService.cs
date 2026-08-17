@@ -40,7 +40,7 @@ public sealed record AuthoringFidelityStrip(
         Rung: "Bar-synthetic L1 · Latency 0 · 1 instrument · Session engine",
         HonestFor: "Bar / indicator sniff, rough direction, fee-aware P&L shape",
         NotHonestFor: "Arbitrage, spread races, order-book imbalance, co-lo latency, true tape absorption",
-        Detail: "Prove synthesizes ticks from bars (same path as Quick Backtest). Climb MidPrice / Latency / Depth on the new engine before trusting microstructure edges.");
+        Detail: "Hyperion Prove uses the session path (bar→ticks). New BacktestEngine also supports MidPrice / NextBarOpen / EveryTickFromBars / LatencyMs / DepthWalk / multi-instrument LocalStore — pick that rung when you need microstructure honesty.");
 
     public static AuthoringFidelityStrip ForProveRun(string symbol, string broker, int barCount, string barSize) =>
         ProveDefault with

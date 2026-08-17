@@ -10,24 +10,26 @@ namespace TradingTerminal.Backtest.Engine.Execution;
 /// <summary>
 /// The kernel-facing order seam for the backtester. Resolves each <see cref="OrderRequest"/>'s
 /// <see cref="Contract"/> to a canonical <see cref="InstrumentId"/> against the run's
-/// <see cref="Universe"/> (so an order targets the right book/position in a portfolio run), then
-/// pushes it into the <see cref="SimulatedOrderBook"/>. Re-publishes order events on
-/// <see cref="OrderEvents"/> for any external subscriber; the engine itself listens to the book
-/// directly so it also gets the instrument tag.
+/// <see cref="Universe"/>, optionally delays submission by <see cref="ExecutionSpec.LatencyMs"/>,
+/// then pushes into the <see cref="SimulatedOrderBook"/>.
 /// </summary>
 internal sealed class EngineOrderRouter : IOrderRouter, IStrategySignalSink
 {
     private readonly SimulatedOrderBook _book;
     private readonly Universe _universe;
     private readonly IClock _clock;
+    private readonly double _latencyMs;
     private readonly Subject<OrderEvent> _events = new();
     private readonly List<StrategySignalEvent> _signals = [];
+    private readonly List<PendingSubmit> _pending = [];
+    private long _nextDeferredId;
 
-    public EngineOrderRouter(SimulatedOrderBook book, Universe universe, IClock clock)
+    public EngineOrderRouter(SimulatedOrderBook book, Universe universe, IClock clock, double latencyMs = 0)
     {
         _book = book;
         _universe = universe;
         _clock = clock;
+        _latencyMs = latencyMs < 0 ? 0 : latencyMs;
         _book.Event += (_, evt) => _events.OnNext(evt);
     }
 
@@ -45,13 +47,41 @@ internal sealed class EngineOrderRouter : IOrderRouter, IStrategySignalSink
         return Task.CompletedTask;
     }
 
-    public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default) =>
-        Task.FromResult(_book.Submit(request, Resolve(request.Contract)));
+    public Task<OrderResult> PlaceOrderAsync(OrderRequest request, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var instrument = Resolve(request.Contract);
+
+        if (_latencyMs <= 0)
+            return Task.FromResult(_book.Submit(request, instrument));
+
+        // Delay admission to the book — order is "Working" from the strategy's POV immediately.
+        var deferredBrokerId = $"BT-LAT-{Interlocked.Increment(ref _nextDeferredId)}";
+        var readyUtc = _clock.UtcNow.AddMilliseconds(_latencyMs);
+        _pending.Add(new PendingSubmit(readyUtc, request, instrument, deferredBrokerId));
+
+        return Task.FromResult(new OrderResult(request.ClientOrderId, deferredBrokerId, OrderState.Working));
+    }
 
     public Task CancelOrderAsync(string clientOrderId, CancellationToken ct = default)
     {
+        _pending.RemoveAll(p => string.Equals(p.Request.ClientOrderId, clientOrderId, StringComparison.Ordinal));
         _book.Cancel(clientOrderId);
         return Task.CompletedTask;
+    }
+
+    /// <summary>Admit latency-deferred orders whose ready time has passed. Call after each clock advance.</summary>
+    public void ReleaseDue()
+    {
+        if (_pending.Count == 0) return;
+        var now = _clock.UtcNow;
+        for (var i = _pending.Count - 1; i >= 0; i--)
+        {
+            var p = _pending[i];
+            if (p.ReadyUtc > now) continue;
+            _pending.RemoveAt(i);
+            _book.Submit(p.Request, p.Instrument);
+        }
     }
 
     private InstrumentId Resolve(Contract contract)
@@ -59,6 +89,9 @@ internal sealed class EngineOrderRouter : IOrderRouter, IStrategySignalSink
         foreach (var spec in _universe.Instruments)
             if (string.Equals(spec.Contract.Symbol, contract.Symbol, StringComparison.OrdinalIgnoreCase))
                 return spec.Id;
-        return _universe.Primary.Id; // single-instrument runs (and unmatched symbols) target the primary
+        return _universe.Primary.Id;
     }
+
+    private sealed record PendingSubmit(
+        DateTime ReadyUtc, OrderRequest Request, InstrumentId Instrument, string DeferredBrokerId);
 }

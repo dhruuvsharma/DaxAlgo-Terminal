@@ -606,6 +606,10 @@
                                                        ToolTip="Unsigned plugin — running on your consent" />
                                         </Border>
                                     </Grid>
+                                    <TextBlock Text="{Binding LastProveLine}" FontSize="10" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource Accent.Brush}"
+                                               Visibility="{Binding HasLastProve, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                               ToolTip="Last Hyperion Prove run (from Library session)" />
                                     <!-- Alpha-generating formula — shown only when the user has added one. -->
                                     <Border Margin="12,6,0,0"
                                             Background="{DynamicResource Background.Surface}"

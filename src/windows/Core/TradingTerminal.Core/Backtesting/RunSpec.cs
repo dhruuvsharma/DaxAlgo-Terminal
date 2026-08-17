@@ -40,6 +40,9 @@ public enum FillModelKind
 
     /// <summary>Defer market fills to the next bar's open — conservative for bar-mode backtests.</summary>
     NextBarOpen = 2,
+
+    /// <summary>Walk L2 depth levels for market size; falls back to L1 touch when no book is present.</summary>
+    DepthWalk = 3,
 }
 
 /// <summary>Which transaction-cost model is charged per fill.</summary>

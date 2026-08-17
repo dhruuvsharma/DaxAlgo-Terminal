@@ -33,11 +33,12 @@ public sealed class StoreMarketDataFeed : IMarketDataFeed
         if (spec.Data.Modeling == ModelingMode.EveryTickFromBars)
             return StreamFromBarsAsync(spec, from, to, ct);
 
-        var sources = new List<IAsyncEnumerable<MarketEvent>>(spec.Universe.Instruments.Count * 2);
+        var sources = new List<IAsyncEnumerable<MarketEvent>>(spec.Universe.Instruments.Count * 3);
         foreach (var inst in spec.Universe.Instruments)
         {
             sources.Add(Quotes(inst, from, to, ct));
             sources.Add(Trades(inst, from, to, ct));
+            sources.Add(Depth(inst, from, to, ct));
         }
         return AsyncMerge.ByEventTime(sources, ct);
     }
@@ -88,5 +89,12 @@ public sealed class StoreMarketDataFeed : IMarketDataFeed
     {
         await foreach (var t in _store.ReadTradesAsync(inst.Id, from, to, inst.Source, ct).WithCancellation(ct))
             yield return MarketEvent.OfTrade(inst.Id, t);
+    }
+
+    private async IAsyncEnumerable<MarketEvent> Depth(
+        InstrumentSpec inst, DateTime from, DateTime to, [EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var d in _store.ReadDepthAsync(inst.Id, from, to, ct).WithCancellation(ct))
+            yield return MarketEvent.OfDepth(inst.Id, d.TimestampUtc, d);
     }
 }

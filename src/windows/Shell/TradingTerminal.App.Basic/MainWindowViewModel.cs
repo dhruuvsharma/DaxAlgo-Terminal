@@ -485,6 +485,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         var item = new StrategyCatalogItemViewModel(strategy);
         var engineId = item.ResolvedBacktestStrategyId;
         item.HasQuickBacktest = engineId is not null && _backtestRegistry.Find(engineId) is not null;
+
+        // Hyperion Library → catalog: surface last Prove Sharpe/MDD when a session snapshot exists.
+        var session = TradingTerminal.App.Authoring.AuthoringSessionStore.Load(strategy.Id)
+                      ?? (engineId is not null
+                          ? TradingTerminal.App.Authoring.AuthoringSessionStore.Load(engineId)
+                          : null);
+        item.LastProveLine = session?.LastProveLine;
+
         return item;
     }
 

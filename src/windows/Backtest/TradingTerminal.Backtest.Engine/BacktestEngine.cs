@@ -81,7 +81,8 @@ public sealed class BacktestEngine
             orderTransitionCount++;
         };
 
-        var router = new EngineOrderRouter(book, spec.Universe, clock);
+        var router = new EngineOrderRouter(
+            book, spec.Universe, clock, spec.ExecutionOrDefault.LatencyMs);
         var ctx = new StrategyContext(clock, router, new PortfolioView(portfolio), spec.Universe, spec.ParametersOrEmpty);
 
         var equity = new List<EquitySample>();
@@ -112,6 +113,10 @@ public sealed class BacktestEngine
             firstUtc ??= ev.TimestampUtc;
             lastUtc = ev.TimestampUtc;
 
+            // Admit latency-deferred orders before this event's book/strategy work.
+            router.ReleaseDue();
+            await DrainOrderEventsAsync().ConfigureAwait(false);
+
             switch (ev.Kind)
             {
                 case MarketEventKind.Quote:
@@ -140,6 +145,7 @@ public sealed class BacktestEngine
                     await kernel.OnTradeAsync(ev.Instrument, ev.Trade!, ctx, ct).ConfigureAwait(false);
                     break;
                 case MarketEventKind.Depth:
+                    book.OnDepth(ev.Instrument, ev.Depth!);
                     await kernel.OnDepthAsync(ev.Instrument, ev.Depth!, ctx, ct).ConfigureAwait(false);
                     break;
                 case MarketEventKind.Bar:
@@ -208,16 +214,16 @@ public sealed class BacktestEngine
 
         var execution = spec.ExecutionOrDefault;
         if (execution.FillModel is not (
-            FillModelKind.L1Touch or FillModelKind.MidPrice or FillModelKind.NextBarOpen))
+            FillModelKind.L1Touch or FillModelKind.MidPrice or FillModelKind.NextBarOpen or FillModelKind.DepthWalk))
         {
             throw new NotSupportedException(
                 $"Fill model '{execution.FillModel}' is not supported.");
         }
 
-        if (execution.LatencyMs != 0)
+        if (execution.LatencyMs < 0)
         {
             throw new NotSupportedException(
-                $"Execution latency '{execution.LatencyMs}' ms is not supported yet. Set LatencyMs to 0.");
+                $"Execution latency '{execution.LatencyMs}' ms is invalid. Use LatencyMs >= 0.");
         }
     }
 

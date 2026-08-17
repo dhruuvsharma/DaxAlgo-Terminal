@@ -56,6 +56,12 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
     /// menu only appears when a runnable engine option exists.</summary>
     [ObservableProperty] private bool _hasQuickBacktest;
 
+    /// <summary>Last Hyperion Prove metrics from the authoring session store, if any.</summary>
+    [ObservableProperty] private string? _lastProveLine;
+
+    public bool HasLastProve => !string.IsNullOrWhiteSpace(LastProveLine);
+    partial void OnLastProveLineChanged(string? value) => OnPropertyChanged(nameof(HasLastProve));
+
     public IReadOnlyList<string> DataRequirementTags => Visualizer?.DataRequirementTags ?? [];
 
     [ObservableProperty] private string _name;

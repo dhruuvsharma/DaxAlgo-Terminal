@@ -45,6 +45,9 @@ public sealed record AuthoringSessionSnapshot(
     string? PersistedPath = null,
     string? LastRunSummary = null,
     bool LastRunOk = false,
+    double? LastSharpe = null,
+    double? LastReturn = null,
+    double? LastMaxDrawdown = null,
     DateTime UpdatedUtc = default)
 {
     /// <summary>"2 hours ago" — what the session picker shows next to the name.</summary>
@@ -61,6 +64,11 @@ public sealed record AuthoringSessionSnapshot(
     }
 
     public string Label => $"{DisplayName} ({StrategyId}) · {Age}";
+
+    /// <summary>Compact prove metrics for Library rail / catalog card.</summary>
+    public string? LastProveLine =>
+        LastSharpe is null && LastReturn is null ? null
+        : $"Sharpe {LastSharpe?.ToString("F2") ?? "—"} · Ret {LastReturn?.ToString("P1") ?? "—"} · MDD {LastMaxDrawdown?.ToString("P1") ?? "—"}";
 }
 
 /// <summary>

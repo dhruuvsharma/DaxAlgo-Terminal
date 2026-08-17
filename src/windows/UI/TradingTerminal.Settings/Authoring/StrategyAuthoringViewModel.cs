@@ -1217,7 +1217,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Persisted: IsPersisted,
             PersistedPath: PersistedPath,
             LastRunSummary: LastRunSummary,
-            LastRunOk: LastRunOk);
+            LastRunOk: LastRunOk,
+            LastSharpe: ProveStats?.Sharpe,
+            LastReturn: ProveStats?.TotalReturn,
+            LastMaxDrawdown: ProveStats?.MaxDrawdown);
 
         if (!AuthoringSessionStore.Save(snapshot))
         {
