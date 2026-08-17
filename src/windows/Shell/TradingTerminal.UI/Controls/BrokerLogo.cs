@@ -37,7 +37,7 @@ public sealed class BrokerLogo : Image
 
     public static readonly DependencyProperty BrokerProperty = DependencyProperty.Register(
         nameof(Broker), typeof(BrokerKind), typeof(BrokerLogo),
-        new PropertyMetadata(BrokerKind.Simulated, OnBrokerChanged));
+        new PropertyMetadata(BrokerKind.InteractiveBrokers, OnBrokerChanged));
 
     public BrokerKind Broker
     {

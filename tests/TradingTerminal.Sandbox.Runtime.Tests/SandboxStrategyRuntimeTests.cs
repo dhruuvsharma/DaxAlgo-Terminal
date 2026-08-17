@@ -15,7 +15,15 @@ public sealed class SandboxStrategyRuntimeTests
 {
     private static readonly InstrumentId Instrument = new(42);
     private static readonly DateTime Epoch = new(2026, 8, 7, 12, 0, 0, DateTimeKind.Utc);
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// Deadlock detector, NOT a performance assertion. Nothing here is asserting that the runtime is
+    /// fast — every wait is on a signal that arrives in milliseconds when the code is correct, so the
+    /// only question this bound answers is "did it hang?". It is deliberately generous because these
+    /// tests share a machine with every other test assembly during a full-solution run, and a 5 s
+    /// bound turned ordinary CPU contention into random red builds. If a wait ever reaches 60 s,
+    /// something is genuinely deadlocked.
+    /// </summary>
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
     [Fact]
     public async Task BarsDriveKernelTargetsIntoExactCommittedPortfolioEvolution()

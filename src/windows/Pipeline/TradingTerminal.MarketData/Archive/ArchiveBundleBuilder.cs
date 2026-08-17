@@ -255,7 +255,7 @@ internal sealed class ArchiveBundleBuilder
         BrokerKind.NinjaTrader => "NT",
         BrokerKind.CTrader => "CT",
         BrokerKind.Alpaca => "ALP",
-        BrokerKind.Simulated => "SIM",
+        BrokerKind.Simulated => "SYNTH",   // provenance tag for backtest/synthetic rows, not a broker
         _ => kind.ToString(),
     };
 

@@ -118,7 +118,7 @@ public partial class ChartsPanel : UserControl
         Push("window.dax.message", snapshot.Candles.Length == 0
             ? $"No history for {snapshot.Symbol} ({snapshot.Timeframe})\n" +
               "Connect a broker and stream this instrument, or pick another one.\n" +
-              "Every broker serves bars — the Simulated broker always works offline."
+              "Every broker serves bars."
             : "");
     }
 

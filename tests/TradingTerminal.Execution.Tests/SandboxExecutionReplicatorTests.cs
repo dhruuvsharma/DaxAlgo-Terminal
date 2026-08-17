@@ -43,7 +43,7 @@ public sealed class SandboxExecutionReplicatorTests
                 PolicyVersion: "sandbox-policy-v7"));
 
         source.Publish(Snapshot(2d, 90.25d, 110.5d));
-        var outcome = await intake.NextOutcome.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var outcome = await intake.NextOutcome.Task.WaitAsync(TestTimeouts.Deadlock);
 
         Assert.True(outcome.IsSuccess, outcome.Message);
         var intent = Assert.Single(intake.Intents);
@@ -93,7 +93,7 @@ public sealed class SandboxExecutionReplicatorTests
             new SandboxExecutionReplicationOptions("live-book", "sandbox-42", Enabled: true));
 
         source.Publish(Snapshot(2d, 90d, 110d));
-        var outcome = await intake.NextOutcome.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var outcome = await intake.NextOutcome.Task.WaitAsync(TestTimeouts.Deadlock);
 
         Assert.False(outcome.IsSuccess);
         Assert.Single(intake.Intents);

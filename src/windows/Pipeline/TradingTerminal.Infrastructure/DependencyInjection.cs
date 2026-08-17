@@ -24,7 +24,6 @@ using TradingTerminal.Infrastructure.LondonStrategicEdge;
 using TradingTerminal.Infrastructure.Upstox;
 using TradingTerminal.Core.Brokers.Upstox;
 using TradingTerminal.Infrastructure.MarketData;
-using TradingTerminal.Infrastructure.Simulation;
 #if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
 #endif
@@ -225,9 +224,8 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Keyless brokers — the public crypto feeds (Binance, Coinbase, Bybit, Kraken, OKX) and the
-    /// in-process Simulated feed. No API key, no account. Available in every edition (including
-    /// Basic). The networked feeds are metered; Simulated is not (no external calls to count).
+    /// Keyless brokers — the public crypto feeds (Binance, Coinbase, Bybit, Kraken, OKX). No API key,
+    /// no account. Available in every edition (including Basic), and all metered.
     /// </summary>
     public static IServiceCollection AddKeylessBrokers(this IServiceCollection services)
     {
@@ -280,25 +278,6 @@ public static class DependencyInjection
         services.AddSingleton<BrokerConnectionMode>(_ =>
             new BrokerConnectionMode(BrokerKind.Okx, IsLive: true, DisplayName: "OKX (live data)",
                 Description: "Public OKX market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
-
-        // Simulated — always available (in-process, no SDK, no network). Backs BrokerKind.Simulated
-        // for the offline dev launch profiles: a synthetic random-walk feed, or replay of the local
-        // store. Not wrapped in MeteredBrokerClient — there are no external API calls to count.
-        services.AddSingleton<IBrokerClient>(sp =>
-            ActivatorUtilities.CreateInstance<SimulatedBrokerClient>(sp));
-
-        services.AddSingleton<BrokerConnectionMode>(sp =>
-        {
-            var opt = sp.GetRequiredService<IOptions<SimulatedBrokerOptions>>().Value;
-            var replay = opt.Mode == SimulatedFeedMode.Replay;
-            return new BrokerConnectionMode(
-                BrokerKind.Simulated,
-                IsLive: false,
-                DisplayName: replay ? "Simulated (replay)" : "Simulated (synthetic)",
-                Description: replay
-                    ? "Replays recorded data from the local store as a live feed — offline, no broker."
-                    : "In-process random-walk feed. Fully offline — no broker, no network.");
-        });
 
         return services;
     }

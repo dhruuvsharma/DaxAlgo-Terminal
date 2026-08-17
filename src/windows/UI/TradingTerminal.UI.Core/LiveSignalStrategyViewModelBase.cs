@@ -802,8 +802,8 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// <para>Capability is probed before subscribing: the active broker client's
     /// <c>SubscribeTradesAsync</c> is called in a try/catch for
     /// <see cref="NotSupportedException"/>. Brokers without a trade tape (NinjaTrader,
-    /// cTrader, Alpaca in this build) throw synchronously from the method body; IB and
-    /// Simulated return a valid async enumerator. On a <see cref="NotSupportedException"/>
+    /// cTrader, Alpaca in this build) throw synchronously from the method body; IB and the
+    /// public crypto feeds return a valid async enumerator. On a <see cref="NotSupportedException"/>
     /// the pump logs once via the shared Activity Log, sets
     /// <see cref="TradeTapeAvailable"/> to <c>false</c>, and exits — quote/bar/depth pumps
     /// are unaffected. On success the pump subscribes the ingest trade feed, consumes

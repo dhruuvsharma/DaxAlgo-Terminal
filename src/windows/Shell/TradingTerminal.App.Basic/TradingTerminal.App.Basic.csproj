@@ -57,9 +57,17 @@
     <None Include="..\..\..\..\appsettings.local.json" Link="appsettings.local.json" Condition="Exists('..\..\..\..\appsettings.local.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <!-- Offline launch-profile override selected via DOTNET_ENVIRONMENT=DevSim from
-         Properties/launchSettings.json. The Live profile uses the normal configuration and login. -->
-    <None Include="..\..\..\..\appsettings.DevSim.json" Link="appsettings.DevSim.json">
+    <!-- Launch-profile overrides, selected by DOTNET_ENVIRONMENT from Properties/launchSettings.json.
+         Debug only, and guarded by Exists() because the set of profiles is per-edition (launchSettings.json
+         is an owned file): the installers ship New User + Testing, the open-source edition ships neither and
+         launches straight into the app on plain appsettings.json. Keeping the items identical in every
+         edition is what lets this csproj stay a single promoted file. -->
+    <None Include="..\..\..\..\appsettings.NewUser.json" Link="appsettings.NewUser.json"
+          Condition="'$(Configuration)' == 'Debug' And Exists('..\..\..\..\appsettings.NewUser.json')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\..\..\appsettings.Testing.json" Link="appsettings.Testing.json"
+          Condition="'$(Configuration)' == 'Debug' And Exists('..\..\..\..\appsettings.Testing.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

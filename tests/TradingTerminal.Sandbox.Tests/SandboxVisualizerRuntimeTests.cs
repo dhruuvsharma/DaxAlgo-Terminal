@@ -103,7 +103,7 @@ public sealed class SandboxVisualizerRuntimeTests
 
         await runtime.StartAsync();
         hub.PublishBar(BarFor(instrument, sequence: 1, close: 1));
-        await visualizer.FirstHandlerEntered.WaitAsync(TimeSpan.FromSeconds(5));
+        await visualizer.FirstHandlerEntered.WaitAsync(TestTimeouts.Deadlock);
 
         for (var sequence = 2; sequence <= 10; sequence++)
             hub.PublishBar(BarFor(instrument, sequence, close: sequence));
@@ -345,7 +345,7 @@ public sealed class SandboxVisualizerRuntimeTests
 
         await runtime.StartAsync();
         hub.PublishBar(BarFor(instrument, sequence: 1, close: 10));
-        await visualizer.AttemptCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+        await visualizer.AttemptCompleted.WaitAsync(TestTimeouts.Deadlock);
 
         var failure = Assert.IsType<InvalidOperationException>(visualizer.Failure);
         Assert.Contains("callback", failure.Message, StringComparison.OrdinalIgnoreCase);
@@ -398,7 +398,7 @@ public sealed class SandboxVisualizerRuntimeTests
 
         await runtime.StartAsync();
         visualizer.ReleaseDeferredCall();
-        await visualizer.DeferredCallCompleted.WaitAsync(TimeSpan.FromSeconds(5));
+        await visualizer.DeferredCallCompleted.WaitAsync(TestTimeouts.Deadlock);
 
         Assert.Null(visualizer.Failure);
         Assert.Equal(SandboxVisualizerRuntimeState.Stopped, runtime.State);
@@ -425,16 +425,16 @@ public sealed class SandboxVisualizerRuntimeTests
         var secondCompletedEarly = true;
         try
         {
-            await visualizer.StopEntered.WaitAsync(TimeSpan.FromSeconds(5));
+            await visualizer.StopEntered.WaitAsync(TestTimeouts.Deadlock);
             secondDispose = runtime.DisposeAsync().AsTask();
             secondCompletedEarly = secondDispose.IsCompleted;
         }
         finally
         {
             visualizer.ReleaseStop();
-            await firstDispose.WaitAsync(TimeSpan.FromSeconds(5));
+            await firstDispose.WaitAsync(TestTimeouts.Deadlock);
             if (secondDispose is not null)
-                await secondDispose.WaitAsync(TimeSpan.FromSeconds(5));
+                await secondDispose.WaitAsync(TestTimeouts.Deadlock);
         }
 
         Assert.False(secondCompletedEarly);

@@ -47,8 +47,10 @@ public static class BrokerInstrumentUniverse
                 .ToList();
 
             // Broker-tagged rows are richer (the pills show the source broker); fall back to the
-            // registry when a broker contributed nothing so the picker still reflects the discovered
-            // universe rather than the curated hardcoded list.
+            // registry when a broker contributed nothing. The registry is the DISCOVERED universe
+            // (persisted instruments plus per-broker discovery), not a curated list - the hardcoded
+            // fallback was removed on 2026-08-16 - so an empty registry means an empty picker, which
+            // is the honest answer before any broker has connected.
             return brokerRows.Count > 0 ? brokerRows : SignalInstrumentCatalog.FromRegistry(registry);
         }
         catch (Exception ex)

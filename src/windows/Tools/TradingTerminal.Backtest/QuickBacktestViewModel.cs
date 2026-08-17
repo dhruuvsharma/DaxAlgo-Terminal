@@ -222,7 +222,9 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        SetUniverse(SignalInstrumentCatalog.All);   // seed: never leave the picker empty
+        // Seed from the discovered universe, then refine to this broker's own list. May legitimately
+        // be empty before a broker connects - there is no hardcoded catalog to fall back on.
+        SetUniverse(SignalInstrumentCatalog.All);
         _ = LoadBrokerUniverseAsync(broker);
     }
 

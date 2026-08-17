@@ -269,18 +269,21 @@ public partial class ComposedStrategyView : UserControl, IDisposable
 
         if (_bookVm is not null) _bookVm.SelectedInstrument = instrument;
         if (_footprintVm is not null) _footprintVm.SelectedInstrument = instrument;
-        if (_chartsVm is not null)
+        // The chart needs a CONCRETE broker on its instrument. If the strategy's pick doesn't pin
+        // one and nothing is connected, there is no backend that could serve it, so leave the chart
+        // alone rather than pointing it at a broker that cannot answer.
+        if (_chartsVm is not null && (instrument.Broker ?? FallbackBroker()) is { } broker)
             _chartsVm.SelectedInstrument = new TradableInstrument(
-                instrument.DisplayName, instrument.Category, instrument.Contract,
-                instrument.Broker ?? FallbackBroker());
+                instrument.DisplayName, instrument.Category, instrument.Contract, broker);
     }
 
-    /// <summary>The chart view-model needs a concrete broker on its instrument; when the strategy's
-    /// pick doesn't pin one, prefer whatever is connected (the chart's own resolve re-checks anyway).</summary>
-    private BrokerKind FallbackBroker()
+    /// <summary>Whatever broker is connected, or null when none is. Returns null rather than a
+    /// stand-in: the in-process Simulated feed that used to fill this role was removed on 2026-08-16,
+    /// and naming any other broker would promise data it may not carry.</summary>
+    private BrokerKind? FallbackBroker()
     {
         var selector = _services.GetService<IBrokerSelector>();
-        return selector is { Connected.Count: > 0 } s ? s.Connected[0] : BrokerKind.Simulated;
+        return selector is { Connected.Count: > 0 } s ? s.Connected[0] : null;
     }
 
     private void SyncPause()

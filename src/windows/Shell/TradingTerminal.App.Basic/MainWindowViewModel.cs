@@ -21,12 +21,14 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Core.Updates;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Theming;
+using TradingTerminal.UI.Updates;
 
 namespace TradingTerminal.App;
 
@@ -79,6 +81,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
         // chip only observes, and this ctor is already at its parameter budget.
         Recorder = services.GetRequiredService<TickRecordingService>();
+        // Same reasoning for the update strip. GetService, not GetRequiredService: a shell that
+        // never calls AddUpdates should compose fine and simply never show the notice.
+        Update = new UpdateNoticeViewModel(services.GetService<IUpdateNotifier>());
 
         // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
         // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
@@ -97,6 +102,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         // strategy stays reachable for Open and the pill converters.
         CatalogItems = new ObservableCollection<StrategyCatalogItemViewModel>(
             factory.All.Select(CreateCatalogItem));
+        // The Testing launch profile pairs a fixture strategy (seeded through the factory, so it is
+        // already in the list above) with a fixture visualizer. Visualizer cards do not go through
+        // IStrategyFactory - they are descriptors - so this one is added directly.
+        if (services.GetRequiredService<Microsoft.Extensions.Options.IOptions<TradingTerminal.Core.Configuration.DevOptions>>()
+                .Value.SeedCatalogFixtures)
+            CatalogItems.Add(new StrategyCatalogItemViewModel(DevCatalogSeed.FixtureVisualizer));
         // Strategies contributed by an UNSIGNED plugin (neither shipped-by-us nor from a pinned
         // publisher) wear the DEV badge on their catalog card, mirroring the Plugin Manager.
         _unsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
@@ -179,8 +190,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     void IShellOverlayPresenter.Hide() => IsOpening = false;
 
-    private bool _simWarningLogged;
-
     private void RefreshAggregateState()
     {
         var available = _brokerSelector.AvailableKinds;
@@ -204,26 +213,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         OnPropertyChanged(nameof(IsLiveMode));
         OnPropertyChanged(nameof(ConnectedBrokerCount));
 
-        RefreshSimulatedState();
     }
 
-    /// <summary>Surfaces a persistent amber "SIMULATED DATA" banner while the Simulated broker is among
-    /// the connected set, and appends a one-time warning to the universal Activity Log so it's on the
-    /// record that the feed is synthetic, not live.</summary>
-    private void RefreshSimulatedState()
-    {
-        var simActive = _brokerSelector.Connected.Contains(BrokerKind.Simulated);
-        IsSimulatedActive = simActive;
-        // Push the same flag to the app-wide signal so every tool/chart/strategy window's banner
-        // tracks it (they don't take a broker-selector dependency of their own).
-        TradingTerminal.UI.SimulatedDataState.Set(simActive);
-        if (simActive && !_simWarningLogged)
-        {
-            _simWarningLogged = true;
-            LogSink.Append("System", "Warning",
-                "SIMULATED DATA — the Simulated broker is connected. This is not a live market feed.");
-        }
-    }
 
     /// <summary>Refresh the local + UTC clocks and the (approximate, no DST/holiday calendar) market
     /// session flags driven by the 1-second timer.</summary>
@@ -384,11 +375,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [ObservableProperty]
     private bool _lseOpen;
 
-    /// <summary>True while the Simulated broker is connected — drives the persistent amber
-    /// "SIMULATED DATA" banner in the shell chrome.</summary>
-    [ObservableProperty]
-    private bool _isSimulatedActive;
-
     // ── "Opening…" loading curtain ───────────────────────────────────────────────────────────
     // Building a tool/strategy view (ScottPlot, WebView2, Helix, history fetch) is synchronous and
     // briefly freezes the UI. The window host paints a full-window BusyOverlay first (via
@@ -443,10 +429,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             // Most strategies ship their own MetroWindow (StrategyWindowBase); the rest expose a
             // UserControl view, which we wrap in a generic tool host window.
             var window = host.View as Window ?? ToolHostWindow.Create(host.DisplayName, (FrameworkElement)host.View);
-            // Top the amber "SIMULATED DATA" strip on the strategy window too (covers both the
-            // StrategyWindowBase windows and the plain-MetroWindow ones; idempotent, so the
-            // ToolHostWindow fallback above — already wrapped — is left untouched).
-            TradingTerminal.UI.Controls.SimulatedDataBanner.AttachTo(window);
             window.Owner = Application.Current.MainWindow;
             // Open full-size and remember the user's last size/position/state, keyed by strategy id.
             // Centralized here so every strategy window benefits regardless of its base class (the
@@ -499,7 +481,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// <summary>
     /// Strategy-catalog "Quick backtest": opens a single-instance-per-strategy results window that
     /// auto-runs a 1-year backtest of the chosen strategy over historical bars (real broker when one
-    /// is connected, Simulated synthetic otherwise) and shows P&amp;L + headline statistics. Strategies
+    /// is connected) and shows P&amp;L + headline statistics. Strategies
     /// that declare no engine-side counterpart (<see cref="ITradingStrategy.BacktestStrategyId"/> is
     /// null) get a message instead of a run.
     /// </summary>
@@ -689,6 +671,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// background recording is running. The panel window is only a view onto it — closing the panel
     /// does not stop the recording.</summary>
     public TickRecordingService Recorder { get; }
+
+    /// <summary>Backs the "a new version is available" strip in the row-2 banner stack. Always
+    /// present; it simply never becomes visible when no update feed is configured.</summary>
+    public UpdateNoticeViewModel Update { get; }
 
     /// <summary>Header REC chip → the recorder panel. Small window: it's a watchlist + a toggle, not
     /// a workspace.</summary>

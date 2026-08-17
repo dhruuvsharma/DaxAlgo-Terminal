@@ -33,7 +33,20 @@ public sealed class DevOptions
     public bool DisableStrategyPlugins { get; set; }
 
     /// <summary>
-    /// Adds Pro-only visualizer examples to the catalog for local UI comparison. Off by default.
+    /// How many placeholder strategy cards to put in the catalog, for profiles that need a populated
+    /// first-run view. Zero (the default) leaves the catalog exactly as the shipped build sees it.
+    ///
+    /// <para>These are FIXTURES, not strategies: they carry no logic and no engine counterpart, and
+    /// they exist because the terminal ships with an empty catalog since the first-party strategies
+    /// moved out. They are visibly labelled as samples so nobody mistakes one for a real strategy.</para>
     /// </summary>
-    public bool SeedDemoVisualizers { get; set; }
+    public int SeedSampleStrategies { get; set; }
+
+    /// <summary>
+    /// Seeds the fixed test-fixture pair — one strategy card and one visualizer card — used to
+    /// exercise the catalog, the cards and (later) Hyperion without depending on any real artifact.
+    /// Deliberately a fixed pair rather than a count, so the Testing profile means the same thing in
+    /// every edition. Off by default.
+    /// </summary>
+    public bool SeedCatalogFixtures { get; set; }
 }

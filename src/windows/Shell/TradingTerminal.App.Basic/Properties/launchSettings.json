@@ -1,12 +1,6 @@
 {
   "profiles": {
-    "Simulated": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "DevSim"
-      }
-    },
-    "Live": {
+    "DaxAlgo Terminal": {
       "commandName": "Project"
     }
   }

@@ -17,6 +17,7 @@ using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
+using TradingTerminal.Infrastructure.Updates;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
@@ -61,6 +62,10 @@ public static class AppDependencyInjection
         // one after this and wins.
         services.TryAddSingleton<TradingTerminal.Core.Hosting.ISidecarController,
             TradingTerminal.Core.Hosting.NullSidecarController>();
+
+        // Application update check. Inert unless BOTH Updates:FeedUrl and Updates:FeedPublicKey are
+        // configured, which they are not in the shipped build — see AddUpdates.
+        services.AddUpdates(configuration);
 
         // Feature modules common to every edition.
         services.AddStrategyPlugins(configuration);
@@ -140,8 +145,16 @@ public static class AppDependencyInjection
         services.AddPluginFeed(pluginOptions);
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
-        return services;
-        
+
+        // Dev-only catalog seeding. The shipped catalog is empty since strategies moved out, which
+        // leaves the first-run view and the card UI with nothing to render; a launch profile can ask
+        // for placeholder cards. Off in every shipped appsettings.json - see DevCatalogSeed.
+        var dev = configuration.GetSection(DevOptions.SectionName).Get<DevOptions>() ?? new DevOptions();
+        foreach (var (strategy, registration) in DevCatalogSeed.Build(dev))
+        {
+            services.AddSingleton(strategy);
+            services.AddSingleton(registration);
+        }
 
         return services;
     }

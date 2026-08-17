@@ -904,7 +904,7 @@ public sealed class AlpacaExecutionAdapterTests
         };
 
         await source.StartAsync(transport);
-        _ = await incomplete.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        _ = await incomplete.Task.WaitAsync(TestTimeouts.Deadlock);
         var firstPolls = Volatile.Read(ref transport.AllPollCount);
         await WaitUntilAsync(() => Volatile.Read(ref transport.AllPollCount) > firstPolls);
 
@@ -1089,7 +1089,7 @@ public sealed class AlpacaExecutionAdapterTests
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var timeout = new CancellationTokenSource(TestTimeouts.Deadlock);
         while (!condition())
             await Task.Delay(10, timeout.Token);
     }

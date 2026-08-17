@@ -8,10 +8,16 @@ public enum BrokerKind
     Alpaca,
 
     /// <summary>
-    /// In-process synthetic / replay backend — no broker, no network. Streams either a
-    /// random-walk feed (Synthetic) or recorded data from the local store (Replay) so the app
-    /// can run fully offline for development. Appended last to keep the existing ordinal values
-    /// stable. See <c>SimulatedBrokerClient</c> / <c>SimulatedBrokerOptions</c>.
+    /// <b>Not a connectable broker.</b> A PROVENANCE TAG for data that did not come from a live
+    /// venue — backtest feeds, synthetic tapes, CSV/Parquet replays — so a row in the store can
+    /// always answer "where did this come from".
+    ///
+    /// <para>The in-process synthetic/replay broker this used to name was removed on 2026-08-16:
+    /// there is no <c>SimulatedBrokerClient</c>, no options section, no registration, and it does
+    /// not appear in <see cref="Configuration.BrokerEditionPolicy"/>, so it cannot be selected or
+    /// connected. The member itself stays because <see cref="BrokerKind"/> is persisted <b>by
+    /// ordinal</b> into SQLite, Postgres, QuestDB, Parquet and archive bundles — deleting it would
+    /// shift every later value and silently re-label users' existing history.</para>
     /// </summary>
     Simulated,
 
