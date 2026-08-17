@@ -21,7 +21,6 @@ using TradingTerminal.Infrastructure.Updates;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
-using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
 
 namespace TradingTerminal.App.Composition;
@@ -73,7 +72,6 @@ public static class AppDependencyInjection
         services.AddSupport();
         services.AddSettingsSurface();
         services.AddArchiveSurface();
-        services.AddBacktestSurface();
         services.AddRecordingSurface();
 
         return services;

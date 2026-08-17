@@ -13,7 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\windows\Execution\TradingTerminal.Execution\TradingTerminal.Execution.csproj" />
     <ProjectReference Include="..\..\src\windows\Sandbox\TradingTerminal.Sandbox.Runtime\TradingTerminal.Sandbox.Runtime.csproj" />
-    <ProjectReference Include="..\..\src\windows\Backtest\TradingTerminal.Backtest.Engine\TradingTerminal.Backtest.Engine.csproj" />
   </ItemGroup>
 
   <ItemGroup>

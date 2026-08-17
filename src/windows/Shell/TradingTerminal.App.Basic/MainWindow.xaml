@@ -705,9 +705,6 @@
                         <MenuItem Icon="▶️"
                                   Header="{Binding PlacementTarget.SelectedItem.PrimaryActionLabel, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   Click="PrimaryCatalogAction_Click" />
-                        <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
-                                  Visibility="{Binding PlacementTarget.SelectedItem.Kind, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CatalogItemKindToVisibilityConverter}, ConverterParameter=Strategy}"
-                                  Click="QuickBacktest_Click" />
                         <Separator />
                         <MenuItem Icon="✏️"
                                   Header="{Binding PlacementTarget.SelectedItem.EditActionLabel, RelativeSource={RelativeSource AncestorType=ContextMenu}}"

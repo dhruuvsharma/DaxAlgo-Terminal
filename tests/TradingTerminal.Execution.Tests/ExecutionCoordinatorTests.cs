@@ -1,4 +1,3 @@
-using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Execution.Oms;

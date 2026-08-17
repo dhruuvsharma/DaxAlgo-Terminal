@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Execution.Ipc;
 using TradingTerminal.Execution.Oms;

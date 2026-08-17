@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Execution.InteractiveBrokers;
 using TradingTerminal.Execution.Oms;

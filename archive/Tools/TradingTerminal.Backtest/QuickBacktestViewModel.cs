@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 #if WINDOWS
@@ -201,13 +201,15 @@ public sealed partial class QuickBacktestViewModel : ViewModelBase, IDisposable
         return true;
     }
 
-    /// <summary>Prefer Binance (real tape) → any other connected real broker → Simulated synthetic.</summary>
+    /// <summary>Prefer Binance (real tape) → any other connected broker → whatever is offered.
+    /// The Simulated fallback that used to sit at the end went with the Simulated broker on
+    /// 2026-08-16; there is no synthetic backstop, so with nothing connected this returns the first
+    /// offered broker and the run simply has no history to replay.</summary>
     private BrokerKind PickDefaultBroker()
     {
         if (_brokers.IsAvailable(BrokerKind.Binance)) return BrokerKind.Binance;
         foreach (var k in _brokers.Connected)
-            if (k != BrokerKind.Simulated) return k;
-        if (_brokers.IsAvailable(BrokerKind.Simulated)) return BrokerKind.Simulated;
+            return k;
         return Brokers.FirstOrDefault();
     }
 

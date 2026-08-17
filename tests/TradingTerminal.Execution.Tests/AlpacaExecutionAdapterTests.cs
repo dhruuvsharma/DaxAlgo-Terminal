@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.Backtest.Engine;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Execution.Alpaca;

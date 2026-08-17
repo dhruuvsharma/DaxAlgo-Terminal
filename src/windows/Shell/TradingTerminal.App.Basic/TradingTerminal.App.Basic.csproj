@@ -23,12 +23,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
   </ItemGroup>
 
@@ -72,6 +72,5 @@
   </ItemGroup>
 
 
-  <Import Project="..\..\Backtest\BacktestWorker.Staging.targets" />
 
 </Project>

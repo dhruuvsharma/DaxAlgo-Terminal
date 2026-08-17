@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DaxAlgo.Package;
 using Microsoft.Win32;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
@@ -107,31 +108,45 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
 
     partial void OnCatalogSearchChanged(string value) => ApplySearch();
 
-    /// <summary>Pick a plugin package (.daxplugin, integrity-verified) or a raw main .dll (the dev
-    /// drop-in), validate it against the active trust policy + SDK version, and copy it into the
-    /// plugins folder. Activation is on next startup.</summary>
+    /// <summary>
+    /// Pick a DaxAlgo artifact and verify it. The accepted set is exactly
+    /// <see cref="DaxPackage.AcceptedExtensions"/> — <c>.daxalgostrategy</c> and
+    /// <c>.daxalgovisualizer</c> — and it is defined in the package library so every edition agrees.
+    ///
+    /// <para>Raw <c>.dll</c> and the legacy <c>.daxplugin</c> are refused, and refused BY NAME so the
+    /// user is told why rather than watching their file fail to appear in the picker. Assembly loading
+    /// was removed on 2026-08-15.</para>
+    /// </summary>
     [RelayCommand]
     private void InstallPlugin()
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Select a plugin package (.daxplugin) or its main .dll",
-            Filter = "Plugin package or assembly (*.daxplugin;*.dll)|*.daxplugin;*.dll",
+            Title = "Select a DaxAlgo artifact",
+            Filter = DaxPackage.OpenFileFilter,
             CheckFileExists = true,
         };
         if (dialog.ShowDialog() != true) return;
 
-        // Packages are sha256-verified and carry private deps; a raw .dll is the dev drop-in path.
-        // Both go through the same manifest/SDK/trust gates.
-        var result = dialog.FileName.EndsWith(DaxPluginPackage.Extension, StringComparison.OrdinalIgnoreCase)
-            ? PluginInstaller.InstallFromPackage(
-                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, Inspector(), _state)
-            : PluginInstaller.InstallFromDll(
-                dialog.FileName, _context.PluginsRoot, _context.TrustPolicy, Inspector(), _state);
-        Status = result.Message;
-        if (result.Success) RestartRequired = true;
-        Rebuild();
-        RebuildCatalog();
+        if (!DaxPackage.IsAccepted(dialog.FileName, out var reason))
+        {
+            Status = reason;
+            return;
+        }
+
+        // Verify before claiming anything: Read checks the manifest, every payload digest, and that
+        // no undeclared entry is hiding in the archive.
+        try
+        {
+            var manifest = DaxPackage.Read(dialog.FileName).Manifest;
+            Status =
+                $"{manifest.DisplayName} {manifest.Version} ({manifest.Kind}) verified — "
+                + $"{manifest.Payloads.Count} payload(s). Installing artifacts is not wired up yet.";
+        }
+        catch (DaxPackageException ex)
+        {
+            Status = $"Rejected: {ex.Message}";
+        }
     }
 
     /// <summary>Re-enable a disabled or quarantined plugin — it loads again on the next start.</summary>

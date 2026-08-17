@@ -69,12 +69,6 @@ public partial class MainWindow : MetroWindow
             ExecutePrimaryCatalogAction(vm, item);
     }
 
-    private void QuickBacktest_Click(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel vm
-            && vm.SelectedCatalogItem is { HasQuickBacktest: true, Strategy: { } strategy })
-            vm.QuickBacktestCommand.Execute(strategy.Id);
-    }
 
     private static void ExecutePrimaryCatalogAction(MainWindowViewModel vm, StrategyCatalogItemViewModel item)
     {
