@@ -4,16 +4,17 @@ using TradingTerminal.Core.Strategies;
 namespace TradingTerminal.App.Authoring;
 
 /// <summary>
-/// Build tags are free-form labels for the workbench — they do <b>not</b> enumerate strategies.
-/// Sources:
-/// <list type="number">
-/// <item>Explicit <c>TAGS:</c> lines from the model or user (any words — no whitelist).</item>
-/// <item>Canonical DaxAlgo data tags from <see cref="StrategyDataRequirement"/> (L1 / Bars / Depth / Trade tape).</item>
-/// <item>Light phrase hints that only map chat → those same data tags (optional helper).</item>
-/// </list>
+/// Build tags = DaxAlgo <see cref="StrategyDataRequirement"/> chips only — same set Strategy Studio
+/// shows (L1 / BAR / L2 / TAPE). They name what tools/data the strategy needs, not which alpha family
+/// it is. Optional free-form <c>TAGS:</c> lines still merge, but data chips are the product surface.
 /// </summary>
 internal static partial class BuildTagInferrer
 {
+    public const string TagL1 = "L1";
+    public const string TagBars = "BAR";
+    public const string TagDepth = "L2";
+    public const string TagTape = "TAPE";
+
     public static void Absorb(string? text, ICollection<string> target)
     {
         if (string.IsNullOrWhiteSpace(text) || target is null) return;
@@ -28,43 +29,61 @@ internal static partial class BuildTagInferrer
             Add(target, tag);
     }
 
+    /// <summary>Same pills Strategy Studio uses via <c>StrategyTagsConverter</c>.</summary>
     public static IReadOnlyList<string> FromDataRequirement(StrategyDataRequirement requirement)
     {
         var tags = new List<string>();
-        if (requirement.HasFlag(StrategyDataRequirement.L1)) tags.Add("L1");
-        if (requirement.HasFlag(StrategyDataRequirement.Bars)) tags.Add("Bars");
-        if (requirement.HasFlag(StrategyDataRequirement.Depth)) tags.Add("Depth");
-        if (requirement.HasFlag(StrategyDataRequirement.TradeTape)) tags.Add("Trade tape");
+        if (requirement.HasFlag(StrategyDataRequirement.L1)) tags.Add(TagL1);
+        if (requirement.HasFlag(StrategyDataRequirement.Bars)) tags.Add(TagBars);
+        if (requirement.HasFlag(StrategyDataRequirement.Depth)) tags.Add(TagDepth);
+        if (requirement.HasFlag(StrategyDataRequirement.TradeTape)) tags.Add(TagTape);
         return tags;
     }
 
     public static IReadOnlyList<string> Infer(string text)
     {
         var tags = new List<string>();
-        void AddLocal(string tag) => Add(tags, tag);
 
-        // 1) Free-form: TAGS: a, b, c  (model or user — unlimited vocabulary)
+        // Free-form TAGS: — keep aliases that mean data needs; map synonyms → Studio chips.
         foreach (Match m in TagsLinePattern().Matches(text))
         {
-            foreach (var part in m.Groups[1].Value.Split([',', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            foreach (var part in m.Groups[1].Value.Split(
+                         [',', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                if (part.Length is < 1 or > 48) continue;
-                AddLocal(part);
+                if (NormalizeDataTag(part) is { } data)
+                    Add(tags, data);
+                else if (part.Length is >= 1 and <= 48)
+                    Add(tags, part.Trim()); // optional idea label; not required
             }
         }
 
-        // 2) Soft hints → only existing DaxAlgo data tags (does not invent strategy families)
         var lower = text.ToLowerInvariant();
-        if (ContainsAny(lower, "trade tape", "prints", "tick-driven", "tick driven", "absorption", "footprint"))
-            AddLocal("Trade tape");
-        if (ContainsAny(lower, "order book", "depth", "l2", "obi", "heatmap"))
-            AddLocal("Depth");
-        if (ContainsAny(lower, "1-min", "1 min", "5-min", "5 min", "bar-based", "ohlc", "candles", "ema cross", "breakout"))
-            AddLocal("Bars");
-        if (ContainsAny(lower, "l1", "bid/ask", "mid-price", "mid price", "top of book"))
-            AddLocal("L1");
+        if (ContainsAny(lower, "trade tape", "prints", "tick-driven", "tick driven", "footprint", "time and sales"))
+            Add(tags, TagTape);
+        if (ContainsAny(lower, "order book", "orderbook", "depth", "l2", "obi", "heatmap"))
+            Add(tags, TagDepth);
+        if (ContainsAny(lower, "1-min", "1 min", "5-min", "5 min", "bar-based", "ohlc", "candles", "chart"))
+            Add(tags, TagBars);
+        if (ContainsAny(lower, "l1", "bid/ask", "mid-price", "mid price", "top of book", "quote"))
+            Add(tags, TagL1);
 
         return tags;
+    }
+
+    /// <summary>Map common spellings onto the four Studio chips.</summary>
+    public static string? NormalizeDataTag(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var t = raw.Trim();
+        var key = t.ToLowerInvariant().Replace(' ', '-');
+        return key switch
+        {
+            "l1" or "quotes" or "quote" => TagL1,
+            "bar" or "bars" or "ohlc" or "candles" or "chart" or "charts" => TagBars,
+            "l2" or "depth" or "orderbook" or "order-book" or "book" => TagDepth,
+            "tape" or "trade-tape" or "tradetape" or "prints" or "footprint" => TagTape,
+            _ => null,
+        };
     }
 
     private static void Add(ICollection<string> target, string tag)

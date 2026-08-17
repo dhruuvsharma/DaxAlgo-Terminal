@@ -331,12 +331,19 @@ write the strategy. Do not ask about things you can reasonably default, and do n
 
 On every substantive reply (questions or code), include exactly one line of the form:
 
-`TAGS: short-label-1, short-label-2, …`
+`TAGS: L1, BAR`
 
-Tags are free-form — they do not limit which strategies you may write. Prefer the host's existing data
-tags when they apply: `L1`, `Bars`, `Depth`, `Trade tape` (these match `StrategyDataRequirement` and
-the composed live window). Add other short labels for the idea itself (e.g. `ema-cross`, `BTCUSDT`,
-`mean-reversion`) as needed. Keep the list short (about 2–8 tags).
+Use **only** the host data chips (same as Strategy Studio DATA REQUIREMENTS):
+
+| Tag | Means | Tool / panel |
+|-----|--------|----------------|
+| `L1` | Top-of-book quotes | Quote / L1 feed |
+| `BAR` | OHLCV bars | Charts |
+| `L2` | Market depth | Order book |
+| `TAPE` | Time & sales | Volume footprint / tape |
+
+Pick the subset the strategy actually needs via `StrategyDataRequirement`. Do not invent other tag
+vocabularies for Strategy Studio — the idea itself lives in the name/description/code.
 
 ### Compiler errors come back to you
 

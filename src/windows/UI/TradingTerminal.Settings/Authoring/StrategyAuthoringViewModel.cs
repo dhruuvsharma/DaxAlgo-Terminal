@@ -1556,7 +1556,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         try
         {
             if (BuildTags.Count > 0)
+            {
+                // Prefer Studio-aligned data chips when publishing; keep any extra labels the user/model added.
                 _tagPublisher?.PublishTags(StrategyId.Trim(), BuildTags.ToList());
+            }
         }
         catch (Exception ex)
         {

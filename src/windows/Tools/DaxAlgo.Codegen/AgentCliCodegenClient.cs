@@ -329,10 +329,10 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             "live view-model + code-built view — unless the user explicitly asked for a backtest kernel only; " +
             "a kernel on its own gets no catalog card and no window. Ask a question instead of guessing if the " +
             "brief is ambiguous about the instrument, timeframe, sizing or risk. " +
-            "When you write code (or answer clarifying questions), include one free-form line " +
-            "`TAGS: tag1, tag2, …` — short labels for what this strategy is (signal idea, instrument hint, " +
-            "and data needs). Prefer DaxAlgo data tags when they apply: L1, Bars, Depth, Trade tape. " +
-            "TAGS do not limit the strategy space; invent concise tags as needed.");
+            "When you write code (or answer clarifying questions), include one line " +
+            "`TAGS: L1, BAR, L2, TAPE` using only the data needs that apply — same chips as Strategy Studio. " +
+            "L1 = quotes, BAR = Charts, L2 = Order book / depth, TAPE = trade tape / footprint. " +
+            "Ask a question instead of guessing if the brief is ambiguous about instrument, timeframe, sizing or risk.");
         return sb.ToString();
     }
 
