@@ -6,6 +6,7 @@
              xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
              xmlns:uicontrols="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
              xmlns:converters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
+             xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1380"
              Background="{DynamicResource Background.Primary}"
@@ -20,6 +21,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="B2V" />
         <converters:StringToVisibilityConverter x:Key="S2V" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
     </UserControl.Resources>
 
     <Grid>
@@ -28,7 +30,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="420" />
                 <ColumnDefinition Width="4" />
-                <ColumnDefinition Width="390" MinWidth="320" />
+                <ColumnDefinition Width="420" MinWidth="380" />
             </Grid.ColumnDefinitions>
 
             <!-- ═══ Session rail ═══════════════════════════════════════════════════════════ -->
@@ -106,21 +108,19 @@
                         </TextBlock>
                     </Button>
 
-                    <!-- Provider health footer -->
-                    <StackPanel DockPanel.Dock="Bottom" Style="{StaticResource RailPanel}"
-                                Margin="0,8,0,0">
-                        <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
-                                Padding="0,7,0,0">
-                            <StackPanel>
-                                <TextBlock Text="PROVIDERS" Style="{StaticResource HYP.SectionLabel}"
-                                           Margin="0,0,0,4" />
-                                <ItemsControl ItemsSource="{Binding AiProviders}"
-                                              ItemTemplate="{StaticResource HYP.ProviderRow}" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="LIBRARY" Margin="0,0,0,6">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource HYP.SectionLabel}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RailCollapsed}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
-                    <!-- Saved sessions -->
+                    <!-- Library (saved authoring sessions) — AI setup lives on the canvas gate, not here. -->
                     <ListBox ItemsSource="{Binding SavedSessions}"
                              SelectedItem="{Binding SelectedSavedSession}"
                              HorizontalContentAlignment="Stretch"
@@ -152,25 +152,45 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Session header -->
-                <DockPanel Grid.Row="0" Margin="2,0,2,8"
-                           Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
-                    <Border DockPanel.Dock="Right" Style="{StaticResource HYP.StateChip}" Padding="8,2"
-                            Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
-                        <TextBlock FontSize="10" Foreground="{DynamicResource Ai.Text.Brush}"
-                                   FontFamily="{DynamicResource Font.Data}">
-                            <Run Text="⏱ " /><Run Text="{Binding ElapsedCompact, Mode=OneWay}" />
+                <!-- Session header + live build tags -->
+                <StackPanel Grid.Row="0" Margin="2,0,2,8"
+                            Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" Style="{StaticResource HYP.StateChip}" Padding="8,2"
+                                Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
+                            <TextBlock FontSize="10" Foreground="{DynamicResource Ai.Text.Brush}"
+                                       FontFamily="{DynamicResource Font.Data}">
+                                <Run Text="⏱ " /><Run Text="{Binding ElapsedCompact, Mode=OneWay}" />
+                            </TextBlock>
+                        </Border>
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" FontSize="13"
+                                 Foreground="{DynamicResource Text.Header}" /><Run Text="   " /><Run
+                                 Text="{Binding ModelPillText, Mode=OneWay}" FontSize="10.5"
+                                 Foreground="{DynamicResource Text.Secondary}" />
                         </TextBlock>
-                    </Border>
-                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
-                        <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" FontSize="13"
-                             Foreground="{DynamicResource Text.Header}" /><Run Text="   " /><Run
-                             Text="{Binding ModelPillText, Mode=OneWay}" FontSize="10.5"
-                             Foreground="{DynamicResource Text.Secondary}" />
-                    </TextBlock>
-                </DockPanel>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding BuildTags}" Margin="0,6,0,0"
+                                  Visibility="{Binding HasBuildTags, Converter={StaticResource B2V}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,6,4" Padding="7,1" CornerRadius="9"
+                                        Background="{DynamicResource Background.Surface}"
+                                        BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1">
+                                    <TextBlock Text="{Binding}" FontSize="10"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
 
-                <!-- Transcript / hero empty state -->
+                <!-- Transcript / empty states: AI setup gate → strategy hero → chat -->
                 <Grid Grid.Row="1">
                     <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
@@ -184,9 +204,105 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!-- Hero: first-run and every New strategy. -->
+                    <!-- Gate: choose AI before New strategy / briefs / generate. -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420"
+                                Visibility="{Binding ShowAiSetup, Converter={StaticResource B2V}}">
+                        <Border Style="{StaticResource HYP.HeroMark}" Width="46" Height="46"
+                                HorizontalAlignment="Center">
+                            <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="16"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="Choose an AI provider"
+                                   FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Header}" />
+                        <TextBlock Text="Pick who writes the strategy. Then describe it, Compile &amp; Register, and Prove."
+                                   FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+
+                        <TextBlock Text="PROVIDER" Style="{StaticResource HYP.SectionLabel}"
+                                   Margin="0,18,0,6" HorizontalAlignment="Left" />
+                        <ListBox ItemsSource="{Binding AiProviders}"
+                                 SelectedItem="{Binding SelectedAiProvider}"
+                                 MaxHeight="200" BorderThickness="0" Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource HYP.SessionItem}">
+                                    <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="Margin" Value="0,0,0,4" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                 Fill="{DynamicResource Bullish.Brush}">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                            <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                                                            <Setter Property="Opacity" Value="0.45" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                        <TextBlock Text="{Binding Label}" FontSize="12" Margin="8,0,0,0"
+                                                   Foreground="{DynamicResource Text.Primary}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock Text="MODEL" Style="{StaticResource HYP.SectionLabel}"
+                                   Margin="0,14,0,6" HorizontalAlignment="Left"
+                                   Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}" />
+                        <ComboBox ItemsSource="{Binding Models}"
+                                  SelectedItem="{Binding SelectedModel}"
+                                  IsEditable="True"
+                                  FontSize="12"
+                                  FontFamily="{DynamicResource Font.Data}"
+                                  Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}"
+                                  ToolTip="Curated list for this provider — type any model id it accepts." />
+
+                        <StackPanel Margin="0,18,0,0"
+                                    Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}">
+                            <Button Style="{StaticResource HYP.SendButton}" HorizontalAlignment="Stretch"
+                                    Command="{Binding ConfirmAiSetupCommand}"
+                                    Content="Continue — start strategy" />
+                            <Button Margin="0,8,0,0" HorizontalAlignment="Center" Cursor="Hand"
+                                    Background="Transparent" BorderThickness="0" Padding="4"
+                                    Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                                    Command="{Binding ContinueWithoutAiCommand}"
+                                    Content="Continue without AI" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource HYP.QuestionCard}" Margin="0,18,0,0"
+                                Visibility="{Binding AiHasProvider, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                           Foreground="{DynamicResource Text.Primary}">
+                                    <Run Text="No AI provider is set up yet." FontWeight="SemiBold" />
+                                    <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or continue without AI and write the strategy yourself." />
+                                </TextBlock>
+                                <Button Margin="0,10,0,0" HorizontalAlignment="Left" Cursor="Hand"
+                                        Background="Transparent" BorderThickness="0" Padding="0"
+                                        Foreground="{DynamicResource Ai.Text.Brush}" FontSize="11.5"
+                                        FontWeight="SemiBold"
+                                        Command="{Binding ContinueWithoutAiCommand}"
+                                        Content="Continue without AI →" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Hero after AI setup: briefs + Change AI. -->
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560"
-                                Visibility="{Binding HasConversation, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                Visibility="{Binding ShowStrategyHero, Converter={StaticResource B2V}}">
                         <Border Style="{StaticResource HYP.HeroMark}" Width="46" Height="46"
                                 HorizontalAlignment="Center">
                             <TextBlock Text="VQ" Foreground="White" FontWeight="Bold" FontSize="16"
@@ -196,13 +312,24 @@
                                    FontSize="16.5" FontWeight="SemiBold" Margin="0,14,0,4"
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource Text.Header}" />
-                        <TextBlock Text="Hyperion plans, writes, compiles and smoke-tests it — you review and register."
+                        <TextBlock Text="Hyperion plans, writes, compiles - then you Prove with real Sharpe / MDD."
                                    FontSize="11.5" HorizontalAlignment="Center" TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}" />
 
-                        <!-- Suggestion briefs (when a provider is usable)… -->
-                        <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,18,0,0"
+                        <Button Margin="0,10,0,0" HorizontalAlignment="Center" Cursor="Hand"
+                                Background="Transparent" BorderThickness="0" Padding="4"
+                                Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                                Command="{Binding ChangeAiSetupCommand}"
+                                ToolTip="Change provider or model before generating.">
+                            <TextBlock>
+                                <Run Text="AI: " />
+                                <Run Text="{Binding ModelPillText, Mode=OneWay}" />
+                                <Run Text="  ·  Change" />
+                            </TextBlock>
+                        </Button>
+
+                        <ItemsControl ItemsSource="{Binding SuggestionBriefs}" Margin="0,14,0,0"
                                       HorizontalAlignment="Center"
                                       Visibility="{Binding AiHasProvider, Converter={StaticResource B2V}}">
                             <ItemsControl.ItemTemplate>
@@ -218,13 +345,12 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- …or the setup nudge when none is. -->
                         <Border Style="{StaticResource HYP.QuestionCard}" Margin="0,18,0,0"
                                 Visibility="{Binding AiHasProvider, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                             <TextBlock TextWrapping="Wrap" FontSize="11.5"
                                        Foreground="{DynamicResource Text.Primary}">
-                                <Run Text="No AI provider is set up yet." FontWeight="SemiBold" />
-                                <Run Text="Add an API key or install an agent CLI under Settings → AI providers, then come back — or write the strategy yourself in the workbench and press Compile &amp; Register." />
+                                <Run Text="No AI provider is available." FontWeight="SemiBold" />
+                                <Run Text="Write the strategy yourself, Compile &amp; Register, then Prove — or Change AI after adding a key under Settings → AI providers." />
                             </TextBlock>
                         </Border>
                     </StackPanel>
@@ -258,9 +384,10 @@
                                Visibility="{Binding AiStatus, Converter={StaticResource S2V}}" />
                 </StackPanel>
 
-                <!-- Cockpit composer -->
+                <!-- Cockpit composer — after AI setup (or once a conversation is underway). -->
                 <ContentControl Grid.Row="4" Style="{StaticResource HYP.ComposerShell}" Margin="0,10,0,0"
-                                Padding="12,10" Tag="{Binding IsGenerating}">
+                                Padding="12,10" Tag="{Binding IsGenerating}"
+                                Visibility="{Binding ShowComposer, Converter={StaticResource B2V}}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
@@ -280,7 +407,7 @@
                             </TextBox>
                             <TextBlock Margin="4,4,0,0" FontSize="12.5" IsHitTestVisible="False"
                                        Foreground="{DynamicResource Text.Secondary}" Opacity="0.55"
-                                       Text="Describe the strategy — or refine what's there. Ctrl+Enter sends.">
+                                       Text="Describe, refine, or paste prove metrics — Ctrl+Enter sends.">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -421,28 +548,43 @@
                             </Grid>
                             <Button Style="{StaticResource HYP.CtaButton}" Content="⚡  Compile &amp; Register"
                                     Command="{Binding CompileCommand}"
-                                    ToolTip="Compile every file, then review the code before it is registered — it runs in-process." />
+                                    ToolTip="Compile every file, then review before it is registered — Prove runs the real backtest afterward." />
                             <Grid Margin="0,7,0,0">
                                 <Border Style="{StaticResource HYP.StateChip}" HorizontalAlignment="Left">
-                                    <TextBlock FontSize="9" FontWeight="Bold">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="DRAFT" />
-                                                <Setter Property="Foreground" Value="{DynamicResource Warning.Brush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsRegistered}" Value="True">
-                                                        <Setter Property="Text" Value="REGISTERED" />
-                                                        <Setter Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <TextBlock FontSize="9" FontWeight="Bold"
+                                               Text="{Binding LifecycleLabel}"
+                                               Foreground="{DynamicResource Text.Primary}" />
                                 </Border>
                                 <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
                                            FontSize="9.5" Foreground="{DynamicResource Text.Secondary}"
-                                           Opacity="0.8" Text="reviewed code runs in-process" />
+                                           Opacity="0.8"
+                                           Text="{Binding PersistedPath, FallbackValue='Library: not on disk yet', TargetNullValue='Library: session only'}" />
                             </Grid>
+                            <!-- DATA chips = Strategy Studio L1/BAR/L2/TAPE (from descriptor when built). -->
+                            <TextBlock Text="DATA" FontSize="8.5" FontWeight="Bold" Margin="1,10,0,4"
+                                       Foreground="{DynamicResource Text.Secondary}" />
+                            <ItemsControl ItemsSource="{Binding BuildTags}"
+                                          Visibility="{Binding HasBuildTags, Converter={StaticResource B2V}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,6,4" Padding="8,2" CornerRadius="10"
+                                                Background="{DynamicResource Background.Surface}"
+                                                BorderBrush="{DynamicResource Accent.Brush}"
+                                                BorderThickness="1">
+                                            <TextBlock Text="{Binding}" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Primary}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock FontSize="10.5" Foreground="{DynamicResource Text.Secondary}"
+                                       Text="L1 · BAR · L2 · TAPE appear when the strategy compiles (Charts / Book / Footprint)."
+                                       Visibility="{Binding HasBuildTags, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                             <TextBlock Margin="1,7,0,0" TextWrapping="Wrap" FontSize="10.5"
                                        Foreground="{DynamicResource Text.Secondary}"
                                        Text="{Binding Status}"
@@ -484,8 +626,165 @@
                         </StackPanel>
                     </Border>
 
-                    <TabControl SelectedIndex="{Binding WorkbenchTab}" Margin="12,4,12,8"
-                                Background="Transparent">
+                    <TabControl x:Name="WorkbenchTabs"
+                                SelectedIndex="{Binding WorkbenchTab}"
+                                Margin="12,4,12,8"
+                                Background="Transparent"
+                                SelectionChanged="OnWorkbenchTabChanged">
+                        <TabItem Header="Prove">
+                            <DockPanel Margin="0,6,0,0">
+                                <StackPanel DockPanel.Dock="Top">
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
+                                               Foreground="{DynamicResource Text.Secondary}"
+                                               Text="Real historical trade tape only (same as Quick Backtest full-tape). No bar→fake ticks — if the broker has no prints, Prove fails." />
+                                    <Border Margin="0,0,0,8" Padding="10,8"
+                                            Background="{DynamicResource Background.Surface}"
+                                            BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
+                                            Visibility="{Binding HasLastRun, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                        <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                                   Foreground="{DynamicResource Text.Primary}">
+                                            <Run FontWeight="SemiBold" Text="Not proven yet. " />
+                                            <Run Text="Compile &amp; Register only made it runnable. Click Run prove for Sharpe / MDD — until then the strategy is not ready to trust." />
+                                        </TextBlock>
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Button Style="{StaticResource HYP.CtaButton}" Content="▶  Run prove"
+                                                Command="{Binding RunProveCommand}"
+                                                IsEnabled="{Binding CanProve}"
+                                                ToolTip="Replay recent bars through the registered strategy and fill the 16-metric strip." />
+                                        <Button Content="Cancel" Margin="8,0,0,0" Padding="12,4"
+                                                Command="{Binding CancelProveCommand}"
+                                                IsEnabled="{Binding IsProving}" />
+                                        <Button Content="Refine in chat" Margin="8,0,0,0" Padding="12,4"
+                                                Command="{Binding RefineFromProveCommand}"
+                                                ToolTip="Put Sharpe / MDD / return into the composer so the agent can iterate." />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="11"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                    <!-- Capability / fidelity strip — always visible so Sharpe isn't over-read -->
+                                    <Border Margin="0,8,0,8" Padding="10,8"
+                                            Background="{DynamicResource Background.Surface}"
+                                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock FontSize="10" FontWeight="Bold" Margin="0,0,0,4"
+                                                       Foreground="{DynamicResource Accent.Brush}"
+                                                       Text="FIDELITY" />
+                                            <TextBlock Text="{Binding Fidelity.Rung}" TextWrapping="Wrap" FontSize="11.5"
+                                                       FontWeight="SemiBold" Foreground="{DynamicResource Text.Primary}" />
+                                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Secondary}">
+                                                <Run FontWeight="SemiBold" Text="Honest for: " />
+                                                <Run Text="{Binding Fidelity.HonestFor}" />
+                                            </TextBlock>
+                                            <TextBlock Margin="0,2,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Secondary}">
+                                                <Run FontWeight="SemiBold" Text="Not honest for: " />
+                                                <Run Text="{Binding Fidelity.NotHonestFor}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Fidelity.Detail}" TextWrapping="Wrap" FontSize="10"
+                                                       Margin="0,6,0,0" Foreground="{DynamicResource Text.Secondary}"
+                                                       Opacity="0.85" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
+                                        Background="{DynamicResource Background.Surface}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                        Padding="8" MaxHeight="160">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <UniformGrid Columns="4" Rows="4">
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Return" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.TotalReturn, StringFormat=P2, FallbackValue=—}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Sharpe" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Sharpe, StringFormat=F2, FallbackValue=—}" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Sortino" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Sortino, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Max DD" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.MaxDrawdown, StringFormat=P2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Trades" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.TradeCount, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Win rate" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.WinRate, StringFormat=P1, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Avg win" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.AvgWin, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Avg loss" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.AvgLoss, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Profit factor" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.ProfitFactor, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Expectancy" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Expectancy, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Calmar" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Calmar, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Omega" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.Omega, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Downside dev" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.DownsideDeviation, StringFormat=F4, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Recovery" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.RecoveryFactor, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Max loss streak" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.MaxConsecutiveLosses, FallbackValue=—}" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,6,6">
+                                                <TextBlock Text="Ulcer" FontSize="10" Foreground="{DynamicResource Text.Secondary}" />
+                                                <TextBlock Text="{Binding ProveStats.UlcerIndex, StringFormat=F2, FallbackValue=—}" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1" Margin="0,0,0,6">
+                                    <sp:WpfPlot x:Name="ProveEquityPlot" MinHeight="140" />
+                                </Border>
+                            </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="Workspace">
+                            <!-- Host is created on Loaded — TabItem content is deferred until first select. -->
+                            <ContentControl x:Name="WorkspaceHost" Margin="0,6,0,0"
+                                            Loaded="OnWorkspaceHostLoaded" />
+                        </TabItem>
+
+                        <TabItem Header="Parameters">
+                            <DockPanel Margin="0,6,0,0">
+                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource Text.Secondary}"
+                                           Text="Tunables from StrategyParameterSchema. Change a knob, then re-run Prove." />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
+                                </ScrollViewer>
+                            </DockPanel>
+                        </TabItem>
+
                         <TabItem Header="Code">
                             <DockPanel Margin="0,6,0,0">
                                 <DockPanel DockPanel.Dock="Top">
@@ -528,11 +827,11 @@
                                         </Style>
                                     </Border.Style>
                                     <DockPanel>
-                                        <ToggleButton x:Name="DiagToggle" DockPanel.Dock="Top" IsChecked="True"
+                                        <ToggleButton x:Name="DiagToggle" DockPanel.Dock="Top" IsChecked="False"
                                                       Background="Transparent" BorderThickness="0" Cursor="Hand"
                                                       HorizontalContentAlignment="Left" Padding="0,5,0,3">
                                             <TextBlock FontSize="10.5" Foreground="{DynamicResource Warning.Brush}">
-                                                <Run Text="⚠ Diagnostics · " /><Run Text="{Binding Diagnostics.Count, Mode=OneWay}" /><Run Text="  (click a row to jump to its file)" Foreground="{DynamicResource Text.Secondary}" />
+                                                <Run Text="⚠ Diagnostics · " /><Run Text="{Binding Diagnostics.Count, Mode=OneWay}" /><Run Text="  (secondary — click to expand)" Foreground="{DynamicResource Text.Secondary}" />
                                             </TextBlock>
                                         </ToggleButton>
                                         <ListView ItemsSource="{Binding Diagnostics}" MaxHeight="130"
@@ -562,17 +861,6 @@
                                                        LineNumbersForeground="{DynamicResource Text.Secondary}"
                                                        HorizontalScrollBarVisibility="Auto"
                                                        VerticalScrollBarVisibility="Auto" />
-                            </DockPanel>
-                        </TabItem>
-
-                        <TabItem Header="Parameters">
-                            <DockPanel Margin="0,6,0,0">
-                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
-                                           Foreground="{DynamicResource Text.Secondary}"
-                                           Text="A strategy that declares a static Schema gets this editor for free. Compile to populate it." />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
-                                </ScrollViewer>
                             </DockPanel>
                         </TabItem>
 

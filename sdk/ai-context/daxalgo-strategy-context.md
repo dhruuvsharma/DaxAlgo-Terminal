@@ -327,6 +327,24 @@ tape) - **reply with your questions and NO code block**. That is a normal turn: 
 questions to the user and sends their answer back to you. Ask once, concisely (2-4 questions), then
 write the strategy. Do not ask about things you can reasonably default, and do not ask twice.
 
+### Free-form TAGS line (workbench chips)
+
+On every substantive reply (questions or code), include exactly one line of the form:
+
+`TAGS: L1, BAR`
+
+Use **only** the host data chips (same as Strategy Studio DATA REQUIREMENTS):
+
+| Tag | Means | Tool / panel |
+|-----|--------|----------------|
+| `L1` | Top-of-book quotes | Quote / L1 feed |
+| `BAR` | OHLCV bars | Charts |
+| `L2` | Market depth | Order book |
+| `TAPE` | Time & sales | Volume footprint / tape |
+
+Pick the subset the strategy actually needs via `StrategyDataRequirement`. Do not invent other tag
+vocabularies for Strategy Studio — the idea itself lives in the name/description/code.
+
 ### Compiler errors come back to you
 
 If the code does not compile, the builder sends you the compiler's own diagnostics (with file and line)

@@ -14,13 +14,12 @@ strategy idea
     -> review and run in a compatible host
 ```
 
-> **The shipped build places no broker orders.** Since 2026-08-12 the execution engine, OMS, risk
-> engine, and the Interactive Brokers / cTrader / Alpaca execution adapters live in this repository
-> under `src/windows/Execution/` — but the Basic shell **composes none of them**: no execution service
-> is registered, no order-entry surface is exposed, and the disabled **Execution Engine > Not yet
-> available** menu item still marks the boundary in the UI. A strategy emits simulated orders during a
-> backtest and signals during a live data session. The source to build a live order path is now here
-> and AGPL-licensed; wiring it into a shell is deliberately left undone.
+> **Live broker orders stay off by default.** The execution engine, OMS, risk engine, and IB /
+> cTrader / Alpaca adapters live under `src/windows/Execution/`. Basic now opens an **Execution
+> Console** (menu **Execution Engine → Execution Console**) backed by the in-process
+> **Simulated** adapter so you can inspect books, leases, fills, and positions. Live PAPER/live
+> routing remains opt-in and default-off inside that console — a strategy still emits simulated
+> orders in backtests and signals on live data unless you explicitly arm a paper adapter.
 
 The application has no DaxAlgo product account, subscription sign-in, or entitlement gate. On a normal
 start it opens the broker-selection window. Broker credentials are requested only when the selected data
@@ -116,7 +115,7 @@ The menu bar in `TradingTerminal.App.Basic/MainWindow.xaml` is:
 | **Backtest Engine** | Backtest Studio |
 | **Strategy Studio** | Vibe Code > Hyperion; Launch CLI; Extensions |
 | **Data** | Market data archive; Archive history; Instant offload (all pending) |
-| **Execution Engine** | Not yet available (disabled; data/signals-only boundary) |
+| **Execution Engine** | Execution Console (in-process Simulated OMS + positions; live adapters opt-in / off by default) |
 | **Settings** | Notifications |
 | **Help** | Support the developer; About DaxAlgo Terminal |
 

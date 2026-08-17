@@ -22,6 +22,7 @@ using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Updates;
+using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
@@ -41,6 +42,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
+    private const string ExecutionConsoleWindowId = "execution.console";
 
     private readonly IStrategyFactory _factory;
     private readonly IEventBus _eventBus;
@@ -52,6 +54,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private readonly DispatcherTimer _clockTimer;
     private readonly IThemeManager _themeManager;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
+    private readonly IBacktestStrategyRegistry _backtestRegistry;
 
     public MainWindowViewModel(
         IStrategyFactory factory,
@@ -75,6 +78,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host = host;
         _services = services;
         _logger = logger;
+        _backtestRegistry = services.GetRequiredService<IBacktestStrategyRegistry>();
         // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
         // chip only observes, and this ctor is already at its parameter budget.
         Recorder = services.GetRequiredService<TickRecordingService>();
@@ -98,7 +102,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         // description / tags / alpha formula / UI image). The list binds to these; the underlying
         // strategy stays reachable for Open and the pill converters.
         CatalogItems = new ObservableCollection<StrategyCatalogItemViewModel>(
-            factory.All.Select(s => new StrategyCatalogItemViewModel(s)));
+            factory.All.Select(CreateCatalogItem));
         // The Testing launch profile pairs a fixture strategy (seeded through the factory, so it is
         // already in the list above) with a fixture visualizer. Visualizer cards do not go through
         // IStrategyFactory - they are descriptors - so this one is added directly.
@@ -125,10 +129,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 else Strategies.Add(change.Strategy);
 
                 var existingItem = CatalogItems.FirstOrDefault(i => i.Id == change.Strategy.Id);
+                var card = CreateCatalogItem(change.Strategy);
                 if (existingItem is not null)
-                    CatalogItems[CatalogItems.IndexOf(existingItem)] = new StrategyCatalogItemViewModel(change.Strategy);
+                    CatalogItems[CatalogItems.IndexOf(existingItem)] = card;
                 else
-                    CatalogItems.Add(new StrategyCatalogItemViewModel(change.Strategy));
+                    CatalogItems.Add(card);
             }
 
             if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess())
@@ -449,8 +454,29 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     {
         if (string.IsNullOrWhiteSpace(visualizerId))
             visualizerId = SelectedCatalogItem?.Visualizer?.Id;
-        if (!string.IsNullOrWhiteSpace(visualizerId))
-            _logger.LogWarning("Visualizer {VisualizerId} is not registered in this edition", visualizerId);
+        _logger.LogWarning("Visualizer {VisualizerId} is not registered in this edition", visualizerId);
+        MessageBox.Show(
+            "Chart visualizers aren't available in the Basic edition yet.\n\n" +
+            "Open a Strategy from the catalog instead — or use Hyperion to build one.",
+            "Add to chart",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private StrategyCatalogItemViewModel CreateCatalogItem(ITradingStrategy strategy)
+    {
+        var item = new StrategyCatalogItemViewModel(strategy);
+        var engineId = item.ResolvedBacktestStrategyId;
+        item.HasQuickBacktest = engineId is not null && _backtestRegistry.Find(engineId) is not null;
+
+        // Hyperion Library → catalog: surface last Prove Sharpe/MDD when a session snapshot exists.
+        var session = TradingTerminal.App.Authoring.AuthoringSessionStore.Load(strategy.Id)
+                      ?? (engineId is not null
+                          ? TradingTerminal.App.Authoring.AuthoringSessionStore.Load(engineId)
+                          : null);
+        item.LastProveLine = session?.LastProveLine;
+
+        return item;
     }
 
     /// <summary>
@@ -471,6 +497,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
         var strategy = Strategies.FirstOrDefault(s => s.Id == strategyId);
         if (strategy is null) return;
+
+        var engineId = !string.IsNullOrWhiteSpace(strategy.BacktestStrategyId)
+            ? strategy.BacktestStrategyId
+            : strategy.Id;
+        if (_backtestRegistry.Find(engineId) is null)
+        {
+            _logger.LogWarning("Quick backtest skipped — no engine option for {Id}", strategy.Id);
+            MessageBox.Show(
+                $"'{strategy.DisplayName}' has no backtest engine registered yet.\n\n" +
+                "Open Hyperion, Compile & Register, then Prove — or pick a strategy that ships a backtest counterpart.",
+                "Quick backtest",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
 
         var windowId = "quickbacktest." + strategyId;
         if (_host.TryActivate(windowId)) return;
@@ -494,7 +535,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             // Bind the VM to the strategy and kick off the first run after the window is up.
             // Tape-primary strategies (SigmaIcFlow) default to Binance + real-tape mode for a full backtest.
             var preferFullTape = strategy.DataRequirement.HasFlag(Core.Strategies.StrategyDataRequirement.TradeTape);
-            vm.Initialize(strategy.BacktestStrategyId, strategy.DisplayName, preferFullTape);
+            vm.Initialize(engineId, strategy.DisplayName, preferFullTape);
             _logger.LogInformation("Opened quick backtest for {Id} ({Name})", strategy.Id, strategy.DisplayName);
         });
     }
@@ -596,7 +637,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     [RelayCommand]
     public void OpenStrategyAuthoring() =>
         _host.OpenHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
-            StrategyAuthoringWindowId, "Hyperion", "Loading Hyperion…");
+            StrategyAuthoringWindowId, "Hyperion", "Loading Hyperion…",
+            disposeViewModel: false);
+
+    /// <summary>Opens the in-process simulated Execution Console (OMS + positions). Live broker
+    /// adapters remain opt-in and default-off inside the console composition.</summary>
+    [RelayCommand]
+    public void OpenExecutionConsole() =>
+        _host.OpenHostedTool<TradingTerminal.ExecutionUi.ExecutionConsoleViewModel, TradingTerminal.ExecutionUi.ExecutionConsoleView>(
+            ExecutionConsoleWindowId, "Execution Console", "Starting simulated execution engine…",
+            width: 1200, height: 820);
 
     /// <summary>The agent CLIs the "Launch CLI" menu offers — installed ones enabled, the rest shown
     /// disabled with an "install it" hint. Built once from what resolved on PATH at start.</summary>

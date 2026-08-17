@@ -32,9 +32,12 @@ public interface IShellWindowHost
     void OpenWithOverlay(string title, string detail, Action build);
 
     /// <summary>Opens (or focuses) a single-instance surface whose view is a <see cref="FrameworkElement"/>
-    /// (a UserControl), wrapped in a themed <see cref="ToolHostWindow"/>. VM disposed on close.</summary>
+    /// (a UserControl), wrapped in a themed <see cref="ToolHostWindow"/>.
+    /// When <paramref name="disposeViewModel"/> is true (default), the VM is disposed on close — use false
+    /// for singleton VMs (e.g. Hyperion) so reopening still shows the workbench.</summary>
     void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
-        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
+        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight,
+        bool disposeViewModel = true)
         where TVm : class
         where TView : FrameworkElement;
 

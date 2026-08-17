@@ -328,7 +328,11 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             "`// file: <Name>.cs` line. Write the COMPLETE plugin — kernel + ITradingStrategy descriptor + " +
             "live view-model + code-built view — unless the user explicitly asked for a backtest kernel only; " +
             "a kernel on its own gets no catalog card and no window. Ask a question instead of guessing if the " +
-            "brief is ambiguous about the instrument, timeframe, sizing or risk.");
+            "brief is ambiguous about the instrument, timeframe, sizing or risk. " +
+            "When you write code (or answer clarifying questions), include one line " +
+            "`TAGS: L1, BAR, L2, TAPE` using only the data needs that apply — same chips as Strategy Studio. " +
+            "L1 = quotes, BAR = Charts, L2 = Order book / depth, TAPE = trade tape / footprint. " +
+            "Ask a question instead of guessing if the brief is ambiguous about instrument, timeframe, sizing or risk.");
         return sb.ToString();
     }
 

@@ -455,9 +455,9 @@
             </MenuItem>
 
             <MenuItem Header="_Execution Engine">
-                <MenuItem Icon="🚫" Header="Not yet available"
-                          IsEnabled="False"
-                          ToolTip="Deliberately unavailable: DaxAlgo Terminal provides data and signals only; it does not support live order execution." />
+                <MenuItem Icon="⚡" Header="_Execution Console…"
+                          Command="{Binding OpenExecutionConsoleCommand}"
+                          ToolTip="In-process simulated OMS and position tracking. Live broker order routing stays opt-in and off by default." />
             </MenuItem>
 
             <MenuItem Header="_Settings">
@@ -619,6 +619,10 @@
                                                        ToolTip="Unsigned plugin — running on your consent" />
                                         </Border>
                                     </Grid>
+                                    <TextBlock Text="{Binding LastProveLine}" FontSize="10" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource Accent.Brush}"
+                                               Visibility="{Binding HasLastProve, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                               ToolTip="Last Hyperion Prove run (from Library session)" />
                                     <!-- Alpha-generating formula — shown only when the user has added one. -->
                                     <Border Margin="12,6,0,0"
                                             Background="{DynamicResource Background.Surface}"
@@ -705,8 +709,8 @@
                         <MenuItem Icon="▶️"
                                   Header="{Binding PlacementTarget.SelectedItem.PrimaryActionLabel, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                   Click="PrimaryCatalogAction_Click" />
-                        <MenuItem Icon="⏱️" Header="Quick backtest (last 1 year)…"
-                                  Visibility="{Binding PlacementTarget.SelectedItem.Kind, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CatalogItemKindToVisibilityConverter}, ConverterParameter=Strategy}"
+                        <MenuItem Icon="⏱️" Header="Quick backtest…"
+                                  Visibility="{Binding PlacementTarget.SelectedItem.HasQuickBacktest, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   Click="QuickBacktest_Click" />
                         <Separator />
                         <MenuItem Icon="✏️"
@@ -754,7 +758,7 @@
 
             <TextBlock Foreground="{DynamicResource Text.Secondary}" FontSize="12.5"
                        TextAlignment="Center" TextWrapping="Wrap" MaxWidth="450" Margin="0,8,0,0"
-                       Text="Describe a strategy and Hyperion writes, compiles and backtests it for you — or install a ready-made one from the marketplace. Everything you build lands right here." />
+                       Text="Describe a strategy — Hyperion writes it, you Compile &amp; Register, then Prove with real Sharpe / MDD. Cards land here when the strategy can open live." />
 
             <!-- the two paths -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">

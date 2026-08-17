@@ -60,9 +60,8 @@ public partial class ComposedStrategyView : UserControl, IDisposable
 
         Setup.Title = descriptor.DisplayName;
         Setup.Subtitle = "AI-AUTHORED STRATEGY";
-        Setup.Description = string.IsNullOrWhiteSpace(descriptor.Description)
-            ? "Authored in the AI Strategy Builder. The host composed this live window from the data the strategy declares it consumes."
-            : descriptor.Description;
+        var brief = SanitizeDescription(descriptor.Description);
+        Setup.Description = brief + "\n\nData needed: " + DataNeedsCopy(requirement);
         Setup.Tags = TagsFor(requirement);
 
         Chrome.SnapshotName = Sanitize(descriptor.Id);
@@ -166,6 +165,24 @@ public partial class ComposedStrategyView : UserControl, IDisposable
         return string.Join(", ", tags);
     }
 
+    private static string DataNeedsCopy(StrategyDataRequirement requirement)
+    {
+        var parts = new List<string>();
+        if (requirement.HasFlag(StrategyDataRequirement.L1))
+            parts.Add("L1 quotes (any connected broker)");
+        if (requirement.HasFlag(StrategyDataRequirement.Bars))
+            parts.Add("Bars (any connected broker)");
+        if (requirement.HasFlag(StrategyDataRequirement.TradeTape))
+            parts.Add("Trade tape — pick a symbol on Binance, Interactive Brokers, or IronBeam");
+        if (requirement.HasFlag(StrategyDataRequirement.Depth))
+            parts.Add("Depth (L2) — broker must serve order book");
+
+        if (parts.Count == 0)
+            return "No special data feeds declared.";
+
+        return string.Join(" · ", parts) + ". Continue checks that your selected instrument's broker can serve these.";
+    }
+
     private static TextBlock BuildHelp(StrategyDataRequirement requirement)
     {
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 11.5, LineHeight = 17 };
@@ -197,6 +214,20 @@ public partial class ComposedStrategyView : UserControl, IDisposable
 
     private static string Sanitize(string id) =>
         new(id.Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+
+    /// <summary>AI briefs sometimes emit broken arrows (→ → ??) — clean for the setup hero.</summary>
+    private static string SanitizeDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return "Authored in the AI Strategy Builder. The host composed this live window from the data the strategy declares it consumes.";
+        }
+
+        return description
+            .Replace("??", " — ", StringComparison.Ordinal)
+            .Replace('\uFFFD', '-')
+            .Trim();
+    }
 
     // ── strategy view-model wiring ──────────────────────────────────────────────────────────────────
 

@@ -7,8 +7,7 @@ namespace TradingTerminal.Backtest.Engine.Execution;
 /// Holds working orders across every instrument and evaluates fills on each quote via an injected
 /// <see cref="IFillModel"/>. Fully synchronous — driven by the engine's single-threaded replay loop.
 /// Raises <see cref="Event"/> for each order transition, tagged with the instrument so the engine can
-/// route fills to the right position. Ported from the legacy single-instrument
-/// <c>SimulatedOrderBook</c>, keyed by instrument.
+/// route fills to the right position.
 /// </summary>
 internal sealed class SimulatedOrderBook
 {
@@ -16,6 +15,7 @@ internal sealed class SimulatedOrderBook
     private readonly IFillModel _fillModel;
     private readonly Func<InstrumentId, double> _tickSizeOf;
     private readonly Dictionary<string, WorkingOrder> _byClientId = new(StringComparer.Ordinal);
+    private readonly Dictionary<InstrumentId, DepthSnapshot> _lastDepth = new();
     private long _nextBrokerId;
 
     public SimulatedOrderBook(SimClock clock, IFillModel fillModel, Func<InstrumentId, double> tickSizeOf)
@@ -57,16 +57,20 @@ internal sealed class SimulatedOrderBook
             order.FilledQuantity, order.AveragePrice));
     }
 
+    public void OnDepth(InstrumentId instrument, DepthSnapshot depth) =>
+        _lastDepth[instrument] = depth;
+
     /// <summary>Evaluate fills for the orders resting on one instrument against its latest quote.</summary>
     public void OnQuote(InstrumentId instrument, Tick tick)
     {
         if (_byClientId.Count == 0) return;
         var tickSize = _tickSizeOf(instrument);
+        _lastDepth.TryGetValue(instrument, out var depth);
 
         foreach (var order in _byClientId.Values.ToList())
         {
             if (order.Instrument != instrument || IsTerminal(order.State)) continue;
-            if (!_fillModel.TryFill(order, tick, tickSize, out var price, out var qty)) continue;
+            if (!_fillModel.TryFill(order, tick, tickSize, depth, out var price, out var qty)) continue;
 
             order.FilledQuantity += qty;
             order.TotalFillValue += price * qty;

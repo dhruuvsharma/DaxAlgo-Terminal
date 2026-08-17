@@ -1,13 +1,16 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using System.Text;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TradingTerminal.Core.Backtest;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -45,8 +48,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly AiCodegenOptions _options;
     private readonly AuthoredStrategyInstaller? _installer;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
+    private readonly IAuthoringProveService? _prove;
+    private readonly IAuthoredStrategyTagPublisher? _tagPublisher;
 
     private CancellationTokenSource? _generateCts;
+    private CancellationTokenSource? _proveCts;
     private StrategyBuildSession? _session;
     private bool _filesEditedByUser;
 
@@ -70,7 +76,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IAiStrategyBuilder? ai = null,
         IOptions<AiCodegenOptions>? options = null,
         AuthoredStrategyInstaller? installer = null,
-        ICliWorkspaceLauncher? cliLauncher = null)
+        ICliWorkspaceLauncher? cliLauncher = null,
+        IAuthoringProveService? prove = null,
+        IAuthoredStrategyTagPublisher? tagPublisher = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -79,12 +87,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
         _cliLauncher = cliLauncher;
+        _prove = prove;
+        _tagPublisher = tagPublisher;
 
         Diagnostics = [];
         Messages = [];
         Activity = [];
         Files = [];
         Tasks = [];
+        BuildTags.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBuildTags));
 
         // The hero empty state ↔ transcript switch watches the count; the VM owns the collection,
         // so the self-subscription cannot outlive it.
@@ -115,6 +126,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // rest in the picker — a chat that dies with the process is no use for anything serious.
         RefreshSavedSessions();
         if (SavedSessions.FirstOrDefault() is { } latest) Restore(latest);
+
+        // Mid-session restore skips the AI gate; a blank canvas always starts with "choose AI first".
+        AiAuthoringReady = HasConversation;
     }
 
     /// <summary>True when the AI builder is wired at all — drives the chat pane's visibility. When wired
@@ -126,8 +140,168 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// mark, tagline, suggestion briefs) instead of an empty transcript.</summary>
     public bool HasConversation => Messages.Count > 0;
 
-    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+    /// <summary>User confirmed provider/model (or chose to write without AI). Empty Hyperion shows the
+    /// AI setup gate until this is true; New strategy keeps it so the gate is not a every-time tax.</summary>
+    [ObservableProperty] private bool _aiAuthoringReady;
+
+    /// <summary>Empty canvas + AI not confirmed yet — pick provider/model before briefs / generate.</summary>
+    public bool ShowAiSetup => !HasConversation && !AiAuthoringReady;
+
+    /// <summary>Empty canvas after AI setup — "Describe the strategy" + suggestion briefs.</summary>
+    public bool ShowStrategyHero => !HasConversation && AiAuthoringReady;
+
+    /// <summary>Composer + send only after the setup gate (or once a conversation is underway).</summary>
+    public bool ShowComposer => HasConversation || AiAuthoringReady;
+
+    partial void OnAiAuthoringReadyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowAiSetup));
+        OnPropertyChanged(nameof(ShowStrategyHero));
+        OnPropertyChanged(nameof(ShowComposer));
+    }
+
+    /// <summary>Live build tags inferred from chat (direction, signal, data, legs) — shown on the
+    /// workbench so the user can see what they are making before Register. Same idea as catalog tags.</summary>
+    public ObservableCollection<string> BuildTags { get; } = [];
+
+    public bool HasBuildTags => BuildTags.Count > 0;
+
+    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
         OnPropertyChanged(nameof(HasConversation));
+        OnPropertyChanged(nameof(ShowAiSetup));
+        OnPropertyChanged(nameof(ShowStrategyHero));
+        OnPropertyChanged(nameof(ShowComposer));
+    }
+
+    /// <summary>Leave the AI setup gate with the current provider/model locked in for authoring.</summary>
+    private bool CanConfirmAiSetup => SelectedAiProvider is { IsAvailable: true };
+
+    [RelayCommand(CanExecute = nameof(CanConfirmAiSetup))]
+    private void ConfirmAiSetup()
+    {
+        if (SelectedAiProvider is not { IsAvailable: true } choice) return;
+        PersistSelection(choice.ProviderId, SelectedModel, SelectedEffort);
+        AiAuthoringReady = true;
+        Status = $"Ready with {choice.DisplayName}" +
+                 (string.IsNullOrEmpty(SelectedModel) ? "." : $" · {SelectedModel}.");
+    }
+
+    /// <summary>Skip the provider gate — Compile &amp; Register / Prove still work without chat generate.</summary>
+    [RelayCommand]
+    private void ContinueWithoutAi()
+    {
+        AiAuthoringReady = true;
+        Status = "Continuing without AI — write the strategy yourself, Compile & Register, then Prove.";
+    }
+
+    /// <summary>From the empty strategy hero: reopen the provider/model gate before generating.</summary>
+    [RelayCommand]
+    private void ChangeAiSetup()
+    {
+        if (HasConversation) return;
+        AiAuthoringReady = false;
+        Status = "Choose an AI provider, then continue.";
+    }
+
+    private void AbsorbBuildTagsFrom(string? text)
+    {
+        var before = BuildTags.Count;
+        BuildTagInferrer.Absorb(text, BuildTags);
+        if (BuildTags.Count != before)
+            OnPropertyChanged(nameof(HasBuildTags));
+    }
+
+    private void AbsorbDataRequirementTags(StrategyCompileResult? compile)
+    {
+        if (compile?.Authored?.DescriptorType is not { } descriptorType)
+        {
+            AbsorbDataRequirementFromSource();
+            return;
+        }
+
+        try
+        {
+            if (Activator.CreateInstance(descriptorType) is not ITradingStrategy descriptor)
+            {
+                AbsorbDataRequirementFromSource();
+                return;
+            }
+
+            var before = BuildTags.Count;
+            BuildTagInferrer.AbsorbDataRequirement(descriptor.DataRequirement, BuildTags);
+            if (BuildTags.Count != before)
+                OnPropertyChanged(nameof(HasBuildTags));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not read DataRequirement tags from authored descriptor");
+            AbsorbDataRequirementFromSource();
+        }
+    }
+
+    /// <summary>
+    /// Re-compile current files (or scan source) so Library restores / already-built sessions still
+    /// show L1·BAR·L2·TAPE even when the saved snapshot had no BuildTags yet.
+    /// </summary>
+    private void RefreshDataTagsFromFiles()
+    {
+        if (Files.Count == 0) return;
+        try
+        {
+            var result = _compiler.Compile(CurrentScript());
+            if (result.Success)
+            {
+                AbsorbDataRequirementTags(result);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "RefreshDataTagsFromFiles compile failed for {Id}", StrategyId);
+        }
+
+        AbsorbDataRequirementFromSource();
+    }
+
+    /// <summary>Fallback when compile/reflection fails — read StrategyDataRequirement flags from source text.</summary>
+    private void AbsorbDataRequirementFromSource()
+    {
+        if (Files.Count == 0) return;
+        var text = string.Join('\n', Files.Select(f => f.Content));
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        var req = StrategyDataRequirement.None;
+        if (text.Contains("StrategyDataRequirement.L1", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.L1;
+        if (text.Contains("StrategyDataRequirement.Bars", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.Bars;
+        if (text.Contains("StrategyDataRequirement.Depth", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.Depth;
+        if (text.Contains("StrategyDataRequirement.TradeTape", StringComparison.Ordinal))
+            req |= StrategyDataRequirement.TradeTape;
+
+        if (req == StrategyDataRequirement.None) return;
+
+        var before = BuildTags.Count;
+        BuildTagInferrer.AbsorbDataRequirement(req, BuildTags);
+        if (BuildTags.Count != before)
+            OnPropertyChanged(nameof(HasBuildTags));
+    }
+
+    private void ReplaceBuildTags(IEnumerable<string>? tags)
+    {
+        BuildTags.Clear();
+        if (tags is null) return;
+        foreach (var tag in tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) continue;
+            var t = tag.Trim();
+            if (BuildTags.Any(x => x.Equals(t, StringComparison.OrdinalIgnoreCase))) continue;
+            BuildTags.Add(t);
+        }
+        OnPropertyChanged(nameof(HasBuildTags));
+    }
 
     /// <summary>Canned first briefs for the empty state, seeded from strategy families the terminal
     /// already ships — one click puts a real, well-formed brief in the composer to edit or send.</summary>
@@ -141,7 +315,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void UseSuggestion(string? brief)
     {
-        if (!string.IsNullOrWhiteSpace(brief)) Composer = brief;
+        if (string.IsNullOrWhiteSpace(brief)) return;
+        Composer = brief;
+        AbsorbBuildTagsFrom(brief);
     }
 
     /// <summary>Collapses the session rail to an icon strip — the workspace's only chrome toggle.</summary>
@@ -150,8 +326,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void ToggleRail() => RailCollapsed = !RailCollapsed;
 
-    /// <summary>Selected workbench tab: 0 Code · 1 Parameters · 2 Activity. A file chip in the chat
-    /// sets it back to Code so the click always lands on the file it names.</summary>
+    /// <summary>Selected workbench tab: 0 Prove · 1 Workspace · 2 Parameters · 3 Code · 4 Activity.
+    /// A file chip in the chat sets it to Code so the click always lands on the file it names.</summary>
     [ObservableProperty] private int _workbenchTab;
 
     [RelayCommand]
@@ -161,7 +337,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (Files.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } file)
         {
             SelectedFile = file;
-            WorkbenchTab = 0;
+            WorkbenchTab = 3; // Code
         }
     }
 
@@ -175,7 +351,67 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// drives the DRAFT/REGISTERED chip and the rail's status line.</summary>
     [ObservableProperty] private bool _isRegistered;
 
-    [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+    /// <summary>True when Install wrote a plugin folder — survives restart.</summary>
+    [ObservableProperty] private bool _isPersisted;
+
+    [ObservableProperty] private string? _persistedPath;
+
+    /// <summary>True after a successful Prove (real session backtest), not the lifecycle smoke.</summary>
+    [ObservableProperty] private bool _hasLastRun;
+
+    [ObservableProperty] private bool _lastRunOk;
+
+    [ObservableProperty] private string? _lastRunSummary;
+
+    [ObservableProperty] private BacktestStatistics? _proveStats;
+
+    [ObservableProperty] private double _proveTotalPnl;
+
+    [ObservableProperty] private string? _proveFeedQuality;
+
+    /// <summary>Always set — default envelope before a run, updated after Prove.</summary>
+    [ObservableProperty] private AuthoringFidelityStrip _fidelity = AuthoringFidelityStrip.ProveDefault;
+
+    [ObservableProperty] private bool _isProving;
+
+    /// <summary>Raised after Prove fills equity samples so the view can redraw the curve.</summary>
+    public event EventHandler? ProveEquityUpdated;
+
+    public ObservableCollection<EquityPoint> ProveEquityCurve { get; } = [];
+
+    public bool CanProve => IsRegistered && _prove is not null && !IsProving;
+
+    partial void OnIsRegisteredChanged(bool value)
+    {
+        RunProveCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanProve));
+        OnPropertyChanged(nameof(LifecycleLabel));
+    }
+
+    partial void OnIsPersistedChanged(bool value) => OnPropertyChanged(nameof(LifecycleLabel));
+    partial void OnHasLastRunChanged(bool value) => OnPropertyChanged(nameof(LifecycleLabel));
+    partial void OnLastRunOkChanged(bool value) => OnPropertyChanged(nameof(LifecycleLabel));
+    partial void OnIsProvingChanged(bool value)
+    {
+        RunProveCommand.NotifyCanExecuteChanged();
+        CancelProveCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanProve));
+    }
+
+    /// <summary>Single chip text: Draft → Registered → Saved → Last run ✓/✗</summary>
+    public string LifecycleLabel
+    {
+        get
+        {
+            if (!IsRegistered) return "DRAFT";
+            var parts = new List<string> { "REGISTERED" };
+            parts.Add(IsPersisted ? "SAVED" : "SESSION ONLY");
+            if (HasLastRun) parts.Add(LastRunOk ? "LAST RUN ✓" : "LAST RUN ✗");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    [ObservableProperty] private string? _status = "Describe a strategy, then Compile & Register — next, Prove it with a real backtest.";
     [ObservableProperty] private bool _compiledOk;
 
     /// <summary>Auto-generated editor for the compiled strategy's tunables, or null when it declares none
@@ -253,6 +489,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ResetSession("Switched provider.");
         Models.Clear();
         OnPropertyChanged(nameof(EffortSupported));
+        ConfirmAiSetupCommand.NotifyCanExecuteChanged();
         if (value is null)
         {
             SyncModelChoice();
@@ -488,7 +725,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Tasks.Add(_taskAutoFix = new BuildTask("Auto-fix"));
         _taskReview = profile.SelfReview ? new BuildTask("Self-review") : null;
         if (_taskReview is not null) Tasks.Add(_taskReview);
-        _taskSmoke = profile.BacktestSmoke ? new BuildTask("Backtest smoke") : null;
+        _taskSmoke = profile.BacktestSmoke ? new BuildTask("Lifecycle check") : null;
         if (_taskSmoke is not null) Tasks.Add(_taskSmoke);
 
         _taskBrief!.State = BuildTaskState.Running;
@@ -540,7 +777,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 }
             }
         }
-        else if (step.StartsWith("Backtest smoke", StringComparison.Ordinal))
+        else if (step.StartsWith("Backtest smoke", StringComparison.Ordinal) ||
+                 step.StartsWith("Lifecycle check", StringComparison.Ordinal))
         {
             if (step.Contains("passed", StringComparison.Ordinal))
             {
@@ -578,7 +816,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         if (_smokeCardEmitted) return;
         _smokeCardEmitted = true;
-        Append(AuthoringMessage.Tool(state, "Backtest smoke", step));
+        // Smoke is not a real backtest — keep the card honest for the user and the model.
+        var detail = step
+            .Replace("Backtest smoke", "Lifecycle check", StringComparison.Ordinal)
+            .Replace("backtest smoke", "lifecycle check", StringComparison.Ordinal);
+        Append(AuthoringMessage.Tool(state, "Lifecycle check", detail));
     }
 
     /// <summary>Settles the checklist when the turn ends: a compiled turn closes everything that didn't
@@ -663,7 +905,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             "Compile" => "Compiling…",
             "Auto-fix" => "Fixing compile errors…",
             "Self-review" => "Self-reviewing the code…",
-            "Backtest smoke" => "Running the backtest smoke…",
+            "Lifecycle check" or "Backtest smoke" => "Checking the strategy survives synthetic ticks…",
             _ => running.Title + "…",
         };
     }
@@ -729,6 +971,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // First brief on an untouched identity: name the strategy after what it does, not "myStrategy".
         if (Messages.Count == 0) DeriveIdentityFrom(prompt);
 
+        AbsorbBuildTagsFrom(prompt);
+
         Composer = string.Empty;
         Append(new AuthoringMessage(CodegenRole.User, prompt));
         Activity.Clear();
@@ -787,6 +1031,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // bubble appears now, whole.
             if (_streamingReply is null) Append(new AuthoringMessage(CodegenRole.Assistant, turn.AssistantText));
             else _streamingReply.Text = turn.AssistantText;
+
+            // Free-form TAGS: from the model + DaxAlgo DataRequirement tags after a clean compile.
+            AbsorbBuildTagsFrom(turn.AssistantText);
+            if (turn.Kind == BuildTurnKind.Compiled)
+                AbsorbDataRequirementTags(turn.Compile);
 
             AwaitingAnswer = turn.Kind == BuildTurnKind.Question;
 
@@ -918,9 +1167,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void Stop() => _generateCts?.Cancel();
 
     /// <summary>Start over: a fresh thread with the model, the starter template back in the editor. The
-    /// previous chat is NOT deleted — it stays in the picker under its own strategy id, so "new chat" can
-    /// never cost the user a conversation. Give the new one a new id before sending, or it will overwrite
-    /// the old one's file on the first turn.</summary>
+    /// previous chat is NOT deleted — it stays in the Library under its own strategy id. Identity resets
+    /// to defaults so the empty canvas does not keep showing the previous strategy on the right.</summary>
     [RelayCommand]
     private void NewChat()
     {
@@ -940,6 +1188,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CompiledOk = false;
             AwaitingAnswer = false;
             IsRegistered = false;
+            IsPersisted = false;
+            PersistedPath = null;
+            HasLastRun = false;
+            LastRunOk = false;
+            LastRunSummary = null;
+            ProveStats = null;
+            ProveTotalPnl = 0;
+            ProveFeedQuality = null;
+            Fidelity = AuthoringFidelityStrip.ProveDefault;
+            ProveEquityCurve.Clear();
+            ProveEquityUpdated?.Invoke(this, EventArgs.Empty);
             CloseReview();
             _registeredBaseline.Clear();
             RefreshWorkStatus();
@@ -947,12 +1206,26 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
             _filesEditedByUser = false;
             AiStatus = null;
-            Status = "New conversation. Give it a strategy id, then describe what you want.";
+            WorkbenchTab = 0; // Prove — keep the new workbench UI front-and-center on New strategy
+            // Detach from the previous Library row + identity (otherwise empty chat + old ID/DRAFT).
+            StrategyId = DefaultStrategyId;
+            DisplayName = DefaultDisplayName;
+            SelectedSavedSession = null;
+            ReplaceBuildTags(null);
+            Status = "New conversation. Describe the strategy, Compile & Register, then Prove.";
+            OnPropertyChanged(nameof(HasConversation));
+            OnPropertyChanged(nameof(LifecycleLabel));
         }
         finally
         {
             _restoring = false;
         }
+
+        RefreshSavedSessions();
+        // Stay on a blank draft — do not re-select the previous Library row.
+        _restoring = true;
+        try { SelectedSavedSession = null; }
+        finally { _restoring = false; }
     }
 
     /// <summary>
@@ -1014,7 +1287,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnSelectedSavedSessionChanged(AuthoringSessionSnapshot? value)
     {
-        if (_restoring || value is null || value.StrategyId == StrategyId) return;
+        if (_restoring || value is null) return;
+        // Same id with an empty canvas still needs Restore — e.g. after New strategy left the old
+        // identity selected, or a click on the Library row that looks selected but chat was cleared.
+        if (value.StrategyId == StrategyId && Messages.Count > 0) return;
         Restore(value);
     }
 
@@ -1089,19 +1365,33 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CompiledOk = false;
             AwaitingAnswer = false;
             IsRegistered = session.Registered;
+            IsPersisted = session.Persisted;
+            PersistedPath = session.PersistedPath;
+            HasLastRun = !string.IsNullOrEmpty(session.LastRunSummary);
+            LastRunOk = session.LastRunOk;
+            LastRunSummary = session.LastRunSummary;
+            ReplaceBuildTags(session.BuildTags);
+            RefreshDataTagsFromFiles(); // already-built sessions: derive L1/BAR/L2/TAPE from files
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
 
             SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == session.StrategyId);
             Status = Messages.Count > 0
-                ? $"Restored the chat for '{session.DisplayName}' ({session.Age}). Carry on where you left off."
-                : "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
+                ? $"Restored '{session.DisplayName}' ({session.Age}). " +
+                  (session.Registered ? "Registered — open Prove to run a real backtest." : "Compile & Register, then Prove.")
+                : "Describe a strategy, Compile & Register, then Prove.";
+
+            // Library open = already past the AI gate for this canvas.
+            if (Messages.Count > 0) AiAuthoringReady = true;
         }
         finally
         {
             _restoring = false;
         }
+
+        // Persist newly derived DATA chips so the next open already has them.
+        if (BuildTags.Count > 0) Save();
     }
 
     /// <summary>Writes the current session out. Called after anything worth not losing: a turn, a compile,
@@ -1125,7 +1415,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             BuildEffort: BuildEffort.Wire(),
             InputTokens: InputTokens,
             OutputTokens: OutputTokens,
-            Registered: IsRegistered);
+            Registered: IsRegistered,
+            Persisted: IsPersisted,
+            PersistedPath: PersistedPath,
+            LastRunSummary: LastRunSummary,
+            LastRunOk: LastRunOk,
+            LastSharpe: ProveStats?.Sharpe,
+            LastReturn: ProveStats?.TotalReturn,
+            LastMaxDrawdown: ProveStats?.MaxDrawdown,
+            BuildTags: BuildTags.Count == 0 ? null : [.. BuildTags]);
 
         if (!AuthoringSessionStore.Save(snapshot))
         {
@@ -1153,6 +1451,127 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>File contents as of the last successful register (per process). Keys are file names.</summary>
     private readonly Dictionary<string, string> _registeredBaseline = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Real session backtest for the registered strategy — not the lifecycle smoke.</summary>
+    [RelayCommand(CanExecute = nameof(CanProve))]
+    private async Task RunProveAsync()
+    {
+        if (_prove is null)
+        {
+            Status = "Prove is not wired in this host.";
+            return;
+        }
+
+        if (!IsRegistered)
+        {
+            Status = "Register the strategy first, then Prove.";
+            WorkbenchTab = 0;
+            return;
+        }
+
+        IsProving = true;
+        ProveStats = null;
+        ProveFeedQuality = null;
+        Fidelity = AuthoringFidelityStrip.ProveDefault;
+        ProveEquityCurve.Clear();
+        _proveCts = new CancellationTokenSource();
+        var ct = _proveCts.Token;
+        Status = "Running prove backtest…";
+
+        try
+        {
+            var result = await _prove.RunAsync(StrategyId, ct).ConfigureAwait(true);
+            ApplyProveResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Prove cancelled.";
+            HasLastRun = true;
+            LastRunOk = false;
+            LastRunSummary = Status;
+            Fidelity = AuthoringFidelityStrip.ProveDefault;
+            Append(AuthoringMessage.Tool("Info", "Prove", "Cancelled."));
+        }
+        finally
+        {
+            IsProving = false;
+            _proveCts?.Dispose();
+            _proveCts = null;
+            Save();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsProving))]
+    private void CancelProve() => _proveCts?.Cancel();
+
+    /// <summary>Push metrics into chat + composer so the agent can refine from numbers, not warnings.</summary>
+    private void ApplyProveResult(AuthoringProveResult result)
+    {
+        Status = result.Message;
+        ProveFeedQuality = result.FeedQuality;
+        Fidelity = result.Fidelity ?? AuthoringFidelityStrip.ProveDefault;
+        ProveTotalPnl = result.TotalPnl;
+        ProveStats = result.Stats;
+        HasLastRun = true;
+        LastRunOk = result.Ok;
+        LastRunSummary = result.Message;
+
+        ProveEquityCurve.Clear();
+        if (result.EquityCurve is { Count: > 0 } curve)
+            foreach (var p in curve) ProveEquityCurve.Add(p);
+        ProveEquityUpdated?.Invoke(this, EventArgs.Empty);
+
+        if (!result.Ok || result.Stats is null)
+        {
+            Append(AuthoringMessage.Tool("Fail", "Prove", result.Message));
+            return;
+        }
+
+        var s = result.Stats;
+        var inv = CultureInfo.InvariantCulture;
+        var strip =
+            $"Return {s.TotalReturn.ToString("P2", inv)} · Sharpe {s.Sharpe.ToString("F2", inv)} · " +
+            $"Sortino {s.Sortino.ToString("F2", inv)} · Max DD {s.MaxDrawdown.ToString("P2", inv)} · " +
+            $"Trades {s.TradeCount} · Win {s.WinRate.ToString("P1", inv)} · PF {s.ProfitFactor.ToString("F2", inv)}";
+        var more =
+            $"Avg win {s.AvgWin.ToString("F4", inv)} · Avg loss {s.AvgLoss.ToString("F4", inv)} · " +
+            $"Expectancy {s.Expectancy.ToString("F4", inv)} · Calmar {s.Calmar.ToString("F2", inv)} · " +
+            $"Omega {s.Omega.ToString("F2", inv)} · Downside dev {s.DownsideDeviation.ToString("F4", inv)} · " +
+            $"Recovery {s.RecoveryFactor.ToString("F2", inv)} · Max loss streak {s.MaxConsecutiveLosses} · " +
+            $"Ulcer {s.UlcerIndex.ToString("F2", inv)}\n" +
+            $"Fidelity: {Fidelity.Rung}\nHonest for: {Fidelity.HonestFor}\nNot honest for: {Fidelity.NotHonestFor}";
+
+        Append(AuthoringMessage.Tool("Ok", "Prove", strip, more));
+        SeedComposerFromProve(s);
+        WorkbenchTab = 0;
+    }
+
+    [RelayCommand]
+    private void RefineFromProve()
+    {
+        if (ProveStats is null)
+        {
+            Status = "Run Prove first — then the agent can refine from metrics.";
+            return;
+        }
+
+        SeedComposerFromProve(ProveStats);
+    }
+
+    private void SeedComposerFromProve(BacktestStatistics s)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        Composer =
+            "Last prove run (real backtest, not lifecycle smoke):\n" +
+            $"Return {s.TotalReturn.ToString("P2", inv)}, Sharpe {s.Sharpe.ToString("F2", inv)}, " +
+            $"Sortino {s.Sortino.ToString("F2", inv)}, Max DD {s.MaxDrawdown.ToString("P2", inv)}, " +
+            $"Trades {s.TradeCount}, Win rate {s.WinRate.ToString("P1", inv)}, " +
+            $"Profit factor {s.ProfitFactor.ToString("F2", inv)}, Expectancy {s.Expectancy.ToString("F4", inv)}, " +
+            $"Calmar {s.Calmar.ToString("F2", inv)}, Omega {s.Omega.ToString("F2", inv)}, " +
+            $"Ulcer {s.UlcerIndex.ToString("F2", inv)}, Max consecutive losses {s.MaxConsecutiveLosses}.\n" +
+            $"Fidelity rung: {Fidelity.Rung}. Honest for: {Fidelity.HonestFor}. Not honest for: {Fidelity.NotHonestFor}.\n" +
+            "Please improve the strategy to raise Sharpe and cut max drawdown — keep the same idea.";
+    }
 
     /// <summary>
     /// Step 1 of consent: compile everything and, if clean, open the review overlay — per-file diffs
@@ -1198,6 +1617,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
 
         CompiledOk = true;
+        AbsorbDataRequirementTags(result);
         if (result.Option.HasParameters)
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 
@@ -1240,22 +1660,47 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (_installer is null)
         {
             _registry.Register(result.Option!);
-            Status = $"Registered '{result.Option!.DisplayName}' from {script.Files.Count} file(s) — DEV (unsigned).{caveat}";
+            IsPersisted = false;
+            PersistedPath = null;
+            Status = $"Registered '{result.Option!.DisplayName}' for this session — Prove it next (not saved to disk).{caveat}";
         }
         else
         {
             var install = _installer.Install(script, result);
+            IsPersisted = install.Persisted is not null;
+            PersistedPath = install.Persisted;
             Status = install.Message + caveat;
             _logger.LogInformation(
-                "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog}",
-                result.Option!.Id, script.Files.Count, install.InCatalog);
+                "Authored strategy {Id} installed from {Files} file(s): catalog={InCatalog} persisted={Path}",
+                result.Option!.Id, script.Files.Count, install.InCatalog, install.Persisted);
         }
 
         _registeredBaseline.Clear();
         foreach (var file in script.Files) _registeredBaseline[file.Name] = file.Content;
 
         IsRegistered = true;
-        Append(AuthoringMessage.Tool("Ok", "Registered", Status ?? "The strategy is registered."));
+        try
+        {
+            if (BuildTags.Count > 0)
+            {
+                // Prefer Studio-aligned data chips when publishing; keep any extra labels the user/model added.
+                _tagPublisher?.PublishTags(StrategyId.Trim(), BuildTags.ToList());
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish build tags for {Id} to the catalog", StrategyId);
+        }
+
+        var keepNote = IsPersisted
+            ? "Saved to the plugin library — survives restart."
+            : "Session only — will be gone after restart until persistence is available.";
+        Append(AuthoringMessage.Tool(
+            "Ok",
+            "Registered",
+            $"{result.Option!.DisplayName} is backtestable. {keepNote}",
+            Status));
+        WorkbenchTab = 0; // Prove
         CloseReview();
         Save();
     }
@@ -1470,6 +1915,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _generateCts?.Cancel();
         _generateCts?.Dispose();
         _generateCts = null;
+        _proveCts?.Cancel();
+        _proveCts?.Dispose();
+        _proveCts = null;
         foreach (var file in Files) file.PropertyChanged -= OnFileEdited;
     }
 

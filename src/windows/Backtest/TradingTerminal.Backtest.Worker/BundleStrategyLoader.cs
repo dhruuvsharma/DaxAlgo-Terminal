@@ -45,10 +45,9 @@ internal static class BundleStrategyLoader
                      ?? throw new BacktestProtocolException(
                          "missing_bundle_reference",
                          "The installed bundle reference is missing.");
-        if (!request.Run.Universe.IsSingleInstrument)
-            throw new BacktestProtocolException(
-                "unsupported_bundle_universe",
-                "Packaged strategy factories currently support exactly one instrument per run.");
+        // Multi-instrument Universe is supported: the kernel receives per-instrument callbacks and
+        // ctx.Universe. Packaged factories still Construct against Primary; secondary legs are
+        // addressable via OrderRequest.Contract / OnQuote(instrumentId).
 
         var root = Path.Combine(jobDirectory, BacktestJobFiles.StrategyDirectory);
         EnsureDirectory(root, "missing_strategy_image");

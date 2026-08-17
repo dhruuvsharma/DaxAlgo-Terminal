@@ -11,6 +11,11 @@ namespace TradingTerminal.Backtest.Engine.Feeds;
 /// (each already ascending by event time, scoped to the instrument's broker source), then merges all
 /// of them into one global timeline via <see cref="AsyncMerge"/>. A single-instrument universe is the
 /// classic backtest; a multi-instrument universe is a portfolio run, interleaved here.
+/// <para>
+/// When <see cref="ModelingMode.EveryTickFromBars"/> is set, quotes/trades are skipped and each
+/// stored 1m bar is expanded into an O→H→L→C (or O→L→H→C) synthetic L1 path — the green rung that
+/// unlocks bar-only strategies without claiming real-tick fidelity.
+/// </para>
 /// </summary>
 public sealed class StoreMarketDataFeed : IMarketDataFeed
 {
@@ -25,13 +30,51 @@ public sealed class StoreMarketDataFeed : IMarketDataFeed
         if (to <= from)
             throw new InvalidOperationException("StoreMarketDataFeed requires ToUtc > FromUtc.");
 
-        var sources = new List<IAsyncEnumerable<MarketEvent>>(spec.Universe.Instruments.Count * 2);
+        if (spec.Data.Modeling == ModelingMode.EveryTickFromBars)
+            return StreamFromBarsAsync(spec, from, to, ct);
+
+        var sources = new List<IAsyncEnumerable<MarketEvent>>(spec.Universe.Instruments.Count * 3);
         foreach (var inst in spec.Universe.Instruments)
         {
             sources.Add(Quotes(inst, from, to, ct));
             sources.Add(Trades(inst, from, to, ct));
+            sources.Add(Depth(inst, from, to, ct));
         }
         return AsyncMerge.ByEventTime(sources, ct);
+    }
+
+    private IAsyncEnumerable<MarketEvent> StreamFromBarsAsync(
+        RunSpec spec, DateTime from, DateTime to, CancellationToken ct)
+    {
+        var sources = new List<IAsyncEnumerable<MarketEvent>>(spec.Universe.Instruments.Count);
+        foreach (var inst in spec.Universe.Instruments)
+            sources.Add(BarsAsTicks(inst, from, to, ct));
+        return AsyncMerge.ByEventTime(sources, ct);
+    }
+
+    private async IAsyncEnumerable<MarketEvent> BarsAsTicks(
+        InstrumentSpec inst, DateTime from, DateTime to, [EnumeratorCancellation] CancellationToken ct)
+    {
+        var half = Math.Max(inst.TickSize, 1e-9) / 2.0;
+        await foreach (var bar in _store.ReadBarsAsync(inst.Id, BarSize.OneMinute, from, to, inst.Source, ct)
+                           .WithCancellation(ct))
+        {
+            var span = bar.Size.ToTimeSpan();
+            var step = span / 4;
+            var path = bar.Close >= bar.Open
+                ? new[] { bar.Open, bar.Low, bar.High, bar.Close }
+                : new[] { bar.Open, bar.High, bar.Low, bar.Close };
+            var sizePer = Math.Max(1, bar.Volume / 4);
+            for (var i = 0; i < path.Length; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var px = path[i];
+                var ts = bar.OpenTimeUtc + step * i;
+                yield return MarketEvent.OfQuote(
+                    inst.Id,
+                    new Tick(ts, px - half, px + half, sizePer, sizePer));
+            }
+        }
     }
 
     private async IAsyncEnumerable<MarketEvent> Quotes(
@@ -46,5 +89,12 @@ public sealed class StoreMarketDataFeed : IMarketDataFeed
     {
         await foreach (var t in _store.ReadTradesAsync(inst.Id, from, to, inst.Source, ct).WithCancellation(ct))
             yield return MarketEvent.OfTrade(inst.Id, t);
+    }
+
+    private async IAsyncEnumerable<MarketEvent> Depth(
+        InstrumentSpec inst, DateTime from, DateTime to, [EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var d in _store.ReadDepthAsync(inst.Id, from, to, ct).WithCancellation(ct))
+            yield return MarketEvent.OfDepth(inst.Id, d.TimestampUtc, d);
     }
 }

@@ -64,7 +64,7 @@ public sealed class BacktestEngine
 
         var clock = new SimClock();
         var fees = FeeModels.From(spec.CostOrDefault);
-        var fillModel = new L1TouchFillModel(spec.ExecutionOrDefault.SlippageTicks);
+        var fillModel = FillModels.Create(spec.ExecutionOrDefault.FillModel, spec.ExecutionOrDefault.SlippageTicks);
         var book = new SimulatedOrderBook(clock, fillModel, id => tickSizeOf.GetValueOrDefault(id, 0.01));
         var portfolio = new Portfolio(spec.StartingCash, multipliers, fees);
 
@@ -81,7 +81,8 @@ public sealed class BacktestEngine
             orderTransitionCount++;
         };
 
-        var router = new EngineOrderRouter(book, spec.Universe, clock);
+        var router = new EngineOrderRouter(
+            book, spec.Universe, clock, spec.ExecutionOrDefault.LatencyMs);
         var ctx = new StrategyContext(clock, router, new PortfolioView(portfolio), spec.Universe, spec.ParametersOrEmpty);
 
         var equity = new List<EquitySample>();
@@ -112,6 +113,10 @@ public sealed class BacktestEngine
             firstUtc ??= ev.TimestampUtc;
             lastUtc = ev.TimestampUtc;
 
+            // Admit latency-deferred orders before this event's book/strategy work.
+            router.ReleaseDue();
+            await DrainOrderEventsAsync().ConfigureAwait(false);
+
             switch (ev.Kind)
             {
                 case MarketEventKind.Quote:
@@ -140,6 +145,7 @@ public sealed class BacktestEngine
                     await kernel.OnTradeAsync(ev.Instrument, ev.Trade!, ctx, ct).ConfigureAwait(false);
                     break;
                 case MarketEventKind.Depth:
+                    book.OnDepth(ev.Instrument, ev.Depth!);
                     await kernel.OnDepthAsync(ev.Instrument, ev.Depth!, ctx, ct).ConfigureAwait(false);
                     break;
                 case MarketEventKind.Bar:
@@ -199,23 +205,25 @@ public sealed class BacktestEngine
 
     private static void ValidateSupportedOptions(RunSpec spec)
     {
-        if (spec.Data.Modeling != ModelingMode.RealTicks)
+        if (spec.Data.Modeling is not (ModelingMode.RealTicks or ModelingMode.EveryTickFromBars))
         {
             throw new NotSupportedException(
-                $"Modeling mode '{spec.Data.Modeling}' is not supported. BacktestEngine currently supports only '{ModelingMode.RealTicks}'.");
+                $"Modeling mode '{spec.Data.Modeling}' is not supported yet. " +
+                $"Use '{ModelingMode.RealTicks}' or '{ModelingMode.EveryTickFromBars}'.");
         }
 
         var execution = spec.ExecutionOrDefault;
-        if (execution.FillModel != FillModelKind.L1Touch)
+        if (execution.FillModel is not (
+            FillModelKind.L1Touch or FillModelKind.MidPrice or FillModelKind.NextBarOpen or FillModelKind.DepthWalk))
         {
             throw new NotSupportedException(
-                $"Fill model '{execution.FillModel}' is not supported. BacktestEngine currently supports only '{FillModelKind.L1Touch}'.");
+                $"Fill model '{execution.FillModel}' is not supported.");
         }
 
-        if (execution.LatencyMs != 0)
+        if (execution.LatencyMs < 0)
         {
             throw new NotSupportedException(
-                $"Execution latency '{execution.LatencyMs}' ms is not supported. Set LatencyMs to 0.");
+                $"Execution latency '{execution.LatencyMs}' ms is invalid. Use LatencyMs >= 0.");
         }
     }
 

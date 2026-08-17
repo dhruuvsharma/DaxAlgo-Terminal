@@ -48,7 +48,8 @@ internal sealed class ShellWindowHost : IShellWindowHost
     }
 
     public void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
-        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
+        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight,
+        bool disposeViewModel = true)
         where TVm : class
         where TView : FrameworkElement
     {
@@ -65,7 +66,8 @@ internal sealed class ShellWindowHost : IShellWindowHost
             window.Closed += (_, _) =>
             {
                 _openWindows.Remove(windowId);
-                if (vm is IDisposable d) d.Dispose();
+                // Singleton VMs (Hyperion) must survive close/reopen — disposing them blanks the workbench.
+                if (disposeViewModel && vm is IDisposable d) d.Dispose();
             };
             _openWindows[windowId] = window;
             window.Show();

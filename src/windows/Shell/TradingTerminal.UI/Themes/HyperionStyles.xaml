@@ -21,6 +21,7 @@
          =================================================================================== -->
 
     <BooleanToVisibilityConverter x:Key="HYP.B2V" />
+    <converters:StringToVisibilityConverter x:Key="HYP.S2V" />
     <converters:StripCodeFencesConverter x:Key="HYP.StripFences" />
 
     <CornerRadius x:Key="HYP.Radius.S">7</CornerRadius>
@@ -148,6 +149,11 @@
                 <TextBlock Text="registered" FontSize="9" FontWeight="SemiBold" Margin="0,2,0,0"
                            Foreground="{DynamicResource Bullish.Brush}"
                            Visibility="{Binding Registered, Converter={StaticResource HYP.B2V}}" />
+                <TextBlock Text="{Binding LastProveLine}" FontSize="9" Margin="0,2,0,0"
+                           FontFamily="{DynamicResource Font.Data}"
+                           Foreground="{DynamicResource Accent.Brush}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding LastProveLine, Converter={StaticResource HYP.S2V}}" />
             </StackPanel>
             <!-- Delete, revealed on hover. The rail is the only place a chat can be forgotten. -->
             <Button x:Name="Del" Grid.Column="1" Content="✕" FontSize="10" Padding="4,1"
