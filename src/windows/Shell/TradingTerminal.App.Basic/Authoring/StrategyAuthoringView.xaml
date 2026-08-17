@@ -21,6 +21,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="B2V" />
         <converters:StringToVisibilityConverter x:Key="S2V" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
     </UserControl.Resources>
 
     <Grid>
@@ -495,6 +496,16 @@
                                     <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
                                                Foreground="{DynamicResource Text.Secondary}"
                                                Text="Real session backtest (same engine as Quick Backtest). Lifecycle check during generate is not a prove run." />
+                                    <Border Margin="0,0,0,8" Padding="10,8"
+                                            Background="{DynamicResource Background.Surface}"
+                                            BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
+                                            Visibility="{Binding HasLastRun, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                        <TextBlock TextWrapping="Wrap" FontSize="11.5"
+                                                   Foreground="{DynamicResource Text.Primary}">
+                                            <Run FontWeight="SemiBold" Text="Not proven yet. " />
+                                            <Run Text="Compile &amp; Register only made it runnable. Click Run prove for Sharpe / MDD — until then the strategy is not ready to trust." />
+                                        </TextBlock>
+                                    </Border>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                         <Button Style="{StaticResource HYP.CtaButton}" Content="▶  Run prove"
                                                 Command="{Binding RunProveCommand}"
