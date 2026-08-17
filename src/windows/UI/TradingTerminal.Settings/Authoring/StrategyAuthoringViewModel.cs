@@ -48,6 +48,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly AuthoredStrategyInstaller? _installer;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
     private readonly IAuthoringProveService? _prove;
+    private readonly IAuthoredStrategyTagPublisher? _tagPublisher;
 
     private CancellationTokenSource? _generateCts;
     private CancellationTokenSource? _proveCts;
@@ -75,7 +76,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IOptions<AiCodegenOptions>? options = null,
         AuthoredStrategyInstaller? installer = null,
         ICliWorkspaceLauncher? cliLauncher = null,
-        IAuthoringProveService? prove = null)
+        IAuthoringProveService? prove = null,
+        IAuthoredStrategyTagPublisher? tagPublisher = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -85,12 +87,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _installer = installer;
         _cliLauncher = cliLauncher;
         _prove = prove;
+        _tagPublisher = tagPublisher;
 
         Diagnostics = [];
         Messages = [];
         Activity = [];
         Files = [];
         Tasks = [];
+        BuildTags.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasBuildTags));
 
         // The hero empty state ↔ transcript switch watches the count; the VM owns the collection,
         // so the self-subscription cannot outlive it.
@@ -132,8 +136,36 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// mark, tagline, suggestion briefs) instead of an empty transcript.</summary>
     public bool HasConversation => Messages.Count > 0;
 
+    /// <summary>Live build tags inferred from chat (direction, signal, data, legs) — shown on the
+    /// workbench so the user can see what they are making before Register. Same idea as catalog tags.</summary>
+    public ObservableCollection<string> BuildTags { get; } = [];
+
+    public bool HasBuildTags => BuildTags.Count > 0;
+
     private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
         OnPropertyChanged(nameof(HasConversation));
+
+    private void AbsorbBuildTagsFrom(string? text)
+    {
+        var before = BuildTags.Count;
+        BuildTagInferrer.Absorb(text, BuildTags);
+        if (BuildTags.Count != before)
+            OnPropertyChanged(nameof(HasBuildTags));
+    }
+
+    private void ReplaceBuildTags(IEnumerable<string>? tags)
+    {
+        BuildTags.Clear();
+        if (tags is null) return;
+        foreach (var tag in tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) continue;
+            var t = tag.Trim();
+            if (BuildTags.Any(x => x.Equals(t, StringComparison.OrdinalIgnoreCase))) continue;
+            BuildTags.Add(t);
+        }
+        OnPropertyChanged(nameof(HasBuildTags));
+    }
 
     /// <summary>Canned first briefs for the empty state, seeded from strategy families the terminal
     /// already ships — one click puts a real, well-formed brief in the composer to edit or send.</summary>
@@ -147,7 +179,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void UseSuggestion(string? brief)
     {
-        if (!string.IsNullOrWhiteSpace(brief)) Composer = brief;
+        if (string.IsNullOrWhiteSpace(brief)) return;
+        Composer = brief;
+        AbsorbBuildTagsFrom(brief);
     }
 
     /// <summary>Collapses the session rail to an icon strip — the workspace's only chrome toggle.</summary>
@@ -800,6 +834,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // First brief on an untouched identity: name the strategy after what it does, not "myStrategy".
         if (Messages.Count == 0) DeriveIdentityFrom(prompt);
 
+        AbsorbBuildTagsFrom(prompt);
+
         Composer = string.Empty;
         Append(new AuthoringMessage(CodegenRole.User, prompt));
         Activity.Clear();
@@ -1033,6 +1069,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             StrategyId = DefaultStrategyId;
             DisplayName = DefaultDisplayName;
             SelectedSavedSession = null;
+            ReplaceBuildTags(null);
             Status = "New conversation. Describe the strategy, Compile & Register, then Prove.";
             OnPropertyChanged(nameof(HasConversation));
             OnPropertyChanged(nameof(LifecycleLabel));
@@ -1191,6 +1228,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             HasLastRun = !string.IsNullOrEmpty(session.LastRunSummary);
             LastRunOk = session.LastRunOk;
             LastRunSummary = session.LastRunSummary;
+            ReplaceBuildTags(session.BuildTags);
             CloseReview();
             _registeredBaseline.Clear();   // the diff baseline is per-process; a restored review starts from "all new"
             _filesEditedByUser = false;
@@ -1235,7 +1273,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             LastRunOk: LastRunOk,
             LastSharpe: ProveStats?.Sharpe,
             LastReturn: ProveStats?.TotalReturn,
-            LastMaxDrawdown: ProveStats?.MaxDrawdown);
+            LastMaxDrawdown: ProveStats?.MaxDrawdown,
+            BuildTags: BuildTags.Count == 0 ? null : [.. BuildTags]);
 
         if (!AuthoringSessionStore.Save(snapshot))
         {
@@ -1490,6 +1529,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         foreach (var file in script.Files) _registeredBaseline[file.Name] = file.Content;
 
         IsRegistered = true;
+        try
+        {
+            if (BuildTags.Count > 0)
+                _tagPublisher?.PublishTags(StrategyId.Trim(), BuildTags.ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish build tags for {Id} to the catalog", StrategyId);
+        }
+
         var keepNote = IsPersisted
             ? "Saved to the plugin library — survives restart."
             : "Session only — will be gone after restart until persistence is available.";

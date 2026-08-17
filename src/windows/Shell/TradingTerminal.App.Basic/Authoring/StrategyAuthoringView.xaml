@@ -166,23 +166,43 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Session header -->
-                <DockPanel Grid.Row="0" Margin="2,0,2,8"
-                           Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
-                    <Border DockPanel.Dock="Right" Style="{StaticResource HYP.StateChip}" Padding="8,2"
-                            Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
-                        <TextBlock FontSize="10" Foreground="{DynamicResource Ai.Text.Brush}"
-                                   FontFamily="{DynamicResource Font.Data}">
-                            <Run Text="⏱ " /><Run Text="{Binding ElapsedCompact, Mode=OneWay}" />
+                <!-- Session header + live build tags -->
+                <StackPanel Grid.Row="0" Margin="2,0,2,8"
+                            Visibility="{Binding HasConversation, Converter={StaticResource B2V}}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" Style="{StaticResource HYP.StateChip}" Padding="8,2"
+                                Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}">
+                            <TextBlock FontSize="10" Foreground="{DynamicResource Ai.Text.Brush}"
+                                       FontFamily="{DynamicResource Font.Data}">
+                                <Run Text="⏱ " /><Run Text="{Binding ElapsedCompact, Mode=OneWay}" />
+                            </TextBlock>
+                        </Border>
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" FontSize="13"
+                                 Foreground="{DynamicResource Text.Header}" /><Run Text="   " /><Run
+                                 Text="{Binding ModelPillText, Mode=OneWay}" FontSize="10.5"
+                                 Foreground="{DynamicResource Text.Secondary}" />
                         </TextBlock>
-                    </Border>
-                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
-                        <Run Text="{Binding DisplayName, Mode=OneWay}" FontWeight="SemiBold" FontSize="13"
-                             Foreground="{DynamicResource Text.Header}" /><Run Text="   " /><Run
-                             Text="{Binding ModelPillText, Mode=OneWay}" FontSize="10.5"
-                             Foreground="{DynamicResource Text.Secondary}" />
-                    </TextBlock>
-                </DockPanel>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding BuildTags}" Margin="0,6,0,0"
+                                  Visibility="{Binding HasBuildTags, Converter={StaticResource B2V}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,6,4" Padding="7,1" CornerRadius="9"
+                                        Background="{DynamicResource Background.Surface}"
+                                        BorderBrush="{DynamicResource Accent.Brush}" BorderThickness="1">
+                                    <TextBlock Text="{Binding}" FontSize="10"
+                                               Foreground="{DynamicResource Text.Primary}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
 
                 <!-- Transcript / hero empty state -->
                 <Grid Grid.Row="1">
@@ -447,6 +467,26 @@
                                            Opacity="0.8"
                                            Text="{Binding PersistedPath, FallbackValue='Library: not on disk yet', TargetNullValue='Library: session only'}" />
                             </Grid>
+                            <!-- Build tags: inferred from chat while authoring — same idea as catalog tags. -->
+                            <ItemsControl ItemsSource="{Binding BuildTags}" Margin="0,8,0,0"
+                                          Visibility="{Binding HasBuildTags, Converter={StaticResource B2V}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,6,4" Padding="8,2" CornerRadius="10"
+                                                Background="{DynamicResource Background.Surface}"
+                                                BorderBrush="{DynamicResource Accent.Brush}"
+                                                BorderThickness="1">
+                                            <TextBlock Text="{Binding}" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Primary}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                             <TextBlock Margin="1,7,0,0" TextWrapping="Wrap" FontSize="10.5"
                                        Foreground="{DynamicResource Text.Secondary}"
                                        Text="{Binding Status}"

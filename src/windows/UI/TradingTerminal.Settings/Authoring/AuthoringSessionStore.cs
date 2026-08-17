@@ -48,6 +48,7 @@ public sealed record AuthoringSessionSnapshot(
     double? LastSharpe = null,
     double? LastReturn = null,
     double? LastMaxDrawdown = null,
+    IReadOnlyList<string>? BuildTags = null,
     DateTime UpdatedUtc = default)
 {
     /// <summary>"2 hours ago" — what the session picker shows next to the name.</summary>

@@ -89,6 +89,8 @@ public static class AppDependencyInjection
         // Turns a compiled authored strategy into a catalog entry and persistent plugin so it is
         // available immediately and survives restart.
         services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredStrategyInstaller>();
+        services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.IAuthoredStrategyTagPublisher,
+            TradingTerminal.App.Authoring.CatalogStrategyTagPublisher>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
         // Compose a default live window for authored strategies that shipped descriptor + VM but no
