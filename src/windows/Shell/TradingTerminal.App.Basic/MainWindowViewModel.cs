@@ -42,6 +42,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
+    private const string ExecutionConsoleWindowId = "execution.console";
 
     private readonly IStrategyFactory _factory;
     private readonly IEventBus _eventBus;
@@ -638,6 +639,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host.OpenHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
             StrategyAuthoringWindowId, "Hyperion", "Loading Hyperion…",
             disposeViewModel: false);
+
+    /// <summary>Opens the in-process simulated Execution Console (OMS + positions). Live broker
+    /// adapters remain opt-in and default-off inside the console composition.</summary>
+    [RelayCommand]
+    public void OpenExecutionConsole() =>
+        _host.OpenHostedTool<TradingTerminal.ExecutionUi.ExecutionConsoleViewModel, TradingTerminal.ExecutionUi.ExecutionConsoleView>(
+            ExecutionConsoleWindowId, "Execution Console", "Starting simulated execution engine…",
+            width: 1200, height: 820);
 
     /// <summary>The agent CLIs the "Launch CLI" menu offers — installed ones enabled, the rest shown
     /// disabled with an "install it" hint. Built once from what resolved on PATH at start.</summary>

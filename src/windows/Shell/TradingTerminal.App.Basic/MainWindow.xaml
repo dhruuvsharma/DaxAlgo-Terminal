@@ -455,9 +455,9 @@
             </MenuItem>
 
             <MenuItem Header="_Execution Engine">
-                <MenuItem Icon="🚫" Header="Not yet available"
-                          IsEnabled="False"
-                          ToolTip="Deliberately unavailable: DaxAlgo Terminal provides data and signals only; it does not support live order execution." />
+                <MenuItem Icon="⚡" Header="_Execution Console…"
+                          Command="{Binding OpenExecutionConsoleCommand}"
+                          ToolTip="In-process simulated OMS and position tracking. Live broker order routing stays opt-in and off by default." />
             </MenuItem>
 
             <MenuItem Header="_Settings">

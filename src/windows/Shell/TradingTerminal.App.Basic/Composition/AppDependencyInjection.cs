@@ -24,6 +24,7 @@ using TradingTerminal.Login;
 using TradingTerminal.Backtest;
 using TradingTerminal.Recording;
 using TradingTerminal.StrategyComposer;
+using TradingTerminal.ExecutionUi;
 
 namespace TradingTerminal.App.Composition;
 
@@ -76,6 +77,9 @@ public static class AppDependencyInjection
         services.AddArchiveSurface();
         services.AddBacktestSurface();
         services.AddRecordingSurface();
+        // In-process simulated OMS + position console. Live Alpaca/IB/cTrader stay opt-in and
+        // default-off inside ExecutionUi — this only surfaces the clickable sim console.
+        services.AddExecutionConsole();
 
         return services;
     }

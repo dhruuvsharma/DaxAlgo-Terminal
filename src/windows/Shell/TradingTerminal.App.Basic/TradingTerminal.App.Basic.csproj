@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\UI\TradingTerminal.StrategyComposer\TradingTerminal.StrategyComposer.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.Backtest\TradingTerminal.Backtest.csproj" />
     <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
+    <ProjectReference Include="..\..\Execution\TradingTerminal.ExecutionUi\TradingTerminal.ExecutionUi.csproj" />
   </ItemGroup>
 
   <ItemGroup>
