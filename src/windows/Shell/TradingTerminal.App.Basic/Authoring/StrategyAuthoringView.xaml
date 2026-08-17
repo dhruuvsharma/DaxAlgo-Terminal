@@ -30,7 +30,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="420" />
                 <ColumnDefinition Width="4" />
-                <ColumnDefinition Width="390" MinWidth="320" />
+                <ColumnDefinition Width="420" MinWidth="380" />
             </Grid.ColumnDefinitions>
 
             <!-- ═══ Session rail ═══════════════════════════════════════════════════════════ -->
@@ -488,8 +488,11 @@
                         </StackPanel>
                     </Border>
 
-                    <TabControl SelectedIndex="{Binding WorkbenchTab}" Margin="12,4,12,8"
-                                Background="Transparent">
+                    <TabControl x:Name="WorkbenchTabs"
+                                SelectedIndex="{Binding WorkbenchTab}"
+                                Margin="12,4,12,8"
+                                Background="Transparent"
+                                SelectionChanged="OnWorkbenchTabChanged">
                         <TabItem Header="Prove">
                             <DockPanel Margin="0,6,0,0">
                                 <StackPanel DockPanel.Dock="Top">
@@ -628,7 +631,9 @@
                         </TabItem>
 
                         <TabItem Header="Workspace">
-                            <ContentControl x:Name="WorkspaceHost" Margin="0,6,0,0" />
+                            <!-- Host is created on Loaded — TabItem content is deferred until first select. -->
+                            <ContentControl x:Name="WorkspaceHost" Margin="0,6,0,0"
+                                            Loaded="OnWorkspaceHostLoaded" />
                         </TabItem>
 
                         <TabItem Header="Parameters">

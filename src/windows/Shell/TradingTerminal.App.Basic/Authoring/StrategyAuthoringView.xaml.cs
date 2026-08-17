@@ -46,6 +46,7 @@ public partial class StrategyAuthoringView : UserControl
         else
             RedrawProveEquity();
 
+        // Prove is selected first — Workspace TabItem content may not exist yet.
         EnsureWorkspace();
     }
 
@@ -58,6 +59,14 @@ public partial class StrategyAuthoringView : UserControl
         if (WorkspaceHost is not null)
             WorkspaceHost.Content = null;
     }
+
+    private void OnWorkbenchTabChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (WorkbenchTabs?.SelectedIndex == 1)
+            EnsureWorkspace();
+    }
+
+    private void OnWorkspaceHostLoaded(object sender, RoutedEventArgs e) => EnsureWorkspace();
 
     private void EnsureWorkspace()
     {

@@ -1029,6 +1029,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
             _filesEditedByUser = false;
             AiStatus = null;
+            WorkbenchTab = 0; // Prove — keep the new workbench UI front-and-center on New strategy
             Status = "New conversation. Describe the strategy, Compile & Register, then Prove.";
         }
         finally
