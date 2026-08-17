@@ -1,20 +1,24 @@
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
+using TradingTerminal.StrategyComposer;
 
 namespace TradingTerminal.App.Authoring;
 
 /// <summary>
 /// Hyperion agent workspace. Behaviour lives in <see cref="StrategyAuthoringViewModel"/>; code-behind
-/// only scrolls the transcript and redraws the Prove equity curve.
+/// scrolls the transcript, redraws the Prove equity curve, and hosts the live Workspace panels.
 /// </summary>
 public partial class StrategyAuthoringView : UserControl
 {
+    private readonly IServiceProvider _services;
     private INotifyCollectionChanged? _messages;
     private StrategyAuthoringViewModel? _vm;
+    private HyperionWorkspaceHost? _workspace;
 
-    public StrategyAuthoringView()
+    public StrategyAuthoringView(IServiceProvider services)
     {
+        _services = services ?? throw new ArgumentNullException(nameof(services));
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -41,12 +45,25 @@ public partial class StrategyAuthoringView : UserControl
             AttachProve(vm);
         else
             RedrawProveEquity();
+
+        EnsureWorkspace();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         DetachMessages();
         DetachProve();
+        _workspace?.Dispose();
+        _workspace = null;
+        if (WorkspaceHost is not null)
+            WorkspaceHost.Content = null;
+    }
+
+    private void EnsureWorkspace()
+    {
+        if (_workspace is not null || WorkspaceHost is null) return;
+        _workspace = new HyperionWorkspaceHost(_services);
+        WorkspaceHost.Content = _workspace;
     }
 
     private void AttachProve(StrategyAuthoringViewModel vm)

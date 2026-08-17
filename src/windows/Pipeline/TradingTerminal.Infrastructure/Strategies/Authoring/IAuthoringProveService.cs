@@ -22,4 +22,31 @@ public sealed record AuthoringProveResult(
     BacktestStatistics? Stats,
     double TotalPnl,
     string? FeedQuality,
-    IReadOnlyList<EquityPoint>? EquityCurve = null);
+    IReadOnlyList<EquityPoint>? EquityCurve = null,
+    AuthoringFidelityStrip? Fidelity = null);
+
+/// <summary>
+/// Honest "which rung are we on?" for Hyperion Prove — not engine marketing.
+/// Always shown on the Prove tab so Sharpe is never read as Nautilus-grade.
+/// </summary>
+public sealed record AuthoringFidelityStrip(
+    string Rung,
+    string HonestFor,
+    string NotHonestFor,
+    string Detail)
+{
+    /// <summary>What Hyperion Prove actually runs today (session + bar-synthetic L1).</summary>
+    public static AuthoringFidelityStrip ProveDefault { get; } = new(
+        Rung: "Bar-synthetic L1 · Latency 0 · 1 instrument · Session engine",
+        HonestFor: "Bar / indicator sniff, rough direction, fee-aware P&L shape",
+        NotHonestFor: "Arbitrage, spread races, order-book imbalance, co-lo latency, true tape absorption",
+        Detail: "Prove synthesizes ticks from bars (same path as Quick Backtest). Climb MidPrice / Latency / Depth on the new engine before trusting microstructure edges.");
+
+    public static AuthoringFidelityStrip ForProveRun(string symbol, string broker, int barCount, string barSize) =>
+        ProveDefault with
+        {
+            Detail =
+                $"Last run: {barCount}×{barSize} bars → synthetic L1 on {symbol} ({broker}). " +
+                "Not honest for arb / OBI until latency + depth fills land.",
+        };
+}

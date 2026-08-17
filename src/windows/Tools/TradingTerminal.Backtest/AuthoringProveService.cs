@@ -71,9 +71,9 @@ public sealed class AuthoringProveService(
             var strategy = option.Create(contract);
             var result = await session.RunAsync(config, strategy, risk: null, ct).ConfigureAwait(false);
             var pnl = result.EndingCash - result.StartingCash;
-            var feed =
-                $"Bar-synthetic L1 from {bars.Count}×{barSize} on {contract.Symbol} ({broker}) — " +
-                "rough prove; use Quick Backtest for full tape when needed.";
+            var fidelity = AuthoringFidelityStrip.ForProveRun(
+                contract.Symbol, broker.ToString(), bars.Count, barSize.ToString());
+            var feed = fidelity.Detail;
 
             var msg = result.Stats is { } s
                 ? $"Prove done on {contract.Symbol}: return {s.TotalReturn.ToString("P2", CultureInfo.InvariantCulture)}, " +
@@ -82,7 +82,7 @@ public sealed class AuthoringProveService(
                   $"{s.TradeCount} trades."
                 : $"Prove done on {contract.Symbol}: {result.Trades.Count} trades, P&L {pnl.ToString("C2", CultureInfo.CurrentCulture)}.";
 
-            return new AuthoringProveResult(true, msg, result.Stats, pnl, feed, result.EquityCurve);
+            return new AuthoringProveResult(true, msg, result.Stats, pnl, feed, result.EquityCurve, fidelity);
         }
         catch (OperationCanceledException)
         {
@@ -140,5 +140,5 @@ public sealed class AuthoringProveService(
     }
 
     private static AuthoringProveResult Fail(string message) =>
-        new(false, message, null, 0, null, null);
+        new(false, message, null, 0, null, null, AuthoringFidelityStrip.ProveDefault);
 }

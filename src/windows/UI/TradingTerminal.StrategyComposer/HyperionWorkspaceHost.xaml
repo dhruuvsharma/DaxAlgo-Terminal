@@ -1,0 +1,21 @@
+<UserControl x:Class="TradingTerminal.StrategyComposer.HyperionWorkspaceHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
+    <DockPanel Margin="0,6,0,0">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
+                       Foreground="{DynamicResource Text.Secondary}"
+                       Text="Live panels (same embeds as Open strategy). Pick an instrument to stream — this is market context, not Prove fidelity." />
+            <TextBlock Text="Instrument" FontSize="10" FontWeight="SemiBold"
+                       Foreground="{DynamicResource Text.Secondary}" Margin="0,0,0,4" />
+            <uic:InstrumentPicker x:Name="Picker"
+                                  SearchText="{Binding InstrumentSearchText, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                                  ItemsSource="{Binding FilteredInstruments, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  SelectedInstrument="{Binding SelectedInstrument, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}" />
+        </StackPanel>
+        <Grid x:Name="PanelHost" MinHeight="220" />
+    </DockPanel>
+</UserControl>

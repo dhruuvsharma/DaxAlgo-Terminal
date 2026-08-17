@@ -497,9 +497,31 @@
                                     </StackPanel>
                                     <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="11"
                                                Foreground="{DynamicResource Text.Secondary}" />
-                                    <TextBlock Text="{Binding ProveFeedQuality}" TextWrapping="Wrap" FontSize="10.5"
-                                               Margin="0,2,0,6" Foreground="{DynamicResource Accent.Brush}"
-                                               Visibility="{Binding ProveFeedQuality, Converter={StaticResource S2V}}" />
+                                    <!-- Capability / fidelity strip — always visible so Sharpe isn't over-read -->
+                                    <Border Margin="0,8,0,8" Padding="10,8"
+                                            Background="{DynamicResource Background.Surface}"
+                                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock FontSize="10" FontWeight="Bold" Margin="0,0,0,4"
+                                                       Foreground="{DynamicResource Accent.Brush}"
+                                                       Text="FIDELITY" />
+                                            <TextBlock Text="{Binding Fidelity.Rung}" TextWrapping="Wrap" FontSize="11.5"
+                                                       FontWeight="SemiBold" Foreground="{DynamicResource Text.Primary}" />
+                                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Secondary}">
+                                                <Run FontWeight="SemiBold" Text="Honest for: " />
+                                                <Run Text="{Binding Fidelity.HonestFor}" />
+                                            </TextBlock>
+                                            <TextBlock Margin="0,2,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                                       Foreground="{DynamicResource Text.Secondary}">
+                                                <Run FontWeight="SemiBold" Text="Not honest for: " />
+                                                <Run Text="{Binding Fidelity.NotHonestFor}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Fidelity.Detail}" TextWrapping="Wrap" FontSize="10"
+                                                       Margin="0,6,0,0" Foreground="{DynamicResource Text.Secondary}"
+                                                       Opacity="0.85" />
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
 
                                 <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
@@ -580,6 +602,10 @@
                                     <sp:WpfPlot x:Name="ProveEquityPlot" MinHeight="140" />
                                 </Border>
                             </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="Workspace">
+                            <ContentControl x:Name="WorkspaceHost" Margin="0,6,0,0" />
                         </TabItem>
 
                         <TabItem Header="Parameters">

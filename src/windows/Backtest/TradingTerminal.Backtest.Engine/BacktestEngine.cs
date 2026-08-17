@@ -64,7 +64,7 @@ public sealed class BacktestEngine
 
         var clock = new SimClock();
         var fees = FeeModels.From(spec.CostOrDefault);
-        var fillModel = new L1TouchFillModel(spec.ExecutionOrDefault.SlippageTicks);
+        var fillModel = FillModels.Create(spec.ExecutionOrDefault.FillModel, spec.ExecutionOrDefault.SlippageTicks);
         var book = new SimulatedOrderBook(clock, fillModel, id => tickSizeOf.GetValueOrDefault(id, 0.01));
         var portfolio = new Portfolio(spec.StartingCash, multipliers, fees);
 
@@ -199,23 +199,25 @@ public sealed class BacktestEngine
 
     private static void ValidateSupportedOptions(RunSpec spec)
     {
-        if (spec.Data.Modeling != ModelingMode.RealTicks)
+        if (spec.Data.Modeling is not (ModelingMode.RealTicks or ModelingMode.EveryTickFromBars))
         {
             throw new NotSupportedException(
-                $"Modeling mode '{spec.Data.Modeling}' is not supported. BacktestEngine currently supports only '{ModelingMode.RealTicks}'.");
+                $"Modeling mode '{spec.Data.Modeling}' is not supported yet. " +
+                $"Use '{ModelingMode.RealTicks}' or '{ModelingMode.EveryTickFromBars}'.");
         }
 
         var execution = spec.ExecutionOrDefault;
-        if (execution.FillModel != FillModelKind.L1Touch)
+        if (execution.FillModel is not (
+            FillModelKind.L1Touch or FillModelKind.MidPrice or FillModelKind.NextBarOpen))
         {
             throw new NotSupportedException(
-                $"Fill model '{execution.FillModel}' is not supported. BacktestEngine currently supports only '{FillModelKind.L1Touch}'.");
+                $"Fill model '{execution.FillModel}' is not supported.");
         }
 
         if (execution.LatencyMs != 0)
         {
             throw new NotSupportedException(
-                $"Execution latency '{execution.LatencyMs}' ms is not supported. Set LatencyMs to 0.");
+                $"Execution latency '{execution.LatencyMs}' ms is not supported yet. Set LatencyMs to 0.");
         }
     }
 

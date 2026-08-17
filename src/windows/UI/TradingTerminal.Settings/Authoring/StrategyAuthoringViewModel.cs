@@ -156,7 +156,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void ToggleRail() => RailCollapsed = !RailCollapsed;
 
-    /// <summary>Selected workbench tab: 0 Prove · 1 Parameters · 2 Code · 3 Activity.
+    /// <summary>Selected workbench tab: 0 Prove · 1 Workspace · 2 Parameters · 3 Code · 4 Activity.
     /// A file chip in the chat sets it to Code so the click always lands on the file it names.</summary>
     [ObservableProperty] private int _workbenchTab;
 
@@ -167,7 +167,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (Files.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } file)
         {
             SelectedFile = file;
-            WorkbenchTab = 2; // Code
+            WorkbenchTab = 3; // Code
         }
     }
 
@@ -198,6 +198,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [ObservableProperty] private double _proveTotalPnl;
 
     [ObservableProperty] private string? _proveFeedQuality;
+
+    /// <summary>Always set — default envelope before a run, updated after Prove.</summary>
+    [ObservableProperty] private AuthoringFidelityStrip _fidelity = AuthoringFidelityStrip.ProveDefault;
 
     [ObservableProperty] private bool _isProving;
 
@@ -1016,6 +1019,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             ProveStats = null;
             ProveTotalPnl = 0;
             ProveFeedQuality = null;
+            Fidelity = AuthoringFidelityStrip.ProveDefault;
             ProveEquityCurve.Clear();
             ProveEquityUpdated?.Invoke(this, EventArgs.Empty);
             CloseReview();
@@ -1262,6 +1266,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IsProving = true;
         ProveStats = null;
         ProveFeedQuality = null;
+        Fidelity = AuthoringFidelityStrip.ProveDefault;
         ProveEquityCurve.Clear();
         _proveCts = new CancellationTokenSource();
         var ct = _proveCts.Token;
@@ -1278,6 +1283,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             HasLastRun = true;
             LastRunOk = false;
             LastRunSummary = Status;
+            Fidelity = AuthoringFidelityStrip.ProveDefault;
             Append(AuthoringMessage.Tool("Info", "Prove", "Cancelled."));
         }
         finally
@@ -1297,6 +1303,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         Status = result.Message;
         ProveFeedQuality = result.FeedQuality;
+        Fidelity = result.Fidelity ?? AuthoringFidelityStrip.ProveDefault;
         ProveTotalPnl = result.TotalPnl;
         ProveStats = result.Stats;
         HasLastRun = true;
@@ -1325,8 +1332,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             $"Expectancy {s.Expectancy.ToString("F4", inv)} · Calmar {s.Calmar.ToString("F2", inv)} · " +
             $"Omega {s.Omega.ToString("F2", inv)} · Downside dev {s.DownsideDeviation.ToString("F4", inv)} · " +
             $"Recovery {s.RecoveryFactor.ToString("F2", inv)} · Max loss streak {s.MaxConsecutiveLosses} · " +
-            $"Ulcer {s.UlcerIndex.ToString("F2", inv)}" +
-            (result.FeedQuality is { } fq ? $"\n{fq}" : string.Empty);
+            $"Ulcer {s.UlcerIndex.ToString("F2", inv)}\n" +
+            $"Fidelity: {Fidelity.Rung}\nHonest for: {Fidelity.HonestFor}\nNot honest for: {Fidelity.NotHonestFor}";
 
         Append(AuthoringMessage.Tool("Ok", "Prove", strip, more));
         SeedComposerFromProve(s);
@@ -1356,6 +1363,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             $"Profit factor {s.ProfitFactor.ToString("F2", inv)}, Expectancy {s.Expectancy.ToString("F4", inv)}, " +
             $"Calmar {s.Calmar.ToString("F2", inv)}, Omega {s.Omega.ToString("F2", inv)}, " +
             $"Ulcer {s.UlcerIndex.ToString("F2", inv)}, Max consecutive losses {s.MaxConsecutiveLosses}.\n" +
+            $"Fidelity rung: {Fidelity.Rung}. Honest for: {Fidelity.HonestFor}. Not honest for: {Fidelity.NotHonestFor}.\n" +
             "Please improve the strategy to raise Sharpe and cut max drawdown — keep the same idea.";
     }
 
