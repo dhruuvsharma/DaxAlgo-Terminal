@@ -989,9 +989,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void Stop() => _generateCts?.Cancel();
 
     /// <summary>Start over: a fresh thread with the model, the starter template back in the editor. The
-    /// previous chat is NOT deleted — it stays in the picker under its own strategy id, so "new chat" can
-    /// never cost the user a conversation. Give the new one a new id before sending, or it will overwrite
-    /// the old one's file on the first turn.</summary>
+    /// previous chat is NOT deleted — it stays in the Library under its own strategy id. Identity resets
+    /// to defaults so the empty canvas does not keep showing the previous strategy on the right.</summary>
     [RelayCommand]
     private void NewChat()
     {
@@ -1030,12 +1029,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             _filesEditedByUser = false;
             AiStatus = null;
             WorkbenchTab = 0; // Prove — keep the new workbench UI front-and-center on New strategy
+            // Detach from the previous Library row + identity (otherwise empty chat + old ID/DRAFT).
+            StrategyId = DefaultStrategyId;
+            DisplayName = DefaultDisplayName;
+            SelectedSavedSession = null;
             Status = "New conversation. Describe the strategy, Compile & Register, then Prove.";
+            OnPropertyChanged(nameof(HasConversation));
+            OnPropertyChanged(nameof(LifecycleLabel));
         }
         finally
         {
             _restoring = false;
         }
+
+        RefreshSavedSessions();
+        // Stay on a blank draft — do not re-select the previous Library row.
+        _restoring = true;
+        try { SelectedSavedSession = null; }
+        finally { _restoring = false; }
     }
 
     /// <summary>
@@ -1097,7 +1108,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnSelectedSavedSessionChanged(AuthoringSessionSnapshot? value)
     {
-        if (_restoring || value is null || value.StrategyId == StrategyId) return;
+        if (_restoring || value is null) return;
+        // Same id with an empty canvas still needs Restore — e.g. after New strategy left the old
+        // identity selected, or a click on the Library row that looks selected but chat was cleared.
+        if (value.StrategyId == StrategyId && Messages.Count > 0) return;
         Restore(value);
     }
 
