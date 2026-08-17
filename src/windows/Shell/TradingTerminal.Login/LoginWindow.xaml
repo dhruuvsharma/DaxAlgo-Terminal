@@ -704,6 +704,28 @@
                     BorderThickness="0,1,0,0"
                     Padding="24,14,24,16">
                 <DockPanel LastChildFill="True">
+                    <!-- Paper / Real trading. Paper is the default and the app returns to it every
+                         start; arming Real needs the word LIVE typed, and even then each broker
+                         account is separately gated inside the execution engine. -->
+                    <Border DockPanel.Dock="Left"
+                            Padding="10,6"
+                            Margin="0,0,16,0"
+                            CornerRadius="0"
+                            BorderThickness="1"
+                            Background="{Binding TradingModeBackground}"
+                            BorderBrush="{Binding TradingModeBorder}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding TradingModeLabel}"
+                                       FontWeight="Bold" FontSize="12"
+                                       Foreground="{Binding TradingModeForeground}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <ToggleButton IsChecked="{Binding IsRealTrading, Mode=OneWay}"
+                                          Command="{Binding ToggleTradingModeCommand}"
+                                          Content="{Binding TradingModeActionLabel}"
+                                          MinWidth="128" Padding="8,3" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Cancel + Launch buttons (right-docked, Launch is the visual anchor) -->
                     <Button DockPanel.Dock="Right"
                             Content="Launch terminal"

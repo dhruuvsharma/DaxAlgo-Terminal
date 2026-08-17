@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Execution;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.MarketData.Archive;
 using TradingTerminal.Core.Session;
@@ -51,14 +52,19 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         IQuestDbLauncher questDb,
         CredentialStore credentialStore,
         ITelegramArchiveLogin telegramLogin,
+        ExecutionModeSelection tradingMode,
         ILogger<LoginViewModel> logger)
     {
+        _tradingMode = tradingMode;
         _brokerSelector = brokerSelector;
         _session = session;
         _questDb = questDb;
         _credentialStore = credentialStore;
         _telegramLogin = telegramLogin;
         _logger = logger;
+        // Always starts Paper: the selection is deliberately not persisted, so a stale setting can
+        // never arm real money on the user's behalf after an update or a machine handover.
+        _tradingMode.Changed += (_, _) => RefreshTradingMode();
 
         AvailableForms = forms.All;
         if (AvailableForms.Count == 0)
@@ -384,6 +390,72 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     /// <summary>Persists the entered Telegram credentials and signs in (the verification-code / 2FA
     /// dialog pops automatically). Runs the blocking transport work off the UI thread.</summary>
+    // ── Paper / Real trading ────────────────────────────────────────────────────────────────────
+
+    private readonly ExecutionModeSelection _tradingMode;
+
+    /// <summary>True while real trading is armed. One-way to the toggle: the command owns the change,
+    /// because arming has to collect a typed confirmation first and a two-way binding would flip the
+    /// state before anyone confirmed anything.</summary>
+    public bool IsRealTrading => _tradingMode.Mode == TradingMode.Real;
+
+    public string TradingModeLabel => IsRealTrading ? "REAL TRADING" : "PAPER TRADING";
+
+    public string TradingModeActionLabel => IsRealTrading ? "Switch to paper" : "Enable real trading…";
+
+    public string TradingModeForeground => IsRealTrading ? "White" : "#9CA3AF";
+
+    public string TradingModeBackground => IsRealTrading ? "#B91C1C" : "#1F2937";
+
+    public string TradingModeBorder => IsRealTrading ? "#B91C1C" : "#374151";
+
+    /// <summary>
+    /// Flips the mode. Disarming is immediate and never refused. Arming asks for the literal word
+    /// LIVE, and a cancelled or mistyped prompt leaves the app in paper.
+    ///
+    /// <para>This is only the outer gate. Each broker account is still separately authorized inside
+    /// the execution engine, so arming here does not by itself send anything anywhere.</para>
+    /// </summary>
+    [RelayCommand]
+    private void ToggleTradingMode()
+    {
+        if (IsRealTrading)
+        {
+            _tradingMode.SetPaper();
+            _logger.LogWarning("Trading mode set to PAPER. Orders stay inside the application.");
+            RefreshTradingMode();
+            return;
+        }
+
+        var typed = UiPrompt.Ask(
+            "Enable real trading",
+            "Orders will be sent to your real broker accounts and will move real money."
+            + Environment.NewLine + Environment.NewLine
+            + $"Type {ExecutionModeSelection.RequiredAcknowledgement} to confirm.");
+
+        if (!_tradingMode.TryEnableReal(typed, Environment.UserName, out var reason))
+        {
+            if (typed is not null) _logger.LogInformation("Real trading not enabled: {Reason}", reason);
+            RefreshTradingMode();
+            return;
+        }
+
+        _logger.LogWarning(
+            "REAL TRADING ARMED by {User}. Orders now route to real broker accounts once the "
+            + "per-account authorization is also granted.", Environment.UserName);
+        RefreshTradingMode();
+    }
+
+    private void RefreshTradingMode()
+    {
+        OnPropertyChanged(nameof(IsRealTrading));
+        OnPropertyChanged(nameof(TradingModeLabel));
+        OnPropertyChanged(nameof(TradingModeActionLabel));
+        OnPropertyChanged(nameof(TradingModeForeground));
+        OnPropertyChanged(nameof(TradingModeBackground));
+        OnPropertyChanged(nameof(TradingModeBorder));
+    }
+
     [RelayCommand]
     private async Task ConnectTelegramAsync()
     {

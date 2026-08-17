@@ -18,7 +18,10 @@ public sealed class SandboxExecutionReplicatorTests
         await using var replicator = new SandboxExecutionReplicator(
             source,
             intake,
-            new SandboxExecutionReplicationOptions("book-1", "sandbox-42"));
+            // Explicit since 2026-08-17: replication is enabled BY DEFAULT now that the virtual book
+            // is a strategy's only route to execution, so a test for the disabled path has to opt out
+            // deliberately rather than lean on the default.
+            new SandboxExecutionReplicationOptions("book-1", "sandbox-42", Enabled: false));
 
         source.Publish(Snapshot(2d, 90.25d, 110.5d));
         await Task.Delay(75);

@@ -87,6 +87,16 @@ public partial class App : Application
             var dlg = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = name };
             return Task.FromResult(dlg.ShowDialog() == true ? dlg.FileName : (string?)null);
         };
+        // Typed-confirmation prompt (UiPrompt seam). Uses MahApps' own input dialog so the gate
+        // looks like the rest of the shell; an unwired host returns null, i.e. refuses.
+        TradingTerminal.UI.UiPrompt.AskForText = (title, message) =>
+        {
+            var dialog = new TradingTerminal.UI.Controls.TextPromptDialog(title, message)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow,
+            };
+            return dialog.ShowDialog() == true ? dialog.EnteredText : null;
+        };
         var inMemoryLogSink = new InMemoryLogSink();
 
         // Last-line crash nets (shared implementation in TradingTerminal.UI): a broken window

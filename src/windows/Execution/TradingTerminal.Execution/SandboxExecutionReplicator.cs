@@ -23,11 +23,22 @@ public interface IExecutionBookTargetIntake
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Explicit opt-in binding for one sandbox runtime and one execution book.</summary>
+/// <summary>
+/// Binds one sandbox runtime's virtual book to one execution book.
+///
+/// <para><b>Enabled by default since 2026-08-17.</b> The virtual book is now the only route a
+/// strategy has to execution: a strategy trades its own book, and the execution engine copies that
+/// book. It never reaches the OMS directly. That is what makes paper and real trading the same code
+/// path — the strategy cannot tell, and cannot behave differently, because it is only ever writing to
+/// its own wallet.</para>
+///
+/// <para><see cref="Enabled"/> remains settable so a test can bind a replicator and assert it stays
+/// quiet, but production composition leaves it on.</para>
+/// </summary>
 public sealed record SandboxExecutionReplicationOptions(
     string BookId,
     string StrategyId,
-    bool Enabled = false,
+    bool Enabled = true,
     string PolicyVersion = SandboxExecutionReplicator.DefaultPolicyVersion,
     ScaledMoney EstimatedRoundTripCostPerUnit = default);
 

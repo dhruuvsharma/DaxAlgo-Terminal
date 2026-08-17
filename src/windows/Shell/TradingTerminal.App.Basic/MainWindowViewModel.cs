@@ -22,6 +22,7 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Updates;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.ExecutionUi;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Strategies;
@@ -40,6 +41,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
+    private const string ExecutionConsoleWindowId = "tools.execution-console";
 
     private readonly IStrategyFactory _factory;
     private readonly IEventBus _eventBus;
@@ -583,6 +585,23 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// <summary>The app-lifetime recording service, exposed so the header REC chip can light while a
     /// background recording is running. The panel window is only a view onto it — closing the panel
     /// does not stop the recording.</summary>
+
+    /// <summary>
+    /// Opens the lease-fenced execution console. Composed in every edition since 2026-08-17.
+    ///
+    /// <para>Opening it routes nothing: the app starts in Paper, where an order is recorded in the
+    /// ledger and monitored here but never leaves the process. Real routing needs the login window's
+    /// Paper/Real switch armed AND that exact broker account separately authorized.</para>
+    /// </summary>
+    [RelayCommand]
+    public void OpenExecutionConsole() =>
+        _host.OpenHostedTool<ExecutionConsoleViewModel, ExecutionConsoleView>(
+            ExecutionConsoleWindowId,
+            "Execution Engine",
+            "Composing the lease-fenced execution console…",
+            width: 1400,
+            height: 840);
+
     public TickRecordingService Recorder { get; }
 
     /// <summary>Backs the "a new version is available" strip in the row-2 banner stack. Always

@@ -18,6 +18,11 @@ using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.Infrastructure.Updates;
+using TradingTerminal.Execution.Alpaca;
+using TradingTerminal.Execution.CTrader;
+using TradingTerminal.Execution.InteractiveBrokers;
+using TradingTerminal.Execution.Oms;
+using TradingTerminal.ExecutionUi;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
@@ -72,6 +77,29 @@ public static class AppDependencyInjection
         services.AddSupport();
         services.AddSettingsSurface();
         services.AddArchiveSurface();
+
+        // Execution engine — composed in EVERY edition since 2026-08-17.
+        //
+        // All three real broker execution adapters are registered, each bound to the SAME DPAPI
+        // confirmation store. That store is the per-account gate: an adapter refuses a live order
+        // unless this exact broker/account binding was separately acknowledged, independently of the
+        // app-wide Paper/Real switch the login window sets. Two gates, both required.
+        //
+        // Registering an adapter does NOT arm anything. The app starts in Paper every time, and in
+        // Paper an order is recorded in the ledger and monitored in the console but never leaves the
+        // process.
+        var liveConfirmationStore = new DpapiLiveExecutionConfirmationStore();
+        services.AddSingleton<ILiveExecutionConfirmationStore>(liveConfirmationStore);
+        services.AddCTraderExecution(
+            options => configuration.GetSection(CTraderExecutionOptions.SectionName).Bind(options),
+            confirmationStore: liveConfirmationStore);
+        services.AddAlpacaExecution(
+            options => configuration.GetSection(AlpacaExecutionOptions.SectionName).Bind(options),
+            confirmationStore: liveConfirmationStore);
+        services.AddInteractiveBrokersExecution(
+            options => configuration.GetSection(InteractiveBrokersExecutionOptions.SectionName).Bind(options),
+            confirmationStore: liveConfirmationStore);
+        services.AddExecutionConsole();
         services.AddRecordingSurface();
 
         return services;

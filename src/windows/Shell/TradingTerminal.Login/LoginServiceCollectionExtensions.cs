@@ -30,6 +30,11 @@ public static class LoginServiceCollectionExtensions
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
 
+        // App-wide Paper/Real switch, set from the login window's toggle and read by the execution
+        // layer. A singleton because it is one decision for the whole session, and it always starts
+        // Paper - see ExecutionModeSelection for why it is deliberately not persisted.
+        services.AddSingleton<TradingTerminal.Core.Execution.ExecutionModeSelection>();
+
         // AI Strategy Builder key store (DPAPI, per user) + the resolver that unlocks the keyed codegen
         // providers. Registering the resolver here replaces the Null default from AddStrategyCodegen, so
         // a stored (or {PROVIDER}_API_KEY) key makes OpenAI/DeepSeek/… available.

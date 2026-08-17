@@ -24,6 +24,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
     <ProjectReference Include="..\..\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
+    <ProjectReference Include="..\..\Execution\TradingTerminal.Execution\TradingTerminal.Execution.csproj" />
+    <ProjectReference Include="..\..\Execution\TradingTerminal.ExecutionUi\TradingTerminal.ExecutionUi.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
