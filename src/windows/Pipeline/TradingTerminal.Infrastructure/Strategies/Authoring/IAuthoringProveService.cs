@@ -27,7 +27,7 @@ public sealed record AuthoringProveResult(
 
 /// <summary>
 /// Honest "which rung are we on?" for Hyperion Prove — not engine marketing.
-/// Always shown on the Prove tab so Sharpe is never read as Nautilus-grade.
+/// Always shown on the Prove tab so Sharpe is never over-read.
 /// </summary>
 public sealed record AuthoringFidelityStrip(
     string Rung,
@@ -35,18 +35,18 @@ public sealed record AuthoringFidelityStrip(
     string NotHonestFor,
     string Detail)
 {
-    /// <summary>What Hyperion Prove actually runs today (session + bar-synthetic L1).</summary>
+    /// <summary>Before a run: Prove requires a real trade tape — no bar-synthetic fallback.</summary>
     public static AuthoringFidelityStrip ProveDefault { get; } = new(
-        Rung: "Bar-synthetic L1 · Latency 0 · 1 instrument · Session engine",
-        HonestFor: "Bar / indicator sniff, rough direction, fee-aware P&L shape",
-        NotHonestFor: "Arbitrage, spread races, order-book imbalance, co-lo latency, true tape absorption",
-        Detail: "Hyperion Prove uses the session path (bar→ticks). New BacktestEngine also supports MidPrice / NextBarOpen / EveryTickFromBars / LatencyMs / DepthWalk / multi-instrument LocalStore — pick that rung when you need microstructure honesty.");
+        Rung: "Real trade tape · L1 quotes from prints · Latency 0 · 1 instrument · Session engine",
+        HonestFor: "Tape / absorption / tick-rule flow (when the broker returns historical trades)",
+        NotHonestFor: "Arbitrage latency races, L2 DepthWalk fills, multi-leg LocalStore (use BacktestEngine RunSpec)",
+        Detail: "Hyperion Prove fetches real prints (no OHLC→fake ticks). Connect Binance (or a broker with RequestHistoricalTrades). Depth/OBI still excluded on this session path.");
 
-    public static AuthoringFidelityStrip ForProveRun(string symbol, string broker, int barCount, string barSize) =>
+    public static AuthoringFidelityStrip ForRealTapeRun(string symbol, string broker, int tradeCount) =>
         ProveDefault with
         {
             Detail =
-                $"Last run: {barCount}×{barSize} bars → synthetic L1 on {symbol} ({broker}). " +
-                "Not honest for arb / OBI until latency + depth fills land.",
+                $"Last run: {tradeCount:N0} real prints on {symbol} ({broker}). " +
+                "q = 1.0 tape path. DepthWalk / LatencyMs / multi-leg still need BacktestEngine.",
         };
 }

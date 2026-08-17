@@ -495,7 +495,7 @@
                                 <StackPanel DockPanel.Dock="Top">
                                     <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
                                                Foreground="{DynamicResource Text.Secondary}"
-                                               Text="Real session backtest (same engine as Quick Backtest). Lifecycle check during generate is not a prove run." />
+                                               Text="Real historical trade tape only (same as Quick Backtest full-tape). No bar→fake ticks — if the broker has no prints, Prove fails." />
                                     <Border Margin="0,0,0,8" Padding="10,8"
                                             Background="{DynamicResource Background.Surface}"
                                             BorderBrush="{DynamicResource Warning.Brush}" BorderThickness="1"
