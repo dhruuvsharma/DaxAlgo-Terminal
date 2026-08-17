@@ -11,8 +11,10 @@ keep a local copy (for example via Git LFS).
 
 ## Capture guidance (read once)
 
-- **Data source:** run the offline `DevSim` profile so every shot shows clean synthetic data and no
-  personal account details — `DOTNET_ENVIRONMENT=DevSim dotnet run --project src/windows/Shell/TradingTerminal.App.Basic`.
+- **Data source:** the offline `DevSim` profile was removed on 2026-08-16 — this edition now ships a
+  single profile that launches on plain `appsettings.json`. For capture, connect the **Simulated**
+  broker from the login window so every shot shows synthetic data and no personal account details.
+  Screenshots must still show the amber SIMULATED DATA banner rather than hide it.
 - **Theme:** capture the whole set in **one** theme (the default dark theme) for a consistent gallery.
   Optionally re-capture the main window in a light theme for the Theme Studio entry.
 - **Resolution:** 1600×1000 or larger, then downscale; PNG for screenshots. Keep the window chrome.

@@ -4,8 +4,7 @@ namespace TradingTerminal.Core.Configuration;
 
 /// <summary>
 /// Which brokers each <see cref="AppEdition"/> exposes, split by whether the broker needs
-/// credentials. The <b>keyless</b> set (public crypto feeds + the in-process Simulated feed) needs
-/// no API key or account. The <b>credentialed</b> set requires the matching broker and login-form
+/// credentials. The <b>keyless</b> set (the public crypto feeds) needs no API key or account. The <b>credentialed</b> set requires the matching broker and login-form
 /// registrations. Both sets are available in every current edition.
 /// </summary>
 /// <remarks>
@@ -23,7 +22,6 @@ public static class BrokerEditionPolicy
         BrokerKind.Bybit,
         BrokerKind.Kraken,
         BrokerKind.Okx,
-        BrokerKind.Simulated,
     ];
 
     /// <summary>Brokers that require credentials / a login form.</summary>

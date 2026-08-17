@@ -474,22 +474,8 @@
             </MenuItem>
         </Menu>
 
-        <!-- Row 2 banners: SIMULATED-DATA warning + disconnect banner + update notice, stacked. -->
+        <!-- Row 2 banners: disconnect banner + update notice, stacked. -->
         <StackPanel Grid.Row="2">
-            <!-- Persistent amber "simulated data" banner — visible while the Simulated broker is
-                 connected so a synthetic feed is never mistaken for a live one. -->
-            <Border Background="#B45309"
-                    Padding="12,6"
-                    Visibility="{Binding IsSimulatedActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="⚠"
-                               Foreground="White" FontWeight="Bold" FontSize="13"
-                               VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <TextBlock Text="SIMULATED DATA — not a live feed"
-                               Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
-                </StackPanel>
-            </Border>
-
             <!-- Disconnect banner -->
             <Border Background="{DynamicResource Danger.Brush}"
                     Padding="12,6"

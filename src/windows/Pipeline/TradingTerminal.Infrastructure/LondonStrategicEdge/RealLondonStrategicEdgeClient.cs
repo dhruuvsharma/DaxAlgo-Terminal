@@ -174,7 +174,8 @@ internal sealed class RealLondonStrategicEdgeClient : IBrokerClient
         }
         catch (Exception ex)
         {
-            // Cold catalog — the picker falls back to the curated SignalInstrumentCatalog.
+            // Cold catalog — the picker falls back to the canonical instrument registry, and shows
+            // nothing at all if that is empty too. There is no curated hardcoded list any more.
             _logger.LogWarning(ex, "London Strategic Edge catalog fetch failed ({Url}).", _options.CatalogUrl);
             return Array.Empty<TradableInstrument>();
         }

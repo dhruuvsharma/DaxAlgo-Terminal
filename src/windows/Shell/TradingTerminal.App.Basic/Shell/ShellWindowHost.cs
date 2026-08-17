@@ -84,9 +84,6 @@ internal sealed class ShellWindowHost : IShellWindowHost
             var vm = _services.GetRequiredService<TVm>();
             var window = _services.GetRequiredService<TWindow>();
             window.DataContext = vm;
-            // Standalone windows own their XAML, so top the same amber "SIMULATED DATA"
-            // strip generically here (collapsed unless the Simulated broker is connected).
-            UI.Controls.SimulatedDataBanner.AttachTo(window);
             window.Owner = Application.Current.MainWindow;
             window.Closed += (_, _) =>
             {

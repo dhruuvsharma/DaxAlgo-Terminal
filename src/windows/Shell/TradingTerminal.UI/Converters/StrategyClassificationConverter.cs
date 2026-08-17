@@ -105,7 +105,8 @@ public sealed class StrategyClassificationConverter : IValueConverter
         BrokerKind.NinjaTrader        => new("NT",       Brush("#2E7D32"), White),
         BrokerKind.CTrader            => new("cTrader",  Brush("#6A1B9A"), White),
         BrokerKind.Alpaca             => new("Alpaca",   Brush("#F2A900"), Black),
-        BrokerKind.Simulated          => new("SIM",      Brush("#607D8B"), White),
+        // Not a connectable broker any more - only tags backtest/synthetic provenance in stored rows.
+        BrokerKind.Simulated          => new("SYNTH",    Brush("#607D8B"), White),
         BrokerKind.Binance            => new("Binance",  Brush("#F0B90B"), Black),
         BrokerKind.IronBeam           => new("Ironbeam", Brush("#455A64"), White),
         BrokerKind.LondonStrategicEdge=> new("LSE",      Brush("#00695C"), White),

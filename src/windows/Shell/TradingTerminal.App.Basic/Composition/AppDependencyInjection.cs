@@ -141,8 +141,16 @@ public static class AppDependencyInjection
         services.AddPluginFeed(pluginOptions);
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
-        return services;
-        
+
+        // Dev-only catalog seeding. The shipped catalog is empty since strategies moved out, which
+        // leaves the first-run view and the card UI with nothing to render; a launch profile can ask
+        // for placeholder cards. Off in every shipped appsettings.json - see DevCatalogSeed.
+        var dev = configuration.GetSection(DevOptions.SectionName).Get<DevOptions>() ?? new DevOptions();
+        foreach (var (strategy, registration) in DevCatalogSeed.Build(dev))
+        {
+            services.AddSingleton(strategy);
+            services.AddSingleton(registration);
+        }
 
         return services;
     }

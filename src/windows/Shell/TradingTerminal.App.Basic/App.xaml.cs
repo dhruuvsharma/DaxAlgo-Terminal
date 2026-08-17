@@ -140,12 +140,11 @@ public partial class App : Application
                 services.Configure<OkxOptions>(
                     ctx.Configuration.GetSection(OkxOptions.SectionName));
 
-                // Dev-only switches + the Simulated broker feed (off in the shipped appsettings;
-                // turned on by the DevSim environment file).
+                // Dev-only switches. Off in the shipped appsettings and in this edition's single
+                // launch profile; the installers' New User / Testing profiles turn parts of it on via
+                // their appsettings.{Env}.json overlay.
                 services.Configure<DevOptions>(
                     ctx.Configuration.GetSection(DevOptions.SectionName));
-                services.Configure<SimulatedBrokerOptions>(
-                    ctx.Configuration.GetSection(SimulatedBrokerOptions.SectionName));
 
                 // Cross-cutting: the shared Activity Log sink instance (same one the Serilog sink above
                 // writes to). Registered before AddCoreShell so its TryAdd is a no-op and this instance wins.
@@ -239,10 +238,9 @@ public partial class App : Application
         var dev = _host.Services.GetRequiredService<IOptions<DevOptions>>().Value;
         if (dev.BypassLogin || bypassLoginRequested)
         {
-            // A command-line bypass has no broker list of its own. Fall back to the always-registered
-            // Simulated feed so the shell opens with data instead of a dead session.
-            if (dev.AutoConnectBrokers.Length == 0)
-                dev = new DevOptions { BypassLogin = true, AutoConnectBrokers = [BrokerKind.Simulated] };
+            // A command-line bypass has no broker list of its own, and there is no in-process feed
+            // to fall back on since the Simulated broker was removed. The shell opens with no data;
+            // the user connects a broker from the menu.
             await ConnectAndShowMainAsync(dev);
         }
         else

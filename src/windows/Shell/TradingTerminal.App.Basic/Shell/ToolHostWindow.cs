@@ -30,9 +30,7 @@ public sealed class ToolHostWindow : MetroWindow
             Width = width,
             Height = height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            // Top an amber "SIMULATED DATA" strip above the tool view — collapsed unless the
-            // Simulated broker is connected, so a synthetic feed is never mistaken for a live one.
-            Content = SimulatedDataBanner.WrapTop(new ContentControl { Content = content }),
+            Content = new ContentControl { Content = content },
         };
 
         // Match the shell chrome — the brushes/fonts are app-wide merged dictionaries.
