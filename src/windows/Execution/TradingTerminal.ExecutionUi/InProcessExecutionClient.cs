@@ -73,9 +73,10 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         {
             foreach (var adapter in _registeredAdapters)
                 adapter.EventReceived += OnRegisteredAdapterEvent;
-            _books.Add(new BookEntry(BookConfiguration.Alpha(), InProcessBookRuntime.CreateAlpha(_executionLeaseStore)));
-            _books.Add(new BookEntry(BookConfiguration.Beta(), InProcessBookRuntime.CreateBeta(_executionLeaseStore)));
-            _books.Add(new BookEntry(BookConfiguration.Gamma(), runtime: null));
+            // No seeded books. The console used to start with two fabricated demo books (Alpha,
+            // Beta) carrying invented strategies, instruments attributed to a "Simulated" adapter,
+            // hardcoded prices and a fake P&L history, plus a third permanently-unavailable one.
+            // Removed 2026-08-18: the console shows real state or nothing. Create a book to begin.
         }
         catch
         {
@@ -770,8 +771,8 @@ FinishConnect:
         return result;
     }
 
-    public async ValueTask<ExecutionCommandResult> SubmitTestOrderAsync(
-        ExecutionTestOrderRequest request,
+    public async ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
+        ExecutionManualOrderRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -789,7 +790,7 @@ FinishConnect:
         if (entry?.Runtime is null)
         {
             result = ExecutionCommandResult.Failure(
-                "Paper/test order refused because the selected book has no attached execution runtime.");
+                "Order refused because the selected book has no attached execution runtime.");
         }
         else if (!entry.TryBeginOperation())
         {
@@ -806,7 +807,7 @@ FinishConnect:
                 result = paused
                     ? ExecutionCommandResult.Failure("Order refused because intake is paused for the selected book.")
                     : await entry.Runtime
-                        .SubmitTestOrderAsync(entry.Configuration, request, operationToken)
+                        .SubmitManualOrderAsync(entry.Configuration, request, operationToken)
                         .ConfigureAwait(false);
             }
             finally
@@ -1577,9 +1578,9 @@ FinishConnect:
 
         ValueTask<ExecutionCommandResult> KillAsync(CancellationToken cancellationToken);
 
-        ValueTask<ExecutionCommandResult> SubmitTestOrderAsync(
+        ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
             BookConfiguration configuration,
-            ExecutionTestOrderRequest request,
+            ExecutionManualOrderRequest request,
             CancellationToken cancellationToken);
 
         ValueTask<ExecutionCommandResult> SubmitTargetAsync(
@@ -1713,41 +1714,6 @@ FinishConnect:
             }
         }
 
-        internal static InProcessBookRuntime CreateAlpha(IExecutionLeaseStore executionLeaseStore)
-        {
-            var now = DateTime.UtcNow;
-            var runtime = new InProcessBookRuntime("alpha", AlphaPlans(), now.AddMinutes(-6), executionLeaseStore);
-            try
-            {
-                runtime.SeedAlpha();
-                runtime._clock.SetTo(now);
-                runtime.InjectAlphaDivergence();
-                return runtime;
-            }
-            catch
-            {
-                runtime.Dispose();
-                throw;
-            }
-        }
-
-        internal static InProcessBookRuntime CreateBeta(IExecutionLeaseStore executionLeaseStore)
-        {
-            var now = DateTime.UtcNow;
-            var runtime = new InProcessBookRuntime("beta", BetaPlans(), now.AddMinutes(-3), executionLeaseStore);
-            try
-            {
-                runtime.SeedBeta();
-                runtime._clock.SetTo(now);
-                return runtime;
-            }
-            catch
-            {
-                runtime.Dispose();
-                throw;
-            }
-        }
-
         internal static InProcessBookRuntime CreateEmpty(
             string bookId,
             IExecutionLeaseStore executionLeaseStore) =>
@@ -1815,8 +1781,8 @@ FinishConnect:
                 Array.AsReadOnly(_ledgerView.Reverse().ToArray()),
                 analytics)
             {
-                TestInstruments = Array.AsReadOnly(configuration.Instruments
-                    .Select(instrument => new ExecutionTestInstrumentReadModel(
+                TradableInstruments = Array.AsReadOnly(configuration.Instruments
+                    .Select(instrument => new ExecutionTradableInstrumentReadModel(
                         new InstrumentId(instrument.InstrumentId),
                         instrument.Symbol))
                     .ToArray()),
@@ -1835,13 +1801,13 @@ FinishConnect:
             return ValueTask.FromResult(FlattenAll());
         }
 
-        public ValueTask<ExecutionCommandResult> SubmitTestOrderAsync(
+        public ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
             BookConfiguration configuration,
-            ExecutionTestOrderRequest request,
+            ExecutionManualOrderRequest request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(SubmitTestOrder(configuration, request));
+            return ValueTask.FromResult(SubmitManualOrder(configuration, request));
         }
 
         public ValueTask<ExecutionCommandResult> SubmitTargetAsync(
@@ -1971,9 +1937,9 @@ FinishConnect:
                 $"Verified {positions.Length} position(s) flat against the Simulated-adapter snapshot; intake is paused.");
         }
 
-        private ExecutionCommandResult SubmitTestOrder(
+        private ExecutionCommandResult SubmitManualOrder(
             BookConfiguration configuration,
-            ExecutionTestOrderRequest request)
+            ExecutionManualOrderRequest request)
         {
             ThrowIfDisposed();
             _clock.SetTo(DateTime.UtcNow);
@@ -1983,28 +1949,28 @@ FinishConnect:
                 !string.Equals(configuredInstrument.Symbol, request.Symbol, StringComparison.OrdinalIgnoreCase))
             {
                 return ExecutionCommandResult.Failure(
-                    "Paper/test order refused because the instrument is not configured for the selected book.");
+                    "Order refused because the instrument is not configured for the selected book.");
             }
             if (!request.Quantity.TryGetWholeUnits(out var requestedUnits) || requestedUnits <= 0)
-                return ExecutionCommandResult.Failure("Paper/test quantity must be a positive whole number.");
-            if (request.OrderType == ExecutionTestOrderType.Limit != request.LimitPrice.HasValue)
-                return ExecutionCommandResult.Failure("Paper/test price terms do not match the selected order type.");
+                return ExecutionCommandResult.Failure("Order quantity must be a positive whole number.");
+            if (request.OrderType == ExecutionManualOrderType.Limit != request.LimitPrice.HasValue)
+                return ExecutionCommandResult.Failure("Price terms do not match the selected order type.");
 
             var snapshot = _adapter.CaptureReconciliationSnapshot();
             var position = snapshot.Positions.FirstOrDefault(item => item.Instrument == request.Instrument)?.Quantity ??
                            ScaledQuantity.Zero;
             if (!position.TryGetWholeUnits(out _))
-                return ExecutionCommandResult.Failure("The current simulated position is not an exact whole quantity.");
+                return ExecutionCommandResult.Failure("The current position is not an exact whole quantity.");
             var referencePrice = request.LimitPrice ?? ReferencePrice(request.Instrument.Value);
-            var instruction = CreateTestInstruction(request);
+            var instruction = CreateManualInstruction(request);
             var response = Submit(
                 instruction,
                 RiskSnapshot(instruction, position.TryGetWholeUnits(out var current) ? current : 0, referencePrice, 0));
             return response.IsSuccess
                 ? ExecutionCommandResult.Success(
-                    $"Paper/test order {instruction.Identity.ClientOrderId} reached {response.State?.ToString() ?? "the OMS"} through the selected Simulated route.")
+                    $"Order {instruction.Identity.ClientOrderId} reached {response.State?.ToString() ?? "the OMS"} through the book's execution route.")
                 : ExecutionCommandResult.Failure(
-                    $"Paper/test order failed closed: {response.Reason ?? response.Fault.ToString()}.");
+                    $"Order failed closed: {response.Reason ?? response.Fault.ToString()}.");
         }
 
         private ExecutionCommandResult SubmitTarget(
@@ -2033,7 +1999,7 @@ FinishConnect:
             var position = snapshot.Positions.FirstOrDefault(item => item.Instrument == intent.Instrument)?.Quantity ??
                            ScaledQuantity.Zero;
             if (!position.TryGetWholeUnits(out var currentUnits))
-                return ExecutionCommandResult.Failure("The current simulated position is not an exact whole quantity.");
+                return ExecutionCommandResult.Failure("The current position is not an exact whole quantity.");
             if (currentUnits == targetUnits)
                 return ExecutionCommandResult.Success("The Simulated book already matches the sandbox target.");
 
@@ -2115,13 +2081,13 @@ FinishConnect:
             return new CanonicalOrderInstruction(identity, intent, terms);
         }
 
-        private CanonicalOrderInstruction CreateTestInstruction(ExecutionTestOrderRequest request)
+        private CanonicalOrderInstruction CreateManualInstruction(ExecutionManualOrderRequest request)
         {
             if (!request.Quantity.TryGetWholeUnits(out var quantity) || quantity <= 0)
                 throw new ArgumentException("A positive whole quantity is required.", nameof(request));
             var sequence = ++_requestSequence;
             var clientOrderId = new ClientOrderId($"{BookPrefix()}-manual-{sequence}");
-            var signedUnits = request.Side == ExecutionTestOrderSide.Buy ? quantity : -quantity;
+            var signedUnits = request.Side == ExecutionManualOrderSide.Buy ? quantity : -quantity;
             var intent = new TradeIntent(
                 request.Instrument,
                 TradeIntentQuantityMode.Delta,
@@ -2144,44 +2110,13 @@ FinishConnect:
                 _lease.Grant.LeaseId,
                 _lease.Grant.FencingToken);
             var terms = new CanonicalOrderTerms(
-                request.Side == ExecutionTestOrderSide.Buy ? OrderSide.Buy : OrderSide.Sell,
+                request.Side == ExecutionManualOrderSide.Buy ? OrderSide.Buy : OrderSide.Sell,
                 request.CanonicalOrderType,
                 CanonicalTimeInForce.Day,
                 request.Quantity,
                 request.LimitPrice,
                 null);
             return new CanonicalOrderInstruction(identity, intent, terms);
-        }
-
-        private void SeedAlpha()
-        {
-            SubmitSeed(CreateInstruction("alpha-btc-filled", 1001, 0, 3, CanonicalOrderType.Market, Price(61_842.5m)), 0, 0);
-            SubmitSeed(CreateInstruction("alpha-eur-filled", 1002, 0, 40, CanonicalOrderType.Market, Price(1.08214m)), 0, 185_528);
-            SubmitSeed(CreateInstruction("alpha-eth-filled", 1003, 0, -3, CanonicalOrderType.Market, Price(3_004.8m)), 0, 185_571);
-            SubmitSeed(CreateInstruction("alpha-btc-working", 1001, 3, 4, CanonicalOrderType.Limit, Price(61_600m)), 3, 194_585);
-            SubmitSeed(CreateInstruction("alpha-eth-rejected", 1003, -3, -4, CanonicalOrderType.Limit, Price(2_980m)), -3, 194_585);
-
-            SeedPredispatch(
-                CreateInstruction("alpha-btc-armed", 1001, 3, 2, CanonicalOrderType.Stop, Price(60_900m)),
-                currentUnits: 3,
-                grossExposure: 194_585,
-                PredispatchStage.Armed);
-            SeedPredispatch(
-                CreateInstruction("alpha-eur-validated", 1002, 40, 30, CanonicalOrderType.Limit, Price(1.081m)),
-                currentUnits: 40,
-                grossExposure: 194_585,
-                PredispatchStage.Validated);
-            SeedPredispatch(
-                CreateInstruction("alpha-draft", 1003, -3, -2, CanonicalOrderType.Market, Price(3_010m)),
-                currentUnits: -3,
-                grossExposure: 194_585,
-                PredispatchStage.Draft);
-        }
-
-        private void SeedBeta()
-        {
-            SubmitSeed(CreateInstruction("beta-nq-filled", 2001, 0, 12, CanonicalOrderType.Market, Price(18_420m)), 0, 0);
-            SubmitSeed(CreateInstruction("beta-gold-working", 2002, 0, -2, CanonicalOrderType.Limit, Price(2_410m)), 0, 221_040);
         }
 
         private void SubmitSeed(
@@ -2198,82 +2133,6 @@ FinishConnect:
                     $"Seed order '{instruction.Identity.ClientOrderId}' failed: {response.Reason ?? response.Fault.ToString()}.");
             }
             _clock.Advance(TimeSpan.FromSeconds(24));
-        }
-
-        private void SeedPredispatch(
-            CanonicalOrderInstruction instruction,
-            long currentUnits,
-            long grossExposure,
-            PredispatchStage stage)
-        {
-            var context = Context(instruction.Identity.ClientOrderId.Value, "seed-draft");
-            var created = _lease.Execute(_lease.Grant, () => _oms.CreateDraft(instruction, context));
-            if (!created.IsSuccess || created.Value is not { IsSuccess: true })
-                throw new InvalidOperationException($"Could not seed draft '{instruction.Identity.ClientOrderId}'.");
-            if (stage == PredispatchStage.Draft)
-            {
-                _clock.Advance(TimeSpan.FromSeconds(24));
-                return;
-            }
-
-            var validated = _coordinator.Validate(
-                _adapter.Account,
-                instruction.Identity.ClientOrderId,
-                RiskSnapshot(instruction, currentUnits, ReferencePrice(instruction.TradeIntent.Instrument.Value), grossExposure),
-                Context(instruction.Identity.ClientOrderId.Value, "seed-validate"));
-            if (!validated.IsSuccess)
-                throw new InvalidOperationException($"Could not seed validated order '{instruction.Identity.ClientOrderId}'.");
-            if (stage == PredispatchStage.Validated)
-            {
-                _clock.Advance(TimeSpan.FromSeconds(24));
-                return;
-            }
-
-            var prepared = _lease.Execute(
-                _lease.Grant,
-                () => _oms.Prepare(
-                    instruction.Identity.ClientOrderId,
-                    Context(instruction.Identity.ClientOrderId.Value, "seed-prepare")));
-            if (!prepared.IsSuccess || prepared.Value is not { IsSuccess: true })
-                throw new InvalidOperationException($"Could not seed prepared order '{instruction.Identity.ClientOrderId}'.");
-
-            var armed = _coordinator.Arm(
-                _adapter.Account,
-                instruction.Identity.ClientOrderId,
-                Context(instruction.Identity.ClientOrderId.Value, "seed-arm"));
-            if (!armed.IsSuccess)
-                throw new InvalidOperationException($"Could not seed armed order '{instruction.Identity.ClientOrderId}'.");
-            _clock.Advance(TimeSpan.FromSeconds(24));
-        }
-
-        private void InjectAlphaDivergence()
-        {
-            var actual = _adapter.CaptureReconciliationSnapshot();
-            var openOrders = actual.OpenOrders
-                .Where(order => order.Instruction.Identity.ClientOrderId.Value != "alpha-btc-working")
-                .ToArray();
-            var positions = actual.Positions
-                .Select(position => position.Instrument.Value == 1003
-                    ? position with
-                    {
-                        Quantity = ScaledQuantity.FromWhole(-2),
-                        ObservedAtUtc = _clock.UtcNow,
-                    }
-                    : position)
-                .ToArray();
-            _adapter.InjectReconciliationSnapshot(actual with
-            {
-                CapturedAtUtc = _clock.UtcNow,
-                OpenOrders = Array.AsReadOnly(openOrders),
-                Positions = Array.AsReadOnly(positions),
-            });
-            var result = _coordinator.RunReconciliationAsync(
-                    _adapter.Account,
-                    ReconciliationTrigger.OperatorRequest)
-                .GetAwaiter()
-                .GetResult();
-            if (!result.IsSuccess)
-                throw new InvalidOperationException($"Could not seed reconciliation divergence: {result.Reason}");
         }
 
         private ExecutionServiceResponse Submit(
@@ -2763,28 +2622,6 @@ FinishConnect:
             return new RiskEngine(policy);
         }
 
-        private static IEnumerable<VenueSubmitPlan> AlphaPlans() =>
-        [
-            FilledPlan("alpha-btc-filled", 3, Price(61_842.5m), fee: Money(12.50m)),
-            FilledPlan("alpha-eur-filled", 40, Price(1.08214m), fee: Money(4.20m)),
-            FilledPlan("alpha-eth-filled", 3, Price(3_004.8m), fee: Money(3.10m)),
-            new VenueSubmitPlan(new ClientOrderId("alpha-btc-working"), VenueSubmitOutcome.Accepted),
-            new VenueSubmitPlan(
-                new ClientOrderId("alpha-eth-rejected"),
-                VenueSubmitOutcome.Rejected,
-                reason: "simulated min-notional"),
-            FilledPlan("alpha-flatten-1001", 3, Price(61_900m), fee: Money(8.20m)),
-            FilledPlan("alpha-flatten-1002", 40, Price(1.083m), fee: Money(4.10m)),
-            FilledPlan("alpha-flatten-1003", 3, Price(3_010m), fee: Money(3.00m)),
-        ];
-
-        private static IEnumerable<VenueSubmitPlan> BetaPlans() =>
-        [
-            FilledPlan("beta-nq-filled", 12, Price(18_420m), fee: Money(6.40m)),
-            new VenueSubmitPlan(new ClientOrderId("beta-gold-working"), VenueSubmitOutcome.Accepted),
-            FilledPlan("beta-flatten-2001", 12, Price(18_430m), fee: Money(6.20m)),
-        ];
-
         private static VenueSubmitPlan FilledPlan(
             string clientOrderId,
             long quantity,
@@ -2925,7 +2762,7 @@ FinishConnect:
 
         private string RouteLabel => $"Alpaca {EnvironmentLabel}";
 
-        private string OrderLabel => _adapter.Mode == ExecutionMode.Live ? "LIVE order" : "Paper/test order";
+        private string OrderLabel => _adapter.Mode == ExecutionMode.Live ? "LIVE order" : "Paper order";
 
         internal AlpacaBookRuntime(
             string bookId,
@@ -3130,9 +2967,9 @@ FinishConnect:
                 analytics,
                 _adapter.Mode)
             {
-                TestInstruments = Array.AsReadOnly(
+                TradableInstruments = Array.AsReadOnly(
                 [
-                    new ExecutionTestInstrumentReadModel(_adapter.Instrument, _adapter.Symbol),
+                    new ExecutionTradableInstrumentReadModel(_adapter.Instrument, _adapter.Symbol),
                 ]),
                 SupportsKill = true,
             };
@@ -3318,9 +3155,9 @@ FinishConnect:
             }
         }
 
-        public async ValueTask<ExecutionCommandResult> SubmitTestOrderAsync(
+        public async ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
             BookConfiguration configuration,
-            ExecutionTestOrderRequest request,
+            ExecutionManualOrderRequest request,
             CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
@@ -3333,7 +3170,7 @@ FinishConnect:
             }
             if (!request.Quantity.TryGetWholeUnits(out var requestedUnits) || requestedUnits <= 0)
                 return ExecutionCommandResult.Failure($"{OrderLabel} quantity must be a positive whole number.");
-            if (request.OrderType == ExecutionTestOrderType.Limit != request.LimitPrice.HasValue ||
+            if (request.OrderType == ExecutionManualOrderType.Limit != request.LimitPrice.HasValue ||
                 request.LimitPrice is { IsValid: false } or { Coefficient: <= 0 })
             {
                 return ExecutionCommandResult.Failure(
@@ -3356,7 +3193,7 @@ FinishConnect:
             }
 
             ScaledPrice referencePrice;
-            if (request.OrderType == ExecutionTestOrderType.Limit)
+            if (request.OrderType == ExecutionManualOrderType.Limit)
             {
                 referencePrice = request.LimitPrice!.Value;
             }
@@ -3396,7 +3233,7 @@ FinishConnect:
 
             var sequence = Interlocked.Increment(ref _requestSequence);
             var clientOrderId = new ClientOrderId($"daxt-{_clientOrderNamespace}-{sequence}");
-            var signedUnits = request.Side == ExecutionTestOrderSide.Buy ? requestedUnits : -requestedUnits;
+            var signedUnits = request.Side == ExecutionManualOrderSide.Buy ? requestedUnits : -requestedUnits;
             var intent = new TradeIntent(
                 request.Instrument,
                 TradeIntentQuantityMode.Delta,
@@ -3421,7 +3258,7 @@ FinishConnect:
                     _lease.Grant.FencingToken),
                 intent,
                 new CanonicalOrderTerms(
-                    request.Side == ExecutionTestOrderSide.Buy ? OrderSide.Buy : OrderSide.Sell,
+                    request.Side == ExecutionManualOrderSide.Buy ? OrderSide.Buy : OrderSide.Sell,
                     request.CanonicalOrderType,
                     timeInForce,
                     request.Quantity,
@@ -3946,62 +3783,6 @@ FinishConnect:
         string EscalationLine,
         string UnavailableDetail)
     {
-        internal static BookConfiguration Alpha() => new(
-            "alpha",
-            "Alpha",
-            "simulated",
-            "Simulated",
-            Array.AsReadOnly(["Momentum v4", "Carry Hedge"]),
-            50_000m,
-            SampleHistory(
-                (86, "BTCUSDT", 220m), (78, "EUR/USD", -110m), (70, "ETHUSDT", 340m),
-                (63, "BTCUSDT", 180m), (56, "ETHUSDT", -90m), (49, "EUR/USD", 410m),
-                (41, "BTCUSDT", 135m), (34, "ETHUSDT", -155m), (29, "BTCUSDT", 290m),
-                (25, "EUR/USD", 175m), (21, "ETHUSDT", -120m), (18, "BTCUSDT", 360m),
-                (14, "EUR/USD", 95m), (10, "ETHUSDT", -80m), (7, "BTCUSDT", 240m),
-                (3, "EUR/USD", 310m), (0, "ETHUSDT", -65m)),
-            Array.AsReadOnly(
-            [
-                new BookInstrumentConfiguration(1001, "BTCUSDT", "Simulated", 3m, 3m, "61,842.5", "62,062.0", 62_062m, "+$904.20", "+$120.00", ExecutionTone.Positive),
-                new BookInstrumentConfiguration(1002, "EUR/USD", "Simulated", 2m, 40m, "1.08214", "1.08310", 1.08310m, "+$372.00", "+$85.00", ExecutionTone.Positive),
-                new BookInstrumentConfiguration(1003, "ETHUSDT", "Simulated", -1m, -4m, "3,004.8", "3,015.0", 3_015m, "-$36.02", "+$40.00", ExecutionTone.Negative),
-            ]),
-            "Risk escalation capped at 3 steps; current step 1 / 3; disclosed",
-            string.Empty);
-
-        internal static BookConfiguration Beta() => new(
-            "beta",
-            "Beta",
-            "simulated",
-            "Simulated",
-            Array.AsReadOnly(["Mean Reversion"]),
-            38_000m,
-            SampleHistory(
-                (82, "NQ", 140m), (73, "XAU/USD", -210m), (65, "NQ", 185m),
-                (57, "XAU/USD", -95m), (46, "NQ", 120m), (38, "XAU/USD", -180m),
-                (28, "NQ", -75m), (23, "XAU/USD", 110m), (17, "NQ", -160m),
-                (12, "XAU/USD", 80m), (8, "NQ", -145m), (4, "XAU/USD", 55m),
-                (0, "NQ", -95m)),
-            Array.AsReadOnly(
-            [
-                new BookInstrumentConfiguration(2001, "NQ", "Simulated", 1m, 12m, "18,420.0", "18,440.5", 18_440.5m, "+$248.00", "$0.00", ExecutionTone.Positive),
-                new BookInstrumentConfiguration(2002, "XAU/USD", "Simulated", -1m, -2m, "2,410.0", "2,418.0", 2_418m, "-$120.00", "-$42.00", ExecutionTone.Negative),
-            ]),
-            "Risk escalation off; capped at one step; disclosed",
-            string.Empty);
-
-        internal static BookConfiguration Gamma() => new(
-            "gamma",
-            "Gamma",
-            "ctrader-openapi-demo",
-            "cTrader DEMO",
-            Array.AsReadOnly(["Breakout Preview"]),
-            12_500m,
-            Array.Empty<ExecutionTradeHistoryPoint>(),
-            Array.Empty<BookInstrumentConfiguration>(),
-            "Execution unavailable until an owner host supplies the alternate cTrader DEMO client",
-            "adapter not registered");
-
         internal static BookConfiguration New(
             string id,
             string name,
@@ -4086,18 +3867,6 @@ FinishConnect:
                 analytics);
         }
 
-        private static IReadOnlyList<ExecutionTradeHistoryPoint> SampleHistory(
-            params (int DaysAgo, string Instrument, decimal ProfitAndLoss)[] values)
-        {
-            var today = DateTime.UtcNow.Date;
-            return Array.AsReadOnly(values
-                .Select(value => new ExecutionTradeHistoryPoint(
-                    today.AddDays(-value.DaysAgo).AddHours(16),
-                    value.Instrument,
-                    value.ProfitAndLoss))
-                .OrderBy(item => item.ClosedAtUtc)
-                .ToArray());
-        }
     }
 
     private sealed record BookInstrumentConfiguration(

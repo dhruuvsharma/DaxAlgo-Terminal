@@ -45,7 +45,7 @@ public interface IExecutionClient : IDisposable
         ExecutionBookCreateRequest request,
         CancellationToken cancellationToken = default);
 
-    ValueTask<ExecutionCommandResult> SubmitTestOrderAsync(
-        ExecutionTestOrderRequest request,
+    ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
+        ExecutionManualOrderRequest request,
         CancellationToken cancellationToken = default);
 }

@@ -220,8 +220,8 @@ public sealed class InteractiveBrokersExecutionConsoleTests
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ExecutionCommandResult.Success("book created"));
 
-        public ValueTask<ExecutionCommandResult> SubmitTestOrderAsync(
-            ExecutionTestOrderRequest request,
+        public ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
+            ExecutionManualOrderRequest request,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ExecutionCommandResult.Success("submitted"));
 

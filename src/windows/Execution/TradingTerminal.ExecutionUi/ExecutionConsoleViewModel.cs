@@ -5,6 +5,7 @@ using System.Globalization;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Execution;
 using TradingTerminal.Execution.InteractiveBrokers;
 using TradingTerminal.Execution.Oms;
@@ -38,11 +39,8 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     [NotifyPropertyChangedFor(nameof(SelectedBook))]
     [NotifyPropertyChangedFor(nameof(CanIssueCommands))]
     [NotifyPropertyChangedFor(nameof(CanKill))]
-    [NotifyPropertyChangedFor(nameof(CanShowTestOrderTicket))]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
     [NotifyPropertyChangedFor(nameof(IntakeToggleLabel))]
     [NotifyPropertyChangedFor(nameof(IsSelectedBookLive))]
-    [NotifyPropertyChangedFor(nameof(OrderTicketModeLabel))]
     private ExecutionBookNavigationReadModel? _selectedBookEntry;
 
     [ObservableProperty]
@@ -102,8 +100,14 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     [ObservableProperty]
     private string _newBookName = string.Empty;
 
+    /// <summary>Paper or Real. Replaces the old free-text adapter choice that surfaced "Simulated".</summary>
     [ObservableProperty]
-    private string _newBookStrategies = string.Empty;
+    private string? _selectedNewBookMode = "Paper";
+
+    /// <summary>One installed strategy, picked from <see cref="AvailableStrategies"/>. Replaces the
+    /// old comma-separated text box, which let a book claim a strategy that does not exist.</summary>
+    [ObservableProperty]
+    private string? _selectedNewBookStrategy;
 
     [ObservableProperty]
     private IReadOnlyList<ExecutionAdapterReadModel> _availableAdapters = Array.Empty<ExecutionAdapterReadModel>();
@@ -119,38 +123,6 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
 
     [ObservableProperty]
     private string _interactiveBrokersAccountId = string.Empty;
-
-    [ObservableProperty]
-    private IReadOnlyList<ExecutionTestInstrumentReadModel> _availableTestInstruments =
-        Array.Empty<ExecutionTestInstrumentReadModel>();
-
-    [ObservableProperty]
-    private IReadOnlyList<SignalInstrument> _availableOrderInstruments = Array.Empty<SignalInstrument>();
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
-    private SignalInstrument? _selectedOrderInstrument;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
-    private ExecutionTestInstrumentReadModel? _selectedTestInstrument;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
-    private ExecutionTestOrderSide _selectedTestOrderSide = ExecutionTestOrderSide.Buy;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsTestLimitOrder))]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
-    private ExecutionTestOrderType _selectedTestOrderType = ExecutionTestOrderType.Market;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
-    private string _testOrderQuantity = "1";
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
-    private string _testOrderLimitPrice = string.Empty;
 
     [ObservableProperty]
     private string _dashboardContextLabel = "All books";
@@ -173,15 +145,19 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanIssueCommands))]
     [NotifyPropertyChangedFor(nameof(CanKill))]
-    [NotifyPropertyChangedFor(nameof(CanSendTestOrder))]
     private bool _isBusy;
 
     public ExecutionConsoleViewModel(
         IExecutionClient client,
         IExecutionConfirmationService confirmation,
         IBrokerLoginFormFactory loginFormFactory,
-        ExecutionModeStatusProjection? executionModeStatus = null)
+        ExecutionModeStatusProjection? executionModeStatus = null,
+        IStrategyFactory? strategies = null)
     {
+        // Optional so the console still composes in a host that registers no catalog; the picker is
+        // then simply empty, which is the truth rather than a fabricated list.
+        AvailableStrategies = Array.AsReadOnly(
+            (strategies?.All ?? []).Select(item => item.DisplayName).ToArray());
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _loginFormFactory = loginFormFactory ?? throw new ArgumentNullException(nameof(loginFormFactory));
@@ -217,26 +193,9 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
 
     public bool CanKill => CanIssueCommands && SelectedBook?.SupportsKill == true;
 
-    public bool CanShowTestOrderTicket => SelectedBook?.TestInstruments.Count > 0;
-
-    public bool CanSendTestOrder =>
-        !IsBusy &&
-        SelectedBook?.CanSubmitTestOrder == true &&
-        ResolveSelectedTestInstrument(SelectedBook, SelectedOrderInstrument) is not null;
-
-    public bool IsTestLimitOrder => SelectedTestOrderType == ExecutionTestOrderType.Limit;
-
-    public IReadOnlyList<ExecutionTestOrderSide> TestOrderSides { get; } =
-        Array.AsReadOnly(Enum.GetValues<ExecutionTestOrderSide>());
-
-    public IReadOnlyList<ExecutionTestOrderType> TestOrderTypes { get; } =
-        Array.AsReadOnly(Enum.GetValues<ExecutionTestOrderType>());
-
     public string IntakeToggleLabel => SelectedBook?.IntakeCommandLabel ?? "Stop";
 
     public bool IsSelectedBookLive => SelectedBook?.IsLive == true;
-
-    public string OrderTicketModeLabel => IsSelectedBookLive ? "LIVE ORDER" : "PAPER / TEST ORDER";
 
     public bool HasLiveExecution =>
         _executionModeStatus?.HasLiveExecution ?? _snapshot?.HasLiveExecution == true;
@@ -267,19 +226,28 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
 
     partial void OnHistoryToDateChanged(DateTime? value) => ApplyHistoryFilter();
 
-    partial void OnSelectedOrderInstrumentChanged(SignalInstrument? value)
-    {
-        SelectedTestInstrument = ResolveSelectedTestInstrument(SelectedBook, value);
-        OnPropertyChanged(nameof(CanSendTestOrder));
-    }
 
-    [RelayCommand]
-    private void ToggleBrokers() => AreBrokersExpanded = !AreBrokersExpanded;
+    /// <summary>The two things a book can be. "Simulated" is gone: a book is Paper or Real, and Paper
+    /// is what the deterministic venue implements.</summary>
+    public IReadOnlyList<string> AvailableBookModes { get; } = Array.AsReadOnly(["Paper", "Real"]);
+
+    /// <summary>Installed strategies, for the New Book picker. Empty until an artifact is installed —
+    /// the console does not invent names.</summary>
+    public IReadOnlyList<string> AvailableStrategies { get; } = Array.Empty<string>();
+
+    /// <summary>A Real book needs a broker account; a Paper book never leaves the process.</summary>
+    public bool NewBookNeedsBroker =>
+        string.Equals(SelectedNewBookMode, "Real", StringComparison.Ordinal);
+
+    partial void OnSelectedNewBookModeChanged(string? value) =>
+        OnPropertyChanged(nameof(NewBookNeedsBroker));
 
     [RelayCommand]
     private void NewBook()
     {
         IsNewBookOpen = true;
+        SelectedNewBookMode ??= "Paper";
+        SelectedNewBookStrategy ??= AvailableStrategies.FirstOrDefault();
         SelectedNewBookAdapter ??= AvailableAdapters.FirstOrDefault();
     }
 
@@ -288,23 +256,28 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     {
         IsNewBookOpen = false;
         NewBookName = string.Empty;
-        NewBookStrategies = string.Empty;
+        SelectedNewBookStrategy = null;
     }
 
     [RelayCommand]
     private async Task CreateBookAsync()
     {
-        if (SelectedNewBookAdapter is null)
+        if (NewBookNeedsBroker && SelectedNewBookAdapter is null)
         {
-            OperationMessage = "Select an available execution adapter before creating a book.";
+            OperationMessage = "A Real book needs a broker account. Pick one, or create the book as Paper.";
             return;
         }
 
-        var strategies = NewBookStrategies
-            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        // Paper books bind to the deterministic in-process venue; Real books bind to the chosen
+        // broker adapter. Choosing Real here still arms nothing on its own - the app-wide Real switch
+        // and that account's own authorization are both checked before an order leaves.
+        var adapterId = NewBookNeedsBroker ? SelectedNewBookAdapter!.Id : "paper";
+        var strategies = string.IsNullOrWhiteSpace(SelectedNewBookStrategy)
+            ? Array.Empty<string>()
+            : new[] { SelectedNewBookStrategy! };
         var request = new ExecutionBookCreateRequest(
             NewBookName,
-            SelectedNewBookAdapter.Id,
+            adapterId,
             Array.AsReadOnly(strategies));
         var result = await RunCommandAsync(token => _client.CreateBookAsync(request, token));
         if (result.IsSuccess)
@@ -473,53 +446,6 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
             await RunCommandAsync(token => _client.KillAsync(book.Id, token));
     }
 
-    [RelayCommand]
-    private async Task SendTestOrderAsync()
-    {
-        var book = SelectedBook;
-        var instrument = ResolveSelectedTestInstrument(book, SelectedOrderInstrument);
-        if (book is null || instrument is null)
-        {
-            OperationMessage =
-                "Order refused: select exactly one catalog instrument certified for the selected book.";
-            return;
-        }
-        if (!CanSendTestOrder)
-            return;
-
-        if (!long.TryParse(
-                TestOrderQuantity.Trim(),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out var quantity) ||
-            quantity <= 0)
-        {
-            OperationMessage = "Paper/test quantity must be a positive whole number.";
-            return;
-        }
-
-        ScaledPrice? limitPrice = null;
-        if (SelectedTestOrderType == ExecutionTestOrderType.Limit)
-        {
-            if (!TryParsePositiveScaledPrice(TestOrderLimitPrice, out var parsedLimit))
-            {
-                OperationMessage = "Enter a positive exact decimal limit price (up to 18 decimal places).";
-                return;
-            }
-            limitPrice = parsedLimit;
-        }
-
-        var request = new ExecutionTestOrderRequest(
-            book.Id,
-            instrument.Instrument,
-            instrument.Symbol,
-            SelectedTestOrderSide,
-            ScaledQuantity.FromWhole(quantity),
-            SelectedTestOrderType,
-            limitPrice);
-        await RunCommandAsync(token => _client.SubmitTestOrderAsync(request, token));
-    }
-
     private async Task<ExecutionCommandResult> RunCommandAsync(
         Func<CancellationToken, ValueTask<ExecutionCommandResult>> operation)
     {
@@ -627,7 +553,6 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         var selectedBooks = selectedEntry.Book is { } book
             ? new[] { book }
             : snapshot.Books.ToArray();
-        ApplyTestTicket(selectedEntry.Book);
         var analytics = selectedEntry.Book?.Analytics ?? snapshot.PortfolioAnalytics;
         if (analytics.Periods.Count == 0)
             return;
@@ -685,69 +610,9 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         OnPropertyChanged(nameof(SelectedBook));
         OnPropertyChanged(nameof(CanIssueCommands));
         OnPropertyChanged(nameof(CanKill));
-        OnPropertyChanged(nameof(CanShowTestOrderTicket));
-        OnPropertyChanged(nameof(CanSendTestOrder));
         OnPropertyChanged(nameof(IntakeToggleLabel));
         OnPropertyChanged(nameof(IsSelectedBookLive));
-        OnPropertyChanged(nameof(OrderTicketModeLabel));
         ChartsInvalidated?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void ApplyTestTicket(ExecutionBookReadModel? book)
-    {
-        var selectedSymbol = SelectedOrderInstrument?.Contract.Symbol;
-        AvailableTestInstruments = Array.AsReadOnly((book?.TestInstruments ?? [])
-            .Take(MaximumOrderPickerInstruments)
-            .ToArray());
-
-        var remainingSymbols = AvailableTestInstruments
-            .Select(item => item.Symbol)
-            .ToHashSet(StringComparer.Ordinal);
-        if (remainingSymbols.Count == 0)
-        {
-            AvailableOrderInstruments = Array.Empty<SignalInstrument>();
-            SelectedOrderInstrument = null;
-            SelectedTestInstrument = null;
-            return;
-        }
-
-        var pickerItems = new List<SignalInstrument>(Math.Min(
-            remainingSymbols.Count,
-            MaximumOrderPickerInstruments));
-        foreach (var item in SignalInstrumentCatalog.All)
-        {
-            if (!remainingSymbols.Remove(item.Contract.Symbol))
-                continue;
-
-            pickerItems.Add(item);
-            if (pickerItems.Count >= MaximumOrderPickerInstruments || remainingSymbols.Count == 0)
-                break;
-        }
-
-        AvailableOrderInstruments = Array.AsReadOnly(pickerItems.ToArray());
-        SelectedOrderInstrument = selectedSymbol is not null
-            ? AvailableOrderInstruments.FirstOrDefault(item =>
-                  string.Equals(item.Contract.Symbol, selectedSymbol, StringComparison.Ordinal)) ??
-              AvailableOrderInstruments.FirstOrDefault()
-            : AvailableOrderInstruments.FirstOrDefault();
-        SelectedTestInstrument = ResolveSelectedTestInstrument(book, SelectedOrderInstrument);
-    }
-
-    private static ExecutionTestInstrumentReadModel? ResolveSelectedTestInstrument(
-        ExecutionBookReadModel? book,
-        SignalInstrument? selected)
-    {
-        if (book is null || selected is null)
-            return null;
-
-        var matches = book.TestInstruments
-            .Where(item => string.Equals(
-                item.Symbol,
-                selected.Contract.Symbol,
-                StringComparison.Ordinal))
-            .Take(2)
-            .ToArray();
-        return matches.Length == 1 ? matches[0] : null;
     }
 
     private void NotifyExecutionModeState()
@@ -1099,7 +964,6 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         AlpacaLiveAccountId = string.Empty;
         CTraderExecutionAccountId = string.Empty;
         InteractiveBrokersAccountId = string.Empty;
-        TestOrderLimitPrice = string.Empty;
         _snapshot = null;
         Adapters = Array.Empty<ExecutionAdapterReadModel>();
         BookEntries = Array.Empty<ExecutionBookNavigationReadModel>();
@@ -1109,10 +973,6 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         OpenOrders = Array.Empty<ExecutionOrderReadModel>();
         History = Array.Empty<ExecutionHistoryReadModel>();
         FilteredHistory = Array.Empty<ExecutionHistoryReadModel>();
-        AvailableTestInstruments = Array.Empty<ExecutionTestInstrumentReadModel>();
-        AvailableOrderInstruments = Array.Empty<SignalInstrument>();
-        SelectedOrderInstrument = null;
-        SelectedTestInstrument = null;
         SelectedBookEntry = null;
     }
 
@@ -1138,44 +998,4 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         string OAuthClientSecret = "",
         string OAuthAccessToken = "");
 
-    internal static bool TryParsePositiveScaledPrice(string? text, out ScaledPrice price)
-    {
-        price = default;
-        var value = text?.Trim() ?? string.Empty;
-        if (value.StartsWith('+'))
-            value = value[1..];
-        if (value.Length == 0)
-            return false;
-
-        var separator = value.IndexOf('.');
-        if (separator != value.LastIndexOf('.'))
-            return false;
-        var whole = separator < 0 ? value : value[..separator];
-        var fraction = separator < 0 ? string.Empty : value[(separator + 1)..];
-        if (whole.Length == 0)
-            whole = "0";
-        if (fraction.Length > 18 ||
-            whole.Any(character => !char.IsAsciiDigit(character)) ||
-            fraction.Any(character => !char.IsAsciiDigit(character)))
-        {
-            return false;
-        }
-
-        var digits = $"{whole}{fraction}".TrimStart('0');
-        if (digits.Length == 0 ||
-            !long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var coefficient) ||
-            coefficient <= 0)
-        {
-            return false;
-        }
-
-        var scale = fraction.Length;
-        while (scale > 0 && coefficient % 10 == 0)
-        {
-            coefficient /= 10;
-            scale--;
-        }
-        price = new ScaledPrice(coefficient, (byte)scale);
-        return price.IsValid;
-    }
 }

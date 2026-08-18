@@ -180,7 +180,7 @@ public sealed class SandboxStrategyRuntimeTests
             () => RealQuantity(client, bookId) == "+2",
             "an explicit retry after resume should converge the current target");
 
-        var killed = await client.KillAsync(bookId);
+        var killed = await KillWhenNotRacingAsync(client, bookId);
         Assert.True(killed.IsSuccess, killed.Message);
         Assert.Equal("0", RealQuantity(client, bookId));
         Assert.True(Assert.Single(client.GetSnapshot().Books, item => item.Id == bookId).IsIntakePaused);
@@ -810,6 +810,37 @@ public sealed class SandboxStrategyRuntimeTests
 
     private static string RealQuantity(InProcessExecutionClient client, string bookId) =>
         Assert.Single(Assert.Single(client.GetSnapshot().Books, item => item.Id == bookId).Positions).RealQuantity;
+
+    /// <summary>
+    /// Kills a book, retrying while the client is refusing to race an in-flight command.
+    /// </summary>
+    /// <remarks>
+    /// The replicated quantity becomes visible in the snapshot slightly before the submitting
+    /// operation releases the book's single-operation slot, so a kill issued the instant the
+    /// quantity converges can legitimately come back with the race refusal. That refusal is the
+    /// designed behaviour and is not a failure: the kill still pauses intake unconditionally
+    /// before the guard, and only the flatten half is deferred with a message telling the caller
+    /// to retry. So the test does exactly what the message says instead of asserting on a
+    /// scheduling coincidence - it used to pass only because the client was slow enough to have
+    /// finished by then.
+    /// </remarks>
+    private static async Task<ExecutionCommandResult> KillWhenNotRacingAsync(
+        InProcessExecutionClient client,
+        string bookId)
+    {
+        using var timeout = new CancellationTokenSource(Timeout);
+        while (true)
+        {
+            var result = await client.KillAsync(bookId, CancellationToken.None);
+            if (result.IsSuccess || !result.Message.Contains("active book command", StringComparison.Ordinal))
+                return result;
+
+            if (timeout.IsCancellationRequested)
+                return result;
+
+            await Task.Delay(TimeSpan.FromMilliseconds(5), CancellationToken.None);
+        }
+    }
 
     private static async Task WaitUntilAsync(Func<bool> condition, string failureMessage)
     {

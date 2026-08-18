@@ -45,13 +45,13 @@ public enum ExecutionDetailTab
     History,
 }
 
-public enum ExecutionTestOrderSide
+public enum ExecutionManualOrderSide
 {
     Buy,
     Sell,
 }
 
-public enum ExecutionTestOrderType
+public enum ExecutionManualOrderType
 {
     Market,
     Limit,
@@ -148,12 +148,12 @@ public sealed record ExecutionBookReadModel(
     ExecutionPortfolioAnalyticsReadModel Analytics,
     ExecutionMode Mode = ExecutionMode.Paper)
 {
-    public IReadOnlyList<ExecutionTestInstrumentReadModel> TestInstruments { get; init; } =
-        Array.Empty<ExecutionTestInstrumentReadModel>();
+    public IReadOnlyList<ExecutionTradableInstrumentReadModel> TradableInstruments { get; init; } =
+        Array.Empty<ExecutionTradableInstrumentReadModel>();
 
     public bool SupportsKill { get; init; } = true;
 
-    public bool CanSubmitTestOrder => AdmissionOpen && TestInstruments.Count > 0;
+    public bool CanSubmitManualOrder => AdmissionOpen && TradableInstruments.Count > 0;
 
     public string StrategySummary => Strategies.Count switch
     {
@@ -499,23 +499,23 @@ public sealed class ExecutionModeChangeRequest
     public override string ToString() => $"{AdapterId}|{AccountId}|{Mode}";
 }
 
-public sealed record ExecutionTestInstrumentReadModel(
+public sealed record ExecutionTradableInstrumentReadModel(
     InstrumentId Instrument,
     string Symbol)
 {
     public string DisplayName => $"{Symbol}  |  #{Instrument.Value}";
 }
 
-public sealed record ExecutionTestOrderRequest(
+public sealed record ExecutionManualOrderRequest(
     string BookId,
     InstrumentId Instrument,
     string Symbol,
-    ExecutionTestOrderSide Side,
+    ExecutionManualOrderSide Side,
     ScaledQuantity Quantity,
-    ExecutionTestOrderType OrderType,
+    ExecutionManualOrderType OrderType,
     ScaledPrice? LimitPrice)
 {
-    public CanonicalOrderType CanonicalOrderType => OrderType == ExecutionTestOrderType.Limit
+    public CanonicalOrderType CanonicalOrderType => OrderType == ExecutionManualOrderType.Limit
         ? CanonicalOrderType.Limit
         : CanonicalOrderType.Market;
 }

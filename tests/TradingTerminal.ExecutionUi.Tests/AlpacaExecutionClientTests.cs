@@ -41,17 +41,17 @@ public sealed class AlpacaExecutionClientTests
             Array.AsReadOnly(["Manual verification"])));
         Assert.True(created.IsSuccess, created.Message);
         var book = Assert.Single(client.GetSnapshot().Books, item => item.Name == "Paper Test");
-        var instrument = Assert.Single(book.TestInstruments);
+        var instrument = Assert.Single(book.TradableInstruments);
         Assert.True(book.AdmissionOpen);
         Assert.True(book.SupportsKill);
 
-        var sent = await client.SubmitTestOrderAsync(new ExecutionTestOrderRequest(
+        var sent = await client.SubmitManualOrderAsync(new ExecutionManualOrderRequest(
             book.Id,
             instrument.Instrument,
             instrument.Symbol,
-            ExecutionTestOrderSide.Buy,
+            ExecutionManualOrderSide.Buy,
             ScaledQuantity.FromWhole(2),
-            ExecutionTestOrderType.Limit,
+            ExecutionManualOrderType.Limit,
             new ScaledPrice(10_025, 2)));
         Assert.True(sent.IsSuccess, sent.Message);
         Assert.True(harness.Scheduler.RunAll() > 0);
@@ -88,15 +88,15 @@ public sealed class AlpacaExecutionClientTests
             "alpaca-paper",
             Array.AsReadOnly(["Manual verification"])))).IsSuccess);
         var book = Assert.Single(client.GetSnapshot().Books, item => item.Name == "Stale Market");
-        var instrument = Assert.Single(book.TestInstruments);
+        var instrument = Assert.Single(book.TradableInstruments);
 
-        var result = await client.SubmitTestOrderAsync(new ExecutionTestOrderRequest(
+        var result = await client.SubmitManualOrderAsync(new ExecutionManualOrderRequest(
             book.Id,
             instrument.Instrument,
             instrument.Symbol,
-            ExecutionTestOrderSide.Buy,
+            ExecutionManualOrderSide.Buy,
             ScaledQuantity.FromWhole(1),
-            ExecutionTestOrderType.Market,
+            ExecutionManualOrderType.Market,
             null));
 
         Assert.False(result.IsSuccess);
@@ -116,14 +116,14 @@ public sealed class AlpacaExecutionClientTests
             "alpaca-paper",
             Array.AsReadOnly(["Manual verification"])))).IsSuccess);
         var book = Assert.Single(client.GetSnapshot().Books, item => item.Name == "Kill Test");
-        var instrument = Assert.Single(book.TestInstruments);
-        var submitted = await client.SubmitTestOrderAsync(new ExecutionTestOrderRequest(
+        var instrument = Assert.Single(book.TradableInstruments);
+        var submitted = await client.SubmitManualOrderAsync(new ExecutionManualOrderRequest(
             book.Id,
             instrument.Instrument,
             instrument.Symbol,
-            ExecutionTestOrderSide.Buy,
+            ExecutionManualOrderSide.Buy,
             ScaledQuantity.FromWhole(1),
-            ExecutionTestOrderType.Limit,
+            ExecutionManualOrderType.Limit,
             new ScaledPrice(10_025, 2)));
         Assert.True(submitted.IsSuccess, submitted.Message);
         Assert.True(harness.Scheduler.RunAll() > 0);
@@ -152,7 +152,9 @@ public sealed class AlpacaExecutionClientTests
         Assert.Equal("Authentication error", card.StatusLabel);
         Assert.False(card.CanCreateBook);
         Assert.DoesNotContain("unit-test-secret", card.StatusDetail, StringComparison.Ordinal);
-        Assert.Equal(3, client.GetSnapshot().Books.Count);
+        // No books: the console no longer seeds fabricated demo books, and a failed/unauthorized
+        // adapter must not create one either.
+        Assert.Empty(client.GetSnapshot().Books);
     }
 
     [Fact]
@@ -225,7 +227,9 @@ public sealed class AlpacaExecutionClientTests
             item => item.Id == "alpaca-paper").Mode);
         Assert.Null(confirmations.Read(AlpacaExecutionOptions.BrokerId, "paper-account-ui-test"));
         Assert.Empty(harness.Transport.Submits);
-        Assert.Equal(3, client.GetSnapshot().Books.Count);
+        // No books: the console no longer seeds fabricated demo books, and a failed/unauthorized
+        // adapter must not create one either.
+        Assert.Empty(client.GetSnapshot().Books);
     }
 
     private sealed class Harness : IAsyncDisposable

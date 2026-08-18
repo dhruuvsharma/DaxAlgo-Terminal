@@ -6,68 +6,51 @@ namespace TradingTerminal.ExecutionUi.Tests;
 public sealed class InProcessExecutionClientTests
 {
     [Fact]
-    public void InitialSnapshot_UsesSimulationRuntimeAndBoundedReadModels()
+    public void InitialSnapshot_StartsWithNoBooksAndNoFabricatedState()
     {
         using var client = new InProcessExecutionClient();
 
         var snapshot = client.GetSnapshot();
-        var alpha = Assert.Single(snapshot.Books, book => book.Id == "alpha");
 
-        Assert.Contains("Simulated", alpha.ServiceStatus, StringComparison.Ordinal);
-        Assert.Equal("simulated", alpha.AdapterId);
-        Assert.Contains(snapshot.Adapters, adapter => adapter.Id == "simulated" && adapter.IsConnected);
+        // This replaced a test that asserted on two seeded demo books' invented orders, positions,
+        // divergences and reconciliation cases. All of that was fabricated by SeedAlpha/SeedBeta and
+        // was removed on 2026-08-18; the console starts empty and shows real state or nothing.
+        Assert.Empty(snapshot.Books);
+
+        // Adapter cards still describe what is registered - that part was never fabricated.
         Assert.Contains(snapshot.Adapters, adapter =>
             adapter.Id == "ctrader-openapi-demo" && adapter.IsUnavailable);
-        Assert.True(alpha.Lease.IsHeld);
-        Assert.False(alpha.AdmissionOpen);
-        Assert.True(alpha.OpenRealPositionCount > 0);
-        Assert.Contains(alpha.Positions, position => position.HasDivergence);
-        Assert.Contains(alpha.Orders, order => order.State == "Draft");
-        Assert.Contains(alpha.Orders, order => order.State == "Validated");
-        Assert.Contains(alpha.Orders, order => order.State == "Armed");
-        Assert.Contains(alpha.Orders, order => order.State == "Working");
-        Assert.Contains(alpha.Orders, order => order.State == "Filled");
-        Assert.Contains(alpha.Orders, order => order.State == "Rejected");
-        Assert.Contains(alpha.ReconciliationCases, item => item.Type == "Quantity Mismatch");
-        Assert.Contains(alpha.ReconciliationCases, item => item.Type == "Broker Missing");
-        Assert.InRange(alpha.LedgerEvents.Count, 1, 96);
-        Assert.InRange(alpha.History.Count, 1, 500);
-        Assert.All(alpha.LedgerEvents, item => Assert.EndsWith("…", item.Hash, StringComparison.Ordinal));
-        var analytics = alpha.Analytics.Period(ExecutionTimeRange.ThirtyDays);
-        Assert.InRange(analytics.EquitySeries.Count, 1, 370);
-        Assert.InRange(analytics.DailyProfitAndLossSeries.Count, 1, 370);
-        Assert.True(analytics.Metrics.TradeCount > 0);
-        Assert.NotEmpty(alpha.History);
     }
 
     [Fact]
-    public async Task ReconcileThenKill_RespectsFailClosedGateAndUsesSimulatedPositions()
+    public async Task NewBook_ReconcilesAndKillsCleanlyWithNothingOutstanding()
     {
         using var client = new InProcessExecutionClient();
+        var created = await client.CreateBookAsync(new ExecutionBookCreateRequest(
+            "Live Book", "simulated", Array.AsReadOnly(["Test strategy"])));
+        Assert.True(created.IsSuccess, created.Message);
+        var bookId = Assert.Single(client.GetSnapshot().Books).Id;
 
-        var blocked = await client.KillAsync("alpha");
-        Assert.False(blocked.IsSuccess);
-        Assert.Contains("Reconcile", blocked.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.True(Assert.Single(client.GetSnapshot().Books, book => book.Id == "alpha").IsIntakePaused);
-
-        var reconciled = await client.ReconcileAsync("alpha");
+        var reconciled = await client.ReconcileAsync(bookId);
         Assert.True(reconciled.IsSuccess, reconciled.Message);
-        var afterReconcile = Assert.Single(client.GetSnapshot().Books, book => book.Id == "alpha");
-        Assert.False(afterReconcile.AdmissionOpen);
-        Assert.True(afterReconcile.IsIntakePaused);
-        Assert.All(afterReconcile.ReconciliationCases, item => Assert.Equal("Resolved", item.Status));
+        Assert.All(
+            Assert.Single(client.GetSnapshot().Books).ReconciliationCases,
+            item => Assert.Equal("Resolved", item.Status));
 
-        var resumed = await client.SetIntakePausedAsync("alpha", paused: false);
-        Assert.True(resumed.IsSuccess, resumed.Message);
-        var killed = await client.KillAsync("alpha");
+        var killed = await client.KillAsync(bookId);
         Assert.True(killed.IsSuccess, killed.Message);
-        Assert.Contains("Verified", killed.Message, StringComparison.Ordinal);
-        var afterKill = Assert.Single(client.GetSnapshot().Books, book => book.Id == "alpha");
+
+        var afterKill = Assert.Single(client.GetSnapshot().Books);
         Assert.Equal(0, afterKill.OpenRealPositionCount);
         Assert.True(afterKill.IsIntakePaused);
-        Assert.All(afterKill.Positions, position => Assert.Equal("0", position.RealQuantity));
-        Assert.InRange(afterKill.LedgerEvents.Count, 1, 96);
     }
+
+    // NOTE: the fail-closed "cannot kill before reconciling" gate is NOT covered here any more.
+    // The test that covered it leaned on the seeded demo book's fabricated open positions and
+    // divergence; a genuinely empty book has nothing outstanding, so kill succeeds immediately and
+    // the gate never engages. Covering it honestly means driving real orders through a book, which
+    // needs the order-execution work tracked in Pro issue #19. The gate itself is unchanged and is
+    // still covered at the OMS level in TradingTerminal.Execution.Tests.
 
     [Fact]
     public async Task NewBookAffordance_IsConfigurationOnlyAndBounded()
@@ -96,6 +79,9 @@ public sealed class InProcessExecutionClientTests
     {
         using var client = new InProcessExecutionClient();
 
+        // The duplicate has to be a book this test created - there are no seeded books to collide with.
+        Assert.True((await client.CreateBookAsync(new ExecutionBookCreateRequest(
+            "Alpha", "simulated", Array.AsReadOnly(["Strategy"])))).IsSuccess);
         var duplicate = await client.CreateBookAsync(new ExecutionBookCreateRequest(
             "Alpha",
             "simulated",
@@ -112,7 +98,7 @@ public sealed class InProcessExecutionClientTests
         Assert.False(duplicate.IsSuccess);
         Assert.False(unavailable.IsSuccess);
         Assert.False(unbound.IsSuccess);
-        Assert.Equal(3, client.GetSnapshot().Books.Count);
+        Assert.Single(client.GetSnapshot().Books);
     }
 
     [Fact]
