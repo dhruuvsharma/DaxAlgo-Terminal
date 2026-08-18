@@ -413,8 +413,16 @@ public sealed record ExecutionPortfolioAnalyticsReadModel(
     IReadOnlyList<ExecutionExposureReadModel> ExposureByBook,
     ExecutionQualityReadModel ExecutionQuality)
 {
+    /// <summary>
+    /// The analytics for one range. Every well-formed portfolio carries a period per range, including
+    /// one with no books at all, so a miss here is a construction bug rather than absent data - and it
+    /// says which range, because the LINQ default ("Sequence contains no matching element") named
+    /// nothing and cost a silent window failure to track down.
+    /// </summary>
     public ExecutionPeriodAnalyticsReadModel Period(ExecutionTimeRange range) =>
-        Periods.First(item => item.Range == range);
+        Periods.FirstOrDefault(item => item.Range == range)
+        ?? throw new InvalidOperationException(
+            $"Portfolio analytics carry no {range} period; they were built with an incomplete range set.");
 
     public static ExecutionPortfolioAnalyticsReadModel Empty { get; } = new(
         Array.Empty<ExecutionPeriodAnalyticsReadModel>(),

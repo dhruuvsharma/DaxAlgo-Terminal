@@ -5,6 +5,29 @@ namespace TradingTerminal.ExecutionUi.Tests;
 [Collection("Execution client")]
 public sealed class InProcessExecutionClientTests
 {
+    [Theory]
+    [InlineData(ExecutionTimeRange.SevenDays)]
+    [InlineData(ExecutionTimeRange.ThirtyDays)]
+    [InlineData(ExecutionTimeRange.NinetyDays)]
+    [InlineData(ExecutionTimeRange.YearToDate)]
+    public void PortfolioAnalytics_AnswerForEveryRange_EvenWithNoBooks(ExecutionTimeRange range)
+    {
+        // A portfolio with no books still has to answer for every range. It used to return an analytics
+        // model with an EMPTY period list, so Period(range) threw "Sequence contains no matching
+        // element" - which took the console view-model's constructor down and left the window silently
+        // unopened. Seeded demo books hid it, because the book count was never zero.
+        //
+        // The console's own test snapshot is hand-built with a single period, so it could never catch
+        // this; only the real client can.
+        using var client = new InProcessExecutionClient();
+
+        var analytics = client.GetSnapshot().PortfolioAnalytics;
+
+        var period = analytics.Period(range);
+        Assert.Equal(range, period.Range);
+        Assert.Equal(0m, period.Metrics.NetProfitAndLoss);
+    }
+
     [Fact]
     public void InitialSnapshot_StartsWithNoBooksAndNoFabricatedState()
     {

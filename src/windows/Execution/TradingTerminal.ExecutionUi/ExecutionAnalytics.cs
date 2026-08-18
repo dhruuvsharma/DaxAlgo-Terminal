@@ -223,11 +223,34 @@ internal static class ExecutionAnalyticsProjector
             executionQuality);
     }
 
+    /// <summary>
+    /// Analytics for a portfolio with no books: one zeroed period per range, not an empty list.
+    ///
+    /// <para>Callers ask for a specific range by name, so a portfolio that simply has nothing to
+    /// report still has to answer for every range. Returning an empty <c>Periods</c> made
+    /// <c>Period(range)</c> throw "Sequence contains no matching element", which took the Execution
+    /// Console's view-model constructor down and left the window silently unopened. That could not
+    /// happen while demo books were seeded, because the count was never zero.</para>
+    /// </summary>
+    private static readonly ExecutionPortfolioAnalyticsReadModel EmptyPortfolio = new(
+        Array.AsReadOnly(Ranges
+            .Select(range => ExecutionMetricMath.CalculateFromDaily(
+                range,
+                equityAtStart: 0m,
+                dailySeries: Array.Empty<ExecutionDailyPnlPointReadModel>(),
+                tradeCount: 0,
+                winningTrades: 0,
+                openPositions: 0,
+                netExposure: 0m))
+            .ToArray()),
+        Array.Empty<ExecutionExposureReadModel>(),
+        new ExecutionQualityReadModel(0, 0, 0, 0, 0, 0, 0, 0d, 0, 0d));
+
     internal static ExecutionPortfolioAnalyticsReadModel Aggregate(
         IReadOnlyList<ExecutionBookReadModel> books)
     {
         if (books.Count == 0)
-            return ExecutionPortfolioAnalyticsReadModel.Empty;
+            return EmptyPortfolio;
 
         var periods = new List<ExecutionPeriodAnalyticsReadModel>(Ranges.Length);
         foreach (var range in Ranges)
