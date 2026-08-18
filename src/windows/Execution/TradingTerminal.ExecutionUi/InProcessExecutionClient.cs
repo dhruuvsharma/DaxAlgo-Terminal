@@ -1953,7 +1953,7 @@ FinishConnect:
             }
             if (!request.Quantity.TryGetWholeUnits(out var requestedUnits) || requestedUnits <= 0)
                 return ExecutionCommandResult.Failure("Order quantity must be a positive whole number.");
-            if (request.OrderType == ExecutionManualOrderType.Limit != request.LimitPrice.HasValue)
+            if (!request.HasWellFormedPriceTerms)
                 return ExecutionCommandResult.Failure("Price terms do not match the selected order type.");
 
             var snapshot = _adapter.CaptureReconciliationSnapshot();
@@ -1961,7 +1961,7 @@ FinishConnect:
                            ScaledQuantity.Zero;
             if (!position.TryGetWholeUnits(out _))
                 return ExecutionCommandResult.Failure("The current position is not an exact whole quantity.");
-            var referencePrice = request.LimitPrice ?? ReferencePrice(request.Instrument.Value);
+            var referencePrice = request.LimitPrice ?? request.StopPrice ?? ReferencePrice(request.Instrument.Value);
             var instruction = CreateManualInstruction(request);
             var response = Submit(
                 instruction,
@@ -2095,7 +2095,7 @@ FinishConnect:
                 null,
                 null,
                 ScaledMoney.Zero,
-                $"execution-console.{BookPrefix()}.paper-test",
+                $"execution-console.{BookPrefix()}.manual",
                 sequence,
                 _risk.CurrentPolicy.PolicyVersion);
             var identity = new OrderIdentity(
@@ -2115,7 +2115,7 @@ FinishConnect:
                 CanonicalTimeInForce.Day,
                 request.Quantity,
                 request.LimitPrice,
-                null);
+                request.StopPrice);
             return new CanonicalOrderInstruction(identity, intent, terms);
         }
 
@@ -3170,8 +3170,9 @@ FinishConnect:
             }
             if (!request.Quantity.TryGetWholeUnits(out var requestedUnits) || requestedUnits <= 0)
                 return ExecutionCommandResult.Failure($"{OrderLabel} quantity must be a positive whole number.");
-            if (request.OrderType == ExecutionManualOrderType.Limit != request.LimitPrice.HasValue ||
-                request.LimitPrice is { IsValid: false } or { Coefficient: <= 0 })
+            if (!request.HasWellFormedPriceTerms ||
+                request.LimitPrice is { IsValid: false } or { Coefficient: <= 0 } ||
+                request.StopPrice is { IsValid: false } or { Coefficient: <= 0 })
             {
                 return ExecutionCommandResult.Failure(
                     $"{OrderLabel} price terms are invalid or do not match the selected order type.");
@@ -3263,7 +3264,7 @@ FinishConnect:
                     timeInForce,
                     request.Quantity,
                     request.LimitPrice,
-                    null));
+                    request.StopPrice));
             var riskInput = new RiskInputSnapshot(
                 intent,
                 position,

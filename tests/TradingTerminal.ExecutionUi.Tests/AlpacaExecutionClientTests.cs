@@ -475,4 +475,85 @@ public sealed class AlpacaExecutionClientTests
                 request.StopPrice,
                 updatedAtUtc);
     }
+
+    [Theory]
+    [InlineData(ExecutionManualOrderType.Stop, "stop")]
+    [InlineData(ExecutionManualOrderType.StopLimit, "stop_limit")]
+    public async Task StopAndStopLimitEntries_ReachTheVenueWithTheirExactPriceTerms(
+        ExecutionManualOrderType orderType,
+        string expectedNativeType)
+    {
+        // Stop and stop-limit were unreachable from the manual API until 2026-08-18 even though the
+        // OMS validated them and every adapter mapped them. These assert the whole path, not the enum.
+        await using var harness = new Harness(TimestampUtc);
+        using var client = new InProcessExecutionClient([harness.Adapter]);
+        Assert.True((await client.ConnectAdapterAsync(
+            new ExecutionAdapterConnectRequest("alpaca-paper", "unit-test-key", "unit-test-secret"))).IsSuccess);
+        Assert.True((await client.CreateBookAsync(new ExecutionBookCreateRequest(
+            "Resting Entry",
+            "alpaca-paper",
+            Array.AsReadOnly(["Manual verification"])))).IsSuccess);
+        var book = Assert.Single(client.GetSnapshot().Books, item => item.Name == "Resting Entry");
+        var instrument = Assert.Single(book.TradableInstruments);
+
+        var limitPrice = orderType == ExecutionManualOrderType.StopLimit
+            ? new ScaledPrice(10_050, 2)
+            : (ScaledPrice?)null;
+        var sent = await client.SubmitManualOrderAsync(new ExecutionManualOrderRequest(
+            book.Id,
+            instrument.Instrument,
+            instrument.Symbol,
+            ExecutionManualOrderSide.Buy,
+            ScaledQuantity.FromWhole(3),
+            orderType,
+            limitPrice,
+            new ScaledPrice(10_025, 2)));
+        Assert.True(sent.IsSuccess, sent.Message);
+        Assert.True(harness.Scheduler.RunAll() > 0);
+
+        var request = Assert.Single(harness.Transport.Submits);
+        Assert.Equal(expectedNativeType, request.OrderType);
+        Assert.Equal(new ScaledPrice(10_025, 2), request.StopPrice);
+        Assert.Equal(limitPrice, request.LimitPrice);
+    }
+
+    [Theory]
+    // A price that does not belong to the type, and a type missing the price it requires.
+    [InlineData(ExecutionManualOrderType.Market, true, false)]
+    [InlineData(ExecutionManualOrderType.Market, false, true)]
+    [InlineData(ExecutionManualOrderType.Limit, false, false)]
+    [InlineData(ExecutionManualOrderType.Limit, true, true)]
+    [InlineData(ExecutionManualOrderType.Stop, false, false)]
+    [InlineData(ExecutionManualOrderType.Stop, true, true)]
+    [InlineData(ExecutionManualOrderType.StopLimit, true, false)]
+    [InlineData(ExecutionManualOrderType.StopLimit, false, true)]
+    public async Task PriceTermsThatDoNotMatchTheOrderType_AreRefusedBeforeDispatch(
+        ExecutionManualOrderType orderType,
+        bool withLimit,
+        bool withStop)
+    {
+        await using var harness = new Harness(TimestampUtc);
+        using var client = new InProcessExecutionClient([harness.Adapter]);
+        Assert.True((await client.ConnectAdapterAsync(
+            new ExecutionAdapterConnectRequest("alpaca-paper", "unit-test-key", "unit-test-secret"))).IsSuccess);
+        Assert.True((await client.CreateBookAsync(new ExecutionBookCreateRequest(
+            "Malformed",
+            "alpaca-paper",
+            Array.AsReadOnly(["Manual verification"])))).IsSuccess);
+        var book = Assert.Single(client.GetSnapshot().Books, item => item.Name == "Malformed");
+        var instrument = Assert.Single(book.TradableInstruments);
+
+        var result = await client.SubmitManualOrderAsync(new ExecutionManualOrderRequest(
+            book.Id,
+            instrument.Instrument,
+            instrument.Symbol,
+            ExecutionManualOrderSide.Buy,
+            ScaledQuantity.FromWhole(1),
+            orderType,
+            withLimit ? new ScaledPrice(10_050, 2) : null,
+            withStop ? new ScaledPrice(10_025, 2) : null));
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(harness.Transport.Submits);
+    }
 }

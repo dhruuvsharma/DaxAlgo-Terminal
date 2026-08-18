@@ -51,10 +51,24 @@ public enum ExecutionManualOrderSide
     Sell,
 }
 
+/// <summary>
+/// The order types a manually entered order may use. All four reach the venue: the OMS validates the
+/// price shape of each, and the cTrader, Alpaca and Interactive Brokers adapters map every one of
+/// them in both directions.
+/// </summary>
 public enum ExecutionManualOrderType
 {
+    /// <summary>Execute at the venue's available price.</summary>
     Market,
+
+    /// <summary>Rest until the limit price or better is available.</summary>
     Limit,
+
+    /// <summary>Rest until the stop price is reached, then execute at market.</summary>
+    Stop,
+
+    /// <summary>Rest until the stop price is reached, then execute subject to the limit.</summary>
+    StopLimit,
 }
 
 public sealed record ExecutionConsoleSnapshot(
@@ -513,11 +527,29 @@ public sealed record ExecutionManualOrderRequest(
     ExecutionManualOrderSide Side,
     ScaledQuantity Quantity,
     ExecutionManualOrderType OrderType,
-    ScaledPrice? LimitPrice)
+    ScaledPrice? LimitPrice,
+    ScaledPrice? StopPrice = null)
 {
-    public CanonicalOrderType CanonicalOrderType => OrderType == ExecutionManualOrderType.Limit
-        ? CanonicalOrderType.Limit
-        : CanonicalOrderType.Market;
+    public CanonicalOrderType CanonicalOrderType => OrderType switch
+    {
+        ExecutionManualOrderType.Limit => CanonicalOrderType.Limit,
+        ExecutionManualOrderType.Stop => CanonicalOrderType.Stop,
+        ExecutionManualOrderType.StopLimit => CanonicalOrderType.StopLimit,
+        _ => CanonicalOrderType.Market,
+    };
+
+    /// <summary>
+    /// True when the supplied prices match the order type. The OMS enforces the same rule, but
+    /// checking here turns a fail-closed rejection deep in the ledger into an answerable message.
+    /// </summary>
+    public bool HasWellFormedPriceTerms => OrderType switch
+    {
+        ExecutionManualOrderType.Market => LimitPrice is null && StopPrice is null,
+        ExecutionManualOrderType.Limit => LimitPrice is not null && StopPrice is null,
+        ExecutionManualOrderType.Stop => LimitPrice is null && StopPrice is not null,
+        ExecutionManualOrderType.StopLimit => LimitPrice is not null && StopPrice is not null,
+        _ => false,
+    };
 }
 
 public readonly record struct ExecutionCommandResult(bool IsSuccess, string Message)
