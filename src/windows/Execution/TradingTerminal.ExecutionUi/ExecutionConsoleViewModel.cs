@@ -647,12 +647,28 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
                 continue;
             }
 
-            activeBrokers.Add(broker);
             if (!_loginForms.TryGetValue(broker, out var form))
             {
-                form = _loginFormFactory.Get(broker);
+                // NOT Get(): it throws for a broker whose login form was never registered, and an
+                // execution adapter can legitimately outlive its broker's form. The Interactive
+                // Brokers EXECUTION adapter is registered unconditionally, but the IB login form only
+                // exists when CSharpAPI.dll resolved at build time (HAS_IBAPI) — so on any machine
+                // without the TWS API installed, Get(InteractiveBrokers) threw here, took the whole
+                // view-model constructor down with it, and the console silently never opened.
+                //
+                // An adapter with no form simply shows no inline login. That is the truth: you cannot
+                // sign in through a form that was never built.
+                form = _loginFormFactory.All.FirstOrDefault(item => item.Broker == broker);
+                if (form is null)
+                {
+                    attached[index] = adapter;
+                    continue;
+                }
+
                 _loginForms.Add(broker, form);
             }
+
+            activeBrokers.Add(broker);
             attached[index] = adapter with { LoginForm = form };
         }
 

@@ -42,7 +42,22 @@ internal sealed class ShellWindowHost : IShellWindowHost
         Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
             try { build(); }
-            catch (Exception ex) { _logger.LogError(ex, "Failed while opening {Title}", title); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed while opening {Title}", title);
+
+                // Say so. This used to log and return, so a window that failed to construct produced
+                // no window and no message - the user clicked a menu item and nothing whatsoever
+                // happened, with the only evidence buried in the Activity Log. A failure the user
+                // triggered has to be visible where they triggered it.
+                MessageBox.Show(
+                    Application.Current?.MainWindow!,
+                    $"{title} could not be opened.\n\n{ex.Message}\n\n" +
+                    "The Activity Log has the full detail.",
+                    title,
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
             finally { OverlayPresenter?.Hide(); }
         }));
     }

@@ -10,6 +10,33 @@ namespace TradingTerminal.ExecutionUi.Tests;
 public sealed class ExecutionConsoleViewModelTests
 {
     [Fact]
+    public async Task AdapterWhoseBrokerHasNoLoginForm_StillOpensTheConsole()
+    {
+        // The exact shape of the machine this broke on. The Interactive Brokers EXECUTION adapter is
+        // registered unconditionally, but the IB LOGIN FORM only exists when CSharpAPI.dll resolved at
+        // build time (HAS_IBAPI). On a machine without the TWS API the factory therefore has no IB
+        // form, and AttachLoginForms used to call Get(), which throws for an unavailable broker. That
+        // exception came out of the view-model constructor, and ShellWindowHost logs and swallows it -
+        // so the Execution Console silently never opened at all.
+        var client = new FakeExecutionClient(Snapshot(Adapter(
+            ExecutionMode.Paper,
+            loginBroker: BrokerKind.InteractiveBrokers)));
+
+        // A factory that knows Alpaca only - i.e. no form for the adapter's broker.
+        await WithViewModelAsync(
+            client,
+            new FakeConfirmationService(),
+            viewModel =>
+            {
+                var adapter = Assert.Single(viewModel.Adapters);
+                Assert.Equal(BrokerKind.InteractiveBrokers, adapter.LoginBroker);
+                Assert.Null(adapter.LoginForm);
+                return Task.CompletedTask;
+            },
+            loginFormFactory: TestBrokerLoginFormFactory.Alpaca());
+    }
+
+    [Fact]
     public async Task EmptyConsole_ReportsNoBooks_SoTheViewCanShowAnEmptyState()
     {
         // BookEntries always carries the synthetic "All books" entry, so its count is never zero and
@@ -255,7 +282,9 @@ public sealed class ExecutionConsoleViewModelTests
         }
     }
 
-    private static ExecutionAdapterReadModel Adapter(ExecutionMode mode) => new(
+    private static ExecutionAdapterReadModel Adapter(
+        ExecutionMode mode,
+        BrokerKind loginBroker = BrokerKind.Alpaca) => new(
         "alpaca",
         "Alpaca",
         "Account LIVE-ACCOUNT-42",
@@ -274,7 +303,7 @@ public sealed class ExecutionConsoleViewModelTests
         EnvironmentLabel: mode == ExecutionMode.Live ? "LIVE" : "PAPER",
         Mode: mode,
         BrokerAccountId: "LIVE-ACCOUNT-42",
-        LoginBroker: BrokerKind.Alpaca);
+        LoginBroker: loginBroker);
 
     private static ExecutionAdapterReadModel CTraderAdapter() => new(
         "ctrader-openapi|42",
