@@ -187,10 +187,13 @@ Installable visualizers are **in progress**. The descriptor, card kind, styling,
 **Add to chart** action contract exist, but the package format is not yet installable. Do not treat a
 visualizer card as evidence of a working visualizer marketplace.
 
-> **Known gap.** A strategy earns a catalog card when it ships its own live window, or when the host can
-> compose one from the strategy's declared data requirement. This shell does not yet register the view
-> composer, so a strategy that supplies only a descriptor and a view-model registers successfully but
-> does not appear in the catalog. Supply your own view until this is wired.
+> **Known gap.** A strategy earns a catalog card only when it ships its own live window. A strategy that
+> supplies just a descriptor and a view-model registers successfully but does not appear in the catalog,
+> so write a view for now.
+>
+> This is being solved by having Hyperion design and write the window from the same prompt that produces
+> the strategy, rather than by the host composing one from a fixed panel map — see
+> [issue #42](https://github.com/dhruuvsharma/DaxAlgo-Terminal/issues/42).
 
 ### Author a strategy in the application
 
