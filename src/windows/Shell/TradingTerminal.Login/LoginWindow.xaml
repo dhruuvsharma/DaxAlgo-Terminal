@@ -17,6 +17,13 @@
                  Foreground="{DynamicResource Text.Primary}">
 
     <mah:MetroWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Merged here rather than in each edition's App.xaml: this window is shared by all
+                     three shells, so one merge covers them instead of three that can drift apart. -->
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/TradingModeToggle.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
         <!-- ── Status pill: a quiet pill around the connection-state text ─────────────────────── -->
         <Style x:Key="StatusPill" TargetType="Border">
             <Setter Property="CornerRadius" Value="0" />
@@ -290,6 +297,7 @@
                 </StackPanel>
             </Border>
         </DataTemplate>
+        </ResourceDictionary>
     </mah:MetroWindow.Resources>
 
     <!-- ══════════════════════════════════════════════════════════════════════════════════════════
@@ -706,25 +714,23 @@
                 <DockPanel LastChildFill="True">
                     <!-- Paper / Real trading. Paper is the default and the app returns to it every
                          start; arming Real needs the word LIVE typed, and even then each broker
-                         account is separately gated inside the execution engine. -->
-                    <Border DockPanel.Dock="Left"
-                            Padding="10,6"
-                            Margin="0,0,16,0"
-                            CornerRadius="0"
-                            BorderThickness="1"
-                            Background="{Binding TradingModeBackground}"
-                            BorderBrush="{Binding TradingModeBorder}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding TradingModeLabel}"
-                                       FontWeight="Bold" FontSize="12"
-                                       Foreground="{Binding TradingModeForeground}"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <ToggleButton IsChecked="{Binding IsRealTrading, Mode=OneWay}"
-                                          Command="{Binding ToggleTradingModeCommand}"
-                                          Content="{Binding TradingModeActionLabel}"
-                                          MinWidth="128" Padding="8,3" />
-                        </StackPanel>
-                    </Border>
+                         account is separately gated inside the execution engine.
+
+                         IsChecked is bound ONE-WAY to the real mode, never to the click: the knob
+                         moves only after the mode actually changed, so a cancelled confirmation
+                         leaves the switch showing Paper instead of lying about being armed. -->
+                    <StackPanel DockPanel.Dock="Left" Margin="0,0,20,0" VerticalAlignment="Center">
+                        <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
+                                      IsChecked="{Binding IsRealTrading, Mode=OneWay}"
+                                      Command="{Binding ToggleTradingModeCommand}"
+                                      ToolTip="{Binding TradingModeActionLabel}" />
+                        <TextBlock Text="{Binding TradingModeCaption}"
+                                   FontSize="10"
+                                   Margin="4,5,0,0"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="260"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                    </StackPanel>
 
                     <!-- Cancel + Launch buttons (right-docked, Launch is the visual anchor) -->
                     <Button DockPanel.Dock="Right"

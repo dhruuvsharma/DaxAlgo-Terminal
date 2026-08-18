@@ -403,6 +403,14 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     public string TradingModeActionLabel => IsRealTrading ? "Switch to paper" : "Enable real trading…";
 
+    /// <summary>
+    /// The line under the switch. It states the consequence rather than the state, because the switch
+    /// itself already shows the state and the thing a user needs to know is what their orders will do.
+    /// </summary>
+    public string TradingModeCaption => IsRealTrading
+        ? "Orders route to your connected broker accounts. Each account is separately authorised."
+        : "Orders are recorded and monitored inside the application. Nothing leaves this machine.";
+
     public string TradingModeForeground => IsRealTrading ? "White" : "#9CA3AF";
 
     public string TradingModeBackground => IsRealTrading ? "#B91C1C" : "#1F2937";
@@ -451,6 +459,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsRealTrading));
         OnPropertyChanged(nameof(TradingModeLabel));
         OnPropertyChanged(nameof(TradingModeActionLabel));
+        OnPropertyChanged(nameof(TradingModeCaption));
         OnPropertyChanged(nameof(TradingModeForeground));
         OnPropertyChanged(nameof(TradingModeBackground));
         OnPropertyChanged(nameof(TradingModeBorder));
