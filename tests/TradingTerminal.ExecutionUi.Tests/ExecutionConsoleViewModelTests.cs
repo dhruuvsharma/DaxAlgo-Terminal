@@ -10,6 +10,23 @@ namespace TradingTerminal.ExecutionUi.Tests;
 public sealed class ExecutionConsoleViewModelTests
 {
     [Fact]
+    public async Task EmptyConsole_ReportsNoBooks_SoTheViewCanShowAnEmptyState()
+    {
+        // BookEntries always carries the synthetic "All books" entry, so its count is never zero and
+        // cannot answer this. Without HasBooks the console renders zeroed KPI tiles over blank charts,
+        // which reads as broken rather than as new - the regression the seeded demo books were hiding.
+        var client = new FakeExecutionClient(Snapshot(Adapter(ExecutionMode.Paper)));
+
+        await WithViewModelAsync(client, new FakeConfirmationService(), viewModel =>
+        {
+            Assert.NotEmpty(viewModel.BookEntries);
+            Assert.All(viewModel.BookEntries, entry => Assert.True(entry.IsAllBooks));
+            Assert.False(viewModel.HasBooks);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public void ReadModels_DefaultToPaper_AndSnapshotDerivesLiveFromEveryAdapter()
     {
         var paper = Adapter(ExecutionMode.Paper);

@@ -404,6 +404,40 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
+            <!-- Empty state. The console starts with no books since the seeded demo books were removed
+                 on 2026-08-18, and zeroed KPI tiles over blank charts look like a failure rather than a
+                 fresh start. Covers the dashboard column only, so the books rail and its "+ New book"
+                 button stay visible and reachable behind the message. -->
+            <Border Grid.Column="1"
+                    Panel.ZIndex="10"
+                    Background="{DynamicResource Background.Primary}"
+                    Visibility="{Binding HasBooks, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="430">
+                    <TextBlock Text="No execution books yet"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Text.Primary}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Margin="0,10,0,0"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               LineHeight="19"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Text="A book is one strategy routed to one execution adapter. Create one with &#x201C;+ New book&#x201D; on the left: pick Paper to record and monitor orders inside the application, or Real to route them to a connected broker account." />
+                    <TextBlock Margin="0,14,0,0"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               FontSize="11"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Text="This console shows real state only. Nothing here is simulated or seeded." />
+                    <Button Content="+ New book"
+                            Margin="0,18,0,0"
+                            HorizontalAlignment="Center"
+                            Command="{Binding NewBookCommand}"
+                            Style="{StaticResource Execution.LinkButton}" />
+                </StackPanel>
+            </Border>
+
             <Border Grid.Column="0"
                     Background="{DynamicResource Background.Primary}"
                     BorderBrush="{DynamicResource Border.Brush}"

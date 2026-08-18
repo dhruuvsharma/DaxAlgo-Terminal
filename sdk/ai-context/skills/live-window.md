@@ -62,5 +62,7 @@ public sealed class MyStrategyView : UserControl
 }
 ```
 
-If you write no view at all, the host composes a default one from the strategy's `DataRequirement` — so
-prefer writing nothing over writing a view you are unsure of.
+Write a view. The shipping application composes nothing for you, so a strategy without one registers
+and then never appears in the catalog. A plain `UserControl` bound to the view-model is enough — the
+host supplies the surrounding chrome. If the strategy needs a chart, ladder or footprint, leave a
+placeholder region and say so rather than inventing a control.

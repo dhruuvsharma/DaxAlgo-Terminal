@@ -33,6 +33,7 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     private IReadOnlyList<ExecutionAdapterReadModel> _adapters = Array.Empty<ExecutionAdapterReadModel>();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBooks))]
     private IReadOnlyList<ExecutionBookNavigationReadModel> _bookEntries = Array.Empty<ExecutionBookNavigationReadModel>();
 
     [ObservableProperty]
@@ -188,6 +189,16 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     public event EventHandler? CredentialInputsCleared;
 
     public ExecutionBookReadModel? SelectedBook => SelectedBookEntry?.Book;
+
+    /// <summary>
+    /// True once at least one real book exists. <see cref="BookEntries"/> always carries the synthetic
+    /// "All books" entry, so its count is never zero and cannot answer this on its own.
+    ///
+    /// <para>Drives the empty state. Before the seeded demo books were removed on 2026-08-18 the console
+    /// always had something to show; a fresh console now legitimately has nothing, and a screen of zeroed
+    /// tiles and blank charts reads as broken rather than as new.</para>
+    /// </summary>
+    public bool HasBooks => BookEntries.Any(entry => !entry.IsAllBooks);
 
     public bool CanIssueCommands => !IsBusy && SelectedBook?.Lease.IsHeld == true;
 
