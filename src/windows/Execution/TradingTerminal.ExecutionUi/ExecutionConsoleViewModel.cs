@@ -101,6 +101,10 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     [ObservableProperty]
     private string _newBookName = string.Empty;
 
+    /// <summary>Why the last Create attempt was refused, shown inside the New Book form itself.</summary>
+    [ObservableProperty]
+    private string _newBookError = string.Empty;
+
     /// <summary>Paper or Real. Replaces the old free-text adapter choice that surfaced "Simulated".</summary>
     [ObservableProperty]
     private string? _selectedNewBookMode = "Paper";
@@ -268,20 +272,25 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         IsNewBookOpen = false;
         NewBookName = string.Empty;
         SelectedNewBookStrategy = null;
+        NewBookError = string.Empty;
     }
 
     [RelayCommand]
     private async Task CreateBookAsync()
     {
+        NewBookError = string.Empty;
         if (NewBookNeedsBroker && SelectedNewBookAdapter is null)
         {
-            OperationMessage = "A Real book needs a broker account. Pick one, or create the book as Paper.";
+            NewBookError = "A Real book needs a broker account. Pick one, or create the book as Paper.";
             return;
         }
 
         // Paper books bind to the deterministic in-process venue; Real books bind to the chosen
         // broker adapter. Choosing Real here still arms nothing on its own - the app-wide Real switch
         // and that account's own authorization are both checked before an order leaves.
+        // "paper" is the in-process execution adapter's own id, not a UI label. Sending anything else
+        // here - it used to send a label that matched no registered adapter - fails validation and the
+        // book is never created.
         var adapterId = NewBookNeedsBroker ? SelectedNewBookAdapter!.Id : "paper";
         var strategies = string.IsNullOrWhiteSpace(SelectedNewBookStrategy)
             ? Array.Empty<string>()
@@ -292,7 +301,15 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
             Array.AsReadOnly(strategies));
         var result = await RunCommandAsync(token => _client.CreateBookAsync(request, token));
         if (result.IsSuccess)
+        {
             CancelNewBook();
+            return;
+        }
+
+        // Say why, here, in the form. This used to go only to OperationMessage - 10.5px ellipsised
+        // text in a status strip at the far side of the window - so a rejected Create looked to the
+        // user like a button that does nothing.
+        NewBookError = result.Message;
     }
 
     [RelayCommand]

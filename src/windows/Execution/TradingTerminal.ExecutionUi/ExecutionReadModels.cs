@@ -111,12 +111,13 @@ public sealed record ExecutionAdapterReadModel(
 
     public bool IsLive => Mode == ExecutionMode.Live;
 
-    public bool IsSimulated => string.Equals(Id, "simulated", StringComparison.Ordinal);
+    /// <summary>The in-process Paper adapter, which owns its books and needs no connection.</summary>
+    public bool IsPaper => string.Equals(Id, "paper", StringComparison.Ordinal);
 
     public bool HasLoginForm => LoginForm is not null;
 
     public bool CanChangeExecutionMode =>
-        IsRegistered && !IsUnavailable && !IsSimulated && !CanDisconnect;
+        IsRegistered && !IsUnavailable && !IsPaper && !CanDisconnect;
 
     public string ModeLabel => IsLive ? "LIVE" : "PAPER";
 

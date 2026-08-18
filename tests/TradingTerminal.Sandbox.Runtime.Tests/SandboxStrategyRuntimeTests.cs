@@ -72,7 +72,7 @@ public sealed class SandboxStrategyRuntimeTests
         using var client = new InProcessExecutionClient();
         var created = await client.CreateBookAsync(new ExecutionBookCreateRequest(
             "Sandbox Replica",
-            "simulated",
+            "paper",
             Array.AsReadOnly(["sandbox-strategy-42"]),
             Instrument,
             "SBX42"));
@@ -129,7 +129,7 @@ public sealed class SandboxStrategyRuntimeTests
         Assert.Contains(book.Orders, item => item.State == "Filled");
         Assert.Equal(
             ExecutionMode.Paper,
-            Assert.Single(client.GetSnapshot().Adapters, item => item.Id == "simulated").Mode);
+            Assert.Single(client.GetSnapshot().Adapters, item => item.Id == "paper").Mode);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class SandboxStrategyRuntimeTests
         using var client = new InProcessExecutionClient();
         var created = await client.CreateBookAsync(new ExecutionBookCreateRequest(
             "Sandbox Guarded",
-            "simulated",
+            "paper",
             Array.AsReadOnly(["sandbox-guarded-42"]),
             Instrument,
             "SBX42"));

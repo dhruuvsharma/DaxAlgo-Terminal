@@ -50,7 +50,7 @@ public sealed class InProcessExecutionClientTests
     {
         using var client = new InProcessExecutionClient();
         var created = await client.CreateBookAsync(new ExecutionBookCreateRequest(
-            "Live Book", "simulated", Array.AsReadOnly(["Test strategy"])));
+            "Live Book", "paper", Array.AsReadOnly(["Test strategy"])));
         Assert.True(created.IsSuccess, created.Message);
         var bookId = Assert.Single(client.GetSnapshot().Books).Id;
 
@@ -84,7 +84,7 @@ public sealed class InProcessExecutionClientTests
         {
             _ = await client.CreateBookAsync(new ExecutionBookCreateRequest(
                 $"Book {index + 4}",
-                "simulated",
+                "paper",
                 Array.AsReadOnly(["Test strategy"])));
         }
 
@@ -92,36 +92,38 @@ public sealed class InProcessExecutionClientTests
         Assert.Equal(12, snapshot.Books.Count);
         var created = Assert.Single(snapshot.Books, book => book.Name == "Book 4");
         Assert.True(created.Lease.IsHeld);
-        Assert.Equal("simulated", created.AdapterId);
+        Assert.Equal("paper", created.AdapterId);
         Assert.Empty(created.Orders);
         Assert.Empty(created.LedgerEvents);
     }
 
     [Fact]
-    public async Task NewBook_RequiresUniqueNameRegisteredAdapterAndStrategyBinding()
+    public async Task NewBook_RequiresUniqueNameAndRegisteredAdapter_ButNotAStrategy()
     {
         using var client = new InProcessExecutionClient();
 
         // The duplicate has to be a book this test created - there are no seeded books to collide with.
         Assert.True((await client.CreateBookAsync(new ExecutionBookCreateRequest(
-            "Alpha", "simulated", Array.AsReadOnly(["Strategy"])))).IsSuccess);
+            "Alpha", "paper", Array.AsReadOnly(["Strategy"])))).IsSuccess);
         var duplicate = await client.CreateBookAsync(new ExecutionBookCreateRequest(
             "Alpha",
-            "simulated",
+            "paper",
             Array.AsReadOnly(["Strategy"])));
         var unavailable = await client.CreateBookAsync(new ExecutionBookCreateRequest(
             "Delta",
             "ctrader-openapi-demo",
             Array.AsReadOnly(["Strategy"])));
+        // A book with NO strategy is valid on purpose: the catalog is empty on a fresh install, so
+        // requiring one made the first book impossible to create.
         var unbound = await client.CreateBookAsync(new ExecutionBookCreateRequest(
             "Delta",
-            "simulated",
+            "paper",
             Array.Empty<string>()));
 
         Assert.False(duplicate.IsSuccess);
         Assert.False(unavailable.IsSuccess);
-        Assert.False(unbound.IsSuccess);
-        Assert.Single(client.GetSnapshot().Books);
+        Assert.True(unbound.IsSuccess, unbound.Message);
+        Assert.Equal(2, client.GetSnapshot().Books.Count);
     }
 
     [Fact]
@@ -133,11 +135,11 @@ public sealed class InProcessExecutionClientTests
 
         Assert.Throws<ObjectDisposedException>(client.GetSnapshot);
         await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
-            await client.ConnectAdapterAsync("simulated"));
+            await client.ConnectAdapterAsync("paper"));
         await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
             await client.CreateBookAsync(new ExecutionBookCreateRequest(
                 "Closed",
-                "simulated",
+                "paper",
                 Array.AsReadOnly(["Strategy"]))));
     }
 }

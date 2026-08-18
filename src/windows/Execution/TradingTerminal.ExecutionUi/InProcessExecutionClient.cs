@@ -279,8 +279,8 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
             current = FindRegisteredAdapter(request.AdapterId);
         if (current is null)
             return ModeChangeFailure("The selected broker connection is not registered; execution mode was unchanged.");
-        if (string.Equals(current.BrokerId, "simulated", StringComparison.Ordinal))
-            return ModeChangeFailure("The Simulated adapter is always PAPER and cannot be switched to LIVE.");
+        if (string.Equals(current.BrokerId, "paper", StringComparison.Ordinal))
+            return ModeChangeFailure("The in-process Paper adapter is always PAPER and cannot be switched to LIVE.");
         if (current.Mode == request.Mode)
             return ModeChangeSuccess($"{AdapterDisplayName(current)} is already {current.Mode.ToString().ToUpperInvariant()}.");
         if (current.Session.IsDataConnected || current.Session.IsExecutionAuthenticated)
@@ -429,9 +429,9 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         operationToken.ThrowIfCancellationRequested();
         var adapterId = request.AdapterId?.Trim() ?? string.Empty;
         ExecutionCommandResult result;
-        if (string.Equals(adapterId, "simulated", StringComparison.Ordinal))
+        if (string.Equals(adapterId, "paper", StringComparison.Ordinal))
         {
-            result = ExecutionCommandResult.Success("The in-process Simulated adapter is already connected.");
+            result = ExecutionCommandResult.Success("The in-process Paper adapter is already connected.");
         }
         else if (FindRegisteredAdapter(adapterId) is CTraderExecutionAdapter cTrader)
         {
@@ -570,10 +570,10 @@ FinishConnect:
         var operationToken = linkedCancellation.Token;
         operationToken.ThrowIfCancellationRequested();
         ExecutionCommandResult result;
-        if (string.Equals(adapterId, "simulated", StringComparison.Ordinal))
+        if (string.Equals(adapterId, "paper", StringComparison.Ordinal))
         {
             result = ExecutionCommandResult.Failure(
-                "The default in-process Simulated adapter is owned by its books and cannot be disconnected here.");
+                "The in-process Paper adapter is owned by its books and cannot be disconnected here.");
         }
         else if (FindRegisteredAdapter(adapterId) is CTraderExecutionAdapter cTrader)
         {
@@ -661,10 +661,10 @@ FinishConnect:
             {
                 validationFailure = ExecutionCommandResult.Failure($"A book named '{name}' already exists.");
             }
-            else if (strategies.Length == 0)
-            {
-                validationFailure = ExecutionCommandResult.Failure("Bind at least one strategy before creating the book.");
-            }
+            // A book with no strategy is allowed on purpose. The catalog is empty on a fresh
+            // install, so requiring one here made it impossible to create the first book at all -
+            // the gate could never be satisfied by a new user. An unbound book is a valid, visible
+            // execution book waiting for a strategy.
             else if (request.Instrument.IsNone != (symbol.Length == 0))
             {
                 validationFailure = ExecutionCommandResult.Failure(
@@ -688,16 +688,16 @@ FinishConnect:
             {
                 _newBookSequence++;
                 var id = $"book-{_newBookSequence}";
-                var isSimulated = string.Equals(adapterId, "simulated", StringComparison.Ordinal);
+                var isPaper = string.Equals(adapterId, "paper", StringComparison.Ordinal);
                 configuration = BookConfiguration.New(
                     id,
                     name,
                     adapterId,
-                    isSimulated ? "Simulated" : AdapterDisplayName(adapterId),
+                    isPaper ? "Paper" : AdapterDisplayName(adapterId),
                     strategies,
                     request.Instrument,
                     symbol);
-                runtime = isSimulated
+                runtime = isPaper
                     ? InProcessBookRuntime.CreateEmpty(id, _executionLeaseStore)
                     : FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca
                         ? new AlpacaBookRuntime(id, alpaca, _executionLeaseStore)
@@ -893,7 +893,7 @@ FinishConnect:
             string.Equals(AdapterKey(adapter), adapterId, StringComparison.Ordinal));
 
     private bool IsAdapterAvailable(string adapterId) =>
-        string.Equals(adapterId, "simulated", StringComparison.Ordinal) ||
+        string.Equals(adapterId, "paper", StringComparison.Ordinal) ||
         FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca &&
         alpaca.Session.CanExecute &&
         !_books.Any(book => string.Equals(book.Configuration.AdapterId, adapterId, StringComparison.Ordinal));
@@ -1360,8 +1360,8 @@ FinishConnect:
         {
             var capabilities = simulatedRuntimes[0].Adapter.Capabilities;
             cards.Add(new ExecutionAdapterReadModel(
-                "simulated",
-                "Simulated",
+                "paper",
+                "Paper",
                 $"{simulatedRuntimes.Length} in-process book account{(simulatedRuntimes.Length == 1 ? string.Empty : "s")}",
                 ExecutionConnectionStatus.Connected,
                 "Connected",
@@ -1375,9 +1375,9 @@ FinishConnect:
                 "No credentials",
                 "Owned locally by the execution console; no host, key, secret, or socket is used.",
                 CapabilityLabels(capabilities),
-                EnvironmentLabel: "TEST",
+                EnvironmentLabel: "PAPER",
                 Mode: ExecutionMode.Paper,
-                BrokerAccountId: "simulated"));
+                BrokerAccountId: "paper"));
         }
 
         foreach (var adapter in _registeredAdapters
@@ -1672,7 +1672,7 @@ FinishConnect:
             _venue = new DeterministicSimulatedVenue(_clock, plans);
             _scheduler = new ControllableAdapterEventScheduler();
             var account = new BrokerExecutionAccount(
-                new ExecutionAdapterId("simulated"),
+                new ExecutionAdapterId("paper"),
                 new BrokerAccountId($"execution-console-{bookId}"));
             var session = new BrokerExecutionSession(
                 account,

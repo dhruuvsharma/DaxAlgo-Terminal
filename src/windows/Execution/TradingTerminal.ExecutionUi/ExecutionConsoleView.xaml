@@ -494,6 +494,14 @@
                                       SelectedItem="{Binding SelectedNewBookStrategy}"
                                       Margin="0,0,0,9"
                                       ToolTip="Installed strategies. Empty until an artifact is installed." />
+                            <!-- A refused Create has to say so where the user clicked, not in the
+                                 status strip on the far side of the window. -->
+                            <TextBlock Text="{Binding NewBookError}"
+                                       Visibility="{Binding NewBookError, Converter={StaticResource StringToVisibilityConverter}}"
+                                       Foreground="{DynamicResource Bearish.Brush}"
+                                       FontSize="10.5"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
