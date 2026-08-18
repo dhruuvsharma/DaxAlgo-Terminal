@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Login.Forms;
+using TradingTerminal.Core.Accounts;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Execution;
 using TradingTerminal.Core.MarketData;
@@ -53,7 +54,8 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         CredentialStore credentialStore,
         ITelegramArchiveLogin telegramLogin,
         ExecutionModeSelection tradingMode,
-        ILogger<LoginViewModel> logger)
+        ILogger<LoginViewModel> logger,
+        IAccountSignInPanel? accountSignIn = null)
     {
         _tradingMode = tradingMode;
         _brokerSelector = brokerSelector;
@@ -65,6 +67,12 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         // Always starts Paper: the selection is deliberately not persisted, so a stale setting can
         // never arm real money on the user's behalf after an update or a machine handover.
         _tradingMode.Changed += (_, _) => RefreshTradingMode();
+
+        // Optional by design: the open-source edition has no account gate, so nothing registers a
+        // panel and the login window simply shows broker forms.
+        AccountSignIn = accountSignIn;
+        if (AccountSignIn is not null)
+            AccountSignIn.Changed += (_, _) => RefreshAccountSignIn();
 
         AvailableForms = forms.All;
         if (AvailableForms.Count == 0)
@@ -390,6 +398,79 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
 
     /// <summary>Persists the entered Telegram credentials and signs in (the verification-code / 2FA
     /// dialog pops automatically). Runs the blocking transport work off the UI thread.</summary>
+    // ── Account sign-in (optional; supplied by the entitlement layer) ───────────────────────────
+
+    /// <summary>
+    /// The account panel above the broker forms, or <see langword="null"/> in an edition with no
+    /// account gate. Null is the normal open-source case, not an error.
+    /// </summary>
+    public IAccountSignInPanel? AccountSignIn { get; }
+
+    public bool HasAccountSignIn => AccountSignIn is not null;
+
+    public bool IsAccountSignedIn => AccountSignIn?.State == AccountSignInState.SignedIn;
+
+    public bool IsAccountBusy => AccountSignIn?.State == AccountSignInState.Working;
+
+    /// <summary>Sign-in is offered while signed out or after a failure, and never while one is in flight.</summary>
+    public bool CanSignIn => AccountSignIn is not null && !IsAccountBusy && !IsAccountSignedIn;
+
+    public string AccountLabel => AccountSignIn?.AccountLabel ?? string.Empty;
+
+    public string AccountStatusMessage => AccountSignIn?.StatusMessage ?? string.Empty;
+
+    public bool AccountRememberMe
+    {
+        get => AccountSignIn?.RememberMe ?? false;
+        set
+        {
+            if (AccountSignIn is null || AccountSignIn.RememberMe == value)
+                return;
+
+            AccountSignIn.RememberMe = value;
+            OnPropertyChanged();
+        }
+    }
+
+    [RelayCommand]
+    private async Task SignInAccountAsync()
+    {
+        if (AccountSignIn is null)
+            return;
+
+        await AccountSignIn.SignInAsync().ConfigureAwait(true);
+        RefreshAccountSignIn();
+    }
+
+    [RelayCommand]
+    private async Task SignOutAccountAsync()
+    {
+        if (AccountSignIn is null)
+            return;
+
+        await AccountSignIn.SignOutAsync().ConfigureAwait(true);
+        RefreshAccountSignIn();
+    }
+
+    /// <summary>
+    /// Account creation happens on the platform, not in the terminal — this hands off to the browser
+    /// rather than collecting credentials in a window that cannot authenticate them.
+    /// </summary>
+    [RelayCommand]
+    private void CreateAccount() => AccountSignIn?.OpenAccountCreation();
+
+    private void RefreshAccountSignIn()
+    {
+        OnPropertyChanged(nameof(IsAccountSignedIn));
+        OnPropertyChanged(nameof(IsAccountBusy));
+        OnPropertyChanged(nameof(CanSignIn));
+        OnPropertyChanged(nameof(AccountLabel));
+        OnPropertyChanged(nameof(AccountStatusMessage));
+        OnPropertyChanged(nameof(AccountRememberMe));
+        SignInAccountCommand.NotifyCanExecuteChanged();
+        SignOutAccountCommand.NotifyCanExecuteChanged();
+    }
+
     // ── Paper / Real trading ────────────────────────────────────────────────────────────────────
 
     private readonly ExecutionModeSelection _tradingMode;

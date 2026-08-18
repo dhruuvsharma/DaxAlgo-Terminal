@@ -24,6 +24,9 @@
                 <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/TradingModeToggle.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- Declared here: App.xaml carries the plain and string variants app-wide but not this one. -->
+            <conv:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+
         <!-- ── Status pill: a quiet pill around the connection-state text ─────────────────────── -->
         <Style x:Key="StatusPill" TargetType="Border">
             <Setter Property="CornerRadius" Value="0" />
@@ -385,6 +388,7 @@
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- Pane title + summary banner -->
+                <RowDefinition Height="Auto" />  <!-- Account sign-in (entitlement editions only) -->
                 <RowDefinition Height="Auto" />  <!-- Search box -->
                 <RowDefinition Height="*" />     <!-- Flat broker list (scrollable) -->
                 <RowDefinition Height="Auto" />  <!-- Services & dependencies (collapsed expander) -->
@@ -475,7 +479,94 @@
             </Border>
 
             <!-- ── Search / filter ────────────────────────────────────────────────────────────── -->
+            <!-- ── Account sign-in ────────────────────────────────────────────────────────────
+                 Rendered only when this edition supplies an IAccountSignInPanel. The open-source
+                 build has no account gate, registers nothing, and shows broker forms alone — which
+                 is why the login window binds a seam here rather than referencing the entitlement
+                 layer it is not allowed to see.
+
+                 There is no email/password pair on purpose: identity is Google end to end, and a
+                 password box that authenticates nothing is worse than no password box. Account
+                 creation hands off to the browser for the same reason. -->
             <Border Grid.Row="1"
+                    Background="{DynamicResource Background.Elevated}"
+                    BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,16,24,16"
+                    Visibility="{Binding HasAccountSignIn, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
+                <StackPanel>
+                    <TextBlock Text="DAXALGO ACCOUNT"
+                               FontWeight="Bold" FontSize="10"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Margin="0,0,0,10" />
+
+                    <!-- Signed out: the sign-in action. -->
+                    <StackPanel Visibility="{Binding IsAccountSignedIn, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                        <Button Command="{Binding SignInAccountCommand}"
+                                IsEnabled="{Binding CanSignIn}"
+                                HorizontalAlignment="Left"
+                                Padding="14,8"
+                                MinWidth="260"
+                                HorizontalContentAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="18" Height="18" CornerRadius="9"
+                                        Background="#FFFFFF" Margin="0,0,10,0">
+                                    <TextBlock Text="G" FontWeight="Bold" FontSize="11"
+                                               Foreground="#4285F4"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Continue with Google" VerticalAlignment="Center" FontSize="12.5" />
+                            </StackPanel>
+                        </Button>
+
+                        <CheckBox Content="Remember me"
+                                  IsChecked="{Binding AccountRememberMe, Mode=TwoWay}"
+                                  Margin="2,12,0,0"
+                                  FontSize="11.5"
+                                  Foreground="{DynamicResource Text.Secondary}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="2,10,0,0">
+                            <TextBlock Text="No account?" FontSize="11.5"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Button Content="Create one"
+                                    Command="{Binding CreateAccountCommand}"
+                                    Style="{DynamicResource MahApps.Styles.Button.Chromeless}"
+                                    Padding="0"
+                                    FontSize="11.5"
+                                    Foreground="{DynamicResource Accent.Brush}"
+                                    Cursor="Hand" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Signed in: who, and a way out. -->
+                    <Grid Visibility="{Binding IsAccountSignedIn, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding AccountLabel}"
+                                       FontWeight="SemiBold" FontSize="12.5"
+                                       Foreground="{DynamicResource Text.Primary}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="Signed in" FontSize="11"
+                                       Foreground="{DynamicResource Bullish.Brush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Sign out"
+                                Command="{Binding SignOutAccountCommand}"
+                                Padding="10,5" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding AccountStatusMessage}"
+                               Visibility="{Binding AccountStatusMessage, Converter={StaticResource StringToVisibilityConverter}}"
+                               FontSize="11" TextWrapping="Wrap" Margin="2,10,0,0"
+                               Foreground="{DynamicResource Text.Secondary}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2"
                     Padding="24,12,24,10"
                     BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="0,0,0,1"
@@ -486,7 +577,7 @@
             </Border>
 
             <!-- ── Flat broker list (scrollable, one row per broker, accordion expands inline) ── -->
-            <ScrollViewer Grid.Row="2"
+            <ScrollViewer Grid.Row="3"
                           Padding="24,12,24,0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -495,7 +586,7 @@
             </ScrollViewer>
 
             <!-- ── Services & external dependencies (collapsed expander, low prominence) ──────── -->
-            <Expander Grid.Row="3"
+            <Expander Grid.Row="4"
                       Margin="24,8,24,0"
                       IsExpanded="False"
                       Background="Transparent"
@@ -706,7 +797,7 @@
             </Expander>
 
             <!-- ── Launch bar ──────────────────────────────────────────────────────────────────── -->
-            <Border Grid.Row="4"
+            <Border Grid.Row="5"
                     Background="{DynamicResource Background.Elevated}"
                     BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="0,1,0,0"
