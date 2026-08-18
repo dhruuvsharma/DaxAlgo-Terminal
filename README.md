@@ -2,25 +2,17 @@
 
 > **AI-native trading terminal. Vibe code your strategies.**
 
-DaxAlgo Terminal is a Windows workspace for market data, strategy research, and backtesting. Describe
-a strategy in **Hyperion**, launch Codex or Claude Code from **Vibe Code**, or scaffold a capability-
-scoped strategy with the **DaxAlgo SDK**. The public repository ships one .NET 9 WPF application:
-`TradingTerminal.App.Basic`.
+DaxAlgo Terminal is a Windows workspace for market data, strategy authoring, and order execution.
+Describe a strategy in **Hyperion**, launch an agent CLI from **Vibe Code**, or scaffold a
+capability-scoped strategy with the **DaxAlgo SDK**. The public repository ships one .NET 9 WPF
+application: `TradingTerminal.App.Basic`.
 
 ```text
 strategy idea
     -> Hyperion, an agent CLI, or the DaxAlgo SDK
     -> compile + tests + capability checks
-    -> review and run in a compatible host
+    -> review, register, and run against its own virtual book
 ```
-
-> **The shipped build places no broker orders.** Since 2026-08-12 the execution engine, OMS, risk
-> engine, and the Interactive Brokers / cTrader / Alpaca execution adapters live in this repository
-> under `src/windows/Execution/` — but the Basic shell **composes none of them**: no execution service
-> is registered, no order-entry surface is exposed, and the disabled **Execution Engine > Not yet
-> available** menu item still marks the boundary in the UI. A strategy emits simulated orders during a
-> backtest and signals during a live data session. The source to build a live order path is now here
-> and AGPL-licensed; wiring it into a shell is deliberately left undone.
 
 The application has no DaxAlgo product account, subscription sign-in, or entitlement gate. On a normal
 start it opens the broker-selection window. Broker credentials are requested only when the selected data
@@ -28,31 +20,81 @@ source needs them.
 
 ## Repository scope
 
-This repository contains the public Windows application, shared libraries, backtest engine, runtime
-plugin host, SDK packages, authoring tools, templates, samples, and tests. It contains exactly one shell:
-`src/windows/Shell/TradingTerminal.App.Basic`.
+This repository contains the public Windows application, shared libraries, the execution engine, the
+sandbox strategy runtime, runtime plugin host, SDK packages, authoring tools, templates, samples, and
+tests. It contains exactly one shell: `src/windows/Shell/TradingTerminal.App.Basic`.
 
-A Professional product exists in a separate private overlay. It is not built by this repository and its
-features are not part of the public application described here.
+A Professional product exists in a separate private repository. It is not built by this repository and
+its features are not part of the public application described here.
 
 First-party strategies also live outside this repository and are built against the versioned SDK
-contract. A clean clone therefore opens with an empty live catalog. Users populate it by authoring a
-strategy in the application or installing a compatible `.daxplugin` runtime plugin.
+contract. A clean clone therefore opens with an empty catalog. You populate it by authoring a strategy
+in the application.
+
+## Order execution
+
+**This build can place real broker orders.** The execution engine, OMS, risk engine, and the
+Interactive Brokers / cTrader / Alpaca execution adapters live in `src/windows/Execution/` and are
+composed by the shell. Two independent gates gate live money, and **both** are required:
+
+1. **Trading mode** — an app-wide Paper/Real switch, toggled from the broker login window. Arming Real
+   requires typing the word `LIVE`. It always starts in Paper and is deliberately never persisted, so a
+   stale setting cannot arm real money after an update or a machine handover. Disarming is one click and
+   is never refused.
+2. **Per-account acknowledgement** — a separate confirmation stored per broker account. An adapter
+   refuses a live order for an account that has none.
+
+In **Paper**, an order is recorded in the ledger and shown in the Execution Console, and never leaves
+the process.
+
+### The virtual book is the only route
+
+A strategy never reaches the OMS directly. It trades its **own** virtual book, and the execution engine
+copies that book outward. That is what makes paper and real the same code path: a strategy cannot tell
+which mode it is in, because it only ever writes to its own wallet.
+
+### Order types
+
+Market, limit, stop, and stop-limit orders all reach the venue, and all three execution adapters map
+them in both directions.
+
+A strategy can also arm a **resting entry** — the four familiar pending orders — which is mirrored to
+the broker as a genuine resting order rather than watched locally:
+
+| Pending order | How a strategy asks for it |
+|---|---|
+| Buy limit | positive target, `VirtualEntryKind.Limit`, trigger below the market |
+| Sell limit | negative target, `VirtualEntryKind.Limit`, trigger above the market |
+| Buy stop | positive target, `VirtualEntryKind.Stop`, trigger above the market |
+| Sell stop | negative target, `VirtualEntryKind.Stop`, trigger below the market |
+
+A trigger placed on the side that would fire immediately is refused rather than quietly converted into
+a market order.
 
 ## What ships
 
-- **Strategy Studio** with Hyperion and agent-CLI launch workflows for AI-assisted strategy authoring.
+- **Vibe Code** with Hyperion and agent-CLI launch workflows for AI-assisted strategy authoring.
+- The execution engine and Execution Console, behind the two gates above.
 - Published DaxAlgo SDK 0.3 packages, sandbox strategy/visualizer templates, analyzer policy, and samples.
 - Full broker selection across keyless and credentialed data sources.
 - A broker-neutral market-data pipeline with canonical instrument identity, live fan-out, persistence,
   replay/query support, and configurable archives.
 - A background market-data recorder, opened from the **REC** chip in the header. It has no menu entry.
-- Backtest Studio under **Backtest Engine**, plus **Quick backtest (last 1 year)** on strategy-card
-  context menus.
-- A runtime strategy-plugin loader and **Extensions** manager for install, update, enable/disable,
-  quarantine, and removal workflows.
+- An **Extensions** manager that reads and verifies `.daxalgostrategy` / `.daxalgovisualizer` packages.
 - A catalog UI that can represent both strategies and visualizers.
 - Built-in themes, Theme Studio, notifications settings, archive controls, and a universal Activity Log.
+
+### Not in this build
+
+- **No backtest engine.** It was archived on 2026-08-17 and nothing replaces it yet, so there is no
+  Backtest Studio and no quick-backtest action. Strategy authoring, registration, and live execution do
+  not depend on it.
+- **Installing** a `.daxalgostrategy` / `.daxalgovisualizer` package. The Extensions manager reads and
+  verifies a package and reports what is inside, but cannot yet install one. Author strategies in the
+  application instead.
+- **No connectable Simulated broker.** The in-process synthetic/replay source was removed on
+  2026-08-16. `BrokerKind.Simulated` survives only as a provenance tag on stored rows, because the enum
+  is persisted by ordinal and removing a member would silently re-label existing history.
 
 ## Build and run
 
@@ -62,8 +104,7 @@ strategy in the application or installing a compatible `.daxplugin` runtime plug
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
 - Git.
 
-No broker account is required. The in-process **Simulated** source works offline, and the five public
-crypto sources need no account or API key.
+No broker account is required: the five public crypto sources need no account or API key.
 
 ### Clone, build, and start
 
@@ -74,12 +115,19 @@ dotnet build TradingTerminal.Windows.slnx
 dotnet run --project src/windows/Shell/TradingTerminal.App.Basic
 ```
 
+Run the tests with `-m:1`. It is required, not a preference: `dotnet test <solution>` runs one
+invocation per project in parallel, and several suites touch machine-wide singletons.
+
+```powershell
+dotnet test TradingTerminal.Windows.slnx -m:1
+```
+
 The solution enables Windows targeting and writes Windows development outputs beneath
 `C:\DaxAlgoBuild` by default. Override the `DaxAlgoBuildRoot` MSBuild property if that location is not
 suitable.
 
-At startup, select one or more brokers. Choose **Simulated** for a fully offline session. The keyless
-crypto sources use public network feeds. Credentialed sources require their normal broker setup.
+At startup, select one or more brokers. The keyless crypto sources use public network feeds and need no
+credentials. Credentialed sources require their normal broker setup.
 
 ## Brokers
 
@@ -89,34 +137,34 @@ policy exposes both groups in the selector.
 | Group | Sources | Requirement |
 |---|---|---|
 | Keyless | Binance, Coinbase, Bybit, Kraken, OKX | Public crypto market data; no account or API key |
-| Offline | Simulated | No account, key, SDK, or network |
 | Credentialed | Interactive Brokers | Signed-in TWS or IB Gateway; the client compiles when `CSharpAPI.dll` is available |
 | Credentialed | NinjaTrader | Running NinjaTrader with its integration enabled; the client compiles when `NTDirect.dll` is available |
 | Credentialed | cTrader | cTrader application credentials/access token and account selection |
-| Credentialed | Alpaca | API key and secret; paper or live data endpoint by configuration |
+| Credentialed | Alpaca | API key and secret; paper or live endpoint by configuration |
 | Credentialed | Ironbeam | Username and API key; demo or live endpoint by configuration |
 | Credentialed | London Strategic Edge | Provider API key |
 | Credentialed | Upstox | App credentials and OAuth access token |
 
 Interactive Brokers and NinjaTrader are build-time optional because their vendor DLLs are not committed.
-The other clients above build from NuGet or repository source. Regardless of a broker's own live/paper
-terminology, DaxAlgo consumes its data only and never routes live orders.
+The other clients above build from NuGet or repository source.
+
+Interactive Brokers, cTrader, and Alpaca also have **execution** adapters. The remaining sources are
+market data only.
 
 Broker configuration is read from `appsettings.json`, with optional per-user values in the git-ignored
 `appsettings.local.json`. Do not commit credentials.
 
 ## The current shell
 
-The menu bar in `TradingTerminal.App.Basic/MainWindow.xaml` is:
+The menu bar in `src/windows/Shell/TradingTerminal.App.Basic/MainWindow.xaml` is:
 
 | Menu | Items |
 |---|---|
 | **File** | Reconnect to broker; Start QuestDB; Exit |
-| **View** | Activity log; Theme; Customize theme (Theme Studio) |
-| **Backtest Engine** | Backtest Studio |
-| **Strategy Studio** | Vibe Code > Hyperion; Launch CLI; Extensions |
+| **View** | Activity log; Theme › Customize theme (Theme Studio) |
+| **Vibe Code** | Hyperion; Launch CLI; Extensions |
 | **Data** | Market data archive; Archive history; Instant offload (all pending) |
-| **Execution Engine** | Not yet available (disabled; data/signals-only boundary) |
+| **Execution Engine** | Execution Console |
 | **Settings** | Notifications |
 | **Help** | Support the developer; About DaxAlgo Terminal |
 
@@ -130,24 +178,29 @@ instead of linking strategy projects into the shell.
 
 The catalog card contract has two kinds:
 
-| Kind | Spine | Primary action | Quick backtest |
-|---|---|---|---|
-| Strategy | Purple | Open | Available from the context menu |
-| Visualizer | Blue | Add to chart | Not shown |
+| Kind | Spine | Primary action |
+|---|---|---|
+| Strategy | Purple | Open |
+| Visualizer | Blue | Add to chart |
 
 Installable visualizers are **in progress**. The descriptor, card kind, styling, filtering, and
-**Add to chart** action contract exist, but there is no visualizer package/contribution format yet.
-Do not treat a visualizer card as evidence of a working visualizer marketplace.
+**Add to chart** action contract exist, but the package format is not yet installable. Do not treat a
+visualizer card as evidence of a working visualizer marketplace.
+
+> **Known gap.** A strategy earns a catalog card when it ships its own live window, or when the host can
+> compose one from the strategy's declared data requirement. This shell does not yet register the view
+> composer, so a strategy that supplies only a descriptor and a view-model registers successfully but
+> does not appear in the catalog. Supply your own view until this is wired.
 
 ### Author a strategy in the application
 
-Open **Strategy Studio > Vibe Code > Hyperion** to describe, generate, compile, review, and install a
-strategy. **Strategy Studio > Launch CLI** opens an installed supported agent CLI in an authoring
-workspace with the host contract and task brief already prepared.
+Open **Vibe Code › Hyperion** to describe, generate, compile, review, and register a strategy.
+**Vibe Code › Launch CLI** opens an installed supported agent CLI in an authoring workspace with the
+host contract and task brief already prepared.
 
-An authored strategy becomes the same kind of runtime plugin as an externally built strategy. It can
-contribute a backtest kernel, catalog metadata, and an optional live signal view. Generated or authored
-code is still subject to compiler, SDK-compatibility, trust, and policy checks.
+Generated or authored code is subject to compiler, SDK-compatibility, trust, and policy checks. A
+strategy that P/Invokes never compiles, so it can never be registered. Pressing **Compile & Register**
+is the consent for running it.
 
 ### Vibe code with the DaxAlgo SDK 0.3
 
@@ -183,25 +236,14 @@ workflow.
 
 | Artifact | Current role |
 |---|---|
-| Sandbox strategy | `IStrategyKernel` plus direct tests; authored against SDK 0.3 for a compatible product host |
-| Sandbox visualizer | `IVisualizer` plus direct tests; public runtime support is available for in-memory visualizer testing |
-| `.daxplugin` | Legacy live-catalog package accepted by **Strategy Studio > Extensions**; the SDK 0.3 sandbox templates do not emit it |
-| `.daxstrategy` | Signed, inspectable bundle for immutable storage and isolated backtests; not the live-catalog format |
+| Sandbox strategy | `IStrategyKernel` plus direct tests; authored against SDK 0.3 |
+| Sandbox visualizer | `IVisualizer` plus direct tests; public runtime support covers in-memory visualizer testing |
+| `.daxalgostrategy` | Open strategy package: source, UI, and assets in one file. Read and verified by **Extensions**; installing is not wired up yet |
+| `.daxalgovisualizer` | The visualizer counterpart of the same open format |
+| `.daxstrategy` | Signed, inspectable bundle for immutable storage; see [strategy bundles](docs/strategy-bundles.md) |
+| `.daxplugin` | **Retired.** Rejected by name, with a message telling you to repackage as one of the two open formats |
 
-The public repository supports authoring and unit-testing sandbox units. Product hosting, strategy runs,
-and backtests remain host-owned. The public application has no live broker-order execution path.
-
-## Backtesting
-
-Backtest Studio is available even when the live catalog is empty. Its registry includes the engine's
-built-in mean-reversion kernel and three demonstration strategy options: buy-and-hold, mean reversion,
-and Donchian breakout. Runtime plugins can add further `BacktestStrategyOption` registrations.
-
-Backtests run against simulated execution: deterministic clocks, an order router, fee/fill/risk models,
-historical or synthetic feeds, results, optimization, and playback. They do not create a broker order.
-
-For an installed strategy card, **Quick backtest (last 1 year)** opens a focused run for the card's
-declared backtest strategy. Visualizer cards do not show this action.
+Loose `.dll` plugins are no longer accepted in any edition.
 
 ## Market data, storage, and archives
 
@@ -213,7 +255,7 @@ Broker clients
     -> broker selector and connection manager
     -> normalized ingest (quotes, trades, bars, depth)
     -> bounded live hub -> UI, recorder, strategies
-    -> selected store -> replay, query, backtest, archive
+    -> selected store -> replay, query, archive
 ```
 
 The selectable persistence providers are:
@@ -235,7 +277,7 @@ Dependencies point inward:
 
 ```text
 TradingTerminal.App.Basic
-    -> feature surfaces (Backtest, BacktestStudio, Recording, Settings, Login, UI)
+    -> feature surfaces (Execution, Recording, Settings, Login, UI)
     -> Infrastructure
     -> MarketData
     -> Core
@@ -252,16 +294,20 @@ Key directories:
 | `src/windows/Core/TradingTerminal.Core` | Domain records and broker-, UI-, and storage-neutral contracts |
 | `src/windows/Pipeline/TradingTerminal.MarketData` | Ingest, fan-out, persistence, registry, archive, and query pipeline |
 | `src/windows/Pipeline/TradingTerminal.Infrastructure` | Broker clients, plugin loading, notifications, and concrete adapters |
-| `src/windows/Backtest` | Backtest protocol, client, engine, and isolated worker |
+| `src/windows/Execution` | OMS ledger, risk engine, lease/fencing, the secured named-pipe service, broker execution adapters, and the Execution Console |
+| `src/windows/Sandbox` | The DAXQ-free model-portfolio simulator and the sandbox strategy runtime |
+| `src/windows/Charts` | Chart, order-book, and volume-footprint surfaces |
 | `src/windows/Shell/TradingTerminal.UI` | Shared WPF controls, catalog presentation, and strategy UI seams |
 | `src/windows/Shell/TradingTerminal.Login` | Broker-selection and broker-credential forms |
 | `src/windows/Shell/TradingTerminal.App.Basic` | The only public application composition root and main window |
-| `src/windows/Tools` | Strategy authoring, packaging, Backtest Studio, quick backtest, and recorder surfaces |
-| `src/windows/Sdk` | Published plugin and strategy-bundle SDK projects |
+| `src/windows/UI` | Settings surfaces, shared view-model base types, and the strategy view composer |
+| `src/windows/Tools` | Strategy authoring, packaging, and recorder surfaces |
+| `src/windows/Sdk` | Published plugin, package, and strategy-bundle SDK projects |
 
 The main rules are: Core has no application-specific dependencies; MarketData stays below
 Infrastructure; broker SDK types stay inside Infrastructure; view-models consume market-data seams, not
-broker streams; and strategy implementations never become shell project references.
+broker streams; a strategy never reaches the OMS except through its virtual book; and strategy
+implementations never become shell project references.
 
 ## Credits and attribution
 

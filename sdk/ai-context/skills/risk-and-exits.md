@@ -49,7 +49,7 @@ public static StrategyParameterSchema Schema { get; } = new(
     StrategyParameter.Int("maxPositions", "Max concurrent entries", 1, min: 1, max: 10));
 ```
 
-Expose the risk knobs as parameters. That is what makes them sweepable in Backtest Studio instead of
+Expose the risk knobs as parameters. That is what makes them tunable from the strategy window instead of
 being buried as magic numbers in the kernel.
 
 ## Guards that belong in every strategy

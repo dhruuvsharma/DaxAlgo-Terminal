@@ -1,12 +1,19 @@
-# DaxAlgo Terminal - strategy authoring context (SDK 0.2.0-alpha)
+# DaxAlgo Terminal - strategy authoring context (in-app authoring)
 
 You are writing a trading strategy for **DaxAlgo Terminal**, a WPF multi-broker terminal. A strategy is
 pure signal logic that consumes market data and emits orders through a router. This document is the
-complete contract; follow it exactly. **It targets SDK `0.2.0-alpha` - code you write must compile
-against that SDK.**
+complete contract; follow it exactly. **It targets the host's own contracts** (`TradingTerminal.Core.*`),
+not the published `DaxAlgo.Sdk` NuGet package - code you write is compiled in-process against the running
+application. For the separate SDK 0.3 sandbox contract, see `docs/sandbox-authoring.md` instead.
 
-> This build is **data / signals only** - there is no live order-execution path. Orders you place are
-> simulated by the backtest engine and surfaced as signals. Do not attempt real trading.
+> **How your orders reach the market.** A strategy trades its own **virtual book** and never touches the
+> broker directly; the execution engine copies that book outward. That is deliberate - it is what makes
+> paper and real trading the same code path, so your kernel cannot tell which mode it is in and cannot
+> behave differently. Write the signal logic; routing is not yours to choose.
+>
+> Real orders are possible in this build, behind two gates the user controls (an app-wide Paper/Real
+> switch that always starts in Paper, plus a per-broker-account acknowledgement). Never write code that
+> tries to detect, influence, or bypass either one.
 
 ---
 
@@ -222,11 +229,11 @@ public sealed class MyStrategy : IBacktestStrategy { ... }
   its contents with what you send; a partial answer deletes the rest.
 - A short sentence of prose before the blocks is welcome. Keep it to what the user needs to know.
 
-### WRITE THREE FILES: KERNEL + DESCRIPTOR + VIEW-MODEL. A kernel on its own is backtest-only.
+### WRITE THREE FILES: KERNEL + DESCRIPTOR + VIEW-MODEL. A kernel on its own gets no card.
 
-**Default to the trio: kernel + descriptor + view-model.** A kernel alone registers in the backtester
-and gets **no card in the Strategies catalog and no window** - which is almost never what the user
-wanted. Write all three every time unless the user explicitly says they only want a backtest kernel.
+**Default to the trio: kernel + descriptor + view-model.** A kernel alone registers as a kernel only and
+gets **no card in the Strategies catalog and no window** - which is almost never what the user wanted.
+Write all three every time unless the user explicitly says they only want the kernel.
 The host wires them in the moment they press Compile & Register.
 
 **Do NOT write a view unless the user asks for a custom UI.** When you write none, the host composes

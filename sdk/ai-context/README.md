@@ -1,8 +1,12 @@
 # Legacy AI context pack
 
-`daxalgo-strategy-context.md` is the generated prompt for the existing Hyperion/legacy `.daxplugin`
-authoring path. It describes the older `IBacktestStrategy` workflow and is **not** the SDK 0.3 sandbox
-contract.
+`daxalgo-strategy-context.md` is the generated prompt for the in-app Hyperion authoring path. It
+describes the `IBacktestStrategy` kernel workflow and is **not** the SDK 0.3 sandbox contract.
+
+It is embedded into `DaxAlgo.Codegen` and shipped in the application, so a wrong statement here reaches
+a model and lands in generated strategies. Keep it accurate. The `.daxplugin` packaging it was
+originally written alongside is retired; `.daxalgostrategy` and `.daxalgovisualizer` are the accepted
+package formats.
 
 For new agent or human authoring, use the public
 [`docs/sandbox-authoring.md`](../../docs/sandbox-authoring.md) contract and the

@@ -2,7 +2,11 @@
 
 > Windows strategy-distribution and isolated-backtest format. Immutable installation and exact worker
 > activation are implemented; marketplace integration, automatic updates, and live-host loading remain
-> later slices. Existing `.daxplugin` behavior stays a separate legacy path.
+> later slices.
+>
+> **This is not the install format.** `.daxalgostrategy` and `.daxalgovisualizer` are what the
+> Extensions manager accepts; `.daxstrategy` is the signed, inspectable bundle used for immutable
+> storage. `.daxplugin` is retired and is rejected by name.
 
 A `.daxstrategy` is one portable file, not one merged DLL. It is a passive ZIP whose contents can be
 inspected and verified without executing them. Strategy math stays in one canonical WPF-free engine;
@@ -25,7 +29,7 @@ signatures/
   publisher.dsse.json                      # optional; added by sign
 ```
 
-The exact manifest, role roots, and publisher-signature path are format data. A renamed `.daxplugin`, a
+The exact manifest, role roots, and publisher-signature path are format data. A renamed archive, a
 legacy root `package.json`, an unlisted entry, a path/role mismatch, or an unsupported manifest version is
 rejected.
 

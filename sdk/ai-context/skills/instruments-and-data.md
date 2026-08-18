@@ -34,11 +34,11 @@ strategy that will never be offered that broker.
   several backends do not stream them at all. Depth is likewise partial.
 - **Crypto (Binance et al.) is the easiest full-fidelity feed** — bars, L1, L2 and tape, keyless — which is
   why it is the default for testing an order-flow strategy.
-- **The Simulated broker** always exists (synthetic random walk, or replay of the local store), so a
-  strategy can be exercised offline. It is behind the amber SIMULATED DATA banner; do not treat its
-  numbers as real.
-- **A backtest replays the local store.** If the store has no depth for that instrument, a depth strategy
-  backtests on nothing — the data has to have been recorded.
+- **There is no offline synthetic broker.** The in-process Simulated source was removed on 2026-08-16;
+  `BrokerKind.Simulated` survives only as a provenance tag on stored rows. To exercise a strategy without
+  credentials, use a keyless crypto feed — it is real data and needs no account.
+- **Depth has to have been recorded to be replayed.** If the local store holds no depth for an instrument,
+  a depth strategy replays on nothing.
 
 ## Time
 
