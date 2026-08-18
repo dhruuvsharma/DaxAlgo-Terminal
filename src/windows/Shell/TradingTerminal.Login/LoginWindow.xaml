@@ -388,7 +388,6 @@
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- Pane title + summary banner -->
-                <RowDefinition Height="Auto" />  <!-- Account sign-in (entitlement editions only) -->
                 <RowDefinition Height="Auto" />  <!-- Search box -->
                 <RowDefinition Height="*" />     <!-- Flat broker list (scrollable) -->
                 <RowDefinition Height="Auto" />  <!-- Services & dependencies (collapsed expander) -->
@@ -479,114 +478,57 @@
             </Border>
 
             <!-- ── Search / filter ────────────────────────────────────────────────────────────── -->
-            <!-- ── Account sign-in ────────────────────────────────────────────────────────────
-                 Rendered only when this edition supplies an IAccountSignInPanel. The open-source
-                 build has no account gate, registers nothing, and shows broker forms alone — which
-                 is why the login window binds a seam here rather than referencing the entitlement
-                 layer it is not allowed to see.
-
-                 There is no email/password pair on purpose: identity is Google end to end, and a
-                 password box that authenticates nothing is worse than no password box. Account
-                 creation hands off to the browser for the same reason. -->
             <Border Grid.Row="1"
-                    Background="{DynamicResource Background.Elevated}"
-                    BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="24,16,24,16"
-                    Visibility="{Binding HasAccountSignIn, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
-                <StackPanel>
-                    <TextBlock Text="DAXALGO ACCOUNT"
-                               FontWeight="Bold" FontSize="10"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               Margin="0,0,0,10" />
-
-                    <!-- Signed out: the sign-in action. -->
-                    <StackPanel Visibility="{Binding IsAccountSignedIn, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                        <Button Command="{Binding SignInAccountCommand}"
-                                IsEnabled="{Binding CanSignIn}"
-                                HorizontalAlignment="Left"
-                                Padding="14,8"
-                                MinWidth="260"
-                                HorizontalContentAlignment="Left">
-                            <StackPanel Orientation="Horizontal">
-                                <Border Width="18" Height="18" CornerRadius="9"
-                                        Background="#FFFFFF" Margin="0,0,10,0">
-                                    <TextBlock Text="G" FontWeight="Bold" FontSize="11"
-                                               Foreground="#4285F4"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <TextBlock Text="Continue with Google" VerticalAlignment="Center" FontSize="12.5" />
-                            </StackPanel>
-                        </Button>
-
-                        <CheckBox Content="Remember me"
-                                  IsChecked="{Binding AccountRememberMe, Mode=TwoWay}"
-                                  Margin="2,12,0,0"
-                                  FontSize="11.5"
-                                  Foreground="{DynamicResource Text.Secondary}" />
-
-                        <StackPanel Orientation="Horizontal" Margin="2,10,0,0">
-                            <TextBlock Text="No account?" FontSize="11.5"
-                                       Foreground="{DynamicResource Text.Secondary}"
-                                       VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <Button Content="Create one"
-                                    Command="{Binding CreateAccountCommand}"
-                                    Style="{DynamicResource MahApps.Styles.Button.Chromeless}"
-                                    Padding="0"
-                                    FontSize="11.5"
-                                    Foreground="{DynamicResource Accent.Brush}"
-                                    Cursor="Hand" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- Signed in: who, and a way out. -->
-                    <Grid Visibility="{Binding IsAccountSignedIn, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding AccountLabel}"
-                                       FontWeight="SemiBold" FontSize="12.5"
-                                       Foreground="{DynamicResource Text.Primary}"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="Signed in" FontSize="11"
-                                       Foreground="{DynamicResource Bullish.Brush}" Margin="0,2,0,0" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Content="Sign out"
-                                Command="{Binding SignOutAccountCommand}"
-                                Padding="10,5" VerticalAlignment="Center" />
-                    </Grid>
-
-                    <TextBlock Text="{Binding AccountStatusMessage}"
-                               Visibility="{Binding AccountStatusMessage, Converter={StaticResource StringToVisibilityConverter}}"
-                               FontSize="11" TextWrapping="Wrap" Margin="2,10,0,0"
-                               Foreground="{DynamicResource Text.Secondary}" />
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Row="2"
                     Padding="24,12,24,10"
                     BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="0,0,0,1"
                     Background="{DynamicResource Background.Primary}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <!-- Blurred while the sign-in overlay is up: the region is unreachable,
+                                 and it should look unreachable rather than merely be blocked. -->
+                            <DataTrigger Binding="{Binding RequiresAccountSignIn}" Value="True">
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <BlurEffect Radius="7" KernelType="Gaussian" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                          mah:TextBoxHelper.Watermark="Search brokers…"
                          mah:TextBoxHelper.ClearTextButton="True" />
             </Border>
 
             <!-- ── Flat broker list (scrollable, one row per broker, accordion expands inline) ── -->
-            <ScrollViewer Grid.Row="3"
+            <ScrollViewer Grid.Row="2"
                           Padding="24,12,24,0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer.Style>
+                    <Style TargetType="ScrollViewer">
+                        <Style.Triggers>
+                            <!-- Blurred while the sign-in overlay is up: the region is unreachable,
+                                 and it should look unreachable rather than merely be blocked. -->
+                            <DataTrigger Binding="{Binding RequiresAccountSignIn}" Value="True">
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <BlurEffect Radius="7" KernelType="Gaussian" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ScrollViewer.Style>
                 <ItemsControl ItemsSource="{Binding FormsView}"
                               ItemTemplate="{StaticResource BrokerRowTemplate}" />
             </ScrollViewer>
 
             <!-- ── Services & external dependencies (collapsed expander, low prominence) ──────── -->
-            <Expander Grid.Row="4"
+            <Expander Grid.Row="3"
                       Margin="24,8,24,0"
                       IsExpanded="False"
                       Background="Transparent"
@@ -594,6 +536,21 @@
                       BorderThickness="0,1,0,0"
                       mah:HeaderedControlHelper.HeaderBackground="Transparent"
                       mah:HeaderedControlHelper.HeaderForeground="{DynamicResource Text.Secondary}">
+                <Expander.Style>
+                    <Style TargetType="Expander">
+                        <Style.Triggers>
+                            <!-- Blurred while the sign-in overlay is up: the region is unreachable,
+                                 and it should look unreachable rather than merely be blocked. -->
+                            <DataTrigger Binding="{Binding RequiresAccountSignIn}" Value="True">
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <BlurEffect Radius="7" KernelType="Gaussian" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Expander.Style>
                 <Expander.Header>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Services &amp; dependencies"
@@ -796,21 +753,120 @@
                 </StackPanel>
             </Expander>
 
+            <!-- ── Account sign-in overlay ────────────────────────────────────────────────────
+                 Covers the broker list while signed out, so a broker cannot be connected before the
+                 account is. It is a real barrier, not a hint: the Border's own background takes the
+                 hit-testing for the whole region, and the elements beneath it are blurred so the
+                 area reads as unreachable rather than merely unresponsive.
+
+                 Rendered only when this edition supplies an IAccountSignInPanel. The open-source
+                 build registers none, so there is no overlay, no blur, and no sign-in requirement
+                 on Launch.
+
+                 No email/password pair on purpose: identity is Google end to end, and a password box
+                 that authenticates nothing is worse than no password box. -->
+            <Border Grid.Row="1" Grid.RowSpan="3"
+                    Panel.ZIndex="50"
+                    Background="#D9101418"
+                    Visibility="{Binding RequiresAccountSignIn, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
+                <Border Background="{DynamicResource Background.Elevated}"
+                        BorderBrush="{DynamicResource Border.Brush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="30,26"
+                        MinWidth="380" MaxWidth="440"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="Sign in to DaxAlgo"
+                                   FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Text.Primary}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="Connect a broker and launch the terminal once your account is signed in."
+                                   FontSize="11.5" TextWrapping="Wrap" TextAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Margin="0,8,0,20" />
+
+                        <Button Command="{Binding SignInAccountCommand}"
+                                IsEnabled="{Binding CanSignIn}"
+                                Padding="14,10"
+                                HorizontalContentAlignment="Center">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Border Width="18" Height="18" CornerRadius="9"
+                                        Background="#FFFFFF" Margin="0,0,10,0">
+                                    <TextBlock Text="G" FontWeight="Bold" FontSize="11"
+                                               Foreground="#4285F4"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Continue with Google" VerticalAlignment="Center" FontSize="13" />
+                            </StackPanel>
+                        </Button>
+
+                        <CheckBox Content="Remember me"
+                                  IsChecked="{Binding AccountRememberMe, Mode=TwoWay}"
+                                  Margin="2,14,0,0"
+                                  FontSize="11.5"
+                                  Foreground="{DynamicResource Text.Secondary}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="2,10,0,0">
+                            <TextBlock Text="No account?" FontSize="11.5"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Button Content="Create one"
+                                    Command="{Binding CreateAccountCommand}"
+                                    Style="{DynamicResource MahApps.Styles.Button.Chromeless}"
+                                    Padding="0" FontSize="11.5"
+                                    Foreground="{DynamicResource Accent.Brush}"
+                                    Cursor="Hand" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding AccountStatusMessage}"
+                                   Visibility="{Binding AccountStatusMessage, Converter={StaticResource StringToVisibilityConverter}}"
+                                   FontSize="11" TextWrapping="Wrap" Margin="2,14,0,0"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+
+                        <!-- Paper / Real belongs with the decision to sign in, not beside Launch:
+                             it is what your orders will DO, so it is settled before the terminal
+                             opens rather than as an afterthought next to the button. -->
+                        <Separator Margin="0,20,0,16" Background="{DynamicResource Border.Brush}" />
+                        <TextBlock Text="TRADING MODE"
+                                   FontWeight="Bold" FontSize="10"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Margin="0,0,0,10" />
+                        <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
+                                      HorizontalAlignment="Left"
+                                      IsChecked="{Binding IsRealTrading, Mode=OneWay}"
+                                      Command="{Binding ToggleTradingModeCommand}"
+                                      ToolTip="{Binding TradingModeActionLabel}" />
+                        <TextBlock Text="{Binding TradingModeCaption}"
+                                   FontSize="10.5" Margin="2,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+                    </StackPanel>
+                </Border>
+            </Border>
+
+
             <!-- ── Launch bar ──────────────────────────────────────────────────────────────────── -->
-            <Border Grid.Row="5"
+            <Border Grid.Row="4"
                     Background="{DynamicResource Background.Elevated}"
                     BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="0,1,0,0"
                     Padding="24,14,24,16">
                 <DockPanel LastChildFill="True">
-                    <!-- Paper / Real trading. Paper is the default and the app returns to it every
-                         start; arming Real needs the word LIVE typed, and even then each broker
-                         account is separately gated inside the execution engine.
+                    <!-- Paper / Real trading, shown once the sign-in overlay is gone. The overlay
+                         carries its own copy so the mode is chosen before the terminal opens; this
+                         one keeps it reachable AFTER signing in, and is the only copy in editions
+                         with no account gate at all - without it the open-source build would lose
+                         the switch entirely. Only ever one is visible.
+
+                         Paper is the default and the app returns to it every start; arming Real
+                         needs the word LIVE typed, and even then each broker account is separately
+                         gated inside the execution engine.
 
                          IsChecked is bound ONE-WAY to the real mode, never to the click: the knob
                          moves only after the mode actually changed, so a cancelled confirmation
                          leaves the switch showing Paper instead of lying about being armed. -->
-                    <StackPanel DockPanel.Dock="Left" Margin="0,0,20,0" VerticalAlignment="Center">
+                    <StackPanel DockPanel.Dock="Left" Margin="0,0,20,0" VerticalAlignment="Center"
+                                Visibility="{Binding RequiresAccountSignIn, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                         <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
                                       IsChecked="{Binding IsRealTrading, Mode=OneWay}"
                                       Command="{Binding ToggleTradingModeCommand}"

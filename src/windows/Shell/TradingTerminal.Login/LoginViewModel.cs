@@ -220,7 +220,18 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private string _connectedSummary = "No brokers connected";
 
     /// <summary>Disabled until at least one broker is in <see cref="ConnectionState.Connected"/>.</summary>
-    public bool CanLaunch => ConnectedCount > 0;
+    /// <summary>
+    /// Launch needs a connected broker and, in editions that have an account gate, a signed-in
+    /// account. <see cref="RequiresAccountSignIn"/> is false where no panel is registered, so the
+    /// open-source edition is unaffected by the account half of this.
+    /// </summary>
+    public bool CanLaunch => ConnectedCount > 0 && !RequiresAccountSignIn;
+
+    /// <summary>
+    /// True when this edition has an account gate and nobody is signed in yet. Drives both the
+    /// disabled Launch button and the sign-in overlay covering the broker list.
+    /// </summary>
+    public bool RequiresAccountSignIn => HasAccountSignIn && !IsAccountSignedIn;
 
     // ── QuestDB warm-up (only shown when QuestDB is the configured tick backend) ──────────────────
 
@@ -467,6 +478,9 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AccountLabel));
         OnPropertyChanged(nameof(AccountStatusMessage));
         OnPropertyChanged(nameof(AccountRememberMe));
+        OnPropertyChanged(nameof(RequiresAccountSignIn));
+        OnPropertyChanged(nameof(CanLaunch));
+        LaunchCommand.NotifyCanExecuteChanged();
         SignInAccountCommand.NotifyCanExecuteChanged();
         SignOutAccountCommand.NotifyCanExecuteChanged();
     }
