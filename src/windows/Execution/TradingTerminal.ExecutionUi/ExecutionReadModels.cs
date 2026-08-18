@@ -423,11 +423,6 @@ public sealed record ExecutionPortfolioAnalyticsReadModel(
         Periods.FirstOrDefault(item => item.Range == range)
         ?? throw new InvalidOperationException(
             $"Portfolio analytics carry no {range} period; they were built with an incomplete range set.");
-
-    public static ExecutionPortfolioAnalyticsReadModel Empty { get; } = new(
-        Array.Empty<ExecutionPeriodAnalyticsReadModel>(),
-        Array.Empty<ExecutionExposureReadModel>(),
-        new ExecutionQualityReadModel(0, 0, 0, 0, 0, 0, 0, 0d, 0, 0d));
 }
 
 public sealed record ExecutionBookBreakdownReadModel(
