@@ -172,11 +172,65 @@ public sealed record CanonicalOrderInstruction(
             TradeIntent.ProfitTargetPrice.HasValue &&
                 (!TradeIntent.ProfitTargetPrice.Value.IsValid ||
                  TradeIntent.ProfitTargetPrice.Value.Coefficient <= 0) ||
+            TradeIntent.EntryLimitPrice.HasValue &&
+                (!TradeIntent.EntryLimitPrice.Value.IsValid ||
+                 TradeIntent.EntryLimitPrice.Value.Coefficient <= 0) ||
+            TradeIntent.EntryStopPrice.HasValue &&
+                (!TradeIntent.EntryStopPrice.Value.IsValid ||
+                 TradeIntent.EntryStopPrice.Value.Coefficient <= 0) ||
             string.IsNullOrWhiteSpace(TradeIntent.StrategyId) ||
             string.IsNullOrWhiteSpace(TradeIntent.PolicyVersion))
             return OrderDomainFault.InvalidTradeIntent;
 
-        return Terms.Validate();
+        var fault = Terms.Validate();
+        if (fault != OrderDomainFault.None)
+            return fault;
+
+        return EntryTermsAgree() ? OrderDomainFault.None : OrderDomainFault.InvalidTradeIntent;
+    }
+
+    /// <summary>
+    /// The canonical order type implied by an intent's entry price condition: neither price is a
+    /// market entry, limit alone a limit entry, stop alone a stop entry, both a stop-limit entry.
+    /// </summary>
+    public static CanonicalOrderType EntryOrderTypeOf(in TradeIntent intent) =>
+        (intent.EntryLimitPrice.HasValue, intent.EntryStopPrice.HasValue) switch
+        {
+            (false, false) => CanonicalOrderType.Market,
+            (true, false) => CanonicalOrderType.Limit,
+            (false, true) => CanonicalOrderType.Stop,
+            (true, true) => CanonicalOrderType.StopLimit,
+        };
+
+    /// <summary>
+    /// When an intent states an entry condition, the native terms must express exactly that
+    /// condition - otherwise a strategy asking to rest at a price could be submitted as a market
+    /// order, which is the difference between "buy if it comes to me" and "buy now at whatever is
+    /// there".
+    ///
+    /// <para>The check is deliberately one-directional. An intent that states no entry condition
+    /// constrains nothing, because plenty of legitimate orders carry their own type without the
+    /// intent restating it: a manually entered limit ticket, a flatten, a reconciliation order.</para>
+    /// </summary>
+    private bool EntryTermsAgree()
+    {
+        if (!TradeIntent.EntryLimitPrice.HasValue && !TradeIntent.EntryStopPrice.HasValue)
+            return true;
+
+        return EntryOrderTypeOf(TradeIntent) == Terms.OrderType &&
+               ExactlyEquals(TradeIntent.EntryLimitPrice, Terms.LimitPrice) &&
+               ExactlyEquals(TradeIntent.EntryStopPrice, Terms.StopPrice);
+    }
+
+    private static bool ExactlyEquals(ScaledPrice? left, ScaledPrice? right)
+    {
+        if (!left.HasValue || !right.HasValue)
+            return left.HasValue == right.HasValue;
+
+        // Exact coefficient/scale equality: 1.50 and 1.5 are the same price but not the same terms,
+        // and this layer never normalises or rounds.
+        return left.Value.Coefficient == right.Value.Coefficient &&
+               left.Value.Scale == right.Value.Scale;
     }
 }
 

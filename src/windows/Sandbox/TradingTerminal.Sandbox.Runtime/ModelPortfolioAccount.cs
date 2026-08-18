@@ -111,6 +111,32 @@ public sealed class ModelPortfolioAccount : IModelPortfolioAccount
             if (Capture(fault))
                 return;
 
+            if (intent.IsPendingEntry)
+            {
+                // A resting entry replaces the immediate trade: the book arms it and waits for the
+                // price instead of converging now. Only meaningful while flat - the simulator
+                // refuses it otherwise rather than quietly turning it into a market order.
+                if (currentUnits == 0d)
+                {
+                    fault = _simulator.MpPendingEntry(
+                        intent.EntryTriggerPrice!.Value,
+                        intent.TargetUnits,
+                        intent.EntryKind == VirtualEntryKind.Stop);
+                    if (Capture(fault))
+                        return;
+
+                    _pendingTarget = intent;
+                    return;
+                }
+
+                Capture(ModelPortfolioFault.PendingEntryWhileInPosition);
+                return;
+            }
+
+            // A plain target cancels any entry still resting: the strategy has changed its mind.
+            if (Capture(_simulator.MpCancelPendingEntry()))
+                return;
+
             var delta = intent.TargetUnits - currentUnits;
             if (delta != 0d)
             {
@@ -218,5 +244,11 @@ public sealed class ModelPortfolioAccount : IModelPortfolioAccount
         snapshot.Streak,
         snapshot.IsCompleted,
         snapshot.PositionUnits == 0d ? null : _committedTarget?.ProtectiveStopPrice,
-        snapshot.PositionUnits == 0d ? null : _committedTarget?.ProfitTargetPrice);
+        snapshot.PositionUnits == 0d ? null : _committedTarget?.ProfitTargetPrice,
+        snapshot.HasPendingEntry
+            ? new PendingEntryState(
+                snapshot.PendingEntryPrice,
+                snapshot.PendingEntryUnits,
+                snapshot.PendingEntryIsStop)
+            : null);
 }

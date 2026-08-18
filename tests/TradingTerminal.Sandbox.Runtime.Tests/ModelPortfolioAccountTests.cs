@@ -213,6 +213,62 @@ public sealed class ModelPortfolioAccountTests
             precision: 10);
     }
 
+    [Theory]
+    // The SDK-facing glue: SetPendingEntry has to reach the book and arm it, not quietly do nothing.
+    [InlineData(+2d, VirtualEntryKind.Limit, 95d, 96d, 95d)]
+    [InlineData(-2d, VirtualEntryKind.Limit, 105d, 104d, 105d)]
+    [InlineData(+2d, VirtualEntryKind.Stop, 105d, 104d, 105d)]
+    [InlineData(-2d, VirtualEntryKind.Stop, 95d, 96d, 95d)]
+    public void PendingEntryFromTheSdk_ArmsTheBookAndFiresOnItsPrice(
+        double targetUnits,
+        VirtualEntryKind kind,
+        double triggerPrice,
+        double priceThatMustNotFire,
+        double priceThatFires)
+    {
+        var account = CreateAccount();
+
+        account.BeginBar(100d);
+        account.Book.SetPendingEntry(Instrument, targetUnits, kind, triggerPrice);
+        account.ReconcileToTargets();
+        Assert.Equal(ModelPortfolioFault.None, account.LastFault);
+        account.Commit();
+
+        var armed = account.Snapshot;
+        Assert.Equal(0d, armed.PositionUnits);
+        var pending = Assert.NotNull(armed.PendingEntry);
+        Assert.Equal(triggerPrice, pending.TriggerPrice);
+        Assert.Equal(targetUnits, pending.SignedTargetUnits);
+        Assert.Equal(kind == VirtualEntryKind.Stop, pending.IsStop);
+
+        ApplyNoTarget(account, priceThatMustNotFire);
+        Assert.Equal(0d, account.Snapshot.PositionUnits);
+        Assert.NotNull(account.Snapshot.PendingEntry);
+
+        ApplyNoTarget(account, priceThatFires);
+        Assert.Equal(targetUnits, account.Snapshot.PositionUnits);
+        Assert.Null(account.Snapshot.PendingEntry);
+    }
+
+    [Fact]
+    public void PlainTargetAfterArming_CancelsTheRestingEntry()
+    {
+        var account = CreateAccount();
+
+        account.BeginBar(100d);
+        account.Book.SetPendingEntry(Instrument, 2d, VirtualEntryKind.Limit, 95d);
+        account.ReconcileToTargets();
+        account.Commit();
+        Assert.NotNull(account.Snapshot.PendingEntry);
+
+        // The strategy changed its mind and asked for a flat market target instead.
+        ApplyTarget(account, 99d, 0d);
+        Assert.Null(account.Snapshot.PendingEntry);
+
+        ApplyNoTarget(account, 90d);
+        Assert.Equal(0d, account.Snapshot.PositionUnits);
+    }
+
     private static ModelPortfolioAccount CreateAccount(
         ModelPortfolioAccountConfig? config = null) =>
         new(Instrument, config);

@@ -197,7 +197,7 @@ internal static class OrderEventHash
         string? reason)
     {
         var canonical = new StringBuilder(1024);
-        Append(canonical, "oms-order-event-v1");
+        Append(canonical, "oms-order-event-v2");
         Append(canonical, aggregateId.Value);
         Append(canonical, aggregateSequence);
         Append(canonical, (int)kind);
@@ -252,6 +252,12 @@ internal static class OrderEventHash
         Append(target, intent.SignedUnits.Scale);
         AppendPrice(target, intent.ProtectiveStopPrice);
         AppendPrice(target, intent.ProfitTargetPrice);
+        // Entry price terms are covered like every other recorded field: an altered limit price must
+        // not survive chain verification. The domain separator above moves to v2 because this
+        // changes the canonical layout - ledgers written under v1 will not re-verify, which is a
+        // deliberate and loud break rather than a silent one.
+        AppendPrice(target, intent.EntryLimitPrice);
+        AppendPrice(target, intent.EntryStopPrice);
         Append(target, intent.EstimatedRoundTripCostPerUnit.Coefficient);
         Append(target, intent.EstimatedRoundTripCostPerUnit.Scale);
         Append(target, intent.StrategyId);

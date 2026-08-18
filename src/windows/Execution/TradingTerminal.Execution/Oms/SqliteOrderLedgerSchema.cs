@@ -6,7 +6,7 @@ namespace TradingTerminal.Execution.Oms;
 internal static class SqliteOrderLedgerSchema
 {
     internal const int ApplicationId = 0x44415845; // DAXE
-    internal const int CurrentVersion = 3;
+    internal const int CurrentVersion = 4;
 
     internal static int ApplyMigrations(SqliteConnection connection, IClock clock)
     {
@@ -41,6 +41,12 @@ internal static class SqliteOrderLedgerSchema
         {
             ApplyVersion3(connection, clock);
             currentVersion = 3;
+        }
+
+        if (currentVersion == 3)
+        {
+            ApplyVersion4(connection, clock);
+            currentVersion = 4;
         }
 
         if (ExecuteScalarInt32(connection, "PRAGMA application_id;") != ApplicationId)
@@ -183,12 +189,63 @@ internal static class SqliteOrderLedgerSchema
         transaction.Commit();
     }
 
+    private static void ApplyVersion4(SqliteConnection connection, IClock clock)
+    {
+        var appliedAtUtc = clock.UtcNow;
+        if (appliedAtUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("The injected clock must return UTC values.", nameof(clock));
+
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = Version4Sql;
+        command.ExecuteNonQuery();
+
+        using (var migration = connection.CreateCommand())
+        {
+            migration.Transaction = transaction;
+            migration.CommandText = """
+                INSERT INTO schema_migrations(version, name, applied_at_utc_ticks)
+                VALUES (4, 'trade intent entry price terms', $appliedAt);
+                """;
+            migration.Parameters.AddWithValue("$appliedAt", appliedAtUtc.Ticks);
+            migration.ExecuteNonQuery();
+        }
+
+        using (var version = connection.CreateCommand())
+        {
+            version.Transaction = transaction;
+            version.CommandText = "PRAGMA user_version=4;";
+            version.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+    }
+
     private static int ExecuteScalarInt32(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    /// Adds the trade intent's entry price terms. Existing rows get NULLs, which is exactly right:
+    /// every order written before this migration was a market entry.
+    ///
+    /// <para>Version1Sql is left alone deliberately - it is the historical v1 schema, and every
+    /// database including a brand-new one reaches the current shape by running the migrations in
+    /// order. ALTER TABLE ADD COLUMN cannot carry the paired NULL checks the v1 table declares
+    /// inline, so the writer enforces them. Ledgers created before this
+    /// change were hashed under digest domain "oms-order-event-v1" and will not re-verify under
+    /// "oms-order-event-v2"; that break is deliberate and loud rather than silent.</para>
+    /// </summary>
+    private const string Version4Sql = """
+        ALTER TABLE order_intents ADD COLUMN entry_limit_coefficient INTEGER;
+        ALTER TABLE order_intents ADD COLUMN entry_limit_scale INTEGER;
+        ALTER TABLE order_intents ADD COLUMN entry_stop_coefficient INTEGER;
+        ALTER TABLE order_intents ADD COLUMN entry_stop_scale INTEGER;
+        """;
 
     private const string Version1Sql = """
         CREATE TABLE schema_migrations (

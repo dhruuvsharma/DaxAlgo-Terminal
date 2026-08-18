@@ -34,13 +34,13 @@ public sealed class SqliteOrderEventStoreTests
     ];
 
     [Fact]
-    public void SchemaVersionThree_CreatesRequiredTablesAndUsesWal()
+    public void CurrentSchemaVersion_CreatesRequiredTablesAndUsesWal()
     {
         using var directory = new TestDirectory();
         var databasePath = directory.File("schema.db");
         using var store = new SqliteOrderEventStore(databasePath, Clock());
 
-        Assert.Equal(3, store.SchemaVersion);
+        Assert.Equal(4, store.SchemaVersion);
         Assert.Equal("wal", store.JournalMode.ToLowerInvariant());
         Assert.Equal(Path.GetFullPath(databasePath), store.DatabasePath);
 
@@ -50,7 +50,7 @@ public sealed class SqliteOrderEventStoreTests
             "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;");
         foreach (var table in RequiredTables)
             Assert.Contains(table, tables);
-        Assert.Equal(3L, ScalarInt64(connection, "PRAGMA user_version;"));
+        Assert.Equal(4L, ScalarInt64(connection, "PRAGMA user_version;"));
         Assert.Equal(1L, ScalarInt64(connection, "SELECT COUNT(*) FROM schema_migrations WHERE version = 1;"));
         Assert.Equal(1L, ScalarInt64(connection, "SELECT COUNT(*) FROM schema_migrations WHERE version = 2;"));
         Assert.Equal(1L, ScalarInt64(connection, "SELECT COUNT(*) FROM schema_migrations WHERE version = 3;"));
@@ -316,15 +316,15 @@ public sealed class SqliteOrderEventStoreTests
             Assert.Equal(0L, ScalarInt64(empty, "PRAGMA user_version;"));
 
         using (var migrated = new SqliteOrderEventStore(databasePath, Clock()))
-            Assert.Equal(3, migrated.SchemaVersion);
+            Assert.Equal(4, migrated.SchemaVersion);
         using (var reopened = new SqliteOrderEventStore(databasePath, Clock()))
-            Assert.Equal(3, reopened.SchemaVersion);
+            Assert.Equal(4, reopened.SchemaVersion);
         using (var connection = Open(databasePath, SqliteOpenMode.ReadOnly))
-            Assert.Equal(3L, ScalarInt64(connection, "SELECT COUNT(*) FROM schema_migrations;"));
+            Assert.Equal(4L, ScalarInt64(connection, "SELECT COUNT(*) FROM schema_migrations;"));
 
         var futurePath = directory.File("future.db");
         using (var future = Open(futurePath, SqliteOpenMode.ReadWriteCreate))
-            Execute(future, "PRAGMA user_version = 4;");
+            Execute(future, "PRAGMA user_version = 5;");
         Assert.Throws<NotSupportedException>(() => new SqliteOrderEventStore(futurePath, Clock()));
     }
 
@@ -334,7 +334,7 @@ public sealed class SqliteOrderEventStoreTests
         using var directory = new TestDirectory();
         var databasePath = directory.File("legacy-reconciliation-case.db");
         using (var initialized = new SqliteOrderEventStore(databasePath, Clock()))
-            Assert.Equal(3, initialized.SchemaVersion);
+            Assert.Equal(4, initialized.SchemaVersion);
 
         Execute(databasePath, $"""
             DROP TRIGGER reconciliation_case_facts_no_update;
@@ -361,6 +361,11 @@ public sealed class SqliteOrderEventStoreTests
             END;
             DELETE FROM schema_migrations WHERE version = 2;
             DELETE FROM schema_migrations WHERE version = 3;
+            DELETE FROM schema_migrations WHERE version = 4;
+            ALTER TABLE order_intents DROP COLUMN entry_limit_coefficient;
+            ALTER TABLE order_intents DROP COLUMN entry_limit_scale;
+            ALTER TABLE order_intents DROP COLUMN entry_stop_coefficient;
+            ALTER TABLE order_intents DROP COLUMN entry_stop_scale;
             DROP TRIGGER execution_lease_generations_no_update;
             DROP TRIGGER execution_lease_generations_no_delete;
             DROP INDEX ix_execution_lease_generations_latest;
@@ -377,7 +382,7 @@ public sealed class SqliteOrderEventStoreTests
 
         using var migrated = new SqliteOrderEventStore(databasePath, Clock());
 
-        Assert.Equal(3, migrated.SchemaVersion);
+        Assert.Equal(4, migrated.SchemaVersion);
         Assert.False(migrated.CanAdmitAfterStartupReconciliation);
         Assert.False(migrated.CanAdmitNewOrders);
         using var connection = Open(databasePath, SqliteOpenMode.ReadOnly);

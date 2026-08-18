@@ -76,6 +76,8 @@ public sealed partial class SqliteOrderEventStore
                 instrument_id, quantity_mode, signed_units_coefficient, signed_units_scale,
                 protective_stop_coefficient, protective_stop_scale,
                 profit_target_coefficient, profit_target_scale,
+                entry_limit_coefficient, entry_limit_scale,
+                entry_stop_coefficient, entry_stop_scale,
                 estimated_cost_coefficient, estimated_cost_scale,
                 strategy_id, strategy_note_id, policy_version, source_sequence, source_event_hash)
             VALUES (
@@ -84,6 +86,8 @@ public sealed partial class SqliteOrderEventStore
                 $instrumentId, $quantityMode, $signedUnitsCoefficient, $signedUnitsScale,
                 $protectiveStopCoefficient, $protectiveStopScale,
                 $profitTargetCoefficient, $profitTargetScale,
+                $entryLimitCoefficient, $entryLimitScale,
+                $entryStopCoefficient, $entryStopScale,
                 $estimatedCostCoefficient, $estimatedCostScale,
                 $strategyId, $strategyNoteId, $policyVersion, $sourceSequence, $sourceEventHash);
             """;
@@ -103,6 +107,10 @@ public sealed partial class SqliteOrderEventStore
         AddParameter(command, "$protectiveStopScale", intent.ProtectiveStopPrice?.Scale);
         AddParameter(command, "$profitTargetCoefficient", intent.ProfitTargetPrice?.Coefficient);
         AddParameter(command, "$profitTargetScale", intent.ProfitTargetPrice?.Scale);
+        AddParameter(command, "$entryLimitCoefficient", intent.EntryLimitPrice?.Coefficient);
+        AddParameter(command, "$entryLimitScale", intent.EntryLimitPrice?.Scale);
+        AddParameter(command, "$entryStopCoefficient", intent.EntryStopPrice?.Coefficient);
+        AddParameter(command, "$entryStopScale", intent.EntryStopPrice?.Scale);
         AddParameter(command, "$estimatedCostCoefficient", intent.EstimatedRoundTripCostPerUnit.Coefficient);
         AddParameter(command, "$estimatedCostScale", intent.EstimatedRoundTripCostPerUnit.Scale);
         AddParameter(command, "$strategyId", intent.StrategyId);

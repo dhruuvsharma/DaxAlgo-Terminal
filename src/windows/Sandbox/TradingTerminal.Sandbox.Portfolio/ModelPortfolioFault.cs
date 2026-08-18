@@ -62,4 +62,20 @@ public enum ModelPortfolioFault : byte
 
     /// <summary><c>MpTrail</c> received a non-finite or negative activation R.</summary>
     InvalidTrailActivation = 18,
+    /// <summary><c>MpPendingEntry</c> received a non-finite or non-positive trigger price.</summary>
+    InvalidPendingEntryPrice = 19,
+
+    /// <summary><c>MpPendingEntry</c> received non-finite or zero target units.</summary>
+    InvalidPendingEntryUnits = 20,
+
+    /// <summary>A pending entry was armed while a position was already open.</summary>
+    PendingEntryWhileInPosition = 21,
+
+    /// <summary>
+    /// The trigger price is on the side that would fire immediately: a buy limit at or above the
+    /// current price, a sell limit at or below it, a buy stop at or below it, or a sell stop at or
+    /// above it. That is a market order, so it is refused rather than silently converted.
+    /// </summary>
+    PendingEntryOnWrongSide = 22,
+
 }

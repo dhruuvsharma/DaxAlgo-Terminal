@@ -40,6 +40,13 @@ internal struct PortfolioState
     public double TrailHighWaterMark;
     public bool TrailArmed;
 
+    // A resting entry, armed while flat and fired by BeginCallback when the reference price
+    // reaches PendingEntryPrice. The mirror image of HasStop/HasTarget, which rest on the way out.
+    public bool HasPendingEntry;
+    public double PendingEntryPrice;
+    public double PendingEntryUnits;
+    public bool PendingEntryIsStop;
+
     public int TripRingNextIndex;
     public int TripRingCount;
     public long Streak;

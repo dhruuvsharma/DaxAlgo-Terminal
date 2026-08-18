@@ -96,7 +96,11 @@ public sealed class ModelPortfolioSimulator
         _committed.LifetimeLosingTripCount,
         _committed.TripRingCount,
         _committed.Streak,
-        _completed);
+        _completed,
+        _committed.HasPendingEntry,
+        Normalize(_committed.PendingEntryPrice),
+        Normalize(_committed.PendingEntryUnits),
+        _committed.PendingEntryIsStop);
 
     /// <summary>
     /// Performs callback steps 1, 2, and the core portion of step 4 for an <c>OnBar</c> entrypoint,
@@ -407,6 +411,123 @@ public sealed class ModelPortfolioSimulator
     }
 
     /// <summary>Cancels any declared stop, target, and trail.</summary>
+    /// <summary>
+    /// Arms a resting entry that fires when the reference price reaches <paramref name="price"/>.
+    ///
+    /// <para>This is the entry-side mirror of <see cref="MpStop"/> and <see cref="MpTarget"/>: it
+    /// declares a price condition and waits, rather than trading now. <paramref name="isStop"/>
+    /// picks which side is being waited for - a limit waits for a better price than the current one,
+    /// a stop waits for a worse one (a breakout entry). Together with the sign of
+    /// <paramref name="signedTargetUnits"/> that gives the four familiar pending orders: buy limit,
+    /// sell limit, buy stop and sell stop.</para>
+    ///
+    /// <para>Only one entry may rest at a time, and only while flat. Re-arming replaces the
+    /// previous one.</para>
+    /// </summary>
+    /// <param name="price">The exact absolute trigger price.</param>
+    /// <param name="signedTargetUnits">The signed position to take when it fires.</param>
+    /// <param name="isStop">False for a limit entry, true for a stop entry.</param>
+    public ModelPortfolioFault MpPendingEntry(double price, double signedTargetUnits, bool isStop)
+    {
+        var callbackFault = RequireWritableCallback();
+        if (callbackFault != ModelPortfolioFault.None)
+            return callbackFault;
+        if (!double.IsFinite(price) || price <= 0d)
+            return PoisonCallback(ModelPortfolioFault.InvalidPendingEntryPrice);
+        if (!double.IsFinite(signedTargetUnits) || signedTargetUnits == 0d)
+            return PoisonCallback(ModelPortfolioFault.InvalidPendingEntryUnits);
+        if (_staged.PositionUnits != 0d)
+            return PoisonCallback(ModelPortfolioFault.PendingEntryWhileInPosition);
+
+        var trigger = Normalize(price);
+        if (!IsPendingEntryOnRestingSide(trigger, signedTargetUnits, isStop, _callbackReferencePrice))
+            return PoisonCallback(ModelPortfolioFault.PendingEntryOnWrongSide);
+
+        var candidate = _staged;
+        candidate.HasPendingEntry = true;
+        candidate.PendingEntryPrice = trigger;
+        candidate.PendingEntryUnits = signedTargetUnits;
+        candidate.PendingEntryIsStop = isStop;
+        _staged = candidate;
+        return ModelPortfolioFault.None;
+    }
+
+    /// <summary>Cancels any resting entry. Succeeds whether or not one was armed.</summary>
+    public ModelPortfolioFault MpCancelPendingEntry()
+    {
+        var callbackFault = RequireWritableCallback();
+        if (callbackFault != ModelPortfolioFault.None)
+            return callbackFault;
+
+        var candidate = _staged;
+        ClearPendingEntry(ref candidate);
+        _staged = candidate;
+        return ModelPortfolioFault.None;
+    }
+
+    /// <summary>Reads the resting entry, if any.</summary>
+    public ModelPortfolioFault MpPendingEntryState(
+        out bool hasPendingEntry,
+        out double price,
+        out double signedTargetUnits,
+        out bool isStop)
+    {
+        hasPendingEntry = false;
+        price = 0d;
+        signedTargetUnits = 0d;
+        isStop = false;
+        var readFault = TryReadState(out var state);
+        if (readFault != ModelPortfolioFault.None)
+            return readFault;
+
+        hasPendingEntry = state.HasPendingEntry;
+        price = state.PendingEntryPrice;
+        signedTargetUnits = state.PendingEntryUnits;
+        isStop = state.PendingEntryIsStop;
+        return ModelPortfolioFault.None;
+    }
+
+    /// <summary>
+    /// True when the trigger rests on the side that has to be waited for. A buy limit sits below the
+    /// current price, a sell limit above it, a buy stop above it, a sell stop below it. Anything else
+    /// would fire on the very next evaluation, which is a market order in a pending order's clothes.
+    /// </summary>
+    private static bool IsPendingEntryOnRestingSide(
+        double trigger,
+        double signedTargetUnits,
+        bool isStop,
+        double referencePrice)
+    {
+        if (!double.IsFinite(referencePrice) || referencePrice <= 0d)
+            return false;
+
+        var wantsLong = signedTargetUnits > 0d;
+        return isStop
+            ? wantsLong ? trigger > referencePrice : trigger < referencePrice
+            : wantsLong ? trigger < referencePrice : trigger > referencePrice;
+    }
+
+    /// <summary>True when the reference price has reached a resting entry's trigger.</summary>
+    private static bool IsPendingEntryTriggered(in PortfolioState state, double referencePrice)
+    {
+        if (!state.HasPendingEntry)
+            return false;
+
+        var wantsLong = state.PendingEntryUnits > 0d;
+        // A buy waits for the price to come down to a limit or up to a stop; a sell is the mirror.
+        return state.PendingEntryIsStop == wantsLong
+            ? referencePrice >= state.PendingEntryPrice
+            : referencePrice <= state.PendingEntryPrice;
+    }
+
+    private static void ClearPendingEntry(ref PortfolioState state)
+    {
+        state.HasPendingEntry = false;
+        state.PendingEntryPrice = 0d;
+        state.PendingEntryUnits = 0d;
+        state.PendingEntryIsStop = false;
+    }
+
     public ModelPortfolioFault MpCancelExits()
     {
         var callbackFault = RequireWritableCallback();
@@ -608,6 +729,24 @@ public sealed class ModelPortfolioSimulator
             SwapTripRings();
         }
 
+        // Resting ENTRIES are evaluated here for the same reason resting exits are: this is the one
+        // place that sees every price the book is marked against. Exits run first so a position that
+        // closes on this price is flat before an entry is considered.
+        var afterEntry = _committed;
+        var entryFault = TryEvaluatePendingEntry(
+            ref afterEntry,
+            _stagedTrips,
+            referencePrice,
+            out var entryTriggered);
+        if (entryFault != ModelPortfolioFault.None)
+            return entryFault;
+
+        if (entryTriggered)
+        {
+            _committed = afterEntry;
+            SwapTripRings();
+        }
+
         var afterStepFour = _committed;
         var stepFourFault = TryAdvanceHostState(ref afterStepFour, referencePrice, isBar);
         if (stepFourFault != ModelPortfolioFault.None)
@@ -620,6 +759,33 @@ public sealed class ModelPortfolioSimulator
         _callbackFault = ModelPortfolioFault.None;
         _callbackOpen = true;
 
+        return ModelPortfolioFault.None;
+    }
+
+    private ModelPortfolioFault TryEvaluatePendingEntry(
+        ref PortfolioState state,
+        ClosedTrip[] trips,
+        double referencePrice,
+        out bool entryTriggered)
+    {
+        entryTriggered = false;
+        if (!state.HasPendingEntry || state.PositionUnits != 0d)
+            return ModelPortfolioFault.None;
+        if (!IsPendingEntryTriggered(state, referencePrice))
+            return ModelPortfolioFault.None;
+
+        var units = state.PendingEntryUnits;
+        ClearPendingEntry(ref state);
+        var executionFault = ExecuteMarketOrder(
+            ref state,
+            trips,
+            units,
+            referencePrice,
+            out _);
+        if (executionFault != ModelPortfolioFault.None)
+            return executionFault;
+
+        entryTriggered = true;
         return ModelPortfolioFault.None;
     }
 

@@ -106,6 +106,79 @@ public sealed class SandboxExecutionReplicatorTests
             .Select(field => field.FieldType.Name));
     }
 
+    [Theory]
+    // The four MT5-style pending entries, each mirrored to the venue as a genuine resting order
+    // rather than watched locally and converted to a market order when it triggers.
+    [InlineData(95d, +2d, false, true)]   // buy limit  -> entry limit price
+    [InlineData(105d, -2d, false, true)]  // sell limit -> entry limit price
+    [InlineData(105d, +2d, true, false)]  // buy stop   -> entry stop price
+    [InlineData(95d, -2d, true, false)]   // sell stop  -> entry stop price
+    public async Task RestingEntry_IsMirroredToTheVenueWithItsExactTriggerPrice(
+        double triggerPrice,
+        double signedTargetUnits,
+        bool isStop,
+        bool expectLimitPrice)
+    {
+        var source = new ManualPortfolioSource();
+        var intake = new RecordingIntake(ExecutionTargetSubmissionResult.Success("accepted"));
+        await using var replicator = new SandboxExecutionReplicator(
+            source,
+            intake,
+            new SandboxExecutionReplicationOptions("book-1", "sandbox-42", Enabled: true));
+
+        source.Publish(PendingSnapshot(triggerPrice, signedTargetUnits, isStop));
+        var outcome = await intake.NextOutcome.Task.WaitAsync(TestTimeouts.Deadlock);
+        Assert.True(outcome.IsSuccess, outcome.Message);
+
+        var intent = Assert.Single(intake.Intents);
+
+        // The target comes from the ARMED ENTRY, not from the book's current position - the book is
+        // still flat and waiting, so replicating its position would place no order at all.
+        Assert.True(intent.SignedUnits.TryGetWholeUnits(out var units));
+        Assert.Equal((long)signedTargetUnits, units);
+
+        // Exact prices are normalised, so a whole-number trigger has scale 0 - not 1050/1.
+        var expected = new ScaledPrice((long)triggerPrice, 0);
+        if (expectLimitPrice)
+        {
+            Assert.Equal(expected, intent.EntryLimitPrice);
+            Assert.Null(intent.EntryStopPrice);
+        }
+        else
+        {
+            Assert.Equal(expected, intent.EntryStopPrice);
+            Assert.Null(intent.EntryLimitPrice);
+        }
+    }
+
+    [Fact]
+    public async Task BookWithNoRestingEntry_StillReplicatesAsAMarketEntry()
+    {
+        var source = new ManualPortfolioSource();
+        var intake = new RecordingIntake(ExecutionTargetSubmissionResult.Success("accepted"));
+        await using var replicator = new SandboxExecutionReplicator(
+            source,
+            intake,
+            new SandboxExecutionReplicationOptions("book-1", "sandbox-42", Enabled: true));
+
+        source.Publish(Snapshot(2d, null, null));
+        Assert.True((await intake.NextOutcome.Task.WaitAsync(TestTimeouts.Deadlock)).IsSuccess);
+
+        var intent = Assert.Single(intake.Intents);
+        Assert.Null(intent.EntryLimitPrice);
+        Assert.Null(intent.EntryStopPrice);
+        Assert.Equal(CanonicalOrderType.Market, CanonicalOrderInstruction.EntryOrderTypeOf(intent));
+    }
+
+    private static SandboxPortfolioSnapshot PendingSnapshot(
+        double triggerPrice,
+        double signedTargetUnits,
+        bool isStop) =>
+        Snapshot(0d, null, null) with
+        {
+            PendingEntry = new PendingEntryState(triggerPrice, signedTargetUnits, isStop),
+        };
+
     private static SandboxPortfolioSnapshot Snapshot(
         double units,
         double? protectiveStop,

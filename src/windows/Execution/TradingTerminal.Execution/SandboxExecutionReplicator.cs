@@ -282,6 +282,29 @@ public sealed class SandboxExecutionReplicator : IDisposable, IAsyncDisposable
             return false;
         }
 
+        // A resting entry is mirrored to the venue as a real pending order rather than watched
+        // locally: the book is still flat and waiting, so the target comes from the armed entry, not
+        // from the current position, and the trigger price rides along as the entry condition.
+        ScaledPrice? entryLimit = null;
+        ScaledPrice? entryStop = null;
+        if (snapshot.PendingEntry is { } pending)
+        {
+            if (!TryWholeUnits(pending.SignedTargetUnits, out units))
+            {
+                failure = "Sandbox replication requires exact whole pending-entry units.";
+                return false;
+            }
+            if (!TryPrice(pending.TriggerPrice, out var trigger) || trigger is null)
+            {
+                failure = "Sandbox replication refused a non-exact pending-entry trigger price.";
+                return false;
+            }
+            if (pending.IsStop)
+                entryStop = trigger;
+            else
+                entryLimit = trigger;
+        }
+
         intent = new TradeIntent(
             snapshot.Instrument,
             TradeIntentQuantityMode.TargetPosition,
@@ -291,7 +314,9 @@ public sealed class SandboxExecutionReplicator : IDisposable, IAsyncDisposable
             _options.EstimatedRoundTripCostPerUnit,
             _options.StrategyId,
             StrategyNoteId: 0,
-            _options.PolicyVersion);
+            _options.PolicyVersion,
+            entryLimit,
+            entryStop);
         return true;
     }
 

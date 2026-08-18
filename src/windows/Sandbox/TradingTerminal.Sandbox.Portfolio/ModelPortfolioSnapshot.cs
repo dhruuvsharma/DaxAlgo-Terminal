@@ -20,6 +20,10 @@ namespace TradingTerminal.Sandbox.Portfolio;
 /// <param name="RetainedTradeCount">The number of closed trips retained in the ring.</param>
 /// <param name="Streak">The signed consecutive win or loss streak.</param>
 /// <param name="IsCompleted">Whether final liquidation has completed the run.</param>
+/// <param name="HasPendingEntry">Whether a resting entry is armed and waiting for its price.</param>
+/// <param name="PendingEntryPrice">The resting entry's trigger price, or zero when none is armed.</param>
+/// <param name="PendingEntryUnits">The signed position the resting entry will take, or zero.</param>
+/// <param name="PendingEntryIsStop">False for a resting limit entry, true for a resting stop entry.</param>
 public readonly record struct ModelPortfolioSnapshot(
     double PositionUnits,
     double PositionQuantity,
@@ -36,4 +40,8 @@ public readonly record struct ModelPortfolioSnapshot(
     long LifetimeLosingTripCount,
     long RetainedTradeCount,
     long Streak,
-    bool IsCompleted);
+    bool IsCompleted,
+    bool HasPendingEntry = false,
+    double PendingEntryPrice = 0d,
+    double PendingEntryUnits = 0d,
+    bool PendingEntryIsStop = false);

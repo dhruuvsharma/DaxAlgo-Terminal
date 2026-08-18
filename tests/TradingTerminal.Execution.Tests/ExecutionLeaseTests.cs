@@ -139,7 +139,7 @@ public sealed class ExecutionLeaseTests
 
         using (var store = new SqliteOrderEventStore(databasePath, clock))
         {
-            Assert.Equal(3, store.SchemaVersion);
+            Assert.Equal(4, store.SchemaVersion);
             var acquired = ExecutionLease.Acquire(
                 account,
                 store,

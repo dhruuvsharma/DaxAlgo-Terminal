@@ -2071,13 +2071,15 @@ FinishConnect:
                 new CausationId($"cause-{clientOrderId.Value}"),
                 _lease.Grant.LeaseId,
                 _lease.Grant.FencingToken);
+            // A strategy that armed a resting entry gets a real resting order, not a market order:
+            // the intent's entry condition is what the venue must see.
             var terms = new CanonicalOrderTerms(
                 delta > 0 ? OrderSide.Buy : OrderSide.Sell,
-                CanonicalOrderType.Market,
+                CanonicalOrderInstruction.EntryOrderTypeOf(intent),
                 CanonicalTimeInForce.Day,
                 ScaledQuantity.FromWhole(Math.Abs(delta)),
-                null,
-                null);
+                intent.EntryLimitPrice,
+                intent.EntryStopPrice);
             return new CanonicalOrderInstruction(identity, intent, terms);
         }
 
@@ -3377,11 +3379,11 @@ FinishConnect:
                 intent,
                 new CanonicalOrderTerms(
                     delta > 0 ? OrderSide.Buy : OrderSide.Sell,
-                    CanonicalOrderType.Market,
+                    CanonicalOrderInstruction.EntryOrderTypeOf(intent),
                     timeInForce,
                     ScaledQuantity.FromWhole(Math.Abs(delta)),
-                    null,
-                    null));
+                    intent.EntryLimitPrice,
+                    intent.EntryStopPrice));
             var riskInput = new RiskInputSnapshot(
                 intent,
                 position,

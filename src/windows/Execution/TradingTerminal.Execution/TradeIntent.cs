@@ -22,6 +22,13 @@ public enum TradeIntentQuantityMode : byte
 /// <param name="SignedUnits">Signed exact units: positive long, negative short.</param>
 /// <param name="ProtectiveStopPrice">Optional exact stop price on the protective side of entry.</param>
 /// <param name="ProfitTargetPrice">Optional exact profit-target price.</param>
+/// <param name="EntryLimitPrice">
+/// Optional exact price the entry may not trade through. With <paramref name="EntryStopPrice"/> this
+/// states the entry's price condition: neither is a market entry, limit alone a limit entry, stop
+/// alone a stop entry, both a stop-limit entry. These are economic terms the strategy or operator
+/// owns - they still name no venue, broker, account, or route.
+/// </param>
+/// <param name="EntryStopPrice">Optional exact price at which the entry activates.</param>
 /// <param name="EstimatedRoundTripCostPerUnit">Exact cost assumption used during sizing.</param>
 /// <param name="StrategyId">Stable strategy provenance supplied by the host.</param>
 /// <param name="StrategyNoteId">The originating strategy signal's numeric note identifier.</param>
@@ -35,4 +42,6 @@ public readonly record struct TradeIntent(
     ScaledMoney EstimatedRoundTripCostPerUnit,
     string StrategyId,
     long StrategyNoteId,
-    string PolicyVersion);
+    string PolicyVersion,
+    ScaledPrice? EntryLimitPrice = null,
+    ScaledPrice? EntryStopPrice = null);

@@ -26,7 +26,19 @@ public interface IModelPortfolio
     bool IsComplete { get; }
     double? ProtectiveStopPrice => null;
     double? ProfitTargetPrice => null;
+
+    /// <summary>The resting entry waiting to fire, if one is armed.</summary>
+    PendingEntryState? PendingEntry => null;
 }
+
+/// <summary>A resting entry the book is waiting to fire.</summary>
+/// <param name="TriggerPrice">The exact price the entry waits for.</param>
+/// <param name="SignedTargetUnits">The signed position to take when it fires.</param>
+/// <param name="IsStop">False for a limit entry, true for a stop entry.</param>
+public readonly record struct PendingEntryState(
+    double TriggerPrice,
+    double SignedTargetUnits,
+    bool IsStop);
 
 /// <summary>Observable source of committed model-portfolio snapshots.</summary>
 public interface IModelPortfolioSource
@@ -56,7 +68,8 @@ public readonly record struct SandboxPortfolioSnapshot(
     long Streak,
     bool IsComplete,
     double? ProtectiveStopPrice = null,
-    double? ProfitTargetPrice = null) : IModelPortfolio;
+    double? ProfitTargetPrice = null,
+    PendingEntryState? PendingEntry = null) : IModelPortfolio;
 
 /// <summary>Bounded configuration used to create the wrapped account engine.</summary>
 public sealed record ModelPortfolioAccountConfig(

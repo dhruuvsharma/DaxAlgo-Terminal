@@ -63,19 +63,48 @@ public interface IParameters
     InstrumentId GetInstrument(string name);
 }
 
+/// <summary>How a target position should be entered.</summary>
+public enum VirtualEntryKind
+{
+    /// <summary>Take the position at the current price.</summary>
+    Market = 0,
+
+    /// <summary>Wait for a better price than the current one: below to buy, above to sell.</summary>
+    Limit = 1,
+
+    /// <summary>Wait for a worse price than the current one: above to buy, below to sell. A breakout.</summary>
+    Stop = 2,
+}
+
 /// <summary>
 /// A desired position in the strategy's private model portfolio. It is an intent only: it cannot
-/// identify a broker, order type, venue, account, or execution route.
+/// identify a broker, venue, account, or execution route.
+///
+/// <para>It may state an entry <em>price condition</em>, because that is an economic decision the
+/// strategy owns - the same way it already states a protective stop and a profit target. It still
+/// names nothing about where or how the order is routed.</para>
 /// </summary>
 /// <param name="Instrument">An instrument from the context's declared set.</param>
 /// <param name="TargetUnits">The desired signed model position in reference units; zero means flat.</param>
 /// <param name="ProtectiveStopPrice">Optional model-book protective stop.</param>
 /// <param name="ProfitTargetPrice">Optional model-book profit target.</param>
+/// <param name="EntryKind">How to enter: immediately, or resting until a price is reached.</param>
+/// <param name="EntryTriggerPrice">
+/// The price a non-market entry waits for. Required when <paramref name="EntryKind"/> is not
+/// <see cref="VirtualEntryKind.Market"/>, and ignored when it is.
+/// </param>
 public sealed record VirtualTargetIntent(
     InstrumentId Instrument,
     double TargetUnits,
     double? ProtectiveStopPrice = null,
-    double? ProfitTargetPrice = null);
+    double? ProfitTargetPrice = null,
+    VirtualEntryKind EntryKind = VirtualEntryKind.Market,
+    double? EntryTriggerPrice = null)
+{
+    /// <summary>True when the entry rests on a price rather than trading immediately.</summary>
+    public bool IsPendingEntry =>
+        EntryKind != VirtualEntryKind.Market && EntryTriggerPrice is > 0d;
+}
 
 /// <summary>
 /// The strategy's only output capability. Submitted targets affect only its host-owned virtual
@@ -97,6 +126,30 @@ public interface IVirtualBook
             targetUnits,
             protectiveStopPrice,
             profitTargetPrice));
+
+    /// <summary>
+    /// Submits a target that waits for <paramref name="triggerPrice"/> before entering: a buy limit
+    /// or sell limit when <paramref name="kind"/> is <see cref="VirtualEntryKind.Limit"/>, a buy stop
+    /// or sell stop when it is <see cref="VirtualEntryKind.Stop"/>. The direction comes from the sign
+    /// of <paramref name="targetUnits"/>.
+    ///
+    /// <para>The host refuses a trigger on the side that would fire immediately - a buy limit at or
+    /// above the current price, for instance - because that is a market order, not a pending one.</para>
+    /// </summary>
+    void SetPendingEntry(
+        InstrumentId instrument,
+        double targetUnits,
+        VirtualEntryKind kind,
+        double triggerPrice,
+        double? protectiveStopPrice = null,
+        double? profitTargetPrice = null) =>
+        SubmitTarget(new VirtualTargetIntent(
+            instrument,
+            targetUnits,
+            protectiveStopPrice,
+            profitTargetPrice,
+            kind,
+            triggerPrice));
 }
 
 /// <summary>Host-rendered alert importance.</summary>
