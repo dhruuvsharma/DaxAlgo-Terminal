@@ -274,7 +274,10 @@ public sealed class ExecutionConsoleViewModelTests
             }
 
             Assert.True(timer.IsDisposed);
-            Assert.True(client.IsDisposed);
+            // The engine is app-lifetime and shared with the header books chip, so closing the console
+            // must LEAVE it running - disposing it here is what used to delete every book when the
+            // window was closed.
+            Assert.False(client.IsDisposed);
         }
         finally
         {

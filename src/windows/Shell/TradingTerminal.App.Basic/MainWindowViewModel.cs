@@ -65,13 +65,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         IShellWindowHost host,
         IServiceProvider services,
         ILogger<MainWindowViewModel> logger,
-        ICliWorkspaceLauncher? cliLauncher = null)
+        ICliWorkspaceLauncher? cliLauncher = null,
+        TradingTerminal.ExecutionUi.ExecutionBooksChipViewModel? executionBooks = null)
     {
         _factory = factory;
         _eventBus = eventBus;
         _session = session;
         _brokerSelector = brokerSelector;
         ApiMeter = apiMeter;
+        ExecutionBooks = executionBooks;
         PluginProblemCount = pluginContext.Report?.AttentionCount ?? 0;
         _host = host;
         _services = services;
@@ -268,6 +270,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     /// <summary>Live API-call meter shown as broker chips in the header strip.</summary>
     public BrokerApiMeterViewModel ApiMeter { get; }
+
+    /// <summary>
+    /// The execution engine's books, beside the API meter. Optional: a host that composes no
+    /// execution console has none, and the chip simply does not render.
+    ///
+    /// <para>It sits in the header rather than in the console because the engine is app-lifetime —
+    /// books keep running whether or not the console window is open, so the place to see and stop
+    /// them has to be somewhere always visible.</para>
+    /// </summary>
+    public TradingTerminal.ExecutionUi.ExecutionBooksChipViewModel? ExecutionBooks { get; }
+
+    public bool HasExecutionBooksChip => ExecutionBooks is not null;
 
     /// <summary>Strategy plugins that failed to load or sit quarantined (user disables excluded) —
     /// drives the header warning chip; click-through opens the Plugin Manager.</summary>

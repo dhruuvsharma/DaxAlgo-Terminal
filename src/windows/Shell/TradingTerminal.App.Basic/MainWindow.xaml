@@ -66,6 +66,111 @@
 
                 <!-- Right: API meter chips · market sessions · clock -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Execution books - the app-lifetime engine's books, with a Run/Stop per book.
+                         It lives here rather than inside the Execution Console because the engine
+                         keeps running whether or not that window is open: closing the console must
+                         never be mistaken for stopping trading, so the control has to sit somewhere
+                         always visible. Hidden entirely until a book exists. -->
+                    <Grid Margin="0,0,16,0" VerticalAlignment="Center"
+                          Visibility="{Binding ExecutionBooks.HasBooks, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
+                        <ToggleButton x:Name="BooksToggle" Cursor="Hand" Padding="9,3"
+                                      Background="Transparent" BorderThickness="0"
+                                      ToolTip="Execution books - Run/Stop order intake per book">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="{DynamicResource Background.Elevated}"
+                                            BorderBrush="{DynamicResource Border.Brush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="BOOKS" FontWeight="Bold" FontSize="10"
+                                           Foreground="{DynamicResource Text.Header}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="{Binding ExecutionBooks.Summary}" FontSize="10"
+                                           Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <!-- Green while every book runs; amber the moment one is stopped. -->
+                                            <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ExecutionBooks.HasStoppedBook}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource Warning.Brush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="&#x25BE;" FontSize="10" Foreground="{DynamicResource Text.Secondary}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <Popup PlacementTarget="{Binding ElementName=BooksToggle}" Placement="Bottom"
+                               IsOpen="{Binding IsChecked, ElementName=BooksToggle}"
+                               StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade"
+                               HorizontalOffset="-6" VerticalOffset="6">
+                            <Border Background="{DynamicResource Background.Surface}"
+                                    BorderBrush="{DynamicResource Border.Brush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="4" MinWidth="310" MaxWidth="430">
+                                <StackPanel>
+                                    <TextBlock Text="EXECUTION BOOKS" FontWeight="Bold" FontSize="9.5"
+                                               Foreground="{DynamicResource Text.Secondary}" Margin="8,6,8,2" />
+                                    <TextBlock Text="Stop refuses new orders. Open positions stay open - flatten from the Execution Console."
+                                               FontSize="9.5" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Text.Secondary}" Margin="8,0,8,6" />
+
+                                    <TextBlock Text="{Binding ExecutionBooks.LastError}"
+                                               Visibility="{Binding ExecutionBooks.LastError, Converter={StaticResource StringToVisibilityConverter}}"
+                                               Foreground="{DynamicResource Bearish.Brush}"
+                                               FontSize="9.5" TextWrapping="Wrap" Margin="8,0,8,6" />
+
+                                    <ItemsControl ItemsSource="{Binding ExecutionBooks.Books}" Margin="4,0,4,4">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource Background.Elevated}"
+                                                        BorderBrush="{DynamicResource Border.Brush}"
+                                                        BorderThickness="1" CornerRadius="4"
+                                                        Padding="8,6" Margin="4,2">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="11"
+                                                                       Foreground="{DynamicResource Text.Primary}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock FontSize="9.5" Foreground="{DynamicResource Text.Secondary}"
+                                                                       TextTrimming="CharacterEllipsis">
+                                                                <Run Text="{Binding AdapterName, Mode=OneWay}" />
+                                                                <Run Text="/" />
+                                                                <Run Text="{Binding StrategySummary, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                            <TextBlock FontSize="9.5" Margin="0,2,0,0"
+                                                                       Foreground="{DynamicResource Text.Secondary}">
+                                                                <Run Text="{Binding StateLabel, Mode=OneWay}" />
+                                                                <Run Text="  " />
+                                                                <Run Text="{Binding ProfitAndLoss, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Content="{Binding ToggleLabel}"
+                                                                MinWidth="52" Padding="8,3" VerticalAlignment="Center"
+                                                                Command="{Binding DataContext.ExecutionBooks.ToggleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Id}"
+                                                                IsEnabled="{Binding DataContext.ExecutionBooks.IsBusy, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBooleanConverter}}" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
                     <!-- API tracker — a fancy dropdown button (signal-bar meter + status dot, accent
                          lights green→amber→red on the hottest broker). Click to drop the full
                          per-broker breakdown of calls vs soft rate caps. -->

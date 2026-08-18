@@ -12,7 +12,13 @@ public static class ExecutionConsoleServiceCollectionExtensions
         services.AddSingleton<IExecutionConfirmationService, WpfExecutionConfirmationService>();
         services.TryAddSingleton<IExecutionLeaseStore, ExecutionConsoleLeaseStore>();
         services.TryAddSingleton<ExecutionModeStatusProjection>();
-        services.AddTransient<IExecutionClient, InProcessExecutionClient>();
+        // App lifetime, NOT per window. The console used to resolve a transient client inside the
+        // window's DI scope, so closing the window disposed the engine and every book with it — and
+        // the engine only ran while the window was open. Books outlive their window now, and the
+        // engine keeps running in the background for as long as the application does.
+        services.AddSingleton<IExecutionClient, InProcessExecutionClient>();
+        // App lifetime, like the engine it watches: the header chip lives as long as the shell does.
+        services.AddSingleton<ExecutionBooksChipViewModel>();
         services.AddTransient<ExecutionConsoleViewModel>();
         services.AddTransient<ExecutionConsoleView>();
         return services;

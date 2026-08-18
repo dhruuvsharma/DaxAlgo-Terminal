@@ -177,11 +177,12 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         }
         catch
         {
+            // Detach, but do not dispose: the client is app-lifetime and shared with the header's
+            // books chip. A window that fails to open must not take the engine down with it.
             _client.SnapshotInvalidated -= OnSnapshotInvalidated;
             if (_executionModeStatus is not null)
                 _executionModeStatus.PropertyChanged -= OnExecutionModeStatusChanged;
             DisposeLoginForms();
-            _client.Dispose();
             throw;
         }
     }
@@ -1003,7 +1004,8 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         if (_executionModeStatus is not null)
             _executionModeStatus.PropertyChanged -= OnExecutionModeStatusChanged;
         Interlocked.Exchange(ref _refreshTimer, null)?.Dispose();
-        _client.Dispose();
+        // The engine is app-lifetime and owned by the container, so closing this window must leave it
+        // and its books running. Unsubscribing above is what this view-model actually owns.
         _lifetimeCancellation.Dispose();
         AlpacaLiveAccountId = string.Empty;
         CTraderExecutionAccountId = string.Empty;
