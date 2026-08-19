@@ -7,7 +7,7 @@ namespace TradingTerminal.Infrastructure.Backtest.Persistence;
 /// Non-Windows fallback for <see cref="IParquetQueryService"/>. The DuckDB-backed implementation is
 /// Windows-only in this build (the bundled DuckDB native engine crashes the runtime on Linux/ARM),
 /// so this stub fails loudly if the optional Parquet analytical-query path is invoked off-Windows.
-/// The canonical stores (SQLite/Postgres/QuestDB) and <c>ParquetTickReader</c> are unaffected — only
+/// The canonical stores (SQLite/Postgres/QuestDB) are unaffected — only
 /// the optional DuckDB-over-Parquet SQL layer is gated.
 /// </summary>
 public sealed class UnsupportedParquetQueryService : IParquetQueryService

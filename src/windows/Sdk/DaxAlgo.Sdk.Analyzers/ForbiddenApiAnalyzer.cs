@@ -68,6 +68,9 @@ public sealed class ForbiddenApiAnalyzer : DiagnosticAnalyzer
     [
         "TradingTerminal.Infrastructure",
         "TradingTerminal.MarketData",
+        // Forward guard. The backtest engine was archived on 2026-08-17 and nothing ships under
+        // this prefix today; the entry stays so the engine issue #36 designs cannot reach
+        // sandboxed code by default when it lands.
         "TradingTerminal.Backtest",
         "TradingTerminal.App",
         "TradingTerminal.Execution",
@@ -78,7 +81,6 @@ public sealed class ForbiddenApiAnalyzer : DiagnosticAnalyzer
         "TradingTerminal.Core.Brokers",
         "TradingTerminal.Core.Trading",
         "TradingTerminal.Core.Backtest",
-        "TradingTerminal.Core.Backtesting",
     ];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];

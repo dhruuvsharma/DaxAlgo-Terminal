@@ -93,10 +93,6 @@ public sealed class ForbiddenApiAnalyzerTests
             HostGuidance,
             "internal sealed class Helper { internal TradingTerminal.Core.Trading.{|#0:IOrderRouter|}? Router { get; init; } }");
         yield return Case(
-            "TradingTerminal.Core.Backtesting",
-            HostGuidance,
-            "internal sealed class Helper { internal TradingTerminal.Core.Backtesting.{|#0:IStrategyContext|}? Context { get; init; } }");
-        yield return Case(
             "TradingTerminal.Core.MarketData.IMarketDataStore",
             "read scoped data via IMarketDataView instead of broker, hub, ingest, or store services.",
             "internal sealed class Helper { internal TradingTerminal.Core.MarketData.{|#0:IMarketDataStore|}? Store { get; init; } }");

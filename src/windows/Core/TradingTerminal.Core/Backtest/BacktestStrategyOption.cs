@@ -23,26 +23,32 @@ public sealed record BacktestStrategyOption(
     /// <summary>Factory that honours runtime parameters. When set, preferred over <see cref="Build"/>.</summary>
     public Func<Contract, StrategyParameters, IBacktestStrategy>? ParameterizedBuild { get; init; }
 
+
+
     /// <summary>
-    /// Optional backtest-tuned factory. When set, the backtest engine/Studio builds the strategy
-    /// through this instead of <see cref="Build"/>, letting a strategy ship a warmup/threshold preset
-    /// that is appropriate for a finite backtest without relaxing its conservative <em>live</em>
-    /// defaults. The live signal host always uses <see cref="Build"/>; only backtest call sites opt in.
+    /// Optional factory a strategy may supply for a historical run, so it can ship a warmup/threshold
+    /// preset without relaxing its conservative <em>live</em> defaults.
+    ///
+    /// <para><b>Inert, and deliberately kept.</b> The engine that consumed it was archived on
+    /// 2026-08-17 and nothing in this tree reads it. It stays because this type is a <b>published
+    /// contract</b>: plugins are compiled against the packaged <c>TradingTerminal.Core</c> and set this
+    /// in their object initialisers, so deleting it is a binary-breaking change that fails an already
+    /// installed plugin with <c>MissingMethodException</c> at load. Removing it belongs to a deliberate
+    /// SDK version bump, not a cleanup — see issue #36.</para>
     /// </summary>
     public Func<Contract, IBacktestStrategy>? BacktestBuild { get; init; }
 
-    /// <summary>Builds a fresh strategy for a backtest, preferring <see cref="BacktestBuild"/> when the
-    /// option ships a backtest preset, otherwise falling back to the standard <see cref="Create"/>.</summary>
+    /// <summary>Builds a strategy for a historical run, preferring <see cref="BacktestBuild"/> when the
+    /// option ships a preset. Inert for the same reason as <see cref="BacktestBuild"/>.</summary>
     public IBacktestStrategy CreateForBacktest(Contract contract) =>
         BacktestBuild is { } build ? build(contract) : Create(contract);
 
     /// <summary>
-    /// Optional factory producing this strategy's walk-forward parameter grid (the candidate configs
-    /// the walk-forward optimiser sweeps). Declared HERE — next to the strategy's own <see cref="Build"/>
-    /// — so a strategy (including a runtime-loaded plugin) ships its grid with itself; the host's
-    /// walk-forward path resolves the grid from the registered option rather than hardcoding a
-    /// per-strategy switch. <c>null</c> (default) means the strategy doesn't support walk-forward
-    /// optimisation.
+    /// Optional factory producing this strategy's walk-forward parameter grid. Declared here so a
+    /// plugin ships its grid with itself rather than the host hardcoding a per-strategy switch.
+    ///
+    /// <para>Inert and kept for the same ABI reason as <see cref="BacktestBuild"/>: the optimiser that
+    /// swept it went to <c>archive/</c> with the engine, but plugins set this property.</para>
     /// </summary>
     public Func<WalkForwardAxes, IReadOnlyList<WalkForwardCandidate>>? WalkForwardGrid { get; init; }
 

@@ -15,7 +15,7 @@ scoped market data + deterministic clock + typed parameters
 ```
 
 The host gives a unit only the capabilities required for that flow. A unit does not receive a broker,
-account, market-data hub or store, file system, network, process, registry, execution engine, backtest
+account, market-data hub or store, file system, network, process, registry, execution engine, replay
 engine, or terminal service. The terminal therefore never has to trust authored code with more
 authority than its job requires.
 
@@ -38,7 +38,7 @@ code security boundary. Product isolation and execution gates remain host-owned.
 | Member | Contract |
 |---|---|
 | `IMarketDataView Data` | Read-only projection for the declared instrument set and `DataRequirement`. `RecentBars`, `RecentQuotes`, and `RecentTrades` return bounded snapshots ordered oldest to newest; `LatestDepth` returns the latest authorized snapshot or `null`. Requests outside the declared set/stream return no data. There is no hub, store, broker feed, or source selector. |
-| `IClock Clock` | Host clock. It is live time in a live run and simulated replay time in a backtest. Use it for every time-dependent decision instead of wall-clock calls. |
+| `IClock Clock` | Host clock. It is live time in a live run and replay time in a historical run. Use it for every time-dependent decision instead of wall-clock calls. |
 | `IParameters Parameters` | Read-only, case-sensitive values governed by the unit's `StrategyParameterSchema`. Read with `GetInt`, `GetLong`, `GetDouble`, `GetBool`, `GetString`, `GetText`, `GetEnum<TEnum>`, or `GetInstrument` according to the declared kind. |
 | `IVirtualBook Book` | The strategy's sole trading output: declarative targets in its private model portfolio. It cannot inspect or manipulate real orders, brokers, venues, routes, or accounts. |
 | `IAlertSink Alerts` | Bounded message offer to host-owned Activity Log and banner routes. It does not expose a destination, recipient, transport, or notification service. |
@@ -91,7 +91,7 @@ and zero is flat. The optional stop and target are model-book prices. The call d
 portfolio state; it is not an order and cannot name a broker, order type, time-in-force, account, venue,
 or execution route.
 
-The host-owned model portfolio is used for strategy runs and backtests. The kernel always emits the
+The host-owned model portfolio is used for every strategy run. The kernel always emits the
 same declarative target; it never creates or routes a broker order. Any future replication, sizing,
 risk, broker translation, or execution authorization remains outside the kernel and outside this
 public application's current data-and-signals-only boundary.
@@ -155,7 +155,7 @@ The analyzer also rejects direct host access:
   `IQuestDbLauncher`;
 - `TradingTerminal.Infrastructure`, `.MarketData`, `.Backtest`, `.App`, `.Execution`, `.UI`, `.Login`,
   `.Settings`, and `.Recording` namespaces;
-- `TradingTerminal.Core.Brokers`, `.Trading`, `.Backtest`, and `.Backtesting`; and
+- `TradingTerminal.Core.Brokers`, `.Trading`, and `.Backtest`; and
 - host types under `TradingTerminal` whose names end in `Store`, `Repository`, `BrokerClient`, or
   `BrokerSelector`.
 
@@ -183,9 +183,9 @@ trivial recording `IVirtualBook` and composes `IStrategyRuntimeContext` from tho
 The public `SandboxVisualizerRuntime` can run a visualizer end-to-end against an in-memory market-data
 hub.
 
-The public tree does **not** provide a strategy account, `SandboxStrategyRuntime`, or
-`SandboxBacktestRunner`. Do not reference them from an open-core sample or test. Product launch,
-strategy backtests, and model portfolios are host-owned. The public application has no live broker-order
+The public tree does **not** provide a strategy account or `SandboxStrategyRuntime`. Do not reference
+them from an open-core sample or test. Product launch, historical replay, and model portfolios are
+host-owned. The public application has no live broker-order
 execution path. A visualizer auto-runs inside a compatible host and never participates in execution.
 
 Create a project with either public template:
@@ -236,7 +236,7 @@ The tests under
 direct-drive `OnBarAsync`. Their public test context combines `ScopedMarketDataView` fed by a fixed
 in-memory hub, `SandboxParameters`, a recording `IVirtualBook`, and `MediatedAlertSink`. They assert the
 expected long and flat target intents, protective-stop value, and alert delivery. No Pro account or
-backtest runtime is involved.
+host runtime is involved.
 
 ### `SpreadBandVisualizer`
 
@@ -303,8 +303,7 @@ Hyperion and other generators must treat this JSON as a generation constraint, n
     "TradingTerminal.Recording",
     "TradingTerminal.Core.Brokers",
     "TradingTerminal.Core.Trading",
-    "TradingTerminal.Core.Backtest",
-    "TradingTerminal.Core.Backtesting"
+    "TradingTerminal.Core.Backtest"
   ],
   "forbiddenSourceTypesOrMembers": [
     "System.Diagnostics.Process",
@@ -358,12 +357,12 @@ Hyperion and other generators must treat this JSON as a generation constraint, n
     "Keep mutable run state on the unit instance",
     "Declare every parameter and default in StrategyParameterSchema",
     "Request only consumed StrategyDataRequirement flags",
-    "Generate no UI, broker, account, store, network, file, process, backtest, or execution wiring",
+    "Generate no UI, broker, account, store, network, file, process, replay, or execution wiring",
     "Generate at least one direct public-interface unit test",
     "Require an analyzer-clean build before acceptance"
   ],
   "publicBoundary": "author and unit-test against public DaxAlgo.Sdk; public runtime hosting exists for visualizers",
-  "terminalBoundary": "run and backtest strategies and auto-run visualizers inside a compatible DaxAlgo host; no public live broker-order execution path"
+  "terminalBoundary": "run strategies and auto-run visualizers inside a compatible DaxAlgo host; no public live broker-order execution path"
 }
 ```
 

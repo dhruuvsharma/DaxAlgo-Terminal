@@ -17,7 +17,7 @@ public sealed class RiskOptions
 
     /// <summary>
     /// Treated as a flat multiplier from price to notional. Backtest sessions pull this
-    /// from <c>BacktestConfig.ContractMultiplier</c>; live trading uses 1.0 unless wired
+    /// from the run configuration; live trading uses 1.0 unless wired
     /// in by broker code that knows the contract's tick value.
     /// </summary>
     public double DefaultContractMultiplier { get; set; } = 1.0;

@@ -167,6 +167,8 @@ public static class PluginPolicyScanner
     [
         "TradingTerminal.Infrastructure",
         "TradingTerminal.MarketData",
+        // Forward guard: nothing ships under this prefix since the engine was archived, but the
+        // entry stays so its replacement (#36) is denied to sandboxed code by default.
         "TradingTerminal.Backtest",
         "TradingTerminal.App",
         "TradingTerminal.Execution",
@@ -177,7 +179,6 @@ public static class PluginPolicyScanner
         "TradingTerminal.Core.Brokers",
         "TradingTerminal.Core.Trading",
         "TradingTerminal.Core.Backtest",
-        "TradingTerminal.Core.Backtesting",
     ];
 
     /// <summary>Scans every managed assembly in <paramref name="pluginDirectory"/> (the plugin's own

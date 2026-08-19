@@ -7,7 +7,7 @@ namespace TradingTerminal.Core.Backtest;
 /// recorder and the backtest writers. Backed by an embedded, in-process DuckDB engine so a
 /// glob of Parquet files can be filtered, resampled, and aggregated with SQL predicate
 /// pushdown — far cheaper than deserializing every row into C# the way
-/// <c>ParquetTickReader</c> does for a single file.
+/// a single-file reader would.
 ///
 /// Query-only by contract: this seam never writes to or mutates the Parquet files. The
 /// recorder/backtest writers remain the only producers (rule: Parquet export is append-only).

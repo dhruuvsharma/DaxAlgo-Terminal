@@ -1,8 +1,13 @@
 # Signed strategy bundles (`.daxstrategy`)
 
-> Windows strategy-distribution and isolated-backtest format. Immutable installation and exact worker
-> activation are implemented; marketplace integration, automatic updates, and live-host loading remain
-> later slices.
+> Windows strategy-distribution format. The bundle, its signing, and the immutable store are
+> implemented; marketplace integration, automatic updates, and live-host loading remain later slices.
+>
+> **The isolated backtest worker this format was designed to feed no longer exists.** The backtest
+> engine and its worker were archived on 2026-08-17 (`archive/Backtest/engine/`), so the sections below
+> describing worker activation and backtest protocol v2 record how the format was *meant* to be
+> consumed, not what runs today. A replacement engine is being designed — see issue #36 — and the
+> store, signing, and verification described here are what it will activate against.
 >
 > **This is not the install format.** `.daxalgostrategy` and `.daxalgovisualizer` are what the
 > Extensions manager accepts; `.daxstrategy` is the signed, inspectable bundle used for immutable
@@ -10,9 +15,10 @@
 
 A `.daxstrategy` is one portable file, not one merged DLL. It is a passive ZIP whose contents can be
 inspected and verified without executing them. Strategy math stays in one canonical WPF-free engine;
-optional WPF presentation is a companion. Live and backtest consumers will use the same engine rather
-than maintain separate strategy implementations, following
-[ADR-0010](../.claude/context/adr/ADR-0010-isolated-backtest-worker.md).
+optional WPF presentation is a companion. Live and historical consumers are meant to use the same
+engine rather than maintain separate strategy implementations, following
+[ADR-0010](../.claude/context/adr/ADR-0010-isolated-backtest-worker.md) — an ADR now superseded by the
+engine's archival.
 
 ## Layout
 
@@ -52,7 +58,7 @@ The engine object names one exact assembly path and one public, parameterless ty
 `DaxAlgo.Sdk.IStrategyEngineFactory`. Its closed v1 contract is
 `daxalgo.strategy-engine-factory/1` with `public-parameterless-constructor` activation. This lets a future
 live host or worker create the same kernel without scanning assemblies, guessing constructors, or asking
-the strategy author for a second backtest implementation.
+the strategy author for a second implementation.
 
 The factory exposes one declarative `StrategyParameterSchema`, one `StrategyDataRequirement`, and a
 parameterized `Create(Contract, StrategyParameters)` method. Live replay, a single backtest, and optimizer
@@ -190,7 +196,7 @@ revocation-freshness distribution still belong to marketplace integration. If a 
 the engine in-process, it still has that process's authority; see
 [ADR-0009](../.claude/context/adr/ADR-0009-out-of-process-strategy-host.md).
 
-## Immutable install and isolated backtest activation
+## Immutable install and isolated activation
 
 The strategy store separates content from evidence:
 
@@ -219,7 +225,10 @@ archive, receipt, manifest, every payload, and exact file tree. Activation publi
 pointer and re-evaluates current policy; historical receipt text is not a trust anchor. Verified evidence
 retains both the envelope key id and the SHA-256 fingerprint of the exact trusted SPKI.
 
-Backtest protocol v2 represents this as an `installed_bundle` strategy source with exact content and
+> The remainder of this section describes the archived worker route. It is retained as the design the
+> replacement engine (#36) should satisfy, not as current behaviour.
+
+Backtest protocol v2 represented this as an `installed_bundle` strategy source with exact content and
 archive hashes, an exact strategy-assembly hash, typed integer, number, boolean, choice, and text
 parameters, and closed trust evidence. That evidence distinguishes unsigned local development from a
 verified publisher and, for the latter, carries the key id, trusted-SPKI fingerprint, and signature
