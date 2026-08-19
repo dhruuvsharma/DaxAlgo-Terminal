@@ -26,6 +26,9 @@
     <ProjectReference Include="..\..\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
     <ProjectReference Include="..\..\Execution\TradingTerminal.Execution\TradingTerminal.Execution.csproj" />
     <ProjectReference Include="..\..\Execution\TradingTerminal.ExecutionUi\TradingTerminal.ExecutionUi.csproj" />
+    <!-- The sandboxed visualizer runtime behind a catalog card's "Add to chart". Core + SDK only.
+         DAXQ-free, like everything else in this tree. -->
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.Sandbox\TradingTerminal.Sandbox.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />

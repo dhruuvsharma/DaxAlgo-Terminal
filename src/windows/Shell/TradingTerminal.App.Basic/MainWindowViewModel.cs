@@ -20,10 +20,14 @@ using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Core.Strategies.Parameters;
+using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Updates;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.ExecutionUi;
+using TradingTerminal.Sandbox;
 using TradingTerminal.UI;
+using TradingTerminal.UI.Controls.Render;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Theming;
@@ -459,13 +463,103 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         });
     }
 
+    /// <summary>
+    /// Opens a visualizer's window: one sandboxed runtime feeding one picture.
+    ///
+    /// <para>The window is the same one an authored strategy gets — parameters, the author's picture,
+    /// the activity log — minus the virtual book, because a visualizer does not trade. That is the
+    /// whole difference between the two, and building it out of the shared host is what keeps it so.</para>
+    /// </summary>
     [RelayCommand]
     public void AddVisualizerToChart(string? visualizerId)
     {
         if (string.IsNullOrWhiteSpace(visualizerId))
             visualizerId = SelectedCatalogItem?.Visualizer?.Id;
-        if (!string.IsNullOrWhiteSpace(visualizerId))
+        if (string.IsNullOrWhiteSpace(visualizerId))
+            return;
+
+        if (_host.TryActivate(visualizerId)) return;
+
+        var registration = _services.GetService<IVisualizerRegistry>()?.Find(visualizerId);
+        if (registration is null)
+        {
+            // Said out loud, not logged and forgotten. A card whose button does nothing is the exact
+            // failure this whole path existed as for months, and a fixture card still has no runtime.
             _logger.LogWarning("Visualizer {VisualizerId} is not registered in this edition", visualizerId);
+            MessageBox.Show(
+                $"'{SelectedCatalogItem?.Visualizer?.DisplayName ?? visualizerId}' has no runnable visualizer behind it." +
+                Environment.NewLine + Environment.NewLine +
+                "Placeholder cards and cards from a pack that failed to install look the same as real ones " +
+                "until you open them.",
+                "Nothing to open",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var name = registration.Descriptor.DisplayName;
+        var capturedId = visualizerId!;
+        _host.OpenWithOverlay($"Opening {name}…", "Starting the visualizer and warming its data feed…", () =>
+        {
+            var runtime = new SandboxVisualizerRuntime(
+                registration.Create,
+                currentValues: null,
+                _services.GetRequiredService<IMarketDataHub>(),
+                _services.GetRequiredService<IClock>(),
+                LogSink.Append,
+                alert => LogSink.Append(alert.Source, alert.Level.ToString(), alert.Message));
+
+            // Read off a throwaway instance: the schema is declarative, and the runtime builds its own
+            // instance to run. Asking the one that is running would mean reaching through the gate.
+            var schema = SafeSchema(registration);
+
+            var unit = new AuthoredUnitHost(name, runtime.TryDraw, schema, values: null, LogSink);
+            var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
+            window.Owner = Application.Current.MainWindow;
+            TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
+            window.Closed += async (_, _) =>
+            {
+                _host.Unregister(capturedId);
+                unit.Dispose();
+                await runtime.DisposeAsync();
+            };
+
+            _host.Register(capturedId, window);
+            window.Show();
+
+            // Started after the window is up, so a feed that refuses depth reports into a log the user
+            // is already looking at instead of failing behind a curtain.
+            _ = StartVisualizerAsync(runtime, unit, name);
+        });
+    }
+
+    private async Task StartVisualizerAsync(SandboxVisualizerRuntime runtime, AuthoredUnitHost unit, string name)
+    {
+        try
+        {
+            await runtime.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Visualizer {Name} failed to start", name);
+            LogSink.Append(name, "Error", $"Failed to start: {ex.Message}");
+            // Nothing will ever paint, so stop asking for frames rather than spinning a timer forever.
+            unit.Freeze();
+        }
+    }
+
+    /// <summary>The visualizer's declared parameters, or none when it cannot even be constructed.</summary>
+    private StrategyParameterSchema? SafeSchema(VisualizerRegistration registration)
+    {
+        try
+        {
+            return registration.Create().Schema;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Visualizer {Id} could not be constructed to read its schema", registration.Id);
+            return null;
+        }
     }
 
 

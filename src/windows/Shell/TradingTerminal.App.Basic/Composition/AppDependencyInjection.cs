@@ -113,6 +113,11 @@ public static class AppDependencyInjection
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
         services.AddBacktestStrategyCatalog();
+        // The visualizer counterpart to the strategy catalog. Empty on a fresh install, the same
+        // way the strategy catalog is: cards arrive from installed packs or from Hyperion, and
+        // Changed is what lets one appear without a restart.
+        services.AddSingleton<TradingTerminal.UI.Strategies.IVisualizerRegistry,
+            TradingTerminal.UI.Strategies.VisualizerRegistry>();
         // Runtime strategy authoring: Roslyn compiler + the authoring pane VM. Lets users
         // write a strategy and register it into the catalog with no recompile of the host.
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();

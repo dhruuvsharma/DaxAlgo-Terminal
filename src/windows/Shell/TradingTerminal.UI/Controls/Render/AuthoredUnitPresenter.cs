@@ -64,6 +64,18 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     /// <summary>Parameters the unit declared, as label/value pairs the expander renders.</summary>
     public ObservableCollection<AuthoredUnitParameter> Parameters { get; } = [];
 
+    /// <summary>
+    /// Asks the view for a repaint.
+    ///
+    /// <para>An event rather than a property because a frame is not state: the picture the unit would
+    /// draw has changed, and nothing about the presenter has. Raised by whatever paces the unit — see
+    /// <see cref="AuthoredUnitHost"/> — so the presenter never owns a timer of its own.</para>
+    /// </summary>
+    public event EventHandler? FrameRequested;
+
+    /// <summary>Raises <see cref="FrameRequested"/>.</summary>
+    public void RequestFrame() => FrameRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>The unit's own log, newest last.</summary>
     public ObservableCollection<AuthoredUnitLogLine> Log { get; } = [];
 

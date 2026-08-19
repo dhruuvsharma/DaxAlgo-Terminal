@@ -48,6 +48,7 @@ public sealed class SandboxVisualizerRuntime :
     private readonly Action<AlertRecord> _showBanner;
     private readonly int _retentionBound;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private readonly SemaphoreSlim _drawGate = new(1, 1);
     private readonly object _parameterGate = new();
     private readonly object _disposeGate = new();
 
@@ -59,6 +60,8 @@ public sealed class SandboxVisualizerRuntime :
     private int _state;
     private int _disposeStarted;
     private long _droppedEventCount;
+    private long _skippedFrameCount;
+    private long _drawFaultCount;
 
     public SandboxVisualizerRuntime(
         Func<IVisualizer> visualizerFactory,
@@ -109,6 +112,57 @@ public sealed class SandboxVisualizerRuntime :
 
     /// <summary>Total events discarded by the drop-oldest policy across all visualizer builds.</summary>
     public long DroppedEventCount => Interlocked.Read(ref _droppedEventCount);
+
+    /// <summary>Frames the visualizer threw out of. Announced once; counted every time.</summary>
+    public long DrawFaultCount => Interlocked.Read(ref _drawFaultCount);
+
+    /// <summary>Frames skipped because the visualizer was mid-event when the host tried to draw.</summary>
+    public long SkippedFrameCount => Interlocked.Read(ref _skippedFrameCount);
+
+    /// <summary>
+    /// Asks the running visualizer to describe the current frame, and reports whether it did.
+    ///
+    /// <para><b>Never waits.</b> This is called from the render thread, and the pump holds the same
+    /// gate across each market-data callback; blocking here would hand an arbitrary visualizer the
+    /// ability to freeze the window by being slow in <c>OnQuoteAsync</c>. A contended frame is simply
+    /// skipped — the previously composited frame stays on screen, which at render cadence is
+    /// invisible, whereas a stalled UI thread is not.</para>
+    ///
+    /// <para>Returns <see langword="false"/> when there is nothing to draw (not running, disposed, or
+    /// contended) so the host can leave the surface alone rather than paint an empty one.</para>
+    /// </summary>
+    public bool TryDraw(IRenderSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        if (!IsRunning || Volatile.Read(ref _disposeStarted) != 0)
+            return false;
+
+        if (!_drawGate.Wait(0))
+        {
+            Interlocked.Increment(ref _skippedFrameCount);
+            return false;
+        }
+
+        try
+        {
+            if (Volatile.Read(ref _session) is not { } session)
+                return false;
+
+            session.Visualizer.Draw(surface);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // A visualizer that throws while drawing loses its picture, not its window. The renderer
+            // keeps whatever it had; reporting it here is what makes the fault findable.
+            ReportDrawFault(ex);
+            return false;
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    }
 
     /// <summary>Updates one launch-time value while the visualizer is paused.</summary>
     public void SetParameter(string key, object? value)
@@ -375,9 +429,20 @@ public sealed class SandboxVisualizerRuntime :
 
                 try
                 {
-                    await InvokeCallbackAsync(() =>
-                            DeliverAsync(session, item, session.PumpCancellation.Token))
-                        .ConfigureAwait(false);
+                    // Held across the callback so a frame never sees state a handler is halfway
+                    // through mutating. TryDraw takes the same gate without waiting, so a visualizer
+                    // in the middle of an event costs a skipped frame, never a stalled UI thread.
+                    await _drawGate.WaitAsync(session.PumpCancellation.Token).ConfigureAwait(false);
+                    try
+                    {
+                        await InvokeCallbackAsync(() =>
+                                DeliverAsync(session, item, session.PumpCancellation.Token))
+                            .ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        _drawGate.Release();
+                    }
                 }
                 catch (OperationCanceledException) when (session.PumpCancellation.IsCancellationRequested)
                 {
@@ -787,6 +852,29 @@ public sealed class SandboxVisualizerRuntime :
         {
             current.Clear();
             CurrentCallback.Value = previous;
+        }
+    }
+
+    /// <summary>
+    /// Reports a fault raised while drawing. Only the FIRST one is announced: <c>Draw</c> runs every
+    /// frame, so a visualizer that throws in it throws sixty times a second, and repeating the alert
+    /// would bury the log it is meant to appear in.
+    /// </summary>
+    private void ReportDrawFault(Exception fault)
+    {
+        if (Interlocked.Increment(ref _drawFaultCount) != 1L)
+            return;
+
+        try
+        {
+            _appendActivityLog(
+                "Visualizer",
+                "Error",
+                $"The visualizer failed while drawing and its picture was dropped: {fault.Message}");
+        }
+        catch
+        {
+            // The activity log is host-owned; a failure there must not escape onto the render thread.
         }
     }
 

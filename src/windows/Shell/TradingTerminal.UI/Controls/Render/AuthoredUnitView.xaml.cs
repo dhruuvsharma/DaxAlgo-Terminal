@@ -38,6 +38,7 @@ public partial class AuthoredUnitView : UserControl, IDisposable
         _presenter = presenter;
         _presenter.PropertyChanged += OnPresenterChanged;
         _presenter.Log.CollectionChanged += OnLogChanged;
+        _presenter.FrameRequested += OnFrameRequested;
         Surface.Draw = presenter.Draw;
     }
 
@@ -48,6 +49,7 @@ public partial class AuthoredUnitView : UserControl, IDisposable
 
         _presenter.PropertyChanged -= OnPresenterChanged;
         _presenter.Log.CollectionChanged -= OnLogChanged;
+        _presenter.FrameRequested -= OnFrameRequested;
         _presenter = null;
         Surface.Draw = null;
     }
@@ -60,6 +62,12 @@ public partial class AuthoredUnitView : UserControl, IDisposable
         if (e.PropertyName == nameof(AuthoredUnitPresenter.Draw))
             Surface.Draw = _presenter.Draw;
     }
+
+    /// <summary>
+    /// Repaints. The pacing lives with whatever is running the unit, so this control never owns a
+    /// timer and a window showing a stopped unit costs nothing at all.
+    /// </summary>
+    private void OnFrameRequested(object? sender, EventArgs e) => Invalidate();
 
     /// <summary>
     /// Follows the newest line. A log that does not follow is worse than none during a live session:
