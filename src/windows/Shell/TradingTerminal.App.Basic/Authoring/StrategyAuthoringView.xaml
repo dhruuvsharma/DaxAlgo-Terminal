@@ -18,8 +18,15 @@
          TradingTerminal.UI/Themes/HyperionStyles.xaml; this file is layout + typed wiring.
          ═══════════════════════════════════════════════════════════════════════════════════ -->
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="B2V" />
-        <converters:StringToVisibilityConverter x:Key="S2V" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- The shared slide switch, merged here rather than app-wide: App.xaml is owned per
+                     edition, so merging there would be a change in every shell instead of one. -->
+                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/TradingModeToggle.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="B2V" />
+            <converters:StringToVisibilityConverter x:Key="S2V" />
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
@@ -263,8 +270,10 @@
                                 Padding="12,10" Tag="{Binding IsGenerating}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />     <!-- prompt box -->
+                            <RowDefinition Height="Auto" />  <!-- Strategy / Visualizer -->
+                            <RowDefinition Height="Auto" />  <!-- notice, when there is one -->
+                            <RowDefinition Height="Auto" />  <!-- model / effort / reasoning / send -->
                         </Grid.RowDefinitions>
 
                         <Grid Grid.Row="0">
@@ -294,8 +303,25 @@
                             </TextBlock>
                         </Grid>
 
+                        <!-- What is being authored. First in the row because it is the biggest
+                             decision in it: everything after this - model, effort, reasoning - is a
+                             setting, while this decides what comes out. Same switch as Paper/Real,
+                             wearing the catalog's own kind colours. -->
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                            <TextBlock Text="Build:" FontSize="12" VerticalAlignment="Center"
+                                       Margin="0,0,10,0" Foreground="{DynamicResource Text.Secondary}" />
+                            <ToggleButton Style="{DynamicResource App.AuthoringKindToggle}"
+                                          IsChecked="{Binding IsAuthoringVisualizer, Mode=TwoWay}"
+                                          ToolTip="Whether this session builds a trading strategy or a visualizer." />
+                        </StackPanel>
+                        <TextBlock Grid.Row="2"
+                                   Text="{Binding AuthoringKindNotice}"
+                                   Visibility="{Binding AuthoringKindNotice, Converter={StaticResource S2V}}"
+                                   FontSize="10.5" TextWrapping="Wrap" Margin="2,6,0,0"
+                                   Foreground="{DynamicResource Text.Secondary}" />
+
                         <!-- Pill row: model · build effort · reasoning · send -->
-                        <DockPanel Grid.Row="1" Margin="0,8,0,0">
+                        <DockPanel Grid.Row="3" Margin="0,8,0,0">
                             <Button DockPanel.Dock="Right" Style="{StaticResource HYP.SendButton}"
                                     Command="{Binding SendCommand}" Content="Send  ⌃⏎"
                                     Visibility="{Binding IsGenerating, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />

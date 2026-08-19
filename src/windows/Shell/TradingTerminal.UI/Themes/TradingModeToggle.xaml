@@ -1,28 +1,27 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:uic="clr-namespace:TradingTerminal.UI.Controls">
 
     <!--
-        Paper / Real trading switch.
+        Shared sliding two-state switch.
 
-        A wide sliding track with both destinations written on it, because this control decides
-        whether orders reach real money and a plain checkbox does not carry that weight. The knob
-        rests over the side that is ACTIVE, so the current mode is readable at a glance rather than
-        inferred from a tick.
+        A wide track with both destinations written on it and the knob resting over the active one,
+        so the current state is readable at a glance rather than inferred from a tick. Used where a
+        checkbox would understate the choice.
 
-        The surface is Hyperion's own: Background.Elevated under Gradient.AiGlass, with Border.Strong
-        and Hyperion's 14px radius (HYP.Radius.L, inlined so this dictionary resolves standalone) — the same stack the composer (chat box) is built from, used
-        directly rather than approximated, so the two read as one design.
+        The surface is Hyperion's own: Background.Elevated under Gradient.AiGlass, Border.Strong, and
+        Hyperion's 14px radius (HYP.Radius.L, inlined so this dictionary resolves standalone) — the
+        same stack HYP.ComposerShell is built from, used directly rather than approximated, so the
+        two read as one design.
 
-        The glass is deliberately colour-neutral, so the live-money signal is carried by the KNOB
-        instead of the track: calm blue while Paper, red while Real. Losing that signal entirely was
-        the one thing not worth trading for the look — the knob is the element the eye follows, so it
-        is the right place for it.
+        The glass is colour-neutral, so state is carried by the KNOB, which crossfades between two
+        filled layers. Crossfading rather than animating a colour is what lets callers pass theme
+        brushes: a ColorAnimation cannot animate to a bound value.
 
-        Arming Real is still gated: the command raises a typed confirmation, and IsChecked binds
-        one-way to the real mode, so the knob only moves once the mode actually changed. A cancelled
-        confirmation leaves it where it was.
+        Labels and accents come from uic:SlideToggle attached properties — see App.TradingModeToggle
+        and App.AuthoringKindToggle below for how a caller specialises it.
     -->
-    <Style x:Key="App.TradingModeToggle" TargetType="ToggleButton">
+    <Style x:Key="App.SlideToggle" TargetType="ToggleButton">
         <Setter Property="Width" Value="240" />
         <Setter Property="Height" Value="38" />
         <Setter Property="Cursor" Value="Hand" />
@@ -46,21 +45,21 @@
                                 Background="{DynamicResource Gradient.AiGlass}"
                                 IsHitTestVisible="False" />
 
-                        <!-- Sliding knob. Carries the mode colour, since the glass is neutral. -->
-                        <Border x:Name="Knob"
-                                Width="114" Height="30"
-                                CornerRadius="11"
-                                HorizontalAlignment="Left"
-                                Margin="3,0,0,0"
-                                Background="#2F6BD4">
-                            <Border.RenderTransform>
+                        <!-- Sliding knob. Two filled layers crossfaded, so the accents can be bound. -->
+                        <Grid x:Name="Knob"
+                              Width="117" Height="30"
+                              HorizontalAlignment="Left"
+                              Margin="3,0,0,0">
+                            <Grid.RenderTransform>
                                 <TranslateTransform x:Name="KnobShift" X="0" />
-                            </Border.RenderTransform>
-                            <Border.Effect>
-                                <DropShadowEffect x:Name="KnobGlow" Color="#2F6BD4" BlurRadius="14"
-                                                  ShadowDepth="0" Opacity="0.5" />
-                            </Border.Effect>
-                        </Border>
+                            </Grid.RenderTransform>
+                            <Border x:Name="LeftFill" CornerRadius="11"
+                                    Background="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                                         Path=(uic:SlideToggle.LeftAccent)}" />
+                            <Border x:Name="RightFill" CornerRadius="11" Opacity="0"
+                                    Background="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                                         Path=(uic:SlideToggle.RightAccent)}" />
+                        </Grid>
 
                         <!-- Both destinations, always readable, in their own halves. -->
                         <Grid IsHitTestVisible="False">
@@ -68,10 +67,14 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="PaperLabel" Grid.Column="0" Text="PAPER"
+                            <TextBlock x:Name="LeftLabel" Grid.Column="0"
+                                       Text="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                                      Path=(uic:SlideToggle.LeftLabel)}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontWeight="Bold" FontSize="12" Foreground="#FFFFFF" />
-                            <TextBlock x:Name="RealLabel" Grid.Column="1" Text="REAL"
+                            <TextBlock x:Name="RightLabel" Grid.Column="1"
+                                       Text="{Binding RelativeSource={RelativeSource TemplatedParent},
+                                                      Path=(uic:SlideToggle.RightLabel)}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontWeight="Bold" FontSize="12" Foreground="#8C9AB3" />
                         </Grid>
@@ -84,17 +87,17 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="KnobShift"
                                                          Storyboard.TargetProperty="X"
-                                                         To="120" Duration="0:0:0.18">
+                                                         To="117" Duration="0:0:0.18">
                                             <DoubleAnimation.EasingFunction>
                                                 <CubicEase EasingMode="EaseInOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
-                                        <ColorAnimation Storyboard.TargetName="Knob"
-                                                        Storyboard.TargetProperty="Background.Color"
-                                                        To="#C02626" Duration="0:0:0.18" />
-                                        <ColorAnimation Storyboard.TargetName="KnobGlow"
-                                                        Storyboard.TargetProperty="Color"
-                                                        To="#C02626" Duration="0:0:0.18" />
+                                        <DoubleAnimation Storyboard.TargetName="RightFill"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.18" />
+                                        <DoubleAnimation Storyboard.TargetName="LeftFill"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
@@ -108,17 +111,17 @@
                                                 <CubicEase EasingMode="EaseInOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
-                                        <ColorAnimation Storyboard.TargetName="Knob"
-                                                        Storyboard.TargetProperty="Background.Color"
-                                                        To="#2F6BD4" Duration="0:0:0.18" />
-                                        <ColorAnimation Storyboard.TargetName="KnobGlow"
-                                                        Storyboard.TargetProperty="Color"
-                                                        To="#2F6BD4" Duration="0:0:0.18" />
+                                        <DoubleAnimation Storyboard.TargetName="RightFill"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.18" />
+                                        <DoubleAnimation Storyboard.TargetName="LeftFill"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
-                            <Setter TargetName="PaperLabel" Property="Foreground" Value="#8C9AB3" />
-                            <Setter TargetName="RealLabel" Property="Foreground" Value="#FFFFFF" />
+                            <Setter TargetName="LeftLabel" Property="Foreground" Value="#8C9AB3" />
+                            <Setter TargetName="RightLabel" Property="Foreground" Value="#FFFFFF" />
                         </Trigger>
 
                         <Trigger Property="IsMouseOver" Value="True">
@@ -135,6 +138,38 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!--
+        Paper / Real trading.
+
+        Calm blue on the safe end, red on the end that spends money — the colour has to agree with
+        the meaning. Arming Real is gated: the command raises a typed confirmation, and IsChecked
+        binds one-way to the real mode, so the knob moves only once the mode actually changed. A
+        cancelled confirmation leaves it where it was.
+    -->
+    <Style x:Key="App.TradingModeToggle" TargetType="ToggleButton" BasedOn="{StaticResource App.SlideToggle}">
+        <Setter Property="uic:SlideToggle.LeftLabel" Value="PAPER" />
+        <Setter Property="uic:SlideToggle.RightLabel" Value="REAL" />
+        <Setter Property="uic:SlideToggle.LeftAccent" Value="#2F6BD4" />
+        <Setter Property="uic:SlideToggle.RightAccent" Value="#C02626" />
+    </Style>
+
+    <!--
+        Strategy / Visualizer — what Hyperion is being asked to author.
+
+        Takes the catalog's own kind colours rather than inventing a pair: a strategy card carries the
+        AI purple and a visualizer card the accent blue, so the switch and the card that results from
+        it agree on what each kind looks like.
+    -->
+    <Style x:Key="App.AuthoringKindToggle" TargetType="ToggleButton" BasedOn="{StaticResource App.SlideToggle}">
+        <!-- Same 240x38 as the trading switch, deliberately: the knob travel is a constant in the
+             shared template, and a Storyboard's To cannot bind to a per-style value. One size also
+             keeps the two switches looking like the same control, which they are. -->
+        <Setter Property="uic:SlideToggle.LeftLabel" Value="STRATEGY" />
+        <Setter Property="uic:SlideToggle.RightLabel" Value="VISUALIZER" />
+        <Setter Property="uic:SlideToggle.LeftAccent" Value="{DynamicResource Ai.Glow.Brush}" />
+        <Setter Property="uic:SlideToggle.RightAccent" Value="{DynamicResource Accent.Brush}" />
     </Style>
 
 </ResourceDictionary>

@@ -175,6 +175,32 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// drives the DRAFT/REGISTERED chip and the rail's status line.</summary>
     [ObservableProperty] private bool _isRegistered;
 
+    /// <summary>
+    /// What this session is building. Held here rather than inferred from the prompt so the choice
+    /// survives a restart with the rest of the session, and so the builder can be told the target
+    /// kind explicitly instead of guessing from wording.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAuthoringVisualizer))]
+    [NotifyPropertyChangedFor(nameof(AuthoringKindNotice))]
+    private AuthoringKind _authoringKind = AuthoringKind.Strategy;
+
+    /// <summary>Two-way binding surface for the Strategy/Visualizer switch.</summary>
+    public bool IsAuthoringVisualizer
+    {
+        get => AuthoringKind == AuthoringKind.Visualizer;
+        set => AuthoringKind = value ? AuthoringKind.Visualizer : AuthoringKind.Strategy;
+    }
+
+    /// <summary>
+    /// Says plainly that visualizer generation is not wired yet. The switch holds the choice and it
+    /// persists with the session, but the builder still produces a strategy — announcing that is
+    /// better than letting someone select Visualizer and wonder why they got a kernel.
+    /// </summary>
+    public string AuthoringKindNotice => AuthoringKind == AuthoringKind.Visualizer
+        ? "Visualizer generation is not wired up yet — the builder still produces a strategy. The choice is kept with the session."
+        : string.Empty;
+
     [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
     [ObservableProperty] private bool _compiledOk;
 
