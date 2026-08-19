@@ -30,5 +30,10 @@ jobs:
         run: dotnet build TradingTerminal.Windows.slnx -c Release --no-restore
 
       # Postgres-backed tests self-skip without Docker; [WpfFact] tests run on the windows runner.
+      #
+      # -m:1 is REQUIRED, not a tuning knob. `dotnet test <solution>` runs one MSBuild invocation per
+      # project IN PARALLEL, and several suites contend for machine-wide singletons — the execution
+      # account mutex and the native VM handle. Without it CI is flaky by construction, and a red run
+      # tells you nothing about the change that triggered it.
       - name: Test
-        run: dotnet test TradingTerminal.Windows.slnx -c Release --no-build --verbosity normal
+        run: dotnet test TradingTerminal.Windows.slnx -c Release --no-build --verbosity normal -m:1

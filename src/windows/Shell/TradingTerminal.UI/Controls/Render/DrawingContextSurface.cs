@@ -197,7 +197,7 @@ internal sealed class DrawingContextSurface : IRenderSurface
 
     public void Push(double x, double y)
     {
-        if (_series is null || !Count())
+        if (_series is null || !Finite(x, y) || !Count())
             return;
 
         _series.Points.Add(ToPixels(x, y));
@@ -265,15 +265,20 @@ internal sealed class DrawingContextSurface : IRenderSurface
 
     public void Line(double x1, double y1, double x2, double y2)
     {
-        if (!Count())
+        if (!Finite(x1, y1, x2, y2) || !Count())
             return;
 
-        _context.DrawLine(CurrentPen(), ToPixels(x1, y1), ToPixels(x2, y2));
+        var a = ToPixels(x1, y1);
+        var b = ToPixels(x2, y2);
+        if (!Finite(a.X, a.Y, b.X, b.Y))
+            return;
+
+        _context.DrawLine(CurrentPen(), a, b);
     }
 
     public void Rect(double x, double y, double width, double height, bool filled = true)
     {
-        if (!Count())
+        if (!Finite(x, y, width, height) || !Count())
             return;
 
         var a = ToPixels(x, y);
@@ -288,7 +293,7 @@ internal sealed class DrawingContextSurface : IRenderSurface
 
     public void Text(double x, double y, string text)
     {
-        if (string.IsNullOrEmpty(text) || !Count())
+        if (string.IsNullOrEmpty(text) || !Finite(x, y) || !Count())
             return;
 
         var formatted = new FormattedText(
@@ -296,7 +301,7 @@ internal sealed class DrawingContextSurface : IRenderSurface
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
             Typeface,
-            _style.FontSize <= 0d ? 11d : _style.FontSize,
+            double.IsFinite(_style.FontSize) && _style.FontSize > 0d ? _style.FontSize : 11d,
             CurrentBrush(),
             _scale);
         var origin = ToPixels(x, y);
@@ -305,7 +310,7 @@ internal sealed class DrawingContextSurface : IRenderSurface
 
     public void Marker(double x, double y, RenderMarkerShape shape)
     {
-        if (!Count())
+        if (!Finite(x, y) || !Count())
             return;
 
         var point = ToPixels(x, y);
@@ -379,6 +384,25 @@ internal sealed class DrawingContextSurface : IRenderSurface
         return new Point(px, py);
     }
 
+    /// <summary>
+    /// Refuses non-finite coordinates.
+    ///
+    /// <para>NaN arrives the moment a visualizer divides by a zero volume or an empty lookback, and
+    /// WPF accepts it without complaint — the primitive is simply never painted correctly and the
+    /// visual is corrupt from then on. Dropping the primitive is the only outcome that stays
+    /// diagnosable.</para>
+    /// </summary>
+    private static bool Finite(params double[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!double.IsFinite(value))
+                return false;
+        }
+
+        return true;
+    }
+
     private bool Count()
     {
         // Discovery draws nothing: it exists only to learn how many panels the frame has.
@@ -397,11 +421,19 @@ internal sealed class DrawingContextSurface : IRenderSurface
 
     private static readonly Typeface Typeface = new("Segoe UI");
 
-    private Color StyleColor() => Color.FromArgb(
-        (byte)Math.Clamp(_style.Alpha * 255d, 0d, 255d),
-        _style.Color.R,
-        _style.Color.G,
-        _style.Color.B);
+    /// <summary>
+    /// Alpha, clamped and NaN-safe. <c>(byte)Math.Clamp(NaN, 0, 255)</c> is undefined behaviour in
+    /// the cast, so a visualizer computing an opacity from empty data could produce any colour at all.
+    /// </summary>
+    private Color StyleColor()
+    {
+        var alpha = double.IsFinite(_style.Alpha) ? Math.Clamp(_style.Alpha, 0d, 1d) : 1d;
+        return Color.FromArgb(
+            (byte)Math.Round(alpha * 255d),
+            _style.Color.R,
+            _style.Color.G,
+            _style.Color.B);
+    }
 
     private Brush CurrentBrush()
     {
@@ -419,7 +451,10 @@ internal sealed class DrawingContextSurface : IRenderSurface
         if (_pen is not null)
             return _pen;
 
-        var pen = new Pen(CurrentBrush(), _style.Thickness <= 0d ? 1d : _style.Thickness);
+        var thickness = double.IsFinite(_style.Thickness) && _style.Thickness > 0d
+            ? _style.Thickness
+            : 1d;
+        var pen = new Pen(CurrentBrush(), thickness);
         if (_style.Dashed)
             pen.DashStyle = DashStyles.Dash;
         pen.Freeze();
