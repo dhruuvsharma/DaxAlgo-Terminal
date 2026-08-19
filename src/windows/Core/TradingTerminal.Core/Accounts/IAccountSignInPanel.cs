@@ -45,8 +45,22 @@ public interface IAccountSignInPanel
     /// </summary>
     bool RememberMe { get; set; }
 
+    /// <summary>
+    /// Whether this build offers a local development account. False in a shipped build — the host
+    /// decides, and a host that says false must never be asked.
+    /// </summary>
+    bool CanUseLocalDeveloperAccount => false;
+
     /// <summary>Begins an interactive sign-in. Completes when the attempt settles, successfully or not.</summary>
     Task SignInAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Signs in with a temporary local development account, skipping the identity provider. Exists so
+    /// the login window can be exercised without a real account; hosts that do not offer it leave
+    /// <see cref="CanUseLocalDeveloperAccount"/> false and this unimplemented.
+    /// </summary>
+    Task SignInAsLocalDeveloperAsync(CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 
     /// <summary>Drops the current session, returning the panel to <see cref="AccountSignInState.SignedOut"/>.</summary>
     Task SignOutAsync(CancellationToken cancellationToken = default);

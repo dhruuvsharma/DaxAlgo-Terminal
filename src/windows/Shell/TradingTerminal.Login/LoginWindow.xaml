@@ -801,6 +801,16 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Development builds only: signs in with a temporary in-memory account so
+                             the window can be exercised without a real one. The host decides whether
+                             to offer it, and a shipped build says no. -->
+                        <Button Content="Continue as local developer"
+                                Command="{Binding SignInAsLocalDeveloperCommand}"
+                                Visibility="{Binding CanUseLocalDeveloperAccount, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"
+                                Margin="0,10,0,0"
+                                Padding="12,7"
+                                FontSize="11.5" />
+
                         <CheckBox Content="Remember me"
                                   IsChecked="{Binding AccountRememberMe, Mode=TwoWay}"
                                   Margin="2,14,0,0"
@@ -828,15 +838,18 @@
                              it is what your orders will DO, so it is settled before the terminal
                              opens rather than as an afterthought next to the button. -->
                         <Separator Margin="0,20,0,16" Background="{DynamicResource Border.Brush}" />
-                        <TextBlock Text="TRADING MODE"
-                                   FontWeight="Bold" FontSize="10"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   Margin="0,0,0,10" />
-                        <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
-                                      HorizontalAlignment="Left"
-                                      IsChecked="{Binding IsRealTrading, Mode=OneWay}"
-                                      Command="{Binding ToggleTradingModeCommand}"
-                                      ToolTip="{Binding TradingModeActionLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Trading Mode:"
+                                       FontSize="12.5"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"
+                                       Foreground="{DynamicResource Text.Primary}" />
+                            <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
+                                          VerticalAlignment="Center"
+                                          IsChecked="{Binding IsRealTrading, Mode=OneWay}"
+                                          Command="{Binding ToggleTradingModeCommand}"
+                                          ToolTip="{Binding TradingModeActionLabel}" />
+                        </StackPanel>
                         <TextBlock Text="{Binding TradingModeCaption}"
                                    FontSize="10.5" Margin="2,8,0,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource Text.Secondary}" />
@@ -867,15 +880,23 @@
                          leaves the switch showing Paper instead of lying about being armed. -->
                     <StackPanel DockPanel.Dock="Left" Margin="0,0,20,0" VerticalAlignment="Center"
                                 Visibility="{Binding RequiresAccountSignIn, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                        <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
-                                      IsChecked="{Binding IsRealTrading, Mode=OneWay}"
-                                      Command="{Binding ToggleTradingModeCommand}"
-                                      ToolTip="{Binding TradingModeActionLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Trading Mode:"
+                                       FontSize="12.5"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"
+                                       Foreground="{DynamicResource Text.Primary}" />
+                            <ToggleButton Style="{DynamicResource App.TradingModeToggle}"
+                                          VerticalAlignment="Center"
+                                          IsChecked="{Binding IsRealTrading, Mode=OneWay}"
+                                          Command="{Binding ToggleTradingModeCommand}"
+                                          ToolTip="{Binding TradingModeActionLabel}" />
+                        </StackPanel>
                         <TextBlock Text="{Binding TradingModeCaption}"
                                    FontSize="10"
-                                   Margin="4,5,0,0"
+                                   Margin="2,6,0,0"
                                    TextWrapping="Wrap"
-                                   MaxWidth="260"
+                                   MaxWidth="380"
                                    Foreground="{DynamicResource Text.Secondary}" />
                     </StackPanel>
 

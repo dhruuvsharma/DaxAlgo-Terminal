@@ -21,6 +21,9 @@
         <Setter Property="Width" Value="260" />
         <Setter Property="Height" Value="40" />
         <Setter Property="Cursor" Value="Hand" />
+        <!-- WPF's default focus visual is a rectangle drawn around the control's bounds, which on a
+             rounded pill reads as a stray blue box. Focus is shown on the track instead, below. -->
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Focusable" Value="True" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
@@ -131,8 +134,11 @@
                             <Setter TargetName="Knob" Property="Opacity" Value="0.26" />
                         </Trigger>
 
+                        <!-- Keyboard focus only: a thin brightening of the track's own border, so
+                             tabbing is visible without painting a box around the pill. Mouse users
+                             never see it. -->
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#93C5FD" />
+                            <Setter TargetName="Track" Property="BorderThickness" Value="2" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

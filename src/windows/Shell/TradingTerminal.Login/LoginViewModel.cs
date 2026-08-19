@@ -426,6 +426,10 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     /// <summary>Sign-in is offered while signed out or after a failure, and never while one is in flight.</summary>
     public bool CanSignIn => AccountSignIn is not null && !IsAccountBusy && !IsAccountSignedIn;
 
+    /// <summary>Whether to offer the local development account button on the overlay.</summary>
+    public bool CanUseLocalDeveloperAccount =>
+        AccountSignIn?.CanUseLocalDeveloperAccount == true && !IsAccountBusy && !IsAccountSignedIn;
+
     public string AccountLabel => AccountSignIn?.AccountLabel ?? string.Empty;
 
     public string AccountStatusMessage => AccountSignIn?.StatusMessage ?? string.Empty;
@@ -454,6 +458,16 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private async Task SignInAsLocalDeveloperAsync()
+    {
+        if (AccountSignIn is null)
+            return;
+
+        await AccountSignIn.SignInAsLocalDeveloperAsync().ConfigureAwait(true);
+        RefreshAccountSignIn();
+    }
+
+    [RelayCommand]
     private async Task SignOutAccountAsync()
     {
         if (AccountSignIn is null)
@@ -478,6 +492,7 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AccountLabel));
         OnPropertyChanged(nameof(AccountStatusMessage));
         OnPropertyChanged(nameof(AccountRememberMe));
+        OnPropertyChanged(nameof(CanUseLocalDeveloperAccount));
         OnPropertyChanged(nameof(RequiresAccountSignIn));
         OnPropertyChanged(nameof(CanLaunch));
         LaunchCommand.NotifyCanExecuteChanged();
