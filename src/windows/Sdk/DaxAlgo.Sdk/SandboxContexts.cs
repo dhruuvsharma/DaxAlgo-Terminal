@@ -221,10 +221,17 @@ public interface IStrategyRuntimeContext
 
 /// <summary>
 /// The complete capability set supplied to a sandboxed visualizer. It intentionally has no virtual
-/// book or other trading output.
+/// book or other trading output — a visualizer draws, it does not trade.
 /// </summary>
 public interface IVisualizerContext
 {
+    /// <summary>
+    /// Where this visualizer draws. Defaults to a surface that discards everything, which is right
+    /// for a headless host: a visualizer describes its frame without ever asking whether anyone is
+    /// looking, and hosts that render supply a real surface.
+    /// </summary>
+    IRenderSurface Surface => NullRenderSurface.Instance;
+
     /// <summary>The visualizer-scoped market-data projection.</summary>
     IMarketDataView Data { get; }
 

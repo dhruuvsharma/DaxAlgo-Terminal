@@ -17,8 +17,9 @@ public sealed class SandboxVisualizerContext : IVisualizerContext, IDisposable
         IMarketDataView data,
         IClock clock,
         IParameters parameters,
-        IAlertSink alerts)
-        : this(data, clock, parameters, alerts, ownedResource: null)
+        IAlertSink alerts,
+        IRenderSurface? surface = null)
+        : this(data, clock, parameters, alerts, ownedResource: null, surface)
     {
     }
 
@@ -27,7 +28,8 @@ public sealed class SandboxVisualizerContext : IVisualizerContext, IDisposable
         IClock clock,
         IParameters parameters,
         IAlertSink alerts,
-        IDisposable? ownedResource)
+        IDisposable? ownedResource,
+        IRenderSurface? surface = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(clock);
@@ -38,6 +40,9 @@ public sealed class SandboxVisualizerContext : IVisualizerContext, IDisposable
         Clock = clock;
         Parameters = parameters;
         Alerts = alerts;
+        // Null-object rather than null: a visualizer must never have to null-check where it draws,
+        // and a host with nothing on screen is a legitimate state rather than a missing dependency.
+        Surface = surface ?? NullRenderSurface.Instance;
         _ownedResource = ownedResource;
     }
 
@@ -48,6 +53,9 @@ public sealed class SandboxVisualizerContext : IVisualizerContext, IDisposable
     public IParameters Parameters { get; }
 
     public IAlertSink Alerts { get; }
+
+    /// <summary>Where this visualizer draws; a discarding surface when the host renders nothing.</summary>
+    public IRenderSurface Surface { get; }
 
     public void Dispose()
     {
