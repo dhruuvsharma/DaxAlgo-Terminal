@@ -865,11 +865,17 @@
                     BorderThickness="0,1,0,0"
                     Padding="24,14,24,16">
                 <DockPanel LastChildFill="True">
-                    <!-- Paper / Real trading, shown once the sign-in overlay is gone. The overlay
-                         carries its own copy so the mode is chosen before the terminal opens; this
-                         one keeps it reachable AFTER signing in, and is the only copy in editions
-                         with no account gate at all - without it the open-source build would lose
-                         the switch entirely. Only ever one is visible.
+                    <!-- Paper / Real trading, for editions with NO account gate only.
+
+                         Where there IS one the switch lives in the sign-in overlay and must not
+                         reappear here afterwards. This was bound to RequiresAccountSignIn, which
+                         goes false the moment sign-in completes and so put the switch straight back
+                         beside Launch - exactly where it was not wanted. HasAccountSignIn is the
+                         right condition: it asks whether this edition has a gate at all, not what
+                         the current sign-in state is.
+
+                         Without this copy the open-source build, which has no overlay, would have no
+                         switch anywhere.
 
                          Paper is the default and the app returns to it every start; arming Real
                          needs the word LIVE typed, and even then each broker account is separately
@@ -879,7 +885,7 @@
                          moves only after the mode actually changed, so a cancelled confirmation
                          leaves the switch showing Paper instead of lying about being armed. -->
                     <StackPanel DockPanel.Dock="Left" Margin="0,0,20,0" VerticalAlignment="Center"
-                                Visibility="{Binding RequiresAccountSignIn, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                Visibility="{Binding HasAccountSignIn, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Trading Mode:"
                                        FontSize="12.5"

@@ -6,23 +6,28 @@
 
         A wide sliding track with both destinations written on it, because this control decides
         whether orders reach real money and a plain checkbox does not carry that weight. The knob
-        rests over the side that is ACTIVE, so the current mode is readable at a glance from across
-        the room rather than inferred from a tick.
+        rests over the side that is ACTIVE, so the current mode is readable at a glance rather than
+        inferred from a tick.
 
-        The gradient runs blue on the Paper end to red on the Real end. That direction is deliberate:
-        the colour has to agree with the meaning, so the calm end is the safe one and the hot end is
-        the one that spends money. Flipping it would make red mean "safe" on the left half.
+        The surface is Hyperion's own: Background.Elevated under Gradient.AiGlass, with Border.Strong
+        and Hyperion's 14px radius (HYP.Radius.L, inlined so this dictionary resolves standalone) — the same stack the composer (chat box) is built from, used
+        directly rather than approximated, so the two read as one design.
 
-        Arming Real is still gated — the command behind this raises a typed confirmation, and the
-        knob only moves once the mode actually changed, because IsChecked is bound one-way to the
-        real state rather than to the click. A cancelled confirmation leaves the knob where it was.
+        The glass is deliberately colour-neutral, so the live-money signal is carried by the KNOB
+        instead of the track: calm blue while Paper, red while Real. Losing that signal entirely was
+        the one thing not worth trading for the look — the knob is the element the eye follows, so it
+        is the right place for it.
+
+        Arming Real is still gated: the command raises a typed confirmation, and IsChecked binds
+        one-way to the real mode, so the knob only moves once the mode actually changed. A cancelled
+        confirmation leaves it where it was.
     -->
     <Style x:Key="App.TradingModeToggle" TargetType="ToggleButton">
-        <Setter Property="Width" Value="260" />
-        <Setter Property="Height" Value="40" />
+        <Setter Property="Width" Value="240" />
+        <Setter Property="Height" Value="38" />
         <Setter Property="Cursor" Value="Hand" />
-        <!-- WPF's default focus visual is a rectangle drawn around the control's bounds, which on a
-             rounded pill reads as a stray blue box. Focus is shown on the track instead, below. -->
+        <!-- WPF's default focus visual is a rectangle around the control's bounds, which on a rounded
+             control reads as a stray blue box. Focus is shown on the track instead, below. -->
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Focusable" Value="True" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -30,58 +35,45 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Grid>
-                        <!-- Track -->
+                        <!-- The Hyperion composer surface, used directly. -->
                         <Border x:Name="Track"
-                                CornerRadius="20"
+                                CornerRadius="14"
+                                Background="{DynamicResource Background.Elevated}"
+                                BorderBrush="{DynamicResource Border.Strong}"
                                 BorderThickness="1"
-                                BorderBrush="#2A3444">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="#1D4ED8" Offset="0" />
-                                    <GradientStop Color="#4C3FB1" Offset="0.45" />
-                                    <GradientStop Color="#B91C1C" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
+                                SnapsToDevicePixels="True" />
+                        <Border CornerRadius="14"
+                                Background="{DynamicResource Gradient.AiGlass}"
+                                IsHitTestVisible="False" />
 
-                        <!-- A dark veil over the inactive half keeps the label on the live side
-                             legible and stops both ends looking equally selected. -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border x:Name="PaperVeil" Grid.Column="0" CornerRadius="20,0,0,20"
-                                    Background="#000000" Opacity="0" />
-                            <Border x:Name="RealVeil" Grid.Column="1" CornerRadius="0,20,20,0"
-                                    Background="#000000" Opacity="0.55" />
-                        </Grid>
-
-                        <!-- Sliding knob. Rendered before the labels so the text stays readable. -->
+                        <!-- Sliding knob. Carries the mode colour, since the glass is neutral. -->
                         <Border x:Name="Knob"
-                                Width="122" Height="32"
-                                CornerRadius="16"
+                                Width="114" Height="30"
+                                CornerRadius="11"
                                 HorizontalAlignment="Left"
-                                Margin="4,0,0,0"
-                                Background="#F8FAFC"
-                                Opacity="0.16">
+                                Margin="3,0,0,0"
+                                Background="#2F6BD4">
                             <Border.RenderTransform>
                                 <TranslateTransform x:Name="KnobShift" X="0" />
                             </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect x:Name="KnobGlow" Color="#2F6BD4" BlurRadius="14"
+                                                  ShadowDepth="0" Opacity="0.5" />
+                            </Border.Effect>
                         </Border>
 
-                        <!-- Both destinations, always visible, in their own corners. -->
-                        <Grid>
+                        <!-- Both destinations, always readable, in their own halves. -->
+                        <Grid IsHitTestVisible="False">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="PaperLabel" Grid.Column="0" Text="PAPER"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontWeight="Bold" FontSize="12.5" Foreground="#FFFFFF" />
+                                       FontWeight="Bold" FontSize="12" Foreground="#FFFFFF" />
                             <TextBlock x:Name="RealLabel" Grid.Column="1" Text="REAL"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontWeight="Bold" FontSize="12.5" Foreground="#93A2B8" />
+                                       FontWeight="Bold" FontSize="12" Foreground="#8C9AB3" />
                         </Grid>
                     </Grid>
 
@@ -92,17 +84,17 @@
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="KnobShift"
                                                          Storyboard.TargetProperty="X"
-                                                         To="126" Duration="0:0:0.18">
+                                                         To="120" Duration="0:0:0.18">
                                             <DoubleAnimation.EasingFunction>
                                                 <CubicEase EasingMode="EaseInOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
-                                        <DoubleAnimation Storyboard.TargetName="RealVeil"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0" Duration="0:0:0.18" />
-                                        <DoubleAnimation Storyboard.TargetName="PaperVeil"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0.55" Duration="0:0:0.18" />
+                                        <ColorAnimation Storyboard.TargetName="Knob"
+                                                        Storyboard.TargetProperty="Background.Color"
+                                                        To="#C02626" Duration="0:0:0.18" />
+                                        <ColorAnimation Storyboard.TargetName="KnobGlow"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#C02626" Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
@@ -116,27 +108,26 @@
                                                 <CubicEase EasingMode="EaseInOut" />
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
-                                        <DoubleAnimation Storyboard.TargetName="RealVeil"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0.55" Duration="0:0:0.18" />
-                                        <DoubleAnimation Storyboard.TargetName="PaperVeil"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0" Duration="0:0:0.18" />
+                                        <ColorAnimation Storyboard.TargetName="Knob"
+                                                        Storyboard.TargetProperty="Background.Color"
+                                                        To="#2F6BD4" Duration="0:0:0.18" />
+                                        <ColorAnimation Storyboard.TargetName="KnobGlow"
+                                                        Storyboard.TargetProperty="Color"
+                                                        To="#2F6BD4" Duration="0:0:0.18" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
-                            <Setter TargetName="PaperLabel" Property="Foreground" Value="#93A2B8" />
+                            <Setter TargetName="PaperLabel" Property="Foreground" Value="#8C9AB3" />
                             <Setter TargetName="RealLabel" Property="Foreground" Value="#FFFFFF" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#EF4444" />
                         </Trigger>
 
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Knob" Property="Opacity" Value="0.26" />
+                            <Setter TargetName="Track" Property="BorderBrush"
+                                    Value="{DynamicResource Accent.Brush}" />
                         </Trigger>
 
-                        <!-- Keyboard focus only: a thin brightening of the track's own border, so
-                             tabbing is visible without painting a box around the pill. Mouse users
-                             never see it. -->
+                        <!-- Keyboard focus only: thickens the track's own border, so tabbing is
+                             visible without painting a box around the control. -->
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Track" Property="BorderThickness" Value="2" />
                         </Trigger>
