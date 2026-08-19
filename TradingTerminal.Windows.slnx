@@ -13,6 +13,7 @@
     <Project Path="tests/DaxAlgo.Sdk.Analyzers.Tests/DaxAlgo.Sdk.Analyzers.Tests.csproj" />
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.Tests/DaxAlgo.Sandbox.Samples.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Tests/TradingTerminal.Sandbox.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.UI.Tests/TradingTerminal.UI.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Portfolio.Tests/TradingTerminal.Sandbox.Portfolio.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Sandbox.Runtime.Tests/TradingTerminal.Sandbox.Runtime.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Execution.Tests/TradingTerminal.Execution.Tests.csproj" />

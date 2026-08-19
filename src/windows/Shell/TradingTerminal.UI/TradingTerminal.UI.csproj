@@ -19,6 +19,10 @@
     <!-- UI.Core supplies ViewModelBase, live-strategy VM bases, and the Activity Log sink. It brings
          CommunityToolkit.Mvvm, Logging.Abstractions, and Reactive transitively. -->
     <ProjectReference Include="..\..\..\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <!-- The render-surface CONTRACT lives in the SDK; this project supplies the host renderer that
+         turns it into pixels. Authors only ever see IRenderSurface, so the published SDK stays a
+         contract and the drawing stays here in the application. -->
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
   </ItemGroup>
 
   <ItemGroup>
