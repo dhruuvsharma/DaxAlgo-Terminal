@@ -13,7 +13,15 @@ public readonly record struct CandleOptions(
     bool ShowGrid = true,
     int GridLines = 5)
 {
-    public static CandleOptions Default { get; } = new();
+    /// <summary>
+    /// The intended defaults.
+    ///
+    /// <para>Written with an explicit argument on purpose. <c>new()</c> on a record struct binds to the
+    /// implicit parameterless constructor rather than the primary one, so every field lands on zero and
+    /// the primary constructor's declared defaults are silently skipped — which made this the
+    /// all-zero value, and made every routine that fell back to it draw nothing at all.</para>
+    /// </summary>
+    public static CandleOptions Default { get; } = new(BodyFraction: 0.7d);
 }
 
 /// <summary>
