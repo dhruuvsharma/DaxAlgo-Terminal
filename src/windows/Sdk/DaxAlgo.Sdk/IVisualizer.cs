@@ -35,6 +35,22 @@ public interface IVisualizer
     /// <summary>Processes an authorized bar.</summary>
     Task OnBarAsync(OhlcvBar bar, IVisualizerContext context, CancellationToken ct) => Task.CompletedTask;
 
+    /// <summary>
+    /// Describes the current frame.
+    ///
+    /// <para>Called by the host when it renders — <b>not</b> when data arrives. The data callbacks
+    /// run on a pump thread and may fire far faster than the display; this runs on the render thread
+    /// with a live surface. So compute in the data callbacks, keep what the picture needs, and draw
+    /// from it here.</para>
+    ///
+    /// <para>Must be <b>pure and fast</b>: the host may invoke it more than once per frame, and it
+    /// blocks the UI while it runs. Default is to draw nothing, which is a perfectly good
+    /// headless visualizer.</para>
+    /// </summary>
+    void Draw(IRenderSurface surface)
+    {
+    }
+
     /// <summary>Stops this visualizer instance.</summary>
     Task OnStopAsync(IVisualizerContext context, CancellationToken ct) => Task.CompletedTask;
 }

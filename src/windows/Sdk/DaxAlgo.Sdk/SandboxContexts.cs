@@ -225,13 +225,6 @@ public interface IStrategyRuntimeContext
 /// </summary>
 public interface IVisualizerContext
 {
-    /// <summary>
-    /// Where this visualizer draws. Defaults to a surface that discards everything, which is right
-    /// for a headless host: a visualizer describes its frame without ever asking whether anyone is
-    /// looking, and hosts that render supply a real surface.
-    /// </summary>
-    IRenderSurface Surface => NullRenderSurface.Instance;
-
     /// <summary>The visualizer-scoped market-data projection.</summary>
     IMarketDataView Data { get; }
 
