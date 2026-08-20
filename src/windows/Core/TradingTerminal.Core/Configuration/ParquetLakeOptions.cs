@@ -6,8 +6,8 @@ namespace TradingTerminal.Core.Configuration;
 /// Knobs for the local Parquet lake — a persistent, on-disk Parquet mirror of the canonical
 /// store's closed periods, laid out for direct DuckDB querying. Distinct from the Telegram
 /// archive offloader: the offloader bundles → uploads → prunes local rows, leaving nothing on
-/// disk to query, whereas the lake keeps the Parquet files locally so the research/backtest path
-/// can read history through <c>IParquetQueryService</c>. The two are independent and can run
+/// disk to query, whereas the lake keeps the Parquet files locally so any external tool — DuckDB,
+/// pandas, a notebook — can read history straight off disk. The two are independent and can run
 /// together. Bound from the <c>MarketDataParquetLake</c> section of appsettings.
 /// </summary>
 public sealed class ParquetLakeOptions

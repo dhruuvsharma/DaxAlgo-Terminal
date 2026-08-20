@@ -25,33 +25,6 @@ public sealed record BacktestStrategyOption(
 
 
 
-    /// <summary>
-    /// Optional factory a strategy may supply for a historical run, so it can ship a warmup/threshold
-    /// preset without relaxing its conservative <em>live</em> defaults.
-    ///
-    /// <para><b>Inert, and deliberately kept.</b> The engine that consumed it was archived on
-    /// 2026-08-17 and nothing in this tree reads it. It stays because this type is a <b>published
-    /// contract</b>: plugins are compiled against the packaged <c>TradingTerminal.Core</c> and set this
-    /// in their object initialisers, so deleting it is a binary-breaking change that fails an already
-    /// installed plugin with <c>MissingMethodException</c> at load. Removing it belongs to a deliberate
-    /// SDK version bump, not a cleanup — see issue #36.</para>
-    /// </summary>
-    public Func<Contract, IBacktestStrategy>? BacktestBuild { get; init; }
-
-    /// <summary>Builds a strategy for a historical run, preferring <see cref="BacktestBuild"/> when the
-    /// option ships a preset. Inert for the same reason as <see cref="BacktestBuild"/>.</summary>
-    public IBacktestStrategy CreateForBacktest(Contract contract) =>
-        BacktestBuild is { } build ? build(contract) : Create(contract);
-
-    /// <summary>
-    /// Optional factory producing this strategy's walk-forward parameter grid. Declared here so a
-    /// plugin ships its grid with itself rather than the host hardcoding a per-strategy switch.
-    ///
-    /// <para>Inert and kept for the same ABI reason as <see cref="BacktestBuild"/>: the optimiser that
-    /// swept it went to <c>archive/</c> with the engine, but plugins set this property.</para>
-    /// </summary>
-    public Func<WalkForwardAxes, IReadOnlyList<WalkForwardCandidate>>? WalkForwardGrid { get; init; }
-
     /// <summary>True when this strategy advertises at least one tunable.</summary>
     public bool HasParameters => !Schema.IsEmpty;
 
