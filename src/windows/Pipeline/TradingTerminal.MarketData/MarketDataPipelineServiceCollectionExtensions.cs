@@ -4,10 +4,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.MarketData;
+using TradingTerminal.Core.MarketData.Archive;
 using TradingTerminal.Core.Ml;
 using TradingTerminal.Infrastructure.MarketData.Store;
 
@@ -28,6 +30,7 @@ public static class MarketDataPipelineServiceCollectionExtensions
         services.Configure<MarketDataStoreOptions>(section);
 
         var opts = section.Get<MarketDataStoreOptions>() ?? new MarketDataStoreOptions();
+
         var dbPath = ResolveDatabasePath(opts.DatabasePath);          // .../marketdata.db — the shared registry file
         var sqliteConn = BuildSqliteConnectionString(dbPath);
         var pgConn = opts.PostgresConnectionString;
@@ -116,6 +119,18 @@ public static class MarketDataPipelineServiceCollectionExtensions
             sp.GetRequiredService<IInstrumentRegistry>(),
             sp.GetRequiredService<ILogger<InstrumentDiscoveryService>>()));
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<InstrumentDiscoveryService>());
+
+        // Deletes data past its retention window on a timer. Before this, the ONLY thing that ever
+        // deleted anything was the archive's prune-after-upload, so a user who never archived had a
+        // store that grew forever. IMarketDataArchiver is optional: a host that composes no archive
+        // still gets retention, it just has no pending-upload floor to respect.
+        services.AddSingleton<MarketDataRetentionService>(sp => new MarketDataRetentionService(
+            sp.GetRequiredService<IMarketDataStore>(),
+            sp.GetRequiredService<IOptionsMonitor<MarketDataStoreOptions>>(),
+            sp.GetRequiredService<IOptionsMonitor<ArchiveOptions>>(),
+            sp.GetRequiredService<ILogger<MarketDataRetentionService>>(),
+            sp.GetService<IMarketDataArchiver>()));
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<MarketDataRetentionService>());
 
         return services;
     }

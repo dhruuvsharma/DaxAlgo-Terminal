@@ -73,9 +73,15 @@ public sealed class MarketDataStoreOptions
     public int FlushIntervalMs { get; set; } = 1000;
 
     /// <summary>
-    /// TimescaleDB retention windows per hypertable, in days. 0 or negative = keep forever (no
-    /// retention policy created). Quotes dominate volume so the default trims them aggressively;
-    /// bars are tiny so we keep them indefinitely. SQLite ignores all three (no native retention).
+    /// Retention windows per stream, in days. 0 or negative = keep forever.
+    ///
+    /// <para>These used to be enforced only by TimescaleDB's native retention policies — the doc
+    /// here said outright that "SQLite ignores all three", and SQLite is the default backend, so the
+    /// default install kept everything forever. <c>MarketDataRetentionService</c> now sweeps them on
+    /// a timer through the store's own delete API, so they mean the same thing on every backend.</para>
+    ///
+    /// <para>Bars are tiny and the historical-cache value compounds, so they are kept indefinitely by
+    /// default.</para>
     /// </summary>
     public int QuoteRetentionDays { get; set; } = 30;
 
@@ -85,6 +91,24 @@ public sealed class MarketDataStoreOptions
     /// <summary>OHLCV-bar retention in days. 0 or negative (default) = keep forever — bars are small
     /// and the historical-cache value compounds over time.</summary>
     public int BarRetentionDays { get; set; } = 0;
+
+    /// <summary>
+    /// Whether the retention sweep runs at all. Off means the windows above are advisory and the store
+    /// grows without bound — which is what it did before the sweep existed.
+    /// </summary>
+    public bool RetentionSweepEnabled { get; set; } = true;
+
+    /// <summary>How often the sweep runs, in hours. It also runs once shortly after startup.</summary>
+    public int RetentionSweepIntervalHours { get; set; } = 6;
+
+    /// <summary>
+    /// Whether the sweep refuses to delete data the Telegram archive has not shipped yet.
+    ///
+    /// <para>On by default, and it matters: a retention window shorter than the archive period would
+    /// delete each period before the archiver ever bundled it, destroying data the user believed was
+    /// being backed up.</para>
+    /// </summary>
+    public bool RespectPendingArchives { get; set; } = true;
 
     // ── QuestDB (Provider == QuestDb) ────────────────────────────────────────────────────────
     // QuestDB is a standalone time-series server. Writes use the InfluxDB Line Protocol over HTTP

@@ -24,6 +24,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     private readonly TelegramArchiveTransport _transport;
     private readonly IMarketDataArchiver _archiver;
     private readonly ILocalMarketDataPersistence? _localPersistence;
+    private readonly IOptionsMonitor<MarketDataStoreOptions> _storeOpts;
     private readonly ILogger<ArchiveSettingsViewModel> _logger;
 
     public ArchiveSettingsViewModel(
@@ -32,6 +33,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         TelegramArchiveTransport transport,
         IMarketDataArchiver archiver,
         ILogger<ArchiveSettingsViewModel> logger,
+        IOptionsMonitor<MarketDataStoreOptions> storeOpts,
         IMarketDataStore? store = null)
     {
         _archiveOpts = archiveOpts;
@@ -41,6 +43,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         _logger = logger;
         // The store is the thing that can actually stop writing. Optional and matched by shape so a
         // host composing a store without the control still opens this screen.
+        _storeOpts = storeOpts;
         _localPersistence = store as ILocalMarketDataPersistence;
         _storeLiveDataLocally = _localPersistence?.IsPersistingLocally ?? false;
         _canStoreLiveDataLocally = _localPersistence is not null;
@@ -88,6 +91,28 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
             : "The store could not start writing — its backend is unreachable. The setting is saved and " +
               "applies once the backend is up.";
     }
+
+    // ----- Retention -----
+
+    /// <summary>Whether old data is deleted at all. Off means the store grows without bound.</summary>
+    [ObservableProperty]
+    private bool _retentionEnabled = true;
+
+    /// <summary>Days of L1 quotes to keep. Nothing in the app reads stored quotes; the archive does.</summary>
+    [ObservableProperty]
+    private int _quoteRetentionDays;
+
+    /// <summary>Days of trade prints to keep. The volume footprint warm-starts from at most 24 hours.</summary>
+    [ObservableProperty]
+    private int _tradeRetentionDays;
+
+    /// <summary>Days of bars to keep. 0 = forever, and that is the default — bars are the history cache.</summary>
+    [ObservableProperty]
+    private int _barRetentionDays;
+
+    /// <summary>Days of L2 depth to keep. The largest stream; the order book warm-starts from 30 minutes.</summary>
+    [ObservableProperty]
+    private int _depthRetentionDays;
 
     // ----- Telegram credentials -----
     [ObservableProperty] private int _apiId;
@@ -215,7 +240,16 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
                 PhoneNumber = PhoneNumber?.Trim() ?? "",
                 SessionFilePath = _telegramOpts.CurrentValue.SessionFilePath,
             };
-            ArchiveUserFile.Save(next, tg, CanStoreLiveDataLocally ? StoreLiveDataLocally : null);
+            ArchiveUserFile.Save(
+                next,
+                tg,
+                CanStoreLiveDataLocally ? StoreLiveDataLocally : null,
+                new MarketDataRetentionSettings(
+                    RetentionEnabled,
+                    Math.Max(QuoteRetentionDays, 0),
+                    Math.Max(TradeRetentionDays, 0),
+                    Math.Max(BarRetentionDays, 0),
+                    Math.Max(DepthRetentionDays, 0)));
             StatusMessage = $"Saved to {ArchiveUserFile.Path}";
         }
         catch (Exception ex)
@@ -278,6 +312,13 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         DeleteLocalAfterArchive = a.DeleteLocalAfterArchive;
         DefaultTargetKind = a.DefaultTargetKind ?? "saved";
         DefaultTargetChatRef = a.DefaultTargetChatRef ?? "";
+
+        var s = _storeOpts.CurrentValue;
+        RetentionEnabled = s.RetentionSweepEnabled;
+        QuoteRetentionDays = s.QuoteRetentionDays;
+        TradeRetentionDays = s.TradeRetentionDays;
+        BarRetentionDays = s.BarRetentionDays;
+        DepthRetentionDays = s.DepthRetentionDays;
 
         var t = _telegramOpts.CurrentValue;
         ApiId = t.ApiId;

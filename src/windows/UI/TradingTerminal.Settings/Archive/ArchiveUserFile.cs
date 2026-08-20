@@ -11,13 +11,25 @@ namespace TradingTerminal.App.Archive;
 /// reloadOnChange so IOptionsMonitor sees edits without an app restart. Mirrors
 /// <see cref="Notifications.NotificationsUserFile"/>.
 /// </summary>
+/// <summary>The retention windows the settings screen can change, in days. 0 = keep forever.</summary>
+public sealed record MarketDataRetentionSettings(
+    bool Enabled,
+    int QuoteDays,
+    int TradeDays,
+    int BarDays,
+    int DepthDays);
+
 public static class ArchiveUserFile
 {
     public static string Path { get; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal", "archive.json");
 
-    public static void Save(ArchiveOptions archive, TelegramArchiveOptions telegram, bool? persistLiveData = null)
+    public static void Save(
+        ArchiveOptions archive,
+        TelegramArchiveOptions telegram,
+        bool? persistLiveData = null,
+        MarketDataRetentionSettings? retention = null)
     {
         var dir = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -64,13 +76,23 @@ public static class ArchiveUserFile
             ["SessionFilePath"] = telegram.SessionFilePath,
         };
 
-        if (persistLiveData is { } persist)
+        if (persistLiveData is not null || retention is not null)
         {
             // Merged into the existing section rather than replacing it: this file is layered over
             // appsettings.json, so writing a whole MarketDataStore object here would silently override
             // the provider, paths and batch sizes the user never touched on this screen.
             var store = root[MarketDataStoreOptions.SectionName] as JsonObject ?? new JsonObject();
-            store["PersistLiveData"] = persist;
+            if (persistLiveData is { } persist)
+                store["PersistLiveData"] = persist;
+
+            if (retention is { } r)
+            {
+                store["RetentionSweepEnabled"] = r.Enabled;
+                store["QuoteRetentionDays"] = r.QuoteDays;
+                store["TradeRetentionDays"] = r.TradeDays;
+                store["BarRetentionDays"] = r.BarDays;
+                store["DepthRetentionDays"] = r.DepthDays;
+            }
             root[MarketDataStoreOptions.SectionName] = store;
         }
 

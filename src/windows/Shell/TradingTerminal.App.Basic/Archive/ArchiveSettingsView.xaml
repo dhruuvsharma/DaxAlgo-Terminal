@@ -40,6 +40,62 @@
                 </StackPanel>
             </Border>
 
+            <!-- Retention -->
+            <Border BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="1" CornerRadius="0" Padding="16"
+                    Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Delete data older than" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <CheckBox Content="Delete market data past its window"
+                              IsChecked="{Binding RetentionEnabled, Mode=TwoWay}" />
+                    <TextBlock Foreground="{DynamicResource Text.Secondary}"
+                               TextWrapping="Wrap"
+                               Margin="24,6,0,10"
+                               Text="Runs a few minutes after start and every few hours after that. 0 days means keep forever. Data the Telegram archive has not shipped yet is never deleted. Note that deleting bounds how large the files GET — SQLite reuses the freed space rather than shrinking the file on disk." />
+                    <Grid Margin="24,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Depth (L2)" Margin="0,0,12,6" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
+                                   Text="{Binding DepthRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Margin="10,0,0,6" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="days — by far the largest stream; the order book only replays 30 minutes" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Quotes (L1)" Margin="0,0,12,6" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"
+                                   Text="{Binding QuoteRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Margin="10,0,0,6" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="days — nothing in the app reads these; the archive ships them" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Trades" Margin="0,0,12,6" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"
+                                   Text="{Binding TradeRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Margin="10,0,0,6" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="days — the volume footprint replays at most 24 hours" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Bars" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="3" Grid.Column="1"
+                                   Text="{Binding BarRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="3" Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="days — kept forever by default; this is the history cache and it is tiny" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- Telegram login -->
             <Border BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="1" CornerRadius="0" Padding="16"
