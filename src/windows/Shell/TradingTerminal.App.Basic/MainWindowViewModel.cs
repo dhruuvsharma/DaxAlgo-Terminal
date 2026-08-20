@@ -768,16 +768,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         return vm;
     }
 
-    /// <summary>Data → Instant offload: opens the Archive history window and immediately ships every
-    /// pending period to Telegram, so the run's progress is visible as it goes.</summary>
-    [RelayCommand]
-    public void InstantOffload()
-    {
-        var vm = OpenOrActivateArchiveHistory();
-        if (vm.InstantOffloadCommand.CanExecute(null))
-            vm.InstantOffloadCommand.Execute(null);
-    }
-
     public Task StartAsync()
     {
         // Connect lifecycle is owned by the login screen and the BrokerSelector now —

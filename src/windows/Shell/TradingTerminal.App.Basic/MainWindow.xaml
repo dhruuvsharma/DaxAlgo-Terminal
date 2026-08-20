@@ -554,9 +554,6 @@
                           Command="{Binding OpenArchiveSettingsCommand}" />
                 <MenuItem Icon="🕘" Header="Archive _history…"
                           Command="{Binding OpenArchiveActivityCommand}" />
-                <Separator />
-                <MenuItem Icon="📤" Header="_Instant offload (all pending)…"
-                          Command="{Binding InstantOffloadCommand}" />
             </MenuItem>
 
             <MenuItem Header="_Execution Engine">

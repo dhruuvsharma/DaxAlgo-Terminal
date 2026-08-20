@@ -13,8 +13,9 @@ namespace TradingTerminal.App.Archive;
 
 /// <summary>
 /// Settings tab for the market-data archive: whether this machine stores the live feed at all,
-/// Telegram credentials + login, and the schedule + retention knobs. Saving writes the per-user
-/// JSON; IOptionsMonitor surfaces the change to the running schedule service.
+/// Telegram credentials + login, the schedule + retention knobs, and a manual "Offload now" range
+/// picker. Saving writes the per-user JSON; IOptionsMonitor surfaces the change to the running
+/// schedule service.
 /// </summary>
 public sealed partial class ArchiveSettingsViewModel : ViewModelBase
 {
@@ -45,6 +46,10 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         _canStoreLiveDataLocally = _localPersistence is not null;
 
         LoadFromOptions();
+        // Sane defaults for the manual offload — last completed week.
+        var (from, to) = ArchivePeriodMath.ClosedPeriod(DateTime.UtcNow, ArchivePeriod.Weekly);
+        ManualFromUtc = from;
+        ManualToUtc = to;
     }
 
     // ----- Local storage -----
@@ -108,6 +113,14 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _defaultTargetChatRef = "";
     public bool DefaultTargetIsChat => string.Equals(DefaultTargetKind, "chat", StringComparison.OrdinalIgnoreCase);
     partial void OnDefaultTargetKindChanged(string value) => OnPropertyChanged(nameof(DefaultTargetIsChat));
+
+    // ----- Manual offload -----
+    [ObservableProperty] private DateTime _manualFromUtc;
+    [ObservableProperty] private DateTime _manualToUtc;
+    [ObservableProperty] private string _manualTargetKind = "saved";
+    [ObservableProperty] private string _manualTargetChatRef = "";
+    public bool ManualTargetIsChat => string.Equals(ManualTargetKind, "chat", StringComparison.OrdinalIgnoreCase);
+    partial void OnManualTargetKindChanged(string value) => OnPropertyChanged(nameof(ManualTargetIsChat));
 
     // ----- Status -----
     [ObservableProperty] private string? _statusMessage;
@@ -210,6 +223,34 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
             StatusMessage = $"Save failed: {ex.Message}";
             _logger.LogError(ex, "Archive settings save failed");
         }
+    }
+
+    [RelayCommand]
+    private async Task OffloadNowAsync()
+    {
+        if (ManualToUtc <= ManualFromUtc) { StatusMessage = "Manual offload: 'to' must be after 'from'."; return; }
+        IsBusy = true;
+        try
+        {
+            Save();
+            var target = ManualTargetKind == "chat" && !string.IsNullOrWhiteSpace(ManualTargetChatRef)
+                ? ArchiveTarget.Chat(ManualTargetChatRef.Trim())
+                : ArchiveTarget.SavedMessages;
+            StatusMessage = $"Offloading [{ManualFromUtc:s} â†’ {ManualToUtc:s})â€¦";
+            var progress = new Progress<string>(line => StatusMessage = line);
+            var result = await Task.Run(() => _archiver.ArchiveRangeAsync(
+                DateTime.SpecifyKind(ManualFromUtc, DateTimeKind.Utc),
+                DateTime.SpecifyKind(ManualToUtc, DateTimeKind.Utc),
+                target, progress, CancellationToken.None));
+            StatusMessage = $"Archive #{result.Entry.Id} complete ({result.Entry.Parts.Count} parts, " +
+                            $"{result.Entry.RowsQuotes:n0} quotes, {result.Entry.RowsBars:n0} bars).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Offload failed: {ex.Message}";
+            _logger.LogError(ex, "Manual offload failed");
+        }
+        finally { IsBusy = false; }
     }
 
     private ArchiveTables ComposeTables()
