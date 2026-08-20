@@ -37,10 +37,6 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         _logger = logger;
 
         LoadFromOptions();
-        // Sane defaults for the manual offload — last completed week.
-        var (from, to) = ArchivePeriodMath.ClosedPeriod(DateTime.UtcNow, ArchivePeriod.Weekly);
-        ManualFromUtc = from;
-        ManualToUtc = to;
     }
 
     // ----- Telegram credentials -----
@@ -67,14 +63,6 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _defaultTargetChatRef = "";
     public bool DefaultTargetIsChat => string.Equals(DefaultTargetKind, "chat", StringComparison.OrdinalIgnoreCase);
     partial void OnDefaultTargetKindChanged(string value) => OnPropertyChanged(nameof(DefaultTargetIsChat));
-
-    // ----- Manual offload -----
-    [ObservableProperty] private DateTime _manualFromUtc;
-    [ObservableProperty] private DateTime _manualToUtc;
-    [ObservableProperty] private string _manualTargetKind = "saved";
-    [ObservableProperty] private string _manualTargetChatRef = "";
-    public bool ManualTargetIsChat => string.Equals(ManualTargetKind, "chat", StringComparison.OrdinalIgnoreCase);
-    partial void OnManualTargetKindChanged(string value) => OnPropertyChanged(nameof(ManualTargetIsChat));
 
     // ----- Status -----
     [ObservableProperty] private string? _statusMessage;
@@ -177,34 +165,6 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
             StatusMessage = $"Save failed: {ex.Message}";
             _logger.LogError(ex, "Archive settings save failed");
         }
-    }
-
-    [RelayCommand]
-    private async Task OffloadNowAsync()
-    {
-        if (ManualToUtc <= ManualFromUtc) { StatusMessage = "Manual offload: 'to' must be after 'from'."; return; }
-        IsBusy = true;
-        try
-        {
-            Save();
-            var target = ManualTargetKind == "chat" && !string.IsNullOrWhiteSpace(ManualTargetChatRef)
-                ? ArchiveTarget.Chat(ManualTargetChatRef.Trim())
-                : ArchiveTarget.SavedMessages;
-            StatusMessage = $"Offloading [{ManualFromUtc:s} → {ManualToUtc:s})…";
-            var progress = new Progress<string>(line => StatusMessage = line);
-            var result = await Task.Run(() => _archiver.ArchiveRangeAsync(
-                DateTime.SpecifyKind(ManualFromUtc, DateTimeKind.Utc),
-                DateTime.SpecifyKind(ManualToUtc, DateTimeKind.Utc),
-                target, progress, CancellationToken.None));
-            StatusMessage = $"Archive #{result.Entry.Id} complete ({result.Entry.Parts.Count} parts, " +
-                            $"{result.Entry.RowsQuotes:n0} quotes, {result.Entry.RowsBars:n0} bars).";
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Offload failed: {ex.Message}";
-            _logger.LogError(ex, "Manual offload failed");
-        }
-        finally { IsBusy = false; }
     }
 
     private ArchiveTables ComposeTables()

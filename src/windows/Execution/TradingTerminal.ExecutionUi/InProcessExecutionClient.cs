@@ -36,6 +36,7 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         _interactiveBrokersTransportFactory;
     private readonly IClock? _executionClock;
     private readonly IExecutionLeaseStore _executionLeaseStore;
+    private readonly IExecutionBookStore _bookStore;
     private readonly IExecutionModeStatusPublisher? _modeStatusPublisher;
     private readonly Dictionary<string, string> _adapterConnectionErrors = new(StringComparer.Ordinal);
     private string _interactiveBrokersAccountId;
@@ -54,7 +55,8 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
             interactiveBrokersTransportFactory = null,
         IClock? executionClock = null,
         IExecutionLeaseStore? executionLeaseStore = null,
-        ExecutionModeStatusProjection? executionModeStatus = null)
+        ExecutionModeStatusProjection? executionModeStatus = null,
+        IExecutionBookStore? bookStore = null)
     {
         _liveConfirmationStore = liveConfirmationStore;
         _cTraderOptions = cTraderOptions;
@@ -68,6 +70,7 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
             .DistinctBy(adapter => $"{adapter.BrokerId}|{adapter.Account.AccountId.Value}")
             .ToList();
         _modeStatusPublisher = executionModeStatus?.CreatePublisher();
+        _bookStore = bookStore ?? NullExecutionBookStore.Instance;
         _books = [];
         try
         {
@@ -141,6 +144,9 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
             }
             _lastOperationMessage = result.Message;
         }
+        // Run/Stop is part of what a book IS, so it has to outlive the session too.
+        if (result.IsSuccess)
+            PersistBooks();
         Invalidate();
         return ValueTask.FromResult(result);
     }
@@ -610,6 +616,90 @@ FinishConnect:
         return result;
     }
 
+    /// <summary>
+    /// Recreates the books remembered from the last run.
+    ///
+    /// <para>Replayed through the ordinary <see cref="CreateBookAsync"/> path rather than
+    /// reconstructed from saved state: a book owns a live adapter lease, so the only honest way to
+    /// bring one back is to ask for it again exactly as the user first did. A book whose adapter is
+    /// no longer registered simply does not come back, and says which ones did not.</para>
+    ///
+    /// <para>Called once at startup. Safe to call again — a book already present is refused by the
+    /// duplicate-name rule, so a second call restores nothing.</para>
+    /// </summary>
+    public async ValueTask<ExecutionCommandResult> RestoreBooksAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var remembered = _bookStore.Read();
+        if (remembered.Count == 0)
+            return ExecutionCommandResult.Success("No books to restore.");
+
+        var restored = 0;
+        var failures = new List<string>();
+        foreach (var book in remembered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await CreateBookAsync(
+                new ExecutionBookCreateRequest(book.Name, book.AdapterId, book.Strategies, Symbol: book.Symbol),
+                cancellationToken).ConfigureAwait(false);
+
+            if (!result.IsSuccess)
+            {
+                failures.Add($"{book.Name} ({result.Message})");
+                continue;
+            }
+
+            restored++;
+            if (!book.IsPaused)
+                continue;
+
+            // Paused is part of the book's intent: a book the user stopped must not start taking
+            // orders again just because the application restarted.
+            var entry = FindBookByName(book.Name);
+            if (entry is not null)
+                entry.IsPaused = true;
+        }
+
+        // Rewritten from what actually came back, so a book whose adapter has gone away stops being
+        // retried on every launch.
+        PersistBooks();
+        Invalidate();
+
+        return failures.Count == 0
+            ? ExecutionCommandResult.Success($"Restored {restored} book(s).")
+            : ExecutionCommandResult.Failure(
+                $"Restored {restored} book(s); {failures.Count} could not be restored: {string.Join("; ", failures)}");
+    }
+
+    private BookEntry? FindBookByName(string name)
+    {
+        lock (_gate)
+        {
+            return _books.FirstOrDefault(book =>
+                string.Equals(book.Configuration.Name, name, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>Writes the current books out, so the next run starts with the same ones.</summary>
+    private void PersistBooks()
+    {
+        PersistedExecutionBook[] snapshot;
+        lock (_gate)
+        {
+            snapshot = _books
+                .Where(book => book.Runtime is not null)
+                .Select(book => new PersistedExecutionBook(
+                    book.Configuration.Name,
+                    book.Configuration.AdapterId,
+                    book.Configuration.Instruments.Count > 0 ? book.Configuration.Instruments[0].Symbol : string.Empty,
+                    book.Configuration.Strategies,
+                    book.IsPaused))
+                .ToArray();
+        }
+
+        _bookStore.Save(snapshot);
+    }
+
     public async ValueTask<ExecutionCommandResult> CreateBookAsync(
         ExecutionBookCreateRequest request,
         CancellationToken cancellationToken = default)
@@ -767,6 +857,7 @@ FinishConnect:
         }
         lock (_gate)
             _lastOperationMessage = result.Message;
+        PersistBooks();
         Invalidate();
         return result;
     }

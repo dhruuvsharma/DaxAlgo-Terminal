@@ -41,6 +41,15 @@ public interface IExecutionClient : IDisposable
         string adapterId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Recreates the books remembered from the last run.
+    ///
+    /// <para>Default is to restore nothing, so a host with no book store — and every test double —
+    /// behaves exactly as before.</para>
+    /// </summary>
+    ValueTask<ExecutionCommandResult> RestoreBooksAsync(CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(ExecutionCommandResult.Success("No books to restore."));
+
     ValueTask<ExecutionCommandResult> CreateBookAsync(
         ExecutionBookCreateRequest request,
         CancellationToken cancellationToken = default);

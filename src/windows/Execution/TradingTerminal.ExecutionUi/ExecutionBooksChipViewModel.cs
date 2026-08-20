@@ -54,6 +54,7 @@ public sealed partial class ExecutionBooksChipViewModel : ViewModelBase, IDispos
 {
     private readonly IExecutionClient _client;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly Task _restore;
     private int _disposed;
 
     public ExecutionBooksChipViewModel(IExecutionClient client)
@@ -61,6 +62,34 @@ public sealed partial class ExecutionBooksChipViewModel : ViewModelBase, IDispos
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _client.SnapshotInvalidated += OnSnapshotInvalidated;
         Refresh();
+        _restore = RestoreAsync();
+    }
+
+    /// <summary>
+    /// Brings back the books the last run ended with.
+    ///
+    /// <para>Started here because this chip is the engine's app-lifetime presence: it is what keeps
+    /// books alive across window closes, so it is also what brings them back across restarts. Not
+    /// awaited — the shell must not block on adapter leases while it is starting — but the task is
+    /// held so teardown can wait for it, and any failure lands in <see cref="LastError"/> rather
+    /// than on an unobserved task.</para>
+    /// </summary>
+    private async Task RestoreAsync()
+    {
+        try
+        {
+            var result = await _client.RestoreBooksAsync(_lifetime.Token).ConfigureAwait(true);
+            if (!result.IsSuccess)
+                LastError = result.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            // The shell closed before restore finished.
+        }
+        catch (Exception ex)
+        {
+            LastError = $"Books could not be restored: {ex.Message}";
+        }
     }
 
     /// <summary>Every book the engine currently holds.</summary>
@@ -180,7 +209,14 @@ public sealed partial class ExecutionBooksChipViewModel : ViewModelBase, IDispos
         // would stop every book the moment the shell shut a header control down.
         _client.SnapshotInvalidated -= OnSnapshotInvalidated;
         _lifetime.Cancel();
-        _lifetime.Dispose();
+        // The restore task holds this token, so the source is disposed only once that task has
+        // actually stopped — disposing it underneath a live cancellation check turns an orderly
+        // shutdown into an ObjectDisposedException.
+        _restore.ContinueWith(static (_, state) => ((CancellationTokenSource)state!).Dispose(),
+            _lifetime,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
         Books.Clear();
     }
 }

@@ -16,6 +16,10 @@ public static class ExecutionConsoleServiceCollectionExtensions
         // window's DI scope, so closing the window disposed the engine and every book with it — and
         // the engine only ran while the window was open. Books outlive their window now, and the
         // engine keeps running in the background for as long as the application does.
+        //
+        // Books survive a restart, too. Without a store the engine forgets every book the moment the
+        // process exits, which reads to a user as "my books disappeared".
+        services.TryAddSingleton<IExecutionBookStore>(_ => new JsonExecutionBookStore());
         services.AddSingleton<IExecutionClient, InProcessExecutionClient>();
         // App lifetime, like the engine it watches: the header chip lives as long as the shell does.
         services.AddSingleton<ExecutionBooksChipViewModel>();

@@ -131,51 +131,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- Manual offload -->
-            <Border BorderBrush="{DynamicResource Border.Brush}"
-                    BorderThickness="1" CornerRadius="0" Padding="16">
-                <StackPanel>
-                    <TextBlock Text="Offload now" FontWeight="SemiBold" Margin="0,0,0,8" />
-
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="From (UTC)" Margin="0,0,0,4" />
-                            <DatePicker SelectedDate="{Binding ManualFromUtc, Mode=TwoWay}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="To (UTC, exclusive)" Margin="0,0,0,4" />
-                            <DatePicker SelectedDate="{Binding ManualToUtc, Mode=TwoWay}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <TextBlock Text="Destination" Margin="0,8,0,4" />
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="140" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <ComboBox Grid.Column="0"
-                                  ItemsSource="{Binding TargetKindOptions}"
-                                  SelectedItem="{Binding ManualTargetKind, Mode=TwoWay}" />
-                        <TextBox Grid.Column="2"
-                                 Text="{Binding ManualTargetChatRef, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 IsEnabled="{Binding ManualTargetIsChat}"
-                                 FontFamily="Consolas" />
-                    </Grid>
-
-                    <Button Content="Offload now"
-                            Command="{Binding OffloadNowCommand}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                            HorizontalAlignment="Left"
-                            Padding="16,6" />
-                </StackPanel>
-            </Border>
 
             <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                 <Button Content="Save"
