@@ -131,6 +131,9 @@ public static class MarketDataPipelineServiceCollectionExtensions
             sp.GetRequiredService<ILogger<MarketDataRetentionService>>(),
             sp.GetService<IMarketDataArchiver>()));
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<MarketDataRetentionService>());
+        // Same instance behind the on-demand seam, so "Save" in settings sweeps immediately rather
+        // than leaving a shortened window to look ignored until the next tick.
+        services.AddSingleton<IMarketDataRetentionSweep>(sp => sp.GetRequiredService<MarketDataRetentionService>());
 
         return services;
     }

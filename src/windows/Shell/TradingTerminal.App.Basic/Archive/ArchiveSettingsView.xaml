@@ -91,7 +91,7 @@
                                    Text="{Binding BarRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Grid.Row="3" Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}"
-                                   Text="days — kept forever by default; this is the history cache and it is tiny" />
+                                   Text="days — 0 keeps them forever, which is the default. Retention cannot tell a 1-minute bar from a daily one, so any single number ruins one of them; bars are also the smallest stream and the only one whose deletion costs a broker round trip." />
                     </Grid>
                 </StackPanel>
             </Border>

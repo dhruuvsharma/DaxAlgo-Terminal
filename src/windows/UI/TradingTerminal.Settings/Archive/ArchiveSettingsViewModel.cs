@@ -25,6 +25,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     private readonly IMarketDataArchiver _archiver;
     private readonly ILocalMarketDataPersistence? _localPersistence;
     private readonly IOptionsMonitor<MarketDataStoreOptions> _storeOpts;
+    private readonly IMarketDataRetentionSweep? _retentionSweep;
     private readonly ILogger<ArchiveSettingsViewModel> _logger;
 
     public ArchiveSettingsViewModel(
@@ -34,6 +35,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         IMarketDataArchiver archiver,
         ILogger<ArchiveSettingsViewModel> logger,
         IOptionsMonitor<MarketDataStoreOptions> storeOpts,
+        IMarketDataRetentionSweep? retentionSweep = null,
         IMarketDataStore? store = null)
     {
         _archiveOpts = archiveOpts;
@@ -44,6 +46,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         // The store is the thing that can actually stop writing. Optional and matched by shape so a
         // host composing a store without the control still opens this screen.
         _storeOpts = storeOpts;
+        _retentionSweep = retentionSweep;
         _localPersistence = store as ILocalMarketDataPersistence;
         _storeLiveDataLocally = _localPersistence?.IsPersistingLocally ?? false;
         _canStoreLiveDataLocally = _localPersistence is not null;
@@ -251,6 +254,10 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
                     Math.Max(BarRetentionDays, 0),
                     Math.Max(DepthRetentionDays, 0)));
             StatusMessage = $"Saved to {ArchiveUserFile.Path}";
+            // A shortened window should take effect now. Waiting for the next timer tick reads as
+            // the setting having been ignored.
+            if (RetentionEnabled)
+                _ = SweepRetentionAsync();
         }
         catch (Exception ex)
         {
@@ -285,6 +292,32 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
             _logger.LogError(ex, "Manual offload failed");
         }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>
+    /// Applies the saved retention windows immediately.
+    ///
+    /// <para>Not awaited by Save: a first sweep on a large store can take a while, and the settings
+    /// screen must not freeze while it runs. Progress lands in the status line instead.</para>
+    /// </summary>
+    private async Task SweepRetentionAsync()
+    {
+        if (_retentionSweep is null)
+            return;
+
+        try
+        {
+            var deleted = await _retentionSweep.SweepAsync().ConfigureAwait(true);
+            if (deleted > 0)
+                StatusMessage = $"Saved. Deleted {deleted:N0} row(s) past their retention window.";
+            else if (deleted < 0)
+                StatusMessage = "Saved. Old data was dropped (this backend does not report a row count).";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Retention sweep after save failed");
+            StatusMessage = $"Saved, but the cleanup failed: {ex.Message}";
+        }
     }
 
     private ArchiveTables ComposeTables()

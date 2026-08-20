@@ -88,8 +88,21 @@ public sealed class MarketDataStoreOptions
     /// <summary>Trade-print retention in days. 0 or negative = keep forever.</summary>
     public int TradeRetentionDays { get; set; } = 30;
 
-    /// <summary>OHLCV-bar retention in days. 0 or negative (default) = keep forever — bars are small
-    /// and the historical-cache value compounds over time.</summary>
+    /// <summary>
+    /// OHLCV-bar retention in days. 0 or negative (default) = <b>keep forever</b>.
+    ///
+    /// <para>Bars deliberately do not run on the same clock as the tick streams. Retention is per
+    /// stream, not per bar size, so one number has to serve both 1-minute bars (huge row counts, short
+    /// useful lookback) and daily bars (a handful of rows, wanted for years). Any single figure ruins
+    /// one end: 7 days makes daily history useless, and a year of 1-minute bars across a watchlist is
+    /// hundreds of megabytes.</para>
+    ///
+    /// <para>Keeping them is also the cheap choice. Bars are two to three orders of magnitude smaller
+    /// than depth, and they are the only stream whose deletion has a running cost: the cache in
+    /// <c>MarketDataRepository</c> only hits when it holds at least the requested number of bars, so
+    /// the retention window is a hard cap on the longest history request that can ever avoid a broker
+    /// round trip — and Interactive Brokers rate-limits history hard.</para>
+    /// </summary>
     public int BarRetentionDays { get; set; } = 0;
 
     /// <summary>

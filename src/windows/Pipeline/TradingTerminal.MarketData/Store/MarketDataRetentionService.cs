@@ -29,7 +29,7 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// <para>All the decisions live in <see cref="MarketDataRetentionPolicy"/>; this only supplies the
 /// clock, the extent, the archive floor, and the store calls.</para>
 /// </summary>
-internal sealed class MarketDataRetentionService : IHostedService, IDisposable
+internal sealed class MarketDataRetentionService : IMarketDataRetentionSweep, IHostedService, IDisposable
 {
     /// <summary>Long enough for startup to settle before touching the database.</summary>
     private static readonly TimeSpan StartupDelay = TimeSpan.FromMinutes(1);
