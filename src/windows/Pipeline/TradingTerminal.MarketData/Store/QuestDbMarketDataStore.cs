@@ -59,6 +59,16 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
 
     public bool IsActive => _available;
 
+    /// <summary>
+    /// Refuses to start persisting while QuestDB is unreachable.
+    ///
+    /// <para>There is no sender and no schema in that state, so flipping the flag would only queue
+    /// writes that cannot land. Returning false is what lets the settings screen tell the user their
+    /// choice was recorded but is not in force yet.</para>
+    /// </summary>
+    public override bool SetLocalPersistence(bool enabled) =>
+        enabled && !_available ? base.SetLocalPersistence(false) : base.SetLocalPersistence(enabled);
+
     /// <summary>Brings the store live after a late QuestDB start: creates the schema + ILP sender and
     /// flips persistence on (if it was requested). Safe to call repeatedly and from any thread — the
     /// sender is published before persistence is enabled so the single writer thread never sees a live

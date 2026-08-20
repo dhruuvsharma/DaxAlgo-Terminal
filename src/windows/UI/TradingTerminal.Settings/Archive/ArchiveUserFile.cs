@@ -17,7 +17,7 @@ public static class ArchiveUserFile
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal", "archive.json");
 
-    public static void Save(ArchiveOptions archive, TelegramArchiveOptions telegram)
+    public static void Save(ArchiveOptions archive, TelegramArchiveOptions telegram, bool? persistLiveData = null)
     {
         var dir = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -63,6 +63,16 @@ public static class ArchiveUserFile
             ["PhoneNumberEncryptedBase64"] = TelegramArchiveCredentialProtection.Encrypt(telegram.PhoneNumber),
             ["SessionFilePath"] = telegram.SessionFilePath,
         };
+
+        if (persistLiveData is { } persist)
+        {
+            // Merged into the existing section rather than replacing it: this file is layered over
+            // appsettings.json, so writing a whole MarketDataStore object here would silently override
+            // the provider, paths and batch sizes the user never touched on this screen.
+            var store = root[MarketDataStoreOptions.SectionName] as JsonObject ?? new JsonObject();
+            store["PersistLiveData"] = persist;
+            root[MarketDataStoreOptions.SectionName] = store;
+        }
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }

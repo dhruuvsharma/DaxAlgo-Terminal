@@ -12,7 +12,7 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// that stream. This is the store registered when <see cref="Core.Configuration.MarketDataProvider.QuestDb"/>
 /// is selected; everything above the <see cref="IMarketDataStore"/> seam is unaware of the split.
 /// </summary>
-internal sealed class CompositeMarketDataStore : IMarketDataStore, IReactivatableTickStore, IDisposable
+internal sealed class CompositeMarketDataStore : IMarketDataStore, IReactivatableTickStore, ILocalMarketDataPersistence, IDisposable
 {
     private readonly IMarketDataStore _tickStore;
     private readonly IMarketDataStore _barStore;
@@ -22,6 +22,23 @@ internal sealed class CompositeMarketDataStore : IMarketDataStore, IReactivatabl
         _tickStore = tickStore;
         _barStore = barStore;
         logger.LogInformation("Market-data store: QuestDB (L1/L2) + SQLite (bars).");
+    }
+
+    /// <inheritdoc />
+    /// <remarks>True when EITHER half is writing: the user asked whether this machine keeps a copy,
+    /// and it does if bars are landing even while ticks are not.</remarks>
+    public bool IsPersistingLocally =>
+        (_tickStore as ILocalMarketDataPersistence)?.IsPersistingLocally == true ||
+        (_barStore as ILocalMarketDataPersistence)?.IsPersistingLocally == true;
+
+    /// <inheritdoc />
+    public bool SetLocalPersistence(bool enabled)
+    {
+        // Both halves, then report what actually happened — the tick half can refuse when QuestDB is
+        // unreachable while the bar half in SQLite always complies.
+        var ticks = (_tickStore as ILocalMarketDataPersistence)?.SetLocalPersistence(enabled) ?? false;
+        var bars = (_barStore as ILocalMarketDataPersistence)?.SetLocalPersistence(enabled) ?? false;
+        return ticks || bars;
     }
 
     public void EnqueueQuote(Quote quote) => _tickStore.EnqueueQuote(quote);

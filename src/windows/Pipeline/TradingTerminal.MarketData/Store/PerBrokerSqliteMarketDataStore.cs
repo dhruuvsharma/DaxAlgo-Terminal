@@ -29,18 +29,40 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// that one file; reads with <c>source: null</c> fan out across every broker's file for that stream
 /// and merge ascending. Depth reads always fan out (depth has no source parameter).</para>
 /// </summary>
-internal sealed class PerBrokerSqliteMarketDataStore : IMarketDataStore, IDisposable
+internal sealed class PerBrokerSqliteMarketDataStore : IMarketDataStore, ILocalMarketDataPersistence, IDisposable
 {
     private enum Stream { Quotes, Trades, Bars, Depth }
 
     private readonly string _baseDirectory;
     private readonly string _fileStem;
-    private readonly bool _persist;
+    private volatile bool _persist;
     private readonly int _batchSize;
     private readonly int _depthRetentionDays;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<(BrokerKind Broker, Stream Stream), Lazy<SqliteMarketDataStore>> _stores = new();
+
+    /// <inheritdoc />
+    public bool IsPersistingLocally => _persist;
+
+    /// <summary>
+    /// Turns local storage on or off across every per-broker file.
+    ///
+    /// <para>Applied to the files already open AND kept as the value for files opened later — this
+    /// store creates one lazily per broker per stream, so setting only the existing ones would let the
+    /// next broker to connect start writing again after the user said not to.</para>
+    /// </summary>
+    public bool SetLocalPersistence(bool enabled)
+    {
+        _persist = enabled;
+        foreach (var store in _stores.Values)
+        {
+            if (store.IsValueCreated)
+                store.Value.SetLocalPersistence(enabled);
+        }
+
+        return _persist;
+    }
 
     public PerBrokerSqliteMarketDataStore(
         string baseDirectory, string fileStem, bool persist, int batchSize, int depthRetentionDays, ILoggerFactory loggerFactory)

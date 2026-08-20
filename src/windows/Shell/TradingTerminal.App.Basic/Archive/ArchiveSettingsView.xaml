@@ -18,6 +18,28 @@
                        TextWrapping="Wrap"
                        Margin="0,0,0,16" />
 
+            <!-- Local storage -->
+            <Border BorderBrush="{DynamicResource Border.Brush}"
+                    BorderThickness="1" CornerRadius="0" Padding="16"
+                    Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Local storage" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <CheckBox Content="Store market data on this device"
+                              IsChecked="{Binding StoreLiveDataLocally, Mode=TwoWay}"
+                              IsEnabled="{Binding CanStoreLiveDataLocally}" />
+                    <TextBlock Foreground="{DynamicResource Text.Secondary}"
+                               TextWrapping="Wrap"
+                               Margin="24,6,0,0"
+                               Text="Applies immediately. The live feed keeps running either way and every window keeps updating — this only controls whether a copy is written to disk. With it off, the order book and volume footprint open without replayed history, and history requests go to your broker instead of the local cache. Existing files are left alone." />
+                    <TextBlock Foreground="{DynamicResource Text.Secondary}"
+                               TextWrapping="Wrap"
+                               Margin="24,6,0,0"
+                               FontStyle="Italic"
+                               Visibility="{Binding CanStoreLiveDataLocally, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                               Text="This build's market-data store has no runtime switch, so the setting cannot be changed here." />
+                </StackPanel>
+            </Border>
+
             <!-- Telegram login -->
             <Border BorderBrush="{DynamicResource Border.Brush}"
                     BorderThickness="1" CornerRadius="0" Padding="16"

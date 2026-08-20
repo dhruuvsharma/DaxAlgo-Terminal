@@ -15,7 +15,7 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// barrier, and lifecycle. Subclasses MUST call <see cref="StartWriter"/> at the end of their
 /// constructor (once their connection is ready).
 /// </summary>
-internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
+internal abstract class MarketDataStoreBase : IMarketDataStore, ILocalMarketDataPersistence, IDisposable
 {
     protected enum WriteKind { Quote, Trade, Bar, Depth }
 
@@ -51,6 +51,23 @@ internal abstract class MarketDataStoreBase : IMarketDataStore, IDisposable
     /// startup). Subclasses call this once their backend connection is live so enqueues stop no-opping —
     /// no app restart required. The writer loop is already running.</summary>
     protected void EnablePersistence() => _persist = true;
+
+    /// <inheritdoc />
+    public bool IsPersistingLocally => _persist;
+
+    /// <summary>
+    /// Turns local storage on or off from the settings screen.
+    ///
+    /// <para>The writer loop keeps running either way — it is idle when nothing is enqueued, and
+    /// keeping it alive is what lets the switch take effect on the next tick instead of on the next
+    /// restart. Subclasses that can be inert for reasons of their own (an unreachable backend)
+    /// override this and refuse.</para>
+    /// </summary>
+    public virtual bool SetLocalPersistence(bool enabled)
+    {
+        _persist = enabled;
+        return _persist;
+    }
 
     public void EnqueueQuote(Quote quote)
     {

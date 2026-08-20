@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive;
 using TradingTerminal.Infrastructure.MarketData.Archive.Telegram;
@@ -11,9 +12,9 @@ using TradingTerminal.UI;
 namespace TradingTerminal.App.Archive;
 
 /// <summary>
-/// Settings tab for the market-data archive. Three sections: Telegram credentials + login,
-/// schedule + retention knobs, and a manual "Offload now" range picker. Saving writes the
-/// per-user JSON; IOptionsMonitor surfaces the change to the running schedule service.
+/// Settings tab for the market-data archive: whether this machine stores the live feed at all,
+/// Telegram credentials + login, and the schedule + retention knobs. Saving writes the per-user
+/// JSON; IOptionsMonitor surfaces the change to the running schedule service.
 /// </summary>
 public sealed partial class ArchiveSettingsViewModel : ViewModelBase
 {
@@ -21,6 +22,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     private readonly IOptionsMonitor<TelegramArchiveOptions> _telegramOpts;
     private readonly TelegramArchiveTransport _transport;
     private readonly IMarketDataArchiver _archiver;
+    private readonly ILocalMarketDataPersistence? _localPersistence;
     private readonly ILogger<ArchiveSettingsViewModel> _logger;
 
     public ArchiveSettingsViewModel(
@@ -28,15 +30,58 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         IOptionsMonitor<TelegramArchiveOptions> telegramOpts,
         TelegramArchiveTransport transport,
         IMarketDataArchiver archiver,
-        ILogger<ArchiveSettingsViewModel> logger)
+        ILogger<ArchiveSettingsViewModel> logger,
+        IMarketDataStore? store = null)
     {
         _archiveOpts = archiveOpts;
         _telegramOpts = telegramOpts;
         _transport = transport;
         _archiver = archiver;
         _logger = logger;
+        // The store is the thing that can actually stop writing. Optional and matched by shape so a
+        // host composing a store without the control still opens this screen.
+        _localPersistence = store as ILocalMarketDataPersistence;
+        _storeLiveDataLocally = _localPersistence?.IsPersistingLocally ?? false;
+        _canStoreLiveDataLocally = _localPersistence is not null;
 
         LoadFromOptions();
+    }
+
+    // ----- Local storage -----
+
+    /// <summary>
+    /// Whether this machine keeps a copy of the live feed on disk.
+    ///
+    /// <para>Off means the terminal still works exactly as before — the feed flows, every window
+    /// updates — but nothing is written down. What is given up is the warm start: the order book and
+    /// volume footprint open with no replayed history, and every history request goes to the broker
+    /// rather than the local cache.</para>
+    /// </summary>
+    [ObservableProperty]
+    private bool _storeLiveDataLocally;
+
+    /// <summary>False when this build composed a store with no runtime control, so the box is disabled
+    /// rather than lying about having taken effect.</summary>
+    [ObservableProperty]
+    private bool _canStoreLiveDataLocally;
+
+    /// <summary>
+    /// Applied immediately, not on Save. A user who turns local storage OFF is usually doing it
+    /// because they want the writes to stop now; making them press Save first would keep writing in
+    /// the meantime. Save still records the choice so it survives a restart.
+    /// </summary>
+    partial void OnStoreLiveDataLocallyChanged(bool value)
+    {
+        if (_localPersistence is null)
+            return;
+
+        var applied = _localPersistence.SetLocalPersistence(value);
+        StatusMessage = applied == value
+            ? value
+                ? "Storing market data on this device."
+                : "Local market-data storage is off. Existing files are left alone."
+            : "The store could not start writing — its backend is unreachable. The setting is saved and " +
+              "applies once the backend is up.";
     }
 
     // ----- Telegram credentials -----
@@ -157,7 +202,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
                 PhoneNumber = PhoneNumber?.Trim() ?? "",
                 SessionFilePath = _telegramOpts.CurrentValue.SessionFilePath,
             };
-            ArchiveUserFile.Save(next, tg);
+            ArchiveUserFile.Save(next, tg, CanStoreLiveDataLocally ? StoreLiveDataLocally : null);
             StatusMessage = $"Saved to {ArchiveUserFile.Path}";
         }
         catch (Exception ex)
