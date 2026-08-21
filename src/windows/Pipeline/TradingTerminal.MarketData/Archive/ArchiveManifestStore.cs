@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using TradingTerminal.Core.MarketData.Archive;
+using TradingTerminal.Infrastructure.MarketData.Store;
 
 namespace TradingTerminal.Infrastructure.MarketData.Archive;
 
@@ -28,6 +29,18 @@ internal sealed class ArchiveManifestStore : IDisposable
         _writeConnection = new SqliteConnection(_connectionString);
         _writeConnection.Open();
         EnsureSchema(_writeConnection);
+    }
+
+    /// <summary>
+    /// Opens a short-lived connection with the pragmas applied — <c>busy_timeout</c> above all, which
+    /// is per-connection and defaults to zero. These reads used to run without it.
+    /// </summary>
+    private SqliteConnection Open()
+    {
+        var cn = new SqliteConnection(_connectionString);
+        cn.Open();
+        SqliteSchema.ApplyPragmas(cn);
+        return cn;
     }
 
     private static void EnsureSchema(SqliteConnection cn)
@@ -113,8 +126,7 @@ internal sealed class ArchiveManifestStore : IDisposable
 
     public IReadOnlyList<ArchiveManifestEntry> List(string? transport, int maxRows)
     {
-        using var cn = new SqliteConnection(_connectionString);
-        cn.Open();
+        using var cn = Open();
         using var cmd = cn.CreateCommand();
         cmd.CommandText = transport is null
             ? "SELECT * FROM archive_manifest ORDER BY uploaded_micros DESC LIMIT $n"
@@ -132,8 +144,7 @@ internal sealed class ArchiveManifestStore : IDisposable
     /// spans the window), or null if none — i.e. the window still holds un-offloaded data.</summary>
     public long? FindCovering(DateTime fromUtc, DateTime toUtc, string transport)
     {
-        using var cn = new SqliteConnection(_connectionString);
-        cn.Open();
+        using var cn = Open();
         using var cmd = cn.CreateCommand();
         cmd.CommandText = """
             SELECT id FROM archive_manifest
@@ -149,8 +160,7 @@ internal sealed class ArchiveManifestStore : IDisposable
 
     public ArchiveManifestEntry? FindOverlapping(DateTime fromUtc, DateTime toUtc)
     {
-        using var cn = new SqliteConnection(_connectionString);
-        cn.Open();
+        using var cn = Open();
         using var cmd = cn.CreateCommand();
         cmd.CommandText = """
             SELECT * FROM archive_manifest

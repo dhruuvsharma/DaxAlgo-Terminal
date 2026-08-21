@@ -211,8 +211,7 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
 
     public override async Task<StoredDataExtent> GetDataExtentAsync(CancellationToken ct = default)
     {
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
         using var cmd = cn.CreateCommand();
         // Only union the tables this store actually owns, so a single-stream file doesn't query a
         // table it never created.
@@ -240,8 +239,7 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
         InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null,
         CancellationToken ct = default)
     {
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
         using var cmd = cn.CreateCommand();
         cmd.CommandText = $"""
             SELECT open_time,open,high,low,close,volume,source,is_final
@@ -271,8 +269,7 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
         using var cmd = cn.CreateCommand();
         cmd.CommandText = $"""
             SELECT event_time,ingest_time,bid,ask,bid_size,ask_size,source,seq,approx_time
@@ -300,8 +297,7 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
         using var cmd = cn.CreateCommand();
         cmd.CommandText = $"""
             SELECT event_time,ingest_time,price,size,aggressor,source,seq,approx_time
@@ -329,8 +325,7 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
         BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
         using var cmd = cn.CreateCommand();
         cmd.CommandText = $"""
             SELECT open_time,open,high,low,close,volume,source,is_final
@@ -362,8 +357,7 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
     {
         if (_stream != SqliteStoreStream.Depth) { await Task.CompletedTask.ConfigureAwait(false); yield break; }
 
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
         using var cmd = cn.CreateCommand();
         cmd.CommandText = """
             SELECT event_time,side,level,price,size
@@ -409,15 +403,107 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
             ? DeleteInRangeAsync("depth", "event_time", fromUtc, toUtc, ct)
             : Task.FromResult(0L);
 
+    /// <summary>
+    /// Opens a short-lived connection <b>with the pragmas applied</b>.
+    ///
+    /// <para><see cref="SqliteSchema.ApplyPragmas"/> says to apply them on every opened connection, and
+    /// every short-lived connection in this file used to skip it. Pragmas are per-connection, so those
+    /// all ran with SQLite's default <c>busy_timeout</c> of zero — any transient lock failed instantly
+    /// instead of waiting. It mattered most on the delete path, which is a writer and now runs on a
+    /// retention schedule.</para>
+    ///
+    /// <para>A helper rather than nine call sites so the next one cannot forget.</para>
+    /// </summary>
+    private async Task<SqliteConnection> OpenAsync(CancellationToken ct)
+    {
+        var cn = new SqliteConnection(_connectionString);
+        await cn.OpenAsync(ct).ConfigureAwait(false);
+        SqliteSchema.ApplyPragmas(cn);
+        return cn;
+    }
+
+    /// <summary>
+    /// Rows deleted per statement. Bounds how long one delete holds SQLite's single write lock, which
+    /// is the whole point: the live ingest writer is blocked for exactly that long, and a batch that
+    /// waits past its own <c>busy_timeout</c> is dropped with a warning.
+    ///
+    /// <para>Settable so a test can cross the chunk boundary without inserting fifty thousand rows.</para>
+    /// </summary>
+    internal static int DeleteChunkRows { get; set; } = 50_000;
+
+    /// <summary>
+    /// Deletes <c>[from, to)</c>, one instrument at a time and in bounded chunks.
+    ///
+    /// <para>This used to be a single <c>DELETE … WHERE event_time &gt;= ? AND event_time &lt; ?</c>, which
+    /// reads well and is a <b>full table scan</b>: the only indexes here lead with
+    /// <c>instrument_id</c>, so a predicate on time alone cannot seek. On a depth table — one row per
+    /// book level per snapshot, so tens of millions of rows a day — that scan held the write lock for as
+    /// long as it took, while the ingest writer sat on its five-second busy timeout and then dropped a
+    /// batch of live ticks. Rare enough to look like a mystery when the archive was the only caller;
+    /// scheduled retention made it every few hours.</para>
+    ///
+    /// <para>Constraining <c>instrument_id</c> turns each delete into an index range seek on
+    /// <c>ix_*_instr_time</c>, and the row limit keeps each statement short. Each chunk is its own
+    /// implicit transaction, so the lock is released between them and the writer can get in — which
+    /// matters far more than the total time the sweep takes.</para>
+    /// </summary>
     private async Task<long> DeleteInRangeAsync(string table, string timeCol, DateTime fromUtc, DateTime toUtc, CancellationToken ct)
     {
-        await using var cn = new SqliteConnection(_connectionString);
-        await cn.OpenAsync(ct).ConfigureAwait(false);
+        await using var cn = await OpenAsync(ct).ConfigureAwait(false);
+        // Every opened connection, as ApplyPragmas' own summary asks. This one did not, so it ran with
+        // SQLite's default busy_timeout of zero and failed instantly whenever the writer held the lock.
+        SqliteSchema.ApplyPragmas(cn);
+
+        var from = EpochTime.ToMicros(fromUtc);
+        var to = EpochTime.ToMicros(toUtc);
+        var chunk = Math.Max(DeleteChunkRows, 1);
+        var total = 0L;
+
+        foreach (var instrument in await InstrumentIdsAsync(cn, table, ct).ConfigureAwait(false))
+        {
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                using var cmd = cn.CreateCommand();
+                cmd.CommandText =
+                    $"DELETE FROM {table} WHERE rowid IN (" +
+                    $"SELECT rowid FROM {table} " +
+                    $"WHERE instrument_id = $instrument AND {timeCol} >= $from AND {timeCol} < $to " +
+                    $"LIMIT {chunk})";
+                cmd.Parameters.AddWithValue("$instrument", instrument);
+                cmd.Parameters.AddWithValue("$from", from);
+                cmd.Parameters.AddWithValue("$to", to);
+
+                var deleted = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                total += deleted;
+                if (deleted < chunk)
+                    break;
+
+                // Give the writer a turn before taking the lock again.
+                await Task.Yield();
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// The instruments present in a table, read off the leading column of <c>ix_*_instr_time</c> rather
+    /// than from the registry — the registry lives in the shared database, and this file may hold only
+    /// one broker's slice of it.
+    /// </summary>
+    private static async Task<IReadOnlyList<long>> InstrumentIdsAsync(
+        SqliteConnection cn,
+        string table,
+        CancellationToken ct)
+    {
         using var cmd = cn.CreateCommand();
-        cmd.CommandText = $"DELETE FROM {table} WHERE {timeCol} >= $from AND {timeCol} < $to";
-        cmd.Parameters.AddWithValue("$from", EpochTime.ToMicros(fromUtc));
-        cmd.Parameters.AddWithValue("$to", EpochTime.ToMicros(toUtc));
-        return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        cmd.CommandText = $"SELECT DISTINCT instrument_id FROM {table}";
+        var ids = new List<long>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            ids.Add(reader.GetInt64(0));
+        return ids;
     }
 
     // ── Optional source (broker) read filter ────────────────────────────────────────────────

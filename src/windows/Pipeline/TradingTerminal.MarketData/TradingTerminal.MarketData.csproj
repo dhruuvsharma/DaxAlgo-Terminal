@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.MarketData.Tests" />
     <InternalsVisibleTo Include="TradingTerminal.Tests" />
     <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
   </ItemGroup>
