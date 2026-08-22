@@ -3,6 +3,30 @@
 Code kept on disk for reference but **out of the solution and referenced by nothing**. It does not
 build, is not promoted to any edition, and is not maintained.
 
+## TradingTerminal.Recording — archived 2026-08-22
+
+Set aside to return as a feature in a later update.
+
+**Why.** It was archived as part of settling what the market-data store is *for*. With the backtest
+engine gone, the store stopped being an archive and became a recent-window cache — bounded by
+retention, deleted on a timer. The recorder's premise was the opposite: capture and keep. Rather
+than leave a capture tool wired into a store that now deletes behind it, it comes back with the
+design that gives recordings somewhere durable to live.
+
+**What it was.** A header REC chip, a watchlist panel, and `TickRecordingService` — a hosted service
+that subscribed the chosen instruments through `IMarketDataIngest` and counted what arrived, plus an
+hourly `OffloadPendingAsync` auto-upload to Telegram.
+
+**The thing to know before rebuilding it.** It *recorded nothing of its own*. It started the normal
+ingest pumps and incremented counters; every row it produced was written by the ordinary pipeline
+into the ordinary tables, with no marker — no session id, no flag. Recorder rows and incidental rows
+were the same rows. So "keep what was recorded, expire the rest" could not be expressed at all, and
+that is the gap a redesign has to close first: persist a session (instruments, start, stop) and
+export its window on stop, rather than hoping the store keeps it.
+
+**One consequence.** Its hourly auto-upload was the second automatic archive trigger. With it gone,
+`ArchiveScheduleService` is the only one.
+
 ## TradingTerminal.BacktestStudio — archived 2026-08-14
 
 Retired pending a redesign of the backtest engine and studio.

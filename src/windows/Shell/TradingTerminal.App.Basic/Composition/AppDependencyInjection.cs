@@ -26,7 +26,6 @@ using TradingTerminal.ExecutionUi;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
-using TradingTerminal.Recording;
 
 namespace TradingTerminal.App.Composition;
 
@@ -100,7 +99,6 @@ public static class AppDependencyInjection
             options => configuration.GetSection(InteractiveBrokersExecutionOptions.SectionName).Bind(options),
             confirmationStore: liveConfirmationStore);
         services.AddExecutionConsole();
-        services.AddRecordingSurface();
 
         return services;
     }

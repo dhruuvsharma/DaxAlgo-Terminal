@@ -12,7 +12,6 @@ using TradingTerminal.App.Archive;
 using TradingTerminal.App.BrokerMetering;
 using TradingTerminal.App.Notifications;
 using TradingTerminal.App.Shell;
-using TradingTerminal.Recording;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Events;
@@ -41,7 +40,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string NotificationsWindowId = "settings.notifications";
     private const string PluginManagerWindowId = "plugins.manager";
     private const string StrategyAuthoringWindowId = "authoring.strategy";
-    private const string RecorderWindowId = "tools.recorder";
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
@@ -82,9 +80,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _host = host;
         _services = services;
         _logger = logger;
-        // Resolved rather than ctor-injected: the recorder is an app-lifetime singleton the header
-        // chip only observes, and this ctor is already at its parameter budget.
-        Recorder = services.GetRequiredService<TickRecordingService>();
         // Same reasoning for the update strip. GetService, not GetRequiredService: a shell that
         // never calls AddUpdates should compose fine and simply never show the notice.
         Update = new UpdateNoticeViewModel(services.GetService<IUpdateNotifier>());
@@ -710,18 +705,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             width: 1400,
             height: 840);
 
-    public TickRecordingService Recorder { get; }
-
     /// <summary>Backs the "a new version is available" strip in the row-2 banner stack. Always
     /// present; it simply never becomes visible when no update feed is configured.</summary>
     public UpdateNoticeViewModel Update { get; }
-
-    /// <summary>Header REC chip → the recorder panel. Small window: it's a watchlist + a toggle, not
-    /// a workspace.</summary>
-    [RelayCommand]
-    public void OpenRecorder() =>
-        _host.OpenHostedTool<RecorderPanelViewModel, RecorderPanelView>(
-            RecorderWindowId, "Market data recorder", "Preparing the recorder…", width: 470, height: 600);
 
     /// <summary>Help → Support the developer. Routes through the shared prompt service so the window
     /// is single-instance whether opened here or auto-shown on launch.</summary>

@@ -37,18 +37,6 @@ public enum ServiceState
 /// </summary>
 public sealed partial class ServiceDependencyViewModel : ObservableObject
 {
-    public const string QuestDbDockerRunCommand =
-        "docker run -d --name questdb -p 9000:9000 -p 8812:8812 -p 9009:9009 questdb/questdb";
-
-    private static readonly string[] QuestDbDockerRunArguments =
-    {
-        "run", "-d", "--name", "questdb",
-        "-p", "9000:9000",
-        "-p", "8812:8812",
-        "-p", "9009:9009",
-        "questdb/questdb",
-    };
-
     private readonly Func<CancellationToken, Task<bool>>? _probe;
     private readonly Func<CancellationToken, Task>? _startAction;
 
@@ -202,56 +190,4 @@ public sealed partial class ServiceDependencyViewModel : ObservableObject
         return await TcpOpenAsync("127.0.0.1", new[] { 8812 }, ct).ConfigureAwait(false);
     }
 
-    /// <summary>Starts the existing QuestDB container, creating it with the standard ports when absent.</summary>
-    public static async Task StartQuestDbAsync(CancellationToken ct)
-    {
-        var start = await RunDockerCommandAsync(new[] { "start", "questdb" }, ct).ConfigureAwait(false);
-        if (start.ExitCode == 0)
-            return;
-
-        var startOutput = start.StandardOutput + "\n" + start.StandardError;
-        if (!startOutput.Contains("No such container", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Docker could not start the QuestDB container.");
-
-        var run = await RunDockerCommandAsync(QuestDbDockerRunArguments, ct).ConfigureAwait(false);
-        if (run.ExitCode != 0)
-            throw new InvalidOperationException("Docker could not create the QuestDB container.");
-    }
-
-    private static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunDockerCommandAsync(
-        string[] arguments,
-        CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        var psi = new ProcessStartInfo("docker")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var argument in arguments)
-            psi.ArgumentList.Add(argument);
-
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Docker could not be started.");
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
-
-        try
-        {
-            await process.WaitForExitAsync(ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
-            throw;
-        }
-
-        return (
-            process.ExitCode,
-            await standardOutput.ConfigureAwait(false),
-            await standardError.ConfigureAwait(false));
-    }
 }

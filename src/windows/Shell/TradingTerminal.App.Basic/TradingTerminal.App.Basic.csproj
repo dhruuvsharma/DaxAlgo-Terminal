@@ -34,7 +34,6 @@
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
-    <ProjectReference Include="..\..\Tools\TradingTerminal.Recording\TradingTerminal.Recording.csproj" />
   </ItemGroup>
 
   <ItemGroup>

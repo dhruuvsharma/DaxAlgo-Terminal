@@ -621,10 +621,13 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             name: "QuestDB",
             purpose: "Provides the local time-series database for market data.",
             requirement: "Optional",
-            howTo: "Start Docker Desktop first, then start QuestDB here or copy the Docker command.",
-            startCommand: ServiceDependencyViewModel.QuestDbDockerRunCommand,
+            howTo: "Started automatically from the runtime bundled with the app. Use this if you stopped it.",
+            startCommand: null,
             probe: ServiceDependencyViewModel.QuestDbRunningAsync,
-            startAction: ServiceDependencyViewModel.StartQuestDbAsync,
+            // The bundled native runtime, not Docker. The Docker path was removed on 2026-08-22:
+            // it needed a Docker engine — in practice Docker Desktop — which is exactly the
+            // dependency bundling the runtime exists to avoid.
+            startAction: ct => _questDb.StartAsync(ct),
             startActionLabel: "Start QuestDB"));
 
         _ = RecheckServicesAsync();

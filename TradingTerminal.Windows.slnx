@@ -59,7 +59,6 @@
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.Strategy.BundleTool/DaxAlgo.Strategy.BundleTool.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
-    <Project Path="src/windows/Tools/TradingTerminal.Recording/TradingTerminal.Recording.csproj" />
   </Folder>
   <Folder Name="/src/windows/Sandbox/">
     <Project Path="src/windows/Sandbox/TradingTerminal.Sandbox.Portfolio/TradingTerminal.Sandbox.Portfolio.csproj" />

@@ -52,7 +52,17 @@ public sealed class MarketDataStoreOptions
 
     /// <summary>Which storage backend to use. Defaults to <see cref="MarketDataProvider.SqlitePerBroker"/>
     /// (one time-series file per broker; shared identity registry). Postgres auto-falls back to SQLite.</summary>
-    public MarketDataProvider Provider { get; set; } = MarketDataProvider.SqlitePerBroker;
+    /// <summary>
+    /// The backend. <see cref="MarketDataProvider.QuestDb"/> since 2026-08-22: the installer bundles
+    /// a verified QuestDB runtime and the app starts it itself, so the high-volume streams get a
+    /// time-series engine without the user installing anything.
+    ///
+    /// <para><b>Running from source has no bundled runtime.</b> It is staged at release-build time,
+    /// so a <c>dotnet run</c> finds no <c>questdbin\questdb.exe</c>, QuestDB stays unreachable, and
+    /// tick persistence is off while bars keep going to SQLite — loudly logged, never silently
+    /// diverted. Run <c>scripts/stage-questdb.ps1</c> once to get the same behaviour as an install.</para>
+    /// </summary>
+    public MarketDataProvider Provider { get; set; } = MarketDataProvider.QuestDb;
 
     /// <summary>PostgreSQL/TimescaleDB connection string. Defaults to the docker-compose service
     /// (localhost:5432, db/user/pass = daxalgo). Only used when <see cref="Provider"/> is Postgres.</summary>
