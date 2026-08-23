@@ -13,7 +13,6 @@ using TradingTerminal.Infrastructure.Backtest;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
-using TradingTerminal.Infrastructure.MarketData.Archive.Lake;
 using TradingTerminal.Infrastructure.Notifications;
 using TradingTerminal.Infrastructure.Plugins;
 using TradingTerminal.Infrastructure.Plugins.Feed;
@@ -55,7 +54,6 @@ public static class AppDependencyInjection
         // Canonical pipeline + archive + parquet + notifications.
         services.AddMarketDataPipeline(configuration);
         services.AddMarketDataArchive(configuration);
-        services.AddParquetLake(configuration);
         services.AddNotifications(configuration);
 
         // Python-sidecar controller seam. The login screen depends on ISidecarController, but the real
