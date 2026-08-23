@@ -265,10 +265,8 @@ The selectable persistence providers are:
 
 | Provider | Behavior |
 |---|---|
-| `SqlitePerBroker` | One time-series database per broker plus a shared identity registry. Zero-config; no server |
-| `Sqlite` | One embedded database |
-| `Postgres` | PostgreSQL/TimescaleDB; falls back to SQLite if unreachable at startup |
-| `QuestDb` | **Default.** Quotes, trades, and depth in QuestDB with bars in SQLite; unreachable tick storage is disabled rather than silently redirected. Installed builds bundle the runtime and start it themselves — no Docker. Running from source stages it with `scripts/stage-questdb.ps1` |
+| `QuestDb` | **Default.** Every stream — quotes, trades, depth and bars — in QuestDB. Unreachable storage is disabled rather than silently redirected somewhere you did not choose. Installed builds bundle the runtime and start it themselves, with no Docker; from source, stage it once with `scripts/stage-questdb.ps1` |
+| `SqlitePerBroker` | The no-server fallback. One embedded database per broker per stream, plus a shared identity registry. Zero-config and works offline |
 
 The recorder captures chosen streams in the background. The archive subsystem can package normalized
 quotes, bars, trades, and depth as Parquet data, track archive history, and process pending offloads. It

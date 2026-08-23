@@ -1,19 +1,23 @@
 namespace TradingTerminal.Core.Configuration;
 
-/// <summary>Which backend persists the canonical market-data store.</summary>
+/// <summary>
+/// Which backend persists the canonical market-data store. Two, since 2026-08-23.
+///
+/// <para>There were four. Single-file <c>Sqlite</c> was a strictly worse <see cref="SqlitePerBroker"/>
+/// — one writer for every stream, and it dropped depth — and <c>Postgres</c> was 511 lines of a
+/// second store implementation that no shipped configuration selected. Both are gone; the numeric
+/// values of the survivors are deliberately unchanged.</para>
+/// </summary>
 public enum MarketDataProvider
 {
-    /// <summary>Embedded SQLite file — zero-config, always available.</summary>
-    Sqlite = 0,
-
-    /// <summary>PostgreSQL/TimescaleDB over the network (e.g. the docker-compose service). Falls back
-    /// to SQLite automatically when the database can't be reached at startup.</summary>
-    Postgres = 1,
-
-    /// <summary>Split backend: high-volume L1/L2 (quotes, trades, depth) go to QuestDB over ILP/PG-wire;
-    /// bars stay in the embedded SQLite store. Unlike <see cref="Postgres"/> there is <b>no silent
-    /// fallback</b> — when QuestDB is configured but unreachable, tick/depth persistence is disabled
-    /// (logged loudly) rather than diverted to SQLite. Bars are unaffected.</summary>
+    /// <summary>
+    /// QuestDB over ILP (writes) and the PostgreSQL wire protocol (reads) — every stream, bars
+    /// included. <b>The default.</b>
+    ///
+    /// <para>There is <b>no silent fallback</b>: when QuestDB is unreachable, persistence is disabled
+    /// and said so, rather than diverted to a store the user did not choose. Installed builds bundle
+    /// the runtime and start it themselves.</para>
+    /// </summary>
     QuestDb = 2,
 
     /// <summary>Per-broker embedded SQLite: one time-series file per broker
@@ -22,8 +26,7 @@ public enum MarketDataProvider
     /// and a broker's history can be wiped by deleting one file. Canonical instrument identity
     /// (the <c>instruments</c>/<c>instrument_aliases</c> registry) stays in the single shared
     /// <c>marketdata.db</c>, so <c>InstrumentId</c> remains broker-neutral and cross-venue tools
-    /// keep working. This is the default. Switching from <see cref="Sqlite"/> starts the per-broker
-    /// files fresh (existing single-file time-series is left untouched on disk, but unused).</summary>
+    /// keep working. The zero-config fallback: no server, works offline, always available.</summary>
     SqlitePerBroker = 3,
 }
 
@@ -39,9 +42,7 @@ public enum QuestDbLaunchMode
 
 /// <summary>
 /// Settings for the local market-data pipeline (canonical store + ingest). Two backends:
-/// embedded SQLite (default, zero-config) and PostgreSQL/TimescaleDB (the docker-compose service).
-/// When <see cref="Provider"/> is <see cref="MarketDataProvider.Postgres"/> but the database is
-/// unreachable at startup, the pipeline transparently falls back to SQLite so the app still runs.
+/// QuestDB (default; bundled runtime) and per-broker embedded SQLite (zero-config, no server).
 /// </summary>
 public sealed class MarketDataStoreOptions
 {
@@ -64,10 +65,6 @@ public sealed class MarketDataStoreOptions
     /// </summary>
     public MarketDataProvider Provider { get; set; } = MarketDataProvider.QuestDb;
 
-    /// <summary>PostgreSQL/TimescaleDB connection string. Defaults to the docker-compose service
-    /// (localhost:5432, db/user/pass = daxalgo). Only used when <see cref="Provider"/> is Postgres.</summary>
-    public string PostgresConnectionString { get; set; } =
-        "Host=localhost;Port=5432;Database=daxalgo;Username=daxalgo;Password=daxalgo;Timeout=5;Command Timeout=10";
 
     /// <summary>SQLite database file path. Empty → a default under the app's local data folder.</summary>
     public string DatabasePath { get; set; } = string.Empty;

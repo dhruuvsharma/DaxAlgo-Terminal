@@ -18,7 +18,9 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// protocol; values are inlined into the SQL (instrument is an int, times are framework-formatted)
 /// because QuestDB's PG-wire prepared-parameter support is partial.
 ///
-/// <para>Bars never reach this store — they stay in SQLite (see <see cref="CompositeMarketDataStore"/>).
+/// <para>Bars live here too, since 2026-08-23. They are the one REWRITTEN stream — a forming bar is
+/// re-sent until it closes — so the table carries DEDUP UPSERT KEYS and a repeat replaces rather than
+/// appends. That is what let the SQLite half of the old split store go away.
 /// Depth, which the SQLite/Postgres stores deliberately drop, is persisted here as one row per book
 /// level: <c>(instrument, side, level, price, size)</c>, reconstructed into snapshots on read.</para>
 /// </summary>
@@ -107,7 +109,7 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
                 case WriteKind.Quote: WriteQuote(_sender, op.Quote!); break;
                 case WriteKind.Trade: WriteTrade(_sender, op.Trade!); break;
                 case WriteKind.Depth: WriteDepth(_sender, op.Depth!); break;
-                // Bars are routed to SQLite by the composite store and never arrive here.
+                case WriteKind.Bar: WriteBar(_sender, op.Bar!); break;
             }
         }
 
@@ -124,6 +126,21 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
             .Column("ingest_time", EpochTime.ToMicros(q.IngestTimeUtc))
             .At(Utc(q.EventTimeUtc));
 
+    /// <summary>
+    /// Writes a bar. Sent again on every update of a forming bar and again when it closes — the
+    /// table's DEDUP UPSERT KEYS(ts, instrument, bar_size) turns the repeat into a replace, so the
+    /// row carries the latest state rather than the history of its own construction.
+    /// </summary>
+    private static void WriteBar(ISender s, OhlcvBar b) =>
+        s.Table("bars")
+            .Symbol("instrument", b.InstrumentId.Value.ToString(CultureInfo.InvariantCulture))
+            .Symbol("bar_size", ((int)b.Size).ToString(CultureInfo.InvariantCulture))
+            .Column("open", b.Open).Column("high", b.High)
+            .Column("low", b.Low).Column("close", b.Close)
+            .Column("volume", b.Volume)
+            .Column("source", (long)(int)b.Source)
+            .Column("is_final", b.IsFinal)
+            .At(Utc(b.OpenTimeUtc));
     private static void WriteTrade(ISender s, TradePrint t) =>
         s.Table("trades")
             .Symbol("instrument", t.InstrumentId.Value.ToString(CultureInfo.InvariantCulture))
@@ -163,7 +180,7 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
         if (!_available) return StoredDataExtent.Empty;
         // One min/max per tick table; bars live in SQLite and are merged in by CompositeMarketDataStore.
         var extent = StoredDataExtent.Empty;
-        foreach (var table in new[] { "quotes", "trades", "depth" })
+        foreach (var table in new[] { "quotes", "trades", "depth", "bars" })
             extent = StoredDataExtent.Combine(extent, await TableExtentAsync(table, ct).ConfigureAwait(false));
         return extent;
     }
@@ -186,18 +203,57 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
         }
     }
 
-    public override Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
+    /// <summary>
+    /// The newest <paramref name="count"/> bars, oldest-first.
+    ///
+    /// <para>Read newest-first with a LIMIT so QuestDB walks the partition backwards from now rather
+    /// than scanning forward, then reversed for the caller — the bar cache asks for "the last N", and
+    /// N is small next to a day of one-minute bars.</para>
+    /// </summary>
+    public override async Task<IReadOnlyList<OhlcvBar>> GetRecentBarsAsync(
         InstrumentId instrumentId, BarSize size, int count, BrokerKind? source = null,
-        CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<OhlcvBar>>(Array.Empty<OhlcvBar>()); // bars live in SQLite, not QuestDB
+        CancellationToken ct = default)
+    {
+        if (!_available) return [];
+
+        var sql = $"""
+            SELECT ts, open, high, low, close, volume, source, is_final
+            FROM bars WHERE instrument = '{instrumentId.Value}' AND bar_size = '{(int)size}'{SourceClause(source)}
+            ORDER BY ts DESC LIMIT {Math.Max(1, count)}
+            """;
+
+        var newestFirst = new List<OhlcvBar>(Math.Max(1, count));
+        await foreach (var rdr in Query(sql, ct).ConfigureAwait(false))
+            newestFirst.Add(ReadBar(rdr, instrumentId, size));
+
+        newestFirst.Reverse();
+        return newestFirst;
+    }
 
     public override async IAsyncEnumerable<OhlcvBar> ReadBarsAsync(
         InstrumentId instrumentId, BarSize size, DateTime fromUtc, DateTime toUtc,
         BrokerKind? source = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await Task.CompletedTask.ConfigureAwait(false);
-        yield break;
+        if (!_available) yield break;
+        var sql = $"""
+            SELECT ts, open, high, low, close, volume, source, is_final
+            FROM bars WHERE instrument = '{instrumentId.Value}' AND bar_size = '{(int)size}'
+                {RangeClause(fromUtc, toUtc)}{SourceClause(source)}
+            ORDER BY ts
+            """;
+        await foreach (var rdr in Query(sql, ct).ConfigureAwait(false))
+            yield return ReadBar(rdr, instrumentId, size);
     }
+
+    private static OhlcvBar ReadBar(NpgsqlDataReader rdr, InstrumentId instrumentId, BarSize size) =>
+        new(
+            instrumentId,
+            size,
+            Utc(rdr.GetDateTime(0)),
+            rdr.GetDouble(1), rdr.GetDouble(2), rdr.GetDouble(3), rdr.GetDouble(4),
+            rdr.GetInt64(5),
+            (BrokerKind)(int)rdr.GetInt64(6),
+            rdr.GetBoolean(7));
 
     public override async IAsyncEnumerable<Quote> ReadQuotesAsync(
         InstrumentId instrumentId, DateTime fromUtc, DateTime toUtc, BrokerKind? source = null,
@@ -281,7 +337,7 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
         DropPartitionsAsync("depth", fromUtc, toUtc, ct);
 
     public override Task<long> DeleteBarsInRangeAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default) =>
-        Task.FromResult(0L); // bars live in SQLite
+        DropPartitionsAsync("bars", fromUtc, toUtc, ct);
 
     /// <summary>QuestDB has no row-level DELETE; the archiver's "prune what was offloaded" maps to
     /// dropping whole day-partitions. The range predicate (verified) only drops partitions whose

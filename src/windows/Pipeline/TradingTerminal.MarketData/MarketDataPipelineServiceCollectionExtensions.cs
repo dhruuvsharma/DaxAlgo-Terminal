@@ -33,10 +33,6 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
         var dbPath = ResolveDatabasePath(opts.DatabasePath);          // .../marketdata.db — the shared registry file
         var sqliteConn = BuildSqliteConnectionString(dbPath);
-        var pgConn = opts.PostgresConnectionString;
-
-        // Decide the backend now: Postgres only if configured AND reachable, else SQLite.
-        var usePostgres = opts.Provider == MarketDataProvider.Postgres && CanReachPostgres(pgConn);
 
         services.AddSingleton<IMarketDataHub, MarketDataHub>();
 
@@ -63,10 +59,9 @@ public static class MarketDataPipelineServiceCollectionExtensions
         services.AddSingleton<IInstrumentRegistry>(sp =>
         {
             var log = sp.GetRequiredService<ILoggerFactory>();
-            IInstrumentPersistence persistence = usePostgres
-                ? new NpgsqlInstrumentPersistence(pgConn, log.CreateLogger<NpgsqlInstrumentPersistence>())
-                : new SqliteInstrumentPersistence(sqliteConn);
-            return new InstrumentRegistry(persistence, log.CreateLogger<InstrumentRegistry>());
+            return new InstrumentRegistry(
+                new SqliteInstrumentPersistence(sqliteConn),
+                log.CreateLogger<InstrumentRegistry>());
         });
 
         services.AddSingleton<IMarketDataStore>(sp =>
@@ -74,29 +69,12 @@ public static class MarketDataPipelineServiceCollectionExtensions
             var lf = sp.GetRequiredService<ILoggerFactory>();
 
             if (opts.Provider == MarketDataProvider.QuestDb)
-                return BuildQuestDbStore(sqliteConn, opts, lf);
+                return BuildQuestDbStore(opts, lf);
 
-            if (opts.Provider == MarketDataProvider.SqlitePerBroker)
-                return new PerBrokerSqliteMarketDataStore(
-                    Path.GetDirectoryName(dbPath)!, Path.GetFileNameWithoutExtension(dbPath),
-                    opts.PersistLiveData, opts.WriteBatchSize, opts.DepthRetentionDays, lf);
-
-            if (usePostgres)
-            {
-                lf.CreateLogger("MarketData").LogInformation("Market-data store: PostgreSQL/TimescaleDB.");
-                return new NpgsqlMarketDataStore(
-                    pgConn, opts.PersistLiveData, opts.WriteBatchSize,
-                    opts.QuoteRetentionDays, opts.TradeRetentionDays, opts.BarRetentionDays,
-                    lf.CreateLogger<NpgsqlMarketDataStore>());
-            }
-
-            if (opts.Provider == MarketDataProvider.Postgres)
-                lf.CreateLogger("MarketData").LogWarning("Postgres unreachable — falling back to embedded SQLite store.");
-            else
-                lf.CreateLogger("MarketData").LogInformation("Market-data store: embedded SQLite.");
-
-            return new SqliteMarketDataStore(sqliteConn, opts.PersistLiveData, opts.WriteBatchSize,
-                lf.CreateLogger<SqliteMarketDataStore>());
+            // The only other backend, and the one that needs no server.
+            return new PerBrokerSqliteMarketDataStore(
+                Path.GetDirectoryName(dbPath)!, Path.GetFileNameWithoutExtension(dbPath),
+                opts.PersistLiveData, opts.WriteBatchSize, opts.DepthRetentionDays, lf);
         });
 
         services.AddSingleton<IMarketDataIngest, MarketDataIngestService>();
@@ -139,12 +117,12 @@ public static class MarketDataPipelineServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Builds the split QuestDB store: quotes/trades/depth → QuestDB, bars → SQLite, wrapped in a
-    /// <see cref="CompositeMarketDataStore"/>. Unlike the Postgres path there is <b>no silent
-    /// fallback</b> — if QuestDB is unreachable we log loudly and the QuestDB half goes inert
-    /// (tick/depth persistence off) while bars keep flowing to SQLite, so the app still launches.
+    /// Builds the QuestDB store — every stream, bars included since 2026-08-23. Unlike the Postgres
+    /// path there is <b>no silent fallback</b>: if QuestDB is unreachable the store is constructed
+    /// inert and persistence stays off until it comes up, rather than being diverted somewhere the
+    /// user did not choose. The app still launches; it just is not writing.
     /// </summary>
-    private static IMarketDataStore BuildQuestDbStore(string sqliteConn, MarketDataStoreOptions opts, ILoggerFactory lf)
+    private static IMarketDataStore BuildQuestDbStore(MarketDataStoreOptions opts, ILoggerFactory lf)
     {
         var log = lf.CreateLogger("MarketData");
 
@@ -157,8 +135,6 @@ public static class MarketDataPipelineServiceCollectionExtensions
             throw new InvalidOperationException($"Unsafe QuestDB configuration: {endpointError}");
         }
 
-        var barStore = new SqliteMarketDataStore(
-            sqliteConn, opts.PersistLiveData, opts.WriteBatchSize, lf.CreateLogger<SqliteMarketDataStore>());
 
         // Probe only — never block here. The store is resolved on the UI thread (the login screen
         // pulls in the launcher), so native startup runs asynchronously from the login screen
@@ -168,32 +144,14 @@ public static class MarketDataPipelineServiceCollectionExtensions
         var reachable = QuestDbNativeBootstrapper.IsReachable(opts);
         if (!reachable)
             log.LogWarning(
-                "QuestDB not reachable yet at {Endpoint} — L1/L2/trade persistence stays off until it's up. " +
-                "It will be started from the login screen (or File → Start QuestDB) and engaged without a restart. " +
-                "Bars still persist to SQLite.",
+                "QuestDB not reachable yet at {Endpoint} — market-data persistence stays off until it's up. " +
+                "It will be started from the login screen (or File → Start QuestDB) and engaged without a restart.",
                 endpoint);
 
-        var tickStore = new QuestDbMarketDataStore(
+        return new QuestDbMarketDataStore(
             opts.QuestDbIlpConfig, opts.QuestDbPgConnectionString,
             opts.PersistLiveData, reachable, opts.WriteBatchSize, opts.DepthRetentionDays,
             lf.CreateLogger<QuestDbMarketDataStore>());
-
-        return new CompositeMarketDataStore(tickStore, barStore, lf.CreateLogger<CompositeMarketDataStore>());
-    }
-
-    /// <summary>Best-effort startup probe — opens and closes a connection to decide availability.</summary>
-    private static bool CanReachPostgres(string connectionString)
-    {
-        try
-        {
-            using var cn = new NpgsqlConnection(connectionString);
-            cn.Open();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static string ResolveDatabasePath(string configured)
