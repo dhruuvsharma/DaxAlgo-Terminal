@@ -26,6 +26,37 @@ public sealed class QuestDbBarSchemaTests
     }
 
     [Fact]
+    public void TheBarsDdlKeepsEveryClauseSeparated()
+    {
+        // Regression: the DDL used to be a raw literal ending in `PARTITION BY DAY WAL` with the
+        // `DEDUP UPSERT KEYS(...)` clause concatenated onto it. A raw string literal does not keep
+        // the newline before its closing delimiter, so the two clauses fused into one token and
+        // QuestDB answered `unexpected token [WALDEDUP]`. The store constructor does not guard
+        // EnsureCreated, so that killed application startup outright rather than degrading.
+        Assert.DoesNotContain("WALDEDUP", QuestDbSchema.BarsDdl);
+
+        // Assert the shape rather than the absence of one typo: every clause the statement is built
+        // from has to survive as its own whitespace-delimited token.
+        var tokens = QuestDbSchema.BarsDdl.Split(
+            (char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Contains("WAL", tokens);
+        Assert.Contains("DEDUP", tokens);
+        Assert.Contains("UPSERT", tokens);
+    }
+
+    [Fact]
+    public void TheBarsDdlDedupsOnExactlyTheDeclaredKeys()
+    {
+        // The key list is interpolated into the statement, so the constant and the DDL cannot drift.
+        Assert.Contains($"DEDUP UPSERT KEYS({QuestDbSchema.BarDedupKeys});", QuestDbSchema.BarsDdl);
+
+        // QuestDB requires the designated timestamp to be among the dedup keys; pin that the column
+        // named in TIMESTAMP(...) is the one the key list leads with.
+        Assert.Contains("TIMESTAMP(ts)", QuestDbSchema.BarsDdl);
+    }
+
+    [Fact]
     public void TheProviderListIsDownToTwo()
     {
         // Single-file `Sqlite` was a strictly worse SqlitePerBroker — one writer for every stream, and

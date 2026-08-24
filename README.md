@@ -243,7 +243,6 @@ workflow.
 | Sandbox visualizer | `IVisualizer` plus direct tests; public runtime support covers in-memory visualizer testing |
 | `.daxalgostrategy` | Open strategy package: source, UI, and assets in one file. Read and verified by **Extensions**; installing is not wired up yet |
 | `.daxalgovisualizer` | The visualizer counterpart of the same open format |
-| `.daxstrategy` | Signed, inspectable bundle for immutable storage; see [strategy bundles](docs/strategy-bundles.md) |
 | `.daxplugin` | **Retired.** Rejected by name, with a message telling you to repackage as one of the two open formats |
 
 Loose `.dll` plugins are no longer accepted in any edition.

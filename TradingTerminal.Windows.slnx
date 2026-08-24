@@ -6,7 +6,6 @@
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Analyzers/DaxAlgo.Sdk.Analyzers.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj" />
-    <Project Path="src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxAlgo.Strategy.Bundle.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Package/DaxAlgo.Package.csproj" />
   </Folder>
   <Folder Name="/Tests/">
@@ -57,7 +56,6 @@
   <Folder Name="/src/windows/Core/" />
   <Folder Name="/src/windows/Tools/">
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
-    <Project Path="src/windows/Tools/DaxAlgo.Strategy.BundleTool/DaxAlgo.Strategy.BundleTool.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
   </Folder>
   <Folder Name="/src/windows/Sandbox/">

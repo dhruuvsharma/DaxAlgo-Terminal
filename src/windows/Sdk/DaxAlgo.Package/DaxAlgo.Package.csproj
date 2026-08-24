@@ -6,22 +6,9 @@
     <IsPackable>true</IsPackable>
     <PackageId>DaxAlgo.Package</PackageId>
     <Version>$(DaxAlgoSdkVersion)</Version>
-    <Description>Open, portable DaxAlgo submission packages: .daxalgoplugin (strategies) and .daxvisualizer (visualizers). Writer, reader and verifier.</Description>
+    <Description>DaxAlgo artifact packages: .daxalgostrategy (strategies) and .daxalgovisualizer (visualizers). Writer, reader and verifier.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DaxAlgo.Strategy.Bundle\DaxAlgo.Strategy.Bundle.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Two security-relevant helpers reused as SOURCE rather than reimplemented. Both are internal to
-         the bundle assembly, so a project reference cannot reach them, and both are exactly the kind of
-         code that must not exist twice: a second canonical-JSON encoder would eventually disagree with
-         the first about signed bytes, and a second path normaliser would eventually disagree about what
-         a zip-slip looks like. -->
-    <Compile Include="..\DaxAlgo.Strategy.Bundle\CanonicalJson.cs" Link="Shared\CanonicalJson.cs" />
-    <Compile Include="..\DaxAlgo.Strategy.Bundle\StrategyBundlePath.cs" Link="Shared\StrategyBundlePath.cs" />
-  </ItemGroup>
 
 </Project>

@@ -146,4 +146,8 @@ public sealed record DaxPackageLimits
     public int MaximumPayloadCount { get; init; } = 4096;
 
     public int MaximumPathLength { get; init; } = 200;
+
+    /// <summary>How deep a payload path may nest below <c>payload/</c>. A bound on nesting, not just
+    /// on length — deep trees are how an extractor gets walked past its own root.</summary>
+    public int MaximumPathDepth { get; init; } = 8;
 }

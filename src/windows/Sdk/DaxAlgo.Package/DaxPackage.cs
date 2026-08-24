@@ -2,7 +2,6 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
-using DaxAlgo.Strategy.Bundle;
 
 namespace DaxAlgo.Package;
 
@@ -349,17 +348,7 @@ public static class DaxPackage
         if (!candidate.StartsWith("payload/", StringComparison.Ordinal))
             candidate = "payload/" + candidate;
 
-        try
-        {
-            var normalized = StrategyBundlePath.NormalizePayloadPath(
-                candidate, new StrategyBundleLimitOptions { MaxPathLength = bounds.MaximumPathLength },
-                requireCanonical: false);
-            return normalized;
-        }
-        catch (Exception ex) when (ex is ArgumentException or StrategyBundleValidationException)
-        {
-            throw new DaxPackageException(DaxPackageError.UnsafePath, $"Unsafe payload path '{path}': {ex.Message}");
-        }
+        return DaxPayloadPath.NormalizePayloadPath(candidate, bounds, requireCanonical: false);
     }
 
     private static byte[] ReadEntry(ZipArchiveEntry entry, long maximumBytes)

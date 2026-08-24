@@ -6,8 +6,8 @@ using TradingTerminal.Core.Strategies.Parameters;
 namespace DaxAlgo.Sdk;
 
 /// <summary>
-/// Stable, UI-free activation seam for a packaged strategy engine. A <c>.daxstrategy</c> manifest
-/// names one public, parameterless implementation exactly; the host creates it only after bundle
+/// Stable, UI-free activation seam for a packaged strategy engine. A <c>.daxalgostrategy</c> manifest
+/// names one public, parameterless implementation exactly; the host creates it only after package
 /// integrity, trust, compatibility, and policy checks have completed.
 /// </summary>
 public interface IStrategyEngineFactory

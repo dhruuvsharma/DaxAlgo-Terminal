@@ -364,9 +364,9 @@ carry the same rules), you edit files rather than emit blocks:
 - Grow `<Name>.Tests/` with real invariants; `dotnet build` + `dotnet test` must stay green.
 - Never reference `TradingTerminal.*` projects or ship host DLLs - the `DaxAlgo.Sdk` package
   (`ExcludeAssets="runtime"`) is the whole surface.
-- `pack-strategy.ps1` creates the deterministic `.daxstrategy`; `pack-plugin.ps1` remains the
-  compatibility adapter for hosts that do not yet load bundles. Keep `plugin.json.publisherId` stable,
-  declare capabilities there, and let the pack script include engine-private managed dependencies.
+- Artifacts ship as `.daxalgostrategy` (strategies) or `.daxalgovisualizer` (visualizers) — the only
+  two extensions the terminal accepts, both written and verified by `DaxAlgo.Package`. Keep
+  `plugin.json.publisherId` stable and declare capabilities there.
 
 ---
 

@@ -22,6 +22,29 @@ internal static class QuestDbSchema
     /// appending — the same contract SQLite got from ON CONFLICT DO UPDATE.</para>
     /// </summary>
     internal const string BarDedupKeys = "ts, instrument, bar_size";
+
+    /// <summary>
+    /// The bars table, assembled as ONE interpolated literal.
+    ///
+    /// <para><c>DEDUP</c> must sit on its own line inside the literal rather than being concatenated
+    /// onto the end of it. A raw string literal drops the newline before its closing delimiter, so
+    /// <c>... PARTITION BY DAY WAL</c> + <c>"DEDUP UPSERT KEYS(...)"</c> ran the two together into the
+    /// single token <c>WALDEDUP</c>; QuestDB rejected the whole CREATE TABLE and, because the
+    /// constructor path does not guard this call, took application startup down with it.</para>
+    /// </summary>
+    internal const string BarsDdl = $"""
+        CREATE TABLE IF NOT EXISTS bars (
+            instrument SYMBOL,
+            bar_size SYMBOL,
+            open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE,
+            volume LONG,
+            source LONG,
+            is_final BOOLEAN,
+            ts TIMESTAMP
+        ) TIMESTAMP(ts) PARTITION BY DAY WAL
+        DEDUP UPSERT KEYS({BarDedupKeys});
+        """;
+
     public static void EnsureCreated(string pgConnectionString, int depthRetentionHours, ILogger logger)
     {
         using var cn = new NpgsqlConnection(pgConnectionString);
@@ -69,17 +92,7 @@ internal static class QuestDbSchema
         // DEDUP UPSERT KEYS makes a repeat of (ts, instrument, bar_size) replace the row instead of
         // adding one — the same contract SQLite got from ON CONFLICT DO UPDATE. The designated
         // timestamp must be one of the keys, which suits a bar exactly: its open time IS its identity.
-        Execute(cn, """
-            CREATE TABLE IF NOT EXISTS bars (
-                instrument SYMBOL,
-                bar_size SYMBOL,
-                open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE,
-                volume LONG,
-                source LONG,
-                is_final BOOLEAN,
-                ts TIMESTAMP
-            ) TIMESTAMP(ts) PARTITION BY DAY WAL
-            """ + $"DEDUP UPSERT KEYS({BarDedupKeys});");
+        Execute(cn, BarsDdl);
 
         // An existing table from before bars moved here will not have dedup enabled; turning it on is
         // idempotent and cheap, and without it the rewrite-per-update above silently duplicates.

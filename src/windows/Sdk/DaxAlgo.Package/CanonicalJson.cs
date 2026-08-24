@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace DaxAlgo.Strategy.Bundle;
+namespace DaxAlgo.Package;
 
 /// <summary>
 /// Minimal JSON string/number encoding with a frozen escape algorithm. It deliberately avoids the
