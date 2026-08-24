@@ -67,10 +67,10 @@
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Depth (L2)" Margin="0,0,12,6" VerticalAlignment="Center" />
                         <TextBox   Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
-                                   Text="{Binding DepthRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                   Text="{Binding DepthRetentionHours, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Grid.Row="0" Grid.Column="2" Margin="10,0,0,6" VerticalAlignment="Center"
                                    Foreground="{DynamicResource Text.Secondary}"
-                                   Text="days — by far the largest stream; the order book only replays 30 minutes" />
+                                   Text="HOURS, not days — by far the largest stream, and the order book only replays 30 minutes of it" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Quotes (L1)" Margin="0,0,12,6" VerticalAlignment="Center" />
                         <TextBox   Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"

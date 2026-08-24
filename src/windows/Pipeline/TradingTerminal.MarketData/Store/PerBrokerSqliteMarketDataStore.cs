@@ -37,7 +37,7 @@ internal sealed class PerBrokerSqliteMarketDataStore : IMarketDataStore, ILocalM
     private readonly string _fileStem;
     private volatile bool _persist;
     private readonly int _batchSize;
-    private readonly int _depthRetentionDays;
+    private readonly int _depthRetentionHours;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<(BrokerKind Broker, Stream Stream), Lazy<SqliteMarketDataStore>> _stores = new();
@@ -65,13 +65,13 @@ internal sealed class PerBrokerSqliteMarketDataStore : IMarketDataStore, ILocalM
     }
 
     public PerBrokerSqliteMarketDataStore(
-        string baseDirectory, string fileStem, bool persist, int batchSize, int depthRetentionDays, ILoggerFactory loggerFactory)
+        string baseDirectory, string fileStem, bool persist, int batchSize, int depthRetentionHours, ILoggerFactory loggerFactory)
     {
         _baseDirectory = baseDirectory;
         _fileStem = fileStem;
         _persist = persist;
         _batchSize = batchSize;
-        _depthRetentionDays = depthRetentionDays;
+        _depthRetentionHours = depthRetentionHours;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger("MarketData");
         Directory.CreateDirectory(baseDirectory);
@@ -185,7 +185,7 @@ internal sealed class PerBrokerSqliteMarketDataStore : IMarketDataStore, ILocalM
         var conn = new SqliteConnectionStringBuilder { DataSource = PathFor(broker, stream) }.ToString();
         return new SqliteMarketDataStore(
             conn, _persist, _batchSize, _loggerFactory.CreateLogger<SqliteMarketDataStore>(),
-            SchemaStream(stream), stream == Stream.Depth ? _depthRetentionDays : 0);
+            SchemaStream(stream), stream == Stream.Depth ? _depthRetentionHours : 0);
     }
 
     private IEnumerable<SqliteMarketDataStore> All() => _stores.Values.Select(l => l.Value);

@@ -8,8 +8,9 @@ namespace TradingTerminal.Infrastructure.MarketData.Store;
 /// and applies a best-effort partition TTL. Column types are chosen to match exactly what the
 /// InfluxDB Line Protocol writer emits — QuestDB's ILP only has a single 64-bit integer type, so
 /// every integer column is <c>LONG</c> (not <c>INT</c>) to avoid a type clash on first ingest.
-/// Tables are WAL + <c>PARTITION BY DAY</c>, the layout QuestDB wants for high-cardinality
-/// time-series with retention.
+/// Tables are WAL and partitioned for retention: <c>BY DAY</c> for quotes, trades and bars, and
+/// <c>BY HOUR</c> for depth. TTL evicts whole partitions, so the partition size is the floor on how
+/// fine a retention window can be — and depth is kept for hours, not days.
 /// </summary>
 internal static class QuestDbSchema
 {
@@ -21,7 +22,7 @@ internal static class QuestDbSchema
     /// appending — the same contract SQLite got from ON CONFLICT DO UPDATE.</para>
     /// </summary>
     internal const string BarDedupKeys = "ts, instrument, bar_size";
-    public static void EnsureCreated(string pgConnectionString, int depthRetentionDays, ILogger logger)
+    public static void EnsureCreated(string pgConnectionString, int depthRetentionHours, ILogger logger)
     {
         using var cn = new NpgsqlConnection(pgConnectionString);
         cn.Open();
@@ -58,7 +59,7 @@ internal static class QuestDbSchema
                 source LONG,
                 ingest_time LONG,
                 ts TIMESTAMP
-            ) TIMESTAMP(ts) PARTITION BY DAY WAL;
+            ) TIMESTAMP(ts) PARTITION BY HOUR WAL;
             """);
 
         // Bars are the one stream that is REWRITTEN rather than appended: a forming bar is re-sent on
@@ -84,8 +85,12 @@ internal static class QuestDbSchema
         // idempotent and cheap, and without it the rewrite-per-update above silently duplicates.
         TryEnableDedup(cn, "bars", BarDedupKeys, logger);
         // TTL is supported on newer QuestDB builds only; treat failure as "keep forever".
-        if (depthRetentionDays > 0)
-            TryApplyTtl(cn, "depth", depthRetentionDays, logger);
+        //
+        // Hours, and the table above partitions BY HOUR to match. TTL evicts whole partitions, so a
+        // one-hour window against day-sized partitions would keep a full day regardless — the unit of
+        // retention can never be finer than the unit of partitioning.
+        if (depthRetentionHours > 0)
+            TryApplyTtl(cn, "depth", depthRetentionHours, logger);
 
         logger.LogInformation("QuestDB schema ready (quotes, trades, depth, bars).");
     }
@@ -102,9 +107,9 @@ internal static class QuestDbSchema
         try { Execute(cn, $"ALTER TABLE {table} DEDUP ENABLE UPSERT KEYS({keys});"); }
         catch (Exception ex) { logger.LogDebug(ex, "QuestDB dedup not applied for {Table}", table); }
     }
-    private static void TryApplyTtl(NpgsqlConnection cn, string table, int days, ILogger logger)
+    private static void TryApplyTtl(NpgsqlConnection cn, string table, int hours, ILogger logger)
     {
-        try { Execute(cn, $"ALTER TABLE {table} SET TTL {days} DAYS;"); }
+        try { Execute(cn, $"ALTER TABLE {table} SET TTL {hours} HOURS;"); }
         catch (Exception ex) { logger.LogDebug(ex, "QuestDB TTL not applied for {Table} (build may not support SET TTL)", table); }
     }
 }

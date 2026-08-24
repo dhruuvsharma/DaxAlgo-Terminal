@@ -63,20 +63,21 @@ public static class MarketDataRetentionPolicy
             return [];
 
         var cuts = new List<MarketDataRetentionCut>(4);
-        Add(cuts, MarketDataStream.Quotes, options.QuoteRetentionDays);
-        Add(cuts, MarketDataStream.Trades, options.TradeRetentionDays);
-        Add(cuts, MarketDataStream.Bars, options.BarRetentionDays);
-        Add(cuts, MarketDataStream.Depth, options.DepthRetentionDays);
+        Add(cuts, MarketDataStream.Quotes, Days(options.QuoteRetentionDays));
+        Add(cuts, MarketDataStream.Trades, Days(options.TradeRetentionDays));
+        Add(cuts, MarketDataStream.Bars, Days(options.BarRetentionDays));
+        // Hours, not days — the only reader of stored depth replays thirty minutes of it.
+        Add(cuts, MarketDataStream.Depth, Hours(options.DepthRetentionHours));
         return cuts;
 
-        void Add(List<MarketDataRetentionCut> into, MarketDataStream stream, int days)
+        void Add(List<MarketDataRetentionCut> into, MarketDataStream stream, TimeSpan window)
         {
             // Zero or negative is "keep forever", not "delete everything". Getting this backwards
             // would silently wipe the store the first time someone typed 0 into a settings box.
-            if (days <= 0)
+            if (window <= TimeSpan.Zero)
                 return;
 
-            var cutoff = nowUtc.AddDays(-days);
+            var cutoff = nowUtc - window;
             var clamped = false;
 
             if (options.RespectPendingArchives &&
@@ -104,6 +105,25 @@ public static class MarketDataRetentionPolicy
         }
     }
 
+    /// <summary>A century. Past this a window is indistinguishable from "keep forever".</summary>
+    private static readonly TimeSpan Longest = TimeSpan.FromDays(36_500);
+
+    /// <summary>
+    /// Turns a configured count into a window, safely.
+    ///
+    /// <para><see cref="TimeSpan.FromDays"/> <b>throws</b> outside its range, and
+    /// <c>int.MinValue</c> days is billions of years — so converting before the "keep forever" check
+    /// turns a nonsense setting into a crashed sweep. Non-positive becomes zero, which the caller
+    /// reads as keep-forever, and absurd positives clamp instead of throwing.</para>
+    /// </summary>
+    private static TimeSpan Days(int value) =>
+        value <= 0 ? TimeSpan.Zero : Clamp(TimeSpan.FromDays(Math.Min(value, Longest.TotalDays)));
+
+    /// <inheritdoc cref="Days"/>
+    private static TimeSpan Hours(int value) =>
+        value <= 0 ? TimeSpan.Zero : Clamp(TimeSpan.FromHours(Math.Min(value, Longest.TotalHours)));
+
+    private static TimeSpan Clamp(TimeSpan window) => window > Longest ? Longest : window;
     /// <summary>
     /// The archive floor: the start of the oldest window still owed, or null when retention should not
     /// be held back at all.

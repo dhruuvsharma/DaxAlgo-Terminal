@@ -145,10 +145,19 @@ public sealed class MarketDataStoreOptions
     public string QuestDbPgConnectionString { get; set; } =
         "Host=localhost;Port=8812;Database=qdb;Username=admin;Password=quest;Timeout=5;Command Timeout=15;ServerCompatibilityMode=NoTypeLoading";
 
-    /// <summary>Depth (L2) snapshot retention in days, applied as a QuestDB partition TTL (best-effort;
-    /// requires a QuestDB build that supports <c>SET TTL</c>). 0 or negative = keep forever. Depth is
-    /// the highest-volume stream, so the default trims it hardest.</summary>
-    public int DepthRetentionDays { get; set; } = 14;
+    /// <summary>
+    /// Depth (L2) retention in <b>hours</b>, not days. 0 or negative = keep forever.
+    ///
+    /// <para>Hours because depth is not on the same time-scale as anything else here. It is stored as
+    /// one row per book level per snapshot — ten levels a side at ten snapshots a second is 200 rows
+    /// per second for a single instrument — so it outgrows every other stream by orders of magnitude.
+    /// And the only thing that reads it back is the order book's warm start, which replays <b>thirty
+    /// minutes</b>. A window measured in days was keeping hundreds of times what anything asked for.</para>
+    ///
+    /// <para>The old <c>DepthRetentionDays</c> key is inert; a config still setting it is simply
+    /// ignored and this default applies.</para>
+    /// </summary>
+    public int DepthRetentionHours { get; set; } = 1;
 
     // ── QuestDB native startup (Provider == QuestDb) ────────────────────────────────────────────
     // QuestDB is a standalone server with no embedded fallback for ticks. Native mode starts the

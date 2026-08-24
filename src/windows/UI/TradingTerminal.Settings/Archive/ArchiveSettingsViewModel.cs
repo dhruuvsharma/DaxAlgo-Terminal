@@ -113,9 +113,10 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private int _barRetentionDays;
 
-    /// <summary>Days of L2 depth to keep. The largest stream; the order book warm-starts from 30 minutes.</summary>
+    /// <summary>HOURS of L2 depth to keep — the largest stream, and the order book warm-starts from 30
+    /// minutes of it, so the useful window is tiny next to everything else here.</summary>
     [ObservableProperty]
-    private int _depthRetentionDays;
+    private int _depthRetentionHours;
 
     // ----- Telegram credentials -----
     [ObservableProperty] private int _apiId;
@@ -252,7 +253,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
                     Math.Max(QuoteRetentionDays, 0),
                     Math.Max(TradeRetentionDays, 0),
                     Math.Max(BarRetentionDays, 0),
-                    Math.Max(DepthRetentionDays, 0)));
+                    Math.Max(DepthRetentionHours, 0)));
             StatusMessage = $"Saved to {ArchiveUserFile.Path}";
             // A shortened window should take effect now. Waiting for the next timer tick reads as
             // the setting having been ignored.
@@ -351,7 +352,7 @@ public sealed partial class ArchiveSettingsViewModel : ViewModelBase
         QuoteRetentionDays = s.QuoteRetentionDays;
         TradeRetentionDays = s.TradeRetentionDays;
         BarRetentionDays = s.BarRetentionDays;
-        DepthRetentionDays = s.DepthRetentionDays;
+        DepthRetentionHours = s.DepthRetentionHours;
 
         var t = _telegramOpts.CurrentValue;
         ApiId = t.ApiId;

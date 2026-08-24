@@ -19,7 +19,7 @@ public sealed class MarketDataRetentionPolicyTests
     public void EachStreamIsCutAtItsOwnWindow()
     {
         var plan = MarketDataRetentionPolicy.Plan(
-            Options(quotes: 30, trades: 10, bars: 0, depth: 2),
+            Options(quotes: 30, trades: 10, bars: 0, depthDays: 2),
             Now,
             earliestStoredUtc: Now.AddYears(-1),
             oldestPendingArchiveUtc: null);
@@ -42,7 +42,7 @@ public sealed class MarketDataRetentionPolicyTests
         // The dangerous misreading. `0` in a settings box must never be "cut off at now" — that would
         // wipe the stream the first time somebody cleared the field.
         var plan = MarketDataRetentionPolicy.Plan(
-            Options(quotes: days, trades: days, bars: days, depth: days),
+            Options(quotes: days, trades: days, bars: days, depthDays: days),
             Now,
             earliestStoredUtc: Now.AddYears(-5),
             oldestPendingArchiveUtc: null);
@@ -53,7 +53,7 @@ public sealed class MarketDataRetentionPolicyTests
     [Fact]
     public void NothingIsPlannedWhenTheSweepIsOff()
     {
-        var options = Options(quotes: 1, trades: 1, bars: 1, depth: 1);
+        var options = Options(quotes: 1, trades: 1, bars: 1, depthDays: 1);
         options.RetentionSweepEnabled = false;
 
         Assert.Empty(MarketDataRetentionPolicy.Plan(options, Now, Now.AddYears(-1), null));
@@ -63,7 +63,7 @@ public sealed class MarketDataRetentionPolicyTests
     public void NothingIsPlannedWhenTheStoreIsEmpty()
     {
         Assert.Empty(MarketDataRetentionPolicy.Plan(
-            Options(quotes: 1, trades: 1, bars: 1, depth: 1),
+            Options(quotes: 1, trades: 1, bars: 1, depthDays: 1),
             Now,
             earliestStoredUtc: null,
             oldestPendingArchiveUtc: null));
@@ -75,7 +75,7 @@ public sealed class MarketDataRetentionPolicyTests
         // The steady state once retention has caught up: no delete is issued at all, so a sweep on a
         // healthy store costs one extent query rather than four table scans.
         var plan = MarketDataRetentionPolicy.Plan(
-            Options(quotes: 30, trades: 30, bars: 0, depth: 14),
+            Options(quotes: 30, trades: 30, bars: 0, depthDays: 14),
             Now,
             earliestStoredUtc: Now.AddHours(-1),
             oldestPendingArchiveUtc: null);
@@ -88,13 +88,40 @@ public sealed class MarketDataRetentionPolicyTests
     {
         // The stores convert this bound to epoch microseconds. DateTime.MinValue would go negative.
         var cut = Assert.Single(MarketDataRetentionPolicy.Plan(
-            Options(quotes: 5, trades: 0, bars: 0, depth: 0),
+            Options(quotes: 5, trades: 0, bars: 0, depthDays: 0),
             Now,
             Now.AddYears(-1),
             null));
 
         Assert.Equal(DateTime.UnixEpoch, cut.FromUtc);
         Assert.Equal(DateTime.UnixEpoch, MarketDataRetentionPolicy.Floor);
+    }
+
+    [Fact]
+    public void DepthIsCutInHoursRatherThanDays()
+    {
+        // The whole reason depth has its own unit. One row per book level per snapshot outgrows every
+        // other stream by orders of magnitude, and the only thing that reads it back — the order
+        // book's warm start — replays thirty minutes. A day-granular window kept hundreds of times
+        // what anything asked for.
+        var options = new MarketDataStoreOptions
+        {
+            QuoteRetentionDays = 0,
+            TradeRetentionDays = 0,
+            BarRetentionDays = 0,
+            DepthRetentionHours = 1,
+        };
+
+        var cut = Assert.Single(MarketDataRetentionPolicy.Plan(options, Now, Now.AddYears(-1), null));
+
+        Assert.Equal(MarketDataStream.Depth, cut.Stream);
+        Assert.Equal(Now.AddHours(-1), cut.ToUtc);
+    }
+
+    [Fact]
+    public void TheShippedDepthWindowIsAnHour()
+    {
+        Assert.Equal(1, new MarketDataStoreOptions().DepthRetentionHours);
     }
 
     // ── The archive interaction: the part that can destroy data ──────────────────────────────────
@@ -108,7 +135,7 @@ public sealed class MarketDataRetentionPolicyTests
         var pending = Now.AddDays(-20);
 
         var cut = Assert.Single(MarketDataRetentionPolicy.Plan(
-            Options(quotes: 7, trades: 0, bars: 0, depth: 0),
+            Options(quotes: 7, trades: 0, bars: 0, depthDays: 0),
             Now,
             earliestStoredUtc: Now.AddYears(-1),
             oldestPendingArchiveUtc: pending));
@@ -123,7 +150,7 @@ public sealed class MarketDataRetentionPolicyTests
         // A pending window NEWER than the cutoff must leave the cutoff alone. Moving it forward would
         // make the archive's backlog delete data the retention window said to keep.
         var cut = Assert.Single(MarketDataRetentionPolicy.Plan(
-            Options(quotes: 30, trades: 0, bars: 0, depth: 0),
+            Options(quotes: 30, trades: 0, bars: 0, depthDays: 0),
             Now,
             earliestStoredUtc: Now.AddYears(-1),
             oldestPendingArchiveUtc: Now.AddDays(-2)));
@@ -137,7 +164,7 @@ public sealed class MarketDataRetentionPolicyTests
     {
         // Pending back to the beginning of time means there is nothing safe to delete at all.
         Assert.Empty(MarketDataRetentionPolicy.Plan(
-            Options(quotes: 7, trades: 7, bars: 0, depth: 7),
+            Options(quotes: 7, trades: 7, bars: 0, depthDays: 7),
             Now,
             earliestStoredUtc: Now.AddYears(-1),
             oldestPendingArchiveUtc: DateTime.UnixEpoch));
@@ -146,7 +173,7 @@ public sealed class MarketDataRetentionPolicyTests
     [Fact]
     public void TheClampIsSkippedWhenTheUserTurnedItOff()
     {
-        var options = Options(quotes: 7, trades: 0, bars: 0, depth: 0);
+        var options = Options(quotes: 7, trades: 0, bars: 0, depthDays: 0);
         options.RespectPendingArchives = false;
 
         var cut = Assert.Single(MarketDataRetentionPolicy.Plan(
@@ -213,11 +240,13 @@ public sealed class MarketDataRetentionPolicyTests
         Assert.DoesNotContain(plan, cut => cut.Stream == MarketDataStream.Bars);
     }
 
-    private static MarketDataStoreOptions Options(int quotes, int trades, int bars, int depth) => new()
+    /// <summary>Depth is in HOURS; every other stream is in days. Callers pass whole days of depth so
+    /// the existing cases keep meaning what they say.</summary>
+    private static MarketDataStoreOptions Options(int quotes, int trades, int bars, int depthDays) => new()
     {
         QuoteRetentionDays = quotes,
         TradeRetentionDays = trades,
         BarRetentionDays = bars,
-        DepthRetentionDays = depth,
+        DepthRetentionHours = depthDays * 24,
     };
 }

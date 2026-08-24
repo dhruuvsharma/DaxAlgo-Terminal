@@ -17,7 +17,7 @@ public sealed record MarketDataRetentionSettings(
     int QuoteDays,
     int TradeDays,
     int BarDays,
-    int DepthDays);
+    int DepthHours);
 
 public static class ArchiveUserFile
 {
@@ -91,7 +91,7 @@ public static class ArchiveUserFile
                 store["QuoteRetentionDays"] = r.QuoteDays;
                 store["TradeRetentionDays"] = r.TradeDays;
                 store["BarRetentionDays"] = r.BarDays;
-                store["DepthRetentionDays"] = r.DepthDays;
+                store["DepthRetentionHours"] = r.DepthHours;
             }
             root[MarketDataStoreOptions.SectionName] = store;
         }

@@ -23,12 +23,12 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
     /// creates the identity registry + quotes/trades/bars (the single-file backend). A single-stream
     /// value creates only that table — used by the per-broker backend's one-file-per-stream layout.
     /// Only a <see cref="SqliteStoreStream.Depth"/> store persists/serves depth.</param>
-    /// <param name="depthRetentionDays">For a <see cref="SqliteStoreStream.Depth"/> store, prune depth
+    /// <param name="depthRetentionHours">For a <see cref="SqliteStoreStream.Depth"/> store, prune depth
     /// rows older than this many days on open (0 = keep forever). Best-effort startup prune; depth is
     /// the highest-volume stream, so this bounds the <c>…-l2.db</c> file across restarts.</param>
     public SqliteMarketDataStore(
         string connectionString, bool persist, int batchSize, ILogger logger,
-        SqliteStoreStream stream = SqliteStoreStream.All, int depthRetentionDays = 0)
+        SqliteStoreStream stream = SqliteStoreStream.All, int depthRetentionHours = 0)
         : base(persist, batchSize, logger)
     {
         _connectionString = connectionString;
@@ -44,8 +44,8 @@ internal sealed class SqliteMarketDataStore : MarketDataStoreBase
             case SqliteStoreStream.Depth:  SqliteSchema.EnsureDepthCreated(_writeConnection); break;
             default:                       SqliteSchema.EnsureCreated(_writeConnection); break;
         }
-        if (stream == SqliteStoreStream.Depth && depthRetentionDays > 0)
-            PruneDepthOlderThan(DateTime.UtcNow.AddDays(-depthRetentionDays));
+        if (stream == SqliteStoreStream.Depth && depthRetentionHours > 0)
+            PruneDepthOlderThan(DateTime.UtcNow.AddHours(-depthRetentionHours));
         StartWriter();
     }
 

@@ -31,7 +31,7 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
     private readonly string _ilpConfig;
     private readonly string _pgConnectionString;
     private readonly bool _persistRequested;
-    private readonly int _depthRetentionDays;
+    private readonly int _depthRetentionHours;
     private readonly ILogger _logger;
     private readonly object _activationGate = new();
     private volatile bool _available;
@@ -42,18 +42,18 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
     /// Can be flipped live later via <see cref="TryActivate"/>.</param>
     public QuestDbMarketDataStore(
         string ilpConfig, string pgConnectionString, bool persist, bool available,
-        int batchSize, int depthRetentionDays, ILogger logger)
+        int batchSize, int depthRetentionHours, ILogger logger)
         : base(persist && available, batchSize, logger)
     {
         _ilpConfig = ilpConfig;
         _pgConnectionString = pgConnectionString;
         _persistRequested = persist;
-        _depthRetentionDays = depthRetentionDays;
+        _depthRetentionHours = depthRetentionHours;
         _logger = logger;
         _available = available;
         if (available)
         {
-            QuestDbSchema.EnsureCreated(pgConnectionString, depthRetentionDays, logger);
+            QuestDbSchema.EnsureCreated(pgConnectionString, depthRetentionHours, logger);
             _sender = Sender.New(ilpConfig);
         }
         StartWriter();
@@ -83,7 +83,7 @@ internal sealed class QuestDbMarketDataStore : MarketDataStoreBase, IReactivatab
             if (_available) return true;
             try
             {
-                QuestDbSchema.EnsureCreated(_pgConnectionString, _depthRetentionDays, _logger);
+                QuestDbSchema.EnsureCreated(_pgConnectionString, _depthRetentionHours, _logger);
                 _sender = Sender.New(_ilpConfig);
                 _available = true;
                 if (_persistRequested) EnablePersistence();

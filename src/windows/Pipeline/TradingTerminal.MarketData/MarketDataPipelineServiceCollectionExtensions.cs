@@ -74,7 +74,7 @@ public static class MarketDataPipelineServiceCollectionExtensions
             // The only other backend, and the one that needs no server.
             return new PerBrokerSqliteMarketDataStore(
                 Path.GetDirectoryName(dbPath)!, Path.GetFileNameWithoutExtension(dbPath),
-                opts.PersistLiveData, opts.WriteBatchSize, opts.DepthRetentionDays, lf);
+                opts.PersistLiveData, opts.WriteBatchSize, opts.DepthRetentionHours, lf);
         });
 
         services.AddSingleton<IMarketDataIngest, MarketDataIngestService>();
@@ -150,7 +150,7 @@ public static class MarketDataPipelineServiceCollectionExtensions
 
         return new QuestDbMarketDataStore(
             opts.QuestDbIlpConfig, opts.QuestDbPgConnectionString,
-            opts.PersistLiveData, reachable, opts.WriteBatchSize, opts.DepthRetentionDays,
+            opts.PersistLiveData, reachable, opts.WriteBatchSize, opts.DepthRetentionHours,
             lf.CreateLogger<QuestDbMarketDataStore>());
     }
 
