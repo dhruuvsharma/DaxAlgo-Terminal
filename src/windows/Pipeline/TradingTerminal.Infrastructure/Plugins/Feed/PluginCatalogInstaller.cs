@@ -1,22 +1,27 @@
 using System.IO;
 using System.Net.Http;
+using DaxAlgo.Package;
 using Microsoft.Extensions.Logging;
 
 namespace TradingTerminal.Infrastructure.Plugins.Feed;
 
 /// <summary>
-/// Installs a plugin chosen from the marketplace catalog. It downloads the <c>.daxplugin</c> from the
-/// feed's URL, checks the downloaded bytes against the sha256 the SIGNED index declared — binding the
-/// trusted index to the bytes actually served, so a swapped or corrupted download is refused — and then
-/// hands the verified package to <see cref="PluginInstaller.InstallFromPackage"/>. From there it runs the
-/// identical package-integrity / manifest / SDK / trust / IL-scan gate chain as a hand-picked file, and
-/// activates on the next restart like any other install. Never throws: every failure comes back as a
+/// Installs an artifact chosen from the marketplace catalog. It downloads the package from the feed's
+/// URL, checks the downloaded bytes against the sha256 the SIGNED index declared — binding the trusted
+/// index to the bytes actually served, so a swapped or corrupted download is refused — and then hands
+/// the file to <see cref="PluginInstaller.InstallFromArtifact"/>. From there it runs the identical
+/// package-integrity / manifest / SDK / trust / IL-scan gate chain as a hand-picked file, and activates
+/// on the next restart like any other install. Never throws: every failure comes back as a
 /// <see cref="PluginInstallResult"/> with <c>Success = false</c>.
+///
+/// <para>The feed serves the same two extensions the file picker accepts — <c>.daxalgostrategy</c> and
+/// <c>.daxalgovisualizer</c>. A catalog entry pointing at anything else is refused by name, so the feed
+/// cannot reintroduce a format the terminal has retired.</para>
 /// </summary>
 public static class PluginCatalogInstaller
 {
-    /// <summary>Ceiling on a downloaded package. A strategy plugin is a DLL plus a few private deps, not a
-    /// bundle — anything past this is refused before it is committed to disk (guards a lying/absent
+    /// <summary>Ceiling on a downloaded artifact. A strategy is a DLL plus a few private deps —
+    /// anything past this is refused before it is committed to disk (guards a lying/absent
     /// Content-Length too).</summary>
     public const long MaxPackageBytes = 64L * 1024 * 1024;
 
@@ -40,8 +45,18 @@ public static class PluginCatalogInstaller
             return new PluginInstallResult(false,
                 "This plugin has no checksum in the feed — refusing to install unverified bytes.");
 
+        // Keep the served extension: the installer accepts by name, and a downloaded artifact must
+        // face exactly the same check as one the user picked off disk.
+        var served = Path.GetExtension(new Uri(version.Url, UriKind.RelativeOrAbsolute).IsAbsoluteUri
+            ? new Uri(version.Url).AbsolutePath
+            : version.Url);
+        if (!DaxPackage.AcceptedExtensions.Contains(served, StringComparer.OrdinalIgnoreCase))
+            return new PluginInstallResult(false,
+                $"The feed offers '{served}', which is not an accepted artifact format "
+                + $"({string.Join(" or ", DaxPackage.AcceptedExtensions)}).");
+
         var tempPath = Path.Combine(
-            Path.GetTempPath(), "daxalgo-dl-" + Guid.NewGuid().ToString("N") + DaxPluginPackage.Extension);
+            Path.GetTempPath(), "daxalgo-dl-" + Guid.NewGuid().ToString("N") + served);
         try
         {
             var downloaded = await DownloadAsync(http, version.Url, tempPath, ct).ConfigureAwait(false);
@@ -57,7 +72,7 @@ public static class PluginCatalogInstaller
                     "The downloaded package does not match the checksum in the signed feed — install refused.");
             }
 
-            return PluginInstaller.InstallFromPackage(tempPath, pluginsRoot, policy, inspector, state);
+            return PluginInstaller.InstallFromArtifact(tempPath, pluginsRoot, policy, inspector, state);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {

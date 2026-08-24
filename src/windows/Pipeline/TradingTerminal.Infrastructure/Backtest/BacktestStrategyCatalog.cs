@@ -9,7 +9,7 @@ namespace TradingTerminal.Infrastructure.Backtest;
 /// <para>The seed list is deliberately <b>empty</b>. It used to hold three demo strategies written
 /// for the backtest engine (buy-and-hold, mean reversion, Donchian breakout); the engine was archived
 /// on 2026-08-17 and they went with it. Every strategy now arrives at runtime — from an installed
-/// <c>.daxplugin</c> or from one authored in the app — and registers its own
+/// <c>.daxalgostrategy</c> or from one authored in the app — and registers its own
 /// <see cref="BacktestStrategyOption"/>. <see cref="IBacktestStrategyRegistry"/> aggregates whatever
 /// DI holds, so nothing needs naming here.</para>
 ///

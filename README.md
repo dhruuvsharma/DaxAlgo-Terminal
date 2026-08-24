@@ -241,9 +241,9 @@ workflow.
 |---|---|
 | Sandbox strategy | `IStrategyKernel` plus direct tests; authored against SDK 0.3 |
 | Sandbox visualizer | `IVisualizer` plus direct tests; public runtime support covers in-memory visualizer testing |
-| `.daxalgostrategy` | Open strategy package: source, UI, and assets in one file. Read and verified by **Extensions**; installing is not wired up yet |
+| `.daxalgostrategy` | Open strategy package: source, UI, and assets in one file. Read, verified, and installed by **Extensions** |
 | `.daxalgovisualizer` | The visualizer counterpart of the same open format |
-| `.daxplugin` | **Retired.** Rejected by name, with a message telling you to repackage as one of the two open formats |
+| `.daxplugin` | **Retired 2026-08-24** — the install path is gone, not just discouraged. Rejected by name, with a message telling you to repackage |
 
 Loose `.dll` plugins are no longer accepted in any edition.
 

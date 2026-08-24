@@ -4,7 +4,7 @@
 describes the `IBacktestStrategy` kernel workflow and is **not** the SDK 0.3 sandbox contract.
 
 It is embedded into `DaxAlgo.Codegen` and shipped in the application, so a wrong statement here reaches
-a model and lands in generated strategies. Keep it accurate. The `.daxplugin` packaging it was
+a model and lands in generated strategies. Keep it accurate. The `.daxalgostrategy` packaging it was
 originally written alongside is retired; `.daxalgostrategy` and `.daxalgovisualizer` are the accepted
 package formats.
 

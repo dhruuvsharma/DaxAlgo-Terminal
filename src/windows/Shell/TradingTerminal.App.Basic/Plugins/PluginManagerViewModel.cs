@@ -113,9 +113,9 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     /// <see cref="DaxPackage.AcceptedExtensions"/> — <c>.daxalgostrategy</c> and
     /// <c>.daxalgovisualizer</c> — and it is defined in the package library so every edition agrees.
     ///
-    /// <para>Raw <c>.dll</c> and the legacy <c>.daxplugin</c> are refused, and refused BY NAME so the
+    /// <para>Raw <c>.dll</c> and the retired <c>.daxplugin</c> are refused, and refused BY NAME so the
     /// user is told why rather than watching their file fail to appear in the picker. Assembly loading
-    /// was removed on 2026-08-15.</para>
+    /// was removed on 2026-08-15; the <c>.daxplugin</c> install path itself went on 2026-08-24.</para>
     /// </summary>
     [RelayCommand]
     private void InstallPlugin()
@@ -134,18 +134,21 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
             return;
         }
 
-        // Verify before claiming anything: Read checks the manifest, every payload digest, and that
-        // no undeclared entry is hiding in the archive.
-        try
+        // Verification happens inside the installer: the manifest, every payload digest, and the
+        // absence of undeclared entries are all checked before a byte reaches the plugins folder.
+        var result = PluginInstaller.InstallFromArtifact(
+            dialog.FileName,
+            _context.PluginsRoot,
+            _context.TrustPolicy,
+            Inspector(),
+            _state);
+
+        Status = result.Message;
+        if (result.Success)
         {
-            var manifest = DaxPackage.Read(dialog.FileName).Manifest;
-            Status =
-                $"{manifest.DisplayName} {manifest.Version} ({manifest.Kind}) verified — "
-                + $"{manifest.Payloads.Count} payload(s). Installing artifacts is not wired up yet.";
-        }
-        catch (DaxPackageException ex)
-        {
-            Status = $"Rejected: {ex.Message}";
+            RestartRequired = true;
+            Rebuild();
+            RebuildCatalog();
         }
     }
 

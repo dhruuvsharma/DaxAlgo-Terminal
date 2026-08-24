@@ -51,14 +51,19 @@ int Wrap(string verb, Dictionary<string, string> o)
     return ProcessRunner.Run("dotnet", $"{verb} \"{project}\"");
 }
 
+// package: retired with the .daxplugin format on 2026-08-24.
+//
+// This shelled out to a pack-plugin.ps1 that the scaffold was supposed to carry, and produced a
+// .daxplugin. The terminal now accepts exactly two artifact extensions, .daxalgostrategy and
+// .daxalgovisualizer, and refuses .daxplugin by name — so a command that still built one could only
+// produce a file nothing will install. It fails loudly instead of quietly emitting a dead format.
 int Package(Dictionary<string, string> o)
 {
-    // Absolute path: the script runs with its own folder as the working dir, so a relative path would
-    // resolve doubled (dir/dir/pack-plugin.ps1).
-    var dir = Path.GetFullPath(o.GetValueOrDefault("project", "."));
-    var script = Path.Combine(dir, "pack-plugin.ps1");
-    if (!File.Exists(script)) { Console.Error.WriteLine($"pack-plugin.ps1 not found in '{dir}'."); return 1; }
-    return ProcessRunner.Run(ProcessRunner.PowerShell, $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\"", dir);
+    _ = o;
+    Console.Error.WriteLine(
+        "The .daxplugin format was retired on 2026-08-24. The terminal accepts .daxalgostrategy and "
+        + ".daxalgovisualizer, written by DaxAlgo.Package — this CLI cannot produce them yet (issue #34).");
+    return 1;
 }
 
 // install: build, then copy the plugin files into a host shell's plugins folder.
@@ -226,7 +231,7 @@ void PrintUsage() => Console.WriteLine(
       new      --name <N> [--ui] [--output <dir>]         scaffold a plugin
       build    [--project <dir>]                          dotnet build the scaffold
       test     [--project <dir>]                          dotnet test the scaffold
-      package  [--project <dir>]                          build a .daxplugin
+      package  [--project <dir>]                          RETIRED (see issue #34)
       install  --into <plugins-dir> [--project <dir>]     build + copy into a shell's plugins folder
       ai       --name <N> [--provider <id>] [--prompt "…"] [--ui] [--output <dir>] [--max-attempts <n>]
                                                           scaffold + AI-write the kernel + build/test/package

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using DaxAlgo.Package;
 using DaxAlgo.Sdk;
 using TradingTerminal.Core.Configuration;
 
@@ -78,11 +79,14 @@ public sealed record PluginHostContext(
 public sealed record PluginInstallResult(bool Success, string Message, string? InstalledPath = null);
 
 /// <summary>
-/// Installs a strategy plugin into the host's plugins folder — from a raw main assembly
+/// Installs an artifact into the host's plugins folder — from a raw main assembly
 /// (<see cref="InstallFromDll"/>: the dev drop-in path; dll + optional plugin.json/.pdb/.deps.json
-/// beside it) or from a <c>.daxplugin</c> package (<see cref="InstallFromPackage"/>: sha256-verified,
-/// carries private dependencies). Both land on <c>plugins/&lt;Name&gt;/&lt;Name&gt;.dll</c> (the
-/// loader's folder convention) through the same manifest/SDK/trust gates.
+/// beside it) or from a verified package (<see cref="InstallFromArtifact"/>: digest-checked, carries
+/// private dependencies). Both land on <c>plugins/&lt;Name&gt;/&lt;Name&gt;.dll</c> (the loader's
+/// folder convention) through the same manifest/SDK/trust gates.
+///
+/// <para>There are exactly two artifact extensions — <c>.daxalgostrategy</c> and
+/// <c>.daxalgovisualizer</c>. The legacy <c>.daxplugin</c> path was removed on 2026-08-24.</para>
 /// <para>
 /// Validation runs WITHOUT executing the plugin's code (manifest read + signature inspection only).
 /// The plugin actually loads on next startup via <see cref="PluginLoader"/>, which re-checks
@@ -124,12 +128,16 @@ public static class PluginInstaller
         }
     }
 
-    /// <summary>Installs a <c>.daxplugin</c> package: the integrity index is verified first
-    /// (per-file sha256, zip-slip guard — see <see cref="DaxPluginPackage.ExtractAndVerify"/>), then
-    /// the extracted folder goes through the same manifest/SDK/trust gates and is copied WHOLE —
-    /// packages may carry plugin-private dependencies the raw-DLL path can't. Never throws.</summary>
-    public static PluginInstallResult InstallFromPackage(
-        string packagePath,
+    /// <summary>
+    /// Installs a <c>.daxalgostrategy</c> or <c>.daxalgovisualizer</c> — the only two artifact formats
+    /// the terminal accepts. <see cref="DaxPackage.Read"/> verifies the manifest, every payload digest,
+    /// and that no undeclared entry is hiding in the archive, all before a byte reaches the plugins
+    /// folder. Verified payloads are staged to a temp folder and then go through the same
+    /// manifest / SDK / trust / IL-scan gates as any other install, copied WHOLE so an artifact can
+    /// carry its own private dependencies. Never throws.
+    /// </summary>
+    public static PluginInstallResult InstallFromArtifact(
+        string artifactPath,
         string pluginsRoot,
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
@@ -138,28 +146,73 @@ public static class PluginInstaller
     {
         try
         {
-            if (!File.Exists(packagePath))
-                return new(false, $"File not found: {packagePath}");
+            if (!File.Exists(artifactPath))
+                return new(false, $"File not found: {artifactPath}");
+            if (!DaxPackage.IsAccepted(artifactPath, out var rejection))
+                return new(false, rejection);
 
-            var (extractedDir, mainAssemblyName) = DaxPluginPackage.ExtractAndVerify(packagePath);
+            var contents = DaxPackage.Read(artifactPath);
+
+            // The entry assembly names the plugin folder, keeping the loader's
+            // plugins/<Name>/<Name>.dll convention. A source-only package is a perfectly valid package
+            // and simply not an installable one — saying that plainly beats a missing-dll error raised
+            // three frames further down.
+            var assembly = contents.Manifest.Payloads.FirstOrDefault(p => p.Role == DaxPayloadRole.Assembly);
+            if (assembly is null)
+                return new(false,
+                    $"'{contents.Manifest.DisplayName}' carries no compiled assembly — it is a source-only "
+                    + "package and has to be built before it can be installed.");
+
+            var assemblyName = Path.GetFileNameWithoutExtension(assembly.Path);
+            if (string.IsNullOrWhiteSpace(assemblyName))
+                return new(false, "The package's assembly payload has no file name.");
+
+            var staging = Path.Combine(Path.GetTempPath(), "daxalgo-install-" + Guid.NewGuid().ToString("N"));
             try
             {
+                Stage(contents, staging);
                 return InstallValidatedFolder(
-                    extractedDir, mainAssemblyName, pluginsRoot, policy, inspector, state, scanMode,
+                    staging, assemblyName, pluginsRoot, policy, inspector, state, scanMode,
                     copyAllFiles: true);
             }
             finally
             {
-                try { Directory.Delete(extractedDir, recursive: true); } catch { /* best effort */ }
+                try { Directory.Delete(staging, recursive: true); } catch { /* best effort */ }
             }
         }
-        catch (InvalidDataException ex)
+        catch (DaxPackageException ex)
         {
-            return new(false, ex.Message);
+            return new(false, $"Rejected: {ex.Message}");
         }
         catch (Exception ex)
         {
             return new(false, $"Install failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Writes verified payloads into <paramref name="root"/>, flattening the manifest's
+    /// <c>payload/</c> prefix. The paths were already normalised when the package was read; the
+    /// containment check here is the second lock on the same door, placed at the moment bytes actually
+    /// reach the disk.</summary>
+    private static void Stage(DaxPackageContents contents, string root)
+    {
+        Directory.CreateDirectory(root);
+        var fullRoot = Path.GetFullPath(root);
+
+        foreach (var (path, bytes) in contents.Payloads)
+        {
+            var relative = path.StartsWith("payload/", StringComparison.Ordinal)
+                ? path["payload/".Length..]
+                : path;
+            var destination = Path.GetFullPath(
+                Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+
+            if (!destination.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new DaxPackageException(
+                    DaxPackageError.UnsafePath, $"Payload '{path}' escapes the staging folder.");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.WriteAllBytes(destination, bytes);
         }
     }
 

@@ -18,6 +18,7 @@
     <Project Path="tests/TradingTerminal.Sandbox.Runtime.Tests/TradingTerminal.Sandbox.Runtime.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Execution.Tests/TradingTerminal.Execution.Tests.csproj" />
     <Project Path="tests/TradingTerminal.ExecutionUi.Tests/TradingTerminal.ExecutionUi.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Plugins.Tests/TradingTerminal.Plugins.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Updates.Tests/TradingTerminal.Updates.Tests.csproj" />
     <Project Path="tests/DaxAlgo.Package.Tests/DaxAlgo.Package.Tests.csproj" />
   </Folder>
