@@ -105,6 +105,36 @@ public static class MarketDataRetentionPolicy
         }
     }
 
+    /// <summary>
+    /// The shortest window any stream is configured to keep, or null when everything is kept forever.
+    ///
+    /// <para>Exists so the sweep interval cannot silently disagree with the windows it enforces.
+    /// Sweeping every six hours against a one-hour depth window means depth actually survives up to
+    /// seven — the setting says one thing and the disk says another, which is how the two got out of
+    /// step in the first place.</para>
+    /// </summary>
+    public static TimeSpan? ShortestWindow(MarketDataStoreOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        TimeSpan? shortest = null;
+        foreach (var window in new[]
+                 {
+                     Days(options.QuoteRetentionDays),
+                     Days(options.TradeRetentionDays),
+                     Days(options.BarRetentionDays),
+                     Hours(options.DepthRetentionHours),
+                 })
+        {
+            // Zero is keep-forever, not "sweep constantly".
+            if (window <= TimeSpan.Zero)
+                continue;
+            if (shortest is null || window < shortest)
+                shortest = window;
+        }
+
+        return shortest;
+    }
     /// <summary>A century. Past this a window is indistinguishable from "keep forever".</summary>
     private static readonly TimeSpan Longest = TimeSpan.FromDays(36_500);
 

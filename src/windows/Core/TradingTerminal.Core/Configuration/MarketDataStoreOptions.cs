@@ -118,8 +118,14 @@ public sealed class MarketDataStoreOptions
     /// </summary>
     public bool RetentionSweepEnabled { get; set; } = true;
 
-    /// <summary>How often the sweep runs, in hours. It also runs once shortly after startup.</summary>
-    public int RetentionSweepIntervalHours { get; set; } = 6;
+    /// <summary>
+    /// How often the sweep runs, in hours. It also runs once shortly after startup.
+    ///
+    /// <para>Treated as a ceiling, not a promise: the sweep never runs less often than the shortest
+    /// retention window, so shortening a window tightens the sweep automatically instead of leaving
+    /// the two to disagree. Floored at fifteen minutes.</para>
+    /// </summary>
+    public int RetentionSweepIntervalHours { get; set; } = 1;
 
     /// <summary>
     /// Whether the sweep refuses to delete data the Telegram archive has not shipped yet.

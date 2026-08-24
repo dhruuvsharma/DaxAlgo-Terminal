@@ -191,10 +191,24 @@ internal sealed class MarketDataRetentionService : IMarketDataRetentionSweep, IH
         }
     }
 
+    /// <summary>
+    /// How often to sweep — the configured interval, but never longer than the shortest window it
+    /// is meant to enforce.
+    ///
+    /// <para>The clamp is the point. A six-hour sweep against a one-hour depth window lets depth
+    /// survive up to seven hours: the setting says one thing and the disk says another. Deriving the
+    /// ceiling from the windows means the two cannot drift apart again when someone shortens one.</para>
+    /// </summary>
     private TimeSpan Interval()
     {
-        var hours = _options.CurrentValue.RetentionSweepIntervalHours;
-        var interval = hours > 0 ? TimeSpan.FromHours(hours) : TimeSpan.FromHours(6);
+        var options = _options.CurrentValue;
+        var hours = options.RetentionSweepIntervalHours;
+        var interval = hours > 0 ? TimeSpan.FromHours(hours) : TimeSpan.FromHours(1);
+
+        if (MarketDataRetentionPolicy.ShortestWindow(options) is { } shortest && shortest < interval)
+            interval = shortest;
+
+        // A floor regardless, so a very short window cannot turn the sweep into a busy loop.
         return interval < MinimumInterval ? MinimumInterval : interval;
     }
 

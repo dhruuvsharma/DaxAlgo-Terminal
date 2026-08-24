@@ -124,6 +124,49 @@ public sealed class MarketDataRetentionPolicyTests
         Assert.Equal(1, new MarketDataStoreOptions().DepthRetentionHours);
     }
 
+    // ── The sweep interval cannot outrun the windows ────────────────────────────────────────────
+
+    [Fact]
+    public void TheShortestWindowIsTheDepthOneUnderShippedDefaults()
+    {
+        // Depth is an hour; everything else is days or forever. If this ever stops being the shortest,
+        // the sweep cadence silently loosens.
+        Assert.Equal(TimeSpan.FromHours(1), MarketDataRetentionPolicy.ShortestWindow(new MarketDataStoreOptions()));
+    }
+
+    [Fact]
+    public void KeepForeverStreamsDoNotCountAsShortWindows()
+    {
+        // 0 means keep forever. Reading it as a zero-length window would drive the sweep at its floor
+        // permanently, on behalf of streams nobody is deleting.
+        var options = Options(quotes: 0, trades: 30, bars: 0, depthDays: 0);
+        options.DepthRetentionHours = 0;
+
+        Assert.Equal(TimeSpan.FromDays(30), MarketDataRetentionPolicy.ShortestWindow(options));
+    }
+
+    [Fact]
+    public void EverythingKeptForeverMeansNoWindowAtAll()
+    {
+        var options = Options(quotes: 0, trades: 0, bars: 0, depthDays: 0);
+        options.DepthRetentionHours = 0;
+
+        Assert.Null(MarketDataRetentionPolicy.ShortestWindow(options));
+    }
+
+    [Fact]
+    public void AnAbsurdWindowDoesNotThrowWhenMeasured()
+    {
+        // The same guard Plan needs: int.MinValue days would blow up TimeSpan.FromDays.
+        var options = Options(quotes: int.MinValue, trades: int.MaxValue, bars: 0, depthDays: 0);
+        options.DepthRetentionHours = 0;
+
+        var shortest = MarketDataRetentionPolicy.ShortestWindow(options);
+
+        Assert.NotNull(shortest);
+        Assert.True(shortest <= TimeSpan.FromDays(36_500));
+    }
+
     // ── The archive interaction: the part that can destroy data ──────────────────────────────────
 
     [Fact]
