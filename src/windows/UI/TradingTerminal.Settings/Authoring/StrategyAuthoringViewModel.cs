@@ -12,6 +12,7 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Strategies;
@@ -43,6 +44,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly IStrategyCompiler _compiler;
     private readonly IStrategyRegistry _registry;
     private readonly IAuthoredUnitSink? _sink;
+
+    /// <summary>Kept across runs so the estimate accumulates — an agent's record is only worth having if
+    /// it survives the session that produced it.</summary>
+    private readonly AgentReliability _reliability = new();
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
@@ -842,6 +847,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _generateCts = new CancellationTokenSource();
 
         var ticking = TickElapsedAsync(_generateCts.Token);
+
+        // Deep and Max buy the agents. Quick and Standard keep the single conversation below, which is
+        // cheaper and right for a brief that does not need a committee.
+        if (profile.UseAgents)
+        {
+            try { await RunAgentsAsync(choice.Client, prompt, profile, _generateCts.Token); }
+            finally
+            {
+                IsGenerating = false;
+                await ticking;
+            }
+
+            return;
+        }
+
         var session = EnsureSession(choice, profile);
         var tokensBefore = session.TotalUsage;
         _streamingReply = null;
@@ -1398,6 +1418,80 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _logger.LogInformation(
             "Authored {Kind} {Id} registered from {Files} file(s).", unit.Kind, id, script.Files.Count);
         return message;
+    }
+
+    /// <summary>
+    /// The multi-agent path: route a turn, show who took it, judge what came back, repeat.
+    ///
+    /// <para>Every turn is surfaced as it happens rather than at the end. A ten-turn run takes minutes,
+    /// and a pane that shows nothing meanwhile reads as a hang — the agents being visible is what makes
+    /// the wait legible, and what justifies its cost to the person paying for it.</para>
+    /// </summary>
+    private async Task RunAgentsAsync(
+        IStrategyCodegenClient client,
+        string brief,
+        StrategyBuildProfile profile,
+        CancellationToken ct)
+    {
+        if (_compiler is null)
+        {
+            AiStatus = "This edition has no compiler, so the agents have nothing to verify against.";
+            return;
+        }
+
+        var judge = new AuthoringJudge(
+            _compiler,
+            StrategyId ?? "authored",
+            string.IsNullOrWhiteSpace(DisplayName) ? StrategyId ?? "Authored" : DisplayName!,
+            new RoutingState());
+
+        var loop = new AgentLoop(client, judge.Judge, _reliability);
+
+        var report = new Progress<AgentTurn>(turn =>
+        {
+            // The role is the headline. A user watching six agents should be able to see which one is
+            // spending their money and on what.
+            Append(AuthoringMessage.Tool(
+                turn.Reward > 0.5d ? "Ok" : "Info",
+                turn.Role.ToString(),
+                turn.Files.Count > 0
+                    ? $"{turn.Files.Count} file(s) · scored {turn.Reward:0.00}"
+                    : "answered without code",
+                turn.Reply));
+
+            PushActivity($"{turn.Role}: {(turn.Files.Count > 0 ? "wrote code" : "replied")}");
+
+            // Preview on every compile, half-finished included: the picture arriving is informative, and
+            // the preview says so itself when there is nothing yet to show.
+            if (judge.Latest?.Unit is { } unit) ShowPreview(unit);
+        });
+
+        var run = await loop.RunAsync(
+            brief,
+            StrategyContextPack.Load().SystemPrompt,
+            judge.State,
+            profile.MaxAgentTurns,
+            report,
+            ct);
+
+        foreach (var diagnostic in judge.Latest?.Diagnostics ?? [])
+            Diagnostics.Add(diagnostic);
+
+        AiStatus = run.Outcome switch
+        {
+            AgentRunOutcome.Delivered => $"Delivered after {run.Turns.Count} turn(s). Review the preview, then Compile & Register.",
+            AgentRunOutcome.AwaitingUser => "The agent has a question — answer it in the composer.",
+            AgentRunOutcome.ProviderFailed => $"Provider failed: {run.Error}",
+
+            // Honest rather than encouraging. A brief that could not be satisfied should say what was
+            // built and what did not work, not invite another spend on the same wall.
+            _ => $"Stopped at the {profile.MaxAgentTurns}-turn budget. "
+               + $"Furthest it got: {(judge.State.Compiles ? "it compiles" : "it does not compile yet")}.",
+        };
+
+        CompiledOk = judge.Latest is { Success: true };
+        AwaitingAnswer = run.Outcome == AgentRunOutcome.AwaitingUser;
+        if (CompiledOk) _pendingCompile = judge.Latest;
     }
 
     /// <summary>Backs out of the review — nothing was registered, the compile result is discarded.</summary>

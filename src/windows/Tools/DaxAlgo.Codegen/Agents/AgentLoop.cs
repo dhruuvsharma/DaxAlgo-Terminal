@@ -73,11 +73,17 @@ public sealed class AgentLoop(
     /// end to a brief that cannot be satisfied is "here is what I built and what did not work" rather
     /// than another attempt.
     /// </param>
+    /// <param name="progress">
+    /// Reports each turn as it completes. A run of ten turns takes minutes, and a pane that shows
+    /// nothing until the end reads as a hang — the agents being visible is what makes the wait legible
+    /// and what justifies its cost to the person paying for it.
+    /// </param>
     public async Task<AgentRun> RunAsync(
         string brief,
         string sharedContext,
         RoutingState state,
         int maxTurns = 12,
+        IProgress<AgentTurn>? progress = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brief);
@@ -115,7 +121,9 @@ public sealed class AgentLoop(
                 // An Interviewer's spec and a Quant's derivation ARE their output, so they are kept even
                 // though no file came back; a question from a coding role leaves the context unchanged.
                 context = context.With(decision.Role, response.RawText ?? string.Empty, []);
-                turns.Add(new AgentTurn(decision.Role, decision.Weights, response.RawText ?? string.Empty, [], Reward: 0d));
+                var asked = new AgentTurn(decision.Role, decision.Weights, response.RawText ?? string.Empty, [], Reward: 0d);
+                turns.Add(asked);
+                progress?.Report(asked);
                 return new AgentRun(AgentRunOutcome.AwaitingUser, state, turns, Context: context);
             }
 
@@ -128,8 +136,10 @@ public sealed class AgentLoop(
             state = verdict.State;
             context = context.With(decision.Role, response.RawText ?? string.Empty, response.FileList)
                              .With(verdict.Report);
-            turns.Add(new AgentTurn(
-                decision.Role, decision.Weights, response.RawText ?? string.Empty, response.FileList, reward));
+            var completed = new AgentTurn(
+                decision.Role, decision.Weights, response.RawText ?? string.Empty, response.FileList, reward);
+            turns.Add(completed);
+            progress?.Report(completed);
         }
 
         return new AgentRun(AgentRunOutcome.BudgetExhausted, state, turns, Context: context);
