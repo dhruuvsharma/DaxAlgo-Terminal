@@ -42,6 +42,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private readonly IStrategyCompiler _compiler;
     private readonly IStrategyRegistry _registry;
+    private readonly IAuthoredUnitSink? _sink;
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
@@ -72,7 +73,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IAiStrategyBuilder? ai = null,
         IOptions<AiCodegenOptions>? options = null,
         AuthoredStrategyInstaller? installer = null,
-        ICliWorkspaceLauncher? cliLauncher = null)
+        ICliWorkspaceLauncher? cliLauncher = null,
+        IAuthoredUnitSink? sink = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -81,6 +83,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
         _cliLauncher = cliLauncher;
+        // Optional: an edition without one still compiles, verifies and previews — it just says it
+        // cannot put the result in a catalog, rather than throwing at construction.
+        _sink = sink;
 
         Diagnostics = [];
         Messages = [];
@@ -1283,7 +1288,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         foreach (var diagnostic in result.Diagnostics)
             Diagnostics.Add(diagnostic);
 
-        if (!result.Success || result.Option is null)
+        if (!result.Success)
         {
             // A policy-scan Block comes back as an error diagnostic, so a strategy that reaches for
             // P/Invoke / Process / the registry fails here with a clear reason, just like a plugin.
@@ -1291,8 +1296,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return;
         }
 
+        // A sandbox unit has no Option: that type is the retired contract's registration currency and a
+        // kernel never produces one. Treating a null Option as a failure told authors following the
+        // current guidance that their correct code did not compile.
+        if (result.Unit is null && result.Option is null)
+        {
+            Status = "Compiled, but nothing hostable was found — define one IStrategyKernel or IVisualizer.";
+            return;
+        }
+
         CompiledOk = true;
-        if (result.Option.HasParameters)
+        if (result.Option is { HasParameters: true })
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 
         ReviewFiles.Clear();
@@ -1322,7 +1336,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void ConfirmRegister()
     {
-        if (_pendingCompile is not { Option: not null } result || _pendingScript is not { } script)
+        if (_pendingCompile is not { } result || _pendingScript is not { } script)
         {
             CloseReview();
             return;
@@ -1331,7 +1345,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
         var caveat = warnings > 0 ? $" {warnings} capability warning(s) in Diagnostics." : string.Empty;
 
-        if (_installer is null)
+        // A sandbox unit goes into the registry that can actually run it. The legacy path below is for
+        // IOrderRoutedStrategy, which the catalog reaches through StrategyCatalogEntry — a kernel has
+        // no such entry and never will.
+        if (result.Unit is { UsesRetiredContract: false } unit)
+        {
+            Status = RegisterSandboxUnit(unit, script) + caveat;
+        }
+        else if (_installer is null)
         {
             _registry.Register(result.Option!);
             Status = $"Registered '{result.Option!.DisplayName}' from {script.Files.Count} file(s) — DEV (unsigned).{caveat}";
@@ -1352,6 +1373,31 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Append(AuthoringMessage.Tool("Ok", "Registered", Status ?? "The strategy is registered."));
         CloseReview();
         Save();
+    }
+
+    /// <summary>
+    /// Puts a compiled sandbox unit in the catalog.
+    ///
+    /// <para>Registration is what turns a verified strategy into a delivered one. Everything upstream —
+    /// compile, policy scan, the four verification rungs, the live preview — was true of a unit nobody
+    /// could open.</para>
+    ///
+    /// <para>The two kinds go to their own registries rather than a shared one, because the host runs
+    /// them differently: a strategy gets a virtual book and a visualizer does not, and collapsing that
+    /// distinction is how a visualizer ends up with a route to trading.</para>
+    /// </summary>
+    private string RegisterSandboxUnit(AuthoredUnit unit, StrategyScript script)
+    {
+        var id = string.IsNullOrWhiteSpace(StrategyId) ? unit.Type.Name : StrategyId!;
+        var name = string.IsNullOrWhiteSpace(DisplayName) ? null : DisplayName;
+
+        if (_sink is null)
+            return "Compiled and verified, but this edition has nowhere to register it.";
+
+        var message = _sink.Register(unit, id, name);
+        _logger.LogInformation(
+            "Authored {Kind} {Id} registered from {Files} file(s).", unit.Kind, id, script.Files.Count);
+        return message;
     }
 
     /// <summary>Backs out of the review — nothing was registered, the compile result is discarded.</summary>

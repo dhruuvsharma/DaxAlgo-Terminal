@@ -114,6 +114,13 @@ public static class AppDependencyInjection
         // Changed is what lets one appear without a restart.
         services.AddSingleton<TradingTerminal.UI.Strategies.IVisualizerRegistry,
             TradingTerminal.UI.Strategies.VisualizerRegistry>();
+        // Its strategy counterpart, plus the seam the authoring pane registers through. Without the
+        // sink a unit compiles, verifies and previews and then has nowhere to go — which is what
+        // "verified but undeliverable" looked like before registration existed.
+        services.AddSingleton<TradingTerminal.UI.Strategies.IStrategyKernelRegistry,
+            TradingTerminal.UI.Strategies.StrategyKernelRegistry>();
+        services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IAuthoredUnitSink,
+            TradingTerminal.UI.Strategies.AuthoredUnitSink>();
         // Runtime strategy authoring: Roslyn compiler + the authoring pane VM. Lets users
         // write a strategy and register it into the catalog with no recompile of the host.
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();

@@ -11,6 +11,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <!-- The shipped samples, so registration is proven against units known to be correct rather
+         than against stand-ins written to pass. -->
+    <ProjectReference Include="..\..\samples\DaxAlgo.Sandbox.Samples\DaxAlgo.Sandbox.Samples.csproj" />
   </ItemGroup>
 
   <ItemGroup>
