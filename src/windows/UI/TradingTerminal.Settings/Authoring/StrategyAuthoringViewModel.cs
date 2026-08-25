@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Text;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DaxAlgo.Sdk;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,6 +12,7 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Strategies;
 
@@ -203,6 +205,23 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
     [ObservableProperty] private bool _compiledOk;
+
+    // ── Live preview ────────────────────────────────────────────────────────────────────────────
+    // Reading generated C# is a poor way to review a strategy. Most people cannot, and the ones who can
+    // still cannot tell from the source whether the axes are sensible or whether it drew anything at
+    // all. The render contract exists so a picture can be produced without a window; this is that
+    // pointed at the authoring pane, driven over the same series the verifier used — so what is on
+    // screen and what the ladder judged cannot disagree.
+
+    /// <summary>The compiled unit's own frame callback, handed straight to a render surface.</summary>
+    [ObservableProperty] private Action<IRenderSurface>? _previewDraw;
+
+    /// <summary>What is on screen, or why nothing is. Never left blank: an empty rectangle with no
+    /// explanation reads as a broken application rather than a strategy that draws nothing.</summary>
+    [ObservableProperty] private string _previewSummary = string.Empty;
+
+    /// <summary>True once there is a frame to show.</summary>
+    [ObservableProperty] private bool _hasPreview;
 
     /// <summary>Auto-generated editor for the compiled strategy's tunables, or null when it declares none
     /// / hasn't compiled yet.</summary>
@@ -610,6 +629,47 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>Settles the checklist when the turn ends: a compiled turn closes everything that didn't
     /// fail; a question leaves the not-yet-applicable steps pending; anything running on a failure is
     /// marked failed.</summary>
+    /// <summary>
+    /// Builds the live preview from a compiled unit, or explains why there is none.
+    ///
+    /// <para>Never throws: this runs while the user is looking at a result, and a preview that takes the
+    /// pane down with it would turn a strategy that merely draws oddly into a lost session.</para>
+    /// </summary>
+    private void ShowPreview(AuthoredUnit? unit)
+    {
+        if (unit is null)
+        {
+            PreviewDraw = null;
+            HasPreview = false;
+            PreviewSummary = "No preview — nothing was resolved from the compiled code.";
+            return;
+        }
+
+        try
+        {
+            var preview = AuthoredUnitPreview.Create(unit);
+            PreviewDraw = preview.Draw;
+            HasPreview = preview.IsDrawable;
+            PreviewSummary = preview.Summary;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Preview failed for {Id}.", StrategyId);
+            PreviewDraw = null;
+            HasPreview = false;
+            PreviewSummary = $"Preview unavailable: {ex.Message}";
+        }
+    }
+
+    /// <summary>Drops the picture. A preview that outlives the code that produced it is worse than
+    /// none, because it is the one thing on screen a user will trust without re-reading.</summary>
+    private void ClearPreview()
+    {
+        PreviewDraw = null;
+        HasPreview = false;
+        PreviewSummary = string.Empty;
+    }
+
     private void FinishTasks(BuildTurnKind kind)
     {
         var success = kind is BuildTurnKind.Compiled or BuildTurnKind.Question;
@@ -760,6 +820,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Activity.Clear();
         Diagnostics.Clear();
         CompiledOk = false;
+        ClearPreview();
         AwaitingAnswer = false;
         IsGenerating = true;
 
@@ -835,6 +896,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     "Ok", "Compiled",
                     $"{turn.Files.Count} file(s) · {turn.Generations} generation(s)" +
                     (warnings > 0 ? $" · {warnings} warning(s)" : string.Empty)));
+
+                ShowPreview(turn.Compile?.Unit);
             }
             else if (turn.Kind != BuildTurnKind.Question)
             {
@@ -964,6 +1027,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Diagnostics.Clear();
             InputTokens = OutputTokens = 0;
             CompiledOk = false;
+            ClearPreview();
+        ClearPreview();
             AwaitingAnswer = false;
             IsRegistered = false;
             CloseReview();
@@ -1113,6 +1178,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             OutputTokens = session.OutputTokens;
             Diagnostics.Clear();
             CompiledOk = false;
+            ClearPreview();
+        ClearPreview();
             AwaitingAnswer = false;
             IsRegistered = session.Registered;
             CloseReview();
@@ -1190,6 +1257,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         Diagnostics.Clear();
         CompiledOk = false;
+        ClearPreview();
         Parameters = null;
         CloseReview();
 

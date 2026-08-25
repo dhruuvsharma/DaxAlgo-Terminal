@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:uistrat="clr-namespace:TradingTerminal.UI.Strategies;assembly=TradingTerminal.UI"
              xmlns:uicontrols="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+             xmlns:render="clr-namespace:TradingTerminal.UI.Controls.Render;assembly=TradingTerminal.UI"
              xmlns:converters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="1380"
@@ -512,6 +513,60 @@
 
                     <TabControl SelectedIndex="{Binding WorkbenchTab}" Margin="12,4,12,8"
                                 Background="Transparent">
+                        <!-- Preview leads, because a picture is how a strategy is actually reviewed.
+                             Reading generated C# tells you almost nothing about whether the axes are
+                             sensible or whether it drew at all. The surface is the same one the live
+                             window uses and the frame is the same one the verifier judged. -->
+                        <TabItem Header="Preview">
+                            <Grid Margin="0,6,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" CornerRadius="4"
+                                        Background="{DynamicResource Surface.Panel}"
+                                        BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1">
+                                    <Grid>
+                                        <render:RenderSurfaceView Draw="{Binding PreviewDraw}" Margin="6">
+                                            <render:RenderSurfaceView.Style>
+                                                <Style TargetType="render:RenderSurfaceView">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasPreview}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </render:RenderSurfaceView.Style>
+                                        </render:RenderSurfaceView>
+
+                                        <!-- Never an unexplained empty rectangle: a blank panel reads as
+                                             a broken application rather than a unit that draws nothing. -->
+                                        <TextBlock Text="Compile to see the strategy."
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                   FontSize="12">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasPreview}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock Grid.Row="1" Text="{Binding PreviewSummary}" Margin="2,6,2,0"
+                                           TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </Grid>
+                        </TabItem>
+
                         <TabItem Header="Code">
                             <DockPanel Margin="0,6,0,0">
                                 <DockPanel DockPanel.Dock="Top">
