@@ -92,11 +92,19 @@ public static class RoutingPrior
         // Compiled but not yet drawing what it owes: the Painter's whole job.
         if (state.Compiles && state.MustDraw && !state.Draws) return Only(AgentRole.Painter);
 
-        if (state.Compiles && !state.Reviewed) return Only(AgentRole.Reviewer);
+        // Code that exists but does not compile, with no rung recording why: it has not been judged
+        // yet, or it was judged and the failure was lost. Either way the Coder owns it. Without this the
+        // prior fell through to empty and the loop reported a unit DELIVERED having produced nothing —
+        // found by running a real compile through the whole loop rather than by reading the states.
+        if (!state.Compiles) return Only(AgentRole.Coder);
 
-        // Complete. An empty prior is how the loop is told to stop, rather than a role meaning "done"
-        // that could be selected by mistake.
-        return new Dictionary<AgentRole, double>();
+        if (!state.Reviewed) return Only(AgentRole.Reviewer);
+
+        // Complete, and only complete. An empty prior is how the loop is told to stop, so it must never
+        // be reachable from a state that still has work in it.
+        return state.IsComplete
+            ? new Dictionary<AgentRole, double>()
+            : Only(AgentRole.Coder);
     }
 
     /// <summary>
