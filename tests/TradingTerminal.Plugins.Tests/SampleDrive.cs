@@ -25,7 +25,7 @@ internal static class SampleDrive
 
     private static readonly DateTime Epoch = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    internal static RecordingParameters Run(
+    internal static Drive Run(
         StrategyParameterSchema schema,
         Func<IStrategyRuntimeContext, CancellationToken, Task> start,
         Func<OhlcvBar, IStrategyRuntimeContext, CancellationToken, Task> onBar,
@@ -42,10 +42,10 @@ internal static class SampleDrive
             onBar(bar, context, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        return parameters;
+        return new Drive(parameters, (RecordingVirtualBook)context.Book, data.Instruments);
     }
 
-    internal static RecordingParameters RunVisualizer(
+    internal static Drive RunVisualizer(
         StrategyParameterSchema schema,
         Func<IVisualizerContext, CancellationToken, Task> start,
         Func<OhlcvBar, IVisualizerContext, CancellationToken, Task> onBar,
@@ -62,8 +62,14 @@ internal static class SampleDrive
             onBar(bar, context, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        return parameters;
+        return new Drive(parameters, (RecordingVirtualBook)context.Book, data.Instruments);
     }
+
+    /// <summary>What one drive produced: what was read, what was traded, and what was authorised.</summary>
+    internal sealed record Drive(
+        RecordingParameters Parameters,
+        RecordingVirtualBook Book,
+        IReadOnlySet<InstrumentId> Instruments);
 
     /// <summary>
     /// Schema defaults, with the instrument pointed at the synthetic feed and anything the caller
@@ -145,7 +151,7 @@ internal static class SampleDrive
 
         public IParameters Parameters { get; } = parameters;
 
-        public IVirtualBook Book { get; } = new DiscardingBook();
+        public IVirtualBook Book { get; } = new RecordingVirtualBook();
 
         public IAlertSink Alerts { get; } = new DiscardingAlerts();
     }
@@ -153,13 +159,6 @@ internal static class SampleDrive
     private sealed class FixedClock : IClock
     {
         public DateTime UtcNow => Epoch;
-    }
-
-    private sealed class DiscardingBook : IVirtualBook
-    {
-        public void SubmitTarget(VirtualTargetIntent intent)
-        {
-        }
     }
 
     private sealed class DiscardingAlerts : IAlertSink
