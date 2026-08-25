@@ -12,6 +12,11 @@
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\windows\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
     <ProjectReference Include="..\..\src\windows\Tools\DaxAlgo.Codegen\DaxAlgo.Codegen.csproj" />
+    <!-- The shipped sample units, so the ladder can be run against code known to be correct. A
+         verifier that fails a good unit sends a repair agent to rewrite working code, which is a worse
+         failure than missing a bad one. -->
+    <ProjectReference Include="..\..\samples\DaxAlgo.Sandbox.Samples\DaxAlgo.Sandbox.Samples.csproj" />
+    <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Sandbox\TradingTerminal.Sandbox.csproj" />
   </ItemGroup>
 
   <ItemGroup>

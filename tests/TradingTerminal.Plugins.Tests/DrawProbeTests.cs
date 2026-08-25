@@ -72,6 +72,43 @@ public sealed class DrawProbeTests
     }
 
     [Fact]
+    public void AWaitingMessageIsAValidFrameBeforeDataArrives()
+    {
+        // Found by pointing the probe at the real samples, which it failed. A unit with no data yet
+        // draws one line of text — exactly what the authoring guidance tells it to, because a blank
+        // panel is indistinguishable from a broken host. The trivial threshold was rejecting the
+        // correct behaviour, and the probe and the teaching disagreed.
+        var step = DrawProbe.Run(
+            surface =>
+            {
+                using var panel = surface.Panel("Chart", RenderPanelKind.Chart);
+                surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
+                surface.Text(8d, 20d, "Waiting for 20 bars…");
+            },
+            mustDraw: true);
+
+        step.Outcome.Should().Be(VerificationOutcome.Passed);
+    }
+
+    [Fact]
+    public void TheSameMessageIsAFailureOnceDataHasArrived()
+    {
+        // The other half of the rule. Text alone is right during warm-up and wrong afterwards, so the
+        // caller says which this is rather than the probe guessing from primitive count.
+        var step = DrawProbe.Run(
+            surface =>
+            {
+                using var panel = surface.Panel("Chart", RenderPanelKind.Chart);
+                surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
+                surface.Text(8d, 20d, "Waiting for 20 bars…");
+            },
+            mustDraw: true,
+            requirePicture: true);
+
+        step.Findings.Should().ContainSingle().Which.Code.Should().Be("draw.text-only");
+    }
+
+    [Fact]
     public void LiteralColoursAreRejected()
     {
         // A colour that reads well on a dark ground is invisible on a light one, and the unit cannot ask

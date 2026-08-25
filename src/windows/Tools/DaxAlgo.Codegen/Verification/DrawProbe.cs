@@ -21,7 +21,8 @@ public static class DrawProbe
     public const int PrimitiveBudget = 20_000;
 
     /// <summary>
-    /// Below this, a unit has not drawn a picture — it has drawn a token.
+    /// Below this, a unit has not drawn a picture — it has drawn a token. Applies only to frames that
+    /// are more than text: an explanatory frame is judged by <c>requirePicture</c> instead.
     ///
     /// <para>The reward-hacking case is real and specific: a single <c>Line</c> call satisfies "it draws
     /// something" while conveying nothing. Any genuine chart emits a series, an axis, or a shape per data
@@ -34,7 +35,15 @@ public static class DrawProbe
     /// <param name="draw">The unit's draw call.</param>
     /// <param name="mustDraw">True for a visualizer, whose whole job is the picture. False for a strategy,
     /// where drawing nothing is a legitimate choice — plenty are pure signal logic.</param>
-    public static VerificationStep Run(Action<IRenderSurface> draw, bool mustDraw)
+    /// <param name="requirePicture">
+    /// True once the unit has been fed data. Before that, a frame consisting only of text is the
+    /// <b>correct</b> output — it is what the guidance asks for, because a blank panel is
+    /// indistinguishable from a broken host — so an explanatory frame must not be judged as a failed
+    /// picture. After data has arrived, text alone means the unit is still explaining itself when it
+    /// should be drawing.
+    /// </param>
+    public static VerificationStep Run(
+        Action<IRenderSurface> draw, bool mustDraw, bool requirePicture = false)
     {
         ArgumentNullException.ThrowIfNull(draw);
 
@@ -98,7 +107,20 @@ public static class DrawProbe
                 + "expensive to paint."));
         }
 
-        if (surface.PrimitiveCount < MinimumMeaningfulPrimitives)
+        // A frame that is nothing but text is the unit explaining itself — "waiting for 20 bars". That
+        // is correct output before data arrives and wrong output after, so it is judged on which of
+        // those the caller says this is, never on primitive count.
+        var explanatoryFrame = surface.Texts.Count > 0 && surface.PrimitiveCount == surface.Texts.Count;
+
+        if (explanatoryFrame && requirePicture)
+        {
+            findings.Add(new VerificationFinding(
+                "draw.text-only",
+                "After data arrived the unit still drew only text.",
+                "Draw the values it computed. Text alone is for the warm-up, when there is genuinely "
+                + "nothing to show yet."));
+        }
+        else if (!explanatoryFrame && surface.PrimitiveCount < MinimumMeaningfulPrimitives)
         {
             findings.Add(new VerificationFinding(
                 "draw.trivial",
