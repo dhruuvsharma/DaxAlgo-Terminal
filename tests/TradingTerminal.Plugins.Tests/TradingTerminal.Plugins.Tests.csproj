@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\windows\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
+    <ProjectReference Include="..\..\src\windows\Tools\DaxAlgo.Codegen\DaxAlgo.Codegen.csproj" />
   </ItemGroup>
 
   <ItemGroup>

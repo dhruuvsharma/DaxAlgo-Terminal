@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- The contract Hyperion writes against. Referenced so the authoring surface handed to a model
+         is REFLECTED from the SDK rather than described by hand — the previous pack drifted precisely
+         because its generator went missing and the prose was left to be maintained manually. -->
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
     <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
   </ItemGroup>
 
@@ -24,8 +28,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The AI context pack, hand-maintained under sdk/ai-context/, embedded here so both the app and
-         the CLI ship the codegen system prompt. Read via StrategyContextPack.Load(). -->
+    <!-- The GENERATED authoring surface: every public SDK signature and its documentation, reflected
+         from DaxAlgo.Sdk by SdkSurfaceGenerator. This is the half of the prompt that must never be
+         written by hand — the previous pack was, its generator went missing, and it drifted until it
+         taught a contract the authoring path no longer uses and said nothing at all about drawing.
+         SdkSurfaceFreshnessTests fails when the committed copy falls behind. -->
+    <EmbeddedResource Include="..\..\..\..\sdk\ai-context\generated\sdk-surface.md">
+      <LogicalName>DaxAlgo.AiContext.SdkSurface.md</LogicalName>
+    </EmbeddedResource>
+
+    <!-- The hand-written half: judgement, conventions and worked reasoning. Facts about the contracts
+         belong in the generated surface above, not here. Read via StrategyContextPack.Load(). -->
     <EmbeddedResource Include="..\..\..\..\sdk\ai-context\daxalgo-strategy-context.md">
       <LogicalName>DaxAlgo.AiContext.StrategyPack.md</LogicalName>
     </EmbeddedResource>
