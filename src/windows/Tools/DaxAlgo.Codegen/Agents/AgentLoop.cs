@@ -36,7 +36,8 @@ public sealed record AgentRun(
     AgentRunOutcome Outcome,
     RoutingState FinalState,
     IReadOnlyList<AgentTurn> Turns,
-    string? Error = null);
+    string? Error = null,
+    AgentContext? Context = null);
 
 /// <summary>
 /// Drives the agents: route, ask, judge, record, repeat.
@@ -82,7 +83,10 @@ public sealed class AgentLoop(
         ArgumentException.ThrowIfNullOrWhiteSpace(brief);
         if (maxTurns <= 0) throw new ArgumentOutOfRangeException(nameof(maxTurns));
 
-        var messages = new List<CodegenMessage> { new(CodegenRole.User, brief) };
+        // Artifacts, not a transcript. Every turn sends the CURRENT state of the work rather than the
+        // history of how it got there, so context is bounded by the size of the unit instead of growing
+        // with the number of turns — and each agent reads only what its job acts on.
+        var context = new AgentContext(brief);
         var turns = new List<AgentTurn>();
 
         for (var turn = 0; turn < maxTurns; turn++)
@@ -91,24 +95,28 @@ public sealed class AgentLoop(
 
             var decision = AgentRouter.Choose(state, Reliability);
             if (decision is null)
-                return new AgentRun(AgentRunOutcome.Delivered, state, turns);
+                return new AgentRun(AgentRunOutcome.Delivered, state, turns, Context: context);
 
             var response = await _client.GenerateAsync(
-                new StrategyCodegenRequest(sharedContext, messages, AgentPrompts.For(decision.Role)),
+                new StrategyCodegenRequest(
+                    sharedContext,
+                    [new CodegenMessage(CodegenRole.User, context.ComposeFor(decision.Role))],
+                    AgentPrompts.For(decision.Role)),
                 ct).ConfigureAwait(false);
 
             if (response.Error is { Length: > 0 } error)
-                return new AgentRun(AgentRunOutcome.ProviderFailed, state, turns, error);
-
-            messages.Add(new CodegenMessage(CodegenRole.Assistant, response.RawText));
+                return new AgentRun(AgentRunOutcome.ProviderFailed, state, turns, error, context);
 
             // A role that does not write code answering without code is doing its job — and a role that
             // does write code answering with none is asking a question, which is also a turn rather than
             // a failure. Either way the loop stops and waits for the user.
             if (response.FileList.Count == 0)
             {
-                turns.Add(new AgentTurn(decision.Role, decision.Weights, response.RawText, [], Reward: 0d));
-                return new AgentRun(AgentRunOutcome.AwaitingUser, state, turns);
+                // An Interviewer's spec and a Quant's derivation ARE their output, so they are kept even
+                // though no file came back; a question from a coding role leaves the context unchanged.
+                context = context.With(decision.Role, response.RawText ?? string.Empty, []);
+                turns.Add(new AgentTurn(decision.Role, decision.Weights, response.RawText ?? string.Empty, [], Reward: 0d));
+                return new AgentRun(AgentRunOutcome.AwaitingUser, state, turns, Context: context);
             }
 
             var verdict = _judge(response.FileList);
@@ -118,10 +126,13 @@ public sealed class AgentLoop(
             // The judge owns the facts a report cannot carry — whether this unit owes a picture, whether
             // a human has reviewed it — so it returns the next state rather than the loop inferring one.
             state = verdict.State;
-            turns.Add(new AgentTurn(decision.Role, decision.Weights, response.RawText, response.FileList, reward));
+            context = context.With(decision.Role, response.RawText ?? string.Empty, response.FileList)
+                             .With(verdict.Report);
+            turns.Add(new AgentTurn(
+                decision.Role, decision.Weights, response.RawText ?? string.Empty, response.FileList, reward));
         }
 
-        return new AgentRun(AgentRunOutcome.BudgetExhausted, state, turns);
+        return new AgentRun(AgentRunOutcome.BudgetExhausted, state, turns, Context: context);
     }
 }
 
