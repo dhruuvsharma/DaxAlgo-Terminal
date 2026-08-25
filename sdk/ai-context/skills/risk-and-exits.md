@@ -6,26 +6,33 @@ triggers: stop, stop loss, take profit, target, trail, trailing, exit, risk, siz
 
 # Risk, sizing and exits
 
-The engine simulates fills and reports signals; it does not manage risk for you. Exits are strategy code.
+The host does not manage risk for you. Exits are strategy code.
 
 ## Position state
 
-Track your own signed position — the router does not hand it back to you synchronously.
+You declare a **target position**, not orders. `context.Book.SetTargetPosition(instrument, units, ...)`
+says what you want to hold; the host works out the difference from what you hold now.
 
 ```csharp
-private long _position;   // signed units: -1 short, 0 flat, +1 long (in units of Quantity)
-private int  _orderSeq;   // makes ClientOrderIds unique at identical timestamps
-
-private string NextOrderId(IClock clock) => $"{StrategyId}-{clock.UtcNow:yyyyMMddHHmmssfff}-{_orderSeq++}";
+private double _target;   // signed units: -1 short, 0 flat, +1 long
 ```
 
-Move straight to the target position: a reversal is **one** order for `2 * Quantity`, not a close and
-then an open. Update `_position` when you send, and reconcile in `OnOrderEventAsync` if a fill differs.
+That removes a whole category of bug that order-level APIs create. **A reversal is one call with the
+new target**, not a close followed by an open — you cannot leave a dangling half-reversal, cannot
+double-send at the same timestamp, and have no order ids to keep unique. There is nothing to reconcile
+because you never sent an order.
+
+Attach protection to the target itself rather than tracking it separately:
+
+```csharp
+context.Book.SetTargetPosition(instrument, 1d, protectiveStopPrice: entry - 2d * atr);
+```
 
 ## Exits, in order of how often they are got wrong
 
-1. **Flatten in `OnEndAsync`.** A run that ends holding a position has not realised its P&L, and every
-   statistic downstream is then a lie. This is not optional.
+1. **Decide what flat means, and target it.** A unit that stops while holding a position keeps that
+   position: `OnStopAsync` is where you set the target to `0` if the strategy should not survive the
+   window closing. Some should; be deliberate about which.
 2. **Stops are prices, not distances.** Compute the stop level once at entry and store it. Recomputing it
    per tick from a moving reference silently turns a stop into a trailing stop.
 3. **Trailing stops ratchet in one direction only.**

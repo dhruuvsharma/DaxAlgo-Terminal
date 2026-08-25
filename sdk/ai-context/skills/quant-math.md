@@ -70,4 +70,5 @@ whose half-life is longer than its holding period is not a mean-reversion strate
   volatility, spread, or tick size.
 - Warm up before you trade: no estimator is meaningful on its first few samples.
 - Guard every division. `Math.Max(1e-9, denominator)` costs nothing.
-- Prefer one pass and O(1) state. `OnTickAsync` runs per tick, and a backtest replays millions of them.
+- Prefer one pass and O(1) state. `OnQuoteAsync` runs per quote, and a busy instrument produces
+  hundreds a second for as long as the window is open.

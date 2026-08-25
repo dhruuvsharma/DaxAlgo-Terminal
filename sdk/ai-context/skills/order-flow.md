@@ -26,7 +26,7 @@ Not every feed labels the aggressor. When it doesn't, sign with the **tick rule 
 quote**, and keep the last quote yourself:
 
 ```csharp
-// _bid/_ask updated in OnTickAsync BEFORE the trade is signed.
+// _bid/_ask updated in OnQuoteAsync BEFORE the trade is signed.
 var mid = (_bid + _ask) / 2.0;
 var side = t.Price >= _ask ? +1        // lifted the offer  -> buy-side aggression
          : t.Price <= _bid ? -1        // hit the bid       -> sell-side aggression
@@ -69,6 +69,6 @@ badly in fast markets. If the feed does give you an aggressor flag, use it and s
 - **A 100 ms window is not 100 ms of ticks.** Drive every time window off `clock.UtcNow` (never
   `DateTime.UtcNow`, never a tick count), because a backtest replays historical time.
 - **Sub-second windows need bounded buffers.** A ring buffer sized to the window, not a `List` you append
-  to forever — `OnTickAsync` and `OnTradeAsync` run per event.
+  to forever — `OnQuoteAsync` and `OnTradeAsync` run per event.
 - **Not every broker signs the tape.** Check the strategy's `DataRequirement` and fail loudly at setup if
   the feed can't supply what the math needs.

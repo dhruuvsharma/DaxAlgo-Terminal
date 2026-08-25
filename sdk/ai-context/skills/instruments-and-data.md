@@ -19,7 +19,7 @@ bucket prices by the instrument's tick size, express distances in ATR or in stde
 
 | Flag | Gives you | Cost of asking for it |
 |---|---|---|
-| `L1` | `OnTickAsync` (best bid/ask + sizes) | none; every broker has it |
+| `L1` | `OnQuoteAsync` (best bid/ask + sizes) | none; every broker has it |
 | `Bars` | warm-up history + the bar series | none |
 | `Depth` | `OnDepthAsync` (top-N book) | narrows you to brokers that stream L2 |
 | `TradeTape` | `OnTradeAsync` (prints) | narrows you to brokers that stream the tape |
