@@ -74,13 +74,18 @@ public sealed record VerificationStep(
 /// <summary>
 /// The whole verdict on one candidate.
 ///
-/// <para><see cref="Passed"/> is deliberately strict: every rung that ran must have passed, and a rung
-/// that never ran is not a rung that passed. Reward is computed from this, so an optimistic reading here
-/// is a reward-hacking surface rather than a convenience.</para>
+/// <para><see cref="Passed"/> is deliberately strict: nothing may have failed, <b>and something must
+/// actually have been checked</b>. Reward is computed from this, so an optimistic reading here is a
+/// reward-hacking surface rather than a convenience — and the cheapest hack of all is to arrange that
+/// every rung skips and then claim success, which is why a report of nothing but skips does not
+/// pass.</para>
 /// </summary>
 public sealed record VerificationReport(IReadOnlyList<VerificationStep> Steps)
 {
-    public bool Passed => Steps.Count > 0 && Steps.All(s => s.Outcome != VerificationOutcome.Failed);
+    public bool Passed =>
+        Steps.Count > 0
+        && Steps.All(s => s.Outcome != VerificationOutcome.Failed)
+        && RungsCleared > 0;
 
     /// <summary>The earliest rung that failed — the one worth repairing, since later failures are often
     /// consequences of it.</summary>
