@@ -137,50 +137,38 @@ public sealed class MovingAverageCrossKernel : IStrategyKernel
         ArgumentNullException.ThrowIfNull(surface);
 
         using var panel = surface.Panel("Moving average cross", RenderPanelKind.Chart);
+        if (_history.Count == 0) { Plot.Waiting(surface, "Waiting for enough bars to average…"); return; }
 
-        if (_history.Count == 0)
-        {
-            surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
-            surface.Text(8d, 20d, "Waiting for enough bars to average…");
-            return;
-        }
+        // Both averages on ONE scale, with the grid, axes, legend and crosshair that go with them. Drawn
+        // separately they would each fill the panel and look like they never diverged.
+        var range = Series.Chart(surface, [
+            SeriesData.Line("Slow SMA", Column(static sample => sample.Slow), RenderThemeColor.Neutral),
+            SeriesData.Line("Fast SMA", Column(static sample => sample.Fast), RenderThemeColor.Accent),
+        ]);
 
-        var range = PlotRange.Empty;
-        for (var index = 0; index < _history.Count; index++)
-            range = range.Include(_history[index].Fast).Include(_history[index].Slow);
-        range = range.Padded();
-
-        Plot.HorizontalGrid(surface, range);
-        surface.AxisX(0d, Math.Max(1, _history.Count - 1));
-
-        Average("Slow SMA", RenderThemeColor.Neutral, sample => sample.Slow);
-        Average("Fast SMA", RenderThemeColor.Accent, sample => sample.Fast);
-
-        // The crosses are the signal, so they are what the eye should land on. Bullish and bearish are
-        // theme roles, which is how the same picture stays right in a light theme and a dark one.
+        // The crosses are the signal, so they are what the eye should land on. Signals draws shape as
+        // well as colour, which is what makes them readable to the roughly one man in twelve who cannot
+        // separate the bullish and bearish roles reliably.
+        var marks = new List<Signal>();
         for (var index = 0; index < _history.Count; index++)
         {
             if (!_history[index].Crossed) continue;
 
-            // Shape AND colour, never colour alone: roughly one man in twelve cannot separate the
-            // bullish and bearish roles reliably, and the cross is the one thing on this chart that
-            // has to read at a glance.
-            var up = _history[index].FastAboveSlow;
-            surface.SetStyle(new RenderStyle(
-                surface.Theme(up ? RenderThemeColor.Bullish : RenderThemeColor.Bearish)));
-            surface.Marker(
+            marks.Add(new Signal(
                 index,
                 _history[index].Fast,
-                up ? RenderMarkerShape.Triangle : RenderMarkerShape.Diamond);
+                _history[index].FastAboveSlow ? SignalKind.Buy : SignalKind.Sell));
         }
 
-        void Average(string name, RenderThemeColor color, Func<Sample, double> select)
-        {
-            surface.SetStyle(new RenderStyle(surface.Theme(color)));
-            using var series = surface.Series(name, RenderSeriesKind.Line);
-            for (var index = 0; index < _history.Count; index++)
-                surface.Push(index, select(_history[index]));
-        }
+        Signals.Draw(surface, marks, _history.Count, range);
+    }
+
+    /// <summary>One field of the sample history as a plain column, which is what the widgets take.</summary>
+    private double[] Column(Func<Sample, double> select)
+    {
+        var values = new double[_history.Count];
+        for (var index = 0; index < _history.Count; index++) values[index] = select(_history[index]);
+        return values;
     }
 
     /// <summary>Bounded, for the same reason the visualizer's is: a strategy runs for as long as its

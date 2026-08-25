@@ -104,15 +104,58 @@ public static class SdkSurfaceGenerator
         return Sections[3];
     }
 
+    /// <summary>
+    /// An options record: a struct carrying a static <c>Default</c> of its own type.
+    ///
+    /// <para>Detected structurally rather than by the <c>Options</c> suffix, so the rule holds for a type
+    /// somebody names differently and does not fire on a type that merely ends that way.</para>
+    /// </summary>
+    private static bool IsOptionsRecord(Type type) =>
+        type.IsValueType
+        && type.GetProperty("Default", BindingFlags.Public | BindingFlags.Static) is { } d
+        && d.PropertyType == type;
+
     private static void AppendType(StringBuilder markdown, Type type, XmlDocumentation docs)
     {
+        // Options records are compacted to one line each.
+        //
+        // The widget library nearly doubled this document — and this document is the system prompt, paid
+        // for on the first turn of every session and re-read from cache on all the others, including
+        // sessions for a headless kernel that draws nothing. Spelling out every field of every options
+        // record, twice, would have cost more per session than the widgets save in generated code, which
+        // would make a library built to reduce token burn increase it.
+        //
+        // What a model needs in order to CALL a widget is the Draw signature and the knowledge that an
+        // options record exists with a sane Default. What each field means is what the drawing skill is
+        // for, and the skill is loaded only when the brief is about a picture.
+        if (IsOptionsRecord(type))
+        {
+            var fields = type
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Select(p => p.Name)
+                .OrderBy(name => name, StringComparer.Ordinal);
+
+            markdown.AppendLine(
+                $"- `{TypeName(type)}` — {Inline(Lead(docs.Summary(MemberKey(type))) ?? "Options.")} "
+                + $"Fields: {string.Join(", ", fields)}. Use `{TypeName(type)}.Default`, never `new()`.");
+            markdown.AppendLine();
+            return;
+        }
+
         markdown.AppendLine($"### `{TypeName(type)}`");
         markdown.AppendLine();
 
+        // Widgets get their lead paragraph only. There are a lot of them, each with several paragraphs
+        // of rationale, and rationale is what the on-demand drawing skill is for — it is loaded when the
+        // brief is about a picture, rather than carried by every session including the ones that draw
+        // nothing. The contracts an author must not get wrong keep their full text.
         var summary = docs.Summary(MemberKey(type));
+        if (Section(type) == Sections[2]) summary = Lead(summary);
+
         if (summary is not null)
         {
-            markdown.AppendLine(summary);
+            markdown.AppendLine(summary.Replace(
+                XmlDocumentation.ParagraphMark.ToString(), "\n\n", StringComparison.Ordinal));
             markdown.AppendLine();
         }
 
@@ -121,7 +164,7 @@ public static class SdkSurfaceGenerator
             foreach (var name in Enum.GetNames(type))
             {
                 var value = docs.Summary($"F:{type.FullName}.{name}");
-                markdown.AppendLine(value is null ? $"- `{name}`" : $"- `{name}` — {value}");
+                markdown.AppendLine(value is null ? $"- `{name}`" : $"- `{name}` — {Inline(value)}");
             }
             markdown.AppendLine();
             return;
@@ -142,9 +185,22 @@ public static class SdkSurfaceGenerator
         foreach (var member in members)
         {
             var text = docs.Summary(MemberKey(member));
-            if (text is not null) markdown.AppendLine($"- `{member.Name}` — {text}");
+            if (text is not null) markdown.AppendLine($"- `{member.Name}` — {Inline(text)}");
         }
         markdown.AppendLine();
+    }
+
+    /// <summary>The first sentence of a summary — enough to say what a type is for, without the
+    /// paragraphs of rationale that belong in the skill packs rather than the always-on prefix.</summary>
+    /// <summary>A summary flattened onto one line — for a bullet, which cannot hold a paragraph.</summary>
+    private static string Inline(string text) => text.Replace(XmlDocumentation.ParagraphMark, ' ');
+
+    private static string? Lead(string? summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary)) return null;
+
+        var stop = summary.IndexOf(XmlDocumentation.ParagraphMark);
+        return (stop < 0 ? summary : summary[..stop]).Trim();
     }
 
     private static bool IsInteresting(MemberInfo member) => member switch
@@ -243,8 +299,30 @@ internal sealed class XmlDocumentation
     {
         var text = new StringBuilder();
         Walk(element, text);
-        return string.Join(' ', text.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        // Paragraph boundaries survive as a marker. The lead sentence of a summary says what a type IS;
+        // the <para> blocks say why it is the way it is. Both are worth having, but only the first is
+        // worth putting in a prompt prefix that is paid for on every session — so the boundary has to
+        // still be there when the generator decides how much to emit.
+        var lines = text.ToString().Split(ParagraphMark);
+        for (var index = 0; index < lines.Length; index++)
+            lines[index] = string.Join(' ', lines[index].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        return string.Join(
+            ParagraphMark,
+            lines.Where(line => line.Length > 0));
     }
+
+    /// <summary>
+    /// Separates paragraphs inside a flattened summary.
+    ///
+    /// <para>A form feed, because it is the one character that cannot already be in the text. A newline
+    /// was tried first and was wrong for a reason worth recording: the source XML wraps its own doc
+    /// comments across lines, so every wrap became a paragraph break and sentences were cut mid-phrase —
+    /// the surface came out telling authors to "push points inside the scope with", and then, on a fresh
+    /// paragraph, "`Push`."</para>
+    /// </summary>
+    internal const char ParagraphMark = '\f';
 
     /// <summary>
     /// The readable tail of a documentation reference: <c>M:DaxAlgo.Sdk.IRenderSurface.Push(Double,Double)</c>
@@ -283,6 +361,12 @@ internal sealed class XmlDocumentation
                         ? inline.Value
                         : ShortName((inline.Attribute("cref") ?? inline.Attribute("name"))?.Value);
                     if (value.Length > 0) text.Append('`').Append(value).Append('`');
+                    break;
+
+                case XElement { Name.LocalName: "para" } paragraph:
+                    text.Append(ParagraphMark);
+                    Walk(paragraph, text);
+                    text.Append(ParagraphMark);
                     break;
 
                 case XElement nested:

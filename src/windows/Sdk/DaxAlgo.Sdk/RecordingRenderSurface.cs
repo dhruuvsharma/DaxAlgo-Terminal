@@ -98,12 +98,21 @@ public sealed class RecordingRenderSurface : IRenderSurface
     /// <summary>True when nothing at all was drawn — no primitive, no text, no marker.</summary>
     public bool IsBlank => PrimitiveCount == 0;
 
+    /// <summary>
+    /// A distinct colour per role, in the mid range.
+    ///
+    /// <para>Distinct matters. This used to return one mid grey for every token, which meant no test
+    /// could tell a widget that drew its losses in the bullish colour from one that got it right — the
+    /// two produced byte-identical output. Mid-range keeps the original property that a recorded colour
+    /// is never accidentally invisible, and is still obviously not a literal anyone would pick.</para>
+    /// </summary>
     public RenderColor Theme(RenderThemeColor token)
     {
         _themeTokens.Add(token);
         _calls.Add(new RenderCall("Theme", token.ToString()));
-        // Mid grey: distinguishable from a literal, and never accidentally invisible in a test.
-        return new RenderColor(128, 128, 128);
+
+        var index = (byte)((int)token * 17);
+        return new RenderColor((byte)(80 + (index % 120)), (byte)(96 + (index % 96)), (byte)(112 + (index % 80)));
     }
 
     public void SetStyle(RenderStyle style)

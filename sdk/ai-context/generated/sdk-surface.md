@@ -64,7 +64,13 @@ StrategyParameterSchema Schema { get; }
 
 ### `IRenderSurface`
 
-The visualizer's drawing output. Immediate mode: a visualizer describes the whole frame each time it is asked to draw, and the host retains nothing between frames. That suits streaming market data, where most of the picture changes on every tick, and it means a visualizer holds no visual state the host has to reconcile. This is a data contract, not a UI toolkit. A visualizer never touches WPF, never receives a control, and cannot reach the window it is drawn into — which is what keeps it sandboxable. The host translates these calls into pixels and is free to bound, batch, clip or refuse them; a visualizer that draws unreasonably is throttled, not trusted. The primitive set is deliberately the same one the sealed-format renderer uses, so both kinds of visualizer can be drawn by a single host renderer and an author learns one API.
+The visualizer's drawing output.
+
+Immediate mode: a visualizer describes the whole frame each time it is asked to draw, and the host retains nothing between frames. That suits streaming market data, where most of the picture changes on every tick, and it means a visualizer holds no visual state the host has to reconcile.
+
+This is a data contract, not a UI toolkit. A visualizer never touches WPF, never receives a control, and cannot reach the window it is drawn into — which is what keeps it sandboxable. The host translates these calls into pixels and is free to bound, batch, clip or refuse them; a visualizer that draws unreasonably is throttled, not trusted.
+
+The primitive set is deliberately the same one the sealed-format renderer uses, so both kinds of visualizer can be drawn by a single host renderer and an author learns one API.
 
 ```csharp
 void AxisX(double minimum, double maximum, string format = null)
@@ -98,36 +104,86 @@ RenderViewport Viewport { get; }
 
 ## Drawing helpers
 
-### `CandleOptions`
+- `BandOptions` — How an envelope is drawn. Fields: Color, EdgeAlpha, FillAlpha, ShowEdges, ShowMiddle, Steps. Use `BandOptions.Default`, never `new()`.
 
-How a candle series is drawn.
+### `Bands`
+
+A shaded envelope between two series — Bollinger, Keltner, Donchian, a VWAP band, a spread's fair range.
 
 ```csharp
-double BodyFraction { get; }
-CandleOptions Default { get; }
-int GridLines { get; }
-string PriceFormat { get; }
-bool ShowGrid { get; }
+PlotRange Draw(IRenderSurface surface, IReadOnlyList<double> upper, IReadOnlyList<double> lower, IReadOnlyList<double> middle = null, BandOptions options = null, PlotRange range = null, PlotArea area = null)
 ```
 
-- `BodyFraction` — Body width as a fraction of the column, leaving the rest as a gap.
-- `Default` — The intended defaults. Written with an explicit argument on purpose. `new()` on a record struct binds to the implicit parameterless constructor rather than the primary one, so every field lands on zero and the primary constructor's declared defaults are silently skipped — which made this the all-zero value, and made every routine that fell back to it draw nothing at all.
-- `GridLines` — Approximate number of horizontal gridlines.
-- `PriceFormat` — Numeric format for the price axis.
-- `ShowGrid` — Whether to draw the price grid and axis labels.
+
+- `CandleOptions` — How a candle series is drawn. Fields: BodyFraction, GridLines, PriceFormat, ShowGrid. Use `CandleOptions.Default`, never `new()`.
 
 ### `Candles`
 
-OHLC candles with an auto-scaled price axis. Draws in panel pixel space rather than declaring axes on the surface, because the price range comes from the bars themselves and a caller should not have to compute it before it can see anything. A visualizer that wants its own scale can declare axes and draw the primitives itself — this is the one-liner, not the only way.
+OHLC candles with an auto-scaled price axis.
 
 ```csharp
 PlotRange Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, CandleOptions options = null)
 ```
 
 
+### `ColorScale`
+
+Value-to-colour ramps, anchored on the host's theme.
+
+```csharp
+RenderColor Diverging(IRenderSurface surface, double value, double extent)
+RenderColor Flow(IRenderSurface surface, double buy, double sell, double scale)
+RenderColor Mix(RenderColor from, RenderColor to, double t)
+RenderColor Sequential(IRenderSurface surface, double t, RenderThemeColor color = Accent)
+```
+
+- `Diverging` — Diverging: bearish through neutral to bullish, with zero at the midpoint. For anything signed. `value` is divided by `extent`, so pass the largest magnitude in view — a scale fitted to the whole history washes out the frame the reader is actually looking at.
+- `Flow` — Buy/sell shading for a footprint or tape cell: the side that dominated, at a strength given by how much it dominated.
+- `Mix` — Linear interpolation between two colours.
+- `Sequential` — Sequential: a single hue fading from the surface colour to full strength. For a magnitude with no sign — volume, liquidity, trade count, dwell time.
+
+### `DepthCurve`
+
+The depth chart: cumulative resting size on each side, price across, size up.
+
+```csharp
+PlotRange Draw(IRenderSurface surface, DepthSnapshot depth, DepthCurveOptions options = null, PlotArea area = null)
+```
+
+- `Draw` — Draws both sides and returns the price range used.
+
+- `DepthCurveOptions` — How a cumulative depth chart is drawn. Fields: FillAlpha, Levels, ShowMid, ShowSpread. Use `DepthCurveOptions.Default`, never `new()`.
+
+### `Equity`
+
+The strategy's own money: equity over time, with the drawdown shaded underneath.
+
+```csharp
+EquitySummary Draw(IRenderSurface surface, IReadOnlyList<double> equity, EquityOptions options = null, PlotArea area = null)
+```
+
+
+- `EquityOptions` — How an equity curve is drawn. Fields: Baseline, ShowDrawdown, ShowPeak, ValueFormat. Use `EquityOptions.Default`, never `new()`.
+
+### `EquitySummary`
+
+What an equity curve told us.
+
+```csharp
+double MaxDrawdown { get; }
+double MaxDrawdownShare { get; }
+double Peak { get; }
+PlotRange Range { get; }
+```
+
+- `MaxDrawdown` — Largest peak-to-trough fall, as a positive number.
+- `MaxDrawdownShare` — The same fall as a share of the peak it fell from, or NaN.
+- `Peak` — Highest equity reached.
+- `Range` — The value range drawn, for plotting anything else on the same scale.
+
 ### `Footprint`
 
-A volume footprint: bars as columns, price as rows, and buy/sell volume split within each cell. Cell shading is scaled per bar rather than across the whole window. A single high-volume bar would otherwise wash out every other column to near-black, and the reason to look at a footprint is the distribution within each bar. This is the most demanding picture in the benchmark set, and it is deliberately built from nothing but the surface primitives — rects, lines and text — so it is proof that the contract is expressive enough rather than an argument that it is.
+A volume footprint: bars as columns, price as rows, and buy/sell volume split within each cell.
 
 ```csharp
 void Draw(IRenderSurface surface, IReadOnlyList<FootprintBar> bars, FootprintOptions options = null)
@@ -136,35 +192,48 @@ ValueTuple<double, double> ValueArea(FootprintBar bar, double share = 0.7)
 
 - `ValueArea` — The price band holding 70% of a bar's volume, expanded outward from the point of control.
 
-### `FootprintOptions`
+- `FootprintOptions` — How a volume footprint is drawn. Fields: ColumnWidth, PriceFormat, PriceWidth, RowHeight, ShowCellVolumes, ShowImbalances, ShowPointOfControl, ShowValueArea. Use `FootprintOptions.Default`, never `new()`.
 
-How a volume footprint is drawn.
+### `Gauge`
+
+A horizontal meter for one bounded number — order-book imbalance, VPIN, a regime score, a model's confidence, how much of a position is filled.
 
 ```csharp
-double ColumnWidth { get; }
-FootprintOptions Default { get; }
-string PriceFormat { get; }
-double PriceWidth { get; }
-double RowHeight { get; }
-bool ShowCellVolumes { get; }
-bool ShowImbalances { get; }
-bool ShowPointOfControl { get; }
-bool ShowValueArea { get; }
+void Draw(IRenderSurface surface, double value, GaugeOptions options = null, PlotArea area = null)
 ```
 
-- `ColumnWidth` — Width of one bar column, in pixels.
-- `Default` — The intended defaults. Written with an explicit argument on purpose. `new()` on a record struct binds to the implicit parameterless constructor rather than the primary one, so every field lands on zero and the primary constructor's declared defaults are silently skipped — which made this the all-zero value, and made every routine that fell back to it draw nothing at all.
-- `PriceFormat` — Numeric format for the price gutter.
-- `PriceWidth` — Width of the price gutter, in pixels.
-- `RowHeight` — Height of one price row, in pixels.
-- `ShowCellVolumes` — Whether to print buy/sell volume inside each cell.
-- `ShowImbalances` — Whether to outline imbalanced rows.
-- `ShowPointOfControl` — Whether to mark the point of control on each bar.
-- `ShowValueArea` — Whether to shade the value area.
+- `Draw` — Draws the meter into an area.
+
+- `GaugeOptions` — How a bounded meter is drawn. Fields: Diverging, Format, Label, Maximum, Minimum, ShowScale. Use `GaugeOptions.Default`, never `new()`.
+
+### `Heatmap`
+
+A grid of shaded cells — a correlation matrix, liquidity over time and price, returns by hour-of-day, a regime transition table.
+
+```csharp
+void Draw(IRenderSurface surface, int columns, int rows, Func<int, int, double> value, HeatmapOptions options = null, PlotArea area = null)
+void Draw(IRenderSurface surface, Double[,] values, HeatmapOptions options = null, PlotArea area = null)
+void Labels(IRenderSurface surface, IReadOnlyList<string> columns, IReadOnlyList<string> rows, PlotArea area = null)
+```
+
+
+- `HeatmapOptions` — How a matrix of values is shaded. Fields: Color, Diverging, Extent, Gap, ShowValues. Use `HeatmapOptions.Default`, never `new()`.
+
+### `Histogram`
+
+Signed bars measured from a baseline — MACD histogram, cumulative delta, volume, net position.
+
+```csharp
+PlotRange Draw(IRenderSurface surface, IReadOnlyList<double> values, HistogramOptions options = null, PlotRange range = null, PlotArea area = null)
+PlotRange Draw(IRenderSurface surface, IReadOnlyList<T> items, Func<T, double> select, HistogramOptions options = null, PlotRange range = null, PlotArea area = null)
+```
+
+
+- `HistogramOptions` — How a signed histogram is drawn. Fields: Alpha, BarFraction, Baseline, Negative, Positive, ShowBaseline. Use `HistogramOptions.Default`, never `new()`.
 
 ### `Ladder`
 
-A depth ladder: price rows with a size bar per side, asks above bids, best prices meeting in the middle. The bar length is proportional to the largest resting size in view, not to the whole book — a ladder scaled to a far-touch iceberg shows nothing at the touch, which is where the attention is. Pure: it draws through `IRenderSurface` and holds no state, so a sandboxed visualizer and a host panel produce the same picture from the same code.
+A depth ladder: price rows with a size bar per side, asks above bids, best prices meeting in the middle.
 
 ```csharp
 void Draw(IRenderSurface surface, DepthSnapshot depth, LadderOptions options = null)
@@ -172,44 +241,123 @@ void Draw(IRenderSurface surface, DepthSnapshot depth, LadderOptions options = n
 
 - `Draw` — Draws the ladder into the current panel, in panel pixel space.
 
-### `LadderOptions`
+- `LadderOptions` — How a depth ladder is drawn. Fields: Levels, PriceFormat, PriceWidth, RowHeight, ShowSize. Use `LadderOptions.Default`, never `new()`.
 
-How a depth ladder is drawn.
+### `Legend`
+
+The series key: a swatch and a name per series, along the top of the panel.
 
 ```csharp
-LadderOptions Default { get; }
-int Levels { get; }
-string PriceFormat { get; }
-double PriceWidth { get; }
-double RowHeight { get; }
-bool ShowSize { get; }
+void Draw(IRenderSurface surface, IReadOnlyList<SeriesData> series, PlotArea area = null)
+void Draw(IRenderSurface surface, IReadOnlyList<ValueTuple<string, RenderThemeColor>> entries, PlotArea area = null)
 ```
 
-- `Default` — The intended defaults. Written with an explicit argument on purpose. `new()` on a record struct binds to the implicit parameterless constructor rather than the primary one, so every field lands on zero and the primary constructor's declared defaults are silently skipped — which made this the all-zero value, and made every routine that fell back to it draw nothing at all.
-- `Levels` — Price levels to show per side.
-- `PriceFormat` — Numeric format for prices.
-- `PriceWidth` — Width of the price gutter, in pixels.
-- `RowHeight` — Height of one price row, in pixels.
-- `ShowSize` — Whether to print the resting size on each row.
+
+### `Level`
+
+One horizontal reference line.
+
+```csharp
+RenderThemeColor Color { get; }
+bool Dashed { get; }
+string Label { get; }
+double Value { get; }
+```
+
+- `Color` — Theme role.
+- `Dashed` — Dashed by default: a reference is context, and a solid line at the same weight as the data competes with it.
+- `Label` — Short text drawn at the left. Empty for an unlabelled line.
+- `Value` — Where it sits on the value axis.
+
+### `Levels`
+
+Labelled horizontal reference lines — VWAP, the session high and low, a point of control, an entry price, a stop, a take-profit.
+
+```csharp
+void Draw(IRenderSurface surface, IReadOnlyList<Level> levels, PlotRange range, PlotArea area = null, double alpha = 0.75)
+void Draw(IRenderSurface surface, double value, string label, PlotRange range, RenderThemeColor color = Neutral, PlotArea area = null)
+```
+
+- `Draw` — One level, for the common case where a caller has exactly one to draw.
 
 ### `Plot`
 
-The shared bits of plotting: ranges, gridlines, axis labels and a crosshair. These are pure functions over `IRenderSurface` — no WPF, no host types — so a sandboxed visualizer, a strategy's own picture and a host-composed panel all draw the same furniture from the same code.
+The shared bits of plotting: ranges, gridlines, axis labels and a crosshair.
 
 ```csharp
+void Caption(IRenderSurface surface, PlotArea area, string text, RenderThemeColor color = TextSecondary)
 void Crosshair(IRenderSurface surface, PlotRange verticalRange, string format = null)
+void Frame(IRenderSurface surface, PlotArea area, double alpha = 0.6)
 double FromY(double y, PlotRange range, double height)
 void HorizontalGrid(IRenderSurface surface, PlotRange range, int approximateLines = 5, string format = null, double labelWidth = 56)
 double NiceStep(double rawStep)
+void Plate(IRenderSurface surface, PlotArea area, double alpha = 0.5)
 PlotRange RangeOf(IReadOnlyList<T> items, Func<T, double> select)
 double ToY(double value, PlotRange range, double height)
+void VerticalGrid(IRenderSurface surface, int count, int every = 20, PlotArea area = null)
+bool Waiting(IRenderSurface surface, string message = Waiting for data…)
 ```
 
+- `Caption` — A caption in the top-left of an area — every placed widget's title.
 - `Crosshair` — Draws a crosshair at the pointer with a value readout, and does nothing when the pointer is elsewhere — so a visualizer can call it unconditionally.
+- `Frame` — Frames an area — the border around a widget placed on a canvas.
 - `FromY` — The inverse of `ToY`, for turning a cursor position back into a value.
 - `HorizontalGrid` — Draws horizontal gridlines with right-aligned value labels, and declares the Y axis. Ticks are chosen on a 1/2/5 progression so the labels land on numbers a human would have picked, rather than on whatever the span divided by a fixed count happens to be.
 - `NiceStep` — Rounds a raw step up to the nearest 1, 2 or 5 times a power of ten — the progression that produces axis labels a person would have chosen.
+- `Plate` — Fills an area with the surface colour — the plate a placed widget sits on.
 - `ToY` — Pixel Y for a value, top-down, for routines drawing in panel pixel space.
+- `VerticalGrid` — Vertical gridlines every `every` items, so a long series has something to read horizontal position against.
+- `Waiting` — The "nothing to show yet" frame, centred. The commonest way a picture fails verification is by emitting nothing at all, and a blank panel reads as a broken application rather than as a unit waiting for its first bar. One call, so there is no reason to skip it. Returns true so the guard is a single line: `if (_history.Count == 0) { Plot.Waiting(surface); return; }`
+
+### `PlotArea`
+
+A rectangle inside a panel, in panel pixels.
+
+```csharp
+double Bottom { get; }
+double CenterX { get; }
+double CenterY { get; }
+PlotArea Column(int index, int count, double gap = 0)
+bool Contains(double x, double y)
+double Height { get; }
+PlotArea Inset(double padding)
+PlotArea Inset(double horizontal, double vertical)
+bool IsValid { get; }
+PlotArea None { get; }
+PlotArea Of(IRenderSurface surface)
+double Right { get; }
+PlotArea Row(int index, int count, double gap = 0)
+ValueTuple<PlotArea, PlotArea> SplitBottom(double height)
+ValueTuple<PlotArea, PlotArea> SplitLeft(double width)
+ValueTuple<PlotArea, PlotArea> SplitRight(double width)
+ValueTuple<PlotArea, PlotArea> SplitTop(double height)
+double StepX(int count)
+double ToX(int index, int count)
+double ToY(double value, PlotRange range)
+double Width { get; }
+double X { get; }
+double Y { get; }
+```
+
+- `Column` — One of `count` equal vertical strips, left to right.
+- `Contains` — True when a point is inside — for hit-testing the cursor against a placed widget.
+- `Height` — Height.
+- `Inset` — Shrinks by the same padding on every side, clamped so it can never invert.
+- `Inset` — Shrinks horizontally and vertically, clamped so it can never invert.
+- `IsValid` — True when there is room to draw. Every widget checks this and returns rather than emitting primitives with negative extents.
+- `None` — Nothing. What a split or a cell returns when there was no room for it.
+- `Of` — The whole panel.
+- `Row` — One of `count` equal horizontal strips, top to bottom.
+- `SplitBottom` — Splits off the bottom `height` pixels: the strip, then the rest above it.
+- `SplitLeft` — Splits off the left `width` pixels.
+- `SplitRight` — Splits off the right `width` pixels — where a price gutter goes.
+- `SplitTop` — Splits off the top `height` pixels: the strip, then the rest below it.
+- `StepX` — Column width when `count` items are laid side by side.
+- `ToX` — Pixel X for item `index` of `count`, spread across the area. A single item sits in the middle rather than on the left edge.
+- `ToY` — Pixel Y for a value within this area, top-down. An invalid range collapses to the middle rather than to NaN, so a widget fed a flat series still draws a line somebody can see.
+- `Width` — Width.
+- `X` — Left edge.
+- `Y` — Top edge.
 
 ### `PlotRange`
 
@@ -232,6 +380,186 @@ double Span { get; }
 - `Minimum` — Lower bound.
 - `Padded` — Pads by a fraction of the span so data does not sit flush against the panel edge, and gives a flat range a usable width — a series of identical prices would otherwise be a zero-height range that nothing can be plotted against.
 
+- `ProfileOptions` — How a volume profile is drawn. Fields: Alpha, FromRight, ShowPoc, SplitSides, ValueAreaShare, Width. Use `ProfileOptions.Default`, never `new()`.
+
+### `ProfileRow`
+
+Volume traded at one price bucket.
+
+```csharp
+ProfileRow At(double price, double volume)
+double BuyVolume { get; }
+double Price { get; }
+double SellVolume { get; }
+double Total { get; }
+```
+
+- `At` — A row with no side breakdown, for a profile built from bar volume rather than tape.
+- `BuyVolume` — Buy-initiated volume at that price.
+- `Price` — The bucket's price.
+- `SellVolume` — Sell-initiated volume at that price.
+
+### `Series`
+
+One value per index, plotted across the panel.
+
+```csharp
+PlotRange Chart(IRenderSurface surface, IReadOnlyList<SeriesData> series, string valueFormat = null, bool legend = true, PlotArea area = null)
+PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<double> values, SeriesOptions options = null, PlotRange range = null, PlotArea area = null)
+PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<T> items, Func<T, double> select, SeriesOptions options = null, PlotRange range = null, PlotArea area = null)
+```
+
+
+### `SeriesData`
+
+One named series and how to draw it — the unit `Chart` composes.
+
+```csharp
+SeriesData Dashed(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral)
+SeriesData Line(string name, IReadOnlyList<double> values, RenderThemeColor color = Accent)
+string Name { get; }
+SeriesOptions Options { get; }
+SeriesData Steps(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral)
+IReadOnlyList<double> Values { get; }
+```
+
+- `Name` — Legend label.
+- `Options` — Kind, colour, stroke.
+- `Values` — One value per index.
+
+- `SeriesOptions` — How one series is drawn. Fields: Alpha, Color, Dashed, Kind, Thickness. Use `SeriesOptions.Default`, never `new()`.
+
+### `Signal`
+
+One marked event.
+
+```csharp
+int Index { get; }
+SignalKind Kind { get; }
+string Label { get; }
+double Value { get; }
+```
+
+- `Index` — Position along the series.
+- `Kind` — Which direction it was.
+- `Label` — Optional short text drawn beside it.
+- `Value` — Where on the value axis it sits — usually the price it happened at.
+
+### `SignalKind`
+
+What a signal marker means. The direction, not the drawing.
+
+- `Buy` — Entered long, or a bullish cross.
+- `Sell` — Entered short, or a bearish cross.
+- `Exit` — Closed a position, either way.
+- `Note` — Something worth marking that is neither a buy nor a sell — a regime change, a session boundary, a rejected setup.
+
+- `SignalOptions` — How signal markers are drawn. Fields: Alpha, ShowLabels, Size. Use `SignalOptions.Default`, never `new()`.
+
+### `Signals`
+
+Entry, exit and cross markers.
+
+```csharp
+RenderThemeColor ColorOf(SignalKind kind)
+void Draw(IRenderSurface surface, IReadOnlyList<Signal> signals, int count, PlotRange range, SignalOptions options = null, PlotArea area = null)
+RenderMarkerShape ShapeOf(SignalKind kind)
+```
+
+- `ColorOf` — The theme role for a signal kind.
+- `ShapeOf` — The convention, exposed so a caller drawing its own marker still gets the right glyph. Triangle up for a buy, diamond for a sell, cross for an exit, circle for a note. Distinct in silhouette, not merely in colour.
+
+### `Table`
+
+Rows and columns of text — open positions, working orders, the top movers, a signal history, the last N fills.
+
+```csharp
+int Draw(IRenderSurface surface, IReadOnlyList<TableColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows, TableOptions options = null, PlotArea area = null, Func<int, RenderThemeColor> toneOf = null)
+```
+
+
+### `TableColumn`
+
+How a column is laid out.
+
+```csharp
+bool AlignRight { get; }
+string Header { get; }
+TableColumn Number(string header, double width = 1)
+double Width { get; }
+```
+
+- `AlignRight` — Whether cells are right-aligned. True for numbers: a column of prices that does not line up on the decimal point cannot be compared down the column, which is the only reason to put numbers in a column.
+- `Header` — Column heading.
+- `Number` — A right-aligned column, for numbers.
+- `Width` — Share of the available width, relative to the other columns.
+
+- `TableOptions` — How a table is drawn. Fields: MaxRows, RowHeight, ShowHeader, Stripe. Use `TableOptions.Default`, never `new()`.
+
+### `Tape`
+
+Time and sales: the printed trades, newest first, coloured by which side crossed the spread.
+
+```csharp
+int Draw(IRenderSurface surface, IReadOnlyList<TradePrint> prints, TapeOptions options = null, PlotArea area = null)
+```
+
+
+- `TapeOptions` — How the tape is drawn. Fields: HighlightFrom, Newest, PriceFormat, RowHeight, ShowTime. Use `TapeOptions.Default`, never `new()`.
+
+### `Tile`
+
+One readout: a caption, the number, and optionally how it is doing.
+
+```csharp
+string Detail { get; }
+string Label { get; }
+Tile Signed(string label, double amount, string value, string detail = null)
+RenderThemeColor Tone { get; }
+string Value { get; }
+```
+
+- `Detail` — Optional second line — a change, a denominator, a timestamp.
+- `Label` — What it is. Short — a tile is read at a glance or not at all.
+- `Signed` — A tile toned by the sign of a number — the usual case for PnL, delta or a spread.
+- `Tone` — Bullish, Bearish, Warning or Neutral. Colours the value only, never the caption, so a screen of tiles does not turn into a traffic light.
+- `Value` — The number, already formatted. Formatting is the caller's because only the caller knows the instrument's tick size and currency.
+
+- `TileOptions` — How a tile strip is drawn. Fields: Columns, Gap, ShowPlate, ValueSize. Use `TileOptions.Default`, never `new()`.
+
+### `Tiles`
+
+The numbers a strategy wants stated rather than plotted — position, PnL, exposure, win rate, the current regime, time to the close.
+
+```csharp
+void Draw(IRenderSurface surface, IReadOnlyList<Tile> tiles, TileOptions options = null, PlotArea area = null)
+void One(IRenderSurface surface, Tile tile, TileOptions options = null, PlotArea area = null)
+```
+
+- `One` — Draws a single tile into an exact rectangle, for a caller composing its own layout.
+
+### `VolumeProfile`
+
+Volume at price: a horizontal histogram with the point of control and the value area.
+
+```csharp
+ValueTuple<double, double, double> Draw(IRenderSurface surface, IReadOnlyList<ProfileRow> rows, PlotRange priceRange = null, ProfileOptions options = null, PlotArea area = null)
+ValueTuple<double, double, double> ValueArea(IReadOnlyList<ProfileRow> rows, double share = 0.7)
+```
+
+
+- `ZoneOptions` — How a shaded threshold zone is drawn. Fields: Alpha, Color, ShowEdges. Use `ZoneOptions.Default`, never `new()`.
+
+### `Zones`
+
+A shaded horizontal band across the whole panel — an oscillator's overbought and oversold zones, a tolerance around fair value, a regime threshold.
+
+```csharp
+void Draw(IRenderSurface surface, double from, double to, PlotRange range, ZoneOptions options = null, PlotArea area = null)
+```
+
+- `Draw` — Shades between two values on the value axis.
+
 ## Vocabulary
 
 ### `AlertLevel`
@@ -249,7 +577,9 @@ Wire limits enforced by every host alert sink.
 
 ### `AuthoredPluginBootstrap`
 
-The `Register` body for a strategy the user authored in the app. The builder emits a tiny generated `IStrategyPlugin` into the compiled assembly whose whole job is to call this — so an authored strategy is a genuine plugin, indistinguishable to the loader from one built with `dotnet new daxalgo-strategy`. Without it, the loader finds the DLL on the next start, can't see an entry point, and reports it as failed. It registers exactly what a hand-written plugin's `AddXxxStrategy()` would: the backtest option, the catalog descriptor, and (when the author wrote a view-model) a `StrategyFactoryRegistration` whose view is either the author's own or — when none was written — the host-composed default window built from the descriptor's `DataRequirement`.
+The `Register` body for a strategy the user authored in the app. The builder emits a tiny generated `IStrategyPlugin` into the compiled assembly whose whole job is to call this — so an authored strategy is a genuine plugin, indistinguishable to the loader from one built with `dotnet new daxalgo-strategy`. Without it, the loader finds the DLL on the next start, can't see an entry point, and reports it as failed.
+
+It registers exactly what a hand-written plugin's `AddXxxStrategy()` would: the backtest option, the catalog descriptor, and (when the author wrote a view-model) a `StrategyFactoryRegistration` whose view is either the author's own or — when none was written — the host-composed default window built from the descriptor's `DataRequirement`.
 
 ```csharp
 void Register(IPluginRegistrar registrar, Assembly assembly, string strategyId, string displayName)
@@ -337,7 +667,9 @@ StrategyParameterSchema Schema { get; }
 
 ### `IPluginRegistrar`
 
-The surface a plugin uses inside `Register` to contribute services into the host. A plugin's `Register` body is line-for-line identical to a first-party `AddXxxStrategy()`, and carries read-only context about the plugin. The collection is add-only.`Services` is not the raw host collection: the host hands each plugin a guarded view that stages registrations and commits them only if `Register` returns cleanly. A plugin may register new service types of its own, plus additional `ITradingStrategy` / `StrategyCatalogEntry` / `StrategyFactoryRegistration` entries. Registering, replacing, or removing a service the host already provides (e.g. `ICredentialStore`, `IBrokerSelector`) is refused, and the plugin is quarantined with nothing registered. `TryAdd*()` keeps its usual no-op semantics.
+The surface a plugin uses inside `Register` to contribute services into the host. A plugin's `Register` body is line-for-line identical to a first-party `AddXxxStrategy()`, and carries read-only context about the plugin.
+
+The collection is add-only.`Services` is not the raw host collection: the host hands each plugin a guarded view that stages registrations and commits them only if `Register` returns cleanly. A plugin may register new service types of its own, plus additional `ITradingStrategy` / `StrategyCatalogEntry` / `StrategyFactoryRegistration` entries. Registering, replacing, or removing a service the host already provides (e.g. `ICredentialStore`, `IBrokerSelector`) is refused, and the plugin is quarantined with nothing registered. `TryAdd*()` keeps its usual no-op semantics.
 
 ```csharp
 PluginContext Context { get; }
@@ -385,7 +717,9 @@ Task StopAsync(CancellationToken ct = null)
 
 ### `IStrategyPlugin`
 
-Entry point a strategy-plugin assembly exposes. The host's plugin loader finds the single public parameterless `IStrategyPlugin` implementation in each plugin assembly, checks `TargetSdkVersion` against the host SDK (`Version`), then calls `Register` so the plugin can contribute its strategy, view/view-model and backtest option into the host. A plugin's `Register` body is identical to a first-party `AddXxxStrategy()` extension — register the `ITradingStrategy`, the view + view-model, the `StrategyFactoryRegistration` and the `StrategyCatalogEntry` on `Services`.
+Entry point a strategy-plugin assembly exposes. The host's plugin loader finds the single public parameterless `IStrategyPlugin` implementation in each plugin assembly, checks `TargetSdkVersion` against the host SDK (`Version`), then calls `Register` so the plugin can contribute its strategy, view/view-model and backtest option into the host.
+
+A plugin's `Register` body is identical to a first-party `AddXxxStrategy()` extension — register the `ITradingStrategy`, the view + view-model, the `StrategyFactoryRegistration` and the `StrategyCatalogEntry` on `Services`.
 
 ```csharp
 string Name { get; }
@@ -463,7 +797,11 @@ Task StopAsync(CancellationToken ct = null)
 
 ### `NullRenderSurface`
 
-A render surface that discards everything. This is the correct surface for a host with nothing on screen — a headless run, a test, a visualizer executing while its panel is closed. A visualizer should never have to ask whether it is visible: it describes the frame, and when nobody is looking the description goes nowhere. `Viewport` reports zero size and `Cursor` reports outside, so a visualizer that scales to the viewport degrades to drawing nothing rather than dividing by a bogus width.
+A render surface that discards everything.
+
+This is the correct surface for a host with nothing on screen — a headless run, a test, a visualizer executing while its panel is closed. A visualizer should never have to ask whether it is visible: it describes the frame, and when nobody is looking the description goes nowhere.
+
+`Viewport` reports zero size and `Cursor` reports outside, so a visualizer that scales to the viewport degrades to drawing nothing rather than dividing by a bogus width.
 
 ```csharp
 void AxisX(double minimum, double maximum, string format = null)
@@ -539,7 +877,13 @@ double Y { get; }
 
 ### `RecordingRenderSurface`
 
-A render surface that keeps what was drawn instead of painting it. This is how you check your own unit.`IRenderSurface` is an interface, not a control, so testing a picture needs no window, no dispatcher and no running host: construct one of these, call `Draw`, and assert on what came back. It exists because a unit that compiles and paints nothing is the easiest mistake to ship and the hardest to notice — a blank panel is indistinguishable from a broken host, so nobody reports it as a bug in the visualizer. The host uses the same class to verify authored units before a user ever sees one. Not thread-safe, and deliberately so: `Draw` is called on one thread at a time, and a lock here would hide a unit that violated that.
+A render surface that keeps what was drawn instead of painting it.
+
+This is how you check your own unit.`IRenderSurface` is an interface, not a control, so testing a picture needs no window, no dispatcher and no running host: construct one of these, call `Draw`, and assert on what came back.
+
+It exists because a unit that compiles and paints nothing is the easiest mistake to ship and the hardest to notice — a blank panel is indistinguishable from a broken host, so nobody reports it as a bug in the visualizer. The host uses the same class to verify authored units before a user ever sees one.
+
+Not thread-safe, and deliberately so: `Draw` is called on one thread at a time, and a lock here would hide a unit that violated that.
 
 ```csharp
 void AxisX(double minimum, double maximum, string format = null)
@@ -580,6 +924,7 @@ RenderViewport Viewport { get; }
 - `Rectangles` — Rectangles drawn, with geometry and the style in force.
 - `SeriesNames` — Series names, in the order they were opened. Named for the names rather than for the member, because `Series` itself is the interface method that opens one.
 - `Texts` — Text drawn, with the point it was placed at.
+- `Theme` — A distinct colour per role, in the mid range. Distinct matters. This used to return one mid grey for every token, which meant no test could tell a widget that drew its losses in the bullish colour from one that got it right — the two produced byte-identical output. Mid-range keeps the original property that a recorded colour is never accidentally invisible, and is still obviously not a literal anyone would pick.
 - `ThemeTokens` — Theme roles resolved. Empty means the unit used literal colours, which will be unreadable in one theme or the other.
 
 ### `RenderCall`
@@ -675,7 +1020,9 @@ double Thickness { get; }
 
 ### `RenderThemeColor`
 
-A colour from the host's theme rather than a literal. Visualizers name roles, not RGB, so one visualizer looks right in every theme and cannot paint itself invisible against the current background.
+A colour from the host's theme rather than a literal.
+
+Visualizers name roles, not RGB, so one visualizer looks right in every theme and cannot paint itself invisible against the current background.
 
 - `Text`
 - `TextSecondary`
@@ -705,7 +1052,9 @@ double Width { get; }
 
 ### `SdkInfo`
 
-Version marker for the DaxAlgo plugin SDK. A plugin can read `Version` to assert it was built against a compatible SDK; the host's plugin loader (Phase B) compares its own SDK version against the plugin's declared target to gate loading. The SDK is a curated façade over the host's contract assemblies (TradingTerminal.Core via this package, the WPF UI bases via DaxAlgo.Sdk.Wpf) and owns the stable `IStrategyEngineFactory` activation seam for packaged engines. As the surface is narrowed, more canonical plugin contracts will move behind this package's public API.
+Version marker for the DaxAlgo plugin SDK. A plugin can read `Version` to assert it was built against a compatible SDK; the host's plugin loader (Phase B) compares its own SDK version against the plugin's declared target to gate loading.
+
+The SDK is a curated façade over the host's contract assemblies (TradingTerminal.Core via this package, the WPF UI bases via DaxAlgo.Sdk.Wpf) and owns the stable `IStrategyEngineFactory` activation seam for packaged engines. As the surface is narrowed, more canonical plugin contracts will move behind this package's public API.
 
 ### `VirtualEntryKind`
 
@@ -717,7 +1066,9 @@ How a target position should be entered.
 
 ### `VirtualTargetIntent`
 
-A desired position in the strategy's private model portfolio. It is an intent only: it cannot identify a broker, venue, account, or execution route. It may state an entry price condition, because that is an economic decision the strategy owns - the same way it already states a protective stop and a profit target. It still names nothing about where or how the order is routed.
+A desired position in the strategy's private model portfolio. It is an intent only: it cannot identify a broker, venue, account, or execution route.
+
+It may state an entry price condition, because that is an economic decision the strategy owns - the same way it already states a protective stop and a profit target. It still names nothing about where or how the order is routed.
 
 ```csharp
 VirtualEntryKind EntryKind { get; }

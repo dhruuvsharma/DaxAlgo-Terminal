@@ -44,7 +44,27 @@ public sealed class StrategySkillLibrary
 
     /// <summary>Ceilings, so a brief that mentions everything doesn't rebuild the monolith we just split.</summary>
     public const int MaxSkillsPerSession = 3;
-    public const int MaxCharacters = 12_000;
+
+    /// <summary>
+    /// Total characters of skill text one session may load — roughly 4,500 tokens, paid once and then
+    /// read from cache.
+    /// </summary>
+    /// <remarks>
+    /// <para>Raised from 12,000 when the drawing skill became the widget catalogue. At 12,000 a brief
+    /// like "plot cumulative delta" loaded the order-flow pack, found 7,550 characters left, and
+    /// <b>silently dropped drawing entirely</b> — so a brief explicitly asking for a picture got no
+    /// drawing guidance at all. Skipping is per-skill and all-or-nothing, which makes a ceiling that
+    /// nearly fits worse than one that comfortably does.</para>
+    ///
+    /// <para>Sized to hold the three heaviest packs together, because that is a real brief rather than a
+    /// contrived one: order flow drawn as a picture with some maths behind it. The ceiling still binds —
+    /// all five packs are over 22,000 — which is the point of having one.</para>
+    ///
+    /// <para>It buys back more than it costs. The catalogue is the one pack that reduces <i>output</i>
+    /// tokens, which are billed at several times the rate of the cached input it occupies, and a widget
+    /// the model does not know about is a widget it writes from scratch and gets wrong.</para>
+    /// </remarks>
+    public const int MaxCharacters = 18_000;
 
     private readonly IReadOnlyList<StrategySkill> _skills;
 

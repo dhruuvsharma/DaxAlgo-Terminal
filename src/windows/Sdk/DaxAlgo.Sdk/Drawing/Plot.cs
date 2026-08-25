@@ -135,6 +135,81 @@ public static class Plot
         surface.Text(4d, cursor.Y - 3d, Format(value, format));
     }
 
+    /// <summary>
+    /// The "nothing to show yet" frame, centred.
+    ///
+    /// <para>The commonest way a picture fails verification is by emitting nothing at all, and a blank
+    /// panel reads as a broken application rather than as a unit waiting for its first bar. One call, so
+    /// there is no reason to skip it.</para>
+    ///
+    /// <para>Returns true so the guard is a single line:
+    /// <c>if (_history.Count == 0) { Plot.Waiting(surface); return; }</c></para>
+    /// </summary>
+    public static bool Waiting(IRenderSurface surface, string message = "Waiting for data…")
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+
+        var area = PlotArea.Of(surface);
+        if (!area.IsValid) return true;
+
+        surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary), FontSize: 12d));
+
+        // Roughly centred. The surface has no text-measuring call, deliberately — it would make the
+        // contract depend on the host's font stack. Being a few pixels out is invisible; making a
+        // sandboxed contract host-dependent would not be.
+        var width = (message?.Length ?? 0) * 6.2d;
+        surface.Text(Math.Max(area.X + 4d, area.CenterX - (width / 2d)), area.CenterY, message ?? string.Empty);
+        return true;
+    }
+
+    /// <summary>Vertical gridlines every <paramref name="every"/> items, so a long series has something
+    /// to read horizontal position against.</summary>
+    public static void VerticalGrid(IRenderSurface surface, int count, int every = 20, PlotArea area = default)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        if (count <= 1 || every <= 0) return;
+
+        if (!area.IsValid) area = PlotArea.Of(surface);
+        if (!area.IsValid) return;
+
+        surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Grid), Thickness: 1d, Alpha: 0.35d));
+        for (var index = every; index < count; index += every)
+        {
+            var x = area.ToX(index, count);
+            surface.Line(x, area.Y, x, area.Bottom);
+        }
+    }
+
+    /// <summary>Frames an area — the border around a widget placed on a canvas.</summary>
+    public static void Frame(IRenderSurface surface, PlotArea area, double alpha = 0.6d)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        if (!area.IsValid) return;
+
+        surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Border), Thickness: 1d, Alpha: alpha));
+        surface.Rect(area.X, area.Y, area.Width, area.Height, filled: false);
+    }
+
+    /// <summary>Fills an area with the surface colour — the plate a placed widget sits on.</summary>
+    public static void Plate(IRenderSurface surface, PlotArea area, double alpha = 0.5d)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        if (!area.IsValid) return;
+
+        surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Surface), Alpha: alpha));
+        surface.Rect(area.X, area.Y, area.Width, area.Height);
+    }
+
+    /// <summary>A caption in the top-left of an area — every placed widget's title.</summary>
+    public static void Caption(IRenderSurface surface, PlotArea area, string text, RenderThemeColor color = RenderThemeColor.TextSecondary)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        if (!area.IsValid || string.IsNullOrEmpty(text)) return;
+
+        surface.SetStyle(new RenderStyle(surface.Theme(color), FontSize: 10d));
+        surface.Text(area.X + 4d, area.Y + 12d, text);
+    }
+
     /// <summary>Pixel Y for a value, top-down, for routines drawing in panel pixel space.</summary>
     public static double ToY(double value, PlotRange range, double height) =>
         range.IsValid && height > 0d

@@ -118,4 +118,63 @@ public sealed class AuthoringKnowledgeTests
     {
         StrategySkillLibrary.Load().All.Should().NotContain(skill => skill.Id == "live-window");
     }
+
+    // ── the character budget ────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void TheThreeHeaviestPacksFitTogether()
+    {
+        // Skipping is per-skill and all-or-nothing, which makes a ceiling that NEARLY fits worse than one
+        // that comfortably does. At the old 12,000 a brief for an order-flow picture loaded the order-flow
+        // pack, found too little room for the drawing catalogue, and dropped it in silence — a brief that
+        // said "plot" got no drawing guidance whatsoever.
+        var heaviest = StrategySkillLibrary.Load().All
+            .OrderByDescending(skill => skill.Body.Length)
+            .Take(StrategySkillLibrary.MaxSkillsPerSession)
+            .Sum(skill => skill.Body.Length);
+
+        heaviest.Should().BeLessThanOrEqualTo(
+            StrategySkillLibrary.MaxCharacters,
+            "a session must be able to load its full skill allowance, not silently lose the last one");
+    }
+
+    [Fact]
+    public void TheCeilingStillBinds()
+    {
+        // The other half of the same decision. A budget nothing can exceed is not a budget, and the split
+        // exists precisely so a brief mentioning everything cannot rebuild the monolith.
+        StrategySkillLibrary.Load().All.Sum(skill => skill.Body.Length)
+            .Should().BeGreaterThan(StrategySkillLibrary.MaxCharacters);
+    }
+
+    [Fact]
+    public void AnOrderFlowPictureGetsBothPacks()
+    {
+        // The brief the budget change was made for, stated as the requirement rather than the arithmetic.
+        var chosen = StrategySkillLibrary.Load()
+            .SelectFor("show me a footprint chart with cumulative delta underneath")
+            .Select(skill => skill.Id)
+            .ToArray();
+
+        chosen.Should().Contain("drawing");
+        chosen.Should().Contain("order-flow");
+    }
+
+    [Fact]
+    public void EveryWidgetTheLibraryShipsIsNamedInTheDrawingSkill()
+    {
+        // A widget the catalogue does not mention is a widget the model writes from scratch — which is
+        // the whole cost the library was built to remove. Reflected, so adding a widget and forgetting
+        // the skill fails here rather than showing up as a needlessly long generated Draw.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "drawing").Body;
+
+        var widgets = typeof(DaxAlgo.Sdk.Drawing.Plot).Assembly.GetExportedTypes()
+            .Where(t => t.Namespace == "DaxAlgo.Sdk.Drawing" && t.IsAbstract && t.IsSealed)
+            .Where(t => t.GetMethods().Any(m => m.IsStatic && m.IsPublic && m.Name == "Draw"))
+            .Select(t => t.Name)
+            .Where(name => !body.Contains(name, StringComparison.Ordinal))
+            .ToArray();
+
+        widgets.Should().BeEmpty("these widgets are not in the drawing skill, so a model cannot find them");
+    }
 }
