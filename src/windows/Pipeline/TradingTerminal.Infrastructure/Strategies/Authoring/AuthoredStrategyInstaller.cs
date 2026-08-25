@@ -4,14 +4,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
-using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Plugins;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
-/// <summary>What an install did, in the terms the user cares about: is it backtestable, is it in the
+/// <summary>What an install did, in the terms the user cares about: is it registered, is it in the
 /// catalog, is it on disk.</summary>
-/// <param name="Registered">The strategy is runnable in the backtester now.</param>
+/// <param name="Registered">The strategy is in the catalog now.</param>
 /// <param name="InCatalog">It also has a card in the Strategies pane, openable now — that needs the
 /// author to have written a descriptor and a live view-model. A view is optional: without one the
 /// host composes the default window from the descriptor's data requirement.</param>
@@ -25,10 +25,10 @@ public sealed record AuthoredStrategyInstall(
     string Message);
 
 /// <summary>
-/// Turns a compiled authored strategy into a first-class one: registered in the backtest registry, added
+/// Turns a compiled authored strategy into a first-class one: registered in the strategy registry, added
 /// to the live strategy catalog, written to the plugins folder as a real plugin, and shown in the Plugin
 /// Manager. This is what "Compile &amp; Register" means — before it, an authored strategy only ever
-/// reached the backtester.
+/// reached the catalog.
 /// <para>
 /// <b>The gate is the compile.</b> The image has already been through the same
 /// <see cref="PluginPolicyScanner"/> the plugin loader applies (P/Invoke, Process, the registry,
@@ -44,7 +44,7 @@ public sealed record AuthoredStrategyInstall(
 /// </summary>
 public sealed class AuthoredStrategyInstaller(
     IServiceProvider services,
-    IBacktestStrategyRegistry registry,
+    IStrategyRegistry registry,
     IStrategyFactory catalog,
     PluginHostContext? plugins = null,
     ILogger<AuthoredStrategyInstaller>? logger = null,
@@ -71,7 +71,7 @@ public sealed class AuthoredStrategyInstaller(
                 + "the registration path is still on the retired contract.");
         }
 
-        // 1. Backtestable immediately (this much already worked).
+        // 1. In the catalog immediately (this much already worked).
         registry.Register(compiled.Option);
 
         // 2. Catalog card — when the author wrote the whole live window, or wrote descriptor +
@@ -88,11 +88,11 @@ public sealed class AuthoredStrategyInstaller(
             }
             catch (Exception ex)
             {
-                // A bad view/VM must not lose the strategy — it stays backtestable and we say why.
+                // A bad view/VM must not lose the strategy — it stays registered and we say why.
                 logger?.LogWarning(ex, "Authored strategy {Id} could not be added to the catalog", script.Id);
                 return new AuthoredStrategyInstall(
                     true, false, Persist(script, compiled),
-                    $"Registered for backtesting, but the live window failed to build: {ex.Message}");
+                    $"Registered, but the live window failed to build: {ex.Message}");
             }
         }
 
@@ -102,13 +102,13 @@ public sealed class AuthoredStrategyInstaller(
         var missing = compiled.Authored?.MissingForCatalog ?? [];
         var message = inCatalog
             ? compiled.Authored is { HasLiveWindow: true }
-                ? $"'{compiled.Option.DisplayName}' is in the Strategies catalog and the backtester — DEV (unsigned)."
-                : $"'{compiled.Option.DisplayName}' is in the Strategies catalog and the backtester — DEV (unsigned). " +
+                ? $"'{compiled.Option.DisplayName}' is in the Strategies catalog — DEV (unsigned)."
+                : $"'{compiled.Option.DisplayName}' is in the Strategies catalog — DEV (unsigned). " +
                   "It shipped no view, so its window is host-composed from its data requirement."
             : missing.Count > 0
-                ? $"'{compiled.Option.DisplayName}' is registered for backtesting. For a catalog card it also needs " +
+                ? $"'{compiled.Option.DisplayName}' is registered. For a catalog card it also needs " +
                   $"{string.Join(", ", missing)} — ask the builder to add them."
-                : $"'{compiled.Option.DisplayName}' is registered for backtesting — this host has no strategy " +
+                : $"'{compiled.Option.DisplayName}' is registered — this host has no strategy " +
                   "view composer, so a strategy without its own view gets no catalog card.";
 
         if (path is null)

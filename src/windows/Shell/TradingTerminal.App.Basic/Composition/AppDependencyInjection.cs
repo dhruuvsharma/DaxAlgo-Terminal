@@ -9,7 +9,7 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.UI.Strategies;
 using TradingTerminal.UI.Logging;
 using TradingTerminal.UI.Theming;
-using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.MarketData.Archive;
@@ -108,7 +108,7 @@ public static class AppDependencyInjection
         IConfiguration configuration)
     {
         services.AddSingleton<IStrategyFactory, StrategyFactory>();
-        services.AddBacktestStrategyCatalog();
+        services.AddStrategyCatalog();
         // The visualizer counterpart to the strategy catalog. Empty on a fresh install, the same
         // way the strategy catalog is: cards arrive from installed packs or from Hyperion, and
         // Changed is what lets one appear without a restart.

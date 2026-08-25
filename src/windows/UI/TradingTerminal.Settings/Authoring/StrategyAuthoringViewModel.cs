@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
-using TradingTerminal.Infrastructure.Backtest;
+using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Strategies;
@@ -39,7 +39,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private const int MaxMessages = 400;
 
     private readonly IStrategyCompiler _compiler;
-    private readonly IBacktestStrategyRegistry _registry;
+    private readonly IStrategyRegistry _registry;
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
@@ -65,7 +65,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     public StrategyAuthoringViewModel(
         IStrategyCompiler compiler,
-        IBacktestStrategyRegistry registry,
+        IStrategyRegistry registry,
         ILogger<StrategyAuthoringViewModel> logger,
         IAiStrategyBuilder? ai = null,
         IOptions<AiCodegenOptions>? options = null,

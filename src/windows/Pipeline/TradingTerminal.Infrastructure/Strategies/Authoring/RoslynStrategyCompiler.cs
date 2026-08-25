@@ -16,8 +16,9 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// <summary>
 /// Roslyn-backed <see cref="IStrategyCompiler"/>. Compiles a user's C# source into an
 /// in-memory assembly, reflects out the single class that implements
-/// <see cref="IBacktestStrategy"/>, and packages it as a runnable
-/// <see cref="BacktestStrategyOption"/> — so an authored strategy is a first-class citizen
+/// <see cref="IStrategyKernel"/> or <see cref="IVisualizer"/> — and, for already-installed plugins,
+/// the retired <see cref="IBacktestStrategy"/> — packaging the latter as a runnable
+/// <see cref="BacktestStrategyOption"/> so an authored strategy is a first-class citizen
 /// of the catalog/backtester with no recompile of the host.
 ///
 /// A set of <c>global using</c>s is injected as a separate syntax tree so user source stays

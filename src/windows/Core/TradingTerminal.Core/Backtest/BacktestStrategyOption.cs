@@ -7,7 +7,7 @@ namespace TradingTerminal.Core.Backtest;
 /// <summary>
 /// Display + factory pair for a strategy that can be backtested. Held by the
 /// backtest view-model's dropdown. Strategies are registered in
-/// <c>BacktestStrategyCatalog</c> rather than via the live <c>IStrategyFactory</c>
+/// <c>StrategyCatalog</c> rather than via the live <c>IStrategyFactory</c>
 /// — the live factory builds view-models, not engine-facing <c>IBacktestStrategy</c>
 /// instances.
 /// </summary>

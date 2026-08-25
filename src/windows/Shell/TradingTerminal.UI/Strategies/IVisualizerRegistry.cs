@@ -18,7 +18,7 @@ public sealed record VisualizerRegistration(VisualizerDescriptor Descriptor, Fun
 
 /// <summary>
 /// The runtime source of available visualizers — the counterpart to
-/// <c>IBacktestStrategyRegistry</c>, and deliberately the same shape, because a user installing a
+/// <c>IStrategyRegistry</c>, and deliberately the same shape, because a user installing a
 /// visualizer pack and a user installing a strategy pack should not meet two different mechanisms.
 ///
 /// <para><see cref="Changed"/> is what lets a visualizer authored in Hyperion appear in the catalog

@@ -13,7 +13,7 @@ public interface ITradingStrategy
     string Id { get; }
 
     /// <summary>
-    /// The id of the engine-side <c>BacktestStrategyOption</c> (in <c>BacktestStrategyCatalog</c>)
+    /// The id of the engine-side <c>BacktestStrategyOption</c> (in <c>StrategyCatalog</c>)
     /// that this live strategy maps to, e.g. <c>"sigmaIcFlow"</c>. Backtest composition resolves
     /// the engine strategy from this id. Live ids
     /// (dotted, e.g. <c>"sigma.ic.flow"</c>) and engine ids (camelCase) intentionally differ, so

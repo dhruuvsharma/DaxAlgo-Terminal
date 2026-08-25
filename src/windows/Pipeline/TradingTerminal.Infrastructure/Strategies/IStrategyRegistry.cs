@@ -1,16 +1,19 @@
 using TradingTerminal.Core.Backtest;
 
-namespace TradingTerminal.Infrastructure.Backtest;
+namespace TradingTerminal.Infrastructure.Strategies;
 
 /// <summary>
-/// The runtime source of available backtest strategies. Consumers (BacktestViewModel,
-/// signal-host registration, the strategy-authoring pane) inject this rather than reaching
-/// into the static <c>BacktestStrategyCatalog</c> directly. The default DI registration
+/// The runtime source of registered strategies. Consumers (signal-host registration, the
+/// strategy-authoring pane) inject this rather than reaching into the static
+/// <c>StrategyCatalog</c> directly.
+///
+/// <para>Renamed from <c>IBacktestStrategyRegistry</c> on 2026-08-25. It never registered anything
+/// for a backtester — the engine was archived on 2026-08-17 and this is, and was, the catalog.</para> The default DI registration
 /// seeds the registry from the catalog list; strategies authored at runtime are added via
 /// <see cref="Register"/>, and <see cref="Changed"/> lets the UI refresh its list live —
 /// this is what lets a user add a strategy without recompiling the host.
 /// </summary>
-public interface IBacktestStrategyRegistry
+public interface IStrategyRegistry
 {
     IReadOnlyList<BacktestStrategyOption> All { get; }
 
@@ -27,7 +30,7 @@ public interface IBacktestStrategyRegistry
     event EventHandler? Changed;
 }
 
-internal sealed class BacktestStrategyRegistry : IBacktestStrategyRegistry
+internal sealed class BacktestStrategyRegistry : IStrategyRegistry
 {
     public BacktestStrategyRegistry(IEnumerable<BacktestStrategyOption> options)
     {
