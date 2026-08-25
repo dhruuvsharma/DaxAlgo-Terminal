@@ -117,6 +117,27 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             // Loaded from the byte[], never the file — so the DLL we persist alongside it is not locked
             // and a regenerate can overwrite it.
             var assembly = Assembly.Load(image);
+
+            // What did the author actually write? Asked before anything is bound, so a submission written
+            // against the current contracts gets a real answer rather than "no IBacktestStrategy found",
+            // which is what it used to get and which sent people looking for a mistake they had not made.
+            var unit = FindUnit(assembly, out var findError);
+            if (unit is null)
+                return StrategyCompileResult.Failed(
+                    Append(diagnostics, Error("DAX1000", findError ?? "Could not bind the authored type.")));
+
+            if (!unit.UsesRetiredContract)
+            {
+                // A sandbox unit is compiled, scanned and shaped — everything short of registration, which
+                // still runs through the engine-era BacktestStrategyOption and is the next slice of this
+                // work. Reporting it as a success with the unit attached lets the verification ladder do
+                // its job today instead of waiting for the registration path to be rebuilt.
+                return StrategyCompileResult.CompiledWithoutRegistration(
+                    diagnostics,
+                    new AuthoredStrategyAssembly(image, assembly, unit.Type),
+                    unit);
+            }
+
             var option = BuildOption(script, assembly, out var kernelType, out var bindError);
             if (option is null || kernelType is null)
                 return StrategyCompileResult.Failed(
@@ -131,7 +152,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
                 ViewModelType: found.ViewModel,
                 ViewType: found.View);
 
-            return StrategyCompileResult.Succeeded(option, diagnostics, authored);
+            return StrategyCompileResult.Succeeded(option, diagnostics, authored, unit);
         }
         catch (Exception ex)
         {
@@ -171,6 +192,50 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
     /// so they are escaped rather than interpolated raw.</summary>
     private static string Literal(string value) =>
         Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Literal(value).ToFullString();
+
+    /// <summary>
+    /// Finds the one hostable type in a compiled submission.
+    ///
+    /// <para>Authoring targets <c>IStrategyKernel</c> and <c>IVisualizer</c>, so those are looked for
+    /// first. <c>IBacktestStrategy</c> is still accepted — <c>TradingTerminal.Core</c> is a published
+    /// contract package and installed plugins implement it — but it is reported as the retired contract
+    /// it is, rather than silently treated as current.</para>
+    ///
+    /// <para>Ambiguity is an error in both directions. A submission holding two kernels is unresolvable,
+    /// and one holding both a kernel and a legacy strategy is a half-finished port, which is worse than
+    /// either: picking one for the author would hide the fact that the other is dead code.</para>
+    /// </summary>
+    internal static AuthoredUnit? FindUnit(Assembly assembly, out string? error)
+    {
+        error = null;
+
+        var classes = assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract).ToArray();
+        var kernels = classes.Where(t => typeof(IStrategyKernel).IsAssignableFrom(t)).ToArray();
+        var visualizers = classes.Where(t => typeof(IVisualizer).IsAssignableFrom(t)).ToArray();
+        var legacy = classes.Where(t => typeof(IBacktestStrategy).IsAssignableFrom(t)).ToArray();
+
+        var total = kernels.Length + visualizers.Length + legacy.Length;
+        if (total == 0)
+        {
+            error = "No public class implementing IStrategyKernel or IVisualizer was found. "
+                  + "A strategy implements IStrategyKernel; a visualizer implements IVisualizer.";
+            return null;
+        }
+
+        if (total > 1)
+        {
+            var found = string.Join(", ", kernels.Concat(visualizers).Concat(legacy).Select(t => t.Name));
+            error = kernels.Length + visualizers.Length > 0 && legacy.Length > 0
+                ? $"Found both a current and a retired contract ({found}). Keep the IStrategyKernel or "
+                  + "IVisualizer implementation and delete the IBacktestStrategy one."
+                : $"Found {total} hostable classes ({found}); define exactly one.";
+            return null;
+        }
+
+        if (kernels.Length == 1) return new AuthoredUnit(AuthoringKind.Strategy, kernels[0]);
+        if (visualizers.Length == 1) return new AuthoredUnit(AuthoringKind.Visualizer, visualizers[0]);
+        return new AuthoredUnit(AuthoringKind.Strategy, legacy[0], UsesRetiredContract: true);
+    }
 
     /// <summary>Resolves the single <see cref="IBacktestStrategy"/> class and wires its factory
     /// (and optional declarative-parameter members) into a <see cref="BacktestStrategyOption"/>.</summary>

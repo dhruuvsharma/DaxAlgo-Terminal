@@ -54,8 +54,22 @@ public sealed class AuthoredStrategyInstaller(
     {
         ArgumentNullException.ThrowIfNull(compiled);
 
-        if (!compiled.Success || compiled.Option is null)
+        if (!compiled.Success)
             return new AuthoredStrategyInstall(false, false, null, "The strategy did not compile — nothing was registered.");
+
+        // Compiled, scanned and shaped, but written against IStrategyKernel or IVisualizer — which the
+        // catalog cannot take yet, because registration still runs through the engine-era option type.
+        // Telling the author their correct code "did not compile" would be simply false.
+        if (compiled.Option is null)
+        {
+            var contract = compiled.Unit?.ContractName ?? "the current contract";
+            return new AuthoredStrategyInstall(
+                false,
+                false,
+                null,
+                $"Compiled and verified as {contract}. Registering it in the catalog is not wired up yet — "
+                + "the registration path is still on the retired contract.");
+        }
 
         // 1. Backtestable immediately (this much already worked).
         registry.Register(compiled.Option);

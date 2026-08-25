@@ -58,8 +58,14 @@ public sealed record StrategyCompileResult(
     bool Success,
     BacktestStrategyOption? Option,
     IReadOnlyList<StrategyDiagnostic> Diagnostics,
-    AuthoredStrategyAssembly? Authored = null)
+    AuthoredStrategyAssembly? Authored = null,
+    AuthoredUnit? Unit = null)
 {
+    /// <summary>True when the submission was written against the contract the engine used. Registration
+    /// still works — installed plugins depend on it — but nothing newly authored should be here, and the
+    /// authoring surface says so rather than accepting it silently.</summary>
+    public bool UsesRetiredContract => Unit?.UsesRetiredContract == true;
+
     public IEnumerable<StrategyDiagnostic> Errors =>
         Diagnostics.Where(d => d.Severity == StrategyDiagnosticSeverity.Error);
 
@@ -68,6 +74,21 @@ public sealed record StrategyCompileResult(
 
     public static StrategyCompileResult Succeeded(
         BacktestStrategyOption option, IReadOnlyList<StrategyDiagnostic> diagnostics,
-        AuthoredStrategyAssembly? authored = null) =>
-        new(true, option, diagnostics, authored);
+        AuthoredStrategyAssembly? authored = null,
+        AuthoredUnit? unit = null) =>
+        new(true, option, diagnostics, authored, unit);
+
+    /// <summary>
+    /// The submission is sound but cannot yet be put in the catalog.
+    ///
+    /// <para>A unit written against <c>IStrategyKernel</c> or <c>IVisualizer</c> compiles, scans and
+    /// shapes correctly; registration is the part still running through the engine-era
+    /// <see cref="BacktestStrategyOption"/>. Saying so plainly beats returning a failure, which would
+    /// tell an author their correct code was wrong.</para>
+    /// </summary>
+    public static StrategyCompileResult CompiledWithoutRegistration(
+        IReadOnlyList<StrategyDiagnostic> diagnostics,
+        AuthoredStrategyAssembly authored,
+        AuthoredUnit unit) =>
+        new(true, null, diagnostics, authored, unit);
 }
