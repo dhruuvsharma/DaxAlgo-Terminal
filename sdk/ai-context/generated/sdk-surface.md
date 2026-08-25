@@ -498,6 +498,104 @@ string TargetSdkVersion { get; }
 - `Name` — The plugin's declared `Name`.
 - `TargetSdkVersion` — The plugin's declared `TargetSdkVersion`.
 
+### `RecordedLine`
+
+A line, with the style active when it was stroked.
+
+```csharp
+RenderStyle Style { get; }
+double X1 { get; }
+double X2 { get; }
+double Y1 { get; }
+double Y2 { get; }
+```
+
+
+### `RecordedRect`
+
+A rectangle, with the style that was active when it was drawn — shading and alpha are the substance of a heat map or a footprint cell, not decoration on top of one.
+
+```csharp
+bool Filled { get; }
+double Height { get; }
+RenderStyle Style { get; }
+double Width { get; }
+double X { get; }
+double Y { get; }
+```
+
+
+### `RecordedText`
+
+Text, with where it was placed — so layout is testable and not only content.
+
+```csharp
+RenderStyle Style { get; }
+string Text { get; }
+double X { get; }
+double Y { get; }
+```
+
+
+### `RecordingRenderSurface`
+
+A render surface that keeps what was drawn instead of painting it. This is how you check your own unit.`IRenderSurface` is an interface, not a control, so testing a picture needs no window, no dispatcher and no running host: construct one of these, call `Draw`, and assert on what came back. It exists because a unit that compiles and paints nothing is the easiest mistake to ship and the hardest to notice — a blank panel is indistinguishable from a broken host, so nobody reports it as a bug in the visualizer. The host uses the same class to verify authored units before a user ever sees one. Not thread-safe, and deliberately so: `Draw` is called on one thread at a time, and a lock here would hide a unit that violated that.
+
+```csharp
+void AxisX(double minimum, double maximum, string format = null)
+void AxisY(double minimum, double maximum, string format = null)
+IReadOnlyList<RenderCall> Calls { get; }
+RenderCursor Cursor { get; }
+bool HasNonFiniteCoordinate { get; }
+bool IsBlank { get; }
+void Line(double x1, double y1, double x2, double y2)
+IReadOnlyList<RecordedLine> Lines { get; }
+void Marker(double x, double y, RenderMarkerShape shape)
+IReadOnlyList<ValueTuple<double, double, RenderMarkerShape>> Markers { get; }
+IDisposable Panel(string title, RenderPanelKind kind)
+IReadOnlyList<string> Panels { get; }
+IReadOnlyList<ValueTuple<double, double>> Points { get; }
+int PrimitiveCount { get; }
+void Push(double x, double y)
+void Rect(double x, double y, double width, double height, bool filled = true)
+IReadOnlyList<RecordedRect> Rectangles { get; }
+IDisposable Series(string name, RenderSeriesKind kind)
+IReadOnlyList<string> SeriesNames { get; }
+void SetStyle(RenderStyle style)
+void Text(double x, double y, string text)
+IReadOnlyList<RecordedText> Texts { get; }
+RenderColor Theme(RenderThemeColor token)
+IReadOnlyList<RenderThemeColor> ThemeTokens { get; }
+RenderViewport Viewport { get; }
+```
+
+- `Calls` — Every call, in order.
+- `HasNonFiniteCoordinate` — True when any coordinate was NaN or infinite. A single one of these can take out a whole frame in a real renderer, and it usually means an average over an empty window.
+- `IsBlank` — True when nothing at all was drawn — no primitive, no text, no marker.
+- `Lines` — Lines drawn, with both endpoints and the style in force.
+- `Markers` — Markers drawn, in order.
+- `Panels` — Panel titles, in the order they were opened.
+- `Points` — Every point pushed into any series.
+- `PrimitiveCount` — Total primitives emitted — what a per-frame budget is measured against.
+- `Rectangles` — Rectangles drawn, with geometry and the style in force.
+- `SeriesNames` — Series names, in the order they were opened. Named for the names rather than for the member, because `Series` itself is the interface method that opens one.
+- `Texts` — Text drawn, with the point it was placed at.
+- `ThemeTokens` — Theme roles resolved. Empty means the unit used literal colours, which will be unreadable in one theme or the other.
+
+### `RenderCall`
+
+One primitive call, as it was made.
+
+```csharp
+string Kind { get; }
+string Label { get; }
+double X { get; }
+double Y { get; }
+```
+
+- `Kind` — Which surface member was called — `Panel`, `Push`, `Rect` and so on.
+- `Label` — The panel title, series name or text, where the call carried one.
+
 ### `RenderColor`
 
 An exact colour. Prefer `RenderThemeColor`; this exists for data-driven scales.

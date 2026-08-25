@@ -138,7 +138,7 @@ public sealed class SandboxSampleTests
         new SpreadBandVisualizer().Draw(surface);
 
         Assert.Single(surface.Panels);
-        Assert.Contains(surface.Texts, text => text.Contains("Waiting", StringComparison.Ordinal));
+        Assert.Contains(surface.Texts, entry => entry.Text.Contains("Waiting", StringComparison.Ordinal));
         Assert.Empty(surface.Points);
     }
 
@@ -173,14 +173,14 @@ public sealed class SandboxSampleTests
         visualizer!.Draw(surface);
 
         // Four series: two band edges, the midpoint, and the price being measured against them.
-        Assert.Contains("Upper band", surface.Series_);
-        Assert.Contains("Lower band", surface.Series_);
-        Assert.Contains("Midpoint", surface.Series_);
-        Assert.Contains("Price", surface.Series_);
+        Assert.Contains("Upper band", surface.SeriesNames);
+        Assert.Contains("Lower band", surface.SeriesNames);
+        Assert.Contains("Midpoint", surface.SeriesNames);
+        Assert.Contains("Price", surface.SeriesNames);
         Assert.NotEmpty(surface.Points);
 
         // Colours come from theme roles, never literals, or the picture is unreadable in one theme.
-        Assert.Contains(surface.Calls, call => call.StartsWith("Theme:", StringComparison.Ordinal));
+        Assert.Contains(surface.Calls, call => call.Kind == "Theme");
 
         await runtime.StopAsync();
     }
@@ -258,7 +258,7 @@ public sealed class SandboxSampleTests
         var empty = new RecordingRenderSurface();
         kernel.Draw(empty);
         Assert.Single(empty.Panels);
-        Assert.Contains(empty.Texts, text => text.Contains("Waiting", StringComparison.Ordinal));
+        Assert.Contains(empty.Texts, entry => entry.Text.Contains("Waiting", StringComparison.Ordinal));
 
         await kernel.OnStartAsync(context, CancellationToken.None);
 
@@ -274,8 +274,8 @@ public sealed class SandboxSampleTests
         var surface = new RecordingRenderSurface();
         kernel.Draw(surface);
 
-        Assert.Contains("Fast SMA", surface.Series_);
-        Assert.Contains("Slow SMA", surface.Series_);
+        Assert.Contains("Fast SMA", surface.SeriesNames);
+        Assert.Contains("Slow SMA", surface.SeriesNames);
         Assert.NotEmpty(surface.Points);
 
         // Two book intents were submitted, so two crosses must be marked. The picture and the book

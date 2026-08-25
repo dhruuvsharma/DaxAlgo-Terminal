@@ -90,7 +90,7 @@ public sealed class DrawingRoutineTests
     public void TheLadderScalesToTheLargestSizeInView_NotTheWholeBook()
     {
         // A far-touch iceberg must not flatten the bars at the touch, which is where attention is.
-        var surface = new RecordingSurface(200d, 200d);
+        var surface = Surface(200d, 200d);
         var depth = Depth(
             bids: [(99d, 100L), (98d, 50L)],
             asks: [(100d, 25L), (101d, 10L)]);
@@ -105,7 +105,7 @@ public sealed class DrawingRoutineTests
     [Fact]
     public void TheLadderPutsAsksAboveBids()
     {
-        var surface = new RecordingSurface(200d, 200d);
+        var surface = Surface(200d, 200d);
         var depth = Depth(bids: [(99d, 10L)], asks: [(100d, 10L)]);
 
         Ladder.Draw(surface, depth, new LadderOptions(Levels: 1, RowHeight: 20d));
@@ -118,7 +118,7 @@ public sealed class DrawingRoutineTests
     [Fact]
     public void ALadderWithNoDepthDrawsNothing()
     {
-        var surface = new RecordingSurface(200d, 200d);
+        var surface = Surface(200d, 200d);
 
         Ladder.Draw(surface, depth: null);
         Ladder.Draw(surface, Depth([], []));
@@ -130,7 +130,7 @@ public sealed class DrawingRoutineTests
     public void ZeroSizedLevelsDoNotDrawABar()
     {
         // An exhausted level still has a price row, but a zero-length bar is noise.
-        var surface = new RecordingSurface(200d, 200d);
+        var surface = Surface(200d, 200d);
         var depth = Depth(bids: [(99d, 0L)], asks: [(100d, 10L)]);
 
         Ladder.Draw(surface, depth, new LadderOptions(Levels: 1, RowHeight: 20d));
@@ -143,7 +143,7 @@ public sealed class DrawingRoutineTests
     [Fact]
     public void CandlesAutoScaleToTheirOwnHighsAndLows()
     {
-        var surface = new RecordingSurface(300d, 200d);
+        var surface = Surface(300d, 200d);
 
         var range = Candles.Draw(surface, [Bar(10d, 12d, 9d, 11d), Bar(11d, 15d, 10d, 14d)]);
 
@@ -157,7 +157,7 @@ public sealed class DrawingRoutineTests
     public void ADojiStillGetsAVisibleBody()
     {
         // Open == close is a zero-height rectangle, which would simply disappear.
-        var surface = new RecordingSurface(300d, 200d);
+        var surface = Surface(300d, 200d);
 
         Candles.Draw(surface, [Bar(10d, 11d, 9d, 10d)]);
 
@@ -167,7 +167,7 @@ public sealed class DrawingRoutineTests
     [Fact]
     public void NoBarsDrawsNothingAndReportsAnInvalidRange()
     {
-        var surface = new RecordingSurface(300d, 200d);
+        var surface = Surface(300d, 200d);
 
         var range = Candles.Draw(surface, []);
 
@@ -181,7 +181,7 @@ public sealed class DrawingRoutineTests
     public void TheCrosshairDrawsNothingWhenThePointerIsElsewhere()
     {
         // Callable unconditionally: a visualizer should not have to test the cursor itself.
-        var surface = new RecordingSurface(200d, 200d);
+        var surface = Surface(200d, 200d);
 
         Plot.Crosshair(surface, new PlotRange(0d, 100d));
 
@@ -191,7 +191,7 @@ public sealed class DrawingRoutineTests
     [Fact]
     public void TheCrosshairReadsOutTheValueUnderThePointer()
     {
-        var surface = new RecordingSurface(200d, 200d) { CursorState = new RenderCursor(50d, 100d, true, false) };
+        var surface = Surface(200d, 200d, new RenderCursor(50d, 100d, true, false));
 
         Plot.Crosshair(surface, new PlotRange(0d, 200d));
 
@@ -213,47 +213,9 @@ public sealed class DrawingRoutineTests
     private static OhlcvBar Bar(double open, double high, double low, double close) =>
         new(new InstrumentId(1), BarSize.OneMinute, DateTime.UnixEpoch, open, high, low, close, 1L, BrokerKind.Binance, true);
 
-    /// <summary>A surface that remembers what it was asked to draw, so routines are testable headlessly.</summary>
-    private sealed class RecordingSurface(double width, double height) : IRenderSurface
-    {
-        internal List<(double X, double Y, double Width, double Height)> Rectangles { get; } = [];
-
-        internal List<(double X1, double Y1, double X2, double Y2)> Lines { get; } = [];
-
-        internal List<(double X, double Y, string Text)> Texts { get; } = [];
-
-        internal RenderCursor CursorState { get; init; } = new(0d, 0d, false, false);
-
-        public RenderViewport Viewport => new(width, height, 1d);
-
-        public RenderCursor Cursor => CursorState;
-
-        public RenderColor Theme(RenderThemeColor token) => new(1, 2, 3);
-
-        public void SetStyle(RenderStyle style) { }
-
-        public IDisposable Panel(string title, RenderPanelKind kind) => new Scope();
-
-        public void AxisX(double minimum, double maximum, string? format = null) { }
-
-        public void AxisY(double minimum, double maximum, string? format = null) { }
-
-        public IDisposable Series(string name, RenderSeriesKind kind) => new Scope();
-
-        public void Push(double x, double y) { }
-
-        public void Line(double x1, double y1, double x2, double y2) => Lines.Add((x1, y1, x2, y2));
-
-        public void Rect(double x, double y, double width, double height, bool filled = true) =>
-            Rectangles.Add((x, y, width, height));
-
-        public void Text(double x, double y, string text) => Texts.Add((x, y, text));
-
-        public void Marker(double x, double y, RenderMarkerShape shape) { }
-
-        private sealed class Scope : IDisposable
-        {
-            public void Dispose() { }
-        }
-    }
+    /// <summary>The shared recorder from the SDK, sized for these tests. It is the same class the draw
+    /// probe (#46) verifies authored units with, and the same one an author tests their own Draw with —
+    /// there were three private copies of this idea before it moved into the SDK.</summary>
+    private static RecordingRenderSurface Surface(double width, double height, RenderCursor? cursor = null) =>
+        new(new RenderViewport(width, height, 1d), cursor);
 }
