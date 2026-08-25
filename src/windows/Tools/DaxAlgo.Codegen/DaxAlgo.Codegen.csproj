@@ -17,6 +17,10 @@
          is REFLECTED from the SDK rather than described by hand — the previous pack drifted precisely
          because its generator went missing and the prose was left to be maintained manually. -->
     <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+    <!-- SandboxParameters, so the verifier converts declared values EXACTLY as the host does. A
+         second implementation would eventually disagree, and a verifier that disagrees with the host
+         either passes units that fail live or fails units that would have worked. -->
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.Sandbox\TradingTerminal.Sandbox.csproj" />
     <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
   </ItemGroup>
 

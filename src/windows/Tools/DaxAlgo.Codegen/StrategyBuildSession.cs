@@ -2,6 +2,8 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 
+using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
+
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
 /// <summary>What one turn of the conversation produced.</summary>
@@ -352,35 +354,60 @@ public sealed class StrategyBuildSession
     }
 
     /// <summary>
-    /// The backtest-smoke pass (Deep/Max build effort): drive the compiled strategy's lifecycle over
-    /// synthetic ticks to catch runtime throws. A failure is appended as a WARNING diagnostic — the turn
-    /// stays <see cref="BuildTurnKind.Compiled"/>, because a smoke is advice, not a gate.
+    /// The verification pass (Deep/Max build effort): instantiate the compiled unit, drive it through a
+    /// short awkward series, and read back what it drew and what it did to its book.
+    ///
+    /// <para>This replaced a backtest smoke that ran forty-eight fabricated ticks past a stub clock and
+    /// a stub router. It needed the engine-era registration type, so for a unit written against the
+    /// contracts the guidance teaches it silently did nothing — and against those stubs a strategy could
+    /// not fail in any way that mattered, because the only thing it could do was place an order into
+    /// nothing.</para>
+    ///
+    /// <para>Findings are appended as warnings and the turn stays <see cref="BuildTurnKind.Compiled"/>:
+    /// the ladder is advice at this point in the flow, not a gate. Making it a gate is a decision about
+    /// the agent loop, not about the verifier.</para>
     /// </summary>
-    private async Task<StrategyCompileResult> SmokeAsync(
+    private Task<StrategyCompileResult> SmokeAsync(
         StrategyCompileResult compile, IProgress<string>? activity, CancellationToken ct)
     {
-        if (compile.Option is null) return compile;
+        ct.ThrowIfCancellationRequested();
+        if (compile.Unit is null) return Task.FromResult(compile);
 
-        activity?.Report("Backtest smoke: driving the compiled strategy over synthetic ticks…");
-        var failure = await StrategyBacktestSmoke.RunAsync(compile.Option, ct).ConfigureAwait(false);
-        if (failure is null)
+        activity?.Report("Verifying: driving the compiled unit and reading back what it drew…");
+        var report = AuthoredUnitVerifier.Verify(compile.Unit);
+
+        if (report.Passed)
         {
-            activity?.Report("Backtest smoke passed.");
-            return compile;
+            activity?.Report($"Verification passed — {report.RungsCleared} rung(s) cleared.");
+            return Task.FromResult(compile);
         }
 
-        _logger?.LogWarning("Backtest smoke failed for {Id}: {Failure}", StrategyId, failure);
-        activity?.Report($"Backtest smoke failed: {failure}");
-        return compile with
+        _logger?.LogWarning(
+            "Verification failed for {Id} at rung {Rung}: {Findings}",
+            StrategyId,
+            report.FailedAt,
+            string.Join("; ", report.Findings.Select(f => f.Code)));
+
+        foreach (var finding in report.Findings)
+            activity?.Report($"Verification: {finding.Message}");
+
+        return Task.FromResult(compile with
         {
             Diagnostics =
             [
                 .. compile.Diagnostics,
-                new StrategyDiagnostic(
-                    StrategyDiagnosticSeverity.Warning, "SMOKE001",
-                    $"Backtest smoke (advisory): {failure}", 0, 0),
+                // Line 0 / column 0: a verification finding is about the unit's behaviour, not about a
+                // position in the file, and pointing at line 1 would send a reader somewhere arbitrary.
+                .. report.Findings.Select(finding => new StrategyDiagnostic(
+                    StrategyDiagnosticSeverity.Warning,
+                    finding.Code,
+                    finding.Remedy is null
+                        ? finding.Message
+                        : $"{finding.Message} {finding.Remedy}",
+                    Line: 0,
+                    Column: 0)),
             ],
-        };
+        });
     }
 
     /// <summary>
