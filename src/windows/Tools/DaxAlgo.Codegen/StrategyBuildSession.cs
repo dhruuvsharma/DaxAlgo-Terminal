@@ -236,7 +236,7 @@ public sealed class StrategyBuildSession
 
                 // Deep/Max effort: catch the runtime throws a compiler can't. Advisory — a failure lands
                 // as a warning diagnostic, never a block; the user still reviews before registering.
-                if (Profile is { BacktestSmoke: true })
+                if (Profile is { Verify: true })
                     compile = await SmokeAsync(compile, activity, ct).ConfigureAwait(false);
 
                 return new StrategyBuildTurn(

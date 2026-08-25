@@ -538,7 +538,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Tasks.Add(_taskAutoFix = new BuildTask("Auto-fix"));
         _taskReview = profile.SelfReview ? new BuildTask("Self-review") : null;
         if (_taskReview is not null) Tasks.Add(_taskReview);
-        _taskSmoke = profile.BacktestSmoke ? new BuildTask("Backtest smoke") : null;
+        _taskSmoke = profile.Verify ? new BuildTask("Verification") : null;
         if (_taskSmoke is not null) Tasks.Add(_taskSmoke);
 
         _taskBrief!.State = BuildTaskState.Running;

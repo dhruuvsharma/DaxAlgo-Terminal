@@ -57,14 +57,46 @@ public static class StrategyBuildEfforts
 /// and improve its own strategy. A review that doesn't compile is discarded, never adopted.</param>
 /// <param name="BacktestSmoke">After a clean compile, run the strategy's lifecycle over a handful of
 /// synthetic ticks purely to catch runtime throws. Advisory — a failure is a diagnostic, not a block.</param>
-public sealed record StrategyBuildProfile(int MaxSkills, int MaxFixAttempts, bool SelfReview, bool BacktestSmoke)
+/// <param name="Verify">
+/// Run the verification ladder on what was produced. Called <c>BacktestSmoke</c> until 2026-08-25, after
+/// the pass it named had been replaced — the smoke drove fabricated ticks past a stub router; this
+/// drives the unit through its real lifecycle and reads back what it drew and what it did to its book.
+/// </param>
+/// <param name="UseAgents">
+/// Build through the six specialised agents rather than one conversation.
+///
+/// <para>Effort is the selector because it already means what this decision is about. A user who picks
+/// Deep or Max has said correctness over cost, and the agent split is exactly that trade: more turns,
+/// each narrower, each scored by the rung that owns it. Quick and Standard keep the single thread, which
+/// is cheaper and right for a brief that does not need a committee.</para>
+///
+/// <para>Reusing the existing dial also means no new concept to explain. There is no second toggle, and
+/// no way to ask for extreme quality and quietly get the cheap path.</para>
+/// </param>
+/// <param name="MaxAgentTurns">
+/// The turn budget when <paramref name="UseAgents"/> is set, and it is the user's money. Larger than
+/// <paramref name="MaxFixAttempts"/> because a run spends turns on roles before it spends any on repair:
+/// interview, maths, code, picture and review are five before a single fix.
+/// </param>
+public sealed record StrategyBuildProfile(
+    int MaxSkills,
+    int MaxFixAttempts,
+    bool SelfReview,
+    bool Verify,
+    bool UseAgents = false,
+    int MaxAgentTurns = 0)
 {
     /// <summary>The profile an effort level buys.</summary>
     public static StrategyBuildProfile For(StrategyBuildEffort effort) => effort switch
     {
-        StrategyBuildEffort.Quick => new(MaxSkills: 1, MaxFixAttempts: 1, SelfReview: false, BacktestSmoke: false),
-        StrategyBuildEffort.Deep => new(MaxSkills: 5, MaxFixAttempts: 4, SelfReview: true, BacktestSmoke: true),
-        StrategyBuildEffort.Max => new(MaxSkills: 8, MaxFixAttempts: 6, SelfReview: true, BacktestSmoke: true),
-        _ => new(MaxSkills: 3, MaxFixAttempts: 2, SelfReview: false, BacktestSmoke: false),
+        StrategyBuildEffort.Quick =>
+            new(MaxSkills: 1, MaxFixAttempts: 1, SelfReview: false, Verify: false),
+        StrategyBuildEffort.Deep =>
+            new(MaxSkills: 5, MaxFixAttempts: 4, SelfReview: true, Verify: true,
+                UseAgents: true, MaxAgentTurns: 10),
+        StrategyBuildEffort.Max =>
+            new(MaxSkills: 8, MaxFixAttempts: 6, SelfReview: true, Verify: true,
+                UseAgents: true, MaxAgentTurns: 16),
+        _ => new(MaxSkills: 3, MaxFixAttempts: 2, SelfReview: false, Verify: false),
     };
 }
