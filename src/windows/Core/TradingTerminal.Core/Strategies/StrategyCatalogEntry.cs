@@ -2,6 +2,8 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
 
+using TradingTerminal.Core.Strategies.Legacy;
+
 namespace TradingTerminal.Core.Strategies;
 
 /// <summary>

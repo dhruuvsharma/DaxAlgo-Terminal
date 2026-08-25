@@ -119,7 +119,7 @@ public sealed class AuthoredContractDiscoveryTests
         // Core is a published contract package. Refusing this would break every plugin already out
         // there, which is a different problem from making it the thing we teach.
         var result = Compile("""
-            public sealed class OldStrategy : TradingTerminal.Core.Strategies.IOrderRoutedStrategy
+            public sealed class OldStrategy : TradingTerminal.Core.Strategies.Legacy.IOrderRoutedStrategy
             {
                 public OldStrategy(Contract contract) { }
                 public Task OnStartAsync(TradingTerminal.Core.Time.IClock c, TradingTerminal.Core.Trading.IOrderRouter r, CancellationToken ct) => Task.CompletedTask;

@@ -11,6 +11,8 @@ using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Parameters;
 using TradingTerminal.Infrastructure.Plugins;
 
+using TradingTerminal.Core.Strategies.Legacy;
+
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
 /// <summary>

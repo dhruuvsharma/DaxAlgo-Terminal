@@ -5,6 +5,8 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
+using TradingTerminal.Core.Strategies.Legacy;
+
 namespace TradingTerminal.Sandbox;
 
 /// <summary>

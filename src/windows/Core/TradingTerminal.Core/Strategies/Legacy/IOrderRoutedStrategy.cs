@@ -2,7 +2,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Core.Strategies;
+namespace TradingTerminal.Core.Strategies.Legacy;
 
 /// <summary>
 /// Engine-facing strategy contract. Implementations receive ticks in chronological order

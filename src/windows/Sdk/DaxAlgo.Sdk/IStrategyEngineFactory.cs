@@ -3,6 +3,8 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
 
+using TradingTerminal.Core.Strategies.Legacy;
+
 namespace DaxAlgo.Sdk;
 
 /// <summary>

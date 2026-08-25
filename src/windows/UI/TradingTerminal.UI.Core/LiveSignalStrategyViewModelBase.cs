@@ -14,6 +14,8 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
+using TradingTerminal.Core.Strategies.Legacy;
+
 namespace TradingTerminal.UI;
 
 /// <summary>

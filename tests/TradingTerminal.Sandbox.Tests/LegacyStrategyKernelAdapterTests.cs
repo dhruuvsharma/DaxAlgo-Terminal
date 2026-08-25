@@ -8,6 +8,8 @@ using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using Xunit;
 
+using TradingTerminal.Core.Strategies.Legacy;
+
 namespace TradingTerminal.Sandbox.Tests;
 
 public sealed class LegacyStrategyKernelAdapterTests
