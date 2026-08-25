@@ -125,3 +125,95 @@ public sealed class InMemoryMarketDataHub : IMarketDataHub
         }
     }
 }
+
+/// <summary>
+/// Captures what a <c>Draw</c> call produced, so drawing can be tested the same way any other output
+/// is — by asserting on it.
+///
+/// <para>This is how you check your own visualizer. <c>Draw</c> takes an interface, not a control, so
+/// nothing here needs a window, a dispatcher or a running host: construct one of these, call
+/// <c>Draw</c>, and read what came back. A visualizer that compiles and paints nothing is the easiest
+/// mistake to ship and the hardest to notice, because the panel simply looks empty.</para>
+/// </summary>
+public sealed class RecordingRenderSurface(double width = 800d, double height = 400d) : IRenderSurface
+{
+    private readonly List<string> _calls = [];
+
+    /// <summary>Every primitive call, in order, as `name` or `name:detail`.</summary>
+    public IReadOnlyList<string> Calls => _calls;
+
+    /// <summary>Panel titles in the order they were opened.</summary>
+    public IReadOnlyList<string> Panels { get; } = new List<string>();
+
+    /// <summary>Series names in the order they were opened.</summary>
+    public List<string> Series_ { get; } = [];
+
+    /// <summary>Every point pushed into any series.</summary>
+    public List<(double X, double Y)> Points { get; } = [];
+
+    /// <summary>Text drawn, in order.</summary>
+    public List<string> Texts { get; } = [];
+
+    /// <summary>Markers drawn, in order.</summary>
+    public List<(double X, double Y, RenderMarkerShape Shape)> Markers { get; } = [];
+
+    public RenderViewport Viewport { get; } = new(width, height, 1d);
+
+    public RenderCursor Cursor { get; init; } = new(0d, 0d, false, false);
+
+    public RenderColor Theme(RenderThemeColor token)
+    {
+        _calls.Add($"Theme:{token}");
+        return new RenderColor(128, 128, 128);
+    }
+
+    public void SetStyle(RenderStyle style) => _calls.Add("SetStyle");
+
+    public IDisposable Panel(string title, RenderPanelKind kind)
+    {
+        _calls.Add($"Panel:{title}");
+        ((List<string>)Panels).Add(title);
+        return new Scope();
+    }
+
+    public void AxisX(double minimum, double maximum, string? format = null) =>
+        _calls.Add($"AxisX:{minimum}:{maximum}");
+
+    public void AxisY(double minimum, double maximum, string? format = null) =>
+        _calls.Add($"AxisY:{minimum}:{maximum}");
+
+    public IDisposable Series(string name, RenderSeriesKind kind)
+    {
+        _calls.Add($"Series:{name}");
+        Series_.Add(name);
+        return new Scope();
+    }
+
+    public void Push(double x, double y)
+    {
+        _calls.Add("Push");
+        Points.Add((x, y));
+    }
+
+    public void Line(double x1, double y1, double x2, double y2) => _calls.Add("Line");
+
+    public void Rect(double x, double y, double width, double height, bool filled = true) =>
+        _calls.Add("Rect");
+
+    public void Text(double x, double y, string text)
+    {
+        _calls.Add($"Text:{text}");
+        Texts.Add(text);
+    }
+
+    public void Marker(double x, double y, RenderMarkerShape shape)
+    {
+        _calls.Add($"Marker:{shape}");
+        Markers.Add((x, y, shape));
+    }
+
+    private sealed class Scope : IDisposable
+    {
+        public void Dispose() { }
+    }
+}

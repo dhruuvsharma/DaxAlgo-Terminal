@@ -1,4 +1,5 @@
 using DaxAlgo.Sdk;
+using DaxAlgo.Sdk.Drawing;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -69,6 +70,28 @@ public sealed class SpreadBandVisualizer : IVisualizer
         StrategyDataRequirement.Bars | StrategyDataRequirement.L1;
 
     public SpreadBandViewState ViewState { get; private set; } = SpreadBandViewState.Empty;
+
+    /// <summary>
+    /// What the picture is drawn from.
+    ///
+    /// <para><see cref="Draw"/> receives only a surface — no context, no market data — because it runs
+    /// on the render thread while the data callbacks run on a pump thread that may fire far faster.
+    /// So the shape of every visualizer is the same: compute in the callbacks, keep what the picture
+    /// needs, and draw from that.</para>
+    ///
+    /// <para>Bounded on purpose. A visualizer lives as long as its window, and an unbounded history is
+    /// a memory leak with a tidy name.</para>
+    /// </summary>
+    private const int HistoryCapacity = 240;
+
+    private readonly List<Sample> _history = new(HistoryCapacity);
+
+    private readonly record struct Sample(
+        double Price,
+        double Midpoint,
+        double LowerBand,
+        double UpperBand,
+        bool IsOutsideBand);
 
     public Task OnStartAsync(IVisualizerContext context, CancellationToken ct)
     {
@@ -157,6 +180,8 @@ public sealed class SpreadBandVisualizer : IVisualizer
             upperBand,
             isOutsideBand);
 
+        Record(new Sample(price, midpoint, lowerBand, upperBand, isOutsideBand));
+
         if (isOutsideBand && !_wasOutsideBand)
         {
             var direction = price > upperBand ? "above" : "below";
@@ -167,5 +192,83 @@ public sealed class SpreadBandVisualizer : IVisualizer
         }
 
         _wasOutsideBand = isOutsideBand;
+    }
+
+    private void Record(Sample sample)
+    {
+        // Dropping the oldest costs a shift of at most HistoryCapacity elements, which is nothing at
+        // this size and keeps Draw able to index the list directly — no per-frame copy.
+        if (_history.Count == HistoryCapacity)
+            _history.RemoveAt(0);
+        _history.Add(sample);
+    }
+
+    /// <summary>
+    /// Draws the band and the price that is being measured against it.
+    ///
+    /// <para>Pure and fast, as the contract requires: it reads the retained history and nothing else,
+    /// allocates nothing per frame, and holds no state that would have to survive to the next one.</para>
+    /// </summary>
+    public void Draw(IRenderSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+
+        using var panel = surface.Panel("Spread band", RenderPanelKind.Chart);
+
+        if (_history.Count == 0)
+        {
+            // Say why there is no picture. A blank panel is indistinguishable from a broken one.
+            surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
+            surface.Text(8d, 20d, $"Waiting for {_lookback} bars…");
+            return;
+        }
+
+        var range = PlotRange.Empty;
+        for (var index = 0; index < _history.Count; index++)
+        {
+            var sample = _history[index];
+            range = range.Include(sample.LowerBand).Include(sample.UpperBand).Include(sample.Price);
+        }
+        range = range.Padded();
+
+        // Grid first so everything else draws over it; this declares the Y axis as a side effect.
+        Plot.HorizontalGrid(surface, range);
+        surface.AxisX(0d, Math.Max(1, _history.Count - 1));
+
+        // Theme roles rather than literal colours, so the picture stays legible in every theme.
+        Band(surface, range, RenderThemeColor.Neutral);
+        Line(surface, "Midpoint", RenderThemeColor.Accent, sample => sample.Midpoint);
+        Line(surface, "Price", RenderThemeColor.Text, sample => sample.Price);
+
+        // Mark the breaches — the whole point of the band.
+        surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Warning)));
+        for (var index = 0; index < _history.Count; index++)
+        {
+            if (_history[index].IsOutsideBand)
+                surface.Marker(index, _history[index].Price, RenderMarkerShape.Circle);
+        }
+
+        Plot.Crosshair(surface, range);
+
+        void Band(IRenderSurface target, PlotRange bounds, RenderThemeColor color)
+        {
+            _ = bounds;
+            target.SetStyle(new RenderStyle(target.Theme(color), Dashed: true));
+            Line(target, "Upper band", color, sample => sample.UpperBand, dashed: true);
+            Line(target, "Lower band", color, sample => sample.LowerBand, dashed: true);
+        }
+
+        void Line(
+            IRenderSurface target,
+            string name,
+            RenderThemeColor color,
+            Func<Sample, double> select,
+            bool dashed = false)
+        {
+            target.SetStyle(new RenderStyle(target.Theme(color), Dashed: dashed));
+            using var series = target.Series(name, RenderSeriesKind.Line);
+            for (var index = 0; index < _history.Count; index++)
+                target.Push(index, select(_history[index]));
+        }
     }
 }

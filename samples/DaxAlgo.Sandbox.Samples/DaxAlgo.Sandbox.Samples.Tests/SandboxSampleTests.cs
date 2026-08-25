@@ -128,6 +128,166 @@ public sealed class SandboxSampleTests
         await runtime.StopAsync();
     }
 
+    [Fact]
+    public void SpreadBandVisualizerSaysWhyItIsEmptyBeforeItHasData()
+    {
+        // A blank panel is indistinguishable from a broken one, so an unready visualizer has to say
+        // something. This is the state a user sees for the first few seconds of every session.
+        var surface = new RecordingRenderSurface();
+
+        new SpreadBandVisualizer().Draw(surface);
+
+        Assert.Single(surface.Panels);
+        Assert.Contains(surface.Texts, text => text.Contains("Waiting", StringComparison.Ordinal));
+        Assert.Empty(surface.Points);
+    }
+
+    [Fact]
+    public async Task SpreadBandVisualizerDrawsTheBandItComputed()
+    {
+        // The check the samples did not have: that a visualizer which computes correctly also PAINTS.
+        // Compiling and drawing nothing is the easiest mistake to ship and the hardest to notice.
+        var instrument = new InstrumentId(7202);
+        var hub = new InMemoryMarketDataHub();
+        SpreadBandVisualizer? visualizer = null;
+        await using var runtime = new SandboxVisualizerRuntime(
+            () => visualizer = new SpreadBandVisualizer(),
+            new Dictionary<string, object?>
+            {
+                [SpreadBandVisualizer.InstrumentParameter] = instrument,
+                [SpreadBandVisualizer.LookbackParameter] = 3,
+                [SpreadBandVisualizer.BandMultiplierParameter] = 2d,
+            },
+            hub,
+            new TestClock(Epoch),
+            (_, _, _) => { },
+            _ => { });
+
+        await runtime.StartAsync();
+        hub.PublishBar(BarFor(instrument, 0, 99d));
+        hub.PublishBar(BarFor(instrument, 1, 100d));
+        hub.PublishBar(BarFor(instrument, 2, 101d));
+        await WaitUntilAsync(() => visualizer?.ViewState is { IsReady: true });
+
+        var surface = new RecordingRenderSurface();
+        visualizer!.Draw(surface);
+
+        // Four series: two band edges, the midpoint, and the price being measured against them.
+        Assert.Contains("Upper band", surface.Series_);
+        Assert.Contains("Lower band", surface.Series_);
+        Assert.Contains("Midpoint", surface.Series_);
+        Assert.Contains("Price", surface.Series_);
+        Assert.NotEmpty(surface.Points);
+
+        // Colours come from theme roles, never literals, or the picture is unreadable in one theme.
+        Assert.Contains(surface.Calls, call => call.StartsWith("Theme:", StringComparison.Ordinal));
+
+        await runtime.StopAsync();
+    }
+
+    [Fact]
+    public async Task SpreadBandVisualizerMarksTheBreach()
+    {
+        // The band exists to show breaches, so the breach has to be visible in the picture and not
+        // only in the alert.
+        var instrument = new InstrumentId(7203);
+        var hub = new InMemoryMarketDataHub();
+        SpreadBandVisualizer? visualizer = null;
+        await using var runtime = new SandboxVisualizerRuntime(
+            () => visualizer = new SpreadBandVisualizer(),
+            new Dictionary<string, object?>
+            {
+                [SpreadBandVisualizer.InstrumentParameter] = instrument,
+                [SpreadBandVisualizer.LookbackParameter] = 3,
+                [SpreadBandVisualizer.BandMultiplierParameter] = 2d,
+            },
+            hub,
+            new TestClock(Epoch),
+            (_, _, _) => { },
+            _ => { });
+
+        await runtime.StartAsync();
+        hub.PublishBar(BarFor(instrument, 0, 99d));
+        hub.PublishBar(BarFor(instrument, 1, 100d));
+        hub.PublishBar(BarFor(instrument, 2, 101d));
+        await WaitUntilAsync(() => visualizer?.ViewState is { IsReady: true });
+        hub.PublishQuote(QuoteFor(instrument, sequence: 1, bid: 109d, ask: 111d));
+        await WaitUntilAsync(() => visualizer?.ViewState.IsOutsideBand == true);
+
+        var surface = new RecordingRenderSurface();
+        visualizer!.Draw(surface);
+
+        Assert.NotEmpty(surface.Markers);
+
+        await runtime.StopAsync();
+    }
+
+    [Fact]
+    public async Task MovingAverageCrossDrawsBothAveragesAndMarksTheCross()
+    {
+        // A strategy is not obliged to draw, but when it does the picture has to show the signal it
+        // acted on — otherwise the chart and the book disagree about what happened.
+        var instrument = new InstrumentId(7102);
+        var kernel = new MovingAverageCrossKernel();
+        var hub = new InMemoryMarketDataHub();
+        var clock = new TestClock(Epoch);
+        var book = new RecordingVirtualBook();
+        var parameters = new SandboxParameters(
+            kernel.Schema,
+            new Dictionary<string, object?>
+            {
+                [MovingAverageCrossKernel.InstrumentParameter] = instrument,
+                [MovingAverageCrossKernel.FastPeriodParameter] = 2,
+                [MovingAverageCrossKernel.SlowPeriodParameter] = 3,
+                [MovingAverageCrossKernel.UseProtectiveStopParameter] = true,
+                [MovingAverageCrossKernel.ProtectiveStopPercentParameter] = 5d,
+            });
+        using var data = new ScopedMarketDataView(
+            new HashSet<InstrumentId> { instrument },
+            kernel.DataRequirement,
+            hub,
+            retentionBound: 16);
+        var context = new TestStrategyRuntimeContext(
+            data,
+            clock,
+            parameters,
+            book,
+            new MediatedAlertSink(nameof(MovingAverageCrossKernel), clock, (_, _, _) => { }, _ => { }));
+
+        // Before any data: the panel must explain itself rather than sit blank.
+        var empty = new RecordingRenderSurface();
+        kernel.Draw(empty);
+        Assert.Single(empty.Panels);
+        Assert.Contains(empty.Texts, text => text.Contains("Waiting", StringComparison.Ordinal));
+
+        await kernel.OnStartAsync(context, CancellationToken.None);
+
+        // The same series that produces a long then a flat target in the test above.
+        var closes = new[] { 3d, 2d, 1d, 4d, 0d, 0d };
+        for (var index = 0; index < closes.Length; index++)
+        {
+            var bar = BarFor(instrument, index, closes[index]);
+            hub.PublishBar(bar);
+            await kernel.OnBarAsync(bar, context, CancellationToken.None);
+        }
+
+        var surface = new RecordingRenderSurface();
+        kernel.Draw(surface);
+
+        Assert.Contains("Fast SMA", surface.Series_);
+        Assert.Contains("Slow SMA", surface.Series_);
+        Assert.NotEmpty(surface.Points);
+
+        // Two book intents were submitted, so two crosses must be marked. The picture and the book
+        // have to tell the same story.
+        Assert.Equal(book.Intents.Count, surface.Markers.Count);
+        Assert.Equal(2, surface.Markers.Count);
+
+        // Shape carries the direction, not colour alone.
+        Assert.Contains(surface.Markers, marker => marker.Shape == RenderMarkerShape.Triangle);
+        Assert.Contains(surface.Markers, marker => marker.Shape == RenderMarkerShape.Diamond);
+    }
+
     private static OhlcvBar BarFor(InstrumentId instrument, int sequence, double close) =>
         new(
             instrument,
