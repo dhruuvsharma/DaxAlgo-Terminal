@@ -5,7 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using DaxAlgo.Sdk;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -17,8 +17,8 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// Roslyn-backed <see cref="IStrategyCompiler"/>. Compiles a user's C# source into an
 /// in-memory assembly, reflects out the single class that implements
 /// <see cref="IStrategyKernel"/> or <see cref="IVisualizer"/> — and, for already-installed plugins,
-/// the retired <see cref="IBacktestStrategy"/> — packaging the latter as a runnable
-/// <see cref="BacktestStrategyOption"/> so an authored strategy is a first-class citizen
+/// the retired <see cref="IOrderRoutedStrategy"/> — packaging the latter as a runnable
+/// <see cref="StrategyCatalogEntry"/> so an authored strategy is a first-class citizen
 /// of the catalog/backtester with no recompile of the host.
 ///
 /// A set of <c>global using</c>s is injected as a separate syntax tree so user source stays
@@ -38,7 +38,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         global using TradingTerminal.Core.Domain;
         global using TradingTerminal.Core.Trading;
         global using TradingTerminal.Core.Time;
-        global using TradingTerminal.Core.Backtest;
+        global using TradingTerminal.Core.Strategies;
         global using TradingTerminal.Core.MarketData;
         global using TradingTerminal.Core.Strategies;
         global using TradingTerminal.Core.Strategies.Parameters;
@@ -120,7 +120,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             var assembly = Assembly.Load(image);
 
             // What did the author actually write? Asked before anything is bound, so a submission written
-            // against the current contracts gets a real answer rather than "no IBacktestStrategy found",
+            // against the current contracts gets a real answer rather than "no IOrderRoutedStrategy found",
             // which is what it used to get and which sent people looking for a mistake they had not made.
             var unit = FindUnit(assembly, out var findError);
             if (unit is null)
@@ -130,7 +130,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             if (!unit.UsesRetiredContract)
             {
                 // A sandbox unit is compiled, scanned and shaped — everything short of registration, which
-                // still runs through the engine-era BacktestStrategyOption and is the next slice of this
+                // still runs through the engine-era StrategyCatalogEntry and is the next slice of this
                 // work. Reporting it as a success with the unit attached lets the verification ladder do
                 // its job today instead of waiting for the registration path to be rebuilt.
                 return StrategyCompileResult.CompiledWithoutRegistration(
@@ -198,7 +198,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
     /// Finds the one hostable type in a compiled submission.
     ///
     /// <para>Authoring targets <c>IStrategyKernel</c> and <c>IVisualizer</c>, so those are looked for
-    /// first. <c>IBacktestStrategy</c> is still accepted — <c>TradingTerminal.Core</c> is a published
+    /// first. <c>IOrderRoutedStrategy</c> is still accepted — <c>TradingTerminal.Core</c> is a published
     /// contract package and installed plugins implement it — but it is reported as the retired contract
     /// it is, rather than silently treated as current.</para>
     ///
@@ -213,7 +213,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         var classes = assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract).ToArray();
         var kernels = classes.Where(t => typeof(IStrategyKernel).IsAssignableFrom(t)).ToArray();
         var visualizers = classes.Where(t => typeof(IVisualizer).IsAssignableFrom(t)).ToArray();
-        var legacy = classes.Where(t => typeof(IBacktestStrategy).IsAssignableFrom(t)).ToArray();
+        var legacy = classes.Where(t => typeof(IOrderRoutedStrategy).IsAssignableFrom(t)).ToArray();
 
         var total = kernels.Length + visualizers.Length + legacy.Length;
         if (total == 0)
@@ -228,7 +228,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             var found = string.Join(", ", kernels.Concat(visualizers).Concat(legacy).Select(t => t.Name));
             error = kernels.Length + visualizers.Length > 0 && legacy.Length > 0
                 ? $"Found both a current and a retired contract ({found}). Keep the IStrategyKernel or "
-                  + "IVisualizer implementation and delete the IBacktestStrategy one."
+                  + "IVisualizer implementation and delete the IOrderRoutedStrategy one."
                 : $"Found {total} hostable classes ({found}); define exactly one.";
             return null;
         }
@@ -238,25 +238,25 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         return new AuthoredUnit(AuthoringKind.Strategy, legacy[0], UsesRetiredContract: true);
     }
 
-    /// <summary>Resolves the single <see cref="IBacktestStrategy"/> class and wires its factory
-    /// (and optional declarative-parameter members) into a <see cref="BacktestStrategyOption"/>.</summary>
-    private static BacktestStrategyOption? BuildOption(
+    /// <summary>Resolves the single <see cref="IOrderRoutedStrategy"/> class and wires its factory
+    /// (and optional declarative-parameter members) into a <see cref="StrategyCatalogEntry"/>.</summary>
+    private static StrategyCatalogEntry? BuildOption(
         StrategyScript script, Assembly assembly, out Type? kernelType, out string? error)
     {
         error = null;
         kernelType = null;
         var candidates = assembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && typeof(IBacktestStrategy).IsAssignableFrom(t))
+            .Where(t => t.IsClass && !t.IsAbstract && typeof(IOrderRoutedStrategy).IsAssignableFrom(t))
             .ToArray();
 
         if (candidates.Length == 0)
         {
-            error = "No public class implementing IBacktestStrategy was found.";
+            error = "No public class implementing IOrderRoutedStrategy was found.";
             return null;
         }
         if (candidates.Length > 1)
         {
-            error = $"Found {candidates.Length} IBacktestStrategy classes; define exactly one " +
+            error = $"Found {candidates.Length} IOrderRoutedStrategy classes; define exactly one " +
                     $"({string.Join(", ", candidates.Select(t => t.Name))}).";
             return null;
         }
@@ -270,13 +270,13 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         }
 
         kernelType = type;
-        Func<Contract, IBacktestStrategy> build = contract =>
-            (IBacktestStrategy)ctor.Invoke(new object[] { contract });
+        Func<Contract, IOrderRoutedStrategy> build = contract =>
+            (IOrderRoutedStrategy)ctor.Invoke(new object[] { contract });
 
         var schema = ReadStaticSchema(type);
         var parameterizedBuild = ReadParameterizedBuild(type);
 
-        return new BacktestStrategyOption(script.Id, script.DisplayName, build)
+        return new StrategyCatalogEntry(script.Id, script.DisplayName, build)
         {
             Schema = schema ?? StrategyParameterSchema.Empty,
             ParameterizedBuild = parameterizedBuild,
@@ -292,18 +292,18 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
             : null;
     }
 
-    /// <summary>Reads an optional <c>public static IBacktestStrategy Create(Contract, StrategyParameters)</c>.</summary>
-    private static Func<Contract, StrategyParameters, IBacktestStrategy>? ReadParameterizedBuild(Type type)
+    /// <summary>Reads an optional <c>public static IOrderRoutedStrategy Create(Contract, StrategyParameters)</c>.</summary>
+    private static Func<Contract, StrategyParameters, IOrderRoutedStrategy>? ReadParameterizedBuild(Type type)
     {
         var method = type.GetMethod(
             "Create", BindingFlags.Public | BindingFlags.Static, binder: null,
             types: new[] { typeof(Contract), typeof(StrategyParameters) }, modifiers: null);
 
-        if (method is null || !typeof(IBacktestStrategy).IsAssignableFrom(method.ReturnType))
+        if (method is null || !typeof(IOrderRoutedStrategy).IsAssignableFrom(method.ReturnType))
             return null;
 
         return (contract, parameters) =>
-            (IBacktestStrategy)method.Invoke(null, new object[] { contract, parameters })!;
+            (IOrderRoutedStrategy)method.Invoke(null, new object[] { contract, parameters })!;
     }
 
     /// <summary>
@@ -335,9 +335,9 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
                 references.Add(MetadataReference.CreateFromFile(path));
         }
 
-        // Core (IBacktestStrategy, Contract, StrategyParameters, …) — belt and braces if it somehow
+        // Core (IOrderRoutedStrategy, Contract, StrategyParameters, …) — belt and braces if it somehow
         // wasn't in the platform set.
-        var core = typeof(IBacktestStrategy).Assembly;
+        var core = typeof(IOrderRoutedStrategy).Assembly;
         if (!string.IsNullOrEmpty(core.Location) && seen.Add(Path.GetFileNameWithoutExtension(core.Location)))
             references.Add(MetadataReference.CreateFromFile(core.Location));
 

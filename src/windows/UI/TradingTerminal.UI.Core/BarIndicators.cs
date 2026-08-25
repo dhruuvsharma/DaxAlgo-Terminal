@@ -8,7 +8,7 @@ namespace TradingTerminal.UI;
 /// Bar-level indicator computation used by strategy VMs for chart visualisation.
 /// These are *not* the tick-level indicators the engine strategies run on — they're
 /// a visual approximation computed on the 15s aggregated bars. The actual trading
-/// signal runs inside the wrapped <see cref="Core.Backtest.IBacktestStrategy"/> at
+/// signal runs inside the wrapped <see cref="Core.Backtest.IOrderRoutedStrategy"/> at
 /// tick granularity, just like in backtest.
 /// </summary>
 public static class BarIndicators

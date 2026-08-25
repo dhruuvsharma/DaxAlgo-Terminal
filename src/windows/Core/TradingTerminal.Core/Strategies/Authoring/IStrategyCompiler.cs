@@ -2,7 +2,7 @@ namespace TradingTerminal.Core.Strategies.Authoring;
 
 /// <summary>
 /// Compiles a user-authored <see cref="StrategyScript"/> into a runnable
-/// <see cref="Backtest.IBacktestStrategy"/> at runtime — no project, no recompile of the
+/// <see cref="Legacy.IOrderRoutedStrategy"/> at runtime — no project, no recompile of the
 /// host. The concrete compiler (Roslyn) lives in Infrastructure so no compiler types leak
 /// into Core or UI; consumers depend only on this seam.
 ///

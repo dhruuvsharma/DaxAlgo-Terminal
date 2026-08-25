@@ -33,7 +33,7 @@ public sealed class PluginPolicyScannerTests
             namespace TradingTerminal.Recording.SandboxProbe { public sealed class Marker { } }
             namespace TradingTerminal.Core.Brokers.SandboxProbe { public sealed class Marker { } }
             namespace TradingTerminal.Core.Trading.SandboxProbe { public sealed class Marker { } }
-            namespace TradingTerminal.Core.Backtest.SandboxProbe { public sealed class Marker { } }
+            namespace TradingTerminal.Core.Strategies.SandboxProbe { public sealed class Marker { } }
 
             namespace TradingTerminal.Extensions
             {
@@ -204,7 +204,7 @@ public sealed class PluginPolicyScannerTests
                      "TradingTerminal.Recording.SandboxProbe.Marker",
                      "TradingTerminal.Core.Brokers.SandboxProbe.Marker",
                      "TradingTerminal.Core.Trading.SandboxProbe.Marker",
-                     "TradingTerminal.Core.Backtest.SandboxProbe.Marker",
+                     "TradingTerminal.Core.Strategies.SandboxProbe.Marker",
                      "TradingTerminal.Extensions.SecretStore",
                      "TradingTerminal.Extensions.SecretRepository",
                      "TradingTerminal.Extensions.SecretBrokerClient",

@@ -122,7 +122,7 @@ async Task<int> AiAsync(Dictionary<string, string> o)
         var pack = StrategyContextPack.Load().SystemPrompt;
         var instruction =
             $"Write the complete kernel file for {kernelPath} — namespace {name}.Engine, a public class " +
-            $"{name}Kernel implementing IBacktestStrategy with a public ({{Contract}}) constructor, plus the " +
+            $"{name}Kernel implementing IOrderRoutedStrategy with a public ({{Contract}}) constructor, plus the " +
             $"usings it needs. {prompt}. Return only the file, in a ```csharp fence.";
         if (!await GenerateKernelAsync(client, pack, instruction, kernelPath, MaxAttempts(o), output, name)) return 1;
     }

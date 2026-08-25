@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Brokers.CTrader;
 using TradingTerminal.Core.Configuration;

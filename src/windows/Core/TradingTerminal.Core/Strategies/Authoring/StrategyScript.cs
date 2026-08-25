@@ -15,7 +15,7 @@ public sealed record StrategyFile(string Name, string Content)
 
 /// <summary>
 /// A user-authored strategy awaiting compilation: a stable id, a friendly display name, and one or more
-/// C# files that together define a single public class implementing <see cref="Backtest.IBacktestStrategy"/>
+/// C# files that together define a single public class implementing <see cref="Legacy.IOrderRoutedStrategy"/>
 /// with a public <c>(Contract)</c> constructor.
 ///
 /// The class may optionally expose a <c>public static StrategyParameterSchema Schema</c> and a

@@ -1,6 +1,6 @@
 using System.Collections;
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Infrastructure.Plugins;
@@ -15,7 +15,7 @@ namespace TradingTerminal.Infrastructure.Plugins;
 /// <list type="bullet">
 /// <item>a plugin may register NEW service types (its strategy, view-models, windows) and additional
 /// implementations of the multi-registration allowlist (<see cref="ITradingStrategy"/>,
-/// <see cref="BacktestStrategyOption"/>, <see cref="StrategyFactoryRegistration"/>);</item>
+/// <see cref="StrategyCatalogEntry"/>, <see cref="StrategyFactoryRegistration"/>);</item>
 /// <item>it may NOT register, replace, or remove a service type the host — or an earlier plugin —
 /// already provides. That throws <see cref="PluginPolicyViolationException"/>;</item>
 /// <item>registrations are STAGED and only copied into the host collection by <see cref="Commit"/>,
@@ -41,7 +41,7 @@ public sealed class GuardedServiceCollection : IServiceCollection
     public static readonly IReadOnlyList<Type> MultiRegistrationAllowlist =
     [
         typeof(ITradingStrategy),
-        typeof(BacktestStrategyOption),
+        typeof(StrategyCatalogEntry),
         typeof(StrategyFactoryRegistration),
     ];
 
@@ -91,7 +91,7 @@ public sealed class GuardedServiceCollection : IServiceCollection
         // user reads in the Plugin Manager.
         throw new PluginPolicyViolationException(_plugin, type,
             $"tried to register '{type.FullName}', which the host already provides. Plugins may add new " +
-            $"services and additional {nameof(ITradingStrategy)} / {nameof(BacktestStrategyOption)} / " +
+            $"services and additional {nameof(ITradingStrategy)} / {nameof(StrategyCatalogEntry)} / " +
             $"{nameof(StrategyFactoryRegistration)} entries, but may not replace host services");
     }
 

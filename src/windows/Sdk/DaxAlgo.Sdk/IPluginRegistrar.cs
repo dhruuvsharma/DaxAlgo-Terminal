@@ -10,7 +10,7 @@ namespace DaxAlgo.Sdk;
 /// <b>The collection is add-only.</b> <see cref="Services"/> is not the raw host collection: the host
 /// hands each plugin a guarded view that stages registrations and commits them only if
 /// <c>Register</c> returns cleanly. A plugin may register new service types of its own, plus
-/// additional <c>ITradingStrategy</c> / <c>BacktestStrategyOption</c> / <c>StrategyFactoryRegistration</c>
+/// additional <c>ITradingStrategy</c> / <c>StrategyCatalogEntry</c> / <c>StrategyFactoryRegistration</c>
 /// entries. Registering, replacing, or removing a service the host already provides (e.g.
 /// <c>ICredentialStore</c>, <c>IBrokerSelector</c>) is refused, and the plugin is quarantined with
 /// nothing registered. <c>TryAdd*()</c> keeps its usual no-op semantics.

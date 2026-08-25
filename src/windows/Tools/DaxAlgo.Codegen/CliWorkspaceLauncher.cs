@@ -184,7 +184,7 @@ public sealed class CliWorkspaceLauncher(
         sb.AppendLine();
         sb.AppendLine($"Scaffolded by DaxAlgo Terminal's AI Strategy Builder (\"Hyperion\") for strategy id " +
                       $"`{strategyId}` at build effort **{effort.Wire()}**. You are writing a DaxAlgo Terminal " +
-                      "strategy plugin: an `IBacktestStrategy` kernel (required), plus an `ITradingStrategy` " +
+                      "strategy plugin: an `IOrderRoutedStrategy` kernel (required), plus an `ITradingStrategy` " +
                       "descriptor and a live view-model (`LiveSignalStrategyViewModelBase`) for a catalog card. " +
                       "A view is optional — write one in code only (no XAML), or omit it and the host composes " +
                       "the default window from the descriptor's `DataRequirement`.");
@@ -258,7 +258,7 @@ public sealed class CliWorkspaceLauncher(
         global using System.Linq;
         global using System.Threading;
         global using System.Threading.Tasks;
-        global using TradingTerminal.Core.Backtest;
+        global using TradingTerminal.Core.Strategies;
         global using TradingTerminal.Core.Domain;
         global using TradingTerminal.Core.MarketData;
         global using TradingTerminal.Core.Strategies.Parameters;
@@ -298,18 +298,18 @@ public sealed class CliWorkspaceLauncher(
         //   TradingTerminal.Core.Domain / Trading / Time / Backtest / MarketData,
         //   TradingTerminal.Core.Strategies.Parameters
         //
-        // Rules: define exactly ONE public class implementing IBacktestStrategy with a
+        // Rules: define exactly ONE public class implementing IOrderRoutedStrategy with a
         // public (Contract) constructor. Optionally add a static Schema and a static
         // Create(Contract, StrategyParameters) to expose tunable parameters in the UI.
         // Helpers may live in additional files (the + button on the file list).
 
-        public sealed class MyStrategy : IBacktestStrategy
+        public sealed class MyStrategy : IOrderRoutedStrategy
         {
             public static StrategyParameterSchema Schema { get; } = new(
                 StrategyParameter.Int("lookback", "Look-back", 20, min: 2, max: 500),
                 StrategyParameter.Number("threshold", "Entry threshold", 1.5, min: 0.1, max: 10, step: 0.1));
 
-            public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+            public static IOrderRoutedStrategy Create(Contract contract, StrategyParameters p) =>
                 new MyStrategy(contract, p.GetInt("lookback"), p.GetDouble("threshold"));
 
             private readonly Contract _contract;

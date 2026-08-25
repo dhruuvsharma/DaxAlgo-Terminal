@@ -51,7 +51,7 @@ public sealed class FakeCodegenClient : IStrategyCodegenClient
     /// namespace/usings (ambient), flattens at end.</summary>
     public const string DefaultKernel = """
         ```csharp
-        public sealed class GeneratedStrategy(Contract contract) : IBacktestStrategy
+        public sealed class GeneratedStrategy(Contract contract) : IOrderRoutedStrategy
         {
             private readonly Contract _contract = contract;
             private int _ticks;

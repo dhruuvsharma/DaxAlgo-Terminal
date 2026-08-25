@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Infrastructure.Plugins;
@@ -21,5 +21,5 @@ public interface IProtectedStrategyEngine
 /// </summary>
 public sealed record ProtectedStrategyRegistration(
     ITradingStrategy Strategy,
-    BacktestStrategyOption BacktestStrategy,
+    StrategyCatalogEntry BacktestStrategy,
     StrategyFactoryRegistration StrategyFactory);

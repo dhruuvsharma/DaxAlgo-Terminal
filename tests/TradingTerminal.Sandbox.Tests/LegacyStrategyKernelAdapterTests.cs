@@ -1,5 +1,5 @@
 using DaxAlgo.Sdk;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
@@ -366,7 +366,7 @@ public sealed class LegacyStrategyKernelAdapterTests
             BrokerKind.Simulated,
             IsFinal: true);
 
-    private sealed class SequencedLegacyStrategy(Contract contract) : IBacktestStrategy, IDisposable
+    private sealed class SequencedLegacyStrategy(Contract contract) : IOrderRoutedStrategy, IDisposable
     {
         public static StrategyParameterSchema Schema { get; } = new(
             StrategyParameter.Int("size", "Size", @default: 1, min: 1, max: 10));
@@ -433,7 +433,7 @@ public sealed class LegacyStrategyKernelAdapterTests
         public void Dispose() => Disposed = true;
     }
 
-    private sealed class MappingLegacyStrategy : IBacktestStrategy
+    private sealed class MappingLegacyStrategy : IOrderRoutedStrategy
     {
         public PositionTrackingOrderRouter? Router { get; private set; }
         public Tick? LastTick { get; private set; }
@@ -485,7 +485,7 @@ public sealed class LegacyStrategyKernelAdapterTests
             Task.CompletedTask;
     }
 
-    private sealed class FlatteningLegacyStrategy(Contract contract) : IBacktestStrategy, IDisposable
+    private sealed class FlatteningLegacyStrategy(Contract contract) : IOrderRoutedStrategy, IDisposable
     {
         private bool _entered;
 
@@ -531,7 +531,7 @@ public sealed class LegacyStrategyKernelAdapterTests
         public void Dispose() => Disposed = true;
     }
 
-    private sealed class ConditionalOrderLegacyStrategy(Contract contract) : IBacktestStrategy
+    private sealed class ConditionalOrderLegacyStrategy(Contract contract) : IOrderRoutedStrategy
     {
         public OrderResult? Result { get; private set; }
         public List<OrderEvent> OrderEvents { get; } = [];
@@ -570,7 +570,7 @@ public sealed class LegacyStrategyKernelAdapterTests
             Task.CompletedTask;
     }
 
-    private sealed class CancellingLegacyStrategy(Contract contract) : IBacktestStrategy
+    private sealed class CancellingLegacyStrategy(Contract contract) : IOrderRoutedStrategy
     {
         public PositionTrackingOrderRouter? Router { get; private set; }
         public List<OrderEvent> OrderEvents { get; } = [];
@@ -613,7 +613,7 @@ public sealed class LegacyStrategyKernelAdapterTests
             Task.CompletedTask;
     }
 
-    private sealed class ReentrantLegacyStrategy(Contract contract) : IBacktestStrategy
+    private sealed class ReentrantLegacyStrategy(Contract contract) : IOrderRoutedStrategy
     {
         private IOrderRouter? _router;
         private bool _offsetSubmitted;
@@ -659,7 +659,7 @@ public sealed class LegacyStrategyKernelAdapterTests
     private sealed class SingleMarketOrderLegacyStrategy(
         Contract contract,
         int submitOnBar = 1,
-        long quantity = 1) : IBacktestStrategy
+        long quantity = 1) : IOrderRoutedStrategy
     {
         private int _barCount;
 

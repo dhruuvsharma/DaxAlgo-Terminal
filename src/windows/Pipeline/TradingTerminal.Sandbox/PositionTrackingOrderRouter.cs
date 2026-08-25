@@ -1,6 +1,6 @@
 using System.Reactive.Subjects;
 using DaxAlgo.Sdk;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
@@ -37,7 +37,7 @@ public sealed class PositionTrackingOrderRouter : IOrderRouter, IDisposable
     private readonly IVirtualBook _book;
     private readonly InstrumentId _instrument;
     private readonly IClock _clock;
-    private readonly IBacktestStrategy _legacyStrategy;
+    private readonly IOrderRoutedStrategy _legacyStrategy;
     private readonly IAlertSink _alerts;
     private readonly int _maxTrackedOrders;
     private readonly Subject<OrderEvent> _events = new();
@@ -52,7 +52,7 @@ public sealed class PositionTrackingOrderRouter : IOrderRouter, IDisposable
         IVirtualBook book,
         InstrumentId instrument,
         IClock clock,
-        IBacktestStrategy legacyStrategy,
+        IOrderRoutedStrategy legacyStrategy,
         IAlertSink alerts,
         int maxTrackedOrders = DefaultMaxTrackedOrders)
     {

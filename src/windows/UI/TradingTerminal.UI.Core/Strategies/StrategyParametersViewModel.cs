@@ -13,7 +13,7 @@ namespace TradingTerminal.UI.Strategies;
 /// strategy ever hand-writes a parameter editor again.
 ///
 /// Hand the resulting <see cref="Parameters"/> bag to
-/// <c>BacktestStrategyOption.Create(contract, parameters)</c> to launch a run/live host
+/// <c>StrategyCatalogEntry.Create(contract, parameters)</c> to launch a run/live host
 /// with the user's chosen settings.
 /// </summary>
 public sealed partial class StrategyParametersViewModel : ObservableObject
@@ -29,7 +29,7 @@ public sealed partial class StrategyParametersViewModel : ObservableObject
             parameters.Schema.Parameters.Select(p => new ParameterEditorItem(parameters, p)));
     }
 
-    /// <summary>The live value bag — pass to <c>BacktestStrategyOption.Create</c>.</summary>
+    /// <summary>The live value bag — pass to <c>StrategyCatalogEntry.Create</c>.</summary>
     public StrategyParameters Parameters { get; }
 
     public ObservableCollection<ParameterEditorItem> Items { get; }

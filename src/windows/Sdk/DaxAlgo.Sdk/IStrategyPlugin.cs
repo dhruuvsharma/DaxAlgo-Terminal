@@ -9,7 +9,7 @@ namespace DaxAlgo.Sdk;
 /// <para>
 /// A plugin's <see cref="Register"/> body is identical to a first-party <c>AddXxxStrategy()</c>
 /// extension — register the <c>ITradingStrategy</c>, the view + view-model, the
-/// <c>StrategyFactoryRegistration</c> and the <c>BacktestStrategyOption</c> on
+/// <c>StrategyFactoryRegistration</c> and the <c>StrategyCatalogEntry</c> on
 /// <see cref="IPluginRegistrar.Services"/>.
 /// </para>
 /// </summary>

@@ -178,7 +178,7 @@ public static class PluginPolicyScanner
         "TradingTerminal.Recording",
         "TradingTerminal.Core.Brokers",
         "TradingTerminal.Core.Trading",
-        "TradingTerminal.Core.Backtest",
+        "TradingTerminal.Core.Strategies",
     ];
 
     /// <summary>Scans every managed assembly in <paramref name="pluginDirectory"/> (the plugin's own

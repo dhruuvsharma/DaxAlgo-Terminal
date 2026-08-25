@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.UI.Catalog;
 
 /// <summary>
 /// Portable view-model for the strategy catalog. It is a plain <see cref="ObservableObject"/> over
-/// the broker-neutral <see cref="BacktestStrategyOption"/> list from the headless catalog, with no
+/// the broker-neutral <see cref="StrategyCatalogEntry"/> list from the headless catalog, with no
 /// UI-framework types. An optional <c>onLog</c> callback lets the host route selection activity to
 /// the universal Activity Log.
 /// </summary>
@@ -14,7 +14,7 @@ public sealed partial class StrategyCatalogViewModel : ObservableObject
 {
     private readonly Action<string>? _onLog;
 
-    public StrategyCatalogViewModel(IEnumerable<BacktestStrategyOption> options, Action<string>? onLog = null)
+    public StrategyCatalogViewModel(IEnumerable<StrategyCatalogEntry> options, Action<string>? onLog = null)
     {
         _onLog = onLog;
         Items = new ObservableCollection<StrategyCatalogItem>(

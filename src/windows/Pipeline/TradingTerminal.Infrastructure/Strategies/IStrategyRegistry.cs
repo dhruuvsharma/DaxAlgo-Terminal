@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Infrastructure.Strategies;
 
@@ -15,13 +15,13 @@ namespace TradingTerminal.Infrastructure.Strategies;
 /// </summary>
 public interface IStrategyRegistry
 {
-    IReadOnlyList<BacktestStrategyOption> All { get; }
+    IReadOnlyList<StrategyCatalogEntry> All { get; }
 
     /// <summary>Look up a strategy by id, or null if not registered.</summary>
-    BacktestStrategyOption? Find(string id);
+    StrategyCatalogEntry? Find(string id);
 
     /// <summary>Adds a strategy, replacing any existing entry with the same id. Raises <see cref="Changed"/>.</summary>
-    void Register(BacktestStrategyOption option);
+    void Register(StrategyCatalogEntry option);
 
     /// <summary>Removes a strategy by id. Returns true if one was removed. Raises <see cref="Changed"/>.</summary>
     bool Remove(string id);
@@ -32,26 +32,26 @@ public interface IStrategyRegistry
 
 internal sealed class BacktestStrategyRegistry : IStrategyRegistry
 {
-    public BacktestStrategyRegistry(IEnumerable<BacktestStrategyOption> options)
+    public BacktestStrategyRegistry(IEnumerable<StrategyCatalogEntry> options)
     {
         foreach (var option in options)
             _byId[option.Id] = option;
     }
 
     private readonly object _gate = new();
-    private readonly Dictionary<string, BacktestStrategyOption> _byId = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, StrategyCatalogEntry> _byId = new(StringComparer.Ordinal);
 
-    public IReadOnlyList<BacktestStrategyOption> All
+    public IReadOnlyList<StrategyCatalogEntry> All
     {
         get { lock (_gate) return _byId.Values.ToArray(); }
     }
 
-    public BacktestStrategyOption? Find(string id)
+    public StrategyCatalogEntry? Find(string id)
     {
         lock (_gate) return _byId.TryGetValue(id, out var option) ? option : null;
     }
 
-    public void Register(BacktestStrategyOption option)
+    public void Register(StrategyCatalogEntry option)
     {
         ArgumentNullException.ThrowIfNull(option);
         lock (_gate) _byId[option.Id] = option;

@@ -4,7 +4,7 @@
 
 # DaxAlgo SDK — the authoring surface
 
-Every public member below is available to an authored strategy or visualizer. SDK 0.3.0.
+Every public member below is available to an authored strategy or visualizer. SDK 0.4.0.
 
 ## What you implement
 
@@ -274,7 +274,7 @@ Type ViewModel { get; }
 - `Descriptor` — Optional `ITradingStrategy` — the catalog card's metadata.
 - `DiscoverIn` — Finds them by shape. The view-model and view are matched by base-type NAME on purpose: this SDK is deliberately UI-free (it must stay loadable in a headless host), so it cannot reference the WPF base types it is looking for — but the authored assembly compiles against them perfectly well.
 - `HasLiveWindow` — The author wrote a complete hand-written window: metadata, a view-model, a view.
-- `Kernel` — The single `IBacktestStrategy` with a public `(Contract)` ctor.
+- `Kernel` — The single `IOrderRoutedStrategy` with a public `(Contract)` ctor.
 - `View` — Optional live view (a WPF `UserControl` / `Window`).
 - `ViewModel` — Optional live view-model (derives `LiveSignalStrategyViewModelBase`).
 
@@ -337,7 +337,7 @@ StrategyParameterSchema Schema { get; }
 
 ### `IPluginRegistrar`
 
-The surface a plugin uses inside `Register` to contribute services into the host. A plugin's `Register` body is line-for-line identical to a first-party `AddXxxStrategy()`, and carries read-only context about the plugin. The collection is add-only.`Services` is not the raw host collection: the host hands each plugin a guarded view that stages registrations and commits them only if `Register` returns cleanly. A plugin may register new service types of its own, plus additional `ITradingStrategy` / `BacktestStrategyOption` / `StrategyFactoryRegistration` entries. Registering, replacing, or removing a service the host already provides (e.g. `ICredentialStore`, `IBrokerSelector`) is refused, and the plugin is quarantined with nothing registered. `TryAdd*()` keeps its usual no-op semantics.
+The surface a plugin uses inside `Register` to contribute services into the host. A plugin's `Register` body is line-for-line identical to a first-party `AddXxxStrategy()`, and carries read-only context about the plugin. The collection is add-only.`Services` is not the raw host collection: the host hands each plugin a guarded view that stages registrations and commits them only if `Register` returns cleanly. A plugin may register new service types of its own, plus additional `ITradingStrategy` / `StrategyCatalogEntry` / `StrategyFactoryRegistration` entries. Registering, replacing, or removing a service the host already provides (e.g. `ICredentialStore`, `IBrokerSelector`) is refused, and the plugin is quarantined with nothing registered. `TryAdd*()` keeps its usual no-op semantics.
 
 ```csharp
 PluginContext Context { get; }
@@ -352,8 +352,8 @@ IServiceCollection Services { get; }
 Stable, UI-free activation seam for a packaged strategy engine. A `.daxalgostrategy` manifest names one public, parameterless implementation exactly; the host creates it only after package integrity, trust, compatibility, and policy checks have completed.
 
 ```csharp
-IBacktestStrategy Create(Contract contract, StrategyParameters parameters)
-IBacktestStrategy Create(Contract contract)
+IOrderRoutedStrategy Create(Contract contract, StrategyParameters parameters)
+IOrderRoutedStrategy Create(Contract contract)
 StrategyDataRequirement DataRequirement { get; }
 StrategyParameterSchema Schema { get; }
 ```
@@ -385,7 +385,7 @@ Task StopAsync(CancellationToken ct = null)
 
 ### `IStrategyPlugin`
 
-Entry point a strategy-plugin assembly exposes. The host's plugin loader finds the single public parameterless `IStrategyPlugin` implementation in each plugin assembly, checks `TargetSdkVersion` against the host SDK (`Version`), then calls `Register` so the plugin can contribute its strategy, view/view-model and backtest option into the host. A plugin's `Register` body is identical to a first-party `AddXxxStrategy()` extension — register the `ITradingStrategy`, the view + view-model, the `StrategyFactoryRegistration` and the `BacktestStrategyOption` on `Services`.
+Entry point a strategy-plugin assembly exposes. The host's plugin loader finds the single public parameterless `IStrategyPlugin` implementation in each plugin assembly, checks `TargetSdkVersion` against the host SDK (`Version`), then calls `Register` so the plugin can contribute its strategy, view/view-model and backtest option into the host. A plugin's `Register` body is identical to a first-party `AddXxxStrategy()` extension — register the `ITradingStrategy`, the view + view-model, the `StrategyFactoryRegistration` and the `StrategyCatalogEntry` on `Services`.
 
 ```csharp
 string Name { get; }

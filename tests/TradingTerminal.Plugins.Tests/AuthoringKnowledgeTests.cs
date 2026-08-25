@@ -12,7 +12,7 @@ namespace TradingTerminal.Plugins.Tests;
 /// in it are asserted absent, one test per mistake, named after the mistake.</para>
 ///
 /// <para>These are not hypothetical. Every identifier below was in the shipped pack: it taught
-/// <c>IBacktestStrategy</c> with <c>IOrderRouter</c> and direct order placement — which the virtual-book
+/// <c>IOrderRoutedStrategy</c> with <c>IOrderRouter</c> and direct order placement — which the virtual-book
 /// rule forbids outright — instructed the model to write four files including a WPF view, and pointed at
 /// a scaffold template that does not exist. It also contradicted itself: the header said a strategy
 /// "never touches the broker directly" and the contract section immediately handed over a router.</para>
@@ -32,7 +32,7 @@ public sealed class AuthoringKnowledgeTests
     /// retired contract there can only mislead.
     /// </param>
     [Theory]
-    [InlineData("IBacktestStrategy", "the authoring contract is IStrategyKernel", false)]
+    [InlineData("IOrderRoutedStrategy", "the authoring contract is IStrategyKernel", false)]
     [InlineData("IOrderRouter", "a strategy's only output is its virtual book", true)]
     [InlineData("PlaceOrder", "a strategy never places an order", true)]
     [InlineData("UserControl", "the host owns the window; authors never write WPF", true)]

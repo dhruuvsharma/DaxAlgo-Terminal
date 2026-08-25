@@ -2,7 +2,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 
-namespace TradingTerminal.Core.Backtest;
+namespace TradingTerminal.Core.Strategies;
 
 /// <summary>
 /// Engine-facing strategy contract. Implementations receive ticks in chronological order
@@ -13,7 +13,7 @@ namespace TradingTerminal.Core.Backtest;
 /// Existing view-model strategies remain pure observers; they'll grow a thin adapter that
 /// implements this interface when porting them to the backtester (Phase 7).
 /// </summary>
-public interface IBacktestStrategy
+public interface IOrderRoutedStrategy
 {
     /// <summary>Called once before any ticks. Use to read initial state or schedule warmup.</summary>
     Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct);

@@ -5,7 +5,7 @@ namespace TradingTerminal.UI;
 
 /// <summary>
 /// One signal row in the live signal log. Produced every time the wrapped
-/// <c>IBacktestStrategy</c> calls <c>PlaceOrderAsync</c> on its router. The display grid
+/// <c>IOrderRoutedStrategy</c> calls <c>PlaceOrderAsync</c> on its router. The display grid
 /// binds to a list of these.
 /// </summary>
 public sealed record SignalEntry(

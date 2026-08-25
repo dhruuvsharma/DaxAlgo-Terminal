@@ -1,6 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -12,7 +12,7 @@ namespace DaxAlgo.Sdk;
 /// loose files, so the host discovers its parts by shape rather than by a hand-written registration:
 /// the kernel is required, the rest turn it from a backtest entry into a catalog card with a live window.
 /// </summary>
-/// <param name="Kernel">The single <see cref="IBacktestStrategy"/> with a public <c>(Contract)</c> ctor.</param>
+/// <param name="Kernel">The single <see cref="IOrderRoutedStrategy"/> with a public <c>(Contract)</c> ctor.</param>
 /// <param name="Descriptor">Optional <see cref="ITradingStrategy"/> — the catalog card's metadata.</param>
 /// <param name="ViewModel">Optional live view-model (derives <c>LiveSignalStrategyViewModelBase</c>).</param>
 /// <param name="View">Optional live view (a WPF <c>UserControl</c> / <c>Window</c>).</param>
@@ -45,7 +45,7 @@ public sealed record AuthoredStrategyTypes(
 
         return new AuthoredStrategyTypes(
             Kernel: types.FirstOrDefault(t =>
-                typeof(IBacktestStrategy).IsAssignableFrom(t) &&
+                typeof(IOrderRoutedStrategy).IsAssignableFrom(t) &&
                 t.GetConstructor([typeof(Contract)]) is not null),
             Descriptor: types.FirstOrDefault(t =>
                 typeof(ITradingStrategy).IsAssignableFrom(t) &&
@@ -133,7 +133,7 @@ public static class AuthoredPluginBootstrap
 
     /// <summary>Wires the kernel's <c>(Contract)</c> constructor — and its optional declarative
     /// <c>Schema</c> / <c>Create(Contract, StrategyParameters)</c> — into a runnable option.</summary>
-    private static BacktestStrategyOption BuildOption(Type kernel, string strategyId, string displayName)
+    private static StrategyCatalogEntry BuildOption(Type kernel, string strategyId, string displayName)
     {
         var ctor = kernel.GetConstructor([typeof(Contract)])!;
 
@@ -146,14 +146,14 @@ public static class AuthoredPluginBootstrap
             "Create", BindingFlags.Public | BindingFlags.Static, binder: null,
             types: [typeof(Contract), typeof(StrategyParameters)], modifiers: null);
 
-        Func<Contract, StrategyParameters, IBacktestStrategy>? parameterized =
-            create is not null && typeof(IBacktestStrategy).IsAssignableFrom(create.ReturnType)
-                ? (contract, parameters) => (IBacktestStrategy)create.Invoke(null, [contract, parameters])!
+        Func<Contract, StrategyParameters, IOrderRoutedStrategy>? parameterized =
+            create is not null && typeof(IOrderRoutedStrategy).IsAssignableFrom(create.ReturnType)
+                ? (contract, parameters) => (IOrderRoutedStrategy)create.Invoke(null, [contract, parameters])!
                 : null;
 
-        return new BacktestStrategyOption(
+        return new StrategyCatalogEntry(
             strategyId, displayName,
-            contract => (IBacktestStrategy)ctor.Invoke([contract]))
+            contract => (IOrderRoutedStrategy)ctor.Invoke([contract]))
         {
             Schema = schema ?? StrategyParameterSchema.Empty,
             ParameterizedBuild = parameterized,

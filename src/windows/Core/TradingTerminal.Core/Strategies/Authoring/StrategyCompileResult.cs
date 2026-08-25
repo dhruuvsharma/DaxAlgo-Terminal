@@ -1,11 +1,11 @@
 using System.Reflection;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Core.Strategies.Authoring;
 
 /// <summary>
 /// The compiled image and the types reflected out of it. A finished authored strategy is a plugin: an
-/// <c>IBacktestStrategy</c> kernel (required), plus — when the author wrote them — an
+/// <c>IOrderRoutedStrategy</c> kernel (required), plus — when the author wrote them — an
 /// <c>ITradingStrategy</c> descriptor and a live view-model, which together are what let it appear in
 /// the strategy catalog rather than only in the backtester. A view is optional: without one the host
 /// composes the default window from the descriptor's data requirement
@@ -15,7 +15,7 @@ namespace TradingTerminal.Core.Strategies.Authoring;
 /// the policy scanner already read. Loading is from this byte[], never from the file, so the DLL on disk
 /// is never locked and a regenerate can overwrite it.</param>
 /// <param name="Assembly">The loaded assembly (default load context).</param>
-/// <param name="KernelType">The single <c>IBacktestStrategy</c> implementation.</param>
+/// <param name="KernelType">The single <c>IOrderRoutedStrategy</c> implementation.</param>
 /// <param name="DescriptorType">Optional <c>ITradingStrategy</c> — the catalog card's metadata.</param>
 /// <param name="ViewModelType">Optional live view-model (derives <c>LiveSignalStrategyViewModelBase</c>).</param>
 /// <param name="ViewType">Optional live view (a WPF <c>UserControl</c> / <c>Window</c>, built in code —
@@ -49,14 +49,14 @@ public sealed record AuthoredStrategyAssembly(
 
 /// <summary>
 /// Outcome of compiling a <see cref="StrategyScript"/>. On success, <see cref="Option"/>
-/// is a ready-to-run <see cref="BacktestStrategyOption"/> — identical in shape to the
+/// is a ready-to-run <see cref="StrategyCatalogEntry"/> — identical in shape to the
 /// in-tree catalog entries, so it can be registered and run/backtested with no special
 /// casing. On failure, <see cref="Option"/> is null and <see cref="Diagnostics"/> carries
 /// the errors. Warnings may be present even on success.
 /// </summary>
 public sealed record StrategyCompileResult(
     bool Success,
-    BacktestStrategyOption? Option,
+    StrategyCatalogEntry? Option,
     IReadOnlyList<StrategyDiagnostic> Diagnostics,
     AuthoredStrategyAssembly? Authored = null,
     AuthoredUnit? Unit = null)
@@ -73,7 +73,7 @@ public sealed record StrategyCompileResult(
         new(false, null, diagnostics);
 
     public static StrategyCompileResult Succeeded(
-        BacktestStrategyOption option, IReadOnlyList<StrategyDiagnostic> diagnostics,
+        StrategyCatalogEntry option, IReadOnlyList<StrategyDiagnostic> diagnostics,
         AuthoredStrategyAssembly? authored = null,
         AuthoredUnit? unit = null) =>
         new(true, option, diagnostics, authored, unit);
@@ -83,7 +83,7 @@ public sealed record StrategyCompileResult(
     ///
     /// <para>A unit written against <c>IStrategyKernel</c> or <c>IVisualizer</c> compiles, scans and
     /// shapes correctly; registration is the part still running through the engine-era
-    /// <see cref="BacktestStrategyOption"/>. Saying so plainly beats returning a failure, which would
+    /// <see cref="StrategyCatalogEntry"/>. Saying so plainly beats returning a failure, which would
     /// tell an author their correct code was wrong.</para>
     /// </summary>
     public static StrategyCompileResult CompiledWithoutRegistration(

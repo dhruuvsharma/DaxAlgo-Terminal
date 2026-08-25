@@ -9,11 +9,11 @@ namespace TradingTerminal.Plugins.Tests;
 /// Phase 0 of #44 — the compiler and the knowledge finally agree on what an author writes.
 ///
 /// <para>They did not. The knowledge pack was rewritten to teach <c>IStrategyKernel</c>, while
-/// <c>RoslynStrategyCompiler</c> still discovered only <c>IBacktestStrategy</c> — so a model following
+/// <c>RoslynStrategyCompiler</c> still discovered only <c>IOrderRoutedStrategy</c> — so a model following
 /// its instructions produced code the compiler refused to find, and reported "No public class
-/// implementing IBacktestStrategy was found" to an author who had done exactly as they were told.</para>
+/// implementing IOrderRoutedStrategy was found" to an author who had done exactly as they were told.</para>
 ///
-/// <para><c>IBacktestStrategy</c> is not merely an old name. Its own documentation calls it the
+/// <para><c>IOrderRoutedStrategy</c> is not merely an old name. Its own documentation calls it the
 /// "engine-facing strategy contract", hands the strategy an <c>IOrderRouter</c>, and describes state
 /// transitions "produced by the simulated order book" — the backtest engine archived on 2026-08-17, and
 /// a direct route to orders the virtual book replaced. It is still discovered, because Core is a
@@ -87,7 +87,7 @@ public sealed class AuthoredContractDiscoveryTests
         result.Success.Should().BeFalse();
         var message = string.Join(" ", result.Diagnostics.Select(d => d.Message));
         message.Should().Contain("IStrategyKernel").And.Contain("IVisualizer");
-        message.Should().NotContain("IBacktestStrategy");
+        message.Should().NotContain("IOrderRoutedStrategy");
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class AuthoredContractDiscoveryTests
         // Core is a published contract package. Refusing this would break every plugin already out
         // there, which is a different problem from making it the thing we teach.
         var result = Compile("""
-            public sealed class OldStrategy : TradingTerminal.Core.Backtest.IBacktestStrategy
+            public sealed class OldStrategy : TradingTerminal.Core.Strategies.IOrderRoutedStrategy
             {
                 public OldStrategy(Contract contract) { }
                 public Task OnStartAsync(TradingTerminal.Core.Time.IClock c, TradingTerminal.Core.Trading.IOrderRouter r, CancellationToken ct) => Task.CompletedTask;

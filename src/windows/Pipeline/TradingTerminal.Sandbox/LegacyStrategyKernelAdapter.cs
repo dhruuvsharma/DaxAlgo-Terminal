@@ -1,6 +1,6 @@
 using System.Reflection;
 using DaxAlgo.Sdk;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -8,7 +8,7 @@ using TradingTerminal.Core.Strategies.Parameters;
 namespace TradingTerminal.Sandbox;
 
 /// <summary>
-/// Presents one already-constructed legacy <see cref="IBacktestStrategy"/> as a declarative
+/// Presents one already-constructed legacy <see cref="IOrderRoutedStrategy"/> as a declarative
 /// <see cref="DaxAlgo.Sdk.IStrategyKernel"/> for a single canonical instrument.
 /// </summary>
 /// <remarks>
@@ -18,7 +18,7 @@ namespace TradingTerminal.Sandbox;
 public sealed class LegacyStrategyKernelAdapter : DaxAlgo.Sdk.IStrategyKernel, IAsyncDisposable
 {
     private readonly object _lifecycleGate = new();
-    private readonly IBacktestStrategy _legacyStrategy;
+    private readonly IOrderRoutedStrategy _legacyStrategy;
     private readonly InstrumentId _instrument;
 
     private PositionTrackingOrderRouter? _router;
@@ -30,7 +30,7 @@ public sealed class LegacyStrategyKernelAdapter : DaxAlgo.Sdk.IStrategyKernel, I
     /// <c>StrategyParameterSchema Schema</c>, or <see cref="StrategyParameterSchema.Empty"/>.
     /// </summary>
     public LegacyStrategyKernelAdapter(
-        IBacktestStrategy legacyStrategy,
+        IOrderRoutedStrategy legacyStrategy,
         InstrumentId instrument)
         : this(legacyStrategy, instrument, ResolveStaticSchema(legacyStrategy))
     {
@@ -38,7 +38,7 @@ public sealed class LegacyStrategyKernelAdapter : DaxAlgo.Sdk.IStrategyKernel, I
 
     /// <summary>Creates an adapter with the parameter schema already resolved by the loader.</summary>
     public LegacyStrategyKernelAdapter(
-        IBacktestStrategy legacyStrategy,
+        IOrderRoutedStrategy legacyStrategy,
         InstrumentId instrument,
         StrategyParameterSchema parameterSchema)
     {
@@ -267,7 +267,7 @@ public sealed class LegacyStrategyKernelAdapter : DaxAlgo.Sdk.IStrategyKernel, I
             disposable.Dispose();
     }
 
-    private static StrategyParameterSchema ResolveStaticSchema(IBacktestStrategy legacyStrategy)
+    private static StrategyParameterSchema ResolveStaticSchema(IOrderRoutedStrategy legacyStrategy)
     {
         ArgumentNullException.ThrowIfNull(legacyStrategy);
 
@@ -282,16 +282,16 @@ public sealed class LegacyStrategyKernelAdapter : DaxAlgo.Sdk.IStrategyKernel, I
     private static StrategyDataRequirement InferDataRequirement(Type strategyType)
     {
         var requirement = StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
-        if (OverridesDefaultInterfaceMethod(strategyType, nameof(IBacktestStrategy.OnDepthAsync)))
+        if (OverridesDefaultInterfaceMethod(strategyType, nameof(IOrderRoutedStrategy.OnDepthAsync)))
             requirement |= StrategyDataRequirement.Depth;
-        if (OverridesDefaultInterfaceMethod(strategyType, nameof(IBacktestStrategy.OnTradeAsync)))
+        if (OverridesDefaultInterfaceMethod(strategyType, nameof(IOrderRoutedStrategy.OnTradeAsync)))
             requirement |= StrategyDataRequirement.TradeTape;
         return requirement;
     }
 
     private static bool OverridesDefaultInterfaceMethod(Type strategyType, string methodName)
     {
-        var interfaceType = typeof(IBacktestStrategy);
+        var interfaceType = typeof(IOrderRoutedStrategy);
         var interfaceMethod = interfaceType.GetMethods().Single(method => method.Name == methodName);
         var map = strategyType.GetInterfaceMap(interfaceType);
 

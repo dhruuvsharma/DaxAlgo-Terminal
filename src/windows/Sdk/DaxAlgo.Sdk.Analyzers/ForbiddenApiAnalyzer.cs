@@ -80,7 +80,10 @@ public sealed class ForbiddenApiAnalyzer : DiagnosticAnalyzer
         "TradingTerminal.Recording",
         "TradingTerminal.Core.Brokers",
         "TradingTerminal.Core.Trading",
-        "TradingTerminal.Core.Backtest",
+        // The retired engine contract and its order router. NOT TradingTerminal.Core.Strategies, which
+        // every authored unit legitimately uses for StrategyDataRequirement and the parameter types —
+        // denying that namespace refuses every correct strategy in the repository.
+        "TradingTerminal.Core.Strategies.Legacy",
     ];
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];

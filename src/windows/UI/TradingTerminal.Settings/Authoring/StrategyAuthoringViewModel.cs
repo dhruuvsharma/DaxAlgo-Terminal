@@ -1575,18 +1575,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         //   TradingTerminal.Core.Domain / Trading / Time / Backtest / MarketData,
         //   TradingTerminal.Core.Strategies.Parameters
         //
-        // Rules: define exactly ONE public class implementing IBacktestStrategy with a
+        // Rules: define exactly ONE public class implementing IOrderRoutedStrategy with a
         // public (Contract) constructor. Optionally add a static Schema and a static
         // Create(Contract, StrategyParameters) to expose tunable parameters in the UI.
         // Helpers may live in additional files (the + button on the file list).
 
-        public sealed class MyStrategy : IBacktestStrategy
+        public sealed class MyStrategy : IOrderRoutedStrategy
         {
             public static StrategyParameterSchema Schema { get; } = new(
                 StrategyParameter.Int("lookback", "Look-back", 20, min: 2, max: 500),
                 StrategyParameter.Number("threshold", "Entry threshold", 1.5, min: 0.1, max: 10, step: 0.1));
 
-            public static IBacktestStrategy Create(Contract contract, StrategyParameters p) =>
+            public static IOrderRoutedStrategy Create(Contract contract, StrategyParameters p) =>
                 new MyStrategy(contract, p.GetInt("lookback"), p.GetDouble("threshold"));
 
             private readonly Contract _contract;

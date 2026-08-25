@@ -55,13 +55,13 @@ public sealed class SdkSurfaceFreshnessTests
     [Fact]
     public void TheLegacyContractIsStillReachableFromTheSdkAndThatIsWorthKnowing()
     {
-        // A tripwire, not an aspiration. `AuthoredPlugin` discovers `IBacktestStrategy` implementations
+        // A tripwire, not an aspiration. `AuthoredPlugin` discovers `IOrderRoutedStrategy` implementations
         // and `IStrategyEngineFactory.Create` returns one, so the legacy contract is still part of the
         // published surface and a model reading this document will see it. Retiring it from the
         // authoring path is Phase 0 of the Hyperion rework (#44) and belongs with the compiler rework.
         //
         // When that lands, this test fails and should simply be deleted.
-        SdkSurfaceGenerator.Generate().Should().Contain("IBacktestStrategy");
+        SdkSurfaceGenerator.Generate().Should().Contain("IOrderRoutedStrategy");
     }
 
     [Fact]

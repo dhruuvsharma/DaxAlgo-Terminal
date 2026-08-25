@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -19,8 +19,8 @@ public interface IStrategyEngineFactory
     StrategyDataRequirement DataRequirement { get; }
 
     /// <summary>Creates a fresh strategy instance with a validated runtime parameter bag.</summary>
-    IBacktestStrategy Create(Contract contract, StrategyParameters parameters);
+    IOrderRoutedStrategy Create(Contract contract, StrategyParameters parameters);
 
     /// <summary>Creates a fresh strategy using the schema defaults.</summary>
-    IBacktestStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
+    IOrderRoutedStrategy Create(Contract contract) => Create(contract, Schema.CreateDefaults());
 }

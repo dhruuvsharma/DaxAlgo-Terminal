@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 
 namespace TradingTerminal.Infrastructure.Strategies;
 
@@ -10,7 +10,7 @@ namespace TradingTerminal.Infrastructure.Strategies;
 /// for the backtest engine (buy-and-hold, mean reversion, Donchian breakout); the engine was archived
 /// on 2026-08-17 and they went with it. Every strategy now arrives at runtime — from an installed
 /// <c>.daxalgostrategy</c> or from one authored in the app — and registers its own
-/// <see cref="BacktestStrategyOption"/>. <see cref="IStrategyRegistry"/> aggregates whatever
+/// <see cref="StrategyCatalogEntry"/>. <see cref="IStrategyRegistry"/> aggregates whatever
 /// DI holds, so nothing needs naming here.</para>
 ///
 /// <para>The seam survives the engine because it is what the <b>authoring</b> path registers into,
@@ -20,7 +20,7 @@ namespace TradingTerminal.Infrastructure.Strategies;
 public static class StrategyCatalog
 {
     /// <summary>
-    /// Wires the registry that aggregates every <see cref="BacktestStrategyOption"/> in DI.
+    /// Wires the registry that aggregates every <see cref="StrategyCatalogEntry"/> in DI.
     /// View-models inject <see cref="IStrategyRegistry"/> rather than touching this.
     /// </summary>
     public static IServiceCollection AddStrategyCatalog(this IServiceCollection services)

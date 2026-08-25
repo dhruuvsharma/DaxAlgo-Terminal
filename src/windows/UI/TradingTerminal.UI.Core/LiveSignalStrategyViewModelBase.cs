@@ -5,7 +5,7 @@ using System.Threading.Channels;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using TradingTerminal.Core.Backtest;
+using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -19,7 +19,7 @@ namespace TradingTerminal.UI;
 /// <summary>
 /// Base view-model for "live signal mode" hosts. Each per-strategy project subclasses
 /// this and overrides <see cref="BuildStrategy"/> to instantiate its underlying
-/// <see cref="IBacktestStrategy"/> with strategy-specific parameters. The base owns the
+/// <see cref="IOrderRoutedStrategy"/> with strategy-specific parameters. The base owns the
 /// quote + depth subscriptions, the synthetic order router, the price-bar aggregation used for
 /// chart visualisation, and notification publishing.
 ///
@@ -28,7 +28,7 @@ namespace TradingTerminal.UI;
 /// L1 pump for the selected instrument, and this VM observes <see cref="IMarketDataHub.Quotes"/>
 /// / <see cref="IMarketDataHub.Depth"/> keyed by canonical <see cref="InstrumentId"/>. Quote
 /// records are projected to the legacy <see cref="Tick"/> shape at the boundary so the
-/// engine-side <see cref="IBacktestStrategy"/> contract stays unchanged. On start, the chart is
+/// engine-side <see cref="IOrderRoutedStrategy"/> contract stays unchanged. On start, the chart is
 /// warmed from the local <see cref="IMarketDataStore"/> so users see context immediately even
 /// before the first live tick lands.
 ///
@@ -64,7 +64,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     private CancellationTokenSource? _streamCts;
     private SignalGeneratorRouter? _router;
-    private IBacktestStrategy? _strategy;
+    private IOrderRoutedStrategy? _strategy;
     private IDisposable? _eventSubscription;
     private IDisposable? _ingestHandle;
     private IDisposable? _tradeIngestHandle;
@@ -401,9 +401,9 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         Instruments,
         InstrumentPickerFilter.Visible(AllInstruments, InstrumentSearchText, SelectedInstrument, MaxInstrumentsDisplayed));
 
-    /// <summary>Subclasses build a fresh <see cref="IBacktestStrategy"/> here using their
+    /// <summary>Subclasses build a fresh <see cref="IOrderRoutedStrategy"/> here using their
     /// current parameter property values.</summary>
-    protected abstract IBacktestStrategy BuildStrategy(Contract contract);
+    protected abstract IOrderRoutedStrategy BuildStrategy(Contract contract);
 
     /// <summary>Override to validate strategy-specific parameters before
     /// <see cref="IsConfigured"/> flips. Return an error message or null.</summary>
@@ -689,7 +689,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
 
     /// <summary>
     /// Best-effort L2 depth pump running alongside the quote stream. Forwards each book
-    /// snapshot to the strategy's <see cref="IBacktestStrategy.OnDepthAsync"/> so book-aware
+    /// snapshot to the strategy's <see cref="IOrderRoutedStrategy.OnDepthAsync"/> so book-aware
     /// signals (OBI) can use real depth. Brokers without depth (Alpaca, IB-not-yet-wired)
     /// produce no events on the hub — we degrade silently to the L1 path.
     /// </summary>
@@ -755,7 +755,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
     /// <see cref="TradeTapeAvailable"/> to <c>false</c>, and exits — quote/bar/depth pumps
     /// are unaffected. On success the pump subscribes the ingest trade feed, consumes
     /// <see cref="IMarketDataHub.Trades"/> off the hub, and forwards each
-    /// <see cref="TradePrint"/> to <see cref="IBacktestStrategy.OnTradeAsync"/>.</para>
+    /// <see cref="TradePrint"/> to <see cref="IOrderRoutedStrategy.OnTradeAsync"/>.</para>
     ///
     /// <para>The channel/marshalling/cancellation pattern is identical to
     /// <see cref="RunDepthStreamAsync"/>. A bounded <see cref="Channel{T}"/> decouples the
@@ -982,7 +982,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         DisposeStrategy(strategy);
     }
 
-    private async ValueTask DisposeStrategyAsync(IBacktestStrategy? strategy)
+    private async ValueTask DisposeStrategyAsync(IOrderRoutedStrategy? strategy)
     {
         if (strategy is null) return;
         try
@@ -998,7 +998,7 @@ public abstract partial class LiveSignalStrategyViewModelBase : ViewModelBase, I
         }
     }
 
-    private void DisposeStrategy(IBacktestStrategy? strategy)
+    private void DisposeStrategy(IOrderRoutedStrategy? strategy)
     {
         if (strategy is null) return;
         if (strategy is IDisposable disposable)
