@@ -321,14 +321,21 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
     internal static string FlattenPrompt(StrategyCodegenRequest request)
     {
         var sb = new StringBuilder(request.SystemContext).AppendLine().AppendLine();
+        // A CLI gets one flat prompt, so the role simply follows the shared pack. There is no cache to
+        // preserve here — the separation exists for the providers that have one.
+        if (request.RoleInstruction is { Length: > 0 } role)
+            sb.AppendLine(role).AppendLine();
         foreach (var m in request.Messages)
             sb.Append(m.Role == CodegenRole.Assistant ? "ASSISTANT: " : "USER: ").AppendLine(m.Content).AppendLine();
+        // This paragraph demanded "kernel + ITradingStrategy descriptor + live view-model + code-built
+        // view" until 2026-08-25 — the four-file model the visualizer rework retired. It was telling a
+        // CLI agent to write three files the host would never load.
         sb.AppendLine(
-            "Answer per OUTPUT CONTRACT (a) above: one ```csharp fenced block per file, each starting with a " +
-            "`// file: <Name>.cs` line. Write the COMPLETE plugin — kernel + ITradingStrategy descriptor + " +
-            "live view-model + code-built view — unless the user explicitly asked for a backtest kernel only; " +
-            "a kernel on its own gets no catalog card and no window. Ask a question instead of guessing if the " +
-            "brief is ambiguous about the instrument, timeframe, sizing or risk.");
+            "Answer per the output contract above: one ```csharp fenced block per file, each starting with " +
+            "a `// file: <Name>.cs` line. Write ONE public class implementing IStrategyKernel (a strategy) " +
+            "or IVisualizer (a visualizer), with a public parameterless constructor. No view, no " +
+            "view-model, no descriptor, no XAML — the host composes the window. Ask a question instead of " +
+            "guessing if the brief is ambiguous about the instrument, timeframe, sizing or risk.");
         return sb.ToString();
     }
 

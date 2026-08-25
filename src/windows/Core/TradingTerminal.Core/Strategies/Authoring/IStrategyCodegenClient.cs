@@ -91,7 +91,25 @@ public sealed record CodegenUsage(int InputTokens, int OutputTokens, int CachedI
 /// the first is the user's instruction, and the auto-fix loop appends the model's last answer plus the
 /// compiler errors so the model can correct itself.
 /// </summary>
-public sealed record StrategyCodegenRequest(string SystemContext, IReadOnlyList<CodegenMessage> Messages);
+/// <param name="SystemContext">The shared knowledge every agent gets: the generated SDK surface and the
+/// hand-written conventions. Byte-identical on every call, which is what makes it worth caching.</param>
+/// <param name="Messages">The conversation.</param>
+/// <param name="RoleInstruction">
+/// What this agent owns, kept <b>separate from</b> <paramref name="SystemContext"/> rather than appended
+/// to it.
+///
+/// <para>That separation is the whole reason this parameter exists. Providers cache on an exact prefix,
+/// so a system prompt of <c>shared + role</c> is a different prefix for every agent and every role
+/// switch re-bills the shared pack — roughly twelve thousand tokens — at full price. Sent as two blocks
+/// with the cache breakpoint after the shared one, six agents share one cached prefix and only the short
+/// role suffix is ever re-read.</para>
+///
+/// <para>Null for a single-agent session, which is what the in-app builder still does.</para>
+/// </param>
+public sealed record StrategyCodegenRequest(
+    string SystemContext,
+    IReadOnlyList<CodegenMessage> Messages,
+    string? RoleInstruction = null);
 
 /// <summary>
 /// The outcome of one generation. <paramref name="Files"/> is the extracted C# — one entry per file the

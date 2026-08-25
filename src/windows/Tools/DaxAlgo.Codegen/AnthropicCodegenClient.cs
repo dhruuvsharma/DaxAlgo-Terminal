@@ -213,7 +213,16 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         var effort = _effort.Wire();
         var body = new MessagesRequest(
             _model, MaxTokens: 16384,
-            System: [new WireText(request.SystemContext) { CacheControl = WireCacheControl.Ephemeral }],
+            // Two system blocks, and the ORDER is the point: the shared pack carries the breakpoint, so
+            // every agent shares one cached prefix and only its own short role suffix is re-read. Append
+            // the role to the shared text instead and each role becomes a distinct prefix — six agents
+            // then re-buy twelve thousand tokens on every switch, which is the user's money.
+            System: request.RoleInstruction is { Length: > 0 } role
+                ? [
+                    new WireText(request.SystemContext) { CacheControl = WireCacheControl.Ephemeral },
+                    new WireText(role),
+                  ]
+                : [new WireText(request.SystemContext) { CacheControl = WireCacheControl.Ephemeral }],
             Messages: messages,
             OutputConfig: effort is null ? null : new WireOutputConfig(effort),
             Thinking: effort is null ? null : new WireThinking("adaptive"),

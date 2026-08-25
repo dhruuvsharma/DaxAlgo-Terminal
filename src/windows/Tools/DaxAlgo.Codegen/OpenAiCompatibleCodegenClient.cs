@@ -180,7 +180,12 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
     private HttpRequestMessage BuildRequest(StrategyCodegenRequest request, bool stream)
     {
+        // Two system messages rather than one concatenated string: providers that cache do it on a
+        // prefix, so keeping the shared pack its own message lets it stay cached across role switches.
+        // Providers that do not cache see the same instructions either way.
         var messages = new List<WireMessage> { new("system", request.SystemContext) };
+        if (request.RoleInstruction is { Length: > 0 } role)
+            messages.Add(new WireMessage("system", role));
         foreach (var m in request.Messages)
             messages.Add(new(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content));
 
