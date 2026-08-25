@@ -59,16 +59,18 @@ public sealed class AiCodegenOptions
     public string BuildEffort { get; set; } = string.Empty;
 
     /// <summary>
-    /// How long ONE generation may take before it is abandoned — the agent-CLI subprocess wall clock and
-    /// the HTTP timeout for keyed providers alike.
-    /// <para>
-    /// Generous by design. A detailed strategy brief at a high reasoning effort is a multi-minute request:
-    /// the model reads the SDK context pack, thinks, and writes several files. The old defaults (an
-    /// HttpClient's 100s, the CLI adapter's 180s) killed exactly the requests worth waiting for. The user
-    /// can always press Stop; a wall clock is only there so a wedged provider can't hang the pane forever.
-    /// </para>
+    /// How long ONE generation may take — the agent-CLI subprocess wall clock and the HTTP timeout
+    /// for keyed providers alike. <b>0, the default, means no limit.</b>
+    ///
+    /// <para>It was ten minutes, which is a guess about how long somebody else's model takes to think —
+    /// and the guess loses either way. Too low and a hard brief at high effort is killed halfway,
+    /// billing the user for tokens they never receive. Too high and it is not a safety net anyway.</para>
+    ///
+    /// <para>Cancellation is the control that actually belongs here: the pane's Stop button already
+    /// cancels the request, and that is a decision by the person paying for it rather than by a number
+    /// in a config file.</para>
     /// </summary>
-    public int TimeoutSeconds { get; set; } = 600;
+    public int TimeoutSeconds { get; set; }
 
     /// <summary>Per-provider endpoint/model config, keyed by provider id.</summary>
     public IDictionary<string, AiCodegenProvider> Providers { get; set; } =

@@ -104,7 +104,12 @@ public sealed class StrategyCodegenClientFactory
     /// <summary>One generation's wall clock, from config. Applied to BOTH transports — a keyed provider
     /// would otherwise inherit <see cref="HttpClient"/>'s 100-second default and abandon exactly the long,
     /// high-effort generations worth waiting for.</summary>
-    private TimeSpan Timeout => TimeSpan.FromSeconds(Math.Max(30, _options.TimeoutSeconds));
+    /// <summary>Zero or less means no limit — the user's Stop button is the control, not a guess about
+    /// how long another company's model takes to think. Anything positive is honoured, floored at thirty
+    /// seconds so a typo cannot make every request fail instantly.</summary>
+    private TimeSpan Timeout => _options.TimeoutSeconds <= 0
+        ? System.Threading.Timeout.InfiniteTimeSpan
+        : TimeSpan.FromSeconds(Math.Max(30, _options.TimeoutSeconds));
 
     private IStrategyCodegenClient BuildKeyed(
         string id, AiCodegenProvider provider, string? model, CodegenEffort effort = CodegenEffort.Default)

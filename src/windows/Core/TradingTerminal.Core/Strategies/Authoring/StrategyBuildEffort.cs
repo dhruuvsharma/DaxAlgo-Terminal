@@ -73,6 +73,15 @@ public static class StrategyBuildEfforts
 /// <para>Reusing the existing dial also means no new concept to explain. There is no second toggle, and
 /// no way to ask for extreme quality and quietly get the cheap path.</para>
 /// </param>
+/// <param name="Reasoning">
+/// How hard the model is asked to think per turn.
+///
+/// <para>Derived from the build effort rather than chosen separately, because two dials for one
+/// intention is a way to ask for extreme quality and be quietly given the cheap setting on the other
+/// control. It also rises the right way under a token budget: a failed turn pays its full input and
+/// buys nothing, so spending more to get a turn right the first time is the cheaper move per delivered
+/// strategy, not the more expensive one.</para>
+/// </param>
 /// <param name="MaxAgentTurns">
 /// The turn budget when <paramref name="UseAgents"/> is set, and it is the user's money. Larger than
 /// <paramref name="MaxFixAttempts"/> because a run spends turns on roles before it spends any on repair:
@@ -84,19 +93,22 @@ public sealed record StrategyBuildProfile(
     bool SelfReview,
     bool Verify,
     bool UseAgents = false,
-    int MaxAgentTurns = 0)
+    int MaxAgentTurns = 0,
+    CodegenEffort Reasoning = CodegenEffort.Default)
 {
     /// <summary>The profile an effort level buys.</summary>
     public static StrategyBuildProfile For(StrategyBuildEffort effort) => effort switch
     {
         StrategyBuildEffort.Quick =>
-            new(MaxSkills: 1, MaxFixAttempts: 1, SelfReview: false, Verify: false),
+            new(MaxSkills: 1, MaxFixAttempts: 1, SelfReview: false, Verify: false,
+                Reasoning: CodegenEffort.Low),
         StrategyBuildEffort.Deep =>
             new(MaxSkills: 5, MaxFixAttempts: 4, SelfReview: true, Verify: true,
-                UseAgents: true, MaxAgentTurns: 10),
+                UseAgents: true, MaxAgentTurns: 10, Reasoning: CodegenEffort.High),
         StrategyBuildEffort.Max =>
             new(MaxSkills: 8, MaxFixAttempts: 6, SelfReview: true, Verify: true,
-                UseAgents: true, MaxAgentTurns: 16),
-        _ => new(MaxSkills: 3, MaxFixAttempts: 2, SelfReview: false, Verify: false),
+                UseAgents: true, MaxAgentTurns: 16, Reasoning: CodegenEffort.Max),
+        _ => new(MaxSkills: 3, MaxFixAttempts: 2, SelfReview: false, Verify: false,
+                 Reasoning: CodegenEffort.Medium),
     };
 }

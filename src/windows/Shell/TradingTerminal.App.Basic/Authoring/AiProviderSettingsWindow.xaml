@@ -1,0 +1,169 @@
+<mah:MetroWindow x:Class="TradingTerminal.App.Authoring.AiProviderSettingsWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 Title="AI providers"
+                 Width="820" Height="560" MinWidth="620" MinHeight="420"
+                 WindowStartupLocation="CenterOwner"
+                 ShowMaxRestoreButton="False"
+                 Background="{DynamicResource Background.Primary}">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V" />
+
+        <!-- One provider in the list. Availability is the only thing that has to read at a glance,
+             so it is a dot rather than a word competing with the name. -->
+        <DataTemplate x:Key="ProviderListRow">
+            <DockPanel Margin="0,3">
+                <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Margin="0,0,8,0"
+                         VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+                            <Setter Property="Opacity" Value="0.35" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAvailable}" Value="True">
+                                    <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
+                                    <Setter Property="Opacity" Value="1" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+
+                <TextBlock DockPanel.Dock="Right" Text="DEFAULT" FontSize="8" FontWeight="Bold"
+                           VerticalAlignment="Center" Margin="6,0,0,0"
+                           Foreground="{DynamicResource Ai.Text.Brush}"
+                           Visibility="{Binding IsDefault, Converter={StaticResource B2V}}" />
+
+                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Text.Primary}" FontSize="12" />
+            </DockPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="228" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ── The list ──────────────────────────────────────────────────────────────────────── -->
+        <DockPanel Grid.Row="0" Grid.Column="0" Margin="0,0,14,0">
+            <TextBlock DockPanel.Dock="Top" Text="PROVIDERS" FontSize="9.5" FontWeight="Bold"
+                       Margin="2,0,0,6" Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+
+            <Button DockPanel.Dock="Bottom" Content="Recheck" Margin="0,8,0,0" Padding="10,4"
+                    Command="{Binding RecheckCommand}"
+                    ToolTip="Look again for installed CLIs and stored keys" />
+
+            <ListBox ItemsSource="{Binding Providers}" SelectedItem="{Binding Selected}"
+                     ItemTemplate="{StaticResource ProviderListRow}"
+                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                     Background="{DynamicResource Background.Surface}"
+                     HorizontalContentAlignment="Stretch" />
+        </DockPanel>
+
+        <!-- ── The selected provider ─────────────────────────────────────────────────────────── -->
+        <Border Grid.Row="0" Grid.Column="1" CornerRadius="4" Padding="16,14"
+                Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                DataContext="{Binding Selected}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="Bold"
+                               Foreground="{DynamicResource Text.Header}" />
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="11"
+                               Margin="0,4,0,0" Foreground="{DynamicResource Text.Secondary}" />
+
+                    <!-- ── Keyed providers ──────────────────────────────────────────────────── -->
+                    <StackPanel Margin="0,16,0,0"
+                                Visibility="{Binding IsKeyed, Converter={StaticResource B2V}}">
+                        <TextBlock Text="API KEY" FontSize="9.5" FontWeight="Bold"
+                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+
+                        <!-- A PasswordBox rather than a TextBox: a key pasted into a window someone may
+                             be screen-sharing should not be sitting there in plain text. -->
+                        <PasswordBox x:Name="KeyBox" Margin="0,5,0,0" Padding="7,5" FontSize="12"
+                                     PasswordChanged="OnKeyChanged" />
+
+                        <DockPanel Margin="0,7,0,0">
+                            <Button DockPanel.Dock="Right" Content="Forget key" Padding="10,4"
+                                    Margin="7,0,0,0"
+                                    Command="{Binding DataContext.ClearKeyCommand,
+                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}"
+                                    Visibility="{Binding HasKey, Converter={StaticResource B2V}}" />
+                            <Button HorizontalAlignment="Left" Content="Save key" Padding="12,4"
+                                    Command="{Binding DataContext.SaveKeyCommand,
+                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}" />
+                        </DockPanel>
+
+                        <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="The key is encrypted for this Windows account and never leaves this machine except in requests to the provider you gave it for. You are billed by that provider for what the builder generates." />
+
+                        <TextBlock Text="ENDPOINT" FontSize="9.5" FontWeight="Bold" Margin="0,16,0,0"
+                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+                        <TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,5,0,0" Padding="7,5" FontSize="12"
+                                 FontFamily="{DynamicResource Font.Data}" />
+                        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="Point this at a compatible gateway or a local server (Ollama, LM Studio) to keep the whole exchange on your own machine." />
+                    </StackPanel>
+
+                    <!-- ── Agent CLIs ───────────────────────────────────────────────────────── -->
+                    <StackPanel Margin="0,16,0,0"
+                                Visibility="{Binding IsCli, Converter={StaticResource B2V}}">
+                        <TextBlock Text="CLI PROFILE (OPTIONAL)" FontSize="9.5" FontWeight="Bold"
+                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+                        <TextBox Text="{Binding CliProfile, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,5,0,0" Padding="7,5" FontSize="12"
+                                 FontFamily="{DynamicResource Font.Data}" />
+                        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="A named configuration in the CLI's own settings. Leave it empty to use its default. There is no key to enter here — the CLI signs in with its own account, and its subscription pays for the tokens." />
+                    </StackPanel>
+
+                    <!-- ── Both ─────────────────────────────────────────────────────────────── -->
+                    <TextBlock Text="MODEL" FontSize="9.5" FontWeight="Bold" Margin="0,16,0,0"
+                               Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+                    <TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,5,0,0" Padding="7,5" FontSize="12"
+                             FontFamily="{DynamicResource Font.Data}" />
+                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
+                               Foreground="{DynamicResource Text.Secondary}"
+                               Text="Empty means the provider's own default. The composer can still switch model per session — this is what it opens with." />
+
+                    <DockPanel Margin="0,18,0,0">
+                        <Button DockPanel.Dock="Right" Content="Make default" Padding="12,5"
+                                Margin="8,0,0,0"
+                                Command="{Binding DataContext.MakeDefaultCommand,
+                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                ToolTip="Open the builder with this provider" />
+                        <Button HorizontalAlignment="Left" Content="Save settings" Padding="12,5"
+                                Command="{Binding DataContext.SaveProviderCommand,
+                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                    </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ── Footer ────────────────────────────────────────────────────────────────────────── -->
+        <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,0,0">
+            <Button DockPanel.Dock="Right" Content="Close" Padding="18,5" IsCancel="True"
+                    IsDefault="True" Click="OnClose" />
+            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11" Margin="0,0,12,0"
+                       Foreground="{DynamicResource Text.Secondary}" Text="{Binding Status}" />
+        </DockPanel>
+    </Grid>
+</mah:MetroWindow>

@@ -41,6 +41,41 @@
         <Setter Property="Opacity" Value="0.9" />
     </Style>
 
+    <!-- A quiet way out of a panel. Underlined text rather than a bordered button, so a secondary
+         route (open the provider settings) never competes with the primary action beside it. -->
+    <Style x:Key="HYP.LinkButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="2,0" />
+        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <TextBlock x:Name="Label" Text="{TemplateBinding Content}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
+                            <Setter TargetName="Label" Property="Foreground"
+                                    Value="{DynamicResource Ai.Text.Brush}" />
+                        </Trigger>
+                        <!-- Keyboard users get the same affordance the mouse gets. -->
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
+                            <Setter TargetName="Label" Property="Foreground"
+                                    Value="{DynamicResource Ai.Text.Brush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Dim metadata ("step 3 of 6 · tokens: …"). -->
     <Style x:Key="HYP.GhostText" TargetType="TextBlock">
         <Setter Property="FontSize" Value="10.5" />

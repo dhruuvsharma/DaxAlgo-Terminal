@@ -79,6 +79,33 @@ public sealed class BuildEffortTests
     }
 
     [Fact]
+    public void TheDialAlsoCarriesHowHardTheModelThinks()
+    {
+        // There used to be a second dropdown for this. Two dials for one intention is a way to ask for
+        // extreme quality and be quietly given the cheap setting on the other control.
+        Profile(StrategyBuildEffort.Quick).Reasoning.Should().Be(CodegenEffort.Low);
+        Profile(StrategyBuildEffort.Max).Reasoning.Should().Be(CodegenEffort.Max);
+    }
+
+    [Fact]
+    public void ReasoningRisesWithTheDialToo()
+    {
+        // Same rule as every other field on the profile: a higher setting is never less thorough. Under a
+        // token budget this is the cheaper direction, not the more expensive one — a failed turn pays its
+        // full input and buys nothing, so getting the turn right first time costs less per delivered
+        // strategy than a retry does.
+        var levels = new[]
+        {
+            StrategyBuildEffort.Quick, StrategyBuildEffort.Standard,
+            StrategyBuildEffort.Deep, StrategyBuildEffort.Max,
+        };
+
+        for (var i = 1; i < levels.Length; i++)
+            ((int)Profile(levels[i]).Reasoning)
+                .Should().BeGreaterThanOrEqualTo((int)Profile(levels[i - 1]).Reasoning);
+    }
+
+    [Fact]
     public void TheCheapPathIsStillCheap()
     {
         // Quick must stay quick: one skill, one fix, no review, no ladder, one conversation. If it drifts

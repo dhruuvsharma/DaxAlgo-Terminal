@@ -120,8 +120,16 @@
                         <Border BorderBrush="{DynamicResource Border.Brush}" BorderThickness="0,1,0,0"
                                 Padding="0,7,0,0">
                             <StackPanel>
-                                <TextBlock Text="PROVIDERS" Style="{StaticResource HYP.SectionLabel}"
-                                           Margin="0,0,0,4" />
+                                <DockPanel Margin="0,0,0,4">
+                                    <!-- The footer reported that no provider was configured and gave no
+                                         way to configure one, which left the user to find a settings
+                                         page from a dead end. -->
+                                    <Button DockPanel.Dock="Right" Content="Manage…"
+                                            Style="{StaticResource HYP.LinkButton}"
+                                            Command="{Binding OpenProviderSettingsCommand}"
+                                            ToolTip="Add an API key or connect an agent CLI" />
+                                    <TextBlock Text="PROVIDERS" Style="{StaticResource HYP.SectionLabel}" />
+                                </DockPanel>
                                 <ItemsControl ItemsSource="{Binding AiProviders}"
                                               ItemTemplate="{StaticResource HYP.ProviderRow}" />
                             </StackPanel>
@@ -338,16 +346,9 @@
                                     </TextBlock>
                                 </ToggleButton>
                                 <ToggleButton x:Name="BuildPill" Style="{StaticResource HYP.PillButton}" Margin="6,0,0,0"
-                                              ToolTip="How much the BUILDER puts in — skills, auto-fix retries, self-review + backtest smoke at Deep/Max.">
+                                              ToolTip="The single effort dial: how many skills are loaded, how many auto-fix attempts are allowed, whether the agents and the verification ladder run — and how hard the model is asked to think. Quick sketches; Max builds and checks.">
                                     <TextBlock>
                                         <Run Text="Build: " /><Run Text="{Binding BuildEffort, Mode=OneWay}" /><Run Text="  ▾" />
-                                    </TextBlock>
-                                </ToggleButton>
-                                <ToggleButton x:Name="ReasonPill" Style="{StaticResource HYP.PillButton}" Margin="6,0,0,0"
-                                              IsEnabled="{Binding EffortSupported}"
-                                              ToolTip="How hard the MODEL thinks. 'Default' sends nothing — for models that reject the parameter.">
-                                    <TextBlock>
-                                        <Run Text="Reasoning: " /><Run Text="{Binding SelectedEffort, Mode=OneWay}" /><Run Text="  ▾" />
                                     </TextBlock>
                                 </ToggleButton>
                             </StackPanel>
@@ -399,16 +400,6 @@
                             <Border Style="{StaticResource HYP.FlyoutCard}" MinWidth="150">
                                 <ListBox x:Name="BuildList" ItemsSource="{Binding BuildEfforts}"
                                          SelectedItem="{Binding BuildEffort}"
-                                         BorderThickness="0" Background="Transparent"
-                                         SelectionChanged="OnFlyoutSelectionChanged" />
-                            </Border>
-                        </Popup>
-                        <Popup IsOpen="{Binding IsChecked, ElementName=ReasonPill, Mode=TwoWay}"
-                               PlacementTarget="{Binding ElementName=ReasonPill}" Placement="Top"
-                               StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
-                            <Border Style="{StaticResource HYP.FlyoutCard}" MinWidth="150">
-                                <ListBox x:Name="ReasonList" ItemsSource="{Binding Efforts}"
-                                         SelectedItem="{Binding SelectedEffort}"
                                          BorderThickness="0" Background="Transparent"
                                          SelectionChanged="OnFlyoutSelectionChanged" />
                             </Border>
@@ -466,9 +457,14 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </Border>
+                                <!-- What the run cost. The user is billed by their own provider for
+                                     every turn, so leaving this out is the difference between a budget
+                                     and a surprise. Hidden until something has actually been spent. -->
                                 <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
-                                           FontSize="9.5" Foreground="{DynamicResource Text.Secondary}"
-                                           Opacity="0.8" Text="reviewed code runs in-process" />
+                                           Style="{StaticResource HYP.GhostText}" FontSize="9.5"
+                                           Text="{Binding UsageText}"
+                                           ToolTip="Charged by your AI provider for this session. Cached input is billed at a fraction of the full rate."
+                                           Visibility="{Binding UsageText, Converter={StaticResource S2V}}" />
                             </Grid>
                             <TextBlock Margin="1,7,0,0" TextWrapping="Wrap" FontSize="10.5"
                                        Foreground="{DynamicResource Text.Secondary}"
@@ -511,6 +507,10 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Two tabs, on purpose. Parameters and Activity used to live here and were
+                         removed: every unit's own window carries a parameters expander and an activity
+                         log at the bottom, so the pane was showing a worse copy of a surface the user
+                         is about to get anyway. What is left is the picture and the source. -->
                     <TabControl SelectedIndex="{Binding WorkbenchTab}" Margin="12,4,12,8"
                                 Background="Transparent">
                         <!-- Preview leads, because a picture is how a strategy is actually reviewed.
@@ -525,8 +525,8 @@
                                 </Grid.RowDefinitions>
 
                                 <Border Grid.Row="0" CornerRadius="4"
-                                        Background="{DynamicResource Surface.Panel}"
-                                        BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1">
+                                        Background="{DynamicResource Background.Surface}"
+                                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                                     <Grid>
                                         <render:RenderSurfaceView Draw="{Binding PreviewDraw}" Margin="6">
                                             <render:RenderSurfaceView.Style>
@@ -543,7 +543,7 @@
 
                                         <!-- Never an unexplained empty rectangle: a blank panel reads as
                                              a broken application rather than a unit that draws nothing. -->
-                                        <TextBlock Text="Compile to see the strategy."
+                                        <TextBlock Text="Press Compile preview to see the strategy."
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource Text.Secondary}"
                                                    FontSize="12">
@@ -561,9 +561,18 @@
                                     </Grid>
                                 </Border>
 
-                                <TextBlock Grid.Row="1" Text="{Binding PreviewSummary}" Margin="2,6,2,0"
-                                           TextWrapping="Wrap" FontSize="11"
-                                           Foreground="{DynamicResource Text.Secondary}" />
+                                <!-- Compiles and draws, and registers nothing. Looking at the picture
+                                     is not a decision, so it must not cost the consent dialogue that
+                                     registration rightly asks for — that is how people stop looking. -->
+                                <DockPanel Grid.Row="1" Margin="2,6,2,0">
+                                    <Button DockPanel.Dock="Right" Content="↻  Compile preview"
+                                            Padding="10,3" FontSize="11" VerticalAlignment="Top"
+                                            Command="{Binding CompilePreviewCommand}"
+                                            ToolTip="Build it and draw one frame. Nothing is registered." />
+                                    <TextBlock Text="{Binding PreviewSummary}" TextWrapping="Wrap"
+                                               FontSize="11" Margin="0,0,8,0"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                </DockPanel>
                             </Grid>
                         </TabItem>
 
@@ -646,31 +655,7 @@
                             </DockPanel>
                         </TabItem>
 
-                        <TabItem Header="Parameters">
-                            <DockPanel Margin="0,6,0,0">
-                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap" FontSize="11"
-                                           Foreground="{DynamicResource Text.Secondary}"
-                                           Text="A strategy that declares a static Schema gets this editor for free. Compile to populate it." />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <uistrat:StrategyParameterEditorView DataContext="{Binding Parameters}" />
-                                </ScrollViewer>
-                            </DockPanel>
-                        </TabItem>
 
-                        <TabItem Header="Activity">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
-                                <ItemsControl ItemsSource="{Binding Activity}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" FontSize="10.5" Margin="0,1"
-                                                       TextWrapping="Wrap"
-                                                       FontFamily="{DynamicResource Font.Data}"
-                                                       Foreground="{DynamicResource Text.Secondary}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </TabItem>
                     </TabControl>
                 </DockPanel>
             </Border>

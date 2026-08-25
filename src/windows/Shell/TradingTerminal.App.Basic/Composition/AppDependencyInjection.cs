@@ -128,6 +128,13 @@ public static class AppDependencyInjection
         // available immediately and survives restart.
         services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredStrategyInstaller>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        // Provider setup, opened from the composer's provider footer. Transient view-model behind a
+        // factory: the window reads the key store and PATH when it opens, and a singleton would show
+        // whatever was true the first time it was asked.
+        services.AddTransient<TradingTerminal.App.Authoring.AiProviderSettingsViewModel>();
+        services.AddSingleton<TradingTerminal.App.Authoring.IAiProviderSettingsLauncher>(sp =>
+            new TradingTerminal.App.Authoring.AiProviderSettingsLauncher(
+                sp.GetRequiredService<TradingTerminal.App.Authoring.AiProviderSettingsViewModel>));
         services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringView>();
         // Basic does not register a default live-view composer. Authored strategies without their own
         // view remain backtest-only; plugin strategies that ship a view continue to open normally.

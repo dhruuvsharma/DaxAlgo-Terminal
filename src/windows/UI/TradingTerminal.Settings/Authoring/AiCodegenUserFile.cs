@@ -14,9 +14,18 @@ namespace TradingTerminal.App.Authoring;
 /// </summary>
 public static class AiCodegenUserFile
 {
-    /// <summary>Absolute path to <c>%LocalAppData%\DaxAlgo Terminal\ai-codegen.json</c>.
-    /// The directory is created on first write.</summary>
-    public static string Path { get; } = System.IO.Path.Combine(
+    /// <summary>
+    /// Absolute path to <c>%LocalAppData%\DaxAlgo Terminal\ai-codegen.json</c>. The directory is created
+    /// on first write.
+    ///
+    /// <para>Settable so a test can redirect it. Without that, a test for any of the writers below edits
+    /// the configuration of whoever is running it — which is exactly what happened: a suite rewrote a
+    /// developer's own provider settings and reported green.</para>
+    /// </summary>
+    public static string Path { get; set; } = DefaultPath;
+
+    /// <summary>The real per-user location, kept separately so a test can put <see cref="Path"/> back.</summary>
+    public static string DefaultPath { get; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal",
         "ai-codegen.json");
@@ -33,27 +42,8 @@ public static class AiCodegenUserFile
     {
         if (string.IsNullOrWhiteSpace(providerId)) return;
 
-        var dir = System.IO.Path.GetDirectoryName(Path);
-        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-
-        JsonObject root;
-        if (File.Exists(Path))
-        {
-            var existing = File.ReadAllText(Path);
-            root = string.IsNullOrWhiteSpace(existing)
-                ? new JsonObject()
-                : JsonNode.Parse(existing) as JsonObject ?? new JsonObject();
-        }
-        else
-        {
-            root = new JsonObject();
-        }
-
-        if (root[AiCodegenOptions.SectionName] is not JsonObject section)
-        {
-            section = new JsonObject();
-            root[AiCodegenOptions.SectionName] = section;
-        }
+        var root = Read();
+        var section = Section(root);
 
         section["DefaultProvider"] = providerId;
 
@@ -61,17 +51,7 @@ public static class AiCodegenUserFile
         // works (skills, fix attempts, review, smoke), which doesn't change with the provider.
         if (buildEffort is not null) section["BuildEffort"] = buildEffort;
 
-        if (section["Providers"] is not JsonObject providers)
-        {
-            providers = new JsonObject();
-            section["Providers"] = providers;
-        }
-
-        if (providers[providerId] is not JsonObject provider)
-        {
-            provider = new JsonObject();
-            providers[providerId] = provider;
-        }
+        var provider = Provider(section, providerId);
 
         // Keep the endpoint/kind the app is configured with — this file only overrides the model, so a
         // later appsettings change to a base URL still reaches the user.
@@ -86,6 +66,94 @@ public static class AiCodegenUserFile
         // Empty ⇒ "provider default", which means the effort parameter is never sent — the only setting
         // a model that predates it will accept.
         provider["Effort"] = effort.Wire();
+
+        Write(root);
+    }
+
+    /// <summary>
+    /// Records one provider's endpoint, model and CLI profile — what the provider settings pane saves.
+    ///
+    /// <para>Separate from <see cref="SaveSelection"/> because editing a provider's setup is not choosing
+    /// it: a user can add a key to a second provider without wanting the next build to go there.</para>
+    /// </summary>
+    public static void SaveProvider(string providerId, AiCodegenProvider config)
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+        ArgumentNullException.ThrowIfNull(config);
+
+        var root = Read();
+        var provider = Provider(Section(root), providerId);
+
+        provider["Kind"] = config.Kind.ToString();
+        provider["BaseUrl"] = Blank(config.BaseUrl);
+        provider["Model"] = Blank(config.Model);
+        provider["CliProfile"] = Blank(config.CliProfile);
+
+        Write(root);
+    }
+
+    /// <summary>Records which provider the builder should open with, touching nothing else.</summary>
+    public static void SaveDefaultProvider(string providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+
+        var root = Read();
+        Section(root)["DefaultProvider"] = providerId;
+        Write(root);
+    }
+
+    /// <summary>Null rather than an empty string, so a blank field falls through to whatever
+    /// <c>appsettings.json</c> ships instead of overriding it with nothing.</summary>
+    private static JsonNode? Blank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : JsonValue.Create(value);
+
+    /// <summary>The file as it stands. A corrupt or empty file starts over rather than throwing — losing a
+    /// remembered model choice is a smaller harm than a builder that will not open.</summary>
+    private static JsonObject Read()
+    {
+        if (!File.Exists(Path)) return new JsonObject();
+
+        try
+        {
+            var existing = File.ReadAllText(Path);
+            return string.IsNullOrWhiteSpace(existing)
+                ? new JsonObject()
+                : JsonNode.Parse(existing) as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            return new JsonObject();
+        }
+    }
+
+    private static JsonObject Section(JsonObject root)
+    {
+        if (root[AiCodegenOptions.SectionName] is JsonObject section) return section;
+
+        section = new JsonObject();
+        root[AiCodegenOptions.SectionName] = section;
+        return section;
+    }
+
+    private static JsonObject Provider(JsonObject section, string providerId)
+    {
+        if (section["Providers"] is not JsonObject providers)
+        {
+            providers = new JsonObject();
+            section["Providers"] = providers;
+        }
+
+        if (providers[providerId] is JsonObject provider) return provider;
+
+        provider = new JsonObject();
+        providers[providerId] = provider;
+        return provider;
+    }
+
+    private static void Write(JsonObject root)
+    {
+        var dir = System.IO.Path.GetDirectoryName(Path);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
         File.WriteAllText(Path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }

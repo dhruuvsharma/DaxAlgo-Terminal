@@ -71,6 +71,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// doesn't write the user-config file back with the defaults it just read.</summary>
     private bool _ready;
 
+    private readonly IAiProviderSettingsLauncher? _providerSettings;
+
     public StrategyAuthoringViewModel(
         IStrategyCompiler compiler,
         IStrategyRegistry registry,
@@ -79,7 +81,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IOptions<AiCodegenOptions>? options = null,
         AuthoredStrategyInstaller? installer = null,
         ICliWorkspaceLauncher? cliLauncher = null,
-        IAuthoredUnitSink? sink = null)
+        IAuthoredUnitSink? sink = null,
+        IAiProviderSettingsLauncher? providerSettings = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -88,6 +91,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _options = options?.Value ?? new AiCodegenOptions();
         _installer = installer;
         _cliLauncher = cliLauncher;
+        // Optional: an edition that registers none simply has no Manage button in the provider footer.
+        _providerSettings = providerSettings;
         // Optional: an edition without one still compiles, verifies and previews — it just says it
         // cannot put the result in a catalog, rather than throwing at construction.
         _sink = sink;
@@ -138,8 +143,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// mark, tagline, suggestion briefs) instead of an empty transcript.</summary>
     public bool HasConversation => Messages.Count > 0;
 
-    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+    private void OnMessagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
         OnPropertyChanged(nameof(HasConversation));
+
+        // The cost readout appears with the first turn and disappears when the session is cleared, so
+        // it has to follow the transcript rather than only the token counts.
+        OnPropertyChanged(nameof(UsageText));
+    }
 
     /// <summary>Canned first briefs for the empty state, seeded from strategy families the terminal
     /// already ships — one click puts a real, well-formed brief in the composer to edit or send.</summary>
@@ -432,6 +443,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     partial void OnBuildEffortChanged(StrategyBuildEffort value)
     {
+        // One dial. Reasoning used to be a second dropdown, which meant a user could ask for Max and be
+        // quietly given the cheap setting on the other control — so the build effort now carries it.
+        SelectedEffort = StrategyBuildProfile.For(value).Reasoning;
+
         // The profile is fixed at session creation (its skill budget shapes the cached system prompt),
         // so a new effort needs a new session — the same rule as switching the model's own effort.
         ResetSession("Switched build effort.");
@@ -778,7 +793,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>Tokens billed this session. The cached share is called out because it is the difference
     /// between a long conversation costing a little and costing a lot — and because a session where it
     /// stays at zero is one paying full price to re-read the same context every turn.</summary>
-    public string UsageText => InputTokens + OutputTokens == 0
+    public string UsageText => !HasConversation
+        // Nothing has been asked for yet, so there is no cost to report — an empty string, which the
+        // view's string-to-visibility converter hides rather than showing a zero that means nothing.
+        ? string.Empty
+        : InputTokens + OutputTokens == 0
+        // A turn happened and the provider said nothing about usage — an agent CLI, typically. Unknown,
+        // which is not the same as free, and must not be shown as zero.
         ? "tokens: not reported"
         : CachedTokens > 0
             ? $"tokens: {InputTokens:N0} in ({CachedTokens:N0} cached) · {OutputTokens:N0} out"
@@ -1492,6 +1513,84 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         CompiledOk = judge.Latest is { Success: true };
         AwaitingAnswer = run.Outcome == AgentRunOutcome.AwaitingUser;
         if (CompiledOk) _pendingCompile = judge.Latest;
+    }
+
+    /// <summary>
+    /// Compiles and shows the picture, and registers nothing.
+    ///
+    /// <para>Separate from Compile &amp; Register on purpose. Registration puts a card in the catalog and
+    /// is a decision the user consents to after reading a diff; seeing what the thing looks like is not
+    /// a decision at all, and should not cost one. Iterating on a picture through a consent dialogue is
+    /// how people stop looking at the picture.</para>
+    /// </summary>
+    [RelayCommand]
+    private void CompilePreview()
+    {
+        Diagnostics.Clear();
+        ClearPreview();
+
+        if (string.IsNullOrWhiteSpace(StrategyId))
+        {
+            Status = "Give the strategy an id before compiling.";
+            return;
+        }
+
+        StrategyCompileResult result;
+        try
+        {
+            result = _compiler.Compile(CurrentScript());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Preview compile threw for {Id}", StrategyId);
+            Status = $"Compiler error: {ex.Message}";
+            return;
+        }
+
+        foreach (var diagnostic in result.Diagnostics) Diagnostics.Add(diagnostic);
+
+        if (!result.Success || result.Unit is null)
+        {
+            Status = $"Nothing to preview — {result.Errors.Count()} error(s).";
+            return;
+        }
+
+        ShowPreview(result.Unit);
+        Status = PreviewSummary;
+    }
+
+    /// <summary>
+    /// Opens provider setup, then rebuilds the picker from what setup left behind.
+    ///
+    /// <para>The rebuild is the part that matters. Provider clients capture their key and endpoint when
+    /// they are constructed, so a picker left alone after a key is saved goes on showing "not set up" for
+    /// a provider that now works — which reads as the setup window having failed.</para>
+    /// </summary>
+    [RelayCommand]
+    private void OpenProviderSettings()
+    {
+        if (_providerSettings is null) return;
+
+        _providerSettings.Open();
+        RefreshProviders();
+    }
+
+    /// <summary>Rebuilds the provider rows from the live client list, keeping the current selection when
+    /// it survived.</summary>
+    private void RefreshProviders()
+    {
+        if (_ai is null) return;
+
+        var selectedId = SelectedAiProvider?.ProviderId;
+
+        AiProviders.Clear();
+        foreach (var provider in _ai.Providers) AiProviders.Add(new AiProviderChoice(provider));
+
+        SelectedAiProvider = AiProviders.FirstOrDefault(p => p.ProviderId == selectedId)
+            ?? AiProviders.FirstOrDefault(p => p.IsAvailable)
+            ?? AiProviders.FirstOrDefault();
+
+        OnPropertyChanged(nameof(AiHasProvider));
     }
 
     /// <summary>Backs out of the review — nothing was registered, the compile result is discarded.</summary>

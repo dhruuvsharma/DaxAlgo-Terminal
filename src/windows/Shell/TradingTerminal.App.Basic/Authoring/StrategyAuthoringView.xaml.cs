@@ -45,7 +45,6 @@ public partial class StrategyAuthoringView : UserControl
     {
         ModelPill.IsChecked = false;
         BuildPill.IsChecked = false;
-        ReasonPill.IsChecked = false;
     }
 
     private void Detach()
