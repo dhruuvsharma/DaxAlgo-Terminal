@@ -217,7 +217,9 @@ public static class BrokerCatalog
         // ── Forex and CFD ───────────────────────────────────────────────────────────────────────
         new("oanda", "OANDA", "oanda.com",
             BrokerRegion.Global, BrokerAssets.Forex | BrokerAssets.Cfd, BrokerAuth.ApiKey,
-            BrokerStatus.Planned, Note: "v20 REST and streaming. The best-documented FX API here."),
+            BrokerStatus.Unverified, BrokerKind.Oanda,
+            "v20 REST and streaming. Written against the published reference; not yet run against a "
+            + "funded account, so it is Unverified rather than DataOnly."),
 
         new("saxo-bank", "Saxo Bank", "home.saxo",
             BrokerRegion.Europe, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures

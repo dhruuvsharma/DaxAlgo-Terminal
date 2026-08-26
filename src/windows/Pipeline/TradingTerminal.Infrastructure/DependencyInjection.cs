@@ -23,6 +23,7 @@ using TradingTerminal.Infrastructure.LondonStrategicEdge;
 using TradingTerminal.Infrastructure.Upstox;
 using TradingTerminal.Core.Brokers.Upstox;
 using TradingTerminal.Infrastructure.MarketData;
+using TradingTerminal.Infrastructure.Oanda;
 #if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
 #endif
@@ -116,6 +117,25 @@ public static class DependencyInjection
                 DisplayName: "NinjaTrader",
                 Description: "Connected through NTDirect.dll. NinjaTrader 8 must be running with the AT Interface enabled."));
 #endif
+
+        // No token composed by default: an edition that has not wired a credential store still builds
+        // the client, and it reports "needs a token" rather than failing to construct.
+        services.TryAddSingleton(IOandaTokenSource.None);
+
+        // OANDA — registered whenever a token source is composed. Data only: order routing is a
+        // separate contract behind both live-money gates, and this client implements neither.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealOandaClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
+                BrokerKind.Oanda,
+                IsLive: true,
+                DisplayName: "OANDA",
+                Description: "Forex and CFD market data over the v20 API. Needs a personal access token "
+                    + "and an account id; practice and live are separate environments."));
 
         // cTrader — always available.
         services.AddSingleton<IBrokerClient>(sp =>

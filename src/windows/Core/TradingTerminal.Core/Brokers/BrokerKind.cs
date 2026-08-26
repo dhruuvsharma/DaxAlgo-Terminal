@@ -92,4 +92,8 @@ public enum BrokerKind
     /// stable. See <c>RealOkxClient</c> / <c>OkxOptions</c>.
     /// </summary>
     Okx,
+
+    /// <summary>OANDA v20 — forex and CFD market data. Appended, never inserted: this enum travels on
+    /// every quote and bar as provenance, and renumbering it would silently relabel stored data.</summary>
+    Oanda,
 }
