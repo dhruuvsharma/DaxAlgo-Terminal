@@ -75,6 +75,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private readonly IAiProviderSettingsLauncher? _providerSettings;
 
+    private readonly IAuthoredUnitStore? _units;
+
     public StrategyAuthoringViewModel(
         IStrategyCompiler compiler,
         IStrategyRegistry registry,
@@ -84,7 +86,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AuthoredStrategyInstaller? installer = null,
         ICliWorkspaceLauncher? cliLauncher = null,
         IAuthoredUnitSink? sink = null,
-        IAiProviderSettingsLauncher? providerSettings = null)
+        IAiProviderSettingsLauncher? providerSettings = null,
+        IAuthoredUnitStore? units = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -95,6 +98,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _cliLauncher = cliLauncher;
         // Optional: an edition that registers none simply has no Manage button in the provider footer.
         _providerSettings = providerSettings;
+        // Optional: an edition whose units arrive as sealed server-compiled artifacts keeps no local
+        // unit folder, and the composer says the unit will not survive a restart rather than pretending.
+        _units = units;
         // Optional: an edition without one still compiles, verifies and previews — it just says it
         // cannot put the result in a catalog, rather than throwing at construction.
         _sink = sink;
@@ -1420,6 +1426,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             ArtifactPath = artifact.Path;
             Status += $" {artifact.Message}";
             _logger.LogInformation("Authored unit {Id} packaged to {Path}", script.Id, artifact.Path);
+            Status += " " + Keep(artifact.Path!);
         }
         else
         {
@@ -1434,6 +1441,33 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Append(AuthoringMessage.Tool("Ok", "Registered", Status ?? "The strategy is registered."));
         CloseReview();
         Save();
+    }
+
+    /// <summary>
+    /// Installs the artifact into the authored-units root so the unit is still there next time.
+    ///
+    /// <para>The install runs here rather than inside <c>AuthoredArtifact.Write</c>, and the difference
+    /// matters. Writing a file is not a decision; putting code where the host will load it at every
+    /// future start is. That decision was already made — this only runs after the review gate, where the
+    /// user read the diff and pressed Register — and it still goes through the ordinary installer, so
+    /// the configured trust policy has its say. A host running Curated refuses an unsigned local build,
+    /// which is correct: persistence is not a reason to stop checking.</para>
+    /// </summary>
+    private string Keep(string artifactPath)
+    {
+        if (_units is null) return "It will not survive a restart — this edition keeps no unit folder.";
+
+        var root = AuthoredUnitsRoot.Ensure();
+        if (root is null) return "It will not survive a restart — the units folder could not be created.";
+
+        var install = _units.Install(artifactPath, root);
+        if (!install.Success)
+        {
+            _logger.LogWarning("Authored unit could not be kept: {Reason}", install.Message);
+            return $"It will not survive a restart: {install.Message}";
+        }
+
+        return "It will be there after a restart.";
     }
 
     /// <summary>Where the last registration's artifact was written, or null. Drives the "Show file"

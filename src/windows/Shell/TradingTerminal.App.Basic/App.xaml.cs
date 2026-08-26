@@ -188,6 +188,28 @@ public partial class App : Application
         // repeated faults quarantine it for the NEXT start — CrashGuard still owns keeping this
         // session alive. Persisted state is absent only in odd host setups; then the net is off.
         var pluginHost = _host.Services.GetRequiredService<Infrastructure.Plugins.PluginHostContext>();
+
+        // Authored units back into the catalog. The loader gated and loaded them during composition;
+        // turning an assembly into a card needs the registries, which are singletons and so only exist
+        // now. Without this pass an installed unit is loaded and invisible — the worst of both, since it
+        // cost the load and shows nothing for it.
+        var boundUnits = TradingTerminal.UI.Strategies.PluginUnitBinder.Bind(
+            pluginHost.LoadedPlugins
+                .Where(p => p.Image is not null)
+                .Select(p => (
+                    PluginId: Infrastructure.Plugins.PluginManifest.TryRead(
+                        System.IO.Path.GetDirectoryName(p.AssemblyPath)!)?.Id
+                        ?? System.IO.Path.GetFileNameWithoutExtension(p.AssemblyPath),
+                    Image: p.Image!)),
+            _host.Services.GetService<TradingTerminal.UI.Strategies.IStrategyKernelRegistry>(),
+            _host.Services.GetService<TradingTerminal.UI.Strategies.IVisualizerRegistry>());
+
+        if (boundUnits.Total > 0 || boundUnits.Skipped.Count > 0)
+            inMemoryLogSink.Append("Plugins", "Information", boundUnits.ToString());
+
+        foreach (var skipped in boundUnits.Skipped)
+            inMemoryLogSink.Append("Plugins", "Warning", $"Authored unit skipped — {skipped}");
+
         if (pluginHost.State is { } pluginFaultState)
             TradingTerminal.UI.Diagnostics.PluginFaultWatchdog.Attach(this, strikeLimit: 3,
                 onStrikeOut: (plugin, reason) =>

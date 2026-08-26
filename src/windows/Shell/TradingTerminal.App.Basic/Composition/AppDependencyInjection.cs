@@ -174,11 +174,30 @@ public static class AppDependencyInjection
         // local plugins load) or Curated (pinned publisher thumbprints + required manifest).
         var pluginOptions = configuration.GetSection(PluginsOptions.SectionName).Get<PluginsOptions>() ?? new PluginsOptions();
         var pluginPolicy = PluginTrustPolicy.From(pluginOptions);
-        // Strategy DLLs are no longer loaded (2026-08-15). The terminal runs DAXQ artifacts
-        // only, so PluginLoader is never invoked; the host context is registered empty so the
-        // Plugin Manager and the marketplace feed still resolve. Restoring DLL loading means
-        // bringing back PluginLoader.LoadWithReport here - see the archived strategies repo.
-        services.AddSingleton(new PluginHostContext(pluginsRoot, pluginPolicy, []));
+        // The MARKETPLACE plugins root is still not loaded (2026-08-15) - third-party DLLs stay off
+        // until the sealed-artifact path is ready. The host context is registered so the Plugin Manager
+        // and the marketplace feed resolve.
+        //
+        // The AUTHORED units root is loaded, and it is a different thing under different rules. It holds
+        // only units this user wrote on this machine and approved at the review gate, it is loaded under
+        // the strict non-relaxable sandbox scan profile, and every blocked artifact is quarantined in the
+        // state store. Without it this edition composes no DAXQ engine and no plugin path, which is the
+        // "permanently empty catalog" cell of the table in
+        // tasks/2026-08-15-1000-server-authoring-and-dll-removal.md - a strategy the user has to
+        // regenerate every morning is not a strategy anyone will trust with money.
+        var unitState = new PluginStateStore(TradingTerminal.Infrastructure.Strategies.Authoring
+            .AuthoredUnitsRoot.Path);
+        var units = TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredUnitsRoot.Ensure();
+        var unitReport = units is null
+            ? null
+            : PluginLoader.LoadSandboxedWithReport(
+                services, units, DaxAlgo.Sdk.SdkInfo.Version, pluginPolicy, unitState);
+
+        services.AddSingleton(new PluginHostContext(
+            pluginsRoot, pluginPolicy, unitReport?.Loaded ?? [], unitReport, unitState));
+        services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.IAuthoredUnitStore>(
+            sp => new TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredUnitStore(
+                sp.GetRequiredService<PluginHostContext>()));
         services.AddPluginFeed(pluginOptions);
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerViewModel>();
         services.AddTransient<TradingTerminal.App.Plugins.PluginManagerView>();
