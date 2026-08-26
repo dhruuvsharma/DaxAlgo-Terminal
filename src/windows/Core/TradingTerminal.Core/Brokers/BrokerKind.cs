@@ -96,4 +96,7 @@ public enum BrokerKind
     /// <summary>OANDA v20 — forex and CFD market data. Appended, never inserted: this enum travels on
     /// every quote and bar as provenance, and renumbering it would silently relabel stored data.</summary>
     Oanda,
+
+    /// <summary>Deribit — crypto options and perpetuals. Appended, never inserted.</summary>
+    Deribit,
 }

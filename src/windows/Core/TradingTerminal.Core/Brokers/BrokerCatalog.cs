@@ -293,8 +293,10 @@ public static class BrokerCatalog
             Note: "Perpetuals DEX; the largest venue missing from the crypto set."),
 
         new("deribit", "Deribit", "deribit.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto | BrokerAssets.Options, BrokerAuth.ApiKey,
-            BrokerStatus.Planned, Note: "Where crypto options actually trade."),
+            BrokerRegion.Crypto, BrokerAssets.Crypto | BrokerAssets.Options, BrokerAuth.None,
+            BrokerStatus.Unverified, BrokerKind.Deribit,
+            "Where crypto options actually trade. Every wire shape was verified against the live venue, "
+            + "but no funded account has run through it, so it is Unverified rather than DataOnly."),
 
         new("bitget", "Bitget", "bitget.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned),

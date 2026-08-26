@@ -110,6 +110,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="TradingTerminal.Tests" />
     <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+    <!-- Broker adapters are internal, and their parsers are the part worth testing: a wire format is
+         pinned by feeding it a captured response, not by connecting to the venue in a unit test. -->
+    <InternalsVisibleTo Include="TradingTerminal.Plugins.Tests" />
   </ItemGroup>
 
   <ItemGroup>
