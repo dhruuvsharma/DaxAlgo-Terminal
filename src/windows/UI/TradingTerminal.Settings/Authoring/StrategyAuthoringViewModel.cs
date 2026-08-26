@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -1407,6 +1409,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 result.Option!.Id, script.Files.Count, install.InCatalog);
         }
 
+        // The file. Registration put the unit in this session's catalog; the artifact is what makes it
+        // survive the session at all — something to back up, send to somebody, or install on a second
+        // machine. Written after registration and never allowed to undo it: a packaging failure is worth
+        // saying out loud, and is not worth losing a unit that compiled, verified and registered.
+        ArtifactPath = null;
+        var artifact = AuthoredArtifact.Write(script, result);
+        if (artifact.Success)
+        {
+            ArtifactPath = artifact.Path;
+            Status += $" {artifact.Message}";
+            _logger.LogInformation("Authored unit {Id} packaged to {Path}", script.Id, artifact.Path);
+        }
+        else
+        {
+            Status += $" It is registered for this session, but could not be packaged: {artifact.Message}";
+            _logger.LogWarning("Authored unit {Id} could not be packaged: {Reason}", script.Id, artifact.Message);
+        }
+
         _registeredBaseline.Clear();
         foreach (var file in script.Files) _registeredBaseline[file.Name] = file.Content;
 
@@ -1414,6 +1434,32 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Append(AuthoringMessage.Tool("Ok", "Registered", Status ?? "The strategy is registered."));
         CloseReview();
         Save();
+    }
+
+    /// <summary>Where the last registration's artifact was written, or null. Drives the "Show file"
+    /// affordance — a file the user is not told about is a file that does not exist to them.</summary>
+    [ObservableProperty] private string? _artifactPath;
+
+    /// <summary>Opens the folder holding the artifact, with the file selected.</summary>
+    [RelayCommand]
+    private void ShowArtifact()
+    {
+        if (string.IsNullOrWhiteSpace(ArtifactPath) || !File.Exists(ArtifactPath)) return;
+
+        try
+        {
+            // The shell rather than a path in a status bar: the point is that the user can pick the file
+            // up and do something with it.
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{ArtifactPath}\"")
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not reveal {Path}", ArtifactPath);
+            Status = $"The artifact is at {ArtifactPath}.";
+        }
     }
 
     /// <summary>

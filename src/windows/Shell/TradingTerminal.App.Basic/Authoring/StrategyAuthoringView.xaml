@@ -470,6 +470,16 @@
                                        Foreground="{DynamicResource Text.Secondary}"
                                        Text="{Binding Status}"
                                        Visibility="{Binding Status, Converter={StaticResource S2V}}" />
+
+                            <!-- Registering also writes a .daxalgostrategy the user can back up, send to
+                                 someone, or install elsewhere. A file nobody is told about is a file that
+                                 does not exist to them. -->
+                            <Button HorizontalAlignment="Left" Margin="1,5,0,0"
+                                    Content="Show the packaged file"
+                                    Style="{StaticResource HYP.LinkButton}"
+                                    Command="{Binding ShowArtifactCommand}"
+                                    ToolTip="{Binding ArtifactPath}"
+                                    Visibility="{Binding ArtifactPath, Converter={StaticResource S2V}}" />
                         </StackPanel>
                     </Border>
 
