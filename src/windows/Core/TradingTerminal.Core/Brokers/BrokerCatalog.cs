@@ -289,8 +289,10 @@ public static class BrokerCatalog
 
         // ── Crypto ──────────────────────────────────────────────────────────────────────────────
         new("hyperliquid", "Hyperliquid", "hyperliquid.xyz",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned,
-            Note: "Perpetuals DEX; the largest venue missing from the crypto set."),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Hyperliquid,
+            "Perpetuals DEX. Wire shapes verified against the live venue; keys exist for trading, not "
+            + "for reading, so market data needs no account at all."),
 
         new("deribit", "Deribit", "deribit.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto | BrokerAssets.Options, BrokerAuth.None,

@@ -24,6 +24,7 @@ using TradingTerminal.Infrastructure.Upstox;
 using TradingTerminal.Core.Brokers.Upstox;
 using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Deribit;
+using TradingTerminal.Infrastructure.Hyperliquid;
 using TradingTerminal.Infrastructure.Oanda;
 #if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
@@ -296,6 +297,14 @@ public static class DependencyInjection
         services.AddSingleton<BrokerConnectionMode>(_ =>
             new BrokerConnectionMode(BrokerKind.Deribit, IsLive: true, DisplayName: "Deribit (live data)",
                 Description: "Public Deribit market data — crypto options and perpetuals, L1 / L2 / tape. No API key, no account."));
+
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealHyperliquidClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(BrokerKind.Hyperliquid, IsLive: true, DisplayName: "Hyperliquid (live data)",
+                Description: "Public Hyperliquid market data — perpetuals, L2 depth and tape. No API key, no account."));
         services.AddSingleton<BrokerConnectionMode>(_ =>
             new BrokerConnectionMode(BrokerKind.Okx, IsLive: true, DisplayName: "OKX (live data)",
                 Description: "Public OKX market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));

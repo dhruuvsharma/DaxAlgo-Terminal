@@ -49,6 +49,9 @@ public static class LoginServiceCollectionExtensions
         // keyed one here. Same BrokerKind and same client — it is one venue and one market, and
         // splitting the provenance would split one exchange's stored history across two partitions.
         // What differs is whether credentials are handed over before connecting.
+        services.AddSingleton<HyperliquidLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<HyperliquidLoginFormViewModel>());
+
         services.AddSingleton<DeribitLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<DeribitLoginFormViewModel>());
 

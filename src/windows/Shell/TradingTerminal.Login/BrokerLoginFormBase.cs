@@ -189,6 +189,7 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         [BrokerKind.Kraken]             = new("KR", "#5741D9", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
         [BrokerKind.Okx]                = new("OK", "#121212", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
         [BrokerKind.Deribit]            = new("DB", "#00D2C3", "#08211F", "Public WebSocket · crypto options + perps, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Hyperliquid]        = new("HL", "#97FCE4", "#0B2E27", "Public WebSocket · perp DEX, L2 depth + tape", LoginCategory.Keyless),
     };
 
     public IAsyncRelayCommand ConnectCommand { get; }

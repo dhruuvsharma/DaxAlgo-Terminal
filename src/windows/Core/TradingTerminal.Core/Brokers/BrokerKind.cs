@@ -99,4 +99,7 @@ public enum BrokerKind
 
     /// <summary>Deribit — crypto options and perpetuals. Appended, never inserted.</summary>
     Deribit,
+
+    /// <summary>Hyperliquid — the perpetuals DEX. Appended, never inserted.</summary>
+    Hyperliquid,
 }
