@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DaxAlgo.Codegen\DaxAlgo.Codegen.csproj" />
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
   </ItemGroup>
 
 </Project>

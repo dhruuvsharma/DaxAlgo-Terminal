@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\windows\Tools\DaxAlgo.StrategyTool\DaxAlgo.StrategyTool.csproj" />
     <ProjectReference Include="..\..\src\windows\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
     <ProjectReference Include="..\..\src\windows\Tools\DaxAlgo.Codegen\DaxAlgo.Codegen.csproj" />
     <!-- The shipped sample units, so the ladder can be run against code known to be correct. A

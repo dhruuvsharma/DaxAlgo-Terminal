@@ -6,6 +6,31 @@ using TradingTerminal.Infrastructure.Strategies.Authoring;
 
 // daxalgo strategy <action> [options]. A thin dev CLI over the template + dotnet + the packaging
 // script, plus an AI build loop that reuses the lean DaxAlgo.Codegen assembly.
+if (args.Length >= 2 && args[0].Equals("artifact", StringComparison.OrdinalIgnoreCase))
+{
+    var artifactOptions = ParseOptions(args.Skip(2));
+    var target = args.Length > 2 && !args[2].StartsWith("--", StringComparison.Ordinal) ? args[2] : null;
+
+    try
+    {
+        return args[1].ToLowerInvariant() switch
+        {
+            "inspect" => ArtifactCommands.Inspect(target ?? Required(artifactOptions, "file")),
+            "verify" => ArtifactCommands.Verify(target ?? Required(artifactOptions, "file")),
+            "unpack" => ArtifactCommands.Unpack(
+                target ?? Required(artifactOptions, "file"), artifactOptions.GetValueOrDefault("out", ".")),
+            "pack" => ArtifactCommands.Pack(
+                target ?? artifactOptions.GetValueOrDefault("from", "."), artifactOptions),
+            var other => Unknown(other),
+        };
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"error: {ex.Message}");
+        return 1;
+    }
+}
+
 if (args.Length < 2 || !args[0].Equals("strategy", StringComparison.OrdinalIgnoreCase))
 {
     PrintUsage();
@@ -59,10 +84,12 @@ int Wrap(string verb, Dictionary<string, string> o)
 // produce a file nothing will install. It fails loudly instead of quietly emitting a dead format.
 int Package(Dictionary<string, string> o)
 {
+    // Kept as a signpost rather than deleted: the muscle memory is "daxalgo strategy package", and a
+    // bare "unknown action" would leave somebody guessing at the noun that replaced it.
     _ = o;
     Console.Error.WriteLine(
-        "The .daxplugin format was retired on 2026-08-24. The terminal accepts .daxalgostrategy and "
-        + ".daxalgovisualizer, written by DaxAlgo.Package — this CLI cannot produce them yet (issue #34).");
+        "The .daxplugin format was retired on 2026-08-24. Use 'daxalgo artifact pack --from <dir> "
+        + "--entry <TypeName>' to build a .daxalgostrategy or .daxalgovisualizer.");
     return 1;
 }
 
@@ -236,6 +263,16 @@ void PrintUsage() => Console.WriteLine(
       ai       --name <N> [--provider <id>] [--prompt "…"] [--ui] [--output <dir>] [--max-attempts <n>]
                                                           scaffold + AI-write the kernel + build/test/package
                                                           (--provider fake keeps the scaffold kernel; for CI)
+
+    daxalgo artifact <action> [options]
+
+      inspect  <file>                                    what it claims to be, and what is inside
+      verify   <file>                                    read + check every digest; exit code only
+      unpack   <file> [--out <dir>]                      extract the payloads, including the source
+      pack     <dir> --entry <TypeName> [--kind strategy|visualizer]
+                     [--id <id>] [--name <N>] [--version <v>] [--out <file>]
+                                                         build one from an installed-plugin layout
+                                                         (id/name/version default from plugin.json)
 
     AI providers: fake (default) · claude-cli · codex-cli · openai · deepseek · xai · openrouter · ollama · anthropic
     Keys come from {PROVIDER}_API_KEY env vars; agent CLIs use their own login.

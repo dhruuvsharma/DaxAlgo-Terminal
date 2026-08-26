@@ -53,7 +53,8 @@ public sealed record AgentRun(
 public sealed class AgentLoop(
     IStrategyCodegenClient client,
     Func<IReadOnlyList<StrategyFile>, VerdictAndState> judge,
-    AgentReliability? reliability = null)
+    AgentReliability? reliability = null,
+    TrajectoryLog? trajectory = null)
 {
     private readonly IStrategyCodegenClient _client = client ?? throw new ArgumentNullException(nameof(client));
     private readonly Func<IReadOnlyList<StrategyFile>, VerdictAndState> _judge =
@@ -61,6 +62,13 @@ public sealed class AgentLoop(
 
     /// <summary>The estimate, shared across runs so it accumulates. Exposed so a caller can persist it.</summary>
     public AgentReliability Reliability { get; } = reliability ?? new AgentReliability();
+
+    /// <summary>Where each turn's numbers go, or null to record nothing.
+    ///
+    /// <para>Optional because a run must not fail for want of a log, and null in the tests that are about
+    /// routing rather than accounting. Non-null in the application, because the split into six agents was
+    /// justified on cost and you cannot minimise what you do not measure.</para></summary>
+    public TrajectoryLog? Trajectory { get; } = trajectory;
 
     /// <summary>
     /// Runs until the unit is delivered, an agent asks a question, or the budget is spent.
@@ -140,6 +148,18 @@ public sealed class AgentLoop(
                 decision.Role, decision.Weights, response.RawText ?? string.Empty, response.FileList, reward);
             turns.Add(completed);
             progress?.Report(completed);
+
+            // Numbers and finding codes only — never the brief, the reply or the code. The log records
+            // what a turn cost and what it bought, which is the evidence for whether six agents beat one
+            // conversation. A logging fault is not worth a run: the user came for a strategy.
+            try
+            {
+                Trajectory?.Append(completed, verdict.Report, response.Usage);
+            }
+            catch (Exception)
+            {
+                // Deliberately swallowed. TrajectoryLog already tolerates a malformed line on read.
+            }
         }
 
         return new AgentRun(AgentRunOutcome.BudgetExhausted, state, turns, Context: context);

@@ -51,8 +51,10 @@ public sealed class StrategyCodegenOrchestrator(
         int maxFixAttempts,
         IReadOnlyList<CodegenMessage>? history = null,
         CodegenUsage? priorUsage = null,
-        StrategyBuildProfile? profile = null) =>
-        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history, priorUsage, _skills, profile);
+        StrategyBuildProfile? profile = null,
+        AuthoringKind kind = AuthoringKind.Strategy) =>
+        new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history,
+            priorUsage, _skills, profile, kind);
 
     /// <summary>One-shot: a single instruction taken as far as the auto-fix bound allows.</summary>
     public async Task<StrategyBuildLoopResult> BuildAsync(

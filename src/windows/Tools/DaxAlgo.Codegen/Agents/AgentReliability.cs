@@ -78,6 +78,24 @@ public sealed class AgentReliability
         }
     }
 
+    /// <summary>
+    /// Seeds a role from stored evidence, as read back at startup.
+    ///
+    /// <para>Separate from <see cref="Record(AgentRole, double)"/> because it is not an observation: it
+    /// restores a state the estimator was already in. Folding a stored score in as a fresh reward would
+    /// blend it with the neutral prior and lose a little of what was learned on every launch.</para>
+    /// </summary>
+    public void Restore(AgentRole role, double score, int observations)
+    {
+        if (!double.IsFinite(score) || observations <= 0) return;
+
+        lock (_gate)
+        {
+            _scores[role] = Math.Clamp(score, 0d, 1d);
+            _counts[role] = observations;
+        }
+    }
+
     /// <summary>A snapshot, for logging a routing decision alongside the evidence behind it.</summary>
     public IReadOnlyDictionary<AgentRole, double> Snapshot()
     {

@@ -240,7 +240,8 @@ public sealed class AiProviderSettingsTests : IDisposable
         public StrategyBuildSession StartSession(
             IStrategyCodegenClient provider, string strategyId, string displayName,
             IReadOnlyList<CodegenMessage>? history = null, CodegenUsage? priorUsage = null,
-            StrategyBuildProfile? profile = null) => throw new NotSupportedException();
+            StrategyBuildProfile? profile = null,
+            AuthoringKind kind = AuthoringKind.Strategy) => throw new NotSupportedException();
 
         public Task<StrategyBuildLoopResult> BuildAsync(
             IStrategyCodegenClient provider, string instruction, string strategyId, string displayName,

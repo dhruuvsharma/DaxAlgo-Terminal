@@ -49,7 +49,19 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>Kept across runs so the estimate accumulates — an agent's record is only worth having if
     /// it survives the session that produced it.</summary>
-    private readonly AgentReliability _reliability = new();
+    /// <summary>What the router learned in previous sessions. Loaded rather than constructed fresh: an
+    /// estimator that resets before it can warm up is a constant with extra steps, and reward-biased
+    /// routing is only worth having if the weights come from evidence.</summary>
+    private readonly AgentReliability _reliability = AgentMemory.Load();
+
+    /// <summary>Per-turn cost and outcome, so the six-agent split can be argued about with numbers.
+    /// Records identifiers and figures, never the brief, the reply or the code.</summary>
+    private readonly TrajectoryLog _trajectory = new(TrajectoryPath);
+
+    private static string TrajectoryPath { get; } = System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "DaxAlgo Terminal",
+        "agent-runs.jsonl");
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
@@ -224,12 +236,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     }
 
     /// <summary>
-    /// Says plainly that visualizer generation is not wired yet. The switch holds the choice and it
-    /// persists with the session, but the builder still produces a strategy — announcing that is
-    /// better than letting someone select Visualizer and wonder why they got a kernel.
+    /// What the chosen kind means, in one line. It used to say visualizer generation was not wired up,
+    /// which was true and is no longer: the kind now shapes the system prompt and a unit that comes back
+    /// as the wrong contract is sent round the fix loop like any other error.
     /// </summary>
     public string AuthoringKindNotice => AuthoringKind == AuthoringKind.Visualizer
-        ? "Visualizer generation is not wired up yet — the builder still produces a strategy. The choice is kept with the session."
+        ? "Draws only — a visualizer has no virtual book and cannot take a position."
         : string.Empty;
 
     [ObservableProperty] private string? _status = "Describe a strategy in the chat, or write one yourself, then press Compile & Register.";
@@ -448,6 +460,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// backtest-smoke passes run (<see cref="StrategyBuildProfile.For"/>). Orthogonal to
     /// <see cref="SelectedEffort"/>, which is how hard the model thinks inside one generation.</summary>
     [ObservableProperty] private StrategyBuildEffort _buildEffort = StrategyBuildEffort.Standard;
+
+    partial void OnAuthoringKindChanged(AuthoringKind value)
+    {
+        // Same rule as the effort dials: the kind is baked into the cached system prompt, so a new choice
+        // needs a new session rather than a prompt that contradicts the thread above it.
+        ResetSession(value == AuthoringKind.Visualizer ? "Switched to a visualizer." : "Switched to a strategy.");
+        Persist();
+    }
 
     partial void OnBuildEffortChanged(StrategyBuildEffort value)
     {
@@ -1546,7 +1566,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             string.IsNullOrWhiteSpace(DisplayName) ? StrategyId ?? "Authored" : DisplayName!,
             new RoutingState());
 
-        var loop = new AgentLoop(client, judge.Judge, _reliability);
+        var loop = new AgentLoop(client, judge.Judge, _reliability, _trajectory);
 
         var report = new Progress<AgentTurn>(turn =>
         {
@@ -1577,6 +1597,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         foreach (var diagnostic in judge.Latest?.Diagnostics ?? [])
             Diagnostics.Add(diagnostic);
+
+        // Keep what this run taught the router. Saved after every run rather than at shutdown, because a
+        // terminal is closed by closing it and a crash is exactly the session worth having learned from.
+        AgentMemory.Save(_reliability);
 
         AiStatus = run.Outcome switch
         {
@@ -1706,8 +1730,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         // Resume the restored thread exactly once: the model gets back everything it said, so a follow-up
         // ("now tighten the stop") lands on the code it actually wrote rather than on an empty context.
+        // The kind is fixed for the session's life, because it shapes the system prompt — switching it
+        // mid-thread would leave the model's own earlier replies disagreeing with its instructions.
+        // OnAuthoringKindChanged resets the session for exactly that reason.
         _session = _ai!.StartSession(
-            client, StrategyId.Trim(), DisplayName.Trim(), _restoredThread, _restoredUsage, profile);
+            client, StrategyId.Trim(), DisplayName.Trim(), _restoredThread, _restoredUsage, profile,
+            AuthoringKind);
         _restoredThread = null;
         _restoredUsage = null;
         return _session;

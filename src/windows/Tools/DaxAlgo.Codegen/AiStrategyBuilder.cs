@@ -42,10 +42,12 @@ public interface IAiStrategyBuilder
     /// that is what makes a restored chat more than a transcript. <paramref name="profile"/> sets the
     /// build effort (skill budget, fix attempts, self-review, backtest smoke); null keeps the defaults.
     /// The session never registers anything.</summary>
+    /// <param name="kind">Which of the two contracts to write. It shapes the system prompt, so it is
+    /// fixed for the life of the session.</param>
     StrategyBuildSession StartSession(
         IStrategyCodegenClient provider, string strategyId, string displayName,
         IReadOnlyList<CodegenMessage>? history = null, CodegenUsage? priorUsage = null,
-        StrategyBuildProfile? profile = null);
+        StrategyBuildProfile? profile = null, AuthoringKind kind = AuthoringKind.Strategy);
 
     /// <summary>One-shot: generate from <paramref name="instruction"/> and drive the compile/auto-fix
     /// loop. Returns the transcript + the final compile result; the caller registers a success through
@@ -95,9 +97,10 @@ public sealed class AiStrategyBuilder(
     public StrategyBuildSession StartSession(
         IStrategyCodegenClient provider, string strategyId, string displayName,
         IReadOnlyList<CodegenMessage>? history = null, CodegenUsage? priorUsage = null,
-        StrategyBuildProfile? profile = null) =>
+        StrategyBuildProfile? profile = null, AuthoringKind kind = AuthoringKind.Strategy) =>
         orchestrator.CreateSession(
-            provider, pack.SystemPrompt, strategyId, displayName, options.MaxFixAttempts, history, priorUsage, profile);
+            provider, pack.SystemPrompt, strategyId, displayName, options.MaxFixAttempts, history,
+            priorUsage, profile, kind);
 
     public Task<StrategyBuildLoopResult> BuildAsync(
         IStrategyCodegenClient provider, string instruction, string strategyId, string displayName,

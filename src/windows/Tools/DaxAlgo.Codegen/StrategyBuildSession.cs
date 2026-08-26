@@ -85,14 +85,18 @@ public sealed class StrategyBuildSession
         IReadOnlyList<CodegenMessage>? history = null,
         CodegenUsage? priorUsage = null,
         StrategySkillLibrary? skills = null,
-        StrategyBuildProfile? profile = null)
+        StrategyBuildProfile? profile = null,
+        AuthoringKind kind = AuthoringKind.Strategy)
     {
         _compiler = compiler;
         _logger = logger;
         _skills = skills;
         Provider = provider;
-        BasePack = systemContext;
-        SystemContext = systemContext;
+        Kind = kind;
+        // The kind block joins the base pack, so it survives the skill recomposition below and is part
+        // of the prompt from the first turn — a session cannot change which of the two it is writing.
+        BasePack = AuthoringKindBrief.Compose(systemContext, kind);
+        SystemContext = BasePack;
         StrategyId = strategyId;
         DisplayName = displayName;
         Profile = profile;
@@ -111,6 +115,11 @@ public sealed class StrategyBuildSession
     public IStrategyCodegenClient Provider { get; }
 
     /// <summary>The SDK contract, before any domain packs are added.</summary>
+    /// <summary>Which of the two contracts this session is writing. Fixed at creation: it shapes the
+    /// system prompt, and a prompt that changed mid-thread would leave the model's own earlier replies
+    /// disagreeing with its instructions.</summary>
+    public AuthoringKind Kind { get; }
+
     public string BasePack { get; }
 
     /// <summary>The system prompt actually sent: the base pack plus the domain packs this strategy needs.
@@ -209,6 +218,28 @@ public sealed class StrategyBuildSession
             activity?.Report($"Compiling {lastFiles.Count} file(s)…");
             var compile = _compiler.Compile(new StrategyScript(StrategyId, DisplayName, lastFiles));
             lastCompile = compile;
+
+            // Compiled, but is it the thing the user asked for? A model handed a visualizer brief will
+            // sometimes write a kernel anyway, and nothing downstream would notice: the compiler resolves
+            // whatever is there and the ladder judges it on its own terms. Silently delivering a strategy
+            // to somebody who ticked Visualizer is worse than the toggle not existing, so a mismatch is
+            // treated exactly like a compiler error — same fix loop, same budget, same visible reason.
+            if (compile.Success && Mismatch(compile) is { } mismatch)
+            {
+                _logger?.LogInformation(
+                    "AI-authored unit {Id} compiled as the wrong kind on generation {Generation}: {Reason}",
+                    StrategyId, generation, mismatch);
+                activity?.Report(mismatch);
+
+                if (generation < totalGenerations)
+                {
+                    _messages.Add(new CodegenMessage(CodegenRole.User, KindFixPrompt(mismatch)));
+                    continue;
+                }
+
+                return new StrategyBuildTurn(
+                    BuildTurnKind.CompileFailed, lastText, lastFiles, compile, mismatch, generation, usage);
+            }
 
             if (compile.Success)
             {
@@ -481,6 +512,32 @@ public sealed class StrategyBuildSession
     }
 
     private static int Count(StrategyCompileResult? compile) => compile?.Errors.Count() ?? 0;
+
+    /// <summary>
+    /// The reason this unit is not what was asked for, or null when it is.
+    ///
+    /// <para>Read off the resolved type rather than off anything the model said about itself, for the
+    /// same reason the ladder reads <c>MustDraw</c> that way: what the author actually wrote is the only
+    /// reliable answer.</para>
+    /// </summary>
+    private string? Mismatch(StrategyCompileResult compile)
+    {
+        if (compile.Unit is not { } unit || unit.Kind == Kind) return null;
+
+        return Kind == AuthoringKind.Visualizer
+            ? $"You wrote {unit.ContractName}, but this session is authoring a VISUALIZER."
+            : $"You wrote {unit.ContractName}, but this session is authoring a STRATEGY.";
+    }
+
+    /// <summary>The re-prompt for a kind mismatch. It names the contract and the one structural
+    /// difference, because "wrong kind" alone tends to produce the same file with a renamed class.</summary>
+    private string KindFixPrompt(string mismatch) =>
+        Kind == AuthoringKind.Visualizer
+            ? mismatch + " Rewrite it as `IVisualizer` with an `IVisualizerContext`. That context has no "
+              + "`Book`, so remove anything that takes a position; if the brief genuinely needs to trade, "
+              + "say so instead of implementing it."
+            : mismatch + " Rewrite it as `IStrategyKernel` with an `IStrategyRuntimeContext`, and use "
+              + "`context.Book` for any position it takes.";
 
     /// <summary>The auto-fix message: the compiler's own errors, verbatim, and a request for the whole
     /// corrected file set (partial diffs confuse the file-per-fence contract).</summary>
