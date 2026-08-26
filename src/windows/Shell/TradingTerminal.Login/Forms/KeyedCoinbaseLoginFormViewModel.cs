@@ -17,8 +17,9 @@ public sealed class KeyedCoinbaseLoginFormViewModel : KeyedCryptoLoginFormBase
 
     public KeyedCoinbaseLoginFormViewModel(
         IBrokerSelector selector, CredentialStore credentials,
-        IOptions<CoinbaseOptions> options, ILogger<KeyedCoinbaseLoginFormViewModel> logger)
-        : base(selector, credentials, logger)
+        IOptions<CoinbaseOptions> options, ILogger<KeyedCoinbaseLoginFormViewModel> logger,
+          IBrokerCredentialVerifier verifier)
+        : base(selector, credentials, logger, verifier)
     {
         _options = options.Value;
     }

@@ -39,18 +39,23 @@ internal sealed class RealOandaClient : IBrokerClient
 {
     private readonly ILogger<RealOandaClient> _logger;
     private readonly OandaOptions _options;
-    private readonly IOandaTokenSource _tokens;
+    private readonly IBrokerCredentialSource _credentials;
     private readonly HttpClient _http = new();
     private readonly System.Reactive.Subjects.BehaviorSubject<ConnectionState> _state =
         new(Core.Domain.ConnectionState.Disconnected);
 
     public RealOandaClient(
-        ILogger<RealOandaClient> logger, IOptions<OandaOptions> options, IOandaTokenSource tokens)
+        ILogger<RealOandaClient> logger, IOptions<OandaOptions> options,
+        IBrokerCredentialSource credentials)
     {
         _logger = logger;
         _options = options.Value;
-        _tokens = tokens;
+        _credentials = credentials;
     }
+
+    /// <summary>The personal access token, read fresh so a key pasted mid-session takes effect on the
+    /// next request.</summary>
+    private string Token => _credentials.For(BrokerKind.Oanda).Secret;
 
     public BrokerKind Kind => BrokerKind.Oanda;
 
@@ -63,8 +68,7 @@ internal sealed class RealOandaClient : IBrokerClient
     {
         _state.OnNext(Core.Domain.ConnectionState.Connecting);
 
-        var token = _tokens.Token;
-        if (string.IsNullOrWhiteSpace(token))
+        if (string.IsNullOrWhiteSpace(Token))
         {
             _logger.LogError("OANDA needs a personal access token. Add one in the login form.");
             _state.OnNext(Core.Domain.ConnectionState.Failed);
@@ -460,7 +464,7 @@ internal sealed class RealOandaClient : IBrokerClient
     private HttpRequestMessage Get(string url)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _tokens.Token);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         // v20 dates come back RFC3339 by default; asking for it explicitly keeps parsing stable if the
@@ -477,22 +481,3 @@ internal sealed class RealOandaClient : IBrokerClient
     }
 }
 
-/// <summary>
-/// Where the OANDA personal access token comes from.
-///
-/// <para>A seam so the client never reads a credential store directly — the token lives DPAPI-encrypted
-/// beside every other broker secret, and a market-data client has no business knowing that.</para>
-/// </summary>
-public interface IOandaTokenSource
-{
-    /// <summary>The token, or empty when none is configured.</summary>
-    string Token { get; }
-
-    /// <summary>A source that never has one — what an edition composes when OANDA is not set up.</summary>
-    public static IOandaTokenSource None { get; } = new NoToken();
-
-    private sealed class NoToken : IOandaTokenSource
-    {
-        public string Token => string.Empty;
-    }
-}

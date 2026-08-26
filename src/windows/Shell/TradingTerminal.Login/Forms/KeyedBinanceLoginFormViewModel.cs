@@ -17,8 +17,9 @@ public sealed class KeyedBinanceLoginFormViewModel : KeyedCryptoLoginFormBase
 
     public KeyedBinanceLoginFormViewModel(
         IBrokerSelector selector, CredentialStore credentials,
-        IOptions<BinanceOptions> options, ILogger<KeyedBinanceLoginFormViewModel> logger)
-        : base(selector, credentials, logger)
+        IOptions<BinanceOptions> options, ILogger<KeyedBinanceLoginFormViewModel> logger,
+          IBrokerCredentialVerifier verifier)
+        : base(selector, credentials, logger, verifier)
     {
         _options = options.Value;
     }

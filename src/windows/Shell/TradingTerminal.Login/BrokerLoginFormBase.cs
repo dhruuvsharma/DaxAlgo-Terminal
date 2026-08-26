@@ -190,6 +190,8 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         [BrokerKind.Okx]                = new("OK", "#121212", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
         [BrokerKind.Deribit]            = new("DB", "#00D2C3", "#08211F", "Public WebSocket · crypto options + perps, L2 depth", LoginCategory.Keyless),
         [BrokerKind.Hyperliquid]        = new("HL", "#97FCE4", "#0B2E27", "Public WebSocket · perp DEX, L2 depth + tape", LoginCategory.Keyless),
+        [BrokerKind.Tradier]            = new("TR", "#0B7285", "#FFFFFF", "REST · US equities + options · free sandbox token", LoginCategory.Credentialed),
+        [BrokerKind.Oanda]              = new("OA", "#8A1538", "#FFFFFF", "v20 REST + streaming · FX and CFD · practice or live", LoginCategory.Credentialed),
     };
 
     public IAsyncRelayCommand ConnectCommand { get; }
@@ -235,6 +237,17 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
             ApplyToOptions();
 
             using var cts = new CancellationTokenSource(ConnectTimeout);
+
+            // Ask the venue whether the credentials are good before connecting. Most public feeds
+            // connect happily with a wrong key — so without this step a bad key produces a successful
+            // login and a failure days later, at the first private call, in a different window.
+            var refusal = await VerifyCredentialsAsync(cts.Token).ConfigureAwait(true);
+            if (refusal is not null)
+            {
+                ErrorMessage = refusal;
+                return;
+            }
+
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var sub = Selector.StateOf(Broker).Subscribe(state =>
             {
@@ -269,6 +282,17 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
             IsConnecting = false;
         }
     }
+
+    /// <summary>
+    /// Checks the credentials with the venue before connecting. Returns null to proceed, or the message
+    /// to show when the venue refused them.
+    ///
+    /// <para>The base makes no check, which is right for every keyless form and for the brokers whose
+    /// connect step <i>is</i> the check. Only forms whose credentials would otherwise go unexercised
+    /// override it.</para>
+    /// </summary>
+    protected virtual Task<string?> VerifyCredentialsAsync(CancellationToken ct) =>
+        Task.FromResult<string?>(null);
 
     private async Task DisconnectAsync()
     {

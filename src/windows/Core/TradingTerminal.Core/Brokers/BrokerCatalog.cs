@@ -190,7 +190,9 @@ public static class BrokerCatalog
 
         new("tradier", "Tradier", "tradier.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options, BrokerAuth.ApiKey,
-            BrokerStatus.Planned, Note: "Developer-first, options-heavy, inexpensive market data."),
+            BrokerStatus.Unverified, BrokerKind.Tradier,
+            "Written from the published reference and not yet run against a token. A sandbox token is "
+            + "free and immediate, so this is among the quickest on the list to move to DataOnly."),
 
         new("tastytrade", "tastytrade", "tastytrade.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,

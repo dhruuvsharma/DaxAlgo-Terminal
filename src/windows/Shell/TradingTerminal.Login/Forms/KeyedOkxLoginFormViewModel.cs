@@ -17,8 +17,9 @@ public sealed class KeyedOkxLoginFormViewModel : KeyedCryptoLoginFormBase
 
     public KeyedOkxLoginFormViewModel(
         IBrokerSelector selector, CredentialStore credentials,
-        IOptions<OkxOptions> options, ILogger<KeyedOkxLoginFormViewModel> logger)
-        : base(selector, credentials, logger)
+        IOptions<OkxOptions> options, ILogger<KeyedOkxLoginFormViewModel> logger,
+          IBrokerCredentialVerifier verifier)
+        : base(selector, credentials, logger, verifier)
     {
         _options = options.Value;
     }

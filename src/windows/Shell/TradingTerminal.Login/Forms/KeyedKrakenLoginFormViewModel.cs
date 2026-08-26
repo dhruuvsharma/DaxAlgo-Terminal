@@ -17,8 +17,9 @@ public sealed class KeyedKrakenLoginFormViewModel : KeyedCryptoLoginFormBase
 
     public KeyedKrakenLoginFormViewModel(
         IBrokerSelector selector, CredentialStore credentials,
-        IOptions<KrakenOptions> options, ILogger<KeyedKrakenLoginFormViewModel> logger)
-        : base(selector, credentials, logger)
+        IOptions<KrakenOptions> options, ILogger<KeyedKrakenLoginFormViewModel> logger,
+          IBrokerCredentialVerifier verifier)
+        : base(selector, credentials, logger, verifier)
     {
         _options = options.Value;
     }

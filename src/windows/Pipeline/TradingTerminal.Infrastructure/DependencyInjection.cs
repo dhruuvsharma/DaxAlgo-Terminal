@@ -26,6 +26,7 @@ using TradingTerminal.Infrastructure.MarketData;
 using TradingTerminal.Infrastructure.Deribit;
 using TradingTerminal.Infrastructure.Hyperliquid;
 using TradingTerminal.Infrastructure.Oanda;
+using TradingTerminal.Infrastructure.Tradier;
 #if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
 #endif
@@ -120,9 +121,24 @@ public static class DependencyInjection
                 Description: "Connected through NTDirect.dll. NinjaTrader 8 must be running with the AT Interface enabled."));
 #endif
 
-        // No token composed by default: an edition that has not wired a credential store still builds
-        // the client, and it reports "needs a token" rather than failing to construct.
-        services.TryAddSingleton(IOandaTokenSource.None);
+        // The keyed crypto venues can say whether a key is good; every other broker's connect step is
+        // its own check. TryAdd so a shell can substitute one, and so a test can compose none.
+        services.TryAddSingleton<IBrokerCredentialVerifier, Crypto.CryptoCredentialVerifier>();
+
+        // No credentials by default: an edition that has not wired a credential store still builds
+        // every client, and each reports "needs a key" rather than failing to construct.
+        services.TryAddSingleton(IBrokerCredentialSource.None);
+
+        // Tradier — a sandbox token is free and immediate, so this is one of the fastest to verify.
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<RealTradierClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(
+                BrokerKind.Tradier, IsLive: true, DisplayName: "Tradier",
+                Description: "US equities and options. A free sandbox token works without a funded "
+                    + "account; sandbox and production use separate tokens."));
 
         // OANDA — registered whenever a token source is composed. Data only: order routing is a
         // separate contract behind both live-money gates, and this client implements neither.

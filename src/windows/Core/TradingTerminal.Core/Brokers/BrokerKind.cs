@@ -102,4 +102,7 @@ public enum BrokerKind
 
     /// <summary>Hyperliquid — the perpetuals DEX. Appended, never inserted.</summary>
     Hyperliquid,
+
+    /// <summary>Tradier — US equities and options. Appended, never inserted.</summary>
+    Tradier,
 }

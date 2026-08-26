@@ -23,4 +23,10 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The credential store's path override is internal on purpose: it exists for tests and must not
+         become a supported way to relocate a user's secrets. -->
+    <InternalsVisibleTo Include="TradingTerminal.UI.Tests" />
+  </ItemGroup>
+
 </Project>

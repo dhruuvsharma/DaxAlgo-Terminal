@@ -27,6 +27,12 @@ public static class LoginServiceCollectionExtensions
     public static IServiceCollection AddLogin(this IServiceCollection services)
     {
         services.AddSingleton<CredentialStore>();
+
+        // Every keyed broker reads its credentials through this one seam. Registered here rather than
+        // in the infrastructure layer because this is where the credential store lives; the
+        // infrastructure layer registers an empty source with TryAdd, and this plain Add supersedes it
+        // — so a shell that composes login gets real keys and one that does not still builds.
+        services.AddSingleton<IBrokerCredentialSource, StoredBrokerCredentials>();
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
 
@@ -49,6 +55,9 @@ public static class LoginServiceCollectionExtensions
         // keyed one here. Same BrokerKind and same client — it is one venue and one market, and
         // splitting the provenance would split one exchange's stored history across two partitions.
         // What differs is whether credentials are handed over before connecting.
+        services.AddSingleton<IBrokerLoginForm, TradierLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm, OandaLoginFormViewModel>();
+
         services.AddSingleton<HyperliquidLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<HyperliquidLoginFormViewModel>());
 

@@ -97,11 +97,11 @@ public sealed class StoredCredentials
         set => AlpacaApiSecretEncryptedBase64 = EncryptDpapi(value);
     }
 
-    // ---- Keyed crypto venues ----
+    // ---- Per-broker API credentials ----
 
     /// <summary>
-    /// API credentials for the crypto venues that serve data both keyless and keyed, stored under the
-    /// broker's name.
+    /// API credentials for any broker that authenticates with a key, secret and optional passphrase,
+    /// stored under the broker's name.
     ///
     /// <para>A map rather than three named fields per venue, because there are five of them today and
     /// the shape is identical — fifteen near-duplicate properties would be a lot of surface for no
@@ -112,16 +112,16 @@ public sealed class StoredCredentials
     /// identifier, not a secret, and having it readable is what lets the login form show which key is
     /// configured without decrypting anything.</para>
     /// </summary>
-    public Dictionary<string, CryptoKeyRecord> CryptoKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, BrokerKeyRecord> BrokerKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Reads a venue's credentials, or an empty record when none are stored.</summary>
-    public CryptoKeyRecord CryptoKeysFor(BrokerKind broker) =>
-        CryptoKeys.TryGetValue(broker.ToString(), out var record) ? record : new CryptoKeyRecord();
+    public BrokerKeyRecord KeysFor(BrokerKind broker) =>
+        BrokerKeys.TryGetValue(broker.ToString(), out var record) ? record : new BrokerKeyRecord();
 
     /// <summary>Writes a venue's credentials, replacing whatever was there.</summary>
-    public void SetCryptoKeys(BrokerKind broker, string apiKey, string? secret, string? passphrase)
+    public void SetKeys(BrokerKind broker, string apiKey, string? secret, string? passphrase)
     {
-        CryptoKeys[broker.ToString()] = new CryptoKeyRecord
+        BrokerKeys[broker.ToString()] = new BrokerKeyRecord
         {
             ApiKey = apiKey ?? string.Empty,
             ApiSecret = secret,
@@ -131,7 +131,7 @@ public sealed class StoredCredentials
 
     /// <summary>Forgets a venue's credentials — what choosing the keyless row does, so "keyless"
     /// means keyless rather than "authenticated because you once pasted a key".</summary>
-    public void ClearCryptoKeys(BrokerKind broker) => CryptoKeys.Remove(broker.ToString());
+    public void ClearKeys(BrokerKind broker) => BrokerKeys.Remove(broker.ToString());
 
     // ---- Upstox-specific fields ----
     public string UpstoxApiKey { get; set; } = string.Empty;
@@ -211,8 +211,8 @@ public sealed class StoredCredentials
         }
     }
 }
-/// <summary>One venue's stored API credentials. Secrets are DPAPI ciphertext at rest.</summary>
-public sealed class CryptoKeyRecord
+/// <summary>One broker's stored API credentials. Secrets are DPAPI ciphertext at rest.</summary>
+public sealed class BrokerKeyRecord
 {
     /// <summary>The API key, or the CDP key name for Coinbase. An identifier, not a secret, so it is
     /// stored in the clear — which is what lets a form show which key is configured without

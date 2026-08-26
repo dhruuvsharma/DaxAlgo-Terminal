@@ -17,8 +17,9 @@ public sealed class KeyedDeribitLoginFormViewModel : KeyedCryptoLoginFormBase
 
     public KeyedDeribitLoginFormViewModel(
         IBrokerSelector selector, CredentialStore credentials,
-        IOptions<DeribitOptions> options, ILogger<KeyedDeribitLoginFormViewModel> logger)
-        : base(selector, credentials, logger) => _options = options.Value;
+        IOptions<DeribitOptions> options, ILogger<KeyedDeribitLoginFormViewModel> logger,
+          IBrokerCredentialVerifier verifier)
+        : base(selector, credentials, logger, verifier) => _options = options.Value;
 
     public override BrokerKind Broker => BrokerKind.Deribit;
 

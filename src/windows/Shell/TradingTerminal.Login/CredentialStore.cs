@@ -6,11 +6,20 @@ namespace TradingTerminal.App.Login;
 
 public sealed class CredentialStore
 {
-    private static readonly string Directory = Path.Combine(
+    private static readonly string DefaultDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgoTerminal");
 
-    private static readonly string FilePath = Path.Combine(Directory, "connection.json");
+    /// <summary>
+    /// Where the store lives. Settable <b>so a test can point it somewhere disposable</b> — an earlier
+    /// suite wrote into the developer's real settings file, and the residue was only noticed because it
+    /// changed the application's behaviour afterwards. Null means the default location.
+    /// </summary>
+    internal static string? DirectoryOverride { get; set; }
+
+    private static string Directory => DirectoryOverride ?? DefaultDirectory;
+
+    private static string FilePath => Path.Combine(Directory, "connection.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

@@ -25,15 +25,20 @@ namespace TradingTerminal.App.Login.Forms;
 public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
 {
     private readonly CredentialStore _credentials;
+    private readonly IBrokerCredentialVerifier _verifier;
 
     protected KeyedCryptoLoginFormBase(
-        IBrokerSelector selector, CredentialStore credentials, ILogger logger)
+        IBrokerSelector selector, CredentialStore credentials, ILogger logger,
+        IBrokerCredentialVerifier? verifier = null)
         : base(selector, logger)
     {
         _credentials = credentials;
+        _verifier = verifier ?? IBrokerCredentialVerifier.None;
     }
 
-    /// <summary>The venue's credential slot — the same instance the client reads at connect.</summary>
+    /// <summary>The venue's options slot, so a key entered here is visible to anything reading
+    /// <c>IOptions</c>. The authenticated path itself goes through the DPAPI store and
+    /// <c>IBrokerCredentialSource</c>; this slot is the in-memory mirror for the current session.</summary>
     protected abstract CryptoApiCredentials Target { get; }
 
     /// <summary>The venue's own name, without the "(API key)" suffix this row adds.</summary>
@@ -95,6 +100,34 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
         $"{VenueName} rejected the connection. A signature that is wrong in any detail is refused "
         + "exactly like a bad key, so check the secret, and the passphrase if this venue uses one.";
 
+    /// <summary>
+    /// Makes one signed, read-only balance call before connecting.
+    ///
+    /// <para>This is the whole reason the keyed row is worth choosing over the keyless one at the
+    /// moment of setup: market data is public at these venues, so nothing else in the connect path
+    /// touches the key, and a wrong secret would produce a perfectly successful login.</para>
+    ///
+    /// <para>Only a <i>refusal</i> stops the login. If the venue could not be reached, the connection
+    /// proceeds — an unreachable API host and an invalid key are different problems, and reporting the
+    /// first as the second sends a user off to regenerate a key that was always fine.</para>
+    /// </summary>
+    protected override async Task<string?> VerifyCredentialsAsync(CancellationToken ct)
+    {
+        if (!_verifier.CanVerify(Broker)) return null;
+
+        var credential = new BrokerCredential(
+            Key: ApiKey.Trim(),
+            Secret: ApiSecret.Trim(),
+            Passphrase: UsesPassphrase ? Passphrase.Trim() : string.Empty);
+
+        var verification = await _verifier.VerifyAsync(Broker, credential, ct).ConfigureAwait(true);
+
+        if (!verification.IsRefusal) return null;
+
+        return $"{VenueName} rejected these credentials: {verification.Detail} "
+            + "The keyless row connects to the same market data without an account.";
+    }
+
     private void RaiseCanSubmit()
     {
         OnPropertyChanged(nameof(CanSubmit));
@@ -103,7 +136,7 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
 
     public override void Load()
     {
-        var record = _credentials.Load().CryptoKeysFor(Broker);
+        var record = _credentials.Load().KeysFor(Broker);
         ApiKey = record.ApiKey;
         ApiSecret = record.ApiSecret ?? string.Empty;
         Passphrase = record.Passphrase ?? string.Empty;
@@ -115,7 +148,7 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
         // appsettings.json, which is plain text sitting in the user's profile.
         var stored = _credentials.Load();
         stored.SelectedBroker = Broker;
-        stored.SetCryptoKeys(
+        stored.SetKeys(
             Broker,
             ApiKey.Trim(),
             string.IsNullOrEmpty(ApiSecret) ? null : ApiSecret,
