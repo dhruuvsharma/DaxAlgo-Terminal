@@ -81,6 +81,17 @@ public sealed class SimulatedExecutionAdapter : IBrokerExecutionAdapter
     private readonly Dictionary<BrokerOrderId, ClientOrderId> _brokerToClient = [];
     private readonly Dictionary<InstrumentId, long> _positions = [];
     private readonly Dictionary<string, SimulatedCashBalance> _cash = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The currency this adapter settles fills in — whatever it was opened with.
+    ///
+    /// <para>Fill accounting used to name <c>SIM</c> as a literal, which quietly tied the whole adapter
+    /// to its own default opening balance. Open it in any other currency and every fill looked up a
+    /// balance that was not there, took the early return, and silently posted nothing: orders filled,
+    /// cash never moved, and a book that had gone long could never be brought back to flat. Nothing
+    /// threw and nothing was logged. Found by seeding the paper account in dollars.</para>
+    /// </summary>
+    private readonly string _settlementCurrency;
     private readonly HashSet<DeduplicationKey> _accountedFillKeys = [];
     private BrokerReconciliationSnapshot? _reconciliationSnapshotOverride;
     private DateTime _rateWindowStartedUtc;
@@ -121,6 +132,12 @@ public sealed class SimulatedExecutionAdapter : IBrokerExecutionAdapter
         [
             new BrokerCashSnapshot("SIM", ScaledMoney.Zero, ScaledMoney.Zero, observedAtUtc),
         ];
+        // The first opening balance is what fills settle against. One currency, because this adapter
+        // fills against a single simulated venue rather than a multi-currency account.
+        _settlementCurrency = openingCash.Length > 0 && !string.IsNullOrWhiteSpace(openingCash[0]?.Currency)
+            ? openingCash[0]!.Currency
+            : "SIM";
+
         foreach (var item in openingCash)
         {
             if (item is null ||
@@ -502,13 +519,13 @@ public sealed class SimulatedExecutionAdapter : IBrokerExecutionAdapter
         lock (_gate)
         {
             if (!_accountedFillKeys.Add(venueEvent.DeduplicationKey) ||
-                !_cash.TryGetValue("SIM", out var balance) ||
+                !_cash.TryGetValue(_settlementCurrency, out var balance) ||
                 !TryApplyCashDelta(balance.Total, side, fill, out var total) ||
                 !TryApplyCashDelta(balance.Available, side, fill, out var available))
             {
                 return;
             }
-            _cash["SIM"] = new SimulatedCashBalance(total, available);
+            _cash[_settlementCurrency] = new SimulatedCashBalance(total, available);
         }
     }
 

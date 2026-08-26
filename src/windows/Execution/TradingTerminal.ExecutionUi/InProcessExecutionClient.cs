@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Execution;
 using System.Globalization;
 using System.Security.Cryptography;
 using TradingTerminal.Core.Brokers;
@@ -39,6 +40,9 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
     private readonly IExecutionBookStore _bookStore;
     private readonly IExecutionModeStatusPublisher? _modeStatusPublisher;
     private readonly Dictionary<string, string> _adapterConnectionErrors = new(StringComparer.Ordinal);
+
+    /// <summary>The terminal's paper account: what every in-process book opens with.</summary>
+    private readonly PaperAccountOptions _paperAccount;
     private string _interactiveBrokersAccountId;
     private string? _lastOperationMessage;
     private int _newBookSequence = 3;
@@ -56,8 +60,12 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         IClock? executionClock = null,
         IExecutionLeaseStore? executionLeaseStore = null,
         ExecutionModeStatusProjection? executionModeStatus = null,
-        IExecutionBookStore? bookStore = null)
+        IExecutionBookStore? bookStore = null,
+        PaperAccountOptions? paperAccount = null)
     {
+        // The terminal's own paper account. Null means the defaults — a hundred thousand US dollars —
+        // rather than the zero balance in a currency called SIM that a book used to open with.
+        _paperAccount = paperAccount ?? new PaperAccountOptions();
         _liveConfirmationStore = liveConfirmationStore;
         _cTraderOptions = cTraderOptions;
         _alpacaOptions = alpacaOptions;
@@ -788,7 +796,7 @@ FinishConnect:
                     request.Instrument,
                     symbol);
                 runtime = isPaper
-                    ? InProcessBookRuntime.CreateEmpty(id, _executionLeaseStore)
+                    ? InProcessBookRuntime.CreateEmpty(id, _paperAccount, _executionLeaseStore)
                     : FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca
                         ? new AlpacaBookRuntime(id, alpaca, _executionLeaseStore)
                         : null;
@@ -1753,6 +1761,7 @@ FinishConnect:
             string bookId,
             IEnumerable<VenueSubmitPlan> plans,
             DateTime seedStartUtc,
+            PaperAccountOptions paperAccount,
             IExecutionLeaseStore executionLeaseStore)
         {
             _bookId = bookId;
@@ -1772,7 +1781,12 @@ FinishConnect:
                 IsExecutionAuthenticated: true,
                 IsExecutionCertified: true,
                 _clock.UtcNow);
-            _adapter = new SimulatedExecutionAdapter(_venue, _clock, _scheduler, session);
+            // Opened with the terminal's paper balance. Before this the adapter fell back to its own
+            // default — zero, in a currency called SIM — so a book could accept an order and then have
+            // nothing to settle it with, which is not what "paper trading" is supposed to mean.
+            _adapter = new SimulatedExecutionAdapter(
+                _venue, _clock, _scheduler, session,
+                cash: [PaperAccount.OpeningCash(paperAccount, seedStartUtc)]);
             var acquired = ExecutionLease.Acquire(
                 account,
                 executionLeaseStore,
@@ -1785,7 +1799,11 @@ FinishConnect:
             }
             _lease = acquired.Lease;
             _oms = new OrderManagementService(_ledger, _risk, _venue, _clock);
-            _reconciliation = new ReconciliationEngine(_oms, _caseStore, _clock);
+            // The ledger's half of the reconciliation sum. It has to match what the adapter opened with,
+            // or every paper book starts life with a break saying the adapter's cash is absent from the
+            // local ledger — the engine correctly reporting two different claims about the same money.
+            _reconciliation = new ReconciliationEngine(
+                _oms, _caseStore, _clock, PaperAccount.CashBasis(paperAccount));
             ExecutionCoordinator? coordinator = null;
             try
             {
@@ -1807,8 +1825,9 @@ FinishConnect:
 
         internal static InProcessBookRuntime CreateEmpty(
             string bookId,
+            PaperAccountOptions paperAccount,
             IExecutionLeaseStore executionLeaseStore) =>
-            new(bookId, Array.Empty<VenueSubmitPlan>(), DateTime.UtcNow, executionLeaseStore);
+            new(bookId, Array.Empty<VenueSubmitPlan>(), DateTime.UtcNow, paperAccount, executionLeaseStore);
 
         public BrokerExecutionAccount Account => _adapter.Account;
 

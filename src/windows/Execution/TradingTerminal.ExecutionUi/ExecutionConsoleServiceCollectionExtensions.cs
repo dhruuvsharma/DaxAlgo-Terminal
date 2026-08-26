@@ -1,3 +1,4 @@
+using TradingTerminal.Core.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TradingTerminal.Execution;
@@ -20,6 +21,10 @@ public static class ExecutionConsoleServiceCollectionExtensions
         // Books survive a restart, too. Without a store the engine forgets every book the moment the
         // process exits, which reads to a user as "my books disappeared".
         services.TryAddSingleton<IExecutionBookStore>(_ => new JsonExecutionBookStore());
+        // The terminal's paper account: a hundred thousand US dollars, inside the application. Every
+        // in-process book opens with it, and no broker paper account is involved — which is the point.
+        // TryAdd, so a shell that binds the PaperAccount configuration section wins over this default.
+        services.TryAddSingleton(new PaperAccountOptions());
         services.AddSingleton<IExecutionClient, InProcessExecutionClient>();
         // App lifetime, like the engine it watches: the header chip lives as long as the shell does.
         services.AddSingleton<ExecutionBooksChipViewModel>();
