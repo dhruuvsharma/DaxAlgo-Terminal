@@ -18,7 +18,8 @@ public sealed record LoadedPlugin(
     IReadOnlyList<string>? RegisteredServices = null,
     PluginScanReport? Scan = null,
     bool Unsigned = false,
-    IReadOnlyList<string>? StrategyImplementationTypes = null);
+    IReadOnlyList<string>? StrategyImplementationTypes = null,
+    System.Reflection.Assembly? Image = null);
 
 /// <summary>
 /// Discovers and loads strategy plugins. A plugin is a folder under the plugins root containing a
@@ -261,7 +262,31 @@ public static class PluginLoader
                 lock (s_keepAlive) s_keepAlive.Add(ctx);
                 var asm = ctx.LoadFromAssemblyPath(dll);
                 if (RegisterFromAssembly(asm, services, hostSdkVersion) is { } meta)
-                    loaded.Add(meta with { Scan = scan, Unsigned = unsigned });
+                {
+                    loaded.Add(meta with { Scan = scan, Unsigned = unsigned, Image = asm });
+                }
+                else if (HostableUnits.Any(asm))
+                {
+                    // No IStrategyPlugin, but kernels or visualizers the host can run — which is every
+                    // artifact Hyperion emits. Before this branch existed such an assembly was not merely
+                    // left unregistered, it was never recorded as loaded, so an installed authored
+                    // strategy was a folder the next start walked past without a word.
+                    //
+                    // It contributes no services: a kernel is not a DI registration, it is a catalog
+                    // entry, and turning one into the other needs the registries in the UI layer. The
+                    // assembly rides along on the report for whoever owns those.
+                    // The manifest read at the top of this iteration — the same one the trust policy and
+                    // the scan already consulted, so the name shown cannot disagree with the identity gated.
+                    loaded.Add(new LoadedPlugin(
+                        Name: manifest?.Name ?? Path.GetFileName(folder),
+                        TargetSdkVersion: manifest?.TargetSdkVersion ?? hostSdkVersion,
+                        AssemblyPath: dll,
+                        RegisteredServices: null,
+                        Scan: scan,
+                        Unsigned: unsigned,
+                        StrategyImplementationTypes: null,
+                        Image: asm));
+                }
             }
             catch (PluginBlockedException ex)
             {

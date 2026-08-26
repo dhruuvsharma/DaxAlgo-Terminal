@@ -1,8 +1,10 @@
 using System.IO;
 using System.Text;
 using DaxAlgo.Package;
+using System.Text.Json;
 using DaxAlgo.Sdk;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Plugins;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -62,6 +64,8 @@ public static class AuthoredArtifact
     /// </summary>
     public const string DefaultVersion = "0.1.0";
 
+    private static readonly JsonSerializerOptions ManifestJson = new() { WriteIndented = true };
+
     /// <summary>
     /// Writes the artifact and returns where it went. Never throws — a failure here must not cost the
     /// user a unit that compiled, verified and registered perfectly well.
@@ -109,6 +113,7 @@ public static class AuthoredArtifact
         }
 
         var kind = unit.Kind == AuthoringKind.Visualizer ? DaxPackageKind.Visualizer : DaxPackageKind.Strategy;
+        var effectiveVersion = string.IsNullOrWhiteSpace(version) ? DefaultVersion : version!;
         var stem = Sanitize(script.Id);
         var directory = root ?? DefaultRoot;
         var path = System.IO.Path.Combine(directory, stem + DaxPackage.ExtensionFor(kind));
@@ -121,11 +126,11 @@ public static class AuthoredArtifact
             {
                 Kind = kind,
                 Id = script.Id,
-                Version = string.IsNullOrWhiteSpace(version) ? DefaultVersion : version!,
+                Version = effectiveVersion,
                 DisplayName = string.IsNullOrWhiteSpace(script.DisplayName) ? script.Id : script.DisplayName,
                 Publisher = "Authored locally",
                 EntryTypeName = entryTypeName!,
-                Payloads = Payloads(script, image, stem, uiPayload),
+                Payloads = Payloads(script, image, stem, uiPayload, effectiveVersion),
             });
 
             return new AuthoredArtifactResult(
@@ -145,7 +150,7 @@ public static class AuthoredArtifact
     }
 
     private static List<DaxPayloadSource> Payloads(
-        StrategyScript script, byte[] image, string stem, string? uiPayload)
+        StrategyScript script, byte[] image, string stem, string? uiPayload, string version)
     {
         // The assembly is named after the id, because the installer takes the plugin folder's name from
         // the assembly payload's file name and the loader expects plugins/<Name>/<Name>.dll.
@@ -168,6 +173,32 @@ public static class AuthoredArtifact
             payloads.Add(DaxPayloadSource.FromBytes(
                 $"payload/src/{name}", DaxPayloadRole.Source, Encoding.UTF8.GetBytes(file.Content)));
         }
+
+        // The plugin manifest travels INSIDE the package, as a payload, rather than being derived by the
+        // installer from the package manifest.
+        //
+        // Three things follow from that. It is covered by the same digest as everything else, so it
+        // cannot be edited after the fact. It reaches the staging folder through the ordinary payload
+        // path, where PluginManifest.TryRead already looks for it — no installer special-casing. And the
+        // SDK version in it is the one this unit was actually compiled against, which is a fact; an
+        // installer deriving a manifest would have had to invent that number, and inventing the input to
+        // a compatibility gate is the same as removing the gate.
+        //
+        // Permissions are deliberately absent. They only ever downgrade warn-level findings to
+        // "disclosed", never grant anything — but a generated unit has no business disclosing
+        // capabilities on its author's behalf, and silence here means the scanner reports everything it
+        // finds.
+        payloads.Add(DaxPayloadSource.FromBytes(
+            $"payload/{PluginManifest.FileName}",
+            DaxPayloadRole.Resource,
+            JsonSerializer.SerializeToUtf8Bytes(
+                new PluginManifest(
+                    Id: script.Id,
+                    Name: string.IsNullOrWhiteSpace(script.DisplayName) ? script.Id : script.DisplayName,
+                    Version: version,
+                    TargetSdkVersion: SdkInfo.Version,
+                    Publisher: "Authored locally"),
+                ManifestJson)));
 
         if (!string.IsNullOrWhiteSpace(uiPayload))
         {
