@@ -104,7 +104,7 @@ a market order.
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
 - Git.
 
-No broker account is required: the five public crypto sources need no account or API key.
+No broker account is required: seven public crypto sources need no account or API key.
 
 ### Clone, build, and start
 
@@ -136,7 +136,7 @@ policy exposes both groups in the selector.
 
 | Group | Sources | Requirement |
 |---|---|---|
-| Keyless | Binance, Coinbase, Bybit, Kraken, OKX | Public crypto market data; no account or API key |
+| Keyless | Binance, Coinbase, Bybit, Kraken, OKX, Deribit, Hyperliquid | Public crypto market data; no account or API key |
 | Credentialed | Interactive Brokers | Signed-in TWS or IB Gateway; the client compiles when `CSharpAPI.dll` is available |
 | Credentialed | NinjaTrader | Running NinjaTrader with its integration enabled; the client compiles when `NTDirect.dll` is available |
 | Credentialed | cTrader | cTrader application credentials/access token and account selection |
@@ -144,12 +144,22 @@ policy exposes both groups in the selector.
 | Credentialed | Ironbeam | Username and API key; demo or live endpoint by configuration |
 | Credentialed | London Strategic Edge | Provider API key |
 | Credentialed | Upstox | App credentials and OAuth access token |
+| Credentialed | Tradier | Access token; free sandbox token issued immediately, or production |
+| Credentialed | OANDA | v20 personal access token plus an account id; practice or live |
+| Credentialed | Binance, Coinbase, Bybit, Kraken, OKX, Deribit | Optional API key. These venues appear **twice** — the keyless row above serves the same market data with no account. A key adds a higher rate-limit budget and the private endpoints, and is checked against the venue the moment it is entered |
 
 Interactive Brokers and NinjaTrader are build-time optional because their vendor DLLs are not committed.
 The other clients above build from NuGet or repository source.
 
 Interactive Brokers, cTrader, and Alpaca also have **execution** adapters. The remaining sources are
 market data only.
+
+**Verification status is published, not implied.** `BrokerCatalog` carries a status per venue, and the
+login list shows it. Eight of the sixteen clients — Coinbase, Bybit, Kraken, OKX, Deribit, Hyperliquid,
+Tradier and OANDA — are marked **Unverified**: written from each venue's published API documentation
+and not yet run against a funded account. They are wired, tested against captured payloads and
+published signing vectors, and may still differ from the live service in ways only an account reveals.
+A further 31 venues are catalogued as **Planned** with no adapter yet, and cannot be selected.
 
 Broker configuration is read from `appsettings.json`, with optional per-user values in the git-ignored
 `appsettings.local.json`. Do not commit credentials.

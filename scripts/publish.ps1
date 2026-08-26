@@ -14,7 +14,8 @@
     Also produce a versioned .zip alongside the published folder.
 
 .PARAMETER Installer
-    Also build the Inno Setup installer (requires iscc on PATH or Inno Setup 6 installed).
+    Also build the Inno Setup installer. NOT AVAILABLE IN THIS REPO — the .iss lives in the
+    Pro-Installer repo. Kept so the parameter fails with an explanation rather than silently.
 
 .EXAMPLE
     ./scripts/publish.ps1 -Version 1.0.0 -Zip -Installer
@@ -38,15 +39,22 @@ try {
 
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 
-    # Publish straight into the final layout (app at the root, CLI under cli\). Publishing
-    # in place avoids duplicating ~430 MB of self-contained output into a separate stage copy.
-    dotnet publish src/TradingTerminal.App/TradingTerminal.App.csproj `
+    # Publish straight into the final layout. Publishing in place avoids duplicating ~430 MB of
+    # self-contained output into a separate stage copy.
+    #
+    # This must stay in step with .github/workflows/release.yml — the whole point of this script is
+    # to reproduce the release artifact locally, and a script that builds something else is worse
+    # than no script. It pointed at src/TradingTerminal.App and src/TradingTerminal.Backtest.Cli
+    # until 2026-08-26: the first is the Professional shell (a different repo), the second was
+    # archived with the backtest engine. Neither path had existed for months.
+    dotnet publish src/windows/Shell/TradingTerminal.App.Basic/TradingTerminal.App.Basic.csproj `
         -c Release -r $rid --self-contained true -p:Version=$Version -o $stage
     if ($LASTEXITCODE -ne 0) { throw "App publish failed ($LASTEXITCODE)." }
 
-    dotnet publish src/TradingTerminal.Backtest.Cli/TradingTerminal.Backtest.Cli.csproj `
-        -c Release -r $rid --self-contained true -p:Version=$Version -o (Join-Path $stage 'cli')
-    if ($LASTEXITCODE -ne 0) { throw "CLI publish failed ($LASTEXITCODE)." }
+    # QuestDB is the default store provider and installed builds bundle its runtime. Skipping this
+    # gives a build that starts with persistence off — logged, but easy to miss in a smoke test.
+    & "$PSScriptRoot/stage-questdb.ps1" -Destination (Join-Path $stage 'questdb')
+    if ($LASTEXITCODE -ne 0) { throw "QuestDB staging failed ($LASTEXITCODE)." }
 
     Copy-Item README.md, CHANGELOG.md, LICENSE $stage -Force
 
@@ -60,6 +68,15 @@ try {
     }
 
     if ($Installer) {
+        # The Inno Setup script is NOT in this repo — installer/DaxAlgoTerminal.iss lives in the
+        # Pro-Installer repo, which is where installers are built. Saying so beats letting ISCC fail
+        # with "file not found" on a path that reads like it should be here.
+        if (-not (Test-Path 'installer/DaxAlgoTerminal.iss')) {
+            throw ("No installer script in this repo. Installers are built from the Pro-Installer " +
+                   "repo (installer/DaxAlgoTerminal.iss). Drop -Installer to publish the portable " +
+                   "build, which is what this repo ships.")
+        }
+
         $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
         if (-not $iscc) {
             $candidate = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'

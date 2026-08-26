@@ -10,7 +10,11 @@ present here. Do not describe or depend on private-edition code.
 - .NET 9 SDK.
 - Git.
 
-No broker account is needed for development: the keyless public crypto feeds need no credentials.
+No broker account is needed for development: the keyless public crypto feeds (Binance, Coinbase,
+Bybit, Kraken, OKX, Deribit, Hyperliquid) need no credentials, and a great deal can be verified without
+an account at all — response parsing is pure, and the signing schemes have published test vectors. A
+new broker adapter written from documentation is marked `BrokerStatus.Unverified` until someone runs it
+against a real account; please do not promote that status without having done so.
 Interactive Brokers and NinjaTrader compile only when their vendor DLLs resolve locally; their absence
 must not break the rest of the solution.
 

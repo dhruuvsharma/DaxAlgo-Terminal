@@ -4,33 +4,30 @@
 #   docker compose down         # stop, keep data
 #   docker compose down -v      # stop and wipe the data volume
 #
-# TimescaleDB = PostgreSQL + a free (Apache-2) time-series extension. The terminal's
-# canonical market-data store talks to it via Npgsql; if this container isn't running the
-# app automatically falls back to the embedded SQLite store, so this is optional.
+# ── Docker is OPTIONAL, and for most people unnecessary ───────────────────────────────────────────
+#
+# Installed builds bundle the QuestDB runtime and start it themselves — no Docker, no container.
+# This file exists for a SOURCE checkout, where the runtime is not staged until you run
+# scripts/stage-questdb.ps1. Either approach works; running this compose file is the alternative to
+# staging, not an addition to it.
+#
+# A source tree with neither runs with **persistence off** — logged loudly at startup, never silent.
+#
+# ── What was removed (2026-08-23) ─────────────────────────────────────────────────────────────────
+#
+# This file also defined a `timescaledb` service until 2026-08-26. Nothing could use it: the
+# Postgres/TimescaleDB store provider was removed on 2026-08-23 along with the single-file SQLite
+# one, because nothing selected either. `MarketDataProvider` now has exactly two values — QuestDb
+# (the default) and SqlitePerBroker (embedded, no container). A compose service for a backend the
+# application cannot address is a trap for whoever reads this next.
 services:
-  timescaledb:
-    image: timescale/timescaledb:latest-pg16   # pin to e.g. :2.17.2-pg16 for reproducibility
-    container_name: daxalgo-timescaledb
-    environment:
-      POSTGRES_DB: daxalgo
-      POSTGRES_USER: daxalgo
-      POSTGRES_PASSWORD: daxalgo
-    ports:
-      - "5432:5432"
-    volumes:
-      - daxalgo-tsdb:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U daxalgo -d daxalgo"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # QuestDB = Apache-2 time-series database. Holds the high-volume L1/L2 streams (quotes, trades,
-  # depth) when MarketDataStore:Provider is "QuestDb"; bars stay in embedded SQLite. Writes use ILP
-  # over HTTP (9000); the app reads/creates schema over the PG-wire protocol (8812). Unlike the
-  # Timescale path there is no silent SQLite fallback for ticks — if this container is down, L1/L2
-  # persistence is simply disabled (logged loudly) until it comes back.
+  # QuestDB = Apache-2 time-series database, and the default store provider. It owns EVERY stream —
+  # quotes, trades, depth and bars — with bars deduplicated on (ts, instrument, bar_size), because a
+  # forming bar is re-sent until it closes. Writes use ILP over HTTP (9000); the app reads and
+  # creates schema over the PostgreSQL wire protocol (8812).
+  #
+  # There is no silent fallback. If this is down, persistence is disabled and said so — the app does
+  # not quietly degrade to SQLite behind your back.
   questdb:
     image: questdb/questdb:latest          # pin to e.g. :8.2.1 for reproducibility
     container_name: daxalgo-questdb
@@ -51,5 +48,4 @@ services:
       retries: 5
 
 volumes:
-  daxalgo-tsdb:
   daxalgo-questdb:
