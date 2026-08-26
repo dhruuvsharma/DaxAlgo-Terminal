@@ -1,19 +1,27 @@
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Login;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Configuration;
 
 namespace TradingTerminal.App.Login.Forms;
 
 /// <summary>Login form for Coinbase public market data — no credentials (keyless, like Binance).</summary>
 public sealed class CoinbaseLoginFormViewModel : BrokerLoginFormBase
 {
-    public CoinbaseLoginFormViewModel(IBrokerSelector selector, ILogger<CoinbaseLoginFormViewModel> logger)
-        : base(selector, logger) { }
+    private readonly CoinbaseOptions _options;
+
+    public CoinbaseLoginFormViewModel(
+        IBrokerSelector selector,
+        Microsoft.Extensions.Options.IOptions<CoinbaseOptions> options,
+        ILogger<CoinbaseLoginFormViewModel> logger)
+        : base(selector, logger) => _options = options.Value;
 
     public override BrokerKind Broker => BrokerKind.Coinbase;
     public override string DisplayName => "Coinbase (no login)";
     public override bool CanSubmit => true;
-    public override void ApplyToOptions() { }
+    /// <summary>Drops any stored key, so choosing this row means keyless rather than "authenticated
+    /// because you once pasted a key into the other row".</summary>
+    public override void ApplyToOptions() => _options.Credentials.Clear();
     public override string GetSessionAccountLabel() => "Coinbase · Public data";
     public override string GetTimeoutErrorMessage() =>
         "Connection timed out reaching Coinbase. Check your internet connection.";

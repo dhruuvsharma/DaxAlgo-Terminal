@@ -156,23 +156,27 @@ public static class BrokerCatalog
 
         new("binance", "Binance", "binance.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.DataOnly,
-            BrokerKind.Binance, "Public feed; no key needed for market data."),
+            BrokerKind.Binance, "Public feed; no key needed for market data. Offered both keyless and keyed — either way, the same venue and the same client."),
 
         new("coinbase", "Coinbase", "coinbase.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
-            BrokerKind.Coinbase),
+            BrokerKind.Coinbase,
+            "Public market data needs no account; a key raises the rate-limit budget. Both ways in are offered — either way, it is the same venue and the same client."),
 
         new("bybit", "Bybit", "bybit.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
-            BrokerKind.Bybit),
+            BrokerKind.Bybit,
+            "Public market data needs no account; a key raises the rate-limit budget. Both ways in are offered — either way, it is the same venue and the same client."),
 
         new("kraken", "Kraken", "kraken.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
-            BrokerKind.Kraken),
+            BrokerKind.Kraken,
+            "Public market data needs no account; a key raises the rate-limit budget. Both ways in are offered — either way, it is the same venue and the same client."),
 
         new("okx", "OKX", "okx.com",
             BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
-            BrokerKind.Okx),
+            BrokerKind.Okx,
+            "Public market data needs no account; a key raises the rate-limit budget. Both ways in are offered — either way, it is the same venue and the same client."),
 
         // ── United States ───────────────────────────────────────────────────────────────────────
         new("charles-schwab", "Charles Schwab", "schwab.com",

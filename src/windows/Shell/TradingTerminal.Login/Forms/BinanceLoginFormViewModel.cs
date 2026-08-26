@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TradingTerminal.App.Login;
 using TradingTerminal.Core.Brokers;
+using TradingTerminal.Core.Configuration;
 
 namespace TradingTerminal.App.Login.Forms;
 
@@ -12,20 +13,22 @@ namespace TradingTerminal.App.Login.Forms;
 /// </summary>
 public sealed class BinanceLoginFormViewModel : BrokerLoginFormBase
 {
+    private readonly BinanceOptions _options;
+
     public BinanceLoginFormViewModel(
         IBrokerSelector selector,
+        Microsoft.Extensions.Options.IOptions<BinanceOptions> options,
         ILogger<BinanceLoginFormViewModel> logger)
-        : base(selector, logger)
-    {
-    }
-
+        : base(selector, logger) => _options = options.Value;
     public override BrokerKind Broker => BrokerKind.Binance;
     public override string DisplayName => "Binance (no login)";
 
     // No credentials required — public market data.
     public override bool CanSubmit => true;
 
-    public override void ApplyToOptions() { /* nothing to apply — endpoints come from config defaults */ }
+    /// <summary>Drops any stored key, so choosing this row means keyless rather than "authenticated
+    /// because you once pasted a key into the other row".</summary>
+    public override void ApplyToOptions() => _options.Credentials.Clear();
 
     public override string GetSessionAccountLabel() => "Binance · Public data";
 

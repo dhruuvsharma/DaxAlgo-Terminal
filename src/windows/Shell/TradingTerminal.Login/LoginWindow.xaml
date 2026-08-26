@@ -6,6 +6,7 @@
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:conv="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
                  xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+                 xmlns:login="clr-namespace:TradingTerminal.App.Login"
                  mc:Ignorable="d"
                  Title="DaxAlgo Terminal — Sign in"
                  Height="700" Width="960"
@@ -523,8 +524,46 @@
                         </Style.Triggers>
                     </Style>
                 </ScrollViewer.Style>
-                <ItemsControl ItemsSource="{Binding FormsView}"
-                              ItemTemplate="{StaticResource BrokerRowTemplate}" />
+                <!-- Two expanders, from the view's group descriptions: Keyless first, because it is
+                     the only group a new user can act on without going away and registering somewhere.
+                     A venue that serves data both ways appears in both, once per way in. -->
+                <ItemsControl ItemsSource="{Binding FormsView.Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Expander Margin="0,0,0,10"
+                                      Background="Transparent"
+                                      BorderBrush="{DynamicResource Border.Brush}"
+                                      BorderThickness="0,0,0,1"
+                                      mah:HeaderedControlHelper.HeaderBackground="Transparent"
+                                      mah:HeaderedControlHelper.HeaderForeground="{DynamicResource Text.Secondary}">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                                        <TextBlock Text="{Binding ItemCount, StringFormat=' ({0})'}"
+                                                   FontSize="11" Opacity="0.7" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <ItemsControl ItemsSource="{Binding Items}"
+                                              ItemTemplate="{StaticResource BrokerRowTemplate}" />
+                                <Expander.Style>
+                                    <Style TargetType="Expander">
+                                        <!-- Collapsed by default; the keyless group opens, because it is
+                                             the only one a new user can act on without leaving to
+                                             register somewhere. The name comes from a constant so the
+                                             label and this match cannot drift apart. -->
+                                        <Setter Property="IsExpanded" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Name}"
+                                                         Value="{x:Static login:BrokerLoginFormBase.KeylessGroupName}">
+                                                <Setter Property="IsExpanded" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Expander.Style>
+                            </Expander>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </ScrollViewer>
 
             <!-- ── Services & external dependencies (collapsed expander, low prominence) ──────── -->

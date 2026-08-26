@@ -42,4 +42,9 @@ public sealed class BinanceOptions
 
     public int ReconnectInitialDelaySeconds { get; set; } = 1;
     public int ReconnectMaxDelaySeconds { get; set; } = 30;
+
+    /// <summary>API credentials, when the user chose the keyed way in. Empty means keyless, which is a
+    /// fully supported mode here — public market data needs no account. Populated at runtime from the
+    /// credential store by the login form, never from appsettings.json.</summary>
+    public CryptoApiCredentials Credentials { get; set; } = new();
 }

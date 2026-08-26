@@ -45,6 +45,25 @@ public static class LoginServiceCollectionExtensions
         // Per-broker login forms. Each form is registered as both its concrete type (for the
         // factory's GetRequiredService lookup) and as IBrokerLoginForm (so the factory can
         // enumerate them).
+        // The five venues that serve data BOTH ways get two rows each: the keyless one below, and a
+        // keyed one here. Same BrokerKind and same client — it is one venue and one market, and
+        // splitting the provenance would split one exchange's stored history across two partitions.
+        // What differs is whether credentials are handed over before connecting.
+        services.AddSingleton<KeyedBinanceLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<KeyedBinanceLoginFormViewModel>());
+
+        services.AddSingleton<KeyedCoinbaseLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<KeyedCoinbaseLoginFormViewModel>());
+
+        services.AddSingleton<KeyedBybitLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<KeyedBybitLoginFormViewModel>());
+
+        services.AddSingleton<KeyedKrakenLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<KeyedKrakenLoginFormViewModel>());
+
+        services.AddSingleton<KeyedOkxLoginFormViewModel>();
+        services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<KeyedOkxLoginFormViewModel>());
+
         services.AddSingleton<BinanceLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<BinanceLoginFormViewModel>());
 

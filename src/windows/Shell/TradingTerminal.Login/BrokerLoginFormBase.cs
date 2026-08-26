@@ -112,18 +112,32 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
     /// <summary>One-line "transport · assets · auth" descriptor shown under the broker name.</summary>
     public string Subtitle => Tile.Subtitle;
 
-    public LoginCategory Category => Tile.Category;
+    /// <summary>The tile's own category. A keyed variant overrides this — see <see cref="Category"/>.</summary>
+    public virtual LoginCategory Category => Tile.Category;
 
-    /// <summary>Group-header label the login list groups rows under.</summary>
-    public string CategoryName => Category switch
-    {
-        LoginCategory.Keyless => "Keyless · instant, no API key",
-        LoginCategory.Credentialed => "Credentialed",
-        _ => "Local bridge",
-    };
+    /// <summary>
+    /// Which of the two expanders this row belongs in.
+    ///
+    /// <para>Two groups, not three. The old taxonomy split Credentialed from Local bridge, which is a
+    /// distinction about <i>how</i> a broker is reached rather than about what the user has to go and
+    /// get — and the only question a first-run user is actually asking is "can I start now, or do I
+    /// need to go and register somewhere first?". A local bridge like TWS needs setting up, so it
+    /// belongs with the things that need setting up.</para>
+    /// </summary>
+    /// <summary>The keyless group's header. A constant because the XAML matches on it to decide which
+    /// expander opens first, and a label that drifted from that match would silently collapse the one
+    /// group a new user can actually act on.</summary>
+    public const string KeylessGroupName = "Keyless · connect now, no account";
 
-    /// <summary>Sort key so groups render Keyless → Credentialed → Local bridge.</summary>
-    public int CategoryOrder => (int)Category;
+    /// <summary>The keyed group's header.</summary>
+    public const string KeyedGroupName = "Key required · sign up and paste a key";
+
+    public string CategoryName =>
+        Category == LoginCategory.Keyless ? KeylessGroupName : KeyedGroupName;
+
+    /// <summary>Sort key so the keyless group renders first — it is the only one a new user can act
+    /// on immediately.</summary>
+    public int CategoryOrder => Category == LoginCategory.Keyless ? 0 : 1;
 
     /// <summary>Zero-credential public-data brokers — highlighted as the first-run path.</summary>
     public bool IsKeyless => Category == LoginCategory.Keyless;

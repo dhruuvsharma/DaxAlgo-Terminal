@@ -97,6 +97,42 @@ public sealed class StoredCredentials
         set => AlpacaApiSecretEncryptedBase64 = EncryptDpapi(value);
     }
 
+    // ---- Keyed crypto venues ----
+
+    /// <summary>
+    /// API credentials for the crypto venues that serve data both keyless and keyed, stored under the
+    /// broker's name.
+    ///
+    /// <para>A map rather than three named fields per venue, because there are five of them today and
+    /// the shape is identical — fifteen near-duplicate properties would be a lot of surface for no
+    /// information, and each new venue would mean touching this file again.</para>
+    ///
+    /// <para>Secrets are DPAPI ciphertext, exactly like the named fields above; the plaintext never
+    /// reaches this object's serialised form. The key name is stored in the clear on purpose — it is an
+    /// identifier, not a secret, and having it readable is what lets the login form show which key is
+    /// configured without decrypting anything.</para>
+    /// </summary>
+    public Dictionary<string, CryptoKeyRecord> CryptoKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Reads a venue's credentials, or an empty record when none are stored.</summary>
+    public CryptoKeyRecord CryptoKeysFor(BrokerKind broker) =>
+        CryptoKeys.TryGetValue(broker.ToString(), out var record) ? record : new CryptoKeyRecord();
+
+    /// <summary>Writes a venue's credentials, replacing whatever was there.</summary>
+    public void SetCryptoKeys(BrokerKind broker, string apiKey, string? secret, string? passphrase)
+    {
+        CryptoKeys[broker.ToString()] = new CryptoKeyRecord
+        {
+            ApiKey = apiKey ?? string.Empty,
+            ApiSecret = secret,
+            Passphrase = passphrase,
+        };
+    }
+
+    /// <summary>Forgets a venue's credentials — what choosing the keyless row does, so "keyless"
+    /// means keyless rather than "authenticated because you once pasted a key".</summary>
+    public void ClearCryptoKeys(BrokerKind broker) => CryptoKeys.Remove(broker.ToString());
+
     // ---- Upstox-specific fields ----
     public string UpstoxApiKey { get; set; } = string.Empty;
     public string UpstoxRedirectUri { get; set; } = string.Empty;
@@ -121,7 +157,7 @@ public sealed class StoredCredentials
         set => UpstoxAccessTokenEncryptedBase64 = EncryptDpapi(value);
     }
 
-    private static string? DecryptDpapi(string? encryptedBase64)
+    internal static string? DecryptDpapi(string? encryptedBase64)
     {
         if (string.IsNullOrEmpty(encryptedBase64)) return null;
         try
@@ -134,7 +170,7 @@ public sealed class StoredCredentials
         catch (FormatException) { return null; }
     }
 
-    private static string? EncryptDpapi(string? value)
+    internal static string? EncryptDpapi(string? value)
     {
         if (string.IsNullOrEmpty(value)) return null;
         var encrypted = ProtectedData.Protect(
@@ -173,5 +209,33 @@ public sealed class StoredCredentials
                 DataProtectionScope.CurrentUser);
             PasswordEncryptedBase64 = Convert.ToBase64String(encrypted);
         }
+    }
+}
+/// <summary>One venue's stored API credentials. Secrets are DPAPI ciphertext at rest.</summary>
+public sealed class CryptoKeyRecord
+{
+    /// <summary>The API key, or the CDP key name for Coinbase. An identifier, not a secret, so it is
+    /// stored in the clear — which is what lets a form show which key is configured without
+    /// decrypting.</summary>
+    public string ApiKey { get; set; } = string.Empty;
+
+    /// <summary>DPAPI ciphertext for the secret — or, for Coinbase, for the EC private key.</summary>
+    public string? ApiSecretEncryptedBase64 { get; set; }
+
+    /// <summary>DPAPI ciphertext for the passphrase. Only OKX issues one.</summary>
+    public string? PassphraseEncryptedBase64 { get; set; }
+
+    [JsonIgnore]
+    public string? ApiSecret
+    {
+        get => StoredCredentials.DecryptDpapi(ApiSecretEncryptedBase64);
+        set => ApiSecretEncryptedBase64 = StoredCredentials.EncryptDpapi(value);
+    }
+
+    [JsonIgnore]
+    public string? Passphrase
+    {
+        get => StoredCredentials.DecryptDpapi(PassphraseEncryptedBase64);
+        set => PassphraseEncryptedBase64 = StoredCredentials.EncryptDpapi(value);
     }
 }

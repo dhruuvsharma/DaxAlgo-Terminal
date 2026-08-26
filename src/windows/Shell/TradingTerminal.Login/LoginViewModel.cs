@@ -91,9 +91,12 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
             .ThenBy(f => f.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Flat filterable view. Source order (above) gives Keyless → Credentialed → Local bridge,
-        // then alphabetical within each tier. No GroupDescriptions — the redesigned UI is a flat list.
+        // Grouped into the two expanders the login list renders: what you can connect right now, and
+        // what needs an account first. That is the only question a new user is asking, and it is a
+        // different cut from the old three-way split, which distinguished a local bridge from a keyed
+        // broker — a fact about transport rather than about what the user has to go and get.
         var view = new ListCollectionView(_formItems) { Filter = FilterForm };
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BrokerLoginFormBase.CategoryName)));
         FormsView = view;
 
         // Aggregate state changes from the selector so the Launch button enable-state updates
