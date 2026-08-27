@@ -22,6 +22,7 @@
          either passes units that fail live or fails units that would have worked. -->
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Sandbox\TradingTerminal.Sandbox.csproj" />
     <InternalsVisibleTo Include="TradingTerminal.Tests.Headless" />
+    <InternalsVisibleTo Include="TradingTerminal.Plugins.Tests" />
   </ItemGroup>
 
   <ItemGroup>

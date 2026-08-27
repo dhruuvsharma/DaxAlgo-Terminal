@@ -109,7 +109,9 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             {
                 var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
                 yield return new CodegenEvent.Completed(
-                    StrategyCodegenResponse.Fail($"{DisplayName} returned {(int)resp.StatusCode}: {Trim(payload)}"));
+                    StrategyCodegenResponse.Fail(
+                        $"{DisplayName} returned {(int)resp.StatusCode}: {Trim(payload)}"
+                        + Hint((int)resp.StatusCode, payload, _model)));
                 yield break;
             }
 
@@ -220,7 +222,9 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             using var resp = await _http.SendAsync(httpReq, ct).ConfigureAwait(false);
             var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode)
-                return StrategyCodegenResponse.Fail($"{DisplayName} returned {(int)resp.StatusCode}: {Trim(payload)}");
+                return StrategyCodegenResponse.Fail(
+                    $"{DisplayName} returned {(int)resp.StatusCode}: {Trim(payload)}"
+                    + Hint((int)resp.StatusCode, payload, _model));
 
             var parsed = JsonSerializer.Deserialize<ChatResponse>(payload, Json);
             var text = parsed?.Choices?.FirstOrDefault()?.Message?.Content;
@@ -240,6 +244,41 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     }
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
+
+    /// <summary>
+    /// Turns a rejection into something a user can act on.
+    ///
+    /// <para>An unknown model and a bad key both come back as a 4xx with a terse body, and the two have
+    /// completely different fixes. The one that costs the most time is a model id in the wrong shape:
+    /// gateways that front several vendors publish ids for their own config format — OpenCode Zen
+    /// documents <c>opencode/&lt;id&gt;</c> — while the OpenAI-compatible <c>model</c> field wants the
+    /// bare id. Both look like a name, so the wrong one produces a refusal that reads as "your key does
+    /// not have access to this model".</para>
+    /// </summary>
+    internal static string Hint(int status, string payload, string model)
+    {
+        var body = payload ?? string.Empty;
+
+        var unknownModel =
+            body.Contains("model", StringComparison.OrdinalIgnoreCase)
+            && (body.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("unknown", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("invalid_model", StringComparison.OrdinalIgnoreCase));
+
+        if (unknownModel)
+        {
+            var bare = model.Contains('/') ? model[(model.LastIndexOf('/') + 1)..] : null;
+            return bare is null
+                ? $" — the server does not know the model \"{model}\". Check the id on the provider's model list."
+                : $" — the server does not know the model \"{model}\". Some gateways publish ids for their"
+                  + $" own config format; over this API the bare id is usually wanted, so try \"{bare}\".";
+        }
+
+        return status is 401 or 403
+            ? " — check the API key for this provider in Provider settings."
+            : string.Empty;
+    }
 
     /// <summary>OpenAI's <c>reasoning_effort</c> takes low/medium/high only, so the two Anthropic-only
     /// levels clamp to high. Null (the "Default" pick, or a provider with no effort knob) omits the field
