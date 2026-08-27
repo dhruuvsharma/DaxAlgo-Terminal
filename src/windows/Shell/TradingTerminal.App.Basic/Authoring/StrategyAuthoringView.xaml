@@ -538,9 +538,10 @@
                                         Background="{DynamicResource Background.Surface}"
                                         BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                                     <Grid>
-                                        <render:RenderSurfaceView Draw="{Binding PreviewDraw}" Margin="6">
-                                            <render:RenderSurfaceView.Style>
-                                                <Style TargetType="render:RenderSurfaceView">
+                                        <render:AuthoredUnitLayoutHost Layout="{Binding PreviewLayout}"
+                                                       Draw="{Binding PreviewDraw}" Margin="6">
+                                            <render:AuthoredUnitLayoutHost.Style>
+                                                <Style TargetType="render:AuthoredUnitLayoutHost">
                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasPreview}" Value="True">
@@ -548,8 +549,8 @@
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </render:RenderSurfaceView.Style>
-                                        </render:RenderSurfaceView>
+                                            </render:AuthoredUnitLayoutHost.Style>
+                                        </render:AuthoredUnitLayoutHost>
 
                                         <!-- Never an unexplained empty rectangle: a blank panel reads as
                                              a broken application rather than a unit that draws nothing. -->

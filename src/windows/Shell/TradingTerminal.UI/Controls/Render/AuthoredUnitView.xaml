@@ -28,8 +28,15 @@
             <RowDefinition Height="Auto" />  <!-- activity log -->
         </Grid.RowDefinitions>
 
-        <!-- ── Parameters ─────────────────────────────────────────────────────────────────────── -->
+        <!--
+            Parameters. Hidden when the unit declares none, which is what makes a visualizer's window
+            the log-only shape asked for: a strategy always has parameters so it always shows, and a
+            visualizer usually has none so it usually does not. Keyed off what the unit actually
+            declares rather than off its kind, so a visualizer that DOES take parameters still shows
+            them instead of having them silently swallowed.
+        -->
         <Expander Grid.Row="0"
+                  Visibility="{Binding HasParameters, Converter={StaticResource B2V}, FallbackValue=Collapsed}"
                   IsExpanded="{Binding IsSetupExpanded, Mode=TwoWay}"
                   Background="{DynamicResource Background.Elevated}"
                   BorderBrush="{DynamicResource Border.Brush}"
@@ -63,8 +70,13 @@
             </ItemsControl>
         </Expander>
 
-        <!-- ── The author's picture ───────────────────────────────────────────────────────────── -->
-        <render:RenderSurfaceView x:Name="Surface" Grid.Row="1" />
+        <!--
+            The author's picture. One panel by default; a unit that declares a UnitLayout gets that
+            tree built into real panels with headers and draggable separators.
+        -->
+        <render:AuthoredUnitLayoutHost x:Name="Body" Grid.Row="1"
+                                       Layout="{Binding Layout}"
+                                       Draw="{Binding Draw}" />
 
         <!-- ── Virtual book (strategies only) ─────────────────────────────────────────────────── -->
         <Border Grid.Row="2"

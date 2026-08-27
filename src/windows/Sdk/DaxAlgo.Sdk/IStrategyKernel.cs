@@ -51,6 +51,21 @@ public interface IStrategyKernel
     {
     }
 
+    /// <summary>
+    /// How this unit's window body is divided into panels.
+    ///
+    /// <para>Default is <see cref="DaxAlgo.Sdk.Layout.UnitLayout.Single"/>: one panel filling the body,
+    /// drawn by <see cref="Draw"/>. Most units want exactly that and should not override this.</para>
+    ///
+    /// <para>Override it when the unit genuinely needs several panels — a chart beside an order book,
+    /// two books with an arbitrage strip between them — and give each panel its own draw callback.
+    /// <see cref="Draw"/> is then unused, because the panels do the drawing.</para>
+    ///
+    /// <para>The host owns everything around the body: the parameter expander above and the activity
+    /// log below are chrome, identical for every unit, and not something a layout can move or omit.</para>
+    /// </summary>
+    DaxAlgo.Sdk.Layout.UnitLayout Layout => DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
     /// <summary>Stops this kernel instance.</summary>
     Task OnStopAsync(IStrategyRuntimeContext context, CancellationToken ct) => Task.CompletedTask;
 }

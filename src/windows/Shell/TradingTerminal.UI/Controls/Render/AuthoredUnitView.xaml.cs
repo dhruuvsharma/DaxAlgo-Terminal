@@ -24,7 +24,7 @@ public partial class AuthoredUnitView : UserControl, IDisposable
     public AuthoredUnitView()
     {
         InitializeComponent();
-        Surface.ThemeResolver = ResolveTheme;
+        Body.ThemeResolver = ResolveTheme;
         DataContextChanged += OnDataContextChanged;
         Unloaded += (_, _) => Detach();
     }
@@ -39,7 +39,7 @@ public partial class AuthoredUnitView : UserControl, IDisposable
         _presenter.PropertyChanged += OnPresenterChanged;
         _presenter.Log.CollectionChanged += OnLogChanged;
         _presenter.FrameRequested += OnFrameRequested;
-        Surface.Draw = presenter.Draw;
+
     }
 
     private void Detach()
@@ -51,7 +51,6 @@ public partial class AuthoredUnitView : UserControl, IDisposable
         _presenter.Log.CollectionChanged -= OnLogChanged;
         _presenter.FrameRequested -= OnFrameRequested;
         _presenter = null;
-        Surface.Draw = null;
     }
 
     private void OnPresenterChanged(object? sender, PropertyChangedEventArgs e)
@@ -59,8 +58,7 @@ public partial class AuthoredUnitView : UserControl, IDisposable
         if (_presenter is null)
             return;
 
-        if (e.PropertyName == nameof(AuthoredUnitPresenter.Draw))
-            Surface.Draw = _presenter.Draw;
+        // Draw and Layout both reach the body through bindings; nothing to push by hand.
     }
 
     /// <summary>
@@ -110,7 +108,7 @@ public partial class AuthoredUnitView : UserControl, IDisposable
     public void Invalidate()
     {
         if (Volatile.Read(ref _disposed) == 0)
-            Surface.InvalidateVisual();
+            Body.InvalidateSurfaces();
     }
 
     public void Dispose()
@@ -120,5 +118,13 @@ public partial class AuthoredUnitView : UserControl, IDisposable
 
         Detach();
         DataContextChanged -= OnDataContextChanged;
+
+        // The body's Draw and Layout arrive by binding, so unsubscribing from the presenter's events
+        // is no longer enough on its own: the bindings would keep feeding a disposed view whatever the
+        // presenter set next. Dropping the DataContext cuts both at the source, which is also the
+        // honest statement — this view is finished, not merely quiet.
+        DataContext = null;
+        Body.Layout = null;
+        Body.Draw = null;
     }
 }

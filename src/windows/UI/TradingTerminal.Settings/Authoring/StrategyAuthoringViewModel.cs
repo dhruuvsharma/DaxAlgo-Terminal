@@ -264,6 +264,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>True once there is a frame to show.</summary>
     [ObservableProperty] private bool _hasPreview;
 
+    /// <summary>The panel arrangement the preview renders — the same tree the terminal
+    /// will build for this unit.</summary>
+    [ObservableProperty] private DaxAlgo.Sdk.Layout.UnitLayout _previewLayout =
+        DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
     /// <summary>Auto-generated editor for the compiled strategy's tunables, or null when it declares none
     /// / hasn't compiled yet.</summary>
     [ObservableProperty] private StrategyParametersViewModel? _parameters;
@@ -693,6 +698,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (unit is null)
         {
             PreviewDraw = null;
+            PreviewLayout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
             HasPreview = false;
             PreviewSummary = "No preview — nothing was resolved from the compiled code.";
             return;
@@ -702,6 +708,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             var preview = AuthoredUnitPreview.Create(unit);
             PreviewDraw = preview.Draw;
+
+            // The pane must show the same panel arrangement the terminal will. A preview that laid
+            // panels out differently would be worse than none, because the author designs against it.
+            PreviewLayout = preview.Layout;
             HasPreview = preview.IsDrawable;
             PreviewSummary = preview.Summary;
         }
@@ -709,6 +719,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             _logger?.LogWarning(ex, "Preview failed for {Id}.", StrategyId);
             PreviewDraw = null;
+            PreviewLayout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
             HasPreview = false;
             PreviewSummary = $"Preview unavailable: {ex.Message}";
         }
@@ -765,6 +776,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void ClearPreview()
     {
         PreviewDraw = null;
+        PreviewLayout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
         HasPreview = false;
         PreviewSummary = string.Empty;
     }

@@ -15,6 +15,7 @@ Data-only, event-driven strategy contract. The host supplies only `IStrategyRunt
 ```csharp
 StrategyDataRequirement DataRequirement { get; }
 void Draw(IRenderSurface surface)
+UnitLayout Layout { get; }
 Task OnBarAsync(OhlcvBar bar, IStrategyRuntimeContext context, CancellationToken ct)
 Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IStrategyRuntimeContext context, CancellationToken ct)
 Task OnQuoteAsync(Quote quote, IStrategyRuntimeContext context, CancellationToken ct)
@@ -26,6 +27,7 @@ StrategyParameterSchema Schema { get; }
 
 - `DataRequirement` — The market-data streams required by this kernel.
 - `Draw` — Describes the current frame. Called by the host when it renders — not when data arrives. The data callbacks run on a pump thread and may fire far faster than the display; this runs on the render thread with a live surface. So compute in the data callbacks, keep what the picture needs, and draw from it here. Must be pure and fast: the host may invoke it more than once per frame, and it blocks the UI while it runs. Default is to draw nothing, which is a perfectly good strategy - plenty of strategies are pure signal logic.
+- `Layout` — How this unit's window body is divided into panels. Default is `Single`: one panel filling the body, drawn by `Draw`. Most units want exactly that and should not override this. Override it when the unit genuinely needs several panels — a chart beside an order book, two books with an arbitrage strip between them — and give each panel its own draw callback. `Draw` is then unused, because the panels do the drawing. The host owns everything around the body: the parameter expander above and the activity log below are chrome, identical for every unit, and not something a layout can move or omit.
 - `OnBarAsync` — Processes an authorized bar.
 - `OnDepthAsync` — Processes an authorized depth snapshot.
 - `OnQuoteAsync` — Processes an authorized quote.
@@ -41,6 +43,7 @@ Data-only visualizer computation contract. Visualizers auto-run when hosted and 
 ```csharp
 StrategyDataRequirement DataRequirement { get; }
 void Draw(IRenderSurface surface)
+UnitLayout Layout { get; }
 Task OnBarAsync(OhlcvBar bar, IVisualizerContext context, CancellationToken ct)
 Task OnDepthAsync(InstrumentId instrument, DepthSnapshot depth, IVisualizerContext context, CancellationToken ct)
 Task OnQuoteAsync(Quote quote, IVisualizerContext context, CancellationToken ct)
@@ -52,6 +55,7 @@ StrategyParameterSchema Schema { get; }
 
 - `DataRequirement` — The market-data streams required by this visualizer.
 - `Draw` — Describes the current frame. Called by the host when it renders — not when data arrives. The data callbacks run on a pump thread and may fire far faster than the display; this runs on the render thread with a live surface. So compute in the data callbacks, keep what the picture needs, and draw from it here. Must be pure and fast: the host may invoke it more than once per frame, and it blocks the UI while it runs. Default is to draw nothing, which is a perfectly good headless visualizer.
+- `Layout` — How this unit's window body is divided into panels. Default is `Single`: one panel filling the body, drawn by `Draw`. Most units want exactly that and should not override this. Override it when the unit genuinely needs several panels — a chart beside an order book, two books with an arbitrage strip between them — and give each panel its own draw callback. `Draw` is then unused, because the panels do the drawing. The host owns everything around the body: the parameter expander above and the activity log below are chrome, identical for every unit, and not something a layout can move or omit.
 - `OnBarAsync` — Processes an authorized bar.
 - `OnDepthAsync` — Processes an authorized depth snapshot.
 - `OnQuoteAsync` — Processes an authorized quote.
@@ -795,6 +799,44 @@ Task StopAsync(CancellationToken ct = null)
 - `ResumeAsync` — Resumes by rebuilding a fresh visualizer from the current source and parameters; it never hot-reloads the paused instance.
 - `StopAsync` — Stops the visualizer session.
 
+### `Layout`
+
+Builds a unit's window layout.
+
+This is the vocabulary Hyperion composes windows from, so it is written to be read back: a layout should say what the window looks like without the reader tracing arithmetic. Compare the two ways of getting an order book beside a chart —
+
+// With this: public UnitLayout Layout => Layout.Columns( Layout.Panel("Price", DrawChart).Star(3), Layout.Panel("Book", DrawBook).Pixels(260)); // Without it, inside one Draw, and every widget's rectangle computed by hand: var area = PlotArea.Of(surface); var (book, chart) = area.SplitRight(260d); DrawChart(surface, chart); DrawBook(surface, book);
+
+The second still works and is right for subdividing one panel. The difference is that panels built here are real: each gets its own surface and viewport, its own header, and a separator the user can drag. `PlotArea` divides a picture; this divides a window.
+
+```csharp
+SplitNode Columns(LayoutNode[] children)
+PanelNode Panel(string title, Action<IRenderSurface> draw)
+PanelNode Panel(Action<IRenderSurface> draw)
+TNode Pixels(TNode node, double extent)
+SplitNode Rows(LayoutNode[] children)
+TNode Star(TNode node, double weight = 1)
+```
+
+- `Columns` — Children placed left to right, with a draggable separator between neighbours.
+- `Rows` — Children stacked top to bottom, with a draggable separator between neighbours.
+
+### `LayoutNode`
+
+One node in a unit's window layout: either a panel to draw, or a split holding more nodes.
+
+This is data and delegates, nothing else. No WPF type appears anywhere in this vocabulary, which is what lets an authored unit describe a multi-panel window without the host ever mounting a control the author built. `IWpfVisualizer` tried the other way round — handing the host a `FrameworkElement` — and was retired for exactly that reason: arbitrary WPF from an untrusted author runs inside the application, and the isolation the sandbox exists for is gone the moment the host mounts it.
+
+```csharp
+int Depth { get; }
+int PanelCount { get; }
+PanelSize Size { get; }
+```
+
+- `Depth` — How deeply splits nest beneath this node. A lone panel is depth one.
+- `PanelCount` — How many panels this node contains, counting through every split beneath it.
+- `Size` — How this node is sized inside its parent. Ignored at the root.
+
 ### `NullRenderSurface`
 
 A render surface that discards everything.
@@ -821,6 +863,47 @@ RenderViewport Viewport { get; }
 ```
 
 - `Instance` — The shared instance. It holds no state, so one is enough.
+
+### `PanelNode`
+
+One drawable panel. The host gives it its own surface, so it has its own viewport, its own cursor, and its own place in the window — which is the difference between this and subdividing a single surface with `PlotArea`.
+
+```csharp
+int Depth { get; }
+Action<IRenderSurface> Draw { get; }
+int PanelCount { get; }
+string Title { get; }
+```
+
+- `Draw` — The frame callback for this panel, with the same contract as `IVisualizer.Draw`: pure, fast, possibly called more than once per frame, and running on the render thread.
+- `Title` — The panel's header. Empty means no header — right for a single full-bleed chart, wrong for one of four panels a user has to tell apart.
+
+### `PanelSize`
+
+A child's size within its parent.
+
+There is deliberately no "Auto". A drawn panel has no intrinsic size — it paints whatever rectangle it is given — so Auto would measure to zero and the panel would vanish. Star and Pixels are the only two that mean anything here, and refusing to offer a third that silently collapses is better than documenting a trap.
+
+```csharp
+PanelSize Fill { get; }
+PanelSize Pixels(double extent)
+PanelSize Star(double weight)
+PanelSizeUnit Unit { get; }
+double Value { get; }
+```
+
+- `Fill` — One share of the remaining space — the default for every child.
+- `Pixels` — An exact extent. Values below one pixel are treated as one share instead, because a zero-height panel is never what an author meant.
+- `Star` — `weight` shares of the remaining space.
+- `Unit` — Which of the two this is.
+- `Value` — Star weight, or a pixel count.
+
+### `PanelSizeUnit`
+
+How a child is sized inside its parent split.
+
+- `Star` — A share of whatever space is left, after the fixed children have taken theirs.
+- `Pixels` — An exact height or width in device-independent pixels.
 
 ### `PluginContext`
 
@@ -1055,6 +1138,48 @@ double Width { get; }
 Version marker for the DaxAlgo plugin SDK. A plugin can read `Version` to assert it was built against a compatible SDK; the host's plugin loader (Phase B) compares its own SDK version against the plugin's declared target to gate loading.
 
 The SDK is a curated façade over the host's contract assemblies (TradingTerminal.Core via this package, the WPF UI bases via DaxAlgo.Sdk.Wpf) and owns the stable `IStrategyEngineFactory` activation seam for packaged engines. As the surface is narrowed, more canonical plugin contracts will move behind this package's public API.
+
+### `SplitNode`
+
+A row or column of child nodes, with a draggable separator between neighbours.
+
+```csharp
+IReadOnlyList<LayoutNode> Children { get; }
+int Depth { get; }
+SplitOrientation Orientation { get; }
+int PanelCount { get; }
+```
+
+- `Children` — In visual order: top to bottom, or left to right.
+- `Orientation` — Rows or columns.
+
+### `SplitOrientation`
+
+Which way a split lays its children out.
+
+- `Rows` — Children stacked top to bottom.
+- `Columns` — Children placed left to right.
+
+### `UnitLayout`
+
+A unit's window layout — the middle of its window, between the parameter expander and the activity log.
+
+The host owns the chrome around this and the author owns what is inside it. That division is why every authored window looks like the others without Hyperion generating a line of it, and why a unit cannot forget the activity log or style the parameter expander wrongly.
+
+Bounded on purpose. An authored unit is untrusted input, and a layout is a tree it supplies; `MaximumPanels` and `MaximumDepth` stop a pathological or generated one from building a visual tree deep enough to take the window down. Over either limit the layout is refused whole rather than truncated — half a dashboard is a worse answer than a clear one.
+
+```csharp
+bool IsSingle { get; }
+UnitLayout Of(LayoutNode root)
+IReadOnlyList<PanelNode> Panels()
+LayoutNode Root { get; }
+UnitLayout Single { get; }
+```
+
+- `IsSingle` — True when this is the plain single-panel default.
+- `Of` — Wraps a tree, or falls back to `Single` when it is missing, empty, or past the bounds above. Never throws: a bad layout costs the author their panel arrangement, not their window.
+- `Root` — The layout tree, or null for the default single panel.
+- `Single` — One panel filling the body, drawn by the unit's own `Draw`. What a unit gets when it describes no layout at all — which is most of them, and remains a perfectly good window.
 
 ### `VirtualEntryKind`
 

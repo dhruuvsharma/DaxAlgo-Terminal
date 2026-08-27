@@ -22,13 +22,23 @@ public sealed class AuthoredUnitPreview
         Action<IRenderSurface>? draw,
         AuthoringKind kind,
         string summary,
-        bool isDrawable)
+        bool isDrawable,
+        DaxAlgo.Sdk.Layout.UnitLayout? layout = null)
     {
         Draw = draw;
         Kind = kind;
         Summary = summary;
         IsDrawable = isDrawable;
+        Layout = layout ?? DaxAlgo.Sdk.Layout.UnitLayout.Single;
     }
+
+    /// <summary>
+    /// The unit's panel layout, so the preview pane shows the same window the terminal will.
+    ///
+    /// <para>Carried rather than re-derived: a preview that arranged its panels differently from the
+    /// real window would be worse than no preview, because the user would design against it.</para>
+    /// </summary>
+    public DaxAlgo.Sdk.Layout.UnitLayout Layout { get; }
 
     /// <summary>The frame callback to hand to a render surface, or null when there is nothing to show.</summary>
     public Action<IRenderSurface>? Draw { get; }
@@ -99,10 +109,10 @@ public sealed class AuthoredUnitPreview
 
         // A strategy that draws nothing is legitimate, and the pane should say so rather than show a
         // blank rectangle that reads as a failure.
-        var probe = new RecordingRenderSurface();
-        kernel.Draw(probe);
+        var layout = Safe(() => kernel.Layout);
+        var blank = PaintsNothing(layout, kernel.Draw);
 
-        return probe.IsBlank
+        return blank
             ? new AuthoredUnitPreview(
                 null,
                 AuthoringKind.Strategy,
@@ -116,21 +126,65 @@ public sealed class AuthoredUnitPreview
                 targets == 0
                     ? "Live preview. No position taken on the preview data."
                     : $"Live preview. Took {Plural(targets)}.",
-                isDrawable: true) { TargetsSubmitted = targets };
+                isDrawable: true,
+                layout) { TargetsSubmitted = targets };
     }
 
     private static AuthoredUnitPreview Drive(IVisualizer visualizer, double[]? closes)
     {
         SyntheticDrive.Run(visualizer, closes);
 
-        var probe = new RecordingRenderSurface();
-        visualizer.Draw(probe);
+        var layout = Safe(() => visualizer.Layout);
 
-        return probe.IsBlank
+        return PaintsNothing(layout, visualizer.Draw)
             ? Unavailable(
                 AuthoringKind.Visualizer,
                 "It runs but paints nothing. A visualizer that draws nothing has no other purpose.")
-            : new AuthoredUnitPreview(visualizer.Draw, AuthoringKind.Visualizer, "Live preview.", true);
+            : new AuthoredUnitPreview(
+                visualizer.Draw, AuthoringKind.Visualizer, "Live preview.", true, layout);
+    }
+
+    /// <summary>
+    /// Whether the unit paints nothing at all — checked across <b>every panel</b>, not just the unit's
+    /// own <c>Draw</c>.
+    ///
+    /// <para>A unit with a layout does its drawing in the panels, and its own <c>Draw</c> is usually
+    /// empty. Probing only that would report a full multi-panel dashboard as "paints nothing" and
+    /// refuse to preview it — the diagnosis would be exactly backwards, and it would point the author
+    /// at drawing code that is working.</para>
+    /// </summary>
+    private static bool PaintsNothing(
+        DaxAlgo.Sdk.Layout.UnitLayout layout, Action<IRenderSurface> draw)
+    {
+        if (layout.IsSingle)
+        {
+            var probe = new RecordingRenderSurface();
+            Safe(() => { draw(probe); return 0; });
+            return probe.IsBlank;
+        }
+
+        foreach (var panel in layout.Panels())
+        {
+            var probe = new RecordingRenderSurface();
+            Safe(() => { panel.Draw(probe); return 0; });
+            if (!probe.IsBlank) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Reads a member of an authored unit. A property an author wrote can throw, and a throw
+    /// while deciding whether to show a preview must not take the authoring window with it.</summary>
+    private static DaxAlgo.Sdk.Layout.UnitLayout Safe(Func<DaxAlgo.Sdk.Layout.UnitLayout> read)
+    {
+        try { return read() ?? DaxAlgo.Sdk.Layout.UnitLayout.Single; }
+        catch (Exception) { return DaxAlgo.Sdk.Layout.UnitLayout.Single; }
+    }
+
+    private static void Safe(Func<int> action)
+    {
+        try { action(); }
+        catch (Exception) { /* an author's draw that throws previews as blank, not as a crash */ }
     }
 
     private static AuthoredUnitPreview Unavailable(AuthoringKind kind, string reason) =>

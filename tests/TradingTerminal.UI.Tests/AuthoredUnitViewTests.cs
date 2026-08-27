@@ -176,7 +176,12 @@ public sealed class AuthoredUnitViewTests
         view.Dispose();
         presenter.Draw = _ => throw new InvalidOperationException("must not be called");
 
-        Assert.Null(Find<RenderSurfaceView>(view).Draw);
+        // Asserted on the layout host rather than the surface beneath it. Draw and Layout reach the
+        // body by binding now, so the thing that must go quiet is the host — and its surfaces are
+        // rebuilt when the layout changes, which leaves the old one out of the visual tree and makes a
+        // search for it a race rather than a check.
+        Assert.Null(Find<AuthoredUnitLayoutHost>(view).Draw);
+        Assert.Null(Find<AuthoredUnitLayoutHost>(view).Layout);
     }
 
     [WpfFact]

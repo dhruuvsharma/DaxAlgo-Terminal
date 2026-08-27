@@ -50,6 +50,13 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     [ObservableProperty]
     private Action<IRenderSurface>? _draw;
 
+    /// <summary>
+    /// How the body is divided into panels. <see cref="DaxAlgo.Sdk.Layout.UnitLayout.Single"/> — the
+    /// default — is one panel drawn by <see cref="Draw"/>, which is what almost every unit wants.
+    /// </summary>
+    [ObservableProperty]
+    private DaxAlgo.Sdk.Layout.UnitLayout _layout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
     /// <summary>True for a strategy, false for a visualizer. Drives the book row only.</summary>
     [ObservableProperty]
     private bool _hasBook;
@@ -63,6 +70,24 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
 
     /// <summary>Parameters the unit declared, as label/value pairs the expander renders.</summary>
     public ObservableCollection<AuthoredUnitParameter> Parameters { get; } = [];
+
+    /// <summary>
+    /// Whether the parameter expander is shown at all.
+    ///
+    /// <para>Keyed off what the unit <b>declares</b>, not off its kind. A strategy always takes
+    /// parameters so its expander is always there; a visualizer usually takes none, so its window is
+    /// the picture and the activity log — the log-only shape a visualizer is supposed to have. Keying
+    /// it off the kind instead would swallow the parameters of a visualizer that genuinely has some,
+    /// and the author would have no way to tell why they never appeared.</para>
+    /// </summary>
+    public bool HasParameters => Parameters.Count > 0;
+
+    public AuthoredUnitPresenter() =>
+        // A computed property over a collection notifies nobody on its own. Without this the expander
+        // keeps whatever visibility it had when the window was built, so a unit whose parameters are
+        // populated after construction — which is the ordinary order — would show an empty expander or
+        // no expander at all, depending on timing.
+        Parameters.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasParameters));
 
     /// <summary>
     /// Asks the view for a repaint.
