@@ -36,6 +36,29 @@ public sealed class AiProviderSettingsTests : IDisposable
         try { Directory.Delete(_configDir, recursive: true); } catch { /* best effort */ }
     }
 
+    /// <summary>
+    /// The un-redirected path is a real path.
+    ///
+    /// <para><b>The bug this exists for shipped, and this suite is the reason it did.</b> `Path` was an
+    /// auto-property initialised from `DefaultPath` but declared above it. Static initialisers run in
+    /// textual order, so it captured null, and the application threw at startup on
+    /// <c>AddJsonFile(null)</c> before a window ever appeared. Every test here assigns `Path` in the
+    /// constructor above, so not one of them ever read the default — a suite can cover every writer in a
+    /// class and still not notice that its most basic value is null.</para>
+    ///
+    /// <para>So this test clears the redirect and reads what the host would read.</para>
+    /// </summary>
+    [Fact]
+    public void The_default_path_is_what_the_host_would_load()
+    {
+        AiCodegenUserFile.Path = null!;
+
+        Assert.False(string.IsNullOrWhiteSpace(AiCodegenUserFile.Path));
+        Assert.Equal(AiCodegenUserFile.DefaultPath, AiCodegenUserFile.Path);
+        Assert.True(Path.IsPathRooted(AiCodegenUserFile.Path));
+        Assert.EndsWith("ai-codegen.json", AiCodegenUserFile.Path, StringComparison.Ordinal);
+    }
+
     private static AiCodegenOptions Options() => new()
     {
         Providers =

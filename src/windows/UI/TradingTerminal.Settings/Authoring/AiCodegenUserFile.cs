@@ -20,12 +20,27 @@ public static class AiCodegenUserFile
     ///
     /// <para>Settable so a test can redirect it. Without that, a test for any of the writers below edits
     /// the configuration of whoever is running it — which is exactly what happened: a suite rewrote a
-    /// developer's own provider settings and reported green.</para>
+    /// developer's own provider settings and reported green. Setting null restores the default.</para>
+    ///
+    /// <para><b>Computed rather than initialised, and that is not a style preference.</b> This was first
+    /// written as <c>public static string Path { get; set; } = DefaultPath;</c> declared <i>above</i>
+    /// <c>DefaultPath</c>. Static initialisers run in textual order, so <c>DefaultPath</c> was still null
+    /// when <c>Path</c> captured it, and the application died at startup on <c>AddJsonFile(null)</c> —
+    /// "File path must be a non-empty string". No test caught it: every test assigns <c>Path</c> before
+    /// reading it, so none of them ever observes the default. Swapping the two declarations would also
+    /// fix it, and would leave the same trap armed for whoever tidies this file next — a computed getter
+    /// cannot be broken by reordering.</para>
     /// </summary>
-    public static string Path { get; set; } = DefaultPath;
+    public static string Path
+    {
+        get => _redirect ?? DefaultPath;
+        set => _redirect = value;
+    }
+
+    private static string? _redirect;
 
     /// <summary>The real per-user location, kept separately so a test can put <see cref="Path"/> back.</summary>
-    public static string DefaultPath { get; } = System.IO.Path.Combine(
+    public static string DefaultPath => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal",
         "ai-codegen.json");
