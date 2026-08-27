@@ -39,8 +39,10 @@ public static class AuthoringKindBrief
         - Your context is `IVisualizerContext`. **It has no `Book`.** A visualizer cannot take a
           position, cannot set a target, cannot place an order — there is no API through which to do
           any of it, so do not write code that tries.
-        - `Draw` is the entire point. A visualizer that draws nothing has no purpose and is rejected;
-          verification checks this specifically for visualizers rather than merely preferring it.
+        - Drawing is the entire point. A visualizer that paints nothing has no purpose and is rejected;
+          verification checks this specifically for visualizers rather than merely preferring it. That
+          check counts every panel, so a visualizer that declares a `UnitLayout` and leaves its own
+          `Draw` empty is fine — the panels are doing the painting.
         - Everything else is the same: compute in the data callbacks, keep only what the picture needs
           in a bounded buffer, read that field in `Draw`.
 

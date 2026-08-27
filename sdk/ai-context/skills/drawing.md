@@ -13,6 +13,10 @@ hold no visual state the host has to reconcile.
 **There is no control, no XAML, no window.** `Draw` gets an `IRenderSurface` and nothing else. That is
 what lets a stranger's visualizer run in this process at all.
 
+For a body split into several panels — a chart beside a book, two venues side by side — each panel is
+still just an `IRenderSurface` and everything below applies unchanged; only the arrangement is declared
+elsewhere. See the **layout** pack.
+
 ## Reach for a widget before you draw anything by hand
 
 There is a library of them. **Check this table first** — hand-rolling one of these is slower to write,

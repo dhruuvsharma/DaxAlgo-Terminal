@@ -58,7 +58,12 @@ public sealed class StrategySkillLibrary
     ///
     /// <para>Sized to hold the three heaviest packs together, because that is a real brief rather than a
     /// contrived one: order flow drawn as a picture with some maths behind it. The ceiling still binds —
-    /// all five packs are over 22,000 — which is the point of having one.</para>
+    /// all six packs are over 26,000 — which is the point of having one.</para>
+    ///
+    /// <para>A pack was added in 2026-08-27 (layout), so the arithmetic moved: the three heaviest are
+    /// now 16,856 of 18,000. <c>SkillBudgetTests</c> asserts that invariant, because the failure mode is
+    /// silent — a brief asking for a picture would simply arrive without the drawing catalogue, and the
+    /// model would hand-roll widgets that already exist.</para>
     ///
     /// <para>It buys back more than it costs. The catalogue is the one pack that reduces <i>output</i>
     /// tokens, which are billed at several times the rate of the cached input it occupies, and a widget

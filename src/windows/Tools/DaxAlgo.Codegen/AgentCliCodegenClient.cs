@@ -334,7 +334,8 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             "Answer per the output contract above: one ```csharp fenced block per file, each starting with " +
             "a `// file: <Name>.cs` line. Write ONE public class implementing IStrategyKernel (a strategy) " +
             "or IVisualizer (a visualizer), with a public parameterless constructor. No view, no " +
-            "view-model, no descriptor, no XAML — the host composes the window. Ask a question instead of " +
+            "view-model, no descriptor, no XAML — the host builds the window chrome, and a body of several "
+            + "panels is declared with UnitLayout rather than built as controls. Ask a question instead of " +
             "guessing if the brief is ambiguous about the instrument, timeframe, sizing or risk.");
         return sb.ToString();
     }

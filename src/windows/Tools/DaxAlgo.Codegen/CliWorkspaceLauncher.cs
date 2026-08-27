@@ -186,7 +186,8 @@ public sealed class CliWorkspaceLauncher(
                       $"`{strategyId}` at build effort **{effort.Wire()}**. You are writing a DaxAlgo Terminal " +
                       "strategy plugin: an `IOrderRoutedStrategy` kernel (required), plus an `ITradingStrategy` " +
                       "descriptor and a live view-model (`LiveSignalStrategyViewModelBase`) for a catalog card. " +
-                      "A view is optional — write one in code only (no XAML), or omit it and the host composes " +
+                      "A view is optional — write one in code only (no XAML; several panels are declared with "
+                      + "UnitLayout), or omit it and the host composes " +
                       "the default window from the descriptor's `DataRequirement`.");
         sb.AppendLine();
         sb.AppendLine("## This folder");

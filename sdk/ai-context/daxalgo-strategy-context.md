@@ -124,8 +124,14 @@ public sealed class MyStrategy : IStrategyKernel { ... }
 - **One public class** implementing `IStrategyKernel` or `IVisualizer`, with a public parameterless
   constructor. Helpers may share the file.
 - **One file is usually right.** Split only when it genuinely helps; do not invent files.
-- **No view, no view-model, no descriptor, no XAML.** The host composes the window. Writing a
-  `UserControl` is not extra safety — it will not be used.
+- **No view, no view-model, no descriptor, no XAML.** Writing a `UserControl` is not extra safety —
+  it will not be used, and a WPF control from an author is exactly what the sandbox exists to prevent.
+  The host builds the window chrome: a parameter expander above your picture and an activity log
+  below, identical for every unit.
+- **You may divide the body into panels** when the request needs more than one — a chart beside an
+  order book, two venues with a spread strip between them. That is `UnitLayout`, which is data and
+  draw callbacks rather than controls; one panel painted by `Draw` is the default and is right for
+  most units.
 - **No namespace.** These are ambient: `System`, `System.Collections.Generic`, `System.Linq`,
   `System.Threading`, `System.Threading.Tasks`, `DaxAlgo.Sdk`, `DaxAlgo.Sdk.Drawing`,
   `TradingTerminal.Core.Domain`, `TradingTerminal.Core.Time`, `TradingTerminal.Core.MarketData`,
