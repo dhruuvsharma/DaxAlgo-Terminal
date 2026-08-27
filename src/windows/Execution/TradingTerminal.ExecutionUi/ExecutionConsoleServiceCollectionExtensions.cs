@@ -13,6 +13,12 @@ public static class ExecutionConsoleServiceCollectionExtensions
         services.AddSingleton<IExecutionConfirmationService, WpfExecutionConfirmationService>();
         services.TryAddSingleton<IExecutionLeaseStore, ExecutionConsoleLeaseStore>();
         services.TryAddSingleton<ExecutionModeStatusProjection>();
+
+        // The application-wide arm/disarm. TryAdd so the login layer's registration wins when both are
+        // composed, and so a shell that wires execution WITHOUT login still resolves one — a missing
+        // registration would make InProcessExecutionClient unconstructible, and the failure would look
+        // like a DI problem rather than a safety gate.
+        services.TryAddSingleton<TradingTerminal.Core.Execution.ExecutionModeSelection>();
         // App lifetime, NOT per window. The console used to resolve a transient client inside the
         // window's DI scope, so closing the window disposed the engine and every book with it — and
         // the engine only ran while the window was open. Books outlive their window now, and the

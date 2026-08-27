@@ -4,8 +4,14 @@ namespace TradingTerminal.Core.Execution;
 public enum TradingMode
 {
     /// <summary>
-    /// Orders are recorded and monitored inside the application and go no further. Nothing reaches a
-    /// broker. This is the default and it is what the app starts in every single time.
+    /// Real-money dispatch is disarmed. Orders bound for a broker's <b>live</b> endpoint are refused;
+    /// they are recorded and monitored in the ledger and go no further. This is the default and it is
+    /// what the app starts in every single time.
+    ///
+    /// <para><b>A broker's own paper endpoint still works in this mode</b>, and deliberately so. The
+    /// doc here read "nothing reaches a broker" until 2026-08-27, which if enforced literally would
+    /// have meant arming <i>real</i> trading just to use Alpaca paper — pushing users to arm live money
+    /// for an activity that involves none. The switch guards real money, not network traffic.</para>
     /// </summary>
     Paper,
 
@@ -22,6 +28,17 @@ public enum TradingMode
 /// binding was separately acknowledged". A live order requires BOTH. Collapsing them into one switch
 /// would mean a single accidental click could route every account to real money, which is precisely
 /// what the per-account gate exists to prevent.</para>
+///
+/// <para><b>Where "BOTH" is actually enforced:</b> <c>ExecutionCoordinator.TryAuthorizeLiveDispatch</c>,
+/// the single point every adapter Submit, Cancel and Replace passes through. Only Submit and Replace
+/// are gated by this switch; <b>Cancel never is</b>, because disarming while live orders are working at
+/// a broker must not strand them.</para>
+///
+/// <para>That enforcement did not exist until 2026-08-27. This class was defined, registered, and wired
+/// to the login toggle, and nothing on the execution path read it — the sentence above claiming a live
+/// order required both gates was, for as long as it had been written, false. A coordinator built
+/// without one of these <b>refuses live dispatch</b> rather than allowing it, so a composition that
+/// forgets to supply the switch fails closed and loudly instead of quietly ungated.</para>
 ///
 /// <para><b>It always starts at <see cref="TradingMode.Paper"/>.</b> Deliberately not persisted:
 /// arming real trading is a decision the user should retake each session, not something a stale
@@ -47,6 +64,17 @@ public sealed class ExecutionModeSelection
 
     /// <summary>True while orders are confined to the application.</summary>
     public bool IsPaper => Mode == TradingMode.Paper;
+
+    /// <summary>
+    /// True only when real trading has been deliberately armed this session.
+    ///
+    /// <para><b>The gate tests this rather than <see cref="IsPaper"/>, and the difference is the point.</b>
+    /// They are inverses today because there are two modes. If a third is ever added — a broker's demo
+    /// endpoint, a shadow mode, anything — then <c>!IsPaper</c> would silently start permitting live
+    /// dispatch under it, while <c>!IsReal</c> keeps refusing until someone deliberately says otherwise.
+    /// Asking "is this armed?" fails closed; asking "is this not paper?" fails open.</para>
+    /// </summary>
+    public bool IsReal => Mode == TradingMode.Real;
 
     /// <summary>Raised after the mode changes, so shells can update chrome and warn loudly.</summary>
     public event EventHandler<TradingMode>? Changed;

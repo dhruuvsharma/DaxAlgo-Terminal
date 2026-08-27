@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.App.Login;
 using TradingTerminal.App.Login.Forms;
@@ -39,7 +40,10 @@ public static class LoginServiceCollectionExtensions
         // App-wide Paper/Real switch, set from the login window's toggle and read by the execution
         // layer. A singleton because it is one decision for the whole session, and it always starts
         // Paper - see ExecutionModeSelection for why it is deliberately not persisted.
-        services.AddSingleton<TradingTerminal.Core.Execution.ExecutionModeSelection>();
+        // TryAdd, not Add: the execution console registers this too, and two registrations of one
+        // singleton means whichever ran last wins. The login toggle and the order gate reading
+        // different instances would be undetectable and would disarm the gate completely.
+        services.TryAddSingleton<TradingTerminal.Core.Execution.ExecutionModeSelection>();
 
         // AI Strategy Builder key store (DPAPI, per user) + the resolver that unlocks the keyed codegen
         // providers. Registering the resolver here replaces the Null default from AddStrategyCodegen, so

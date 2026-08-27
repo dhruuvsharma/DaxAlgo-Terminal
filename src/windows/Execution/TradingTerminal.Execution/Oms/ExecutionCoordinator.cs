@@ -1,3 +1,5 @@
+using TradingTerminal.Core.Execution;
+
 namespace TradingTerminal.Execution.Oms;
 
 /// <summary>Fault-as-value coordinator outcomes.</summary>
@@ -56,14 +58,24 @@ public sealed class ExecutionCoordinator : IDisposable
     private readonly HashSet<BrokerExecutionAccount> _startupReconciledAccounts = [];
     private readonly Dictionary<BrokerExecutionAccount, ExecutionLease> _executionLeases;
     private readonly ReconciliationEngine? _reconciliation;
+
+    /// <summary>
+    /// The application-wide arm/disarm. <b>Never null</b>: a coordinator built without one gets a fresh
+    /// instance, and a fresh instance is Paper — so a composition that forgets to supply the switch
+    /// refuses live dispatch rather than running ungated. The fail-closed default is the type's own
+    /// starting state, which is why there is no special case for it here.
+    /// </summary>
+    private readonly ExecutionModeSelection _tradingMode;
+
     private bool _disposed;
 
     /// <summary>Creates a coordinator over one simulated adapter/account.</summary>
     public ExecutionCoordinator(
         OrderManagementService oms,
         IBrokerExecutionAdapter adapter,
-        int workerCapacity = 64)
-        : this(oms, [adapter], reconciliation: null, workerCapacity)
+        int workerCapacity = 64,
+        ExecutionModeSelection? tradingMode = null)
+        : this(oms, [adapter], reconciliation: null, workerCapacity, tradingMode)
     {
     }
 
@@ -72,8 +84,9 @@ public sealed class ExecutionCoordinator : IDisposable
         OrderManagementService oms,
         IBrokerExecutionAdapter adapter,
         ReconciliationEngine reconciliation,
-        int workerCapacity = 64)
-        : this(oms, [adapter], reconciliation, workerCapacity)
+        int workerCapacity = 64,
+        ExecutionModeSelection? tradingMode = null)
+        : this(oms, [adapter], reconciliation, workerCapacity, tradingMode)
     {
     }
 
@@ -81,8 +94,9 @@ public sealed class ExecutionCoordinator : IDisposable
     public ExecutionCoordinator(
         OrderManagementService oms,
         IEnumerable<IBrokerExecutionAdapter> adapters,
-        int workerCapacity = 64)
-        : this(oms, adapters, reconciliation: null, workerCapacity)
+        int workerCapacity = 64,
+        ExecutionModeSelection? tradingMode = null)
+        : this(oms, adapters, reconciliation: null, workerCapacity, tradingMode)
     {
     }
 
@@ -91,8 +105,9 @@ public sealed class ExecutionCoordinator : IDisposable
         OrderManagementService oms,
         IEnumerable<IBrokerExecutionAdapter> adapters,
         ReconciliationEngine? reconciliation,
-        int workerCapacity = 64)
-        : this(oms, adapters, reconciliation, executionLeases: null, workerCapacity)
+        int workerCapacity = 64,
+        ExecutionModeSelection? tradingMode = null)
+        : this(oms, adapters, reconciliation, executionLeases: null, workerCapacity, tradingMode)
     {
     }
 
@@ -105,10 +120,12 @@ public sealed class ExecutionCoordinator : IDisposable
         IEnumerable<IBrokerExecutionAdapter> adapters,
         ReconciliationEngine? reconciliation,
         IEnumerable<ExecutionLease>? executionLeases,
-        int workerCapacity = 64)
+        int workerCapacity = 64,
+        ExecutionModeSelection? tradingMode = null)
     {
         _oms = oms ?? throw new ArgumentNullException(nameof(oms));
         _reconciliation = reconciliation;
+        _tradingMode = tradingMode ?? new ExecutionModeSelection();
         ArgumentNullException.ThrowIfNull(adapters);
         if (workerCapacity <= 0)
             throw new ArgumentOutOfRangeException(nameof(workerCapacity));
@@ -1143,6 +1160,28 @@ public sealed class ExecutionCoordinator : IDisposable
         blocked = default;
         if (registration.Adapter.Mode != ExecutionMode.Live)
             return true;
+
+        // ── Gate 1 of two: the application-wide arm/disarm ──────────────────────────────────────
+        //
+        // Until 2026-08-27 this check did not exist. ExecutionModeSelection was defined in Core,
+        // registered in DI, bound to the login window's Paper/Real toggle — and read by nothing on the
+        // execution path. Typing LIVE armed a flag that no order ever consulted, so live money was
+        // guarded by the per-account confirmation alone while two documents said it took both.
+        //
+        // Only commands that OPEN or INCREASE exposure are gated. requiresNewOrderAdmission already
+        // draws exactly that line: true for Submit and Replace, false for Cancel. Cancel must never be
+        // refused here — disarming with live orders working at the broker would otherwise strand them,
+        // which turns a safety switch into a trap.
+        if (requiresNewOrderAdmission && !_tradingMode.IsReal)
+        {
+            blocked = OmsRejected(LiveGuardrailBlocked(
+                clientOrderId,
+                "Real trading is not armed for this session. This account is bound to a LIVE broker "
+                + $"endpoint, so the order was not sent. Type {ExecutionModeSelection.RequiredAcknowledgement} "
+                + "in the login window's trading-mode switch to arm it. Cancelling existing orders is "
+                + "always allowed."));
+            return false;
+        }
 
         var account = registration.Adapter.Account;
         if (!_executionLeases.TryGetValue(account, out var lease) || !lease.CanAdmitNewOrders)

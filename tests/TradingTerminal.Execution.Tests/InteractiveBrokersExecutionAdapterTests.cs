@@ -139,9 +139,25 @@ public sealed class InteractiveBrokersExecutionAdapterTests
             Context(instruction, "release"));
         Assert.True(released.IsSuccess, released.Reason);
         await WaitUntilAsync(() => harness.Transport.PlacedOrders.Count == 1);
-        Assert.True(harness.Scheduler.RunAll() > 0);
+
+        // Drain-until-condition, not a one-shot RunAll.
+        //
+        // This was `Assert.True(harness.Scheduler.RunAll() > 0)` followed by a separate wait, and it
+        // was the suite's long-standing intermittent failure. The race: PlacedOrders is recorded by the
+        // TRANSPORT, while the adapter posts its order-update callback onto the scheduler afterwards
+        // via Schedule(...). So the wait above can be satisfied a moment before anything is queued,
+        // RunAll() legitimately returns 0, and the assertion fails on timing alone. It showed up in
+        // full-suite runs and passed in isolation, which is exactly what made it look random.
+        //
+        // The assertion was also testing the wrong thing: how many callbacks happened to be queued at
+        // one instant says nothing about the order flowing into the ledger, which is what this test is
+        // for. The same fix was already applied to the fill stage below — see its comment.
         await WaitUntilAsync(() =>
-            harness.Service.GetProjection(instruction.Identity.ClientOrderId).Projection?.State == OrderLifecycleState.Working);
+        {
+            harness.Scheduler.RunAll();
+            return harness.Service.GetProjection(instruction.Identity.ClientOrderId).Projection?.State
+                == OrderLifecycleState.Working;
+        });
 
         var request = Assert.Single(harness.Transport.PlacedOrders);
         harness.Transport.PublishFill(request, new ScaledMoney(125, 2));

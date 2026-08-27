@@ -242,11 +242,22 @@ public sealed class AlpacaExecutionAdapterTests
             new ExecutionLeaseId($"alpaca-live-engine-{Guid.NewGuid():N}"));
         Assert.True(acquired.IsSuccess, acquired.Reason);
         using var lease = acquired.Lease!;
+        // This test drives a LIVE Alpaca adapter, so it has to arm the session-wide switch — the same
+        // thing a user does by typing LIVE in the login window. Before that gate existed (2026-08-27)
+        // this test passed without arming anything, which is precisely the hole it now demonstrates
+        // closed: a live order used to reach the transport with only the per-account confirmation.
+        var tradingMode = new TradingTerminal.Core.Execution.ExecutionModeSelection();
+        Assert.True(tradingMode.TryEnableReal(
+            TradingTerminal.Core.Execution.ExecutionModeSelection.RequiredAcknowledgement,
+            "alpaca-live-test",
+            out var armFailure), armFailure);
+
         using var coordinator = new ExecutionCoordinator(
             oms,
             [adapter],
             reconciliation,
-            [lease]);
+            [lease],
+            tradingMode: tradingMode);
         var engineScheduler = new ControllableAdapterEventScheduler();
         var engine = new ExecutionServiceEngine(ledger, oms, coordinator, engineScheduler, lease);
         var instruction = Instruction(

@@ -26,6 +26,7 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
     private readonly object _gate = new();
     private readonly CancellationTokenSource _disposeCancellation = new();
     private readonly List<BookEntry> _books;
+    private readonly ExecutionModeSelection? _tradingMode;
     private readonly List<IBrokerExecutionAdapter> _registeredAdapters;
     private readonly HashSet<IBrokerExecutionAdapter> _ownedAdapters = [];
     private readonly Dictionary<IBrokerExecutionAdapter, IAsyncDisposable> _ownedSchedulers = [];
@@ -61,8 +62,13 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         IExecutionLeaseStore? executionLeaseStore = null,
         ExecutionModeStatusProjection? executionModeStatus = null,
         IExecutionBookStore? bookStore = null,
-        PaperAccountOptions? paperAccount = null)
+        PaperAccountOptions? paperAccount = null,
+        ExecutionModeSelection? tradingMode = null)
     {
+        // The application-wide arm/disarm, handed to every coordinator this client builds. Null here
+        // is not "ungated" — the coordinator substitutes a fresh selection, which is Paper, so a shell
+        // that fails to register one refuses live dispatch instead of running without the outer gate.
+        _tradingMode = tradingMode;
         // The terminal's own paper account. Null means the defaults — a hundred thousand US dollars —
         // rather than the zero balance in a currency called SIM that a book used to open with.
         _paperAccount = paperAccount ?? new PaperAccountOptions();
@@ -796,9 +802,9 @@ FinishConnect:
                     request.Instrument,
                     symbol);
                 runtime = isPaper
-                    ? InProcessBookRuntime.CreateEmpty(id, _paperAccount, _executionLeaseStore)
+                    ? InProcessBookRuntime.CreateEmpty(id, _paperAccount, _executionLeaseStore, _tradingMode)
                     : FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca
-                        ? new AlpacaBookRuntime(id, alpaca, _executionLeaseStore)
+                        ? new AlpacaBookRuntime(id, alpaca, _executionLeaseStore, _tradingMode)
                         : null;
             }
         }
@@ -1757,13 +1763,21 @@ FinishConnect:
         private double _totalAcknowledgementLatencyMilliseconds;
         private bool _disposed;
 
+        private readonly ExecutionModeSelection? _tradingMode;
+
         private InProcessBookRuntime(
             string bookId,
             IEnumerable<VenueSubmitPlan> plans,
             DateTime seedStartUtc,
             PaperAccountOptions paperAccount,
-            IExecutionLeaseStore executionLeaseStore)
+            IExecutionLeaseStore executionLeaseStore,
+            ExecutionModeSelection? tradingMode = null)
         {
+            // This book's adapter is the in-process simulator, whose Mode is Paper, so the app-wide
+            // gate never fires here today. Threaded anyway: if this runtime is ever pointed at
+            // something that reports Live, the gate should already be in place rather than needing
+            // someone to notice it is missing.
+            _tradingMode = tradingMode;
             _bookId = bookId;
             _clock = new MutableExecutionClock(seedStartUtc);
             _ledger = new InMemoryOrderEventStore();
@@ -1811,7 +1825,8 @@ FinishConnect:
                     _oms,
                     [_adapter],
                     _reconciliation,
-                    [_lease]);
+                    [_lease],
+                    tradingMode: _tradingMode);
                 _engine = new ExecutionServiceEngine(_ledger, _oms, coordinator, _scheduler, _lease);
                 _coordinator = coordinator;
             }
@@ -1826,8 +1841,10 @@ FinishConnect:
         internal static InProcessBookRuntime CreateEmpty(
             string bookId,
             PaperAccountOptions paperAccount,
-            IExecutionLeaseStore executionLeaseStore) =>
-            new(bookId, Array.Empty<VenueSubmitPlan>(), DateTime.UtcNow, paperAccount, executionLeaseStore);
+            IExecutionLeaseStore executionLeaseStore,
+            ExecutionModeSelection? tradingMode = null) =>
+            new(bookId, Array.Empty<VenueSubmitPlan>(), DateTime.UtcNow, paperAccount,
+                executionLeaseStore, tradingMode);
 
         public BrokerExecutionAccount Account => _adapter.Account;
 
@@ -2876,11 +2893,17 @@ FinishConnect:
 
         private string OrderLabel => _adapter.Mode == ExecutionMode.Live ? "LIVE order" : "Paper order";
 
+        private readonly ExecutionModeSelection? _tradingMode;
+
         internal AlpacaBookRuntime(
             string bookId,
             AlpacaExecutionAdapter adapter,
-            IExecutionLeaseStore executionLeaseStore)
+            IExecutionLeaseStore executionLeaseStore,
+            ExecutionModeSelection? tradingMode = null)
         {
+            // The only route to a real broker in the shipped client. Null is not "ungated" — the
+            // coordinator substitutes a fresh selection, which is Paper, so live dispatch is refused.
+            _tradingMode = tradingMode;
             _bookId = bookId;
             _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
             if (!_adapter.Session.CanExecute)
@@ -2941,7 +2964,8 @@ FinishConnect:
                     _oms,
                     [_adapter],
                     _reconciliation,
-                    [_lease]);
+                    [_lease],
+                    tradingMode: _tradingMode);
                 _engine = new ExecutionServiceEngine(_ledger, _oms, coordinator, scheduler, _lease);
                 _coordinator = coordinator;
             }
