@@ -33,4 +33,8 @@ public sealed class KeyedCoinbaseLoginFormViewModel : KeyedCryptoLoginFormBase
     public override bool UsesPassphrase => false;
 
     public override bool UsesPrivateKeyPem => true;
+
+    // The "secret" is an EC private key in PEM, used to mint an ES256 JWT per request — pasting a
+    // Coinbase key name where the PEM belongs fails in a way nothing explains, so the row says so.
+    protected override string WhatAKeyBuys => "Advanced Trade accounts, private WebSocket";
 }

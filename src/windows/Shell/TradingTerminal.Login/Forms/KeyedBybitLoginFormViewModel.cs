@@ -33,4 +33,6 @@ public sealed class KeyedBybitLoginFormViewModel : KeyedCryptoLoginFormBase
     public override bool UsesPassphrase => false;
 
     public override bool UsesPrivateKeyPem => false;
+
+    protected override string WhatAKeyBuys => "unified account balances, private streams";
 }

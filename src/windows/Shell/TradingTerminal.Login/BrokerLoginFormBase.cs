@@ -109,8 +109,17 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
     public string BadgeColor => Tile.BadgeColor;
     /// <summary>Badge foreground hex — dark on the light/yellow badges, white elsewhere.</summary>
     public string BadgeForeground => Tile.BadgeForeground;
-    /// <summary>One-line "transport · assets · auth" descriptor shown under the broker name.</summary>
-    public string Subtitle => Tile.Subtitle;
+    /// <summary>
+    /// One-line "transport · assets · auth" descriptor shown under the broker name.
+    ///
+    /// <para>Virtual because <see cref="Tiles"/> is keyed by <see cref="BrokerKind"/> alone, and six
+    /// venues have <b>two rows sharing one kind</b> — keyless and keyed. Without an override the keyed
+    /// row inherited the keyless row's description, so under "Key required · sign up and paste a key"
+    /// the Binance row read "Public WebSocket · live crypto, L2 depth". Nothing on it said a key was
+    /// involved except a "(API key)" suffix on the name, which reads as a duplicate of the keyless row
+    /// rather than a different way in.</para>
+    /// </summary>
+    public virtual string Subtitle => Tile.Subtitle;
 
     /// <summary>The tile's own category. A keyed variant overrides this — see <see cref="Category"/>.</summary>
     public virtual LoginCategory Category => Tile.Category;

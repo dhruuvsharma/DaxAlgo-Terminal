@@ -32,5 +32,9 @@ public sealed class KeyedOkxLoginFormViewModel : KeyedCryptoLoginFormBase
 
     public override bool UsesPassphrase => true;
 
+    // The passphrase is chosen when the key is created and is NOT the account password. Naming it
+    // here saves the most common wrong guess.
+    protected override string WhatAKeyBuys => "private channels, account balances";
+
     public override bool UsesPrivateKeyPem => false;
 }

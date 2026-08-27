@@ -55,6 +55,12 @@ public static class AiModelCatalog
     public static bool SupportsEffort(string providerId) => providerId.ToLowerInvariant() switch
     {
         "anthropic" or "claude-cli" or "openai" or "xai" or "openrouter" => true,
+
+        // OpenCode Zen fronts models from several vendors behind one OpenAI-compatible endpoint, and
+        // which of them read a reasoning-effort parameter depends on the model chosen rather than on
+        // the gateway. Left out deliberately: sending an effort a model does not accept is refused, and
+        // a refusal here reads as a bad key.
+        "opencode" => false,
         _ => false,
     };
 }

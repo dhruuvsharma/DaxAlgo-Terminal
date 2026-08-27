@@ -156,6 +156,7 @@ public sealed class StrategyCodegenClientFactory
 
     private static string DisplayNameFor(string id) => id switch
     {
+        "opencode" => "OpenCode Zen (API key)",
         "openai" => "OpenAI (API key)",
         "deepseek" => "DeepSeek (API key)",
         "xai" => "xAI / Grok (API key)",

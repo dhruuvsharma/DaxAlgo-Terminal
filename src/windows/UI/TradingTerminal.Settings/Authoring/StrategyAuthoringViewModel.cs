@@ -716,6 +716,52 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>Drops the picture. A preview that outlives the code that produced it is worse than
     /// none, because it is the one thing on screen a user will trust without re-reading.</summary>
+    /// <summary>The most recent unit that compiled, so a turn which does not produce one can still show
+    /// something true. Null until the first clean compile.</summary>
+    private AuthoredUnit? _lastGoodUnit;
+
+    /// <summary>
+    /// Brings the preview up to date at the end of <b>every</b> turn, not only a compiling one.
+    ///
+    /// <para>Refreshing only on <see cref="BuildTurnKind.Compiled"/> meant a clarifying question wiped
+    /// the preview — the model asks "which timeframe?", and the panel the user was looking at goes
+    /// blank for a turn that changed no code at all. It also meant a failed turn left the panel empty
+    /// while the user fixed errors, throwing away the last thing that worked.</para>
+    ///
+    /// <para><b>A stale preview is only shown if it says it is stale.</b> After a failed compile the
+    /// last good render stays up, captioned as being from before the change that broke. Showing an old
+    /// picture as though it were current would be the same silent-wrong failure this codebase keeps
+    /// running into; showing it labelled is just keeping the user's place.</para>
+    /// </summary>
+    private void RefreshPreview(StrategyBuildTurn turn)
+    {
+        if (turn.Compile?.Unit is { } compiled)
+        {
+            _lastGoodUnit = compiled;
+            ShowPreview(compiled);
+            return;
+        }
+
+        if (_lastGoodUnit is null)
+        {
+            ClearPreview();
+            PreviewSummary = turn.Kind == BuildTurnKind.Question
+                ? "No preview yet — answer the question above and the build will produce one."
+                : "No preview — nothing has compiled yet.";
+            return;
+        }
+
+        ShowPreview(_lastGoodUnit);
+
+        // A question changed no code, so the preview is still current and needs no caveat. A failed
+        // compile did change code, so it does.
+        if (turn.Kind != BuildTurnKind.Question)
+        {
+            PreviewSummary = $"{PreviewSummary} (from before the last change, which did not compile)"
+                .TrimStart();
+        }
+    }
+
     private void ClearPreview()
     {
         PreviewDraw = null;
@@ -879,7 +925,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Activity.Clear();
         Diagnostics.Clear();
         CompiledOk = false;
-        ClearPreview();
+
+        // The preview is deliberately NOT cleared here. Blanking it at the start of a turn means the
+        // panel is empty for however long generation takes, and empty again afterwards if the turn was
+        // a question. RefreshPreview() at the end of the turn owns it, so the last good render stays up
+        // while the model works.
         AwaitingAnswer = false;
         IsGenerating = true;
 
@@ -971,7 +1021,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     $"{turn.Files.Count} file(s) · {turn.Generations} generation(s)" +
                     (warnings > 0 ? $" · {warnings} warning(s)" : string.Empty)));
 
-                ShowPreview(turn.Compile?.Unit);
             }
             else if (turn.Kind != BuildTurnKind.Question)
             {
@@ -979,6 +1028,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     "Fail", "Compile failed",
                     $"{turn.Compile?.Errors.Count() ?? 0} error(s) after {turn.Generations} generation(s) — see Diagnostics"));
             }
+
+            RefreshPreview(turn);
 
             AiStatus = turn.Kind switch
             {
@@ -1102,7 +1153,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             InputTokens = OutputTokens = 0;
             CompiledOk = false;
             ClearPreview();
-        ClearPreview();
+            _lastGoodUnit = null;
             AwaitingAnswer = false;
             IsRegistered = false;
             CloseReview();

@@ -58,6 +58,25 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
 
     public override string DisplayName => $"{VenueName} (API key)";
 
+    /// <summary>
+    /// What this row wants and what it buys — never the keyless row's description.
+    ///
+    /// <para>The tile table is keyed by <see cref="BrokerKind"/>, which both rows share, so the default
+    /// would say "Public WebSocket · live crypto, L2 depth" here: a description of the row *above* this
+    /// one, sitting under a heading that promises a key is required. Composed from the credential shape
+    /// each venue actually uses, so the row states what to go and get before the user opens it.</para>
+    /// </summary>
+    public override string Subtitle => $"{CredentialShape} · {WhatAKeyBuys}";
+
+    /// <summary>The fields this venue's form asks for, named the way the venue names them.</summary>
+    protected virtual string CredentialShape =>
+        UsesPrivateKeyPem ? "Key name + EC private key (PEM)"
+        : UsesPassphrase ? "API key + secret + passphrase"
+        : "API key + secret";
+
+    /// <summary>What the key adds over the keyless row. Overridden where a venue offers more.</summary>
+    protected virtual string WhatAKeyBuys => "private endpoints, higher rate limits";
+
     private string _apiKey = string.Empty;
     public string ApiKey
     {

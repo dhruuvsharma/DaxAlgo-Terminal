@@ -33,4 +33,6 @@ public sealed class KeyedBinanceLoginFormViewModel : KeyedCryptoLoginFormBase
     public override bool UsesPassphrase => false;
 
     public override bool UsesPrivateKeyPem => false;
+
+    protected override string WhatAKeyBuys => "account endpoints, higher rate limits";
 }

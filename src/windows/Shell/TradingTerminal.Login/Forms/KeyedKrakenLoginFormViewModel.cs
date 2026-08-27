@@ -33,4 +33,8 @@ public sealed class KeyedKrakenLoginFormViewModel : KeyedCryptoLoginFormBase
     public override bool UsesPassphrase => false;
 
     public override bool UsesPrivateKeyPem => false;
+
+    // Kraken's secret is base64 and its signature is HMAC-SHA512 over a SHA-256 digest; the form
+    // takes it exactly as the API page prints it.
+    protected override string WhatAKeyBuys => "private endpoints, account balances";
 }
