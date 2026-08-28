@@ -60,7 +60,12 @@ public static class AiModelCatalog
         // which of them read a reasoning-effort parameter depends on the model chosen rather than on
         // the gateway. Left out deliberately: sending an effort a model does not accept is refused, and
         // a refusal here reads as a bad key.
-        "opencode" => false,
+        // NVIDIA NIM and OpenCode Zen both front models from several vendors behind one
+        // OpenAI-compatible endpoint, so whether reasoning_effort is read depends on the model rather
+        // than the gateway. Left off: a parameter a model rejects fails the request, and that failure
+        // reads as a bad key. kimi-k3 does accept it — turn this on per-provider if you pin a model
+        // that takes it.
+        "opencode" or "nvidia" => false,
         _ => false,
     };
 }
