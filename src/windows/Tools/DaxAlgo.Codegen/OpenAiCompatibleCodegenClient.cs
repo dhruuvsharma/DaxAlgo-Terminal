@@ -32,7 +32,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         _http = http;
         ProviderId = providerId;
         DisplayName = displayName;
-        _baseUrl = baseUrl.TrimEnd('/');
+        _baseUrl = NormaliseBaseUrl(baseUrl);
         _model = model;
         _apiKey = apiKey;
         _keyless = keyless;
@@ -241,6 +241,34 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         {
             return StrategyCodegenResponse.Fail(TransportFailure(ex));
         }
+    }
+
+    /// <summary>
+    /// Takes what a user pasted and returns the base this client can append to.
+    ///
+    /// <para><b>The mistake this exists for is the natural one.</b> Every provider's quickstart shows
+    /// the <i>full</i> endpoint — NVIDIA calls it <c>invoke_url</c>, OpenAI shows the curl line — so a
+    /// user configuring a provider pastes
+    /// <c>https://integrate.api.nvidia.com/v1/chat/completions</c> into a field labelled "base URL".
+    /// This client then appends its own path and requests
+    /// <c>.../chat/completions/chat/completions</c>, which 404s with no body worth reading. It looks
+    /// like a broken provider or a rejected key, and it has already cost one setup.</para>
+    ///
+    /// <para>So a trailing well-known path is stripped rather than trusted. Being forgiving here is
+    /// cheap; the alternative is every user rediscovering the same 404.</para>
+    /// </summary>
+    internal static string NormaliseBaseUrl(string? baseUrl)
+    {
+        var text = (baseUrl ?? string.Empty).Trim().TrimEnd('/');
+
+        // Longest first: /v1/chat/completions must lose the whole tail, not just /completions.
+        foreach (var suffix in (string[])["/chat/completions", "/completions", "/responses"])
+        {
+            if (text.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return text[..^suffix.Length].TrimEnd('/');
+        }
+
+        return text;
     }
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";

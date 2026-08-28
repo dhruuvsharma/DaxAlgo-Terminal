@@ -70,4 +70,37 @@ public sealed class CodegenFailureHintTests
     {
         OpenAiCompatibleCodegenClient.Hint(400, string.Empty, "big-pickle").Should().BeEmpty();
     }
+
+    // ── base URL normalisation ──────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("https://integrate.api.nvidia.com/v1/chat/completions", "https://integrate.api.nvidia.com/v1")]
+    [InlineData("https://api.openai.com/v1/chat/completions/", "https://api.openai.com/v1")]
+    [InlineData("https://x.test/v1/completions", "https://x.test/v1")]
+    [InlineData("https://x.test/v1/responses", "https://x.test/v1")]
+    public void A_pasted_full_endpoint_is_reduced_to_its_base(string pasted, string expected)
+    {
+        // The natural mistake, and one that already cost a setup. Every provider quickstart shows the
+        // FULL endpoint — NVIDIA names the variable invoke_url — so that is what gets pasted into a
+        // field labelled "base URL". The client then requests /chat/completions/chat/completions and
+        // 404s with nothing worth reading, which looks like a broken provider or a rejected key.
+        OpenAiCompatibleCodegenClient.NormaliseBaseUrl(pasted).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("https://integrate.api.nvidia.com/v1", "https://integrate.api.nvidia.com/v1")]
+    [InlineData("https://api.openai.com/v1/", "https://api.openai.com/v1")]
+    [InlineData("http://localhost:11434/v1", "http://localhost:11434/v1")]
+    public void A_correct_base_is_left_alone(string given, string expected)
+    {
+        OpenAiCompatibleCodegenClient.NormaliseBaseUrl(given).Should().Be(expected);
+    }
+
+    [Fact]
+    public void A_missing_base_stays_empty_rather_than_throwing()
+    {
+        // Empty is a real state — a provider that has not been set up yet — and IsAvailable reads it.
+        OpenAiCompatibleCodegenClient.NormaliseBaseUrl(null).Should().BeEmpty();
+        OpenAiCompatibleCodegenClient.NormaliseBaseUrl("   ").Should().BeEmpty();
+    }
 }
