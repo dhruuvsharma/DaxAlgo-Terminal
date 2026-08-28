@@ -96,6 +96,43 @@ public sealed class CodegenFailureHintTests
         OpenAiCompatibleCodegenClient.NormaliseBaseUrl(given).Should().Be(expected);
     }
 
+    // ── API key normalisation ───────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("Bearer nvapi-abc123", "nvapi-abc123")]
+    [InlineData("bearer sk-abc123", "sk-abc123")]
+    [InlineData("  Bearer   nvapi-abc123  ", "nvapi-abc123")]
+    public void A_pasted_authorization_header_is_reduced_to_the_token(string pasted, string expected)
+    {
+        // Costs more than the base-URL version of this mistake. The client sends
+        // "Authorization: Bearer Bearer <token>" and every request 401s — which reads as an invalid
+        // or expired key, so the natural next step is generating another one that fails identically.
+        OpenAiCompatibleCodegenClient.NormaliseApiKey(pasted).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("nvapi-abc123")]
+    [InlineData("sk-proj-abc123")]
+    public void A_plain_key_is_left_alone(string key)
+    {
+        OpenAiCompatibleCodegenClient.NormaliseApiKey(key).Should().Be(key);
+    }
+
+    [Fact]
+    public void A_key_that_merely_begins_with_the_letters_is_not_truncated()
+    {
+        // "Bearer" without the space is not a prefix — it is the start of a token, and cutting seven
+        // characters off a real key would be a worse bug than the one being fixed.
+        OpenAiCompatibleCodegenClient.NormaliseApiKey("Bearerabc123").Should().Be("Bearerabc123");
+    }
+
+    [Fact]
+    public void A_missing_key_stays_missing()
+    {
+        // Null means "not configured", which IsAvailable reads. It must not become empty-string.
+        OpenAiCompatibleCodegenClient.NormaliseApiKey(null).Should().BeNull();
+    }
+
     [Fact]
     public void A_missing_base_stays_empty_rather_than_throwing()
     {

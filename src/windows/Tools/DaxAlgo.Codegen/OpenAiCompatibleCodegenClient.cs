@@ -34,7 +34,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         DisplayName = displayName;
         _baseUrl = NormaliseBaseUrl(baseUrl);
         _model = model;
-        _apiKey = apiKey;
+        _apiKey = NormaliseApiKey(apiKey);
         _keyless = keyless;
         _effort = effort;
     }
@@ -269,6 +269,28 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         }
 
         return text;
+    }
+
+    /// <summary>
+    /// Takes what a user pasted into an API-key field and returns the token.
+    ///
+    /// <para><b>The same class of mistake as a pasted endpoint, and it costs more.</b> A provider's
+    /// quickstart shows the whole header — <c>"Authorization": "Bearer nvapi-..."</c> — so what lands
+    /// in a field labelled "API key" is sometimes <c>Bearer nvapi-...</c>. This client then sends
+    /// <c>Authorization: Bearer Bearer nvapi-...</c> and every request 401s. Nothing about that says
+    /// "your key has a word in front of it": it reads as an invalid or expired key, and the natural
+    /// next step is to go and generate another one, which fails identically.</para>
+    ///
+    /// <para>It has already happened once, on the setup this method was written for.</para>
+    /// </summary>
+    internal static string? NormaliseApiKey(string? apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey)) return apiKey;
+
+        var text = apiKey.Trim();
+        return text.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? text["Bearer ".Length..].Trim()
+            : text;
     }
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
