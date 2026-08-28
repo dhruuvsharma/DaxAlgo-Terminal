@@ -54,6 +54,17 @@
     <EmbeddedResource Include="..\..\..\..\sdk\ai-context\skills\*.md">
       <LogicalName>DaxAlgo.AiContext.Skill.%(Filename).md</LogicalName>
     </EmbeddedResource>
+
+    <!-- Worked exemplars (#44 phase 3). These are the SAMPLE PROJECT'S OWN SOURCE, embedded rather
+         than copied: a copy drifts from the thing CI compiles, and an exemplar that no longer
+         compiles teaches the model to write something that does not. Normalised into authored-unit
+         shape by AuthoringExemplar before the model sees them. -->
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\MovingAverageCrossKernel.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.MovingAverageCrossKernel.cs</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\SpreadBandVisualizer.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.SpreadBandVisualizer.cs</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

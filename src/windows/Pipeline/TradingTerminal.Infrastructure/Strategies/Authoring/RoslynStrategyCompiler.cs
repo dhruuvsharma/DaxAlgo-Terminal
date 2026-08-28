@@ -29,20 +29,39 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// </summary>
 public sealed class RoslynStrategyCompiler : IStrategyCompiler
 {
-    /// <summary>Ambient namespaces every script gets for free (kept in a dedicated tree so
-    /// they don't shift the user's line numbers).</summary>
+    /// <summary>
+    /// Ambient namespaces every script gets for free, kept in a dedicated tree so they don't shift the
+    /// user's line numbers.
+    ///
+    /// <para><b>This list is a promise the context pack makes on its behalf</b> — it tells the model
+    /// these are ambient and that writing them is unnecessary. The two must agree exactly. Until
+    /// 2026-08-28 they did not: <c>DaxAlgo.Sdk</c> and <c>DaxAlgo.Sdk.Drawing</c> were promised and
+    /// never imported, so a unit that obeyed the instruction failed its first compile on
+    /// "IStrategyKernel could not be found" and burned a generation in the fix loop before anything
+    /// could work. Nothing broke visibly, because the loop quietly repaired it every time. Adding a
+    /// namespace here without adding it there — or the reverse — recreates that.</para>
+    ///
+    /// <para><c>TradingTerminal.Core.Strategies</c> was also listed twice, which is a CS0105 on every
+    /// compile. Harmless, and it made the real diagnostics harder to read.</para>
+    ///
+    /// <para>Only namespaces from assemblies that are <b>always</b> referenced belong here; see
+    /// <see cref="LiveWindowUsings"/> for why a conditional one has to stay conditional. The SDK
+    /// qualifies — its types are what an authored unit implements, so nothing compiles without it.</para>
+    /// </summary>
     private const string KernelUsings = """
         global using System;
         global using System.Collections.Generic;
         global using System.Linq;
         global using System.Threading;
         global using System.Threading.Tasks;
+        global using DaxAlgo.Sdk;
+        global using DaxAlgo.Sdk.Drawing;
+        global using DaxAlgo.Sdk.Layout;
         global using TradingTerminal.Core.Domain;
         global using TradingTerminal.Core.Trading;
         global using TradingTerminal.Core.Time;
         global using TradingTerminal.Core.Strategies;
         global using TradingTerminal.Core.MarketData;
-        global using TradingTerminal.Core.Strategies;
         global using TradingTerminal.Core.Strategies.Parameters;
         """;
 
