@@ -1,4 +1,5 @@
 using FluentAssertions;
+using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -152,6 +153,25 @@ public sealed class AuthoringQuestionsTests
 
         composed.Should().Contain("No preference on: Which exits");
         composed.Should().Contain("say what you chose");
+    }
+
+    [Theory]
+    [InlineData(AuthoringKind.Strategy)]
+    [InlineData(AuthoringKind.Visualizer)]
+    public void Every_kind_brief_ends_by_telling_the_model_to_offer_its_answers(AuthoringKind kind)
+    {
+        // The shared pack says this too, but it sits far earlier in the prompt. A model asked to write
+        // a long specification reliably forgot it by the time it finished writing one — observed:
+        // a full TradingView-style spec, ending in a request for confirmation, with no options and
+        // nothing for the user to click. This is the last instruction before the answer.
+        var composed = AuthoringKindBrief.Compose("SHARED", kind);
+
+        composed.Should().Contain("```questions");
+        composed.Should().Contain("confirm it");
+        composed.IndexOf("```questions", StringComparison.Ordinal)
+            .Should().BeGreaterThan(
+                composed.IndexOf("SHARED", StringComparison.Ordinal),
+                "it must come after the cached shared prefix, not inside it");
     }
 
     [Fact]

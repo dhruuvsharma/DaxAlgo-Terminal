@@ -268,6 +268,45 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// </summary>
     public ObservableCollection<AuthoringQuestionViewModel> Questions { get; } = [];
 
+    /// <summary>One-click replies, shown whenever the builder is waiting. Independent of
+    /// <see cref="Questions"/>: a model that asks in prose still gets buttons.</summary>
+    public ObservableCollection<AuthoringAction> Actions { get; } = [];
+
+    [ObservableProperty] private bool _hasActions;
+
+    private void SetActions(IReadOnlyList<AuthoringAction> actions)
+    {
+        Actions.Clear();
+        foreach (var action in actions) Actions.Add(action);
+        HasActions = Actions.Count > 0;
+    }
+
+    /// <summary>
+    /// Sends a canned reply, or hands the composer back when the action carries none.
+    ///
+    /// <para>An empty reply deliberately does not send anything. "I want changes" means the user has
+    /// something specific to say, and inventing a sentence for them would put words in their mouth and
+    /// cost a turn on a provider where a turn is minutes.</para>
+    /// </summary>
+    [RelayCommand]
+    private async Task ChooseAsync(AuthoringAction action)
+    {
+        if (string.IsNullOrWhiteSpace(action.Reply))
+        {
+            SetActions([]);
+            ComposerFocusRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        SetActions([]);
+        SetQuestions([]);
+        Composer = action.Reply;
+        await SendAsync();
+    }
+
+    /// <summary>Raised when an action wants the user to type rather than answering for them.</summary>
+    public event EventHandler? ComposerFocusRequested;
+
     [ObservableProperty] private bool _hasQuestions;
 
     /// <summary>True once at least one question has an answer, so Submit cannot send an empty reply.</summary>
@@ -320,6 +359,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (string.IsNullOrWhiteSpace(composed)) return;
 
         SetQuestions([]);
+        SetActions([]);
         Composer = composed;
         await SendAsync();
     }
@@ -1074,11 +1114,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 _generateCts.Token,
                 new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)));
 
-            // The session's running total is authoritative: a turn can be several generations (the
-            // auto-fix retries), and the streamed updates are per-generation.
-            InputTokens = session.TotalUsage.InputTokens;
-            OutputTokens = session.TotalUsage.OutputTokens;
-            CachedTokens = session.TotalUsage.CachedInputTokens;
+            // The session's running total is authoritative WHEN THERE IS ONE. A provider that reports
+            // no usage at all — NVIDIA NIM does not, and agent CLIs do not — leaves the total at zero,
+            // and assigning that unconditionally wiped the estimate accumulated while the reply
+            // streamed. The counter then read "not reported" after a generation that plainly produced
+            // thousands of tokens, which is worse than the approximation it replaced.
+            if (session.TotalUsage.InputTokens > 0 || session.TotalUsage.OutputTokens > 0)
+            {
+                InputTokens = session.TotalUsage.InputTokens;
+                OutputTokens = session.TotalUsage.OutputTokens;
+                CachedTokens = session.TotalUsage.CachedInputTokens;
+                IsUsageEstimated = false;
+            }
 
             FinishTasks(turn.Kind);
 
@@ -1106,6 +1153,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             SetQuestions(asked);
             AwaitingAnswer = turn.Kind == BuildTurnKind.Question;
+
+            // Unconditional: a turn that stops without code is usually a specification awaiting
+            // approval rather than a question with options, and that case has nothing to enumerate.
+            // Without this the user is left with a paragraph and an empty composer, which is exactly
+            // what they were before any of the question work.
+            SetActions(AwaitingAnswer ? AuthoringAction.Default : []);
 
             if (turn.Files.Count > 0)
             {
@@ -1273,6 +1326,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             ClearPreview();
             _lastGoodUnit = null;
             SetQuestions([]);
+            SetActions([]);
             AwaitingAnswer = false;
             IsRegistered = false;
             CloseReview();
@@ -1775,7 +1829,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AiStatus = run.Outcome switch
         {
             AgentRunOutcome.Delivered => $"Delivered after {run.Turns.Count} turn(s). Review the preview, then Compile & Register.",
-            AgentRunOutcome.AwaitingUser => "The agent has a question — answer it in the composer.",
+            AgentRunOutcome.AwaitingUser => "The agent is waiting — pick an option above, or write your own reply.",
             AgentRunOutcome.ProviderFailed => $"Provider failed: {run.Error}",
 
             // Honest rather than encouraging. A brief that could not be satisfied should say what was

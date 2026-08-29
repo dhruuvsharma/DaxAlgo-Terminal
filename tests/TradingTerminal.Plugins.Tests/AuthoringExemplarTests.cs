@@ -66,6 +66,26 @@ public sealed class AuthoringExemplarTests
         AuthoringExemplar.Block((AuthoringKind)999).Should().NotContain("### A complete unit");
     }
 
+    [Theory]
+    [InlineData(AuthoringKind.Strategy, "MovingAverageCrossKernel")]
+    [InlineData(AuthoringKind.Visualizer, "SpreadBandVisualizer")]
+    public void The_exemplar_actually_reaches_the_prompt(AuthoringKind kind, string expected)
+    {
+        // The wiring, not the unit. This file originally tested AuthoringExemplar.For() and nothing
+        // else, so when the line that appends it to the kind brief silently failed to apply, every
+        // test here still passed and the model was never shown an example at all. An exemplar that
+        // exists and is never sent is the same defect as one that does not exist — and harder to
+        // notice, because the code and its tests look complete.
+        var composed = AuthoringKindBrief.Compose("SHARED PACK", kind);
+
+        composed.Should().Contain(expected);
+        composed.Should().Contain("### A complete unit of this kind");
+        composed.IndexOf(expected, StringComparison.Ordinal)
+            .Should().BeGreaterThan(
+                composed.IndexOf("SHARED PACK", StringComparison.Ordinal),
+                "it must sit after the cached prefix, or every session pays a cache miss");
+    }
+
     // ── the check that earns the word "verified" ────────────────────────────────────────────────
 
     [Theory]

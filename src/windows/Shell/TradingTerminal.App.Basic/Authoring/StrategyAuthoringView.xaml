@@ -248,12 +248,47 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- The model asked something back — a good turn, made unmissable. -->
+                <!--
+                    The model asked something back — a good turn, made unmissable, and answerable in one
+                    click. The buttons appear whether or not the model offered structured options,
+                    because the common case is a specification awaiting approval rather than a question
+                    with a list: there is nothing to enumerate there, and the old card just said "reply
+                    below" and left the user re-reading a paragraph.
+                -->
                 <Border Grid.Row="2" Style="{StaticResource HYP.QuestionCard}" Margin="0,8,0,0"
                         Visibility="{Binding AwaitingAnswer, Converter={StaticResource B2V}}">
-                    <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" FontSize="11.5"
-                               Foreground="{DynamicResource Text.Primary}"
-                               Text="The model needs an answer before it writes the strategy — reply below." />
+                    <StackPanel>
+                        <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" FontSize="11.5"
+                                   Foreground="{DynamicResource Text.Primary}"
+                                   Text="Waiting on you — pick one, or say something else below." />
+
+                        <ItemsControl ItemsSource="{Binding Actions}" Margin="0,8,0,0"
+                                      Visibility="{Binding HasActions, Converter={StaticResource B2V}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Margin="0,0,6,6" Padding="12,6" Cursor="Hand"
+                                            Content="{Binding Label}"
+                                            Command="{Binding DataContext.ChooseCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Background" Value="{DynamicResource Accent.Brush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </Border>
 
                 <!-- Working status + outcome lines -->

@@ -1,3 +1,4 @@
+using System.Text;
 using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -24,11 +25,53 @@ public static class AuthoringKindBrief
         _ => Strategy,
     };
 
-    /// <summary>Folds the block into a system prompt.</summary>
+    /// <summary>Repeated in every kind block on purpose. It is in the shared pack too, but that
+    /// sits far earlier in the prompt; a model asked to produce a long specification reliably
+    /// forgot it by the time it finished writing one. This is the last instruction before the
+    /// answer.</summary>
+    private const string OfferAnswers = """
+        ## If you need to ask, offer the answers
+
+        When you stop without code — to ask something, or to put a specification up for approval —
+        add a `questions` block so the builder can render your options as buttons. Prose above it is
+        shown; the block is not.
+
+        ```questions
+        [
+          { "id": "confirm", "question": "Build this specification?", "kind": "single",
+            "options": [ { "label": "Yes, as specified" },
+                         { "label": "Yes, but minimal first" },
+                         { "label": "Change the indicators" } ] }
+        ]
+        ```
+
+        This applies to a written-out spec as much as to a genuine question: "here is what I will
+        build, confirm it" IS a question, and it has obvious options. A reply that ends by asking for
+        confirmation and offers none leaves the user re-reading a paragraph to work out what to type.
+        """;
+
+    /// <summary>Folds the kind block, the reminder, and the exemplar into a system prompt.</summary>
     public static string Compose(string systemContext, AuthoringKind kind)
     {
         var block = For(kind);
-        return string.IsNullOrEmpty(block) ? systemContext : systemContext.TrimEnd() + "\n\n" + block;
+        if (string.IsNullOrEmpty(block)) return systemContext;
+
+        // Everything below goes AFTER the shared context, which is the cached prefix. Anything inserted
+        // before it changes the prefix and costs a full cache miss on every session.
+        //
+        // Order is deliberate: what you are writing, then how to ask if you must, then a finished
+        // example. The reminder to offer answers sits last-but-one because a model that has just read a
+        // complete unit is about to write one, and the instruction it needs at that moment is what to
+        // do if it cannot.
+        var composed = new StringBuilder(systemContext.TrimEnd())
+            .Append("\n\n").Append(block.TrimEnd())
+            .Append('\n').Append(OfferAnswers.TrimEnd());
+
+        var exemplar = AuthoringExemplar.Block(kind);
+        if (!string.IsNullOrWhiteSpace(exemplar))
+            composed.Append("\n\n").Append(exemplar.TrimEnd());
+
+        return composed.ToString();
     }
 
     private const string Visualizer = """

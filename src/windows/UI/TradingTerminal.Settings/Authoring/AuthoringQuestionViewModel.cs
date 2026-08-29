@@ -114,3 +114,41 @@ public sealed partial class AuthoringQuestionViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAnswered));
     }
 }
+
+/// <summary>
+/// A one-click reply shown whenever the builder is waiting on the user.
+///
+/// <para><b>Why these exist alongside the model's own options.</b> A model that stops without code has
+/// not necessarily asked a multiple-choice question. Far more often it writes a specification and waits
+/// for approval — "here is what I am about to build, say so if you want it to trade instead". There are
+/// no options to enumerate there, so the structured-question format does not apply, and the user was
+/// left with an empty composer and a paragraph to re-read.</para>
+///
+/// <para>So the affordance is unconditional: whenever a turn ends waiting, the obvious replies are
+/// buttons. The model cooperating with the question format adds options; it not cooperating no longer
+/// leaves the user typing.</para>
+/// </summary>
+/// <param name="Label">What the button says.</param>
+/// <param name="Reply">
+/// The message it sends. Empty means "do not send anything" — put the cursor in the composer instead,
+/// which is what "I want changes" needs: the user has something specific to say and a canned sentence
+/// would be put in their mouth.
+/// </param>
+/// <param name="IsPrimary">True for the accept action, which is styled as the default.</param>
+public readonly record struct AuthoringAction(string Label, string Reply, bool IsPrimary = false)
+{
+    /// <summary>The replies offered whenever a turn ends waiting on the user.</summary>
+    public static IReadOnlyList<AuthoringAction> Default { get; } =
+    [
+        new("Looks right — build it",
+            "That specification is right. Build it exactly as described.",
+            IsPrimary: true),
+
+        new("Build it, but simpler",
+            "Build it, but keep the first version minimal — the smallest thing that demonstrates the "
+            + "idea working. Leave out anything optional and say what you left out."),
+
+        // No reply text: this one hands the composer back rather than answering for the user.
+        new("I want changes", string.Empty),
+    ];
+}
