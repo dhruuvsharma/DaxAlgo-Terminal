@@ -161,11 +161,13 @@
             <!-- ═══ Agent canvas ═══════════════════════════════════════════════════════════ -->
             <Grid Grid.Column="1" Margin="16,10,12,12">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />   <!-- 0  session header -->
+                    <RowDefinition Height="*" />      <!-- 1  transcript -->
+                    <RowDefinition Height="Auto" />   <!-- 2  tasks -->
+                    <RowDefinition Height="Auto" />   <!-- 3  status -->
+                    <RowDefinition Height="Auto" />   <!-- 4  questions, when the model offered options -->
+                    <RowDefinition Height="Auto" />   <!-- 5  submit answers -->
+                    <RowDefinition Height="Auto" />   <!-- 6  composer -->
                 </Grid.RowDefinitions>
 
                 <!-- Session header -->
@@ -274,8 +276,78 @@
                                Visibility="{Binding AiStatus, Converter={StaticResource S2V}}" />
                 </StackPanel>
 
+                <!--
+                    Structured questions. The model can offer its answers instead of only asking for
+                    them; these render above the composer, and Submit turns the picks into the next
+                    user message. Collapsed entirely when the model asked in prose, which stays valid.
+                -->
+                <ItemsControl Grid.Row="4" Margin="0,10,0,0"
+                              ItemsSource="{Binding Questions}"
+                              Visibility="{Binding HasQuestions, Converter={StaticResource B2V}, FallbackValue=Collapsed}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource Background.Elevated}"
+                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap"
+                                                   FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Text.Primary}" />
+                                        <TextBlock Text="{Binding ModeHint}" Margin="8,1,0,0"
+                                                   FontSize="9.5" FontWeight="Bold"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Text.Secondary}" />
+                                    </StackPanel>
+
+                                    <ItemsControl ItemsSource="{Binding Options}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <ToggleButton IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              Margin="0,0,6,6" Padding="10,5"
+                                                              Cursor="Hand"
+                                                              BorderBrush="{DynamicResource Border.Brush}"
+                                                              Background="{DynamicResource Background.Surface}">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Label}" FontSize="11"
+                                                                   Foreground="{DynamicResource Text.Primary}" />
+                                                        <TextBlock Text="{Binding Detail}" FontSize="9.5"
+                                                                   Margin="0,1,0,0" TextWrapping="Wrap"
+                                                                   MaxWidth="220"
+                                                                   Foreground="{DynamicResource Text.Secondary}"
+                                                                   Visibility="{Binding HasDetail, Converter={StaticResource B2V}}" />
+                                                    </StackPanel>
+                                                </ToggleButton>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBox Text="{Binding Other, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,2,0,0" Padding="8,5" FontSize="11"
+                                             Background="{DynamicResource Background.Surface}"
+                                             Foreground="{DynamicResource Text.Primary}"
+                                             BorderBrush="{DynamicResource Border.Brush}"
+                                             ToolTip="Something else — typed answers are added to whatever you picked"
+                                             Visibility="{Binding AllowOther, Converter={StaticResource B2V}}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Grid.Row="5" HorizontalAlignment="Left" Margin="0,0,0,4"
+                        Padding="14,6" Cursor="Hand"
+                        Command="{Binding SubmitAnswersCommand}"
+                        Content="Submit answers"
+                        Visibility="{Binding HasQuestions, Converter={StaticResource B2V}, FallbackValue=Collapsed}" />
+
                 <!-- Cockpit composer -->
-                <ContentControl Grid.Row="4" Style="{StaticResource HYP.ComposerShell}" Margin="0,10,0,0"
+                <ContentControl Grid.Row="6" Style="{StaticResource HYP.ComposerShell}" Margin="0,10,0,0"
                                 Padding="12,10" Tag="{Binding IsGenerating}">
                     <Grid>
                         <Grid.RowDefinitions>

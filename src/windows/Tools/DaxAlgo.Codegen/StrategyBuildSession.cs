@@ -480,7 +480,10 @@ public sealed class StrategyBuildSession
     {
         if (_skills is null || LoadedSkills.Count > 0) return LoadedSkills;
 
-        LoadedSkills = _skills.SelectFor(brief, Profile?.MaxSkills ?? StrategySkillLibrary.MaxSkillsPerSession);
+        // Narrowed to the kind being authored: a visualizer session must not be handed guidance for
+        // an API it does not have.
+        LoadedSkills = _skills.SelectFor(
+            brief, Profile?.MaxSkills ?? StrategySkillLibrary.MaxSkillsPerSession, Kind);
         SystemContext = StrategySkillLibrary.Compose(BasePack, LoadedSkills);
 
         if (LoadedSkills.Count > 0)

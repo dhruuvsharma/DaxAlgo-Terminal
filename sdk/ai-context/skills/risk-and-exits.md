@@ -1,6 +1,7 @@
 ---
 id: risk-and-exits
 name: Risk, position sizing and exits
+kinds: strategy
 triggers: stop, stop loss, take profit, target, trail, trailing, exit, risk, sizing, position size, drawdown, flatten, breakeven, r multiple, reward, time stop, max loss, kelly, atr
 ---
 

@@ -144,8 +144,49 @@ public sealed class MyStrategy : IStrategyKernel { ... }
 
 If the request is ambiguous in a way that changes the unit — instrument or asset class, timeframe, the
 entry or exit rule, sizing, risk limits, which data it needs — **reply with your questions and no code
-block.** The builder shows them to the user and sends the answer back. Ask once, concisely, two to four
-questions, then write it. Do not ask about what you can reasonably default, and do not ask twice.
+block.** Ask once, two to four questions, then write it. Do not ask about what you can reasonably
+default, and do not ask twice.
+
+**Offer the answers, do not just ask for them.** Add a `questions` block and the builder renders each
+one as buttons the user clicks instead of typing. You almost always already know the three or four
+sensible answers; listing them is faster for the user and removes a whole class of misread reply.
+
+````
+Two things I need before writing this.
+
+```questions
+[
+  {
+    "id": "instrument",
+    "question": "Which instrument?",
+    "kind": "single",
+    "options": [
+      { "label": "BTCUSDT perp", "detail": "Binance, 24/7, deep book" },
+      { "label": "ES futures", "detail": "RTH session only" },
+      { "label": "SPY", "detail": "US equity hours" }
+    ]
+  },
+  {
+    "id": "signals",
+    "question": "Which exits should it use?",
+    "kind": "multiple",
+    "options": [
+      { "label": "Fixed stop" },
+      { "label": "Trailing stop" },
+      { "label": "Time stop", "detail": "Flat by session close" }
+    ]
+  }
+]
+```
+````
+
+- `kind` is `single` or `multiple`. Default `single`.
+- `label` is a chip — a few words. Put the consequence in `detail`, one line, optional.
+- A free-text box is offered alongside unless you set `"allowOther": false`. Leave it on unless the
+  options are genuinely exhaustive.
+- Prose above the block is shown; the block itself is not. Say what you need and why, briefly.
+- **A question with no options is dropped**, so a question worth asking is worth offering answers to.
+  If you truly cannot enumerate them, ask it in the prose instead.
 
 ### Compiler errors come back to you
 

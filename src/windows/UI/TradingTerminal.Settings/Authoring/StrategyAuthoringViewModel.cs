@@ -262,6 +262,68 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [ObservableProperty] private string _previewSummary = string.Empty;
 
     /// <summary>True once there is a frame to show.</summary>
+    /// <summary>
+    /// The questions the model just asked, as buttons. Empty when it asked in prose or asked nothing —
+    /// both of which stay valid, and both of which fall back to typing an answer in the composer.
+    /// </summary>
+    public ObservableCollection<AuthoringQuestionViewModel> Questions { get; } = [];
+
+    [ObservableProperty] private bool _hasQuestions;
+
+    /// <summary>True once at least one question has an answer, so Submit cannot send an empty reply.</summary>
+    public bool CanSubmitAnswers => HasQuestions && Questions.Any(q => q.IsAnswered);
+
+    private IReadOnlyList<AuthoringQuestion> _askedQuestions = [];
+
+    private void SetQuestions(IReadOnlyList<AuthoringQuestion> asked)
+    {
+        foreach (var existing in Questions) existing.PropertyChanged -= OnQuestionAnswered;
+        Questions.Clear();
+
+        _askedQuestions = asked;
+        foreach (var question in asked)
+        {
+            var vm = new AuthoringQuestionViewModel(question);
+            vm.PropertyChanged += OnQuestionAnswered;
+            Questions.Add(vm);
+        }
+
+        HasQuestions = Questions.Count > 0;
+        OnPropertyChanged(nameof(CanSubmitAnswers));
+        SubmitAnswersCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnQuestionAnswered(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(AuthoringQuestionViewModel.IsAnswered)
+            or nameof(AuthoringQuestionViewModel.Answer))) return;
+
+        OnPropertyChanged(nameof(CanSubmitAnswers));
+        SubmitAnswersCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Turns the picked options into the next user message and sends it.
+    ///
+    /// <para>The composed text goes through the ordinary send path, so the transcript reads as the user
+    /// having answered in words — which is what the model sees on the next turn, and what someone
+    /// reading the thread later needs in order to follow it.</para>
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSubmitAnswers))]
+    private async Task SubmitAnswersAsync()
+    {
+        var answers = Questions
+            .Where(q => q.IsAnswered)
+            .ToDictionary(q => q.Model.Id, q => q.Answer, StringComparer.Ordinal);
+
+        var composed = AuthoringQuestions.ComposeAnswer(_askedQuestions, answers);
+        if (string.IsNullOrWhiteSpace(composed)) return;
+
+        SetQuestions([]);
+        Composer = composed;
+        await SendAsync();
+    }
+
     [ObservableProperty] private bool _hasPreview;
 
     /// <summary>The panel arrangement the preview renders — the same tree the terminal
@@ -888,8 +950,30 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // which is not the same as free, and must not be shown as zero.
         ? "tokens: not reported"
         : CachedTokens > 0
-            ? $"tokens: {InputTokens:N0} in ({CachedTokens:N0} cached) · {OutputTokens:N0} out"
-            : $"tokens: {InputTokens:N0} in · {OutputTokens:N0} out";
+            ? $"tokens: {InputTokens:N0} in ({CachedTokens:N0} cached) · {Approx}{OutputTokens:N0} out"
+            : $"tokens: {InputTokens:N0} in · {Approx}{OutputTokens:N0} out";
+
+    /// <summary>"~" while the output count is estimated, nothing once it is measured.</summary>
+    private string Approx => IsUsageEstimated ? "~" : string.Empty;
+
+    /// <summary>Characters streamed in the current generation, for the in-flight token estimate.</summary>
+    private int _streamedCharacters;
+
+    /// <summary>True while the output count is an estimate rather than the provider's own number. Shown
+    /// as a "~" so nobody quotes an approximation as a measurement.</summary>
+    [ObservableProperty] private bool _isUsageEstimated;
+
+    partial void OnIsUsageEstimatedChanged(bool value) => OnPropertyChanged(nameof(UsageText));
+
+    /// <summary>
+    /// Roughly four characters per token — the usual English-and-code approximation.
+    ///
+    /// <para>Deliberately not a tokenizer. The number exists so a running generation shows movement
+    /// rather than a frozen zero, and it is replaced by the provider's exact figure a moment later;
+    /// carrying a real tokenizer to be briefly less wrong about a number nobody bills from would be a
+    /// poor trade.</para>
+    /// </summary>
+    private static int EstimateTokens(int characters) => characters / 4;
 
     partial void OnInputTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
     partial void OnOutputTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
@@ -1008,9 +1092,19 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // The reply was streamed into a bubble as it arrived; settle it on the final text (the
             // provider's own assembled version). Nothing streamed ⇒ the provider doesn't stream, so the
             // bubble appears now, whole.
-            if (_streamingReply is null) Append(new AuthoringMessage(CodegenRole.Assistant, turn.AssistantText));
-            else _streamingReply.Text = turn.AssistantText;
+            // Structured questions are lifted out first, so the bubble shows the model's prose and not
+            // the JSON it used to offer the buttons.
+            var asked = turn.Kind == BuildTurnKind.Question
+                ? AuthoringQuestions.Parse(turn.AssistantText)
+                : [];
+            var visibleText = asked.Count > 0
+                ? AuthoringQuestions.StripBlock(turn.AssistantText)
+                : turn.AssistantText;
 
+            if (_streamingReply is null) Append(new AuthoringMessage(CodegenRole.Assistant, visibleText));
+            else _streamingReply.Text = visibleText;
+
+            SetQuestions(asked);
             AwaitingAnswer = turn.Kind == BuildTurnKind.Question;
 
             if (turn.Files.Count > 0)
@@ -1103,9 +1197,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 {
                     _streamingReply.Text += delta.Text;
                 }
+
+                // An OpenAI-compatible provider reports usage only in its FINAL chunk, so without this
+                // the counter reads zero for the whole generation and then jumps — on a slow provider
+                // that is minutes of a number that looks broken. Estimated from the text so far and
+                // replaced by the provider's own figure the moment it arrives.
+                _streamedCharacters += delta.Text.Length;
+                OutputTokens = tokensBefore.OutputTokens + EstimateTokens(_streamedCharacters);
+                IsUsageEstimated = true;
                 break;
 
             case CodegenEvent.UsageUpdate update:
+                // Authoritative. Everything estimated above is discarded rather than blended: a count
+                // that is partly measured and partly guessed is worse than either.
+                IsUsageEstimated = false;
+                _streamedCharacters = 0;
                 // The update is absolute for the CURRENT generation, so add it to what the session had
                 // banked before this turn. The exact total is set from the session when the turn ends.
                 InputTokens = tokensBefore.InputTokens + update.Usage.InputTokens;
@@ -1166,6 +1272,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             CompiledOk = false;
             ClearPreview();
             _lastGoodUnit = null;
+            SetQuestions([]);
             AwaitingAnswer = false;
             IsRegistered = false;
             CloseReview();

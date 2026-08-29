@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Text;
 
+using TradingTerminal.Core.Strategies.Authoring;
+
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
 /// <summary>One on-demand domain pack: what it knows, and the words that mean it is relevant.</summary>
@@ -8,8 +10,28 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// <param name="Name">Shown in the builder's activity strip when it loads.</param>
 /// <param name="Triggers">Lower-cased phrases; a brief containing any of them pulls the skill in.</param>
 /// <param name="Body">The markdown the model gets.</param>
-public sealed record StrategySkill(string Id, string Name, IReadOnlyList<string> Triggers, string Body)
+public sealed record StrategySkill(
+    string Id,
+    string Name,
+    IReadOnlyList<string> Triggers,
+    string Body,
+    IReadOnlyList<AuthoringKind>? Kinds = null)
 {
+    /// <summary>
+    /// The unit kinds this pack applies to. Null or empty means both, which is right for most of them —
+    /// drawing, layout and market structure read the same whichever you are writing.
+    ///
+    /// <para>Tagging matters where a pack teaches something one kind <b>cannot do</b>. A visualizer has
+    /// no book: it cannot take a position, set a target or place an order. Loading the risk pack into a
+    /// visualizer session spends context teaching stops and sizing to a unit with no way to act on
+    /// them, and invites code against an API that is not there — which then fails to compile and burns
+    /// a fix generation.</para>
+    /// </summary>
+    public IReadOnlyList<AuthoringKind> Kinds { get; init; } = Kinds ?? [];
+
+    /// <summary>True when this pack is worth loading for <paramref name="kind"/>.</summary>
+    public bool AppliesTo(AuthoringKind kind) => Kinds.Count == 0 || Kinds.Contains(kind);
+
     /// <summary>How well this skill matches a brief — the number of distinct triggers it hits. A
     /// count, not a boolean, so "footprint imbalance VPOC delta" outranks a passing mention of "depth".</summary>
     public int Score(string text)
@@ -104,11 +126,21 @@ public sealed class StrategySkillLibrary
     /// <summary>Same selection under a caller-chosen count ceiling — the build-effort profile buys a
     /// higher (or lower) skill budget than the default. The character ceiling still applies: a Max-effort
     /// session must not rebuild the monolith the split exists to avoid.</summary>
-    public IReadOnlyList<StrategySkill> SelectFor(string? brief, int maxSkills)
+    public IReadOnlyList<StrategySkill> SelectFor(string? brief, int maxSkills) =>
+        SelectFor(brief, maxSkills, kind: null);
+
+    /// <summary>
+    /// Selection narrowed to one unit kind. A pack tagged for the other kind is not merely ranked
+    /// lower — it is excluded, because the problem is not relevance but applicability: risk guidance
+    /// in a visualizer session describes an API the unit does not have.
+    /// </summary>
+    /// <param name="kind">The kind being authored, or null to consider every pack.</param>
+    public IReadOnlyList<StrategySkill> SelectFor(string? brief, int maxSkills, AuthoringKind? kind)
     {
         if (string.IsNullOrWhiteSpace(brief) || maxSkills <= 0) return [];
 
         var ranked = _skills
+            .Where(skill => kind is not { } k || skill.AppliesTo(k))
             .Select(skill => (skill, score: skill.Score(brief)))
             .Where(candidate => candidate.score > 0)
             .OrderByDescending(candidate => candidate.score)
@@ -156,6 +188,7 @@ public sealed class StrategySkillLibrary
 
         string? id = null, name = null;
         var triggers = Array.Empty<string>();
+        var kinds = Array.Empty<AuthoringKind>();
         var body = -1;
 
         for (var i = 1; i < lines.Length; i++)
@@ -172,6 +205,20 @@ public sealed class StrategySkillLibrary
             {
                 case "id": id = value; break;
                 case "name": name = value; break;
+                case "kinds":
+                    // Unparseable names are dropped rather than failing the pack: a typo should cost
+                    // the narrowing, not the whole skill.
+                    kinds = value
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(k => Enum.TryParse<AuthoringKind>(k, ignoreCase: true, out var parsed)
+                            ? (AuthoringKind?)parsed
+                            : null)
+                        .Where(k => k is not null)
+                        .Select(k => k!.Value)
+                        .Distinct()
+                        .ToArray();
+                    break;
+
                 case "triggers":
                     triggers = value
                         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -183,6 +230,6 @@ public sealed class StrategySkillLibrary
 
         if (id is null || name is null || body < 0 || triggers.Length == 0) return null;
 
-        return new StrategySkill(id, name, triggers, string.Join('\n', lines[body..]).Trim());
+        return new StrategySkill(id, name, triggers, string.Join('\n', lines[body..]).Trim(), kinds);
     }
 }

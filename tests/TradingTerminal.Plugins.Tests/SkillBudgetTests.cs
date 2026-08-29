@@ -1,4 +1,5 @@
 using FluentAssertions;
+using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -84,6 +85,48 @@ public sealed class SkillBudgetTests
             StrategySkillLibrary.MaxSkillsPerSession);
 
         chosen.Should().NotContain(skill => skill.Id == "layout");
+    }
+
+    // ── kind isolation ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void A_visualizer_session_is_not_taught_an_api_it_does_not_have()
+    {
+        // A visualizer has no book: it cannot take a position, set a target or place an order. The
+        // risk pack is stops, sizing and flattening — loading it here spends context teaching an API
+        // that is not there, and invites code that fails to compile and burns a fix generation.
+        var brief = "flatten on a trailing stop with a max drawdown limit and position sizing";
+
+        var forVisualizer = Library().SelectFor(brief, 5, AuthoringKind.Visualizer);
+        var forStrategy = Library().SelectFor(brief, 5, AuthoringKind.Strategy);
+
+        forVisualizer.Should().NotContain(skill => skill.Id == "risk-and-exits");
+        forStrategy.Should().Contain(
+            skill => skill.Id == "risk-and-exits",
+            "the same brief is exactly what a strategy needs it for");
+    }
+
+    [Fact]
+    public void Kind_agnostic_packs_reach_both()
+    {
+        // Drawing and layout read the same whichever kind you are writing, and tagging them would
+        // halve their usefulness for no benefit.
+        var brief = "draw a candlestick chart with the order book beside it";
+
+        foreach (var kind in new[] { AuthoringKind.Strategy, AuthoringKind.Visualizer })
+        {
+            Library().SelectFor(brief, 5, kind)
+                .Should().Contain(skill => skill.Id == "drawing", $"for {kind}");
+        }
+    }
+
+    [Fact]
+    public void Selection_without_a_kind_still_considers_everything()
+    {
+        // The un-narrowed overload is what non-session callers use; narrowing it by default would
+        // silently change their results.
+        Library().SelectFor("trailing stop and drawdown limits", 5)
+            .Should().Contain(skill => skill.Id == "risk-and-exits");
     }
 
     [Fact]
