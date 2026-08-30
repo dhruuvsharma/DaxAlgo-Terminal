@@ -34,6 +34,7 @@ public sealed class AuthoredUnitHost : IDisposable
 
     private Func<IReadOnlyDictionary<string, object?>, Task>? _apply;
     private Func<bool, Task>? _setPaused;
+    private readonly Func<DaxAlgo.Sdk.Layout.UnitLayout>? _layout;
 
     /// <param name="title">The unit's display name — the expander header, and the log source it is tagged with.</param>
     /// <param name="tryDraw">Describes the current frame; false when there is nothing to draw.</param>
@@ -52,6 +53,17 @@ public sealed class AuthoredUnitHost : IDisposable
     /// window it had before, rather than editable boxes over values nothing reads.</para>
     /// </param>
     /// <param name="setPaused">Pauses or resumes the unit. Omitted leaves the control out.</param>
+    /// <param name="layout">
+    /// The unit's declared panel arrangement, asked for fresh rather than passed once.
+    ///
+    /// <para>A delegate because a layout does not survive a restart: applying parameters tears the
+    /// session down and builds another, and the panel callbacks belong to the instance that went with
+    /// it. Asked again after every apply, so a unit whose window shape depends on a parameter — two
+    /// books when a second instrument is set, one when it is not — redraws as the right shape instead
+    /// of keeping the old one's dead callbacks.</para>
+    ///
+    /// <para>Omitted means the single-panel default, which is what almost every unit wants.</para>
+    /// </param>
     public AuthoredUnitHost(
         string title,
         Func<IRenderSurface, bool> tryDraw,
@@ -61,7 +73,8 @@ public sealed class AuthoredUnitHost : IDisposable
         bool hasBook = false,
         TimeSpan? frameInterval = null,
         Func<IReadOnlyDictionary<string, object?>, Task>? apply = null,
-        Func<bool, Task>? setPaused = null)
+        Func<bool, Task>? setPaused = null,
+        Func<DaxAlgo.Sdk.Layout.UnitLayout>? layout = null)
     {
         ArgumentNullException.ThrowIfNull(tryDraw);
         _tryDraw = tryDraw;
@@ -69,6 +82,7 @@ public sealed class AuthoredUnitHost : IDisposable
         _logSource = title ?? string.Empty;
         _apply = apply;
         _setPaused = setPaused;
+        _layout = layout;
 
         Presenter = new AuthoredUnitPresenter
         {
@@ -86,6 +100,8 @@ public sealed class AuthoredUnitHost : IDisposable
 
         Presenter.ApplyRequested += OnApplyRequested;
         Presenter.PauseRequested += OnPauseRequested;
+
+        RefreshLayout();
 
         if (_log is not null)
         {
@@ -139,6 +155,11 @@ public sealed class AuthoredUnitHost : IDisposable
             Presenter.IsLive = true;
             Presenter.RunState = "Live";
             Thaw();
+
+            // The old session's panel callbacks went with it, so the shape is asked for again rather
+            // than kept. A unit whose layout depends on a parameter changes shape here.
+            RefreshLayout();
+
             Presenter.ParametersApplied("Applied — running with the new values.");
         }
         catch (Exception ex)
@@ -165,6 +186,26 @@ public sealed class AuthoredUnitHost : IDisposable
         catch (Exception ex)
         {
             Presenter.ParametersFailed($"Could not {(pause ? "pause" : "resume")}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Re-reads the unit's declared panel arrangement.
+    ///
+    /// <para>Never throws: describing a window runs author code, and a unit that fails at it keeps
+    /// the single-panel default rather than losing its window.</para>
+    /// </summary>
+    private void RefreshLayout()
+    {
+        if (_layout is not { } read) return;
+
+        try
+        {
+            Presenter.Layout = read() ?? DaxAlgo.Sdk.Layout.UnitLayout.Single;
+        }
+        catch (Exception)
+        {
+            Presenter.Layout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
         }
     }
 

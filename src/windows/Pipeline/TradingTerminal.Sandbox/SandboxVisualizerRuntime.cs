@@ -164,6 +164,98 @@ public sealed class SandboxVisualizerRuntime :
         }
     }
 
+    /// <summary>
+    /// The running visualizer's declared window layout, with every panel callback gated.
+    ///
+    /// <para><b>The unit's own <c>Layout</c> must not be handed to the host directly</b>, and that is
+    /// the whole reason this method exists rather than a property. A <c>PanelNode</c> carries an
+    /// <c>Action&lt;IRenderSurface&gt;</c> that closes over the visualizer instance; the layout host
+    /// invokes it straight from the render thread, so passing the raw tree would run author code
+    /// outside <see cref="_drawGate"/> — the exact protection <see cref="TryDraw"/> exists for — while
+    /// a market-data callback is halfway through mutating the same state. It would also pin the
+    /// <i>old</i> instance: <see cref="ResumeAsync"/> builds a replacement session, and a captured
+    /// callback would keep drawing the one that was torn down.</para>
+    ///
+    /// <para>So each panel is re-wrapped: take the gate without waiting, re-read the live session, and
+    /// skip the frame if either is unavailable. Same contract as <see cref="TryDraw"/>, per panel.</para>
+    ///
+    /// <para>Returns <see cref="DaxAlgo.Sdk.Layout.UnitLayout.Single"/> when the unit declares no
+    /// layout, is not running, or throws while being asked — the single-panel default is always a
+    /// usable window, and a layout is not worth a failure.</para>
+    /// </summary>
+    public DaxAlgo.Sdk.Layout.UnitLayout GetLayout()
+    {
+        if (!IsRunning || Volatile.Read(ref _disposeStarted) != 0)
+            return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
+        if (!_drawGate.Wait(0))
+            return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
+        DaxAlgo.Sdk.Layout.LayoutNode? root;
+        try
+        {
+            if (Volatile.Read(ref _session) is not { } session)
+                return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
+            root = session.Visualizer.Layout.Root;
+        }
+        catch (Exception ex)
+        {
+            // Reading Layout runs author code. A unit that throws describing its window keeps the
+            // default one rather than losing it.
+            ReportDrawFault(ex);
+            return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+
+        return root is null
+            ? DaxAlgo.Sdk.Layout.UnitLayout.Single
+            : DaxAlgo.Sdk.Layout.UnitLayout.Of(Gate(root));
+    }
+
+    /// <summary>Rebuilds a layout tree with every panel's callback wrapped in the draw gate.</summary>
+    private DaxAlgo.Sdk.Layout.LayoutNode Gate(DaxAlgo.Sdk.Layout.LayoutNode node) => node switch
+    {
+        DaxAlgo.Sdk.Layout.PanelNode panel => panel with { Draw = GatedDraw(panel.Draw) },
+        DaxAlgo.Sdk.Layout.SplitNode split => split with
+        {
+            Children = split.Children.Select(Gate).ToArray(),
+        },
+        _ => node,
+    };
+
+    /// <summary>One panel's callback, holding the same non-blocking gate <see cref="TryDraw"/> takes.</summary>
+    private Action<IRenderSurface> GatedDraw(Action<IRenderSurface> draw) => surface =>
+    {
+        if (draw is null || !IsRunning || Volatile.Read(ref _disposeStarted) != 0)
+            return;
+
+        if (!_drawGate.Wait(0))
+        {
+            Interlocked.Increment(ref _skippedFrameCount);
+            return;
+        }
+
+        try
+        {
+            // Re-read rather than capture: Resume swaps the session, and a panel bound to the old one
+            // would go on painting a visualizer that has been torn down.
+            if (Volatile.Read(ref _session) is null) return;
+            draw(surface);
+        }
+        catch (Exception ex)
+        {
+            ReportDrawFault(ex);
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    };
+
     /// <summary>Updates one launch-time value while the visualizer is paused.</summary>
     public void SetParameter(string key, object? value)
     {

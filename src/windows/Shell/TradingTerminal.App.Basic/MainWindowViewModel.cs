@@ -524,7 +524,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 {
                     if (pause) await runtime.PauseAsync();
                     else await runtime.ResumeAsync();
-                });
+                },
+                // Until this was passed, a unit could DECLARE a multi-panel window, have it validated,
+                // see it in the preview — and then open as one panel, because nothing ever asked the
+                // running unit for its layout.
+                layout: runtime.GetLayout);
             var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
