@@ -172,17 +172,47 @@ public sealed class SandboxSampleTests
         var surface = new RecordingRenderSurface();
         visualizer!.Draw(surface);
 
-        // Four series: two band edges, the midpoint, and the price being measured against them.
-        Assert.Contains("Upper band", surface.SeriesNames);
-        Assert.Contains("Lower band", surface.SeriesNames);
+        // The midpoint and the price it is measured against, on one scale.
         Assert.Contains("Midpoint", surface.SeriesNames);
         Assert.Contains("Price", surface.SeriesNames);
         Assert.NotEmpty(surface.Points);
 
+        // The envelope is a FILLED REGION now, not two stroked lines — `Bands.Draw` rather than a
+        // hand-rolled pair of series, which is why "Upper band" and "Lower band" are no longer series
+        // names. The region is what makes the two edges read as one thing.
+        Assert.NotEmpty(surface.Rectangles);
+
         // Colours come from theme roles, never literals, or the picture is unreadable in one theme.
         Assert.Contains(surface.Calls, call => call.Kind == "Theme");
 
+        // And the statistics beside it. A line chart with no numbers is where most generated
+        // visualizers stop; the exemplar has to show the habit it is teaching.
+        Assert.Contains(surface.Texts, entry => entry.Text.Contains("In band", StringComparison.Ordinal));
+        Assert.Contains(surface.Texts, entry => entry.Text.Contains("Band width", StringComparison.Ordinal));
+
         await runtime.StopAsync();
+    }
+
+    [Fact]
+    public void SpreadBandVisualizerDeclaresTheTwoPanelWindowItDraws()
+    {
+        // The exemplar is what Hyperion is shown as the shape to aim for, so it has to demonstrate the
+        // layout vocabulary rather than only the drawing one. Both panels paint: a declared layout
+        // whose panels are blank is the same empty window with extra headers.
+        var layout = new SpreadBandVisualizer().Layout;
+
+        Assert.False(layout.IsSingle);
+        Assert.Equal(["Band", "Statistics"], layout.Panels().Select(p => p.Title));
+
+        foreach (var panel in layout.Panels())
+        {
+            var surface = new RecordingRenderSurface();
+            panel.Draw(surface);
+
+            // Before any data it says what it is waiting for rather than painting nothing — the state
+            // a user sees for the first seconds of every session.
+            Assert.False(surface.IsBlank, $"panel '{panel.Title}' painted nothing");
+        }
     }
 
     [Fact]

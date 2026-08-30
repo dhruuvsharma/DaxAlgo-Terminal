@@ -106,11 +106,18 @@ public static class Plot
     /// <summary>
     /// Draws a crosshair at the pointer with a value readout, and does nothing when the pointer is
     /// elsewhere — so a visualizer can call it unconditionally.
+    ///
+    /// <para><paramref name="area"/> confines it to one region and makes the readout mean that
+    /// region's scale. Without it the crosshair spanned the whole surface, which is right for a panel
+    /// that owns its viewport and wrong the moment a picture is composed of several: the lines ran
+    /// across the neighbouring widgets and the value was read off the wrong axis. Every other routine
+    /// in this library takes an area; this one did not, and it was the only exception.</para>
     /// </summary>
     public static void Crosshair(
         IRenderSurface surface,
         PlotRange verticalRange,
-        string? format = null)
+        string? format = null,
+        PlotArea area = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
 
@@ -118,21 +125,25 @@ public static class Plot
         if (!cursor.IsInside)
             return;
 
-        var viewport = surface.Viewport;
-        if (viewport.Width <= 0d || viewport.Height <= 0d)
+        if (!area.IsValid) area = PlotArea.Of(surface);
+        if (!area.IsValid)
+            return;
+
+        // Outside the region is the same as outside the panel: nothing to draw, and nothing to read.
+        if (!area.Contains(cursor.X, cursor.Y))
             return;
 
         var line = surface.Theme(RenderThemeColor.Border);
         surface.SetStyle(new RenderStyle(line, Thickness: 1d, Alpha: 0.8d, Dashed: true));
-        surface.Line(cursor.X, 0d, cursor.X, viewport.Height);
-        surface.Line(0d, cursor.Y, viewport.Width, cursor.Y);
+        surface.Line(cursor.X, area.Y, cursor.X, area.Bottom);
+        surface.Line(area.X, cursor.Y, area.Right, cursor.Y);
 
         if (!verticalRange.IsValid)
             return;
 
-        var value = FromY(cursor.Y, verticalRange, viewport.Height);
+        var value = FromY(cursor.Y - area.Y, verticalRange, area.Height);
         surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Text), FontSize: 10d));
-        surface.Text(4d, cursor.Y - 3d, Format(value, format));
+        surface.Text(area.X + 4d, cursor.Y - 3d, Format(value, format));
     }
 
     /// <summary>

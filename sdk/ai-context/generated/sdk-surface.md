@@ -938,7 +938,7 @@ The shared bits of plotting: ranges, gridlines, axis labels and a crosshair.
 
 ```csharp
 void Caption(IRenderSurface surface, PlotArea area, string text, RenderThemeColor color = TextSecondary)
-void Crosshair(IRenderSurface surface, PlotRange verticalRange, string format = null)
+void Crosshair(IRenderSurface surface, PlotRange verticalRange, string format = null, PlotArea area = null)
 void Frame(IRenderSurface surface, PlotArea area, double alpha = 0.6)
 double FromY(double y, PlotRange range, double height)
 void HorizontalGrid(IRenderSurface surface, PlotRange range, int approximateLines = 5, string format = null, double labelWidth = 56)
@@ -951,7 +951,7 @@ bool Waiting(IRenderSurface surface, string message = Waiting for data…)
 ```
 
 - `Caption` — A caption in the top-left of an area — every placed widget's title.
-- `Crosshair` — Draws a crosshair at the pointer with a value readout, and does nothing when the pointer is elsewhere — so a visualizer can call it unconditionally.
+- `Crosshair` — Draws a crosshair at the pointer with a value readout, and does nothing when the pointer is elsewhere — so a visualizer can call it unconditionally. `area` confines it to one region and makes the readout mean that region's scale. Without it the crosshair spanned the whole surface, which is right for a panel that owns its viewport and wrong the moment a picture is composed of several: the lines ran across the neighbouring widgets and the value was read off the wrong axis. Every other routine in this library takes an area; this one did not, and it was the only exception.
 - `Frame` — Frames an area — the border around a widget placed on a canvas.
 - `FromY` — The inverse of `ToY`, for turning a cursor position back into a value.
 - `HorizontalGrid` — Draws horizontal gridlines with right-aligned value labels, and declares the Y axis. Ticks are chosen on a 1/2/5 progression so the labels land on numbers a human would have picked, rather than on whatever the span divided by a fixed count happens to be.
