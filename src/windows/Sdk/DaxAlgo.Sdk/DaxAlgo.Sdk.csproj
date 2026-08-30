@@ -1,10 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ── DaxAlgo plugin SDK (headless contract) ─────────────────────────────────────────────────
-       The stable, UI-free surface a strategy plugin compiles against: domain types, market-data
-       DTOs, the backtest IStrategyKernel/IBacktestStrategy contracts, parameter schema, quant math
-       (TradingTerminal.Core.Quant), and the ITradingStrategy / StrategyFactoryRegistration /
-       BacktestStrategyOption plugin seams.
+       The stable, UI-free surface an authored strategy or visualizer compiles against: the
+       IStrategyKernel / IVisualizer contracts, IRenderSurface with the Drawing widget library, the
+       Layout panel vocabulary, the Quant estimator library, the parameter schema, and the plugin
+       seams.
+
+       It said "quant math (TradingTerminal.Core.Quant)" from before the restructure, naming a
+       namespace that has not existed in this tree since — and it said it in the file that publishes
+       the package. That is the hand-maintained drift issue #44 is about. The maths is real again and
+       lives in DaxAlgo.Sdk.Quant, inside this assembly.
 
        v1 is a curated FAÇADE over TradingTerminal.Core (the host's already broker-/UI-free contract
        layer): a plugin references DaxAlgo.Sdk instead of naming host projects directly, which is the
@@ -14,9 +19,9 @@
     <IsPackable>true</IsPackable>
     <PackageId>DaxAlgo.Sdk</PackageId>
     <Version>$(DaxAlgoSdkVersion)</Version>
-    <PackageTags>daxalgo;trading;strategy;plugin;sdk</PackageTags>
+    <PackageTags>daxalgo;trading;strategy;visualizer;plugin;sdk;quant;indicators</PackageTags>
     <Authors>DaxAlgo</Authors>
-    <Description>DaxAlgo Terminal plugin SDK — the headless contract a strategy plugin compiles against (domain, market data, backtest kernels, parameter schema, quant math, plugin seams).</Description>
+    <Description>DaxAlgo Terminal plugin SDK — the headless contract an authored strategy or visualizer compiles against: the IStrategyKernel and IVisualizer lifecycles, the IRenderSurface drawing surface and its widget library, the panel layout vocabulary, a streaming quant estimator library, the parameter schema, and the plugin seams.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
