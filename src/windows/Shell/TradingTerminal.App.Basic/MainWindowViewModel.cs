@@ -508,7 +508,23 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             // instance to run. Asking the one that is running would mean reaching through the gate.
             var schema = SafeSchema(registration);
 
-            var unit = new AuthoredUnitHost(name, runtime.TryDraw, schema, values: null, LogSink);
+            // The apply and pause seams. The runtime already supports the exact flow an editable
+            // parameter needs — pause, set, resume, which rebuilds the session from the new values —
+            // so this is a wiring job rather than a lifecycle of its own. Passing them is also what
+            // makes the rows editable at all: a host that supplies neither gets the read-only window.
+            var unit = new AuthoredUnitHost(
+                name, runtime.TryDraw, schema, values: null, LogSink,
+                apply: async values =>
+                {
+                    if (runtime.IsRunning) await runtime.PauseAsync();
+                    foreach (var (key, value) in values) runtime.SetParameter(key, value);
+                    await runtime.ResumeAsync();
+                },
+                setPaused: async pause =>
+                {
+                    if (pause) await runtime.PauseAsync();
+                    else await runtime.ResumeAsync();
+                });
             var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);

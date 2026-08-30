@@ -102,8 +102,17 @@ public sealed class AuthoredUnitHostTests : IDisposable
             values: new Dictionary<string, object?> { ["levels"] = 25 });
 
         Assert.Equal(["Depth levels", "Smoothing", "Show POC"], host.Presenter.Parameters.Select(p => p.Label));
+
         // The supplied value wins; the others fall back to what the unit declared.
-        Assert.Equal(["25", "0.25", "on"], host.Presenter.Parameters.Select(p => p.Value));
+        //
+        // "true" rather than the prettier "on", and "0.25" invariantly rather than in the current
+        // culture, because this text is no longer display-only: an editable row parses it back on
+        // apply. A value formatted for reading and parsed for meaning is how a decimal comma turns
+        // 0.25 into 25.
+        Assert.Equal(["25", "0.25", "true"], host.Presenter.Parameters.Select(p => p.Value));
+
+        // Seeded, so nothing is pending before the user has touched anything.
+        Assert.All(host.Presenter.Parameters, p => Assert.False(p.IsDirty));
     }
 
     [Fact]
