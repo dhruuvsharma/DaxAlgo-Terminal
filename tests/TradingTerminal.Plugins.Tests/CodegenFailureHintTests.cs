@@ -71,6 +71,38 @@ public sealed class CodegenFailureHintTests
         OpenAiCompatibleCodegenClient.Hint(400, string.Empty, "big-pickle").Should().BeEmpty();
     }
 
+    // ── gateway failures ────────────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(502)]
+    [InlineData(503)]
+    [InlineData(504)]
+    public void A_gateway_giving_up_is_transient_and_says_so(int status)
+    {
+        // These come from the proxy in front of the model, not the model. On a reasoning model they
+        // mean it thought for longer than the hop allows — measured at 278 seconds before the first
+        // byte on a 67 KB prompt — which says nothing about the request.
+        OpenAiCompatibleCodegenClient.IsTransientGatewayFailure(status).Should().BeTrue();
+
+        var hint = OpenAiCompatibleCodegenClient.Hint(status, "<html>Gateway Timeout</html>", "kimi-k3");
+        hint.Should().Contain("gateway timed out");
+        hint.Should().Contain("faster one");
+        hint.Should().NotContain("API key", "a 504 is not a credential problem and must not send the user to one");
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(401)]
+    [InlineData(404)]
+    [InlineData(429)]
+    [InlineData(500)]
+    public void A_provider_refusal_is_not_retried(int status)
+    {
+        // 4xx is the provider telling you something you must fix; retrying it wastes another
+        // multi-minute generation and changes nothing. 500 is the model's own error, not the hop's.
+        OpenAiCompatibleCodegenClient.IsTransientGatewayFailure(status).Should().BeFalse();
+    }
+
     // ── base URL normalisation ──────────────────────────────────────────────────────────────────
 
     [Theory]

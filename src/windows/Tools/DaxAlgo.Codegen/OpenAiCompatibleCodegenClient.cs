@@ -94,9 +94,27 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             yield break;
         }
 
-        using var httpReq = BuildRequest(request, stream: true);
+        // Sent up to twice. A reasoning model on a big prompt emits NOTHING while it reasons —
+        // measured at 278 seconds before the first byte on a 67 KB prompt — and a gateway in front of
+        // it drops an idle connection with a 502/503/504. That is transient and worth one more go;
+        // losing a nine-minute generation to a proxy is not a failure the user can act on.
+        HttpResponseMessage? resp = null;
+        string? failure = null;
 
-        var (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            resp?.Dispose();
+
+            using var httpReq = BuildRequest(request, stream: true);
+            (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+
+            if (failure is not null || resp is null) break;
+            if (!IsTransientGatewayFailure((int)resp.StatusCode)) break;
+            if (attempt == 1) break;
+
+            yield return new CodegenEvent.TextDelta(string.Empty);   // keeps the turn visibly alive
+        }
+
         if (failure is not null)
         {
             yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(failure));
@@ -293,6 +311,16 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             : text;
     }
 
+    /// <summary>
+    /// Whether a status is a gateway giving up rather than the provider refusing.
+    ///
+    /// <para>502, 503 and 504 come from the proxy in front of the model, not the model. On a reasoning
+    /// model they mean "this took longer than the hop allows" — which says nothing about the request
+    /// and everything about how long the model thought. Distinguished from 4xx, which is the provider
+    /// telling you something you must fix and which must never be retried.</para>
+    /// </summary>
+    internal static bool IsTransientGatewayFailure(int status) => status is 502 or 503 or 504;
+
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
     /// <summary>
@@ -323,6 +351,14 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                 ? $" — the server does not know the model \"{model}\". Check the id on the provider's model list."
                 : $" — the server does not know the model \"{model}\". Some gateways publish ids for their"
                   + $" own config format; over this API the bare id is usually wanted, so try \"{bare}\".";
+        }
+
+        if (IsTransientGatewayFailure(status))
+        {
+            return " — the provider's gateway timed out, which on a reasoning model usually means it "
+                 + "thought for longer than the hop allows rather than that anything is wrong with the "
+                 + "request. Already retried once. If it keeps happening, the prompt is too large for "
+                 + "this model at this speed: pick a faster one in Provider settings.";
         }
 
         return status is 401 or 403
