@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Extensions.Logging.Abstractions;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Strategies;
@@ -21,8 +22,38 @@ namespace TradingTerminal.UI.Tests;
 ///
 /// <para>These drive the real view-model against a builder that fails the way a real one can.</para>
 /// </summary>
-public sealed class StrategyAuthoringSendTests
+public sealed class StrategyAuthoringSendTests : IDisposable
 {
+    /// <summary>
+    /// Redirects the saved-chat store for the fixture's life.
+    ///
+    /// <para>Not hygiene. A turn calls <c>Save()</c> in its finally, so without this these tests write
+    /// their fixtures into the chat list of whoever runs them — which is exactly what happened, and was
+    /// found by rendering the composer and seeing "Test strategy" in the session rail.</para>
+    /// </summary>
+    private readonly string _sessionDir = Path.Combine(
+        Path.GetTempPath(), "daxalgo-authoring-send-" + Guid.NewGuid().ToString("N"));
+
+    public StrategyAuthoringSendTests() => AuthoringSessionStore.Directory = _sessionDir;
+
+    public void Dispose()
+    {
+        AuthoringSessionStore.Directory = AuthoringSessionStore.DefaultDirectory;
+        try { System.IO.Directory.Delete(_sessionDir, recursive: true); } catch { /* best effort */ }
+    }
+
+    [Fact]
+    public void The_default_session_directory_is_what_the_app_would_use()
+    {
+        // The un-redirected value is a real path — the same guard AiCodegenUserFile carries, for the
+        // same reason: every test here reassigns it, so none of them would ever observe a broken one.
+        AuthoringSessionStore.Directory = null!;
+
+        Assert.False(string.IsNullOrWhiteSpace(AuthoringSessionStore.Directory));
+        Assert.Equal(AuthoringSessionStore.DefaultDirectory, AuthoringSessionStore.Directory);
+        Assert.True(Path.IsPathRooted(AuthoringSessionStore.Directory));
+    }
+
     [Fact]
     public async Task A_provider_that_throws_leaves_the_composer_usable()
     {

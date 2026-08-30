@@ -187,7 +187,9 @@ public sealed class MovingAverageCrossKernel : IStrategyKernel
 
         // The same two pictures the layout declares, divided with PlotArea instead of into real
         // panels. PlotArea divides a picture; UnitLayout divides a window.
-        var (chart, stats) = PlotArea.Of(surface).SplitBottom(58d);
+        // (Taken, Remainder): the strip comes back FIRST. Reversed, the chart gets 58 pixels at the
+        // bottom and the tiles get the whole panel.
+        var (stats, chart) = PlotArea.Of(surface).SplitBottom(58d);
         DrawChart(surface, chart);
         DrawStats(surface, stats);
     }

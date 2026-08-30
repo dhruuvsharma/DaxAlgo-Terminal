@@ -74,15 +74,19 @@ public static class Plot
         PlotRange range,
         int approximateLines = 5,
         string? format = null,
-        double labelWidth = 56d)
+        double labelWidth = 56d,
+        PlotArea area = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         if (!range.IsValid || approximateLines <= 0)
             return;
 
-        var viewport = surface.Viewport;
-        if (viewport.Width <= 0d || viewport.Height <= 0d)
-            return;
+        // Confined to its region, like every other routine here. Without this the grid lines and the
+        // value labels were drawn in SURFACE space whatever area the chart was given, so a composed
+        // picture had a chart's axis numbers floating over the tile strip above it and the histogram
+        // below it — labelled with a scale neither of them was drawn on.
+        if (!area.IsValid) area = PlotArea.Of(surface);
+        if (!area.IsValid) return;
 
         var step = NiceStep(range.Span / approximateLines);
         if (!double.IsFinite(step) || step <= 0d)
@@ -94,12 +98,12 @@ public static class Plot
 
         for (var value = first; value <= range.Maximum; value += step)
         {
-            var y = ToY(value, range, viewport.Height);
+            var y = area.ToY(value, range);
             surface.SetStyle(new RenderStyle(grid, Thickness: 1d, Alpha: 0.55d));
-            surface.Line(0d, y, viewport.Width - labelWidth, y);
+            surface.Line(area.X, y, area.Right - labelWidth, y);
 
             surface.SetStyle(new RenderStyle(text, FontSize: 10d));
-            surface.Text(viewport.Width - labelWidth + 4d, y + 4d, Format(value, format));
+            surface.Text(area.Right - labelWidth + 4d, y + 4d, Format(value, format));
         }
     }
 

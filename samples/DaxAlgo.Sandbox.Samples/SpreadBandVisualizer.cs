@@ -274,7 +274,10 @@ public sealed class SpreadBandVisualizer : IVisualizer
         using var panel = surface.Panel("Spread band", RenderPanelKind.Chart);
         if (Waiting(surface)) return;
 
-        var (chart, stats) = PlotArea.Of(surface).SplitBottom(58d);
+        // (Taken, Remainder) — SplitBottom hands back the STRIP FIRST and the rest second, so the
+        // stats strip is the first of the pair. Named the other way round it compiles, draws, and puts
+        // the chart in 58 pixels at the bottom with the tiles filling the panel above it.
+        var (stats, chart) = PlotArea.Of(surface).SplitBottom(58d);
         DrawChart(surface, chart);
         DrawStats(surface, stats);
     }

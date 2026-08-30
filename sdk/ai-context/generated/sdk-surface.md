@@ -941,7 +941,7 @@ void Caption(IRenderSurface surface, PlotArea area, string text, RenderThemeColo
 void Crosshair(IRenderSurface surface, PlotRange verticalRange, string format = null, PlotArea area = null)
 void Frame(IRenderSurface surface, PlotArea area, double alpha = 0.6)
 double FromY(double y, PlotRange range, double height)
-void HorizontalGrid(IRenderSurface surface, PlotRange range, int approximateLines = 5, string format = null, double labelWidth = 56)
+void HorizontalGrid(IRenderSurface surface, PlotRange range, int approximateLines = 5, string format = null, double labelWidth = 56, PlotArea area = null)
 double NiceStep(double rawStep)
 void Plate(IRenderSurface surface, PlotArea area, double alpha = 0.5)
 PlotRange RangeOf(IReadOnlyList<T> items, Func<T, double> select)

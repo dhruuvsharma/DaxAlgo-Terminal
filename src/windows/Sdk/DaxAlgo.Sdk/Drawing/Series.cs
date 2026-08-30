@@ -160,7 +160,10 @@ public static class Series
         range = range.Padded();
         if (!range.IsValid) return PlotRange.Empty;
 
-        Plot.HorizontalGrid(surface, range, format: valueFormat);
+        // The area, threaded through. Chart already computed it for the series and the legend and then
+        // drew its furniture without it, so the grid and the readout escaped the region the caller
+        // asked for.
+        Plot.HorizontalGrid(surface, range, format: valueFormat, area: area);
         surface.AxisX(0d, Math.Max(1, count - 1));
 
         for (var index = 0; index < series.Count; index++)
@@ -168,7 +171,7 @@ public static class Series
 
         if (legend) Legend.Draw(surface, series, area);
 
-        Plot.Crosshair(surface, range, valueFormat);
+        Plot.Crosshair(surface, range, valueFormat, area);
         return range;
     }
 }

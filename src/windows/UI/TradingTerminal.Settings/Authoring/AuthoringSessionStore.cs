@@ -77,7 +77,31 @@ public static class AuthoringSessionStore
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static string Directory { get; } = Path.Combine(
+    /// <summary>
+    /// Where saved chats live: <c>%LocalAppData%\DaxAlgo Terminaluthoring</c>.
+    ///
+    /// <para>Settable so a test can redirect it, and that is not hygiene — it is a bug that already
+    /// happened. A suite driving the real view-model runs turns, and a turn calls <c>Save()</c> in its
+    /// finally, so the tests wrote their fixtures into the developer's own chat list. It was found by
+    /// rendering the composer to a PNG and seeing "Test strategy" sitting in the session rail beside
+    /// real work. <see cref="AiCodegenUserFile.Path"/> carries the same redirect for the same reason,
+    /// discovered the same way.</para>
+    ///
+    /// <para>Computed rather than initialised, so it cannot be broken by reordering the declarations
+    /// above it — see that file for the startup crash that pattern prevents. Setting null restores the
+    /// default.</para>
+    /// </summary>
+    public static string Directory
+    {
+        get => _redirect ?? DefaultDirectory;
+        set => _redirect = value;
+    }
+
+    private static string? _redirect;
+
+    /// <summary>The real per-user location, kept separately so a test can put <see cref="Directory"/>
+    /// back.</summary>
+    public static string DefaultDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal",
         "authoring");

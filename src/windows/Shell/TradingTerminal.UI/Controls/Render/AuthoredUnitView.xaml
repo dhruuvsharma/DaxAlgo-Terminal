@@ -154,7 +154,13 @@
                         Command="{Binding TogglePauseCommand}"
                         Visibility="{Binding CanPause, Converter={StaticResource B2V}}">
                     <Button.Style>
-                        <Style TargetType="Button">
+                        <!-- BasedOn is load-bearing. A <Style TargetType="Button"> declared inline
+                             REPLACES the application's default Button style rather than extending it,
+                             so this rendered as stock WPF chrome — a pale grey slab with unreadable
+                             text — on a dark surface where every other button was themed. It was
+                             invisible in every test, because a control that is styled wrongly still
+                             measures, arranges and answers its bindings. -->
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                             <Setter Property="Content" Value="Pause" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsLive}" Value="False">
@@ -205,6 +211,35 @@
                   BorderBrush="{DynamicResource Border.Brush}"
                   BorderThickness="0,0,0,1"
                   Padding="12,8">
+            <!--
+                MahApps paints an expander header with MahApps.Brushes.Accent, which under the shipped
+                Dark.Blue theme is #FF2962FF — a saturated blue band across the full width of the
+                window, reading as a selection highlight and leaving the "PARAMETERS" caption nearly
+                unreadable on top of it.
+
+                Overridden HERE rather than app-wide: the accent is correct everywhere else it is used,
+                and a scoped resource is a local decision about one header rather than a change to
+                every MahApps control in the shell. DynamicResource in the template is what makes the
+                scoped override reach it.
+            -->
+            <Expander.Resources>
+                <!--
+                    Brushes over the theme's own COLOURS, resolved dynamically.
+
+                    `<StaticResource ResourceKey="Background.Elevated"/>` reads better and is wrong:
+                    StaticResource THROWS at parse time when the key is absent, and this control is
+                    base-layer — it loads in hosts that have not merged the theme, including its own
+                    test project, where every one of those loads died with "Cannot find resource named
+                    'Background.Elevated'". DynamicResource is what the rest of this file uses, for
+                    exactly that reason: a missing key costs the colour, not the window.
+                -->
+                <SolidColorBrush x:Key="MahApps.Brushes.Accent"
+                                 Color="{DynamicResource Background.Elevated.Color}" />
+                <SolidColorBrush x:Key="MahApps.Brushes.Accent2"
+                                 Color="{DynamicResource Background.Elevated.Color}" />
+                <SolidColorBrush x:Key="MahApps.Brushes.Highlight"
+                                 Color="{DynamicResource Border.Strong.Color}" />
+            </Expander.Resources>
             <Expander.Header>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="12"
