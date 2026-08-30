@@ -211,6 +211,7 @@ Running statistics of an equity curve: drawdown as it happens, and the risk-adju
 double AnnualizedSharpe(double samplesPerYear)
 double Calmar { get; }
 long Count { get; }
+double DownsideDeviation { get; }
 double Drawdown { get; }
 double Equity { get; }
 bool IsReady { get; }
@@ -227,6 +228,7 @@ double Volatility { get; }
 - `AnnualizedSharpe` — The Sharpe ratio scaled by the square root of `samplesPerYear`.
 - `Calmar` — Mean return over the worst drawdown — return per unit of the pain it took.
 - `Count` — How many marks have been recorded.
+- `DownsideDeviation` — Downside deviation: the root mean square of the negative returns, over every sample. Not the standard deviation of the losing samples, which is the plausible-looking version and is wrong in a way that flatters: a standard deviation is measured about the losses' own mean, so a strategy whose losses are all about the same size has a denominator near zero and a Sortino ratio near infinity — best score to the strategy with the most predictable losses. Measured about zero and divided by the full sample count, a run of uniform losses reports the downside it actually had.
 - `Drawdown` — How far below the peak equity is now, as a fraction in [0, 1].
 - `Equity` — The most recent equity mark.
 - `IsReady` — True from two marks, which is the first point at which a return exists.
@@ -234,7 +236,7 @@ double Volatility { get; }
 - `MeanReturn` — Mean return per sample.
 - `Peak` — The highest equity seen.
 - `Sharpe` — Mean over standard deviation, per sample. Excess of a risk-free rate is not subtracted: at intraday cadence it is noise, and pretending otherwise invents precision.
-- `Sortino` — Mean return over the deviation of the losing samples only.
+- `Sortino` — Mean return over the downside deviation.
 - `Update` — Records one equity mark.
 - `Volatility` — Standard deviation of return per sample.
 

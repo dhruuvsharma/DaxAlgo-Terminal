@@ -5,9 +5,9 @@ namespace DaxAlgo.Sdk.Quant;
 /// far.
 ///
 /// <para>This is the panel a trader actually looks at, and the reason it belongs in the SDK rather
-/// than in each strategy is that the definitions are where the disagreements are. Sortino divides by
-/// the deviation of the <b>downside only</b>; a Sortino computed against total deviation is a Sharpe
-/// with a different name and a better-looking number. Drawdown is measured from the running peak,
+/// than in each strategy is that the definitions are where the disagreements are, and every wrong one
+/// reads high. Sortino divides by <see cref="DownsideDeviation"/> — measured about zero over every
+/// sample, not the standard deviation of the losing ones. Drawdown is measured from the running peak,
 /// not from the start, so a strategy up thirty percent and then down ten reports the ten.</para>
 ///
 /// <para>Feed it equity, on whatever cadence the strategy marks at — per bar is usual. The ratios are
@@ -16,8 +16,8 @@ namespace DaxAlgo.Sdk.Quant;
 public sealed class EquityStats
 {
     private readonly Welford _returns = new();
-    private readonly Welford _downside = new();
 
+    private double _downsideSquares;
     private double _previous;
     private bool _seeded;
 
@@ -50,8 +50,20 @@ public sealed class EquityStats
     /// subtracted: at intraday cadence it is noise, and pretending otherwise invents precision.</summary>
     public double Sharpe => Num.SafeDiv(MeanReturn, Volatility);
 
-    /// <summary>Mean return over the deviation of the losing samples only.</summary>
-    public double Sortino => Num.SafeDiv(MeanReturn, _downside.StandardDeviation);
+    /// <summary>
+    /// Downside deviation: the root mean square of the negative returns, over <b>every</b> sample.
+    ///
+    /// <para>Not the standard deviation of the losing samples, which is the plausible-looking version
+    /// and is wrong in a way that flatters: a standard deviation is measured about the losses' own
+    /// mean, so a strategy whose losses are all about the same size has a denominator near zero and a
+    /// Sortino ratio near infinity — best score to the strategy with the most predictable losses.
+    /// Measured about zero and divided by the full sample count, a run of uniform losses reports the
+    /// downside it actually had.</para>
+    /// </summary>
+    public double DownsideDeviation => Math.Sqrt(Num.SafeDiv(_downsideSquares, _returns.Count));
+
+    /// <summary>Mean return over the downside deviation.</summary>
+    public double Sortino => Num.SafeDiv(MeanReturn, DownsideDeviation);
 
     /// <summary>Mean return over the worst drawdown — return per unit of the pain it took.</summary>
     public double Calmar => Num.SafeDiv(MeanReturn, MaximumDrawdown);
@@ -81,7 +93,7 @@ public sealed class EquityStats
         _previous = equity;
 
         _returns.Update(change);
-        if (change < 0d) _downside.Update(change);
+        if (change < 0d) _downsideSquares += change * change;
 
         if (equity > Peak) Peak = equity;
         if (Drawdown > MaximumDrawdown) MaximumDrawdown = Drawdown;
@@ -91,7 +103,7 @@ public sealed class EquityStats
     public void Reset()
     {
         _returns.Reset();
-        _downside.Reset();
+        _downsideSquares = 0d;
         _previous = 0d;
         _seeded = false;
         Equity = 0d;

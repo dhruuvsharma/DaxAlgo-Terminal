@@ -765,6 +765,49 @@ public sealed class QuantEstimatorTests
     }
 
     [Fact]
+    public void UniformLossesDoNotFlatterTheSortinoRatio()
+    {
+        // The plausible-looking version divides by the STANDARD DEVIATION of the losing samples,
+        // measured about the losses' own mean — so a curve whose losses are all the same size has a
+        // denominator near zero and a Sortino near infinity. Best score to the strategy with the most
+        // predictable losses. Downside deviation is measured about zero over every sample, so uniform
+        // losses report the downside they actually had.
+        var stats = new EquityStats();
+        var equity = 1000d;
+        stats.Update(equity);
+        for (var i = 0; i < 40; i++)
+        {
+            equity *= i % 2 == 0 ? 1.02d : 0.99d;
+            stats.Update(equity);
+        }
+
+        Assert.True(stats.DownsideDeviation > 0.005d);
+        Assert.True(double.IsFinite(stats.Sortino));
+        Assert.InRange(stats.Sortino, 0d, 5d);
+    }
+
+    [Fact]
+    public void DownsideDeviationCountsEverySampleNotOnlyTheLosingOnes()
+    {
+        // Two curves with the SAME losses and different numbers of flat periods must not report the
+        // same downside: risk per period is what the ratio is per period of.
+        var frequent = new EquityStats();
+        var rare = new EquityStats();
+
+        frequent.Update(100d);
+        frequent.Update(99d);
+        frequent.Update(98.01d);
+
+        rare.Update(100d);
+        rare.Update(99d);
+        rare.Update(99d);
+        rare.Update(99d);
+        rare.Update(98.01d);
+
+        Assert.True(frequent.DownsideDeviation > rare.DownsideDeviation);
+    }
+
+    [Fact]
     public void AFlatCurveHasNoSharpeRatherThanAnInfiniteOne()
     {
         var stats = new EquityStats();
