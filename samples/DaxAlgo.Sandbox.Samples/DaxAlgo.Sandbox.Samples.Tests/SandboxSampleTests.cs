@@ -194,6 +194,24 @@ public sealed class SandboxSampleTests
     }
 
     [Fact]
+    public void MovingAverageCrossDeclaresTheWindowItDraws()
+    {
+        // A strategy is not obliged to declare a layout, and most do not need one. The exemplar does,
+        // because a generated unit that has never seen a two-panel window will never build one.
+        var layout = new MovingAverageCrossKernel().Layout;
+
+        Assert.False(layout.IsSingle);
+        Assert.Equal(["Moving average cross", "Signal"], layout.Panels().Select(p => p.Title));
+
+        foreach (var panel in layout.Panels())
+        {
+            var surface = new RecordingRenderSurface();
+            panel.Draw(surface);
+            Assert.False(surface.IsBlank, $"panel '{panel.Title}' painted nothing");
+        }
+    }
+
+    [Fact]
     public void SpreadBandVisualizerDeclaresTheTwoPanelWindowItDraws()
     {
         // The exemplar is what Hyperion is shown as the shape to aim for, so it has to demonstrate the
