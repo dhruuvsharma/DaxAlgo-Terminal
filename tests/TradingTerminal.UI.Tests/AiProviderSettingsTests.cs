@@ -239,6 +239,185 @@ public sealed class AiProviderSettingsTests : IDisposable
         Assert.StartsWith(_configDir, AiCodegenUserFile.Path);
     }
 
+    // -- adding a provider the app never heard of ------------------------------------------------
+
+    [Fact]
+    public void APresetProviderCanBeAddedAndReachesTheFactoryImmediately()
+    {
+        // The gap this closes: the pane could edit the providers appsettings.json ships and could not
+        // add one, so reaching Groq meant hand-editing a JSON file in LocalAppData.
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+
+        pane.SelectedPreset = AiProviderCatalog.Find("groq");
+        pane.AddProviderCommand.Execute(null);
+
+        Assert.True(options.Providers.ContainsKey("groq"));
+        Assert.Equal("https://api.groq.com/openai/v1", options.Providers["groq"].BaseUrl);
+        Assert.True(options.Providers["groq"].IsUserDefined);
+        Assert.Contains(pane.Providers, p => p.ProviderId == "groq");
+    }
+
+    [Fact]
+    public void AProviderAddedFromTheBlankRowTakesASlugOfItsName()
+    {
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+
+        pane.SelectedPreset = AiProviderCatalog.Presets[^1]; // the blank row
+        pane.NewProviderName = "Company Gateway";
+        pane.NewProviderBaseUrl = "https://gateway.example.com/v1";
+        pane.AddProviderCommand.Execute(null);
+
+        Assert.True(options.Providers.ContainsKey("company-gateway"));
+        Assert.Equal("Company Gateway", options.Providers["company-gateway"].DisplayName);
+    }
+
+    [Fact]
+    public void AddingTheSamePresetTwiceDoesNotOverwriteTheFirst()
+    {
+        // Same id would mean the same config key AND the same credential-store entry, so the second
+        // add would quietly take the first one's key with it.
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+        pane.SelectedPreset = AiProviderCatalog.Find("groq");
+
+        pane.AddProviderCommand.Execute(null);
+        options.Providers["groq"].Model = "pinned";
+        pane.AddProviderCommand.Execute(null);
+
+        Assert.Equal("pinned", options.Providers["groq"].Model);
+        Assert.True(options.Providers.ContainsKey("groq-2"));
+    }
+
+    [Fact]
+    public void AnEndpointThatIsNotAUrlIsRefusedWhenItIsTyped()
+    {
+        // Otherwise it presents at the first generation as the provider being unavailable, and the
+        // user goes looking at their key.
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+
+        pane.SelectedPreset = AiProviderCatalog.Presets[^1];
+        pane.NewProviderName = "Typo";
+        pane.NewProviderBaseUrl = "api.example.com/v1";
+        pane.AddProviderCommand.Execute(null);
+
+        Assert.False(options.Providers.ContainsKey("typo"));
+        Assert.Contains("http", pane.Status);
+    }
+
+    [Fact]
+    public void AddingAnAzurePresetCarriesTheApiVersionItCannotWorkWithout()
+    {
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+
+        pane.SelectedPreset = AiProviderCatalog.Find("azure");
+        pane.NewProviderBaseUrl = "https://contoso.openai.azure.com";
+        pane.AddProviderCommand.Execute(null);
+
+        var added = options.Providers["azure"];
+        Assert.Equal(AiCodegenProviderKind.AzureOpenAi, added.Kind);
+        Assert.Equal(AiCodegenProvider.DefaultAzureApiVersion, added.ApiVersion);
+        Assert.True(pane.Providers.Single(p => p.ProviderId == "azure").IsAzure);
+        Assert.Equal("Deployment", pane.Providers.Single(p => p.ProviderId == "azure").ModelLabel);
+    }
+
+    [Fact]
+    public void RemovingAProviderTheUserAddedForgetsItAndItsKey()
+    {
+        var keys = new FakeKeyStore();
+        var options = Options();
+        var pane = Pane(keys, options);
+
+        pane.SelectedPreset = AiProviderCatalog.Find("groq");
+        pane.AddProviderCommand.Execute(null);
+
+        var row = pane.Providers.Single(p => p.ProviderId == "groq");
+        row.KeyEntry = "gsk-test";
+        pane.SaveKeyCommand.Execute(row);
+
+        pane.RemoveProviderCommand.Execute(pane.Providers.Single(p => p.ProviderId == "groq"));
+
+        Assert.False(options.Providers.ContainsKey("groq"));
+        Assert.False(keys.HasKey("groq"));
+        Assert.DoesNotContain(pane.Providers, p => p.ProviderId == "groq");
+    }
+
+    [Fact]
+    public void AShippedProviderCannotBeRemoved_AndSaysWhy()
+    {
+        // It is layered under appsettings.json, so it would be back on the next start. A delete that
+        // silently undoes itself is worse than no delete.
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+
+        pane.RemoveProviderCommand.Execute(pane.Providers.Single(p => p.ProviderId == "openai"));
+
+        Assert.True(options.Providers.ContainsKey("openai"));
+        Assert.Contains("ships with the app", pane.Status);
+    }
+
+    [Fact]
+    public void RemovingTheDefaultProviderClearsTheDefault()
+    {
+        // Otherwise the builder opens on a provider that no longer exists.
+        var keys = new FakeKeyStore();
+        var options = Options();
+        var pane = Pane(keys, options);
+
+        pane.SelectedPreset = AiProviderCatalog.Find("groq");
+        pane.AddProviderCommand.Execute(null);
+
+        var row = pane.Providers.Single(p => p.ProviderId == "groq");
+        row.KeyEntry = "gsk-test";
+        pane.SaveKeyCommand.Execute(row);
+        pane.MakeDefaultCommand.Execute(pane.Providers.Single(p => p.ProviderId == "groq"));
+        Assert.Equal("groq", options.DefaultProvider);
+
+        pane.RemoveProviderCommand.Execute(pane.Providers.Single(p => p.ProviderId == "groq"));
+
+        Assert.Empty(options.DefaultProvider);
+    }
+
+    [Fact]
+    public async Task RefreshingModelsFillsThePickerAndAdoptsTheFirstWhenNoneIsSet()
+    {
+        var pane = Pane(new FakeKeyStore());
+        var row = pane.Providers.Single(p => p.ProviderId == "openai");
+        row.Model = string.Empty;
+
+        await pane.RefreshModelsCommand.ExecuteAsync(row);
+
+        Assert.Equal(["model-a", "model-b"], row.AvailableModels);
+        Assert.Equal("model-a", row.Model);
+        Assert.Contains("2 model", pane.Status);
+    }
+
+    [Fact]
+    public async Task AnEndpointThatListsNothingSaysWhatToCheck()
+    {
+        // A model list coming back is the only proof that the URL resolves, the key is accepted AND
+        // the wire kind is right. When it does not, saying which three things to look at is the whole
+        // value of the control.
+        var keys = new FakeKeyStore();
+        var options = Options();
+        var pane = Pane(keys, options);
+
+        pane.SelectedPreset = AiProviderCatalog.Find("groq");
+        pane.AddProviderCommand.Execute(null);
+
+        var row = pane.Providers.Single(p => p.ProviderId == "groq");
+        row.KeyEntry = "gsk-test";
+        pane.SaveKeyCommand.Execute(row);
+
+        await pane.RefreshModelsCommand.ExecuteAsync(pane.Providers.Single(p => p.ProviderId == "groq"));
+
+        Assert.Empty(pane.Providers.Single(p => p.ProviderId == "groq").AvailableModels);
+        Assert.Contains("wire kind", pane.Status);
+    }
+
     // ── fakes ───────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Rebuilds its clients on every read, exactly as the real factory-backed builder does.</summary>
@@ -276,6 +455,11 @@ public sealed class AiProviderSettingsTests : IDisposable
         public string ProviderId => id;
         public string DisplayName => id;
         public bool IsAvailable => available;
+
+        /// <summary>Only the shipped provider answers, so a test can tell "this endpoint serves
+        /// models" from "this endpoint answered nothing" without a network.</summary>
+        public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<string>>(id == "openai" ? ["model-a", "model-b"] : []);
 
         public Task<StrategyCodegenResponse> GenerateAsync(
             StrategyCodegenRequest request, CancellationToken ct = default) =>

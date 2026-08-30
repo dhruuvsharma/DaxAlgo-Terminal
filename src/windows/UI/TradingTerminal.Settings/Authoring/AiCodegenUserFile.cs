@@ -103,6 +103,42 @@ public static class AiCodegenUserFile
         provider["BaseUrl"] = Blank(config.BaseUrl);
         provider["Model"] = Blank(config.Model);
         provider["CliProfile"] = Blank(config.CliProfile);
+        provider["DisplayName"] = Blank(config.DisplayName);
+        provider["ApiVersion"] = Blank(config.ApiVersion);
+
+        // Written only when true. A shipped provider that gained a key would otherwise acquire
+        // "IsUserDefined": false in the user file, which reads as a claim rather than a default.
+        if (config.IsUserDefined) provider["IsUserDefined"] = true;
+
+        Write(root);
+    }
+
+    /// <summary>
+    /// Forgets a provider the user added.
+    ///
+    /// <para>Only meaningful for a user-defined one. Removing a shipped provider's section here would
+    /// delete the user's overrides and leave the provider itself in place, because
+    /// <c>appsettings.json</c> is layered underneath — so it would present as a delete that did
+    /// nothing. The caller enforces that; this just does what it is told.</para>
+    ///
+    /// <para>The provider's API key is <b>not</b> removed here. Keys live in the credential store,
+    /// which this class deliberately cannot reach, and the caller clears it separately — a key left
+    /// behind for an id nobody uses is inert, but a config file that silently deletes credentials is
+    /// not something to build by accident.</para>
+    /// </summary>
+    public static void RemoveProvider(string providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+
+        var root = Read();
+        if (Section(root)["Providers"] is not JsonObject providers) return;
+        if (!providers.Remove(providerId)) return;
+
+        // A default pointing at a provider that no longer exists makes the builder open on nothing.
+        var section = Section(root);
+        if (section["DefaultProvider"]?.GetValue<string>() is { } current &&
+            current.Equals(providerId, StringComparison.OrdinalIgnoreCase))
+            section.Remove("DefaultProvider");
 
         Write(root);
     }

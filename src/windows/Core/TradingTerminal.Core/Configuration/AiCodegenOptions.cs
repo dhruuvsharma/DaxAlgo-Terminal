@@ -22,16 +22,58 @@ public sealed class AiCodegenProvider
     /// <summary>Wire protocol. Keys are never stored here — they live in the DPAPI credential store,
     /// looked up by <see cref="AiCodegenOptions.SectionName"/> + provider id.</summary>
     public AiCodegenProviderKind Kind { get; set; } = AiCodegenProviderKind.OpenAiCompatible;
+
+    /// <summary>
+    /// What to call this provider in the picker. Empty for a shipped provider, whose name the app
+    /// already knows; set for one the user added, which otherwise has nothing to show but its id.
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Azure OpenAI's <c>api-version</c> query value — the only field Azure needs that no other
+    /// provider has. Ignored by every other <see cref="Kind"/>.
+    ///
+    /// <para>Azure versions its API by date rather than by path, so this is not optional there and
+    /// there is no safe default to guess: an old value silently disables newer parameters, and a
+    /// value the resource does not recognise is a hard 404. Empty falls back to
+    /// <see cref="DefaultAzureApiVersion"/>.</para>
+    /// </summary>
+    public string ApiVersion { get; set; } = string.Empty;
+
+    /// <summary>The api-version used when a provider of kind
+    /// <see cref="AiCodegenProviderKind.AzureOpenAi"/> does not name one.</summary>
+    public const string DefaultAzureApiVersion = "2024-10-21";
+
+    /// <summary>
+    /// True when the user added this provider rather than the app shipping it.
+    ///
+    /// <para>The distinction is only about what may be deleted. A shipped row can have its key
+    /// cleared and its endpoint edited but must survive, because <c>appsettings.json</c> would put it
+    /// straight back and a user who "removed" it would meet it again on the next start. A row the
+    /// user created exists only in their own config and can genuinely go.</para>
+    /// </summary>
+    public bool IsUserDefined { get; set; }
 }
 
 /// <summary>Which wire protocol a keyed provider speaks.</summary>
 public enum AiCodegenProviderKind
 {
-    /// <summary><c>POST /v1/chat/completions</c> (OpenAI, DeepSeek, xAI, OpenRouter, Ollama).</summary>
+    /// <summary><c>POST /v1/chat/completions</c> — OpenAI, DeepSeek, xAI, OpenRouter, Groq, Mistral,
+    /// Together, Fireworks, Cerebras, Gemini's compatibility endpoint, a local Ollama or vLLM, or any
+    /// private gateway that speaks the same shape. This is what "any provider" mostly means.</summary>
     OpenAiCompatible,
 
     /// <summary>Anthropic <c>POST /v1/messages</c>.</summary>
     Anthropic,
+
+    /// <summary>
+    /// Azure OpenAI. The same request and response bodies as
+    /// <see cref="OpenAiCompatible"/>, and three differences that make the plain client 404: the
+    /// deployment name sits in the path instead of the body, the API is versioned by an
+    /// <c>api-version</c> query parameter, and the key goes in an <c>api-key</c> header rather than
+    /// as a bearer token.
+    /// </summary>
+    AzureOpenAi,
 }
 
 /// <summary>

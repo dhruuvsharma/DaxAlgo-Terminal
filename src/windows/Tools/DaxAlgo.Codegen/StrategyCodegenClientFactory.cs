@@ -128,11 +128,29 @@ public sealed class StrategyCodegenClientFactory
         {
             AiCodegenProviderKind.Anthropic =>
                 new AnthropicCodegenClient(http, provider.BaseUrl, effectiveModel, key, effectiveEffort),
+            AiCodegenProviderKind.AzureOpenAi => new OpenAiCompatibleCodegenClient(
+                http, id, DisplayNameFor(id, provider), provider.BaseUrl, effectiveModel, key,
+                effort: effectiveEffort,
+                azureApiVersion: Blank(provider.ApiVersion)
+                    ? AiCodegenProvider.DefaultAzureApiVersion
+                    : provider.ApiVersion),
             _ => new OpenAiCompatibleCodegenClient(
-                http, id, DisplayNameFor(id), provider.BaseUrl, effectiveModel, key,
-                keyless: isOllama, effort: effectiveEffort),
+                http, id, DisplayNameFor(id, provider), provider.BaseUrl, effectiveModel, key,
+                keyless: isOllama || IsLoopback(provider.BaseUrl), effort: effectiveEffort),
         };
     }
+
+    /// <summary>
+    /// True for an endpoint on this machine.
+    ///
+    /// <para>A local server — Ollama under another name, LM Studio, vLLM, a LiteLLM proxy — needs no
+    /// key, and a keyed client with no key reports itself unavailable. Before this, only the provider
+    /// literally named <c>ollama</c> was exempt, so a user pointing a custom provider at
+    /// <c>http://localhost:1234/v1</c> got a row that said "no key yet" about a server that does not
+    /// want one.</para>
+    /// </summary>
+    private static bool IsLoopback(string? baseUrl) =>
+        Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) && uri.IsLoopback;
 
     /// <summary>An agent CLI can also be pinned to a model/effort in config
     /// (<c>AiCodegen:Providers:claude-cli:Model</c>) even though it needs no BaseUrl/key — that is the
@@ -153,6 +171,11 @@ public sealed class StrategyCodegenClientFactory
             : null;
 
     private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
+
+    /// <summary>What the picker calls a provider. A name the user gave when adding it wins over
+    /// anything derived here — they named it, and an id is what they were trying to avoid seeing.</summary>
+    private static string DisplayNameFor(string id, AiCodegenProvider provider) =>
+        string.IsNullOrWhiteSpace(provider.DisplayName) ? DisplayNameFor(id) : provider.DisplayName;
 
     private static string DisplayNameFor(string id) => id switch
     {

@@ -3,7 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  Title="AI providers"
-                 Width="820" Height="560" MinWidth="620" MinHeight="420"
+                 Width="880" Height="640" MinWidth="660" MinHeight="480"
                  WindowStartupLocation="CenterOwner"
                  ShowMaxRestoreButton="False"
                  Background="{DynamicResource Background.Primary}">
@@ -45,7 +45,7 @@
 
     <Grid Margin="14">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="228" />
+            <ColumnDefinition Width="250" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
@@ -62,6 +62,45 @@
                     Command="{Binding RecheckCommand}"
                     ToolTip="Look again for installed CLIs and stored keys" />
 
+            <!--
+                Adding a provider the app never heard of.
+
+                Collapsed by default because most people never open it, and load-bearing because
+                without it "bring your own provider" was true of the config file and false of the
+                product: the pane could edit the eight providers appsettings.json ships and could not
+                add a ninth, so reaching Groq or a local LM Studio meant hand-editing a JSON file in
+                LocalAppData.
+            -->
+            <Expander DockPanel.Dock="Bottom" Margin="0,8,0,0" Header="Add a provider…"
+                      Foreground="{DynamicResource Text.Secondary}" FontSize="11">
+                <StackPanel Margin="2,8,2,0">
+                    <ComboBox ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset}"
+                              DisplayMemberPath="DisplayName"
+                              Padding="6,4" FontSize="11.5" />
+
+                    <TextBlock Text="{Binding SelectedPreset.Note}" TextWrapping="Wrap"
+                               FontSize="10.5" Margin="2,6,0,0"
+                               Foreground="{DynamicResource Text.Secondary}" />
+
+                    <!-- Only the blank row needs a name; a preset already has one, and asking for it
+                         again would read as a required field. -->
+                    <TextBox Text="{Binding NewProviderName, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,7,0,0" Padding="6,4" FontSize="11.5"
+                             mah:TextBoxHelper.Watermark="Name, e.g. Company gateway"
+                             Visibility="{Binding IsCustomPreset, Converter={StaticResource B2V}}" />
+
+                    <TextBox Text="{Binding NewProviderBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,6,0,0" Padding="6,4" FontSize="11"
+                             FontFamily="{DynamicResource Font.Data}"
+                             mah:TextBoxHelper.Watermark="https://…/v1" />
+
+                    <Button Content="Add" Margin="0,8,0,0" Padding="12,4"
+                            HorizontalAlignment="Left"
+                            Command="{Binding AddProviderCommand}" />
+                </StackPanel>
+            </Expander>
+
             <ListBox ItemsSource="{Binding Providers}" SelectedItem="{Binding Selected}"
                      ItemTemplate="{StaticResource ProviderListRow}"
                      BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
@@ -76,8 +115,22 @@
                 DataContext="{Binding Selected}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="Bold"
-                               Foreground="{DynamicResource Text.Header}" />
+                    <DockPanel>
+                        <!-- Only a provider the user added can be removed. A shipped one is layered
+                             under appsettings.json and would be back on the next start, so the button
+                             is absent rather than present and misleading. -->
+                        <Button DockPanel.Dock="Right" Content="Remove" Padding="10,3"
+                                VerticalAlignment="Top"
+                                Command="{Binding DataContext.RemoveProviderCommand,
+                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                Visibility="{Binding IsUserDefined, Converter={StaticResource B2V}}"
+                                ToolTip="Forget this provider and its key" />
+
+                        <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="Bold"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource Text.Header}" />
+                    </DockPanel>
                     <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="11"
                                Margin="0,4,0,0" Foreground="{DynamicResource Text.Secondary}" />
 
@@ -116,7 +169,22 @@
                                  FontFamily="{DynamicResource Font.Data}" />
                         <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
                                    Foreground="{DynamicResource Text.Secondary}"
-                                   Text="Point this at a compatible gateway or a local server (Ollama, LM Studio) to keep the whole exchange on your own machine." />
+                                   Text="Point this at a compatible gateway or a local server (Ollama, LM Studio, vLLM) to keep the whole exchange on your own machine." />
+
+                        <!-- Azure versions its API by date rather than by path, so this is not
+                             optional there and there is nothing safe to guess: an old value silently
+                             disables newer parameters, and an unrecognised one is a hard 404. -->
+                        <StackPanel Visibility="{Binding IsAzure, Converter={StaticResource B2V}}">
+                            <TextBlock Text="API VERSION" FontSize="9.5" FontWeight="Bold"
+                                       Margin="0,16,0,0"
+                                       Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+                            <TextBox Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,5,0,0" Padding="7,5" FontSize="12"
+                                     FontFamily="{DynamicResource Font.Data}" />
+                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
+                                       Foreground="{DynamicResource Text.Secondary}"
+                                       Text="Azure only. Take it from the resource's own API reference; a version it does not recognise answers 404 rather than an error you can read." />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- ── Agent CLIs ───────────────────────────────────────────────────────── -->
@@ -133,11 +201,28 @@
                     </StackPanel>
 
                     <!-- ── Both ─────────────────────────────────────────────────────────────── -->
-                    <TextBlock Text="MODEL" FontSize="9.5" FontWeight="Bold" Margin="0,16,0,0"
-                               Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-                    <TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
-                             Margin="0,5,0,0" Padding="7,5" FontSize="12"
-                             FontFamily="{DynamicResource Font.Data}" />
+                    <DockPanel Margin="0,16,0,0">
+                        <!-- Asking the endpoint what it serves is the only control here that proves
+                             anything: a list coming back means the URL resolves, the key is accepted
+                             AND the wire kind is right. Those are the three ways this goes wrong, and
+                             otherwise they are told apart by spending a generation. -->
+                        <Button DockPanel.Dock="Right" Content="Refresh models" Padding="10,3"
+                                VerticalAlignment="Bottom"
+                                Command="{Binding DataContext.RefreshModelsCommand,
+                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                        <TextBlock Text="{Binding ModelLabel}" FontSize="9.5" FontWeight="Bold"
+                                   VerticalAlignment="Bottom"
+                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
+                    </DockPanel>
+
+                    <!-- Editable, not a plain dropdown: the list is what the endpoint reports, and a
+                         model it does not advertise is still often callable. -->
+                    <ComboBox IsEditable="True"
+                              ItemsSource="{Binding AvailableModels}"
+                              Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,5,0,0" Padding="7,5" FontSize="12"
+                              FontFamily="{DynamicResource Font.Data}" />
                     <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
                                Foreground="{DynamicResource Text.Secondary}"
                                Text="Empty means the provider's own default. The composer can still switch model per session — this is what it opens with." />

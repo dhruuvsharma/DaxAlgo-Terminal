@@ -8,9 +8,16 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
 /// <summary>
 /// Codegen over the OpenAI <c>POST {baseUrl}/chat/completions</c> shape — which OpenAI, DeepSeek, xAI
-/// (Grok), OpenRouter, and a local Ollama server all speak. One client, chosen by base URL + key + model.
-/// The context pack goes as the system message; the conversation follows. Only the prompt + pack leave
-/// the machine, to the endpoint the user configured.
+/// (Grok), OpenRouter, Groq, Mistral, Together, Fireworks, Cerebras, Gemini's compatibility endpoint,
+/// a local Ollama or vLLM server, and most private gateways all speak. One client, chosen by base URL
+/// + key + model. The context pack goes as the system message; the conversation follows. Only the
+/// prompt + pack leave the machine, to the endpoint the user configured.
+///
+/// <para><b>Azure OpenAI rides the same client.</b> Its request and response bodies are identical;
+/// what differs is only the envelope — the deployment name in the path rather than the body, an
+/// <c>api-version</c> query parameter, and an <c>api-key</c> header instead of a bearer token. That
+/// is three lines of addressing, not a protocol, so forking a second client for it would duplicate
+/// the streaming parser, the retry and the usage handling to change a URL.</para>
 /// </summary>
 public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 {
@@ -25,9 +32,12 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// provider reports unavailable unless <paramref name="keyless"/> is set.</param>
     /// <param name="keyless">True for a local endpoint that needs no key (Ollama) — then availability
     /// depends only on a configured base URL.</param>
+    /// <param name="azureApiVersion">Non-empty switches this client to the Azure OpenAI envelope. Null
+    /// or empty is the ordinary OpenAI-compatible shape.</param>
     public OpenAiCompatibleCodegenClient(
         HttpClient http, string providerId, string displayName, string baseUrl, string model,
-        string? apiKey, bool keyless = false, CodegenEffort effort = CodegenEffort.Default)
+        string? apiKey, bool keyless = false, CodegenEffort effort = CodegenEffort.Default,
+        string? azureApiVersion = null)
     {
         _http = http;
         ProviderId = providerId;
@@ -37,10 +47,36 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         _apiKey = NormaliseApiKey(apiKey);
         _keyless = keyless;
         _effort = effort;
+        _azureApiVersion = string.IsNullOrWhiteSpace(azureApiVersion) ? null : azureApiVersion.Trim();
     }
 
     private readonly bool _keyless;
     private readonly CodegenEffort _effort;
+    private readonly string? _azureApiVersion;
+
+    /// <summary>True when this client is addressing Azure OpenAI.</summary>
+    private bool IsAzure => _azureApiVersion is not null;
+
+    /// <summary>Where a completion is posted. On Azure the model is the DEPLOYMENT name and it lives
+    /// in the path, so a deployment named differently from the model is addressed correctly.</summary>
+    private string CompletionsUrl => IsAzure
+        ? $"{_baseUrl}/openai/deployments/{Uri.EscapeDataString(_model)}/chat/completions?api-version={Uri.EscapeDataString(_azureApiVersion!)}"
+        : $"{_baseUrl}/chat/completions";
+
+    /// <summary>Where the model list is read from.</summary>
+    private string ModelsUrl => IsAzure
+        ? $"{_baseUrl}/openai/models?api-version={Uri.EscapeDataString(_azureApiVersion!)}"
+        : $"{_baseUrl}/models";
+
+    /// <summary>Attaches the key the way this endpoint expects it. Azure reads <c>api-key</c> and
+    /// ignores <c>Authorization</c> entirely, which presents as a 401 with a correct key.</summary>
+    private void Authorize(HttpRequestMessage request)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey)) return;
+
+        if (IsAzure) request.Headers.TryAddWithoutValidation("api-key", _apiKey);
+        else request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+    }
 
     public string ProviderId { get; }
     public string DisplayName { get; }
@@ -59,9 +95,8 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     {
         if (string.IsNullOrWhiteSpace(_baseUrl)) return [];
 
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/models");
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-            req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+        using var req = new HttpRequestMessage(HttpMethod.Get, ModelsUrl);
+        Authorize(req);
 
         try
         {
@@ -214,12 +249,11 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             Stream: stream ? true : null,
             StreamOptions: stream ? new WireStreamOptions(true) : null);
 
-        var httpReq = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions")
+        var httpReq = new HttpRequestMessage(HttpMethod.Post, CompletionsUrl)
         {
             Content = JsonContent.Create(body, options: Json),
         };
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-            httpReq.Headers.TryAddWithoutValidation("Authorization", $"Bearer {_apiKey}");
+        Authorize(httpReq);
         return httpReq;
     }
 
