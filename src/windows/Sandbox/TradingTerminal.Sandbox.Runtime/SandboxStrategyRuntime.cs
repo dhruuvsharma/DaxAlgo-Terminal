@@ -56,6 +56,19 @@ public sealed class SandboxStrategyRuntime :
     private readonly Action<AlertRecord> _showBanner;
     private readonly int _retentionBound;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+
+    /// <summary>
+    /// Held across each event's whole consistency window, and taken without waiting by
+    /// <see cref="TryDraw"/>.
+    ///
+    /// <para>Separate from <see cref="_lifecycleGate"/>, which serialises start/pause/resume/stop. This
+    /// one serialises a FRAME against a CALLBACK, which is a different question: a kernel mutates its
+    /// own fields in <c>OnBarAsync</c> and reads them in <c>Draw</c>, and the two run on different
+    /// threads at different rates.</para>
+    /// </summary>
+    private readonly SemaphoreSlim _drawGate = new(1, 1);
+
+    private long _skippedFrameCount;
     private readonly object _parameterGate = new();
     private readonly StrategyParameters _currentParameters;
     private readonly object _snapshotGate = new();
@@ -134,6 +147,133 @@ public sealed class SandboxStrategyRuntime :
     /// per market event to a UI thread.
     /// </summary>
     public event Action<IModelPortfolio>? SnapshotChanged;
+
+    /// <summary>Frames skipped because a callback held the gate. Diagnostic only — a skipped frame is
+    /// invisible at render cadence.</summary>
+    public long SkippedFrameCount => Interlocked.Read(ref _skippedFrameCount);
+
+    /// <summary>
+    /// Describes the current frame, if the kernel can be read safely right now.
+    ///
+    /// <para>A strategy draws exactly like a visualizer — <c>IStrategyKernel.Draw</c> and
+    /// <c>IVisualizer.Draw</c> are the same method with the same contract — but until this existed
+    /// nothing ever called it. An authored strategy could paint a chart of the signal it acted on, and
+    /// the picture went nowhere.</para>
+    ///
+    /// <para><b>Never waits</b>, for the reason the visualizer runtime gives: this runs on the render
+    /// thread while the pump holds the same gate across every callback, so blocking would let any
+    /// kernel freeze the window by being slow in <c>OnQuoteAsync</c>. A contended frame is skipped and
+    /// the previously composited one stays up, which at render cadence is invisible.</para>
+    /// </summary>
+    public bool TryDraw(IRenderSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        if (!IsRunning) return false;
+
+        if (!_drawGate.Wait(0))
+        {
+            Interlocked.Increment(ref _skippedFrameCount);
+            return false;
+        }
+
+        try
+        {
+            if (Volatile.Read(ref _session) is not { } session) return false;
+
+            session.Kernel.Draw(surface);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // A kernel that throws while drawing loses its picture, not its window or its position.
+            ReportDrawFaultSafely(ex);
+            return false;
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The running kernel's declared window layout, with every panel callback gated.
+    ///
+    /// <para>Same projection, and the same reasons, as the visualizer runtime's: a panel callback
+    /// closes over the kernel instance and is invoked from the render thread, so handing the raw tree
+    /// over would run author code outside the gate and would pin an instance that
+    /// <see cref="ResumeAsync"/> replaces.</para>
+    /// </summary>
+    public DaxAlgo.Sdk.Layout.UnitLayout GetLayout()
+    {
+        if (!IsRunning) return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+        if (!_drawGate.Wait(0)) return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
+        DaxAlgo.Sdk.Layout.LayoutNode? root;
+        try
+        {
+            if (Volatile.Read(ref _session) is not { } session)
+                return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+
+            root = session.Kernel.Layout.Root;
+        }
+        catch (Exception ex)
+        {
+            ReportDrawFaultSafely(ex);
+            return DaxAlgo.Sdk.Layout.UnitLayout.Single;
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+
+        return root is null
+            ? DaxAlgo.Sdk.Layout.UnitLayout.Single
+            : DaxAlgo.Sdk.Layout.UnitLayout.Of(Gate(root));
+    }
+
+    private DaxAlgo.Sdk.Layout.LayoutNode Gate(DaxAlgo.Sdk.Layout.LayoutNode node) => node switch
+    {
+        DaxAlgo.Sdk.Layout.PanelNode panel => panel with { Draw = GatedDraw(panel.Draw) },
+        DaxAlgo.Sdk.Layout.SplitNode split => split with
+        {
+            Children = split.Children.Select(Gate).ToArray(),
+        },
+        _ => node,
+    };
+
+    private Action<IRenderSurface> GatedDraw(Action<IRenderSurface> draw) => surface =>
+    {
+        if (draw is null || !IsRunning) return;
+
+        if (!_drawGate.Wait(0))
+        {
+            Interlocked.Increment(ref _skippedFrameCount);
+            return;
+        }
+
+        try
+        {
+            // Re-read rather than capture: Resume swaps the session.
+            if (Volatile.Read(ref _session) is null) return;
+            draw(surface);
+        }
+        catch (Exception ex)
+        {
+            ReportDrawFaultSafely(ex);
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    };
+
+    /// <summary>Reports a draw fault through the running session's mediated alert sink, and never
+    /// throws doing it — this is called from a catch on the render thread.</summary>
+    private void ReportDrawFaultSafely(Exception ex)
+    {
+        if (Volatile.Read(ref _session) is not { } session) return;
+        ReportFault(session, $"The strategy threw while drawing: {ex.Message}");
+    }
 
     /// <summary>Updates one launch-time value while idle or paused.</summary>
     public void SetParameter(string key, object? value)
@@ -457,6 +597,26 @@ public sealed class SandboxStrategyRuntime :
     }
 
     private async Task ProcessEventAsync(
+        RuntimeSession session,
+        MarketEventEnvelope item,
+        CancellationToken ct)
+    {
+        // The draw gate spans the WHOLE window — deliver, reconcile, commit — not just the callback.
+        // A frame taken between the kernel writing its state and the account committing would paint a
+        // picture that disagrees with the book, which is the one failure a chart can make that is
+        // worse than drawing nothing: it is confidently wrong.
+        await _drawGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await ProcessEventCoreAsync(session, item, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    }
+
+    private async Task ProcessEventCoreAsync(
         RuntimeSession session,
         MarketEventEnvelope item,
         CancellationToken ct)

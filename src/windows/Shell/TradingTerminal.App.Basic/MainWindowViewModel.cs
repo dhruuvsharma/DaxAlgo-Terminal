@@ -25,6 +25,9 @@ using TradingTerminal.Core.Updates;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using TradingTerminal.ExecutionUi;
 using TradingTerminal.Sandbox;
+// The strategy runtime, for authored kernels. Already in the build closure through
+// TradingTerminal.Execution, so this is an import rather than a new dependency edge.
+using TradingTerminal.Sandbox.Runtime;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Controls.Render;
 using TradingTerminal.UI.Logging;
@@ -107,6 +110,38 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         if (services.GetRequiredService<Microsoft.Extensions.Options.IOptions<TradingTerminal.Core.Configuration.DevOptions>>()
                 .Value.SeedCatalogFixtures)
             CatalogItems.Add(new StrategyCatalogItemViewModel(DevCatalogSeed.FixtureVisualizer));
+
+        // Strategies authored in the app. `IStrategyKernelRegistry` is where `AuthoredUnitSink` puts a
+        // compiled `IStrategyKernel`, and the user is told "Registered strategy 'X'. Open it from the
+        // catalog" — but NOTHING read that registry, so the card never appeared and the sentence was
+        // false. The registry's own documentation says `Changed` "is what lets a strategy authored in
+        // Hyperion appear in the catalog without a restart"; this is the subscriber that makes it so.
+        _kernels = services.GetService<IStrategyKernelRegistry>();
+        if (_kernels is not null)
+        {
+            foreach (var registration in _kernels.All) AddOrReplaceKernelCard(registration);
+
+            _kernels.Changed += (_, _) =>
+            {
+                void Apply()
+                {
+                    // Re-read the whole set rather than diffing: registration replaces by id, removal
+                    // is possible, and the list is a handful of entries.
+                    foreach (var registration in _kernels.All) AddOrReplaceKernelCard(registration);
+
+                    var live = _kernels.All.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+                    foreach (var stale in CatalogItems
+                                 .Where(i => i.Kernel is not null && !live.Contains(i.Id))
+                                 .ToList())
+                        CatalogItems.Remove(stale);
+                }
+
+                if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+                    dispatcher.Invoke(Apply);
+                else
+                    Apply();
+            };
+        }
         // Strategies contributed by an UNSIGNED plugin (neither shipped-by-us nor from a pinned
         // publisher) wear the DEV badge on their catalog card, mirroring the Plugin Manager.
         _unsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
@@ -430,6 +465,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
         if (_host.TryActivate(strategyId)) return;
 
+        // An authored kernel is a strategy, but not an ITradingStrategy: it runs in the sandbox with a
+        // virtual book rather than through the plugin factory below.
+        if (_kernels?.Find(strategyId) is { } kernel)
+        {
+            OpenAuthoredStrategy(kernel);
+            return;
+        }
+
         var stratName = Strategies.FirstOrDefault(s => s.Id == strategyId)?.DisplayName ?? "strategy";
         _host.OpenWithOverlay($"Opening {stratName}…", "Building the live window and warming the data feed…", () =>
         {
@@ -546,6 +589,153 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             // is already looking at instead of failing behind a curtain.
             _ = StartVisualizerAsync(runtime, unit, name);
         });
+    }
+
+
+    private readonly IStrategyKernelRegistry? _kernels;
+
+    private void AddOrReplaceKernelCard(StrategyKernelRegistration registration)
+    {
+        // Authored units are unsigned by definition — nobody signed what the user just wrote — so the
+        // card wears the same DEV badge a plugin from an unpinned publisher does.
+        _unsignedStrategyIds.Add(registration.Id);
+
+        var card = new StrategyCatalogItemViewModel(registration);
+        var existing = CatalogItems.FirstOrDefault(i => i.Id == registration.Id);
+        if (existing is not null) CatalogItems[CatalogItems.IndexOf(existing)] = card;
+        else CatalogItems.Add(card);
+    }
+
+    /// <summary>
+    /// Opens an authored strategy: one sandboxed runtime, one picture, one virtual book.
+    ///
+    /// <para>The same window a visualizer gets, with the book row showing — which is the whole design
+    /// of <c>AuthoredUnitView</c>: a strategy IS a visualizer that can also trade, so the difference
+    /// is one row rather than a second kind of window.</para>
+    /// </summary>
+    private void OpenAuthoredStrategy(StrategyKernelRegistration registration)
+    {
+        var name = registration.Descriptor.DisplayName;
+        var capturedId = registration.Id;
+
+        _host.OpenWithOverlay($"Opening {name}…", "Starting the strategy and warming its data feed…", () =>
+        {
+            // Read off a throwaway instance, for the reason the visualizer path gives: the schema is
+            // declarative, and asking the running one would mean reaching through the gate. Unlike a
+            // visualizer the strategy runtime REQUIRES it up front, because the schema is what its
+            // parameters and its instrument set are resolved from.
+            var schema = SafeKernelSchema(registration) ?? new StrategyParameterSchema();
+
+            var runtime = new SandboxStrategyRuntime(
+                registration.Create,
+                schema,
+                currentValues: null,
+                _services.GetRequiredService<IMarketDataHub>(),
+                _services.GetRequiredService<IClock>(),
+                // One account per declared instrument set. The simulator is single-instrument by
+                // design, so a multi-instrument kernel is refused here rather than silently netted.
+                instruments => new ModelPortfolioAccount(instruments),
+                LogSink.Append,
+                alert => LogSink.Append(alert.Source, alert.Level.ToString(), alert.Message));
+
+            var unit = new AuthoredUnitHost(
+                name, runtime.TryDraw, schema, values: null, LogSink,
+                hasBook: true,
+                apply: async values =>
+                {
+                    if (runtime.IsRunning && !runtime.IsPaused) await runtime.PauseAsync();
+                    foreach (var (key, value) in values) runtime.SetParameter(key, value);
+                    await runtime.ResumeAsync();
+                },
+                setPaused: async pause =>
+                {
+                    if (pause) await runtime.PauseAsync();
+                    else await runtime.ResumeAsync();
+                },
+                layout: runtime.GetLayout);
+
+            // The book row, live. Without this it renders zeroes for the life of the window, which
+            // reads as a strategy that never trades rather than one nobody is reporting.
+            void PushBook(IModelPortfolio snapshot)
+            {
+                // Realised NET, not gross: a row labelled "Realised" that excludes the commission and
+                // slippage the same simulator charged would overstate every strategy by its costs.
+                var realised = snapshot.RealizedGrossProfitLoss
+                    - snapshot.CommissionTotal
+                    - snapshot.SlippageTotal;
+
+                // "Resting" is everything the book is still waiting on: an armed entry, a protective
+                // stop, a profit target.
+                var resting =
+                    (snapshot.PendingEntry is not null ? 1 : 0)
+                    + (snapshot.ProtectiveStopPrice is not null ? 1 : 0)
+                    + (snapshot.ProfitTargetPrice is not null ? 1 : 0);
+
+                void Apply() => unit.Presenter.Book = new AuthoredUnitBook(
+                    snapshot.PositionUnits,
+                    snapshot.AverageEntryPrice,
+                    realised,
+                    snapshot.Equity,
+                    resting);
+
+                if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+                    dispatcher.BeginInvoke(Apply);
+                else
+                    Apply();
+            }
+
+            runtime.SnapshotChanged += PushBook;
+            if (runtime.CurrentSnapshot is { } seed) PushBook(seed);
+
+            var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
+            window.Owner = Application.Current.MainWindow;
+            TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
+            window.Closed += async (_, _) =>
+            {
+                _host.Unregister(capturedId);
+                runtime.SnapshotChanged -= PushBook;
+                unit.Dispose();
+                await runtime.DisposeAsync();
+            };
+
+            _host.Register(capturedId, window);
+            window.Show();
+
+            // Started after the window is up, so a feed that refuses depth reports into a log the user
+            // is already looking at instead of failing behind a curtain.
+            _ = StartAuthoredStrategyAsync(runtime, unit, name);
+        });
+    }
+
+    private async Task StartAuthoredStrategyAsync(
+        SandboxStrategyRuntime runtime, AuthoredUnitHost unit, string name)
+    {
+        try
+        {
+            await runtime.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Strategy {Name} failed to start", name);
+            LogSink.Append(name, "Error", $"Failed to start: {ex.Message}");
+            unit.Presenter.RunState = "Stopped";
+            unit.Presenter.IsLive = false;
+            unit.Freeze();
+        }
+    }
+
+    /// <summary>The kernel's declared parameters, or null when it cannot even be constructed.</summary>
+    private StrategyParameterSchema? SafeKernelSchema(StrategyKernelRegistration registration)
+    {
+        try
+        {
+            return registration.Create().Schema;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Strategy {Id} could not be constructed to read its schema", registration.Id);
+            return null;
+        }
     }
 
     private async Task StartVisualizerAsync(SandboxVisualizerRuntime runtime, AuthoredUnitHost unit, string name)
