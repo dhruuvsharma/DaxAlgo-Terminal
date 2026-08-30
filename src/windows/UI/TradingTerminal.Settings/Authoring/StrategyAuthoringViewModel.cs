@@ -1038,6 +1038,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
+        // The command's own CanExecute already blocks a second click, but `ChooseAsync` and
+        // `SubmitAnswersAsync` call this method DIRECTLY — a one-click reply and an answered question
+        // are still sends — and neither goes through CanExecute. Two overlapping turns would share one
+        // `_generateCts`, so the second would cancel the first's token and then wait on its ticker.
+        if (IsGenerating) return;
+
         if (_ai is null || SelectedAiProvider is not { } choice) return;
         if (!choice.IsAvailable)
         {
@@ -1069,45 +1075,59 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AwaitingAnswer = false;
         IsGenerating = true;
 
-        // The pipeline's dial for this turn — and the checklist the right panel watches.
-        var profile = StrategyBuildProfile.For(BuildEffort);
-        SeedTasks(profile);
-
-        // The turn's plan, pinned into the transcript. It snapshots THIS turn's task instances, so an
-        // older card keeps its final states when the next turn re-seeds the checklist.
-        Append(AuthoringMessage.Plan([.. Tasks]));
-
-        _generateCts?.Cancel();
-        _generateCts?.Dispose();
-        _generateCts = new CancellationTokenSource();
-
-        var ticking = TickElapsedAsync(_generateCts.Token);
-
-        // Deep and Max buy the agents. Quick and Standard keep the single conversation below, which is
-        // cheaper and right for a brief that does not need a committee.
-        if (profile.UseAgents)
-        {
-            try { await RunAgentsAsync(choice.Client, prompt, profile, _generateCts.Token); }
-            finally
-            {
-                IsGenerating = false;
-                await ticking;
-            }
-
-            return;
-        }
-
-        var session = EnsureSession(choice, profile);
-        var tokensBefore = session.TotalUsage;
-        _streamingReply = null;
-
-        // The editor is the truth: hand-edits and all. The session ships exactly one copy of it with the
-        // turn, so the model always works from the code that is actually there.
-        session.SyncEditedFiles([.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
-        _filesEditedByUser = false;
+        // ── Everything from here is inside ONE guard, and that is the whole point of this shape ──
+        //
+        // `IsGenerating` gates the Send button (CanSend) and swaps it for Stop. It used to be raised
+        // here and lowered in a `finally` that began several statements later, so anything that threw
+        // in the gap left it true FOREVER: Send permanently disabled, Stop permanently showing, and
+        // the only way out was to restart the terminal.
+        //
+        // The gap was not hypothetical. `EnsureSession` builds a `StrategyBuildSession`, whose
+        // constructor loads the context pack — and that throws by design when
+        // `sdk/ai-context/generated/sdk-surface.md` is missing. So a build shipped without the
+        // generated pack bricked the composer on the user's FIRST prompt. `SeedTasks`, `Append` and
+        // `SyncEditedFiles` were in the same gap.
+        //
+        // The agent branch had the second half of the problem: a `finally` that lowered the flag but
+        // no `catch`, so an agent fault escaped into the dispatcher instead of the transcript.
+        //
+        // One try/catch/finally now covers both paths. A failed turn is a message; it is never a
+        // window the user has to close.
+        var ticking = Task.CompletedTask;
 
         try
         {
+            // The pipeline's dial for this turn — and the checklist the right panel watches.
+            var profile = StrategyBuildProfile.For(BuildEffort);
+            SeedTasks(profile);
+
+            // The turn's plan, pinned into the transcript. It snapshots THIS turn's task instances, so
+            // an older card keeps its final states when the next turn re-seeds the checklist.
+            Append(AuthoringMessage.Plan([.. Tasks]));
+
+            _generateCts?.Cancel();
+            _generateCts?.Dispose();
+            _generateCts = new CancellationTokenSource();
+
+            ticking = TickElapsedAsync(_generateCts.Token);
+
+            // Deep and Max buy the agents. Quick and Standard keep the single conversation below,
+            // which is cheaper and right for a brief that does not need a committee.
+            if (profile.UseAgents)
+            {
+                await RunAgentsAsync(choice.Client, prompt, profile, _generateCts.Token);
+                return;
+            }
+
+            var session = EnsureSession(choice, profile);
+            var tokensBefore = session.TotalUsage;
+            _streamingReply = null;
+
+            // The editor is the truth: hand-edits and all. The session ships exactly one copy of it
+            // with the turn, so the model always works from the code that is actually there.
+            session.SyncEditedFiles([.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
+            _filesEditedByUser = false;
+
             var turn = await session.SendAsync(
                 prompt,
                 new Progress<string>(step => PushActivity(step)),
@@ -1221,10 +1241,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
         finally
         {
+            // Unconditional, and the reason the try starts where it does. Whatever happened, the
+            // composer goes back to accepting a prompt.
             IsGenerating = false;
             _streamingReply = null;
             _generateCts?.Cancel();   // stops the elapsed ticker
-            await ticking;
+
+            // Awaited inside its own guard: the ticker is a courtesy, and a fault in it must not be
+            // the thing that stops IsGenerating being lowered.
+            try { await ticking; } catch (OperationCanceledException) { }
+
             ElapsedText = null;
             ElapsedCompact = null;
             Save();   // a turn is expensive — never lose one to a crash or a restart
@@ -1299,8 +1325,23 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private bool CanStop => IsGenerating;
 
+    /// <summary>
+    /// Cancels the running turn.
+    ///
+    /// <para>It also lowers <see cref="IsGenerating"/> itself rather than leaving that to the turn's
+    /// own <c>finally</c>. Cancellation is cooperative — a provider that ignores its token, or a
+    /// subprocess that has stopped reading it, can leave the await outstanding indefinitely — and Stop
+    /// is the control a user presses precisely when something is not responding. A Stop that needs the
+    /// thing it is stopping to cooperate is not an escape hatch. The turn's own finally sets the same
+    /// flag again, harmlessly.</para>
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanStop))]
-    private void Stop() => _generateCts?.Cancel();
+    private void Stop()
+    {
+        _generateCts?.Cancel();
+        IsGenerating = false;
+        AiStatus = "Stopped.";
+    }
 
     /// <summary>Start over: a fresh thread with the model, the starter template back in the editor. The
     /// previous chat is NOT deleted — it stays in the picker under its own strategy id, so "new chat" can

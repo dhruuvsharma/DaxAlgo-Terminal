@@ -19,7 +19,12 @@
         brushes: a ColorAnimation cannot animate to a bound value.
 
         Labels and accents come from uic:SlideToggle attached properties — see App.TradingModeToggle
-        and App.AuthoringKindToggle below for how a caller specialises it.
+        below for how a caller specialises it.
+
+        ONE caller, deliberately. Hyperion's Strategy/Visualizer switch used to be a second one and is
+        now HYP.KindSegment instead: this control's whole design job is gravity — wide, deliberate,
+        red at the end that spends real money — and lending that weight to "which of two things am I
+        writing" told the user to be careful about a mode that flips freely.
     -->
     <Style x:Key="App.SlideToggle" TargetType="ToggleButton">
         <Setter Property="Width" Value="240" />
@@ -153,23 +158,6 @@
         <Setter Property="uic:SlideToggle.RightLabel" Value="REAL" />
         <Setter Property="uic:SlideToggle.LeftAccent" Value="#2F6BD4" />
         <Setter Property="uic:SlideToggle.RightAccent" Value="#C02626" />
-    </Style>
-
-    <!--
-        Strategy / Visualizer — what Hyperion is being asked to author.
-
-        Takes the catalog's own kind colours rather than inventing a pair: a strategy card carries the
-        AI purple and a visualizer card the accent blue, so the switch and the card that results from
-        it agree on what each kind looks like.
-    -->
-    <Style x:Key="App.AuthoringKindToggle" TargetType="ToggleButton" BasedOn="{StaticResource App.SlideToggle}">
-        <!-- Same 240x38 as the trading switch, deliberately: the knob travel is a constant in the
-             shared template, and a Storyboard's To cannot bind to a per-style value. One size also
-             keeps the two switches looking like the same control, which they are. -->
-        <Setter Property="uic:SlideToggle.LeftLabel" Value="STRATEGY" />
-        <Setter Property="uic:SlideToggle.RightLabel" Value="VISUALIZER" />
-        <Setter Property="uic:SlideToggle.LeftAccent" Value="{DynamicResource Ai.Glow.Brush}" />
-        <Setter Property="uic:SlideToggle.RightAccent" Value="{DynamicResource Accent.Brush}" />
     </Style>
 
 </ResourceDictionary>

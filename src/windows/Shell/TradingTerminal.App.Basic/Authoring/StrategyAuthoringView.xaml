@@ -419,17 +419,8 @@
                             </TextBlock>
                         </Grid>
 
-                        <!-- What is being authored. First in the row because it is the biggest
-                             decision in it: everything after this - model, effort, reasoning - is a
-                             setting, while this decides what comes out. Same switch as Paper/Real,
-                             wearing the catalog's own kind colours. -->
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
-                            <TextBlock Text="Build:" FontSize="12" VerticalAlignment="Center"
-                                       Margin="0,0,10,0" Foreground="{DynamicResource Text.Secondary}" />
-                            <ToggleButton Style="{DynamicResource App.AuthoringKindToggle}"
-                                          IsChecked="{Binding IsAuthoringVisualizer, Mode=TwoWay}"
-                                          ToolTip="Whether this session builds a trading strategy or a visualizer." />
-                        </StackPanel>
+                        <!-- The kind notice keeps its own row; the switch itself moved down into the
+                             pill row, where it belongs at pill scale. -->
                         <TextBlock Grid.Row="2"
                                    Text="{Binding AuthoringKindNotice}"
                                    Visibility="{Binding AuthoringKindNotice, Converter={StaticResource S2V}}"
@@ -446,6 +437,12 @@
                                     Visibility="{Binding IsGenerating, Converter={StaticResource B2V}}" />
 
                             <StackPanel Orientation="Horizontal">
+                                <!-- First in the row because it is the biggest decision in it:
+                                     everything after this — model, effort — is a setting, while this
+                                     decides what comes out. -->
+                                <ToggleButton Style="{DynamicResource HYP.KindSegment}"
+                                              Margin="0,0,10,0"
+                                              IsChecked="{Binding IsAuthoringVisualizer, Mode=TwoWay}" />
                                 <ToggleButton x:Name="ModelPill" Style="{StaticResource HYP.PillButton.Ai}"
                                               ToolTip="Every model the app can reach, tagged by provider — plus a custom-id box.">
                                     <TextBlock>

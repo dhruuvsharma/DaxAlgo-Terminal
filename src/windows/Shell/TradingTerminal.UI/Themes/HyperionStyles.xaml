@@ -530,6 +530,84 @@
         </Setter>
     </Style>
 
+    <!--
+        Strategy / Visualizer — what Hyperion is being asked to author.
+
+        A segmented control at pill scale, sitting in the pill row with the model and effort pickers.
+
+        It replaces the 240x38 sliding switch borrowed from the Paper/Real trading toggle, which was
+        wrong here twice over. It was three times the height of everything around it and needed a
+        "Build:" label and a grid row of its own, so a routine choice dominated the composer. And it
+        carried the wrong meaning: Paper/Real is a SAFETY switch whose entire design job is gravity —
+        red, wide, deliberate, because the right-hand end spends real money. Reusing that vocabulary
+        for "which of two things am I writing" tells the user this is a decision to be careful about.
+        It is not; it is a mode, and it flips freely.
+
+        Both destinations stay on screen with the active one filled in its own kind colour — AI purple
+        for a strategy, accent blue for a visualizer, the same pair the catalog cards use — so the
+        switch and the card it produces agree on what each kind looks like.
+    -->
+    <Style x:Key="HYP.KindSegment" TargetType="ToggleButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="ToolTip" Value="What this session builds. A strategy trades its virtual book; a visualizer only draws." />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Track" CornerRadius="10" Padding="2"
+                            Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border x:Name="StrategyFill" Grid.Column="0" CornerRadius="8"
+                                    Padding="10,3" Background="{DynamicResource Ai.Glow.Brush}">
+                                <TextBlock x:Name="StrategyText" Text="STRATEGY"
+                                           Foreground="White" />
+                            </Border>
+
+                            <Border x:Name="VisualizerFill" Grid.Column="1" CornerRadius="8"
+                                    Padding="10,3" Background="Transparent">
+                                <TextBlock x:Name="VisualizerText" Text="VISUALIZER"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <!-- Checked == visualizer, matching IsAuthoringVisualizer. -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="StrategyFill" Property="Background" Value="Transparent" />
+                            <Setter TargetName="StrategyText" Property="Foreground"
+                                    Value="{DynamicResource Text.Secondary}" />
+                            <Setter TargetName="VisualizerFill" Property="Background"
+                                    Value="{DynamicResource Accent.Brush}" />
+                            <Setter TargetName="VisualizerText" Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush"
+                                    Value="{DynamicResource Border.Strong}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush"
+                                    Value="{DynamicResource Ai.Accent.Brush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Accented pill variant for the model picker — it is the choice that matters most. -->
     <Style x:Key="HYP.PillButton.Ai" TargetType="ToggleButton" BasedOn="{StaticResource HYP.PillButton}">
         <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
