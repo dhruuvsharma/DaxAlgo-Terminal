@@ -106,6 +106,652 @@ RenderViewport Viewport { get; }
 - `Theme` — Resolves a theme role to the colour the host is currently using for it.
 - `Viewport` — The current panel's drawable area.
 
+## Quant helpers
+
+### `Atr`
+
+True range and Wilder's Average True Range — the volatility unit stops and targets should be written in.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double LastTrueRange { get; }
+int Period { get; }
+double TrueRange(double high, double low, double previousClose)
+double Update(OhlcvBar bar)
+double Update(double high, double low, double close)
+```
+
+- `LastTrueRange` — The most recent bar's true range, before smoothing.
+- `Period` — The period this average was constructed with.
+- `TrueRange` — One bar's true range against the previous close.
+- `Update` — Folds in one bar and returns the average true range.
+- `Update` — Folds in one bar's high, low and close.
+
+### `BollingerBands`
+
+Bollinger bands: a moving average with a volatility-scaled envelope.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Lower { get; }
+double Middle { get; }
+double PercentB { get; }
+double Update(double price)
+double Upper { get; }
+double Width { get; }
+```
+
+- `Lower` — The lower band.
+- `Middle` — The moving average at the centre of the envelope.
+- `PercentB` — Where the last price sat in the envelope: 0 at the lower band, 1 at the upper, and outside [0, 1] beyond them.
+- `Update` — Adds one price and returns its position within the envelope.
+- `Upper` — The upper band.
+- `Width` — Band width as a fraction of the middle — the squeeze and expansion measure, comparable across instruments in a way an absolute width is not.
+
+### `Book`
+
+What the resting book says about where the next trade will happen — the statistics that turn a depth snapshot into a number a strategy can act on.
+
+```csharp
+double DepthTotal(IReadOnlyList<DepthLevel> side, int levels)
+double Imbalance(double bidSize, double askSize)
+double Imbalance(Quote quote)
+double Imbalance(DepthSnapshot depth, int levels)
+double Microprice(double bidPrice, double bidSize, double askPrice, double askSize)
+double Microprice(Quote quote)
+double Microprice(DepthSnapshot depth)
+double SweepPrice(IReadOnlyList<DepthLevel> side, double units)
+double SweepSlippage(IReadOnlyList<DepthLevel> side, double units, double reference)
+```
+
+- `Imbalance` — Queue imbalance at the touch, in [-1, 1] — positive when the bid is larger. The most predictive single number in a limit order book at the shortest horizons, and also the most over-traded: it mean-reverts as fast as it predicts, so it belongs in the timing of an entry that something else justified rather than as the reason for one.
+- `Imbalance` — Queue imbalance at the touch of a quote.
+- `Imbalance` — Imbalance over the first `levels` of each side. Deeper than the touch on purpose: the top of book is where the games are played, and an imbalance that survives five levels is closer to real intent than one that a single order can create and cancel.
+- `Microprice` — The size-weighted mid: the fair value implied by the queues rather than by the prices alone. The plain mid says the same thing whether there are ten lots bid against a thousand offered or the reverse, which is precisely the case where the next print is predictable. The microprice leans toward the thin side, because that is the side about to be taken out — it is the single most useful line to draw over a book, and the reference a spread or edge should be measured from.
+- `Microprice` — The microprice of a quote.
+- `Microprice` — The microprice at the top of a depth snapshot.
+
+### `Dema`
+
+A double exponential smoother, so a fast average can be de-lagged without shortening its period.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+int Period { get; }
+double Update(double sample)
+```
+
+- `Period` — The span this smoother was constructed with.
+- `Update` — Folds in one sample and returns the de-lagged average.
+
+### `Ema`
+
+Exponential moving average, seeded with its first sample.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+int Count { get; }
+int Period { get; }
+double Update(double sample)
+```
+
+- `Count` — How many samples have been seen.
+- `Period` — The span this average was constructed with.
+- `Update` — Folds in one sample and returns the new average. Non-finite input is ignored rather than allowed to poison the recursion permanently.
+
+### `EquityStats`
+
+Running statistics of an equity curve: drawdown as it happens, and the risk-adjusted return so far.
+
+```csharp
+double AnnualizedSharpe(double samplesPerYear)
+double Calmar { get; }
+long Count { get; }
+double Drawdown { get; }
+double Equity { get; }
+bool IsReady { get; }
+double MaximumDrawdown { get; }
+double MeanReturn { get; }
+double Peak { get; }
+void Reset()
+double Sharpe { get; }
+double Sortino { get; }
+void Update(double equity)
+double Volatility { get; }
+```
+
+- `AnnualizedSharpe` — The Sharpe ratio scaled by the square root of `samplesPerYear`.
+- `Calmar` — Mean return over the worst drawdown — return per unit of the pain it took.
+- `Count` — How many marks have been recorded.
+- `Drawdown` — How far below the peak equity is now, as a fraction in [0, 1].
+- `Equity` — The most recent equity mark.
+- `IsReady` — True from two marks, which is the first point at which a return exists.
+- `MaximumDrawdown` — The worst drawdown seen, as a fraction. The number that decides whether a curve was survivable, which the total return never says on its own.
+- `MeanReturn` — Mean return per sample.
+- `Peak` — The highest equity seen.
+- `Sharpe` — Mean over standard deviation, per sample. Excess of a risk-free rate is not subtracted: at intraday cadence it is noise, and pretending otherwise invents precision.
+- `Sortino` — Mean return over the deviation of the losing samples only.
+- `Update` — Records one equity mark.
+- `Volatility` — Standard deviation of return per sample.
+
+### `EwmaVariance`
+
+Exponentially weighted mean and variance — Welford's statistic for a series whose distribution moves.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Lambda { get; }
+double Mean { get; }
+double StandardDeviation { get; }
+double Update(double sample)
+double Variance { get; }
+double ZScoreOf(double value)
+```
+
+- `Lambda` — The decay this estimator was constructed with.
+- `Mean` — The exponentially weighted mean.
+- `StandardDeviation` — The exponentially weighted standard deviation — the one a threshold is usually built on.
+- `Update` — Folds in one sample and returns the current standard deviation.
+- `Variance` — The exponentially weighted variance.
+- `ZScoreOf` — How many current standard deviations `value` sits from the current mean.
+
+### `IEstimator`
+
+What every streaming estimator in this namespace has in common: a current value, and whether it means anything yet.
+
+```csharp
+bool IsReady { get; }
+void Reset()
+double Value { get; }
+```
+
+- `IsReady` — True once enough samples have arrived for `Value` to mean something.
+- `Value` — The current estimate. Meaningless until `IsReady`.
+
+### `KalmanHedgeRatio`
+
+A two-state Kalman filter that tracks a hedge ratio and an intercept as they drift — the pairs trading estimator.
+
+```csharp
+double HedgeRatio { get; }
+double Intercept { get; }
+bool IsReady { get; }
+double MeasurementNoise { get; }
+double ProcessNoise { get; }
+void Reset()
+double Spread { get; }
+double Update(double x, double y)
+```
+
+- `HedgeRatio` — The current hedge ratio — how many units of x hedge one unit of y.
+- `Intercept` — The current intercept.
+- `IsReady` — True once two observations have been folded in.
+- `MeasurementNoise` — Expected noise in the observed relationship.
+- `ProcessNoise` — How fast the ratio may drift between samples.
+- `Spread` — The last residual: `y − (ratio·x + intercept)`. The tradeable spread.
+- `Update` — Folds in one observed pair and returns the residual spread.
+
+### `KalmanLevel`
+
+A one-dimensional Kalman filter over a level that drifts — the adaptive alternative to a moving average.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Gain { get; }
+double Innovation { get; }
+double MeasurementNoise { get; }
+double ProcessNoise { get; }
+double Update(double measurement)
+```
+
+- `Gain` — The gain last applied, in [0, 1]: near one the filter is tracking, near zero it is smoothing. Worth surfacing on a chart — it says which of the two the filter thinks it is doing.
+- `Innovation` — The last observation minus the prediction that preceded it. A run of same-signed innovations means the model is behind the market, not that the market is surprising.
+- `MeasurementNoise` — Expected noise in each observation.
+- `ProcessNoise` — Expected movement of the true level between samples.
+- `Update` — Folds in one observation and returns the filtered level.
+
+### `KyleLambda`
+
+Kyle's lambda: how far price moves per unit of signed volume — the market's depth, measured rather than read off the book.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Close(double price)
+double ImpactOf(double signedUnits)
+int Period { get; }
+double RSquared { get; }
+void Record(double volume, TradeSide side)
+```
+
+- `Close` — Closes the interval at `price`, folding one observation into the fit and starting the next. Call it per bar, or on a fixed volume or time slice.
+- `ImpactOf` — Expected price move from trading `signedUnits` now.
+- `Period` — The window length in intervals.
+- `RSquared` — How much of the price variation signed volume explains. A lambda with no fit behind it is a slope through a cloud.
+- `Record` — Accumulates signed volume inside the interval being measured.
+
+### `Macd`
+
+Moving Average Convergence Divergence: a fast average minus a slow one, and an average over the difference.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Histogram { get; }
+double Line { get; }
+double Signal { get; }
+double Update(double price)
+```
+
+- `Histogram` — `Line` minus `Signal` — one bar of the histogram.
+- `Line` — Fast minus slow.
+- `Signal` — The average of `Line`.
+- `Update` — Folds in one price and returns the histogram.
+
+### `Num`
+
+The arithmetic guards every estimator in this namespace uses, exposed because authored code needs them too.
+
+```csharp
+double Clamp(double value, double minimum, double maximum)
+double Finite(double value, double fallback = 0)
+double Lerp(double from, double to, double t)
+double LogReturn(double price, double previousPrice)
+double RoundToTick(double price, double tickSize)
+double SafeDiv(double numerator, double denominator, double fallback = 0)
+double ZScore(double value, double mean, double standardDeviation)
+```
+
+- `Clamp` — Constrains a value to a range. Bounds given the wrong way round are swapped rather than producing the empty interval `Clamp` throws on.
+- `Finite` — `value` when it is finite, else `fallback`. The last guard before a number reaches a decision or a draw call.
+- `Lerp` — Linear interpolation, with `t` clamped to [0, 1].
+- `LogReturn` — The log return between two prices, or zero when either is non-positive. Log returns rather than percentage returns because they add across time, so a sum over a window is the window's return, and because they are symmetric: a move down and the move that undoes it are equal and opposite, which percentage returns are not.
+- `RoundToTick` — `price` snapped to the nearest multiple of `tickSize`. A price that is not on the instrument's grid is rejected by the venue, so a level computed from a moving average has to be rounded before it can be a stop or a target. A non-positive tick size returns the price unchanged rather than throwing — an instrument whose tick is unknown is common, and losing the level would be worse than not snapping it.
+- `SafeDiv` — `numerator` ÷ `denominator`, returning `fallback` when the denominator is zero, sub-epsilon, or not finite.
+- `ZScore` — How many standard deviations `value` sits from the mean, with the denominator floored. Zero when the sample has no dispersion — which is the honest answer, not an infinite one.
+
+### `OnlineRegression`
+
+Ordinary least squares over a rolling window: the slope, the intercept, and how much of the variation the fit actually explains.
+
+```csharp
+double Correlation { get; }
+int Count { get; }
+double Intercept { get; }
+bool IsReady { get; }
+int Period { get; }
+double Predict(double x)
+double RSquared { get; }
+void Reset()
+double ResidualZScore(double x, double y)
+double Slope { get; }
+double SlopeStandardError { get; }
+double SlopeTStatistic { get; }
+double StandardError { get; }
+void Update(double x, double y)
+```
+
+- `Correlation` — Pearson correlation between the two series, in [-1, 1].
+- `Count` — Pairs currently in the window.
+- `Intercept` — The fitted intercept.
+- `IsReady` — True once the window is full. A two-point regression fits perfectly and means nothing, so the fit quality cannot be used as the warm-up gate.
+- `Period` — The window length in observation pairs.
+- `Predict` — What the fit predicts for `x`.
+- `RSquared` — The share of y's variance the fit explains, in [0, 1].
+- `ResidualZScore` — How far an observation sits from the fit, in residual standard deviations — the entry signal for a pairs or basis trade.
+- `Slope` — The fitted slope — the hedge ratio, the beta, or Kyle's lambda depending on what was fed in.
+- `SlopeStandardError` — The standard error of `Slope` itself — how precisely the slope is known. Distinct from `StandardError`, which is the spread of the points about the line. This is what turns a slope into a claim: `Slope / SlopeStandardError` is the t-statistic, and a beta of 0.4 that could equally have been 0.0 is not a beta of 0.4.
+- `SlopeTStatistic` — The slope over its own standard error. Conventionally, above two in magnitude is a slope worth believing — though see `OrnsteinUhlenbeck` for a case where the conventional threshold is the wrong one.
+- `StandardError` — The residual standard deviation — the natural unit for "how far from the fit is far", and what a pairs spread's z-score should be measured in.
+- `Update` — Adds one observation pair.
+
+### `OrderFlowImbalance`
+
+Signed traded volume over a rolling window, normalised to [-1, 1].
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Cumulative { get; }
+int Period { get; }
+double Update(double volume, TradeSide side)
+double Update(TradePrint trade, Quote quote)
+double WindowDelta { get; }
+```
+
+- `Cumulative` — Signed volume since construction — the cumulative delta line.
+- `Period` — The window length.
+- `Update` — Records one classified print.
+- `Update` — Records one print, classifying it against a quote when the venue did not.
+- `WindowDelta` — Net signed volume inside the window, unnormalised.
+
+### `OrnsteinUhlenbeck`
+
+An Ornstein-Uhlenbeck fit, reported as the number that decides whether the trade is worth taking: the half-life — and gated by a test that a random walk actually fails.
+
+```csharp
+double Deviation { get; }
+double HalfLife { get; }
+bool IsMeanReverting { get; }
+bool IsReady { get; }
+double Mean { get; }
+int Period { get; }
+double Phi { get; }
+void Reset()
+double StationaryDeviation { get; }
+double Theta { get; }
+double UnitRootStatistic { get; }
+void Update(double level)
+```
+
+- `Deviation` — How far the current level sits from the long-run mean, in stationary standard deviations — the entry signal, and zero when the process is not reverting.
+- `HalfLife` — Samples to close half the gap to `Mean`, or `PositiveInfinity` when there is no reversion to time.
+- `IsMeanReverting` — True when the fit is warm, φ is inside the unit interval, and the Dickey-Fuller statistic rejects the random walk.
+- `IsReady` — True once the window is full.
+- `Mean` — The long-run mean the process pulls toward — the level at which the expected change is zero.
+- `Period` — The window length in transitions.
+- `Phi` — The autoregressive coefficient, `1 + γ`. Below one is reversion — but see `IsMeanReverting` for why that on its own proves nothing.
+- `StationaryDeviation` — The stationary standard deviation of the process, `σ_ε / √(1 − φ²)` — the width of the distribution the level actually wanders in. This, not the residual standard deviation, is what a deviation should be measured against. The residual is the size of one step; dividing by it reports a spread sitting a normal distance from the mean as a twenty-sigma event on a slow-reverting series.
+- `Theta` — Speed of reversion per sample, `−ln(φ)`. Zero when the series is not reverting.
+- `UnitRootStatistic` — The Dickey-Fuller statistic. Compare against `CriticalValue`, not against two.
+- `Update` — Adds one observation of the spread or level being fitted.
+
+### `RealizedVolatility`
+
+Realised volatility: the root mean square of the log returns in a window.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Annualized(double samplesPerPeriod)
+double LastReturn { get; }
+int Period { get; }
+double Update(double price)
+```
+
+- `Annualized` — The volatility scaled to a longer horizon by the square root of `samplesPerPeriod` — 252 for daily samples, to get an annual figure.
+- `LastReturn` — The most recent log return.
+- `Period` — The window length in returns.
+- `Update` — Adds a price and returns the per-sample volatility.
+
+### `RollingCorrelation`
+
+Rolling correlation between two series, for the cases where the slope is not wanted and only the co-movement is.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Beta { get; }
+int Period { get; }
+double Update(double x, double y)
+```
+
+- `Beta` — The slope of y on x over the same window — a beta, when x is the benchmark.
+- `Period` — The window length.
+- `Update` — Adds one observation pair and returns the correlation.
+
+### `RollingWindow`
+
+A fixed-capacity ring of the most recent samples, with its statistics computed on demand.
+
+```csharp
+int Capacity { get; }
+int Count { get; }
+bool IsFull { get; }
+double Item { get; }
+double Maximum { get; }
+double Mean { get; }
+double Median()
+double Minimum { get; }
+double Newest { get; }
+double Oldest { get; }
+double PositionOf(double value)
+double Quantile(double fraction)
+double Range { get; }
+void Reset()
+double StandardDeviation { get; }
+double Sum { get; }
+void Update(double sample)
+double Variance { get; }
+double ZScoreOf(double value)
+```
+
+- `Capacity` — How many samples the window holds when full.
+- `Count` — How many samples it holds now.
+- `IsFull` — True once `Count` has reached `Capacity`.
+- `Maximum` — The largest sample in the window, or zero when empty.
+- `Mean` — The arithmetic mean, or zero when empty.
+- `Minimum` — The smallest sample in the window, or zero when empty.
+- `Newest` — The most recent sample, or zero when empty.
+- `Oldest` — The oldest sample still in the window, or zero when empty.
+- `PositionOf` — Where `value` sits within the window, 0 at the minimum and 1 at the maximum — the stochastic-oscillator normalisation, and the honest way to compare a level against a range whose width changes with the instrument.
+- `Quantile` — The value below which `fraction` of the window lies, by linear interpolation between order statistics. Allocates a sorted copy, so it belongs in a per-bar decision rather than a per-tick callback. A percentile is the right tool for a threshold that must hold across instruments — "wider than 90% of the spreads I have seen" transfers where "wider than two ticks" does not.
+- `Range` — The window's range — what a Donchian channel or a normalised position within the range is built from.
+- `StandardDeviation` — The sample standard deviation.
+- `Sum` — The sum of the window.
+- `Update` — Adds one sample, evicting the oldest once full. Non-finite samples are ignored: one `NaN` in the buffer makes every statistic over it `NaN` for the whole window length.
+- `Variance` — The sample variance (Bessel-corrected), or zero with fewer than two samples.
+- `ZScoreOf` — How many standard deviations `value` is from the window mean.
+
+### `Rsi`
+
+Wilder's Relative Strength Index.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+int Period { get; }
+double Update(double price)
+```
+
+- `Period` — The period this index was constructed with.
+- `Update` — Folds in one price and returns the index.
+
+### `Sma`
+
+Simple moving average over a fixed window.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+int Count { get; }
+int Period { get; }
+double Update(double sample)
+```
+
+- `Count` — The samples currently in the window.
+- `Period` — The window length.
+- `Update` — Adds one sample and returns the new mean.
+
+### `SpreadStats`
+
+Rolling statistics of the bid-ask spread, so "the spread blew out" can be said in the instrument's own terms.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+bool IsWide(double deviations = 2)
+double Mean { get; }
+double Median { get; }
+int Period { get; }
+double StandardDeviation { get; }
+double Update(double spread)
+double Update(Quote quote)
+double ZScore { get; }
+```
+
+- `IsWide` — True when the current spread is more than `deviations` standard deviations wide. False until the window has filled, so a strategy does not refuse to trade its first two hundred quotes.
+- `Mean` — Mean spread over the window.
+- `Median` — The median spread — the "normal" one, and unlike the mean it is not dragged by the handful of dislocations the strategy most wants to detect.
+- `Period` — The window length in quotes.
+- `StandardDeviation` — Standard deviation of the spread over the window.
+- `Update` — Records one spread and returns it.
+- `Update` — Records the spread of a quote.
+- `ZScore` — How many standard deviations the current spread sits above its recent mean.
+
+### `TradeClassifier`
+
+Deciding who was the aggressor on a print, for feeds that do not say.
+
+```csharp
+TradeSide Classify(TradePrint trade, Quote quote)
+TradeSide QuoteRule(double price, double bid, double ask)
+TradeSide TickRule(double price, double previousPrice, TradeSide previousSide)
+```
+
+- `Classify` — The venue's own answer where it has one, and the quote rule where it does not.
+- `QuoteRule` — The Lee-Ready quote rule: at or through the offer is a buy, at or through the bid a sell, and anything strictly inside is decided against the mid.
+- `TickRule` — The tick rule: an uptick is a buy, a downtick a sell, and an unchanged price inherits the previous classification. Only for feeds with no quote.
+
+### `TradeSide`
+
+Which side crossed the spread to make a trade happen.
+
+- `Unknown` — Neither rule could decide — a print at the mid with no prior move.
+- `Buy` — A buyer lifted the offer.
+- `Sell` — A seller hit the bid.
+
+### `TradeStats`
+
+Per-trade statistics: how often the strategy is right, and what it makes when it is.
+
+```csharp
+double AverageLoss { get; }
+double AverageWin { get; }
+int Count { get; }
+double Expectancy { get; }
+double GrossLoss { get; }
+double GrossProfit { get; }
+double HitRate { get; }
+int LosingStreak { get; }
+int Losses { get; }
+double NetProfit { get; }
+double PayoffRatio { get; }
+double ProfitFactor { get; }
+void Record(double profitAndLoss)
+void Reset()
+int Wins { get; }
+int WorstLosingStreak { get; }
+```
+
+- `AverageLoss` — Average loser, as a positive number.
+- `AverageWin` — Average winner.
+- `Count` — Closed trades recorded.
+- `Expectancy` — Average profit and loss per trade — the edge in the units it is actually collected in.
+- `GrossLoss` — Sum of the losers, as a positive number.
+- `GrossProfit` — Sum of the winners.
+- `HitRate` — Fraction of trades that made money, in [0, 1].
+- `LosingStreak` — Consecutive losers, ending now. What a risk cut-off is usually written against.
+- `Losses` — Trades that lost money. Scratches count as neither.
+- `NetProfit` — Net profit and loss.
+- `PayoffRatio` — Average winner over average loser — the payoff the hit rate has to clear.
+- `ProfitFactor` — Gross profit over gross loss. Above one is an edge; below one is a hobby.
+- `Record` — Records one closed trade's profit and loss.
+- `Wins` — Trades that made money.
+- `WorstLosingStreak` — The longest run of losers seen.
+
+### `Vpin`
+
+Volume-Synchronised Probability of Informed Trading — how one-sided the flow has been, bucketed by volume rather than by time.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+int BucketCount { get; }
+double BucketProgress { get; }
+double BucketVolume { get; }
+double Update(double volume, TradeSide side)
+```
+
+- `BucketCount` — Completed buckets held.
+- `BucketProgress` — How full the bucket being filled is, in [0, 1].
+- `BucketVolume` — Volume that fills one bucket.
+- `Update` — Records one classified print, closing buckets as they fill.
+
+### `Vwap`
+
+Volume-weighted average price, and the volume-weighted dispersion around it.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Band(double deviations)
+double Deviation { get; }
+double Update(double price, double volume)
+double Update(OhlcvBar bar)
+double Volume { get; }
+```
+
+- `Band` — The VWAP shifted by `deviations` volume-weighted standard deviations.
+- `Deviation` — The volume-weighted standard deviation of price around `Value`.
+- `Update` — Adds one trade or bar and returns the new VWAP.
+- `Update` — Adds a bar at its typical price — `(H + L + C) / 3`, the conventional single-price stand-in for a bar's traded distribution.
+- `Volume` — Volume accumulated since the last reset.
+
+### `Welford`
+
+Welford's running mean and variance — the whole history, in constant space and one pass.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+long Count { get; }
+double Mean { get; }
+double StandardDeviation { get; }
+double Update(double sample)
+double Variance { get; }
+double ZScoreOf(double value)
+```
+
+- `Count` — How many samples have been folded in.
+- `Mean` — The running mean.
+- `StandardDeviation` — The sample standard deviation.
+- `Update` — Folds in one sample and returns the running mean.
+- `Variance` — The sample variance (Bessel-corrected), or zero below two samples.
+- `ZScoreOf` — How many standard deviations `value` sits from the running mean.
+
+### `Wilder`
+
+Wilder's smoothing — `α = 1/period`, not `2/(period+1)`.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+int Count { get; }
+int Period { get; }
+double Update(double sample)
+```
+
+- `Count` — How many samples have been seen.
+- `Period` — The period this smoother was constructed with.
+- `Update` — Folds in one sample and returns the new average.
+
+### `ZScore`
+
+A windowed z-score with an explicit warm-up, because the number is worthless before it converges.
+
+Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
+
+```csharp
+double Mean { get; }
+int MinimumSamples { get; }
+int Period { get; }
+double StandardDeviation { get; }
+double Update(double sample)
+```
+
+- `Mean` — The window's mean.
+- `MinimumSamples` — How many samples must arrive before the score is trusted.
+- `Period` — The window length.
+- `StandardDeviation` — The window's standard deviation.
+- `Update` — Adds a sample and returns its score against the window it just joined.
+
 ## Drawing helpers
 
 - `BandOptions` — How an envelope is drawn. Fields: Color, EdgeAlpha, FillAlpha, ShowEdges, ShowMiddle, Steps. Use `BandOptions.Default`, never `new()`.
@@ -579,39 +1225,6 @@ Host-rendered alert importance.
 
 Wire limits enforced by every host alert sink.
 
-### `AuthoredPluginBootstrap`
-
-The `Register` body for a strategy the user authored in the app. The builder emits a tiny generated `IStrategyPlugin` into the compiled assembly whose whole job is to call this — so an authored strategy is a genuine plugin, indistinguishable to the loader from one built with `dotnet new daxalgo-strategy`. Without it, the loader finds the DLL on the next start, can't see an entry point, and reports it as failed.
-
-It registers exactly what a hand-written plugin's `AddXxxStrategy()` would: the backtest option, the catalog descriptor, and (when the author wrote a view-model) a `StrategyFactoryRegistration` whose view is either the author's own or — when none was written — the host-composed default window built from the descriptor's `DataRequirement`.
-
-```csharp
-void Register(IPluginRegistrar registrar, Assembly assembly, string strategyId, string displayName)
-```
-
-
-### `AuthoredStrategyTypes`
-
-The types a strategy assembly can contribute. A strategy authored in the AI builder is compiled from loose files, so the host discovers its parts by shape rather than by a hand-written registration: the kernel is required, the rest turn it from a backtest entry into a catalog card with a live window.
-
-```csharp
-bool CanComposeLiveWindow { get; }
-Type Descriptor { get; }
-AuthoredStrategyTypes DiscoverIn(Assembly assembly)
-bool HasLiveWindow { get; }
-Type Kernel { get; }
-Type View { get; }
-Type ViewModel { get; }
-```
-
-- `CanComposeLiveWindow` — Enough for a catalog card: descriptor + view-model. The view is optional — a host with an `IAuthoredStrategyViewComposer` registered composes the default window from the descriptor's `DataRequirement` (depth → ladder, tape → footprint, bars → chart).
-- `Descriptor` — Optional `ITradingStrategy` — the catalog card's metadata.
-- `DiscoverIn` — Finds them by shape. The view-model and view are matched by base-type NAME on purpose: this SDK is deliberately UI-free (it must stay loadable in a headless host), so it cannot reference the WPF base types it is looking for — but the authored assembly compiles against them perfectly well.
-- `HasLiveWindow` — The author wrote a complete hand-written window: metadata, a view-model, a view.
-- `Kernel` — The single `IOrderRoutedStrategy` with a public `(Contract)` ctor.
-- `View` — Optional live view (a WPF `UserControl` / `Window`).
-- `ViewModel` — Optional live view-model (derives `LiveSignalStrategyViewModelBase`).
-
 ### `IAlertSink`
 
 Bounded user-alert capability. The host limits message size and rate, mediates every destination, and may throttle repeated alerts. A non-empty dedupe key expresses that equivalent alerts may be coalesced; it never selects a transport or recipient.
@@ -669,72 +1282,6 @@ StrategyParameterSchema Schema { get; }
 - `GetText` — Reads a free-text value.
 - `Schema` — The declaration governing these values.
 
-### `IPluginRegistrar`
-
-The surface a plugin uses inside `Register` to contribute services into the host. A plugin's `Register` body is line-for-line identical to a first-party `AddXxxStrategy()`, and carries read-only context about the plugin.
-
-The collection is add-only.`Services` is not the raw host collection: the host hands each plugin a guarded view that stages registrations and commits them only if `Register` returns cleanly. A plugin may register new service types of its own, plus additional `ITradingStrategy` / `StrategyCatalogEntry` / `StrategyFactoryRegistration` entries. Registering, replacing, or removing a service the host already provides (e.g. `ICredentialStore`, `IBrokerSelector`) is refused, and the plugin is quarantined with nothing registered. `TryAdd*()` keeps its usual no-op semantics.
-
-```csharp
-PluginContext Context { get; }
-IServiceCollection Services { get; }
-```
-
-- `Context` — Metadata about the plugin currently being registered.
-- `Services` — The host service collection the plugin registers its strategy / view / backtest option into (e.g. `Services.AddSingleton<ITradingStrategy, MyStrategy>()`).
-
-### `IStrategyEngineFactory`
-
-Stable, UI-free activation seam for a packaged strategy engine. A `.daxalgostrategy` manifest names one public, parameterless implementation exactly; the host creates it only after package integrity, trust, compatibility, and policy checks have completed.
-
-```csharp
-IOrderRoutedStrategy Create(Contract contract, StrategyParameters parameters)
-IOrderRoutedStrategy Create(Contract contract)
-StrategyDataRequirement DataRequirement { get; }
-StrategyParameterSchema Schema { get; }
-```
-
-- `Create` — Creates a fresh strategy instance with a validated runtime parameter bag.
-- `Create` — Creates a fresh strategy using the schema defaults.
-- `DataRequirement` — Market-data streams the engine requires.
-- `Schema` — Declarative tunables used by live editors, backtests, and optimizers.
-
-### `IStrategyLifecycle`
-
-Host-facing lifecycle for one sandboxed strategy session.
-
-```csharp
-bool IsPaused { get; }
-bool IsRunning { get; }
-Task PauseAsync(CancellationToken ct = null)
-Task ResumeAsync(CancellationToken ct = null)
-Task RunAsync(CancellationToken ct = null)
-Task StopAsync(CancellationToken ct = null)
-```
-
-- `IsPaused` — Whether the active session is paused.
-- `IsRunning` — Whether a kernel session is active, including while paused.
-- `PauseAsync` — Pauses the active kernel session.
-- `ResumeAsync` — Resumes by rebuilding and starting a fresh kernel from the current source and parameter values. Resume is never an in-place hot reload of the paused instance.
-- `RunAsync` — Builds and starts a fresh kernel using launch-time defaults.
-- `StopAsync` — Stops the active kernel session.
-
-### `IStrategyPlugin`
-
-Entry point a strategy-plugin assembly exposes. The host's plugin loader finds the single public parameterless `IStrategyPlugin` implementation in each plugin assembly, checks `TargetSdkVersion` against the host SDK (`Version`), then calls `Register` so the plugin can contribute its strategy, view/view-model and backtest option into the host.
-
-A plugin's `Register` body is identical to a first-party `AddXxxStrategy()` extension — register the `ITradingStrategy`, the view + view-model, the `StrategyFactoryRegistration` and the `StrategyCatalogEntry` on `Services`.
-
-```csharp
-string Name { get; }
-void Register(IPluginRegistrar registrar)
-string TargetSdkVersion { get; }
-```
-
-- `Name` — Human-readable plugin name (logging + the future marketplace UI).
-- `Register` — Contributes the plugin's services into the host via `registrar`.
-- `TargetSdkVersion` — The `DaxAlgo.Sdk` version this plugin was built against — normally `Version`. The loader refuses a plugin whose version is incompatible with the host SDK (pre-1.0: exact major.minor; post-1.0: matching semver major).
-
 ### `IStrategyRuntimeContext`
 
 The complete capability set supplied to a sandboxed strategy kernel.
@@ -781,24 +1328,6 @@ IParameters Parameters { get; }
 - `Data` — The visualizer-scoped market-data projection.
 - `Parameters` — The current read-only parameter values.
 
-### `IVisualizerLifecycle`
-
-Host-facing lifecycle for one visualizer session. Visualizers start automatically when opened, so this contract intentionally has no Run operation.
-
-```csharp
-bool IsPaused { get; }
-bool IsRunning { get; }
-Task PauseAsync(CancellationToken ct = null)
-Task ResumeAsync(CancellationToken ct = null)
-Task StopAsync(CancellationToken ct = null)
-```
-
-- `IsPaused` — Whether the active visualizer session is paused.
-- `IsRunning` — Whether the auto-started visualizer session is active, including while paused.
-- `PauseAsync` — Freezes data processing while preserving the current view.
-- `ResumeAsync` — Resumes by rebuilding a fresh visualizer from the current source and parameters; it never hot-reloads the paused instance.
-- `StopAsync` — Stops the visualizer session.
-
 ### `Layout`
 
 Builds a unit's window layout.
@@ -836,33 +1365,6 @@ PanelSize Size { get; }
 - `Depth` — How deeply splits nest beneath this node. A lone panel is depth one.
 - `PanelCount` — How many panels this node contains, counting through every split beneath it.
 - `Size` — How this node is sized inside its parent. Ignored at the root.
-
-### `NullRenderSurface`
-
-A render surface that discards everything.
-
-This is the correct surface for a host with nothing on screen — a headless run, a test, a visualizer executing while its panel is closed. A visualizer should never have to ask whether it is visible: it describes the frame, and when nobody is looking the description goes nowhere.
-
-`Viewport` reports zero size and `Cursor` reports outside, so a visualizer that scales to the viewport degrades to drawing nothing rather than dividing by a bogus width.
-
-```csharp
-void AxisX(double minimum, double maximum, string format = null)
-void AxisY(double minimum, double maximum, string format = null)
-RenderCursor Cursor { get; }
-NullRenderSurface Instance { get; }
-void Line(double x1, double y1, double x2, double y2)
-void Marker(double x, double y, RenderMarkerShape shape)
-IDisposable Panel(string title, RenderPanelKind kind)
-void Push(double x, double y)
-void Rect(double x, double y, double width, double height, bool filled = true)
-IDisposable Series(string name, RenderSeriesKind kind)
-void SetStyle(RenderStyle style)
-void Text(double x, double y, string text)
-RenderColor Theme(RenderThemeColor token)
-RenderViewport Viewport { get; }
-```
-
-- `Instance` — The shared instance. It holds no state, so one is enough.
 
 ### `PanelNode`
 
@@ -904,125 +1406,6 @@ How a child is sized inside its parent split.
 
 - `Star` — A share of whatever space is left, after the fixed children have taken theirs.
 - `Pixels` — An exact height or width in device-independent pixels.
-
-### `PluginContext`
-
-Read-only context about the plugin being registered (for logging / diagnostics).
-
-```csharp
-string AssemblyPath { get; }
-string Name { get; }
-string TargetSdkVersion { get; }
-```
-
-- `AssemblyPath` — Absolute path of the loaded plugin assembly (empty for in-process tests).
-- `Name` — The plugin's declared `Name`.
-- `TargetSdkVersion` — The plugin's declared `TargetSdkVersion`.
-
-### `RecordedLine`
-
-A line, with the style active when it was stroked.
-
-```csharp
-RenderStyle Style { get; }
-double X1 { get; }
-double X2 { get; }
-double Y1 { get; }
-double Y2 { get; }
-```
-
-
-### `RecordedRect`
-
-A rectangle, with the style that was active when it was drawn — shading and alpha are the substance of a heat map or a footprint cell, not decoration on top of one.
-
-```csharp
-bool Filled { get; }
-double Height { get; }
-RenderStyle Style { get; }
-double Width { get; }
-double X { get; }
-double Y { get; }
-```
-
-
-### `RecordedText`
-
-Text, with where it was placed — so layout is testable and not only content.
-
-```csharp
-RenderStyle Style { get; }
-string Text { get; }
-double X { get; }
-double Y { get; }
-```
-
-
-### `RecordingRenderSurface`
-
-A render surface that keeps what was drawn instead of painting it.
-
-This is how you check your own unit.`IRenderSurface` is an interface, not a control, so testing a picture needs no window, no dispatcher and no running host: construct one of these, call `Draw`, and assert on what came back.
-
-It exists because a unit that compiles and paints nothing is the easiest mistake to ship and the hardest to notice — a blank panel is indistinguishable from a broken host, so nobody reports it as a bug in the visualizer. The host uses the same class to verify authored units before a user ever sees one.
-
-Not thread-safe, and deliberately so: `Draw` is called on one thread at a time, and a lock here would hide a unit that violated that.
-
-```csharp
-void AxisX(double minimum, double maximum, string format = null)
-void AxisY(double minimum, double maximum, string format = null)
-IReadOnlyList<RenderCall> Calls { get; }
-RenderCursor Cursor { get; }
-bool HasNonFiniteCoordinate { get; }
-bool IsBlank { get; }
-void Line(double x1, double y1, double x2, double y2)
-IReadOnlyList<RecordedLine> Lines { get; }
-void Marker(double x, double y, RenderMarkerShape shape)
-IReadOnlyList<ValueTuple<double, double, RenderMarkerShape>> Markers { get; }
-IDisposable Panel(string title, RenderPanelKind kind)
-IReadOnlyList<string> Panels { get; }
-IReadOnlyList<ValueTuple<double, double>> Points { get; }
-int PrimitiveCount { get; }
-void Push(double x, double y)
-void Rect(double x, double y, double width, double height, bool filled = true)
-IReadOnlyList<RecordedRect> Rectangles { get; }
-IDisposable Series(string name, RenderSeriesKind kind)
-IReadOnlyList<string> SeriesNames { get; }
-void SetStyle(RenderStyle style)
-void Text(double x, double y, string text)
-IReadOnlyList<RecordedText> Texts { get; }
-RenderColor Theme(RenderThemeColor token)
-IReadOnlyList<RenderThemeColor> ThemeTokens { get; }
-RenderViewport Viewport { get; }
-```
-
-- `Calls` — Every call, in order.
-- `HasNonFiniteCoordinate` — True when any coordinate was NaN or infinite. A single one of these can take out a whole frame in a real renderer, and it usually means an average over an empty window.
-- `IsBlank` — True when nothing at all was drawn — no primitive, no text, no marker.
-- `Lines` — Lines drawn, with both endpoints and the style in force.
-- `Markers` — Markers drawn, in order.
-- `Panels` — Panel titles, in the order they were opened.
-- `Points` — Every point pushed into any series.
-- `PrimitiveCount` — Total primitives emitted — what a per-frame budget is measured against.
-- `Rectangles` — Rectangles drawn, with geometry and the style in force.
-- `SeriesNames` — Series names, in the order they were opened. Named for the names rather than for the member, because `Series` itself is the interface method that opens one.
-- `Texts` — Text drawn, with the point it was placed at.
-- `Theme` — A distinct colour per role, in the mid range. Distinct matters. This used to return one mid grey for every token, which meant no test could tell a widget that drew its losses in the bullish colour from one that got it right — the two produced byte-identical output. Mid-range keeps the original property that a recorded colour is never accidentally invisible, and is still obviously not a literal anyone would pick.
-- `ThemeTokens` — Theme roles resolved. Empty means the unit used literal colours, which will be unreadable in one theme or the other.
-
-### `RenderCall`
-
-One primitive call, as it was made.
-
-```csharp
-string Kind { get; }
-string Label { get; }
-double X { get; }
-double Y { get; }
-```
-
-- `Kind` — Which surface member was called — `Panel`, `Push`, `Rect` and so on.
-- `Label` — The panel title, series name or text, where the call carried one.
 
 ### `RenderColor`
 

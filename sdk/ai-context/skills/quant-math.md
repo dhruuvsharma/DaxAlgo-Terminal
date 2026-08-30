@@ -1,74 +1,104 @@
 ---
 id: quant-math
-name: Quant math (numerically stable forms)
-triggers: ema, sma, moving average, variance, stdev, standard deviation, z-score, zscore, mean reversion, ornstein, uhlenbeck, half-life, cointegration, correlation, regression, kalman, garch, arima, volatility, vol, sharpe, kurtosis, skew, percentile, quantile, vpin, kyle, lambda, hurst, entropy, statistic, distribution, estimator, smoothing, filter
+name: Quant math (the library, and the judgement it cannot make for you)
+triggers: ema, sma, moving average, wilder, rsi, atr, macd, bollinger, vwap, variance, stdev, standard deviation, z-score, zscore, mean reversion, ornstein, uhlenbeck, half-life, cointegration, pairs, hedge ratio, correlation, beta, regression, kalman, garch, arima, volatility, vol, sharpe, sortino, drawdown, calmar, profit factor, expectancy, kurtosis, skew, percentile, quantile, vpin, kyle, lambda, microprice, imbalance, toxicity, hurst, entropy, statistic, distribution, estimator, smoothing, filter, indicator
 ---
 
-# Quant math — the stable forms
+# Quant math
 
-Use these. The textbook forms overflow, drift, or re-scan windows they don't need to.
+**Do not hand-roll these.** `DaxAlgo.Sdk.Quant` is ambient — no `using` needed — and every estimator
+in it is streaming, warm-up gated, guarded against non-finite input, and pinned by tests. Writing the
+loop yourself costs output tokens, and a wrong one is invisible: an RSI smoothed with an EMA compiles,
+runs, draws and trades. It is simply not an RSI, and nothing downstream will ever tell you.
 
-## Online estimators (O(1) per tick, no re-summing)
+## The shape they all share
 
-```csharp
-// EMA — seed on the first sample, never with 0 (that biases the whole series toward zero).
-if (!_seeded) { _ema = x; _seeded = true; }
-else          { _ema += 2.0 / (period + 1) * (x - _ema); }
-
-// Welford variance — numerically stable; the naive sum-of-squares loses precision fast.
-_count++;
-var d  = x - _mean;
-_mean += d / _count;
-_m2   += d * (x - _mean);
-var variance = _count > 1 ? _m2 / (_count - 1) : 0.0;
-var stdev    = Math.Sqrt(variance);
-
-// EWMA variance — the rolling equivalent, for a regime that changes.
-_ewmaVar = lambda * _ewmaVar + (1 - lambda) * (x - _ewmaMean) * (x - _ewmaMean);
-```
-
-For a *windowed* mean/variance, keep a fixed-size ring buffer and add/subtract at the edges — never
-re-sum the window on every tick.
-
-## Normalisation
+Construct in a field, `Update` in a callback, read `Value`, and **gate on `IsReady`**.
 
 ```csharp
-var z = (x - mean) / Math.Max(1e-9, stdev);   // ALWAYS floor the denominator
-var r = Math.Log(p / prevP);                  // log returns: additive, scale-free
+private readonly Ema _fast = new(12);
+private readonly Atr _atr = new(14);
+private readonly ZScore _z = new(200);
+
+public Task OnBarAsync(OhlcvBar bar, IStrategyRuntimeContext context, CancellationToken ct)
+{
+    _fast.Update(bar.Close);
+    _atr.Update(bar);
+    _z.Update(bar.Close - _fast.Value);
+
+    if (!_z.IsReady || !_atr.IsReady) return Task.CompletedTask;   // warm-up, every time
+    ...
+}
 ```
 
-A z-score on fewer than ~30 samples is noise. Gate on a warm-up count before you trade it.
+`IsReady` is not politeness. An estimator's first samples are not a small version of its converged
+value, they are noise with the same type — a 200-period z-score on its third bar reads near zero
+exactly when the series is most unusual, because with three points the extremes *are* the sample.
 
-## Mean reversion (Ornstein-Uhlenbeck)
+`Reset()` on a session boundary or an instrument change. `Vwap` in particular: carried across
+sessions it anchors to yesterday's volume and drifts further from anything tradeable every bar.
 
-`dX = theta (mu - X) dt + sigma dW`. Fit by OLS of `X_{t+1}` on `X_t`:
+## Picking the right one
 
+| You want | Use | Not |
+|---|---|---|
+| A smoothed level | `Ema`, `Sma`, `Dema` | a `List` and `.Average()` |
+| RSI / ATR / ADX smoothing | `Wilder` | `Ema` — different α, different crossings |
+| Dispersion over a window | `RollingWindow.StandardDeviation` | a running sum of squares |
+| Dispersion over the session | `Welford` | the textbook variance formula |
+| Dispersion in a moving regime | `EwmaVariance` | a long window |
+| "Is this move big" | `ZScore`, or `RollingWindow.ZScoreOf` | an absolute threshold |
+| Position in a range | `RollingWindow.PositionOf` | hand-rolled stochastic |
+| A robust threshold | `RollingWindow.Quantile` | a tick count |
+| Volatility for sizing | `Atr` (bars) or `RealizedVolatility` (returns) | high − low |
+| A relationship | `OnlineRegression` — read `RSquared` too | `Correlation` alone |
+| A drifting relationship | `KalmanHedgeRatio` | a rolling regression |
+| "Does this spread revert" | `OrnsteinUhlenbeck.IsMeanReverting` and `HalfLife` | eyeballing the chart |
+| Who traded | `TradeClassifier` | assuming the print side |
+| Flow pressure | `OrderFlowImbalance` | raw contract counts |
+| Toxic flow | `Vpin` | a time-bucketed ratio |
+| Cost of size | `KyleLambda`, `Book.SweepPrice` | the visible depth sum |
+| Fair value in a book | `Book.Microprice` | the mid |
+| "Is the spread wide" | `SpreadStats.IsWide()` | a tick count |
+| A tear sheet | `EquityStats`, `TradeStats` | computing Sharpe inline |
+
+## The judgement a library cannot make
+
+**Normalise everything.** A threshold that is an absolute number is a bug waiting for a different
+instrument. Divide by ATR, by the spread's own distribution, by a quantile — never by a constant you
+chose while thinking about one symbol. This is the single most common reason a strategy that worked
+in a backtest stops working on the next ticker.
+
+**A slope is not evidence.** `OnlineRegression` fits a line through anything. `RSquared` and
+`SlopeTStatistic` are what separate a hedge ratio from a random number with two decimal places.
+
+**Mean reversion needs a test, not a coefficient.** `OrnsteinUhlenbeck` gates on the Dickey-Fuller
+statistic rather than on `Phi < 1`, because least squares is biased downward under a unit root — so
+`Phi < 1` is the *expected* reading on a random walk, and R² is *near one* on a walk (the best
+predictor of the next level is the current one) and only ~0.25 on a fast-reverting series. Ranking by
+fit quality prefers exactly the series you must reject. Use `IsMeanReverting`, and check that
+`HalfLife` is shorter than your intended holding period — a reversion that arrives after you have
+closed is not a strategy.
+
+**Compute in the callbacks, not in `Draw`.** `Draw` may run more than once per frame and blocks the
+UI. Keep what the picture needs in a bounded field.
+
+**Say what the numbers mean.** `Tiles.Draw` with `EquityStats` and `TradeStats` is four lines and
+turns a chart into something a trader will keep open:
+
+```csharp
+Tiles.Draw(surface,
+[
+    Tile.Signed("P&L", _trades.NetProfit, _trades.NetProfit.ToString("N0")),
+    new Tile("Sharpe", _equity.Sharpe.ToString("F2")),
+    new Tile("Max DD", _equity.MaximumDrawdown.ToString("P1")),
+    new Tile("Hit", _trades.HitRate.ToString("P0"), $"PF {_trades.ProfitFactor:F2}"),
+], area: header);
 ```
-X_{t+1} = a + b X_t + eps
-theta   = -ln(b) / dt            // speed of reversion  (b in (0,1) or there is no reversion)
-mu      = a / (1 - b)            // long-run mean
-halfLife = ln(2) / theta         // the number that actually matters
-```
 
-If `b >= 1` the series is not mean-reverting — do not trade the spread. Report the half-life; a strategy
-whose half-life is longer than its holding period is not a mean-reversion strategy.
+## What is deliberately absent
 
-## Microstructure statistics
-
-- **VPIN / toxicity**: bucket by *volume*, not time; VPIN = mean over buckets of
-  `|buyVol - sellVol| / bucketVolume`, in [0, 1].
-- **Kyle's lambda** (price impact): OLS slope of price change on signed volume over a window. Rising
-  lambda = a thinning book.
-- **Realised volatility**: `sqrt(sum of squared log returns)` over the window, annualised only if you
-  actually mean to annualise it.
-- **Spread stats**: keep mean and stdev of `(ask - bid)` with Welford; "the spread blew out" means
-  `spread > mean + k*stdev`, not a hard tick count that is wrong on the next instrument.
-
-## Rules of thumb
-
-- Every threshold that is an absolute number is a bug waiting for a different instrument. Normalise by
-  volatility, spread, or tick size.
-- Warm up before you trade: no estimator is meaningful on its first few samples.
-- Guard every division. `Math.Max(1e-9, denominator)` costs nothing.
-- Prefer one pass and O(1) state. `OnQuoteAsync` runs per quote, and a busy instrument produces
-  hundreds a second for as long as the window is open.
+No GARCH, no ARIMA, no Hurst exponent, no cointegration test beyond the univariate one above. They
+need more history than a live window holds and more fitting than a per-tick callback can afford. If a
+brief truly needs one, say so and build the simplest thing that answers the question — usually
+`EwmaVariance` in place of GARCH, and `OrnsteinUhlenbeck` on the spread in place of Engle-Granger.

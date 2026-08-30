@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.CompilerServices;
+using DaxAlgo.Sdk;
 using FluentAssertions;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -53,15 +54,54 @@ public sealed class SdkSurfaceFreshnessTests
     }
 
     [Fact]
-    public void TheLegacyContractIsStillReachableFromTheSdkAndThatIsWorthKnowing()
+    public void TheLegacyContractIsStillReachableFromTheSdkButIsNoLongerTaught()
     {
-        // A tripwire, not an aspiration. `AuthoredPlugin` discovers `IOrderRoutedStrategy` implementations
-        // and `IStrategyEngineFactory.Create` returns one, so the legacy contract is still part of the
-        // published surface and a model reading this document will see it. Retiring it from the
-        // authoring path is Phase 0 of the Hyperion rework (#44) and belongs with the compiler rework.
+        // A tripwire, and it has moved once. `AuthoredPlugin` discovers `IOrderRoutedStrategy`
+        // implementations and `IStrategyEngineFactory.Create` returns one, so the retired contract is
+        // still part of the published assembly — `TradingTerminal.Core` is a shipped contract package
+        // and installed plugins implement it.
         //
-        // When that lands, this test fails and should simply be deleted.
-        SdkSurfaceGenerator.Generate().Should().Contain("IOrderRoutedStrategy");
+        // What changed is that both of those types are host wiring an author never names, so they are
+        // now excluded from the document. The contract survives in code and has stopped reaching a
+        // model, which is the outcome Phase 0 of #44 wanted; the assembly half of the tripwire stays,
+        // so this still fires if the contract itself is removed.
+        typeof(IStrategyEngineFactory).GetMethods()
+            .Should().Contain(m => m.Name == "Create" && m.ReturnType.Name == "IOrderRoutedStrategy");
+
+        SdkSurfaceGenerator.Generate().Should().NotContain("IOrderRoutedStrategy");
+    }
+
+    [Fact]
+    public void HostWiringIsKeptOutOfTheSystemPrompt()
+    {
+        // The generator's own section list says types an author never touches would "spend a model's
+        // attention on noise", but `Vocabulary` was a catch-all, so every one of them shipped at full
+        // length. The recording surfaces are the sharpest case: documenting a test double to a model
+        // authoring a strategy invites it to construct one.
+        var surface = SdkSurfaceGenerator.Generate();
+
+        foreach (var noise in new[]
+                 {
+                     "RecordingRenderSurface", "NullRenderSurface", "RecordedRect", "RenderCall",
+                     "AuthoredPluginBootstrap", "IStrategyPlugin", "IPluginRegistrar", "PluginContext",
+                 })
+            surface.Should().NotContain(noise, $"'{noise}' is host wiring, not an authoring surface");
+    }
+
+    [Fact]
+    public void TheMathsVocabularyIsTaughtAsItsOwnSection()
+    {
+        // Without this the maths landed in `Vocabulary` at full length — the section that is NOT
+        // compacted — and a library built to reduce token burn would have increased it.
+        var surface = SdkSurfaceGenerator.Generate();
+        var quant = Section(surface, "Quant helpers");
+
+        foreach (var estimator in new[] { "Ema", "Wilder", "RollingWindow", "Welford", "Atr", "Vwap", "OrnsteinUhlenbeck", "EquityStats" })
+            quant.Should().Contain(estimator, $"'{estimator}' is part of the maths vocabulary");
+
+        // Wilder's smoothing is the substitution nothing downstream can catch, so the document has to
+        // name it rather than leave a model to assume an EMA will do.
+        quant.Should().Contain("Wilder");
     }
 
     [Fact]

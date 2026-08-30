@@ -134,7 +134,8 @@ public sealed class MyStrategy : IStrategyKernel { ... }
   most units.
 - **No namespace.** These are ambient: `System`, `System.Collections.Generic`, `System.Linq`,
   `System.Threading`, `System.Threading.Tasks`, `DaxAlgo.Sdk`, `DaxAlgo.Sdk.Drawing`,
-  `TradingTerminal.Core.Domain`, `TradingTerminal.Core.Time`, `TradingTerminal.Core.MarketData`,
+  `DaxAlgo.Sdk.Layout`, `DaxAlgo.Sdk.Quant`, `TradingTerminal.Core.Domain`,
+  `TradingTerminal.Core.Trading`, `TradingTerminal.Core.Time`, `TradingTerminal.Core.MarketData`,
   `TradingTerminal.Core.Strategies`, `TradingTerminal.Core.Strategies.Parameters`.
 - **Return the COMPLETE file set every time**, including files you did not change. The editor replaces
   its contents with what you send; a partial answer deletes the rest.

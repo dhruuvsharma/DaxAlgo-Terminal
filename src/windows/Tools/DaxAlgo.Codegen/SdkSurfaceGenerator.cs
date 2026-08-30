@@ -36,8 +36,42 @@ public static class SdkSurfaceGenerator
     [
         "What you implement",
         "What you draw onto",
+        "Quant helpers",
         "Drawing helpers",
         "Vocabulary",
+    ];
+
+    /// <summary>
+    /// Public types an author never names, and which are therefore left out entirely.
+    ///
+    /// <para>The section list above already says the intent — "types outside this list are host
+    /// wiring an author never touches, and including them would spend a model's attention on noise" —
+    /// but "Vocabulary" is a fallback that catches everything unmatched, so the intent was never
+    /// enforced and every one of these shipped at full length in the system prompt.</para>
+    ///
+    /// <para>Three kinds of noise: the plugin entry points, which the compiler generates rather than
+    /// the author (<c>AuthoredPluginBootstrap</c>, <c>IStrategyPlugin</c>, <c>IPluginRegistrar</c>,
+    /// <c>PluginContext</c>, <c>AuthoredStrategyTypes</c>); the lifecycle interfaces, which the host
+    /// implements and calls; and the surfaces that exist for tests (<c>RecordingRenderSurface</c>,
+    /// <c>NullRenderSurface</c> and their records). Documenting a recording surface to a model
+    /// authoring a strategy invites it to construct one.</para>
+    /// </summary>
+    private static readonly HashSet<string> HostWiring =
+    [
+        nameof(AuthoredPluginBootstrap),
+        nameof(AuthoredStrategyTypes),
+        nameof(IPluginRegistrar),
+        nameof(IStrategyEngineFactory),
+        nameof(IStrategyLifecycle),
+        nameof(IStrategyPlugin),
+        nameof(IVisualizerLifecycle),
+        nameof(NullRenderSurface),
+        nameof(PluginContext),
+        nameof(RecordedLine),
+        nameof(RecordedRect),
+        nameof(RecordedText),
+        nameof(RecordingRenderSurface),
+        nameof(RenderCall),
     ];
 
     public static string Generate()
@@ -59,7 +93,7 @@ public static class SdkSurfaceGenerator
         markdown.AppendLine();
 
         var types = assembly.GetExportedTypes()
-            .Where(t => !t.IsNested)
+            .Where(t => !t.IsNested && !HostWiring.Contains(t.Name))
             .ToLookup(Section);
 
         foreach (var section in Sections)
@@ -99,9 +133,11 @@ public static class SdkSurfaceGenerator
             return Sections[0];
         if (type == typeof(IRenderSurface))
             return Sections[1];
-        if (type.Namespace == "DaxAlgo.Sdk.Drawing")
+        if (type.Namespace == "DaxAlgo.Sdk.Quant")
             return Sections[2];
-        return Sections[3];
+        if (type.Namespace == "DaxAlgo.Sdk.Drawing")
+            return Sections[3];
+        return Sections[4];
     }
 
     /// <summary>
@@ -145,12 +181,14 @@ public static class SdkSurfaceGenerator
         markdown.AppendLine($"### `{TypeName(type)}`");
         markdown.AppendLine();
 
-        // Widgets get their lead paragraph only. There are a lot of them, each with several paragraphs
-        // of rationale, and rationale is what the on-demand drawing skill is for — it is loaded when the
-        // brief is about a picture, rather than carried by every session including the ones that draw
-        // nothing. The contracts an author must not get wrong keep their full text.
+        // Widgets and estimators get their lead paragraph only. There are a lot of them, each with
+        // several paragraphs of rationale, and rationale is what the on-demand skills are for — loaded
+        // when the brief calls for a picture or for maths, rather than carried by every session
+        // including the ones that need neither. The contracts an author must not get wrong keep their
+        // full text.
         var summary = docs.Summary(MemberKey(type));
-        if (Section(type) == Sections[2]) summary = Lead(summary);
+        var section = Section(type);
+        if (section == Sections[2] || section == Sections[3]) summary = Lead(summary);
 
         if (summary is not null)
         {
@@ -170,11 +208,25 @@ public static class SdkSurfaceGenerator
             return;
         }
 
+        // An estimator's Value / IsReady / Reset are the IEstimator contract, documented once on the
+        // interface. Repeating all three on twenty-odd types costs sixty lines of the system prompt to
+        // say the same thing twenty times, and buries the members that actually differ between them.
+        var isEstimator = typeof(DaxAlgo.Sdk.Quant.IEstimator).IsAssignableFrom(type)
+            && type != typeof(DaxAlgo.Sdk.Quant.IEstimator);
+
         var members = type
             .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(IsInteresting)
+            .Where(m => !isEstimator || m.Name is not ("Value" or "IsReady" or "Reset"))
             .OrderBy(m => m.Name, StringComparer.Ordinal)
             .ToArray();
+
+        if (isEstimator)
+        {
+            markdown.AppendLine("Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.");
+            markdown.AppendLine();
+        }
+
         if (members.Length == 0) return;
 
         markdown.AppendLine("```csharp");

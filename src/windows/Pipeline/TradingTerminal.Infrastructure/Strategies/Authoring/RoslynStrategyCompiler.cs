@@ -57,6 +57,7 @@ public sealed class RoslynStrategyCompiler : IStrategyCompiler
         global using DaxAlgo.Sdk;
         global using DaxAlgo.Sdk.Drawing;
         global using DaxAlgo.Sdk.Layout;
+        global using DaxAlgo.Sdk.Quant;
         global using TradingTerminal.Core.Domain;
         global using TradingTerminal.Core.Trading;
         global using TradingTerminal.Core.Time;
