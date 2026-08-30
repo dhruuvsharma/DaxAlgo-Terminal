@@ -20,11 +20,9 @@
          ═══════════════════════════════════════════════════════════════════════════════════ -->
     <UserControl.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <!-- The shared slide switch, merged here rather than app-wide: App.xaml is owned per
-                     edition, so merging there would be a change in every shell instead of one. -->
-                <ResourceDictionary Source="pack://application:,,,/TradingTerminal.UI;component/Themes/TradingModeToggle.xaml" />
-            </ResourceDictionary.MergedDictionaries>
+            <!-- The slide-switch dictionary was merged here for the Strategy/Visualizer toggle. That
+                 is HYP.KindSegment now, which lives in HyperionStyles.xaml and is already app-wide,
+                 so this pane no longer pulls in a dictionary it does not use. -->
             <BooleanToVisibilityConverter x:Key="B2V" />
             <converters:StringToVisibilityConverter x:Key="S2V" />
         </ResourceDictionary>
