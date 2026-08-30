@@ -98,9 +98,15 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
 
     public void Apply(StrategyPresentation presentation)
     {
-        var defaultName = Strategy?.DisplayName ?? Visualizer!.DisplayName;
-        var defaultDescription = Strategy?.Description ?? Visualizer!.Description;
-        var defaultImagePath = Visualizer?.ImagePath;
+        // Three backings now, so the null-forgiving `Visualizer!` that was safe with two is not. An
+        // authored kernel has neither a Strategy nor a Visualizer, and this threw a
+        // NullReferenceException out of the constructor — meaning the catalog crashed the moment a
+        // user registered a strategy in Hyperion, which is the one path the card exists for.
+        var descriptor = Visualizer ?? Kernel?.Descriptor;
+
+        var defaultName = Strategy?.DisplayName ?? descriptor?.DisplayName ?? string.Empty;
+        var defaultDescription = Strategy?.Description ?? descriptor?.Description ?? string.Empty;
+        var defaultImagePath = descriptor?.ImagePath;
 
         Name = string.IsNullOrWhiteSpace(presentation.Name) ? defaultName : presentation.Name!;
         Description = string.IsNullOrWhiteSpace(presentation.Description) ? defaultDescription : presentation.Description!;
