@@ -204,6 +204,8 @@ visualizer card as evidence of a working visualizer marketplace.
 > This is being solved by having Hyperion design and write the window from the same prompt that produces
 > the strategy, rather than by the host composing one from a fixed panel map — see
 > [issue #42](https://github.com/dhruuvsharma/DaxAlgo-Terminal/issues/42).
+> Engineering requirements (draw surface, chrome, Hyperion verification, non-goals):
+> [`docs/ENGINEERING_REQUIREMENTS_STRATEGY_WINDOWS.md`](docs/ENGINEERING_REQUIREMENTS_STRATEGY_WINDOWS.md).
 
 ### Author a strategy in the application
 
