@@ -1802,7 +1802,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 turn.Files.Count > 0
                     ? $"{turn.Files.Count} file(s) · scored {turn.Reward:0.00}"
                     : "answered without code",
-                turn.Reply));
+
+                // Stripped, exactly as on the non-agent path. Without this the agent transcript shows
+                // the raw JSON the model used to offer its options, which is the plumbing rather than
+                // the answer.
+                AuthoringQuestions.StripBlock(turn.Reply) is { Length: > 0 } prose
+                    ? prose
+                    : turn.Reply));
 
             PushActivity($"{turn.Role}: {(turn.Files.Count > 0 ? "wrote code" : "replied")}");
 
@@ -1840,6 +1846,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         CompiledOk = judge.Latest is { Success: true };
         AwaitingAnswer = run.Outcome == AgentRunOutcome.AwaitingUser;
+
+        // The agent loop is a SECOND path to "waiting on the user", and it had none of this. Everything
+        // built for questions — parsing the options, stripping the block, offering the buttons — lived
+        // on the simple-session branch only, so at any effort that routes through agents (Deep and Max
+        // both do) a model that emitted a perfect questions block still rendered as raw text with an
+        // empty composer underneath. Two paths to one state, and only one of them was finished.
+        if (AwaitingAnswer)
+        {
+            var lastReply = run.Turns.Count > 0 ? run.Turns[^1].Reply : string.Empty;
+            SetQuestions(AuthoringQuestions.Parse(lastReply));
+            SetActions(AuthoringAction.Default);
+        }
+        else
+        {
+            SetQuestions([]);
+            SetActions([]);
+        }
+
         if (CompiledOk) _pendingCompile = judge.Latest;
     }
 

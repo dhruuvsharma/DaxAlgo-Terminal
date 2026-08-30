@@ -64,6 +64,50 @@ public sealed class AuthoringQuestionsTests
         visible.Should().NotContain("```");
     }
 
+    [Fact]
+    public void The_reply_that_was_reported_as_broken_parses()
+    {
+        // Verbatim from a real kimi-k3 turn on "create a tradingview like chart with RSI and Triple
+        // EMA". The model did everything right — four well-formed questions with sensible options —
+        // and the user still saw raw JSON, because the agent path never called this parser. Pinned as
+        // the payload rather than a tidy fixture: it is the one that was actually produced.
+        const string reported = """
+            This brief is close to buildable, but a few choices change what gets written.
+
+            ```questions
+            [
+              { "id": "kind", "question": "Should this just draw the chart, or also trade the signals?",
+                "kind": "single",
+                "options": [ { "label": "Visualizer only", "detail": "Candles + TEMA + RSI panel, no trading" },
+                             { "label": "Strategy", "detail": "Same chart, plus it takes positions" } ] },
+              { "id": "instrument", "question": "Which instrument?", "kind": "single",
+                "options": [ { "label": "BTCUSDT perp" }, { "label": "ETHUSDT perp" },
+                             { "label": "ES futures" }, { "label": "SPY" } ] },
+              { "id": "timeframe", "question": "Which bar timeframe?", "kind": "single",
+                "options": [ { "label": "1 minute" }, { "label": "5 minutes" },
+                             { "label": "15 minutes" }, { "label": "1 hour" } ] },
+              { "id": "signals", "question": "If it trades, which entry/exit rules?", "kind": "multiple",
+                "options": [ { "label": "Price crosses TEMA" }, { "label": "RSI overbought/oversold" },
+                             { "label": "RSI trend filter" }, { "label": "Fixed stop + target" } ] }
+            ]
+            ```
+
+            Defaults I'll take unless you say otherwise: TEMA and RSI periods of 14.
+            """;
+
+        var parsed = AuthoringQuestions.Parse(reported);
+
+        parsed.Should().HaveCount(4);
+        parsed[0].Options.Should().HaveCount(2);
+        parsed[1].Options.Should().HaveCount(4);
+        parsed[3].Mode.Should().Be(AuthoringAnswerMode.Multiple);
+
+        var visible = AuthoringQuestions.StripBlock(reported);
+        visible.Should().StartWith("This brief is close to buildable");
+        visible.Should().Contain("Defaults I'll take");
+        visible.Should().NotContain("\"options\"");
+    }
+
     // ── degradation ─────────────────────────────────────────────────────────────────────────────
 
     [Theory]
