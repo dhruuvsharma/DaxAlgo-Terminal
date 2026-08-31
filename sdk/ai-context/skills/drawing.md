@@ -6,26 +6,22 @@ triggers: window, view, ui, panel, chart, display, show, render, dashboard, visu
 
 # Drawing
 
-You describe the whole frame every time you are asked, and the host retains nothing between frames.
-That suits streaming market data, where most of the picture changes on every tick, and it means you
-hold no visual state the host has to reconcile.
-
 **There is no control, no XAML, no window.** `Draw` gets an `IRenderSurface` and nothing else. That is
-what lets a stranger's visualizer run in this process at all.
+what lets a stranger's visualizer run in this process at all. (Immediate mode and the frame contract
+are in the SDK surface above; this pack is the library and the judgement.)
 
-For a body split into several panels — a chart beside a book, two venues side by side — each panel is
-still just an `IRenderSurface` and everything below applies unchanged; only the arrangement is declared
-elsewhere. See the **layout** pack.
+A body split into several panels — a chart beside a book, two venues side by side — is still just an
+`IRenderSurface` per panel, and everything below applies unchanged. See the **layout** pack.
 
 ## Reach for a widget before you draw anything by hand
 
-There is a library of them. **Check this table first** — hand-rolling one of these is slower to write,
-longer to read, and fails verification in ways the widget already handles (blank first frame, a flat
-series that divides by zero, colour used where shape was needed, a scale that flatters the data).
+**Check this table first** — hand-rolling one of these is slower to write, longer to read, and fails
+verification in ways the widget already handles (blank first frame, a flat series that divides by
+zero, colour used where shape was needed, a scale that flatters the data).
 
 Each takes an options record. **Pass `Default`, or omit the argument.** Never `new()` — on a record
-struct that binds to the implicit parameterless constructor, every field lands on zero, and a
-zero-width fully-transparent widget looks exactly like a broken one. To change one field:
+struct that binds the implicit parameterless constructor, every field lands on zero, and a zero-width
+transparent widget looks exactly like a broken one. To change one field:
 `SeriesOptions.Default with { Color = RenderThemeColor.Bearish }`.
 
 ### On a chart
@@ -66,18 +62,17 @@ zero-width fully-transparent widget looks exactly like a broken one. To change o
 
 ## What the widgets already handle
 
-- **`Plot.Waiting(surface, "…")`** is the empty state in one line, and returns `true`:
+- **`Plot.Waiting(surface, "…")`** is the empty state in one line:
   `if (_history.Count == 0) { Plot.Waiting(surface); return; }`. Drawing nothing is the commonest way a
   picture fails review, and a blank panel reads as a broken application.
 - **One scale across a comparison.** `Series.Chart` scales every series together; separately-scaled
   series look like they agree when they do not, and that chart looks exactly like a correct one.
-- **A histogram's baseline stays in range**, so bars either side of zero point different ways.
-- **Both sides of the book share one size scale** in `DepthCurve` — a lopsided book looking balanced is
-  the one thing that picture exists to reveal.
+- **A histogram's baseline stays in range**; **both sides of the book share one size scale** in
+  `DepthCurve`, since a lopsided book looking balanced is what that picture exists to reveal.
 - **Shape as well as colour on `Signals`**: buy triangle, sell diamond, exit cross.
 - **`VolumeProfile.ValueArea(rows)`** returns the same low/high/POC the picture drew, so a strategy can
   trade the levels its own chart shows.
-- **Flat series, single points and tiny panels** are handled. None of them produce NaN.
+- **Flat series, single points and tiny panels** produce no NaN.
 
 ## Placing widgets: `PlotArea`
 
@@ -90,11 +85,6 @@ out inside out, and it compiles, draws and passes every test.
 var (header, body)  = PlotArea.Of(surface).SplitTop(56d);
 var (book, chart)   = body.SplitRight(140d);   // book is the 140px strip
 var (delta, prices) = chart.SplitBottom(80d);  // delta is the 80px strip
-
-Tiles.Draw(surface, tiles, area: header);
-Candles.Draw(surface, bars, area: prices);
-Histogram.Draw(surface, cumulativeDelta, area: delta);
-Ladder.Draw(surface, depth, area: book);
 ```
 
 `Row(i, n)`, `Column(i, n)`, `SplitTop/Bottom/Left/Right`, `Inset(pad)` — strip first every time, so a
@@ -102,13 +92,11 @@ layout reads top to bottom with no running offset to keep straight.
 
 ## Where the work goes
 
-`Draw` runs on the **render thread**, when the host paints, and blocks the UI while it runs. Your data
-callbacks run on a **pump thread** that may fire hundreds of times a second. So: compute in the
-callback, keep only what the picture needs in a **bounded** buffer, and read that field in `Draw`.
-
-Bound the buffer to a fixed capacity and drop the oldest — a visualizer lives as long as its window,
-and both exemplars show the shape. Reaching for context, market data or the clock inside `Draw` means
-the work is in the wrong place.
+`Draw` runs on the **render thread** and blocks the UI while it runs. Your data callbacks run on a
+**pump thread** that may fire hundreds of times a second. So: compute in the callback, keep only what
+the picture needs in a **bounded** buffer (fixed capacity, drop the oldest), and read that field in
+`Draw`. Reaching for context, market data or the clock inside `Draw` means the work is in the wrong
+place.
 
 ## Composing your own
 
@@ -130,30 +118,43 @@ public void Draw(IRenderSurface surface)
 ```
 
 **Panels stack** — open several in sequence for a chart with a histogram beneath it. Kinds `Chart`,
-`Ladder`, `Matrix`, `Canvas` tell the host what chrome and default axes to supply.
-
-**Series kinds**: `Line` for a continuous value, `Steps` for something that holds until it changes
-(position, regime), `Bars` for per-interval quantities, `Area` for cumulative, `Scatter` for events.
+`Ladder`, `Matrix`, `Canvas` tell the host what chrome and default axes to supply. **Series kinds**:
+`Line` for a continuous value, `Steps` for what holds until it changes (position, regime), `Bars` for
+per-interval quantities, `Area` for cumulative, `Scatter` for events.
 
 **`PlotRange.Padded()` matters more than it looks** — it gives a *flat* range a usable width. A series
-of identical prices is otherwise a zero-height range nothing can be plotted against, and the panel comes
-out empty for a reason that is invisible in the code.
+of identical prices is otherwise a zero-height range nothing can plot against, and the panel comes out
+empty for a reason invisible in the code.
 
 ## Colour
 
 Name roles, never RGB: `surface.Theme(RenderThemeColor.Bullish)`. The roles are `Text`,
 `TextSecondary`, `Background`, `Surface`, `Grid`, `Border`, `Accent`, `Bullish`, `Bearish`, `Neutral`,
-`Warning`.
-
-A literal colour that looks right on your dark background is invisible on a light one, and a visualizer
-cannot ask which theme is active — deliberately, because then it would have two appearances to get
-right instead of one.
+`Warning`. A literal that looks right on your dark background is invisible on a light one, and you
+cannot ask which theme is active — deliberately, or you would have two appearances to get right.
 
 The **one** exception is `ColorScale`, for gradients a heatmap needs, and its ramps still start from
 theme colours. Use `Diverging` for anything signed and `Sequential` only for a magnitude: a signed
 quantity on a sequential ramp hides which side of zero it is on.
 
 **Never let colour carry meaning alone.** Pair it with shape or position.
+
+## Gestures
+
+Every pointer gesture arrives as **accumulated state you read**, never an event you handle — `Draw`
+runs more than once per frame and must be pure, so it cannot consume a click or a notch just once.
+All four are panel-local.
+
+| Viewer | You read | Use it for |
+|---|---|---|
+| hovers | `Cursor.IsInside`, `.X`, `.Y` | crosshair + readout (`Plot.Crosshair`) |
+| clicks | `Cursor.HasSelection`, `.SelectionX/Y` | invert your axis mapping, highlight that row |
+| wheel | `Viewport.Zoom` (1 = unzoomed) | `visible = window / Zoom` |
+| drags | `Viewport.PanX`, `.PanY` (pixels) | offset which slice of history you show |
+
+**Apply `Zoom` to your data range, never your coordinates** — scaling the drawing magnifies the text
+with it. A pin survives the pointer leaving, which is when someone is reading it. And do not add a
+parameter for something that is now a gesture.
 
 ## What gets a picture rejected
 
@@ -163,10 +164,10 @@ quantity on a sequential ramp hides which side of zero it is on.
 - **Hard-coded colours**, per above.
 - **A picture that disagrees with the book.** If a strategy took a position, the chart must show the
   signal it acted on. Confidently wrong is worse than blank.
-- **Ignoring the cursor.** `Plot.Crosshair` is one line and makes a chart readable.
+- **Ignoring the cursor.** See gestures; `Plot.Crosshair` is one line.
 
 ## The budget
 
 The host bounds what one frame may emit and throttles a visualizer that draws unreasonably. Tens of
-thousands of primitives per frame is the ceiling, not the target — a picture needing more than that
-needs aggregating first, and a human cannot read it either.
+thousands of primitives is the ceiling, not the target: a picture needing more needs aggregating
+first, and a human cannot read it either.

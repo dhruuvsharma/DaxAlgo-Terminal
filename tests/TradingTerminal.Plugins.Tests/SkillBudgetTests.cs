@@ -38,6 +38,27 @@ public sealed class SkillBudgetTests
     }
 
     [Fact]
+    public void The_heaviest_three_leave_room_to_grow()
+    {
+        // A ceiling on its own is a cliff nobody sees coming. On 2026-08-31 the three heaviest were
+        // 17,951 of 18,000 — forty-nine characters, about one sentence, from silently dropping a pack
+        // — while the constant's own remarks called the margin "16,856 of 18,000". The prose had not
+        // been recomputed as the packs grew and nothing checked it, so the budget read as roomy while
+        // it was effectively already reached.
+        //
+        // This fails at "getting tight" instead, which is a failure someone can act on. The other
+        // assertion in this file still fails at "already broken"; both are wanted.
+        var heaviest = Library().All
+            .OrderByDescending(skill => skill.Body.Length)
+            .Take(3)
+            .Sum(skill => skill.Body.Length);
+
+        (StrategySkillLibrary.MaxCharacters - heaviest).Should().BeGreaterThanOrEqualTo(
+            StrategySkillLibrary.MinimumHeadroom,
+            "the next pack edit must fail loudly before it silently costs a brief its catalogue");
+    }
+
+    [Fact]
     public void No_single_pack_can_ever_be_too_big_to_load()
     {
         // A pack larger than the whole budget can never be selected, at any effort level, for any

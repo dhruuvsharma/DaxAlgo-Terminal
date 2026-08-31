@@ -1427,15 +1427,23 @@ byte R { get; }
 
 Pointer state for the current panel. Present so a visualizer can draw a crosshair or a hover readout — the volume footprint's tooltip is exactly this — without the host needing to know what the visualizer considers hoverable.
 
+Why every member here is a state and none is an event. A click, a wheel notch and a drag are transitions, and `Draw` is invoked more than once per frame and must be pure — so a unit cannot consume a transition without firing twice. The host therefore accumulates each gesture into a value that stays put, and the unit reads it. That is the whole reason `HasSelection` is a sticky point rather than an `OnClick`.
+
 ```csharp
+bool HasSelection { get; }
 bool IsInside { get; }
 bool IsPressed { get; }
+double SelectionX { get; }
+double SelectionY { get; }
 double X { get; }
 double Y { get; }
 ```
 
+- `HasSelection` — Whether the viewer has clicked somewhere in this panel and that click still stands. This is how a price level gets pinned. Read `SelectionX` / `SelectionY`, invert your own axis mapping to get the value under them, and draw the highlight. Clicking again moves it; clicking in another panel clears it here.
 - `IsInside` — Whether the pointer is over the panel at all.
 - `IsPressed` — Whether the primary button is down.
+- `SelectionX` — The X of the standing click, in panel coordinates. Meaningless unless `HasSelection`.
+- `SelectionY` — The Y of the standing click, in panel coordinates. Meaningless unless `HasSelection`.
 - `X` — Pointer X in panel coordinates.
 - `Y` — Pointer Y in panel coordinates.
 
@@ -1510,13 +1518,19 @@ The drawable area of the current panel, in device-independent pixels.
 
 ```csharp
 double Height { get; }
+double PanX { get; }
+double PanY { get; }
 double Scale { get; }
 double Width { get; }
+double Zoom { get; }
 ```
 
 - `Height` — Panel height.
+- `PanX` — Horizontal pan, in panel pixels, accumulated from dragging. Positive means the viewer dragged right, so a unit showing history should move further back.
+- `PanY` — Vertical pan, in panel pixels, accumulated from dragging.
 - `Scale` — Device pixel ratio, for hairline-accurate strokes.
 - `Width` — Panel width.
+- `Zoom` — How far the viewer has zoomed in, accumulated from the wheel. 1 is unzoomed; 2 means show half as much; 0.5 means show twice as much. Apply it to your data range, not to your coordinates. A unit deciding what slice of its history to draw divides its window by this — 240 columns at zoom 2 becomes 120. Scaling the drawing instead would magnify the text and the line widths with it. The host owns the number and it is per surface, so a body of several panels built from one `UnitLayout` zooms each panel independently (each is its own surface) while several `Panel` scopes opened on ONE surface share a zoom.
 
 ### `SdkInfo`
 

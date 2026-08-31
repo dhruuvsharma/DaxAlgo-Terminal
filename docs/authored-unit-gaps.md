@@ -24,7 +24,29 @@ path, trade dots at their own price, the signed imbalance lane, and the microstr
 read rather than an event, and `RenderSurfaceView` invalidates on `MouseMove`, so a unit can draw a
 crosshair and price/size readout at the pointer with no host round-trip.
 
-So the picture is not the gap. The gap is everything the user *does* to the picture.
+So the picture was never the gap. The gap is everything the user *does* to the picture.
+
+## Delta
+
+| | 2026-08-31, first run | after the gesture work |
+|---|---|---|
+| Actions (verbs) | missing | **missing** |
+| Selection (pin a level) | impossible | **closed** |
+| Zoom | missing | **closed** |
+| Scrub / pan | missing | **closed** |
+| Scrolling | missing | **missing** |
+| Time axis on a captured series | missing | **missing** |
+| Presets | missing | **missing** |
+
+Three of seven closed. The control now pins a price row on click and chooses its visible window from
+the wheel and the drag, and the `heatWindow` parameter it needed for want of a gesture is gone.
+
+**How, without handing the host a WPF type.** A click, a wheel notch and a drag are *transitions*, and
+`Draw` is invoked twice per frame and must be pure — so a unit cannot consume one. The host therefore
+**accumulates each gesture into state that stays put**, and the unit reads it: `Cursor.HasSelection`
+with `SelectionX/Y`, and `Viewport.Zoom` / `PanX` / `PanY`. Data and reads, no callbacks and no
+controls. That shape is the answer to the whole category, and the remaining gaps below are the ones it
+does not reach.
 
 ## The gaps, most costly first
 
@@ -39,29 +61,35 @@ This is the single largest difference by volume, and it is a contract gap rather
 one: an action is data (a name, a group, an enablement) plus a callback, which is exactly the shape
 the layout tree already uses, so it does not require handing the host a WPF type.
 
-### 2. Selection is impossible, and the reason is structural
+### ~~2. Selection~~ — closed 2026-08-31
 
-Clicking a price level to pin it is the order book's central gesture. It cannot be written, for two
-reasons that compound:
+Kept because the diagnosis is the reusable part. It was impossible for two compounding reasons:
 
-- **`RenderCursor.IsPressed` is sampled on `MouseMove` only.** `RenderSurfaceView` handles
-  `MouseMove` and `MouseLeave` and nothing else, so a press that does not move is invisible and a
-  release that does not move never clears. The value is not merely coarse, it is wrong until the
-  pointer next moves.
+- **`RenderCursor.IsPressed` was sampled on `MouseMove` only.** `RenderSurfaceView` handled
+  `MouseMove` and `MouseLeave` and nothing else, so a press that did not move was invisible and a
+  release that did not move never cleared. Not coarse — *wrong*, until the pointer next moved.
 - **A click is a transition, and `Draw` may not observe one.** `OnRender` invokes the draw callback
   **twice** per frame — a discovery pass to count panels, then the real pass — and the code says so:
-  *"This is why Draw MUST BE PURE."* So a unit may not latch a press-to-release transition in the
-  only place it can see the cursor. Any author who tries gets double-fires.
+  *"This is why Draw MUST BE PURE."* So a unit may not latch a press-to-release transition.
 
-A selection therefore needs host-side state, not an author-side latch: something like a
-`RenderCursor.Click` that the host raises once per real click and clears after the frame, or a
-host-owned selected-point the unit reads.
+The fix was the second point taken seriously: the host accumulates, the unit reads. `MouseDown` /
+`MouseUp` now exist (fixing `IsPressed` outright), a press-and-release that travels less than 4px is a
+click, and the click becomes a sticky `Cursor.HasSelection` + `SelectionX/Y`, mapped per panel and
+surviving the pointer leaving.
 
-### 3. No zoom, no scrub
+A third thing fell out: the **discovery pass is now pointer-blind**. It had been given the live
+cursor, so a unit branching on `IsInside` would open a different number of panels on the two passes of
+one frame and every panel would get the wrong share of the height — a layout that rearranged as the
+mouse moved. Panel structure must not depend on pointer state, and a blank cursor in discovery is what
+makes that true rather than merely advised.
 
-No wheel, no drag anchor, no delta. In the control, the heat window is a **parameter** because it
-cannot be a gesture — the user retypes a number where the hand-written window would scroll. Same for
-the price range: fixed to the window extremes.
+### ~~3. Zoom and scrub~~ — closed 2026-08-31
+
+`Viewport.Zoom` (wheel, compounding at 1.2 per notch, clamped to [0.25, 32]) and `Viewport.PanX/PanY`
+(drag, in panel pixels). Both accumulate on the host for the same reason as the selection.
+
+**Apply zoom to the data range, not to the coordinates** — the control divides its column window by
+it. Scaling the drawing would magnify the text and line widths with it.
 
 ### 4. No scrolling
 

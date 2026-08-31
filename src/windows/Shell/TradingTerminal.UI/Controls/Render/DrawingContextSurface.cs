@@ -52,7 +52,8 @@ internal sealed class DrawingContextSurface : IRenderSurface
         RenderCursor cursor,
         Func<RenderThemeColor, Color> theme,
         int expectedPanels = 0,
-        bool discovering = false)
+        bool discovering = false,
+        (double Zoom, double PanX, double PanY) transform = default)
     {
         _context = context;
         _size = size;
@@ -61,7 +62,12 @@ internal sealed class DrawingContextSurface : IRenderSurface
         _theme = theme;
         _expectedPanels = expectedPanels;
         _discovering = discovering;
+        // default(ValueTuple) is a zero zoom, which would have every unit dividing its window by 0.
+        // A surface built without a transform is unzoomed, not degenerate.
+        _transform = transform.Zoom > 0d ? transform : (1d, 0d, 0d);
     }
+
+    private readonly (double Zoom, double PanX, double PanY) _transform;
 
     /// <summary>Panels opened during this pass — what the discovery pass exists to find out.</summary>
     internal int PanelCount => _panels.Count;
@@ -74,31 +80,79 @@ internal sealed class DrawingContextSurface : IRenderSurface
     /// The area a visualizer may draw into: the current panel's, or the whole control before any
     /// panel is opened.
     /// </summary>
-    public RenderViewport Viewport => _panel is { } panel
-        ? new RenderViewport(panel.Bounds.Width, panel.Bounds.Height, _scale)
-        : new RenderViewport(_size.Width, _size.Height, _scale);
+    public RenderViewport Viewport
+    {
+        get
+        {
+            var bounds = _panel is { } panel
+                ? new RenderViewport(panel.Bounds.Width, panel.Bounds.Height, _scale)
+                : new RenderViewport(_size.Width, _size.Height, _scale);
+
+            return bounds with
+            {
+                Zoom = _transform.Zoom,
+                PanX = _transform.PanX,
+                PanY = _transform.PanY,
+            };
+        }
+    }
 
     /// <summary>
     /// Cursor in the current panel's coordinates, reported outside when it is over a different panel
     /// — so two panels never both think they are hovered.
+    ///
+    /// <para>The standing selection is mapped the same way and <b>independently</b>: a pinned level
+    /// survives the pointer leaving the window, which is exactly when someone is looking at what they
+    /// pinned. Mapping it alongside the hover state would have cleared it on the way out.</para>
     /// </summary>
     public RenderCursor Cursor
     {
         get
         {
-            if (!_rawCursor.IsInside)
-                return _rawCursor;
-            if (_panel is not { } panel)
-                return _rawCursor;
-            if (!panel.Bounds.Contains(_rawCursor.X, _rawCursor.Y))
-                return new RenderCursor(0d, 0d, IsInside: false, IsPressed: false);
-
-            return new RenderCursor(
-                _rawCursor.X - panel.Bounds.X,
-                _rawCursor.Y - panel.Bounds.Y,
-                IsInside: true,
-                _rawCursor.IsPressed);
+            var hover = Hover();
+            return hover with
+            {
+                HasSelection = Selection(out var x, out var y),
+                SelectionX = x,
+                SelectionY = y,
+            };
         }
+    }
+
+    private RenderCursor Hover()
+    {
+        if (!_rawCursor.IsInside) return new RenderCursor(0d, 0d, IsInside: false, _rawCursor.IsPressed);
+        if (_panel is not { } panel)
+            return new RenderCursor(_rawCursor.X, _rawCursor.Y, IsInside: true, _rawCursor.IsPressed);
+        if (!panel.Bounds.Contains(_rawCursor.X, _rawCursor.Y))
+            return new RenderCursor(0d, 0d, IsInside: false, IsPressed: false);
+
+        return new RenderCursor(
+            _rawCursor.X - panel.Bounds.X,
+            _rawCursor.Y - panel.Bounds.Y,
+            IsInside: true,
+            _rawCursor.IsPressed);
+    }
+
+    /// <summary>The standing click in the current panel's coordinates, or false when there is none or
+    /// it belongs to another panel.</summary>
+    private bool Selection(out double x, out double y)
+    {
+        x = y = 0d;
+        if (!_rawCursor.HasSelection) return false;
+
+        if (_panel is not { } panel)
+        {
+            x = _rawCursor.SelectionX;
+            y = _rawCursor.SelectionY;
+            return true;
+        }
+
+        if (!panel.Bounds.Contains(_rawCursor.SelectionX, _rawCursor.SelectionY)) return false;
+
+        x = _rawCursor.SelectionX - panel.Bounds.X;
+        y = _rawCursor.SelectionY - panel.Bounds.Y;
+        return true;
     }
 
     public RenderColor Theme(RenderThemeColor token)

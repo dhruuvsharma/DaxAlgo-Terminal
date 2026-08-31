@@ -82,16 +82,36 @@ public sealed class StrategySkillLibrary
     /// contrived one: order flow drawn as a picture with some maths behind it. The ceiling still binds —
     /// all six packs are over 26,000 — which is the point of having one.</para>
     ///
-    /// <para>A pack was added in 2026-08-27 (layout), so the arithmetic moved: the three heaviest are
-    /// now 16,856 of 18,000. <c>SkillBudgetTests</c> asserts that invariant, because the failure mode is
-    /// silent — a brief asking for a picture would simply arrive without the drawing catalogue, and the
-    /// model would hand-roll widgets that already exist.</para>
+    /// <para>A pack was added in 2026-08-27 (layout), so the arithmetic moved. <c>SkillBudgetTests</c>
+    /// asserts the invariant, because the failure mode is silent — a brief asking for a picture would
+    /// simply arrive without the drawing catalogue, and the model would hand-roll widgets that already
+    /// exist.</para>
     ///
     /// <para>It buys back more than it costs. The catalogue is the one pack that reduces <i>output</i>
     /// tokens, which are billed at several times the rate of the cached input it occupies, and a widget
     /// the model does not know about is a widget it writes from scratch and gets wrong.</para>
+    ///
+    /// <para><b>Raised from 18,000 on 2026-08-31, and the reason is a warning about this comment.</b>
+    /// It claimed the three heaviest were "16,856 of 18,000" — a comfortable-sounding margin. They were
+    /// actually <b>17,951</b>: forty-nine characters, about one sentence, from silently dropping a
+    /// pack. The number in the prose had not been recomputed as the packs grew, and nothing checked it,
+    /// so the ceiling read as roomy while it was effectively already reached.</para>
+    ///
+    /// <para>Hence <see cref="MinimumHeadroom"/>. A ceiling alone turns into a cliff nobody sees coming;
+    /// asserting a margin as well makes the next pack edit fail at "this is getting tight" rather than
+    /// at "a brief already lost its drawing catalogue". Cost is bounded and small — the packs are a few
+    /// percent of a prompt whose bulk is the generated surface.</para>
     /// </remarks>
-    public const int MaxCharacters = 18_000;
+    public const int MaxCharacters = 20_000;
+
+    /// <summary>
+    /// How much of <see cref="MaxCharacters"/> must remain unused by the three heaviest packs.
+    ///
+    /// <para>Pinned by <c>SkillBudgetTests</c>. Without it the budget is a cliff: every edit passes
+    /// until one does not, and the one that does not is a silently missing pack rather than a failure
+    /// anyone can see. With it, the pack that would consume the last of the margin fails first.</para>
+    /// </summary>
+    public const int MinimumHeadroom = 1_000;
 
     private readonly IReadOnlyList<StrategySkill> _skills;
 

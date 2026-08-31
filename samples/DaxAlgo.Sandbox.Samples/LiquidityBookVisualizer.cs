@@ -28,16 +28,15 @@ namespace DaxAlgo.Sandbox.Samples;
 /// <item><b>Actions.</b> The hand-written window has Export ladder CSV, Export series CSV, Save PNG,
 /// Save preset, Delete preset and a help popup. A unit can declare parameters; it cannot declare a
 /// verb. There is no affordance in the SDK for "a button that does something".</item>
-/// <item><b>Selection.</b> Clicking a price level to pin it is the order book's central gesture and
-/// cannot be written. <c>RenderCursor.IsPressed</c> is sampled on mouse MOVE only, so a press that
-/// does not move is invisible and a release that does not move never clears — and <c>Draw</c> is
-/// invoked more than once per frame and must be pure, so a unit may not latch the transition it
-/// would need.</item>
-/// <item><b>Zoom and scrub.</b> No wheel, no drag anchor, no delta. The heat window below is a
-/// parameter because it cannot be a gesture.</item>
 /// <item><b>Scrolling.</b> The hand-written ladder is a <c>ScrollViewer</c> over every level. An
 /// immediate-mode panel draws what fits; <see cref="LevelsParameter"/> is the workaround.</item>
+/// <item><b>A time axis on a captured series.</b> A heat column is a capture tick, not a clock
+/// interval, so the trade dots are placed by index rather than by their own timestamp.</item>
 /// </list>
+///
+/// <para><b>Closed on 2026-08-31:</b> selection and zoom/pan. The host now accumulates each gesture
+/// into state a pure <c>Draw</c> can read — <c>Cursor.HasSelection</c> pins a price row here, and
+/// <c>Viewport.Zoom</c> and <c>PanX</c> choose the visible window that used to need a parameter.</para>
 ///
 /// <para>Everything the SDK <i>can</i> do is used here deliberately, so the comparison is fair: the
 /// gaps are the contract's, not the author's.</para>
@@ -46,7 +45,6 @@ public sealed class LiquidityBookVisualizer : IVisualizer
 {
     public const string InstrumentParameter = "instrument";
     public const string LevelsParameter = "levels";
-    public const string HeatWindowParameter = "heatWindow";
     public const string SweepSizeParameter = "sweepSize";
     public const string ShowTradesParameter = "showTrades";
     public const string ShowMicropriceParameter = "showMicroprice";
@@ -56,6 +54,11 @@ public sealed class LiquidityBookVisualizer : IVisualizer
     /// a book can tick thousands of times a minute.</summary>
     private const int MaximumHeatColumns = 480;
 
+    /// <summary>Columns shown at zoom 1. Deliberately NOT a parameter: the wheel already chooses how
+    /// much history is on screen, and a spinner beside it would be two controls fighting over one
+    /// number.</summary>
+    private const int DefaultHeatWindow = 180;
+
     /// <summary>Price rows in the heatmap. Odd, so the mid sits on a row rather than between two.</summary>
     private const int HeatRows = 41;
 
@@ -63,7 +66,6 @@ public sealed class LiquidityBookVisualizer : IVisualizer
 
     private InstrumentId _instrument;
     private int _levels;
-    private int _heatWindow;
     private double _sweepSize;
     private bool _showTrades;
     private bool _showMicroprice;
@@ -90,9 +92,6 @@ public sealed class LiquidityBookVisualizer : IVisualizer
             InstrumentParameter, "Instrument", new InstrumentId(1), group: "Market"),
         StrategyParameter.Int(
             LevelsParameter, "Ladder levels", 12, min: 1, max: 30, group: "Book", unit: "levels"),
-        StrategyParameter.Int(
-            HeatWindowParameter, "Heat window", 180, min: 30, max: MaximumHeatColumns, group: "Heatmap",
-            unit: "columns"),
         StrategyParameter.Number(
             SweepSizeParameter, "Sweep size", 50d, min: 1d, max: 1_000_000d, group: "Book",
             unit: "contracts"),
@@ -118,7 +117,6 @@ public sealed class LiquidityBookVisualizer : IVisualizer
 
         _instrument = context.Parameters.GetInstrument(InstrumentParameter);
         _levels = context.Parameters.GetInt(LevelsParameter);
-        _heatWindow = Math.Min(context.Parameters.GetInt(HeatWindowParameter), MaximumHeatColumns);
         _sweepSize = context.Parameters.GetDouble(SweepSizeParameter);
         _showTrades = context.Parameters.GetBool(ShowTradesParameter);
         _showMicroprice = context.Parameters.GetBool(ShowMicropriceParameter);
@@ -244,9 +242,21 @@ public sealed class LiquidityBookVisualizer : IVisualizer
 
         var (lane, plot) = _showLane ? area.SplitBottom(56d) : (PlotArea.None, area);
 
-        // The visible window, oldest at the left. The parameter exists because scrubbing does not.
-        var first = Math.Max(0, _columns.Count - _heatWindow);
-        var visible = _columns.Count - first;
+        // The visible window, oldest at the left, chosen by the WHEEL and the DRAG rather than by a
+        // parameter. Zoom divides the window — showing fewer columns is what zooming in means on a
+        // chart, and scaling the drawing instead would magnify the text with it. Pan then slides that
+        // window back through the history.
+        var view = surface.Viewport;
+        var window = Math.Clamp((int)(DefaultHeatWindow / view.Zoom), 8, MaximumHeatColumns);
+
+        // Pan is in pixels, so it becomes columns at the current column width. Clamped so a viewer
+        // cannot drag past the end of what was captured and be shown an empty panel with no way back.
+        var perColumn = Math.Max(1d, plot.Width / Math.Max(1, window));
+        var back = (int)Math.Clamp(view.PanX / perColumn, 0d, Math.Max(0, _columns.Count - window));
+
+        var first = Math.Max(0, _columns.Count - window - back);
+        var visible = Math.Min(window, _columns.Count - first);
+        if (visible <= 0) return;
 
         // Rows are shared across the window so the picture does not shimmer as the book drifts; the
         // extremes of the window set the scale.
@@ -309,26 +319,36 @@ public sealed class LiquidityBookVisualizer : IVisualizer
     }
 
     /// <summary>
-    /// The crosshair and its readout — the one piece of the hand-written window's interaction the SDK
-    /// does express, because <see cref="RenderCursor"/> is a read rather than an event and the host
-    /// repaints on mouse move.
+    /// The crosshair, the hover readout, and the PINNED row.
     ///
-    /// <para>Note what it CANNOT do: pin the level it is reading. That needs a click, and a click is
-    /// a transition rather than a state, so nothing here can observe one.</para>
+    /// <para>Both are pure reads of host-accumulated state, which is what makes them legal here:
+    /// <c>Draw</c> is invoked more than once per frame, so a unit could not consume a click even if
+    /// one were delivered. The host turns the click into a point that stays put and this reads it.</para>
+    ///
+    /// <para>The pin is drawn before the crosshair so the moving line sits over the standing one, and
+    /// it is drawn whether or not the pointer is present — someone who pinned a level then moved away
+    /// to read it should still see what they pinned.</para>
     /// </summary>
     private void DrawHoverReadout(
         IRenderSurface surface, PlotArea plot, PlotRange range, int first, int visible)
     {
         var cursor = surface.Cursor;
+
+        if (cursor.HasSelection && plot.Contains(cursor.SelectionX, cursor.SelectionY))
+        {
+            var pinned = PriceAt(cursor.SelectionY, plot, range);
+            surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Accent), Thickness: 1.5d));
+            surface.Line(plot.X, cursor.SelectionY, plot.Right, cursor.SelectionY);
+            surface.Text(plot.X + 4d, cursor.SelectionY - 6d, $"pinned {pinned:F2}");
+        }
+
         if (!cursor.IsInside || !plot.Contains(cursor.X, cursor.Y)) return;
 
         surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Grid)));
         surface.Line(plot.X, cursor.Y, plot.Right, cursor.Y);
         surface.Line(cursor.X, plot.Y, cursor.X, plot.Bottom);
 
-        var price = range.Minimum
-            + (plot.Bottom - cursor.Y) / Math.Max(1d, plot.Height) * (range.Maximum - range.Minimum);
-
+        var price = PriceAt(cursor.Y, plot, range);
         var column = (int)((cursor.X - plot.X) / Math.Max(1d, plot.Width) * visible);
         var index = first + Math.Clamp(column, 0, Math.Max(0, visible - 1));
         var resting = index < _columns.Count
@@ -338,6 +358,9 @@ public sealed class LiquidityBookVisualizer : IVisualizer
         surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Text)));
         surface.Text(cursor.X + 8d, cursor.Y - 8d, $"{price:F2}  ·  {resting:N0}");
     }
+
+    private static double PriceAt(double y, PlotArea plot, PlotRange range) =>
+        range.Minimum + (plot.Bottom - y) / Math.Max(1d, plot.Height) * (range.Maximum - range.Minimum);
 
     private static int RowOf(double y, PlotArea plot) =>
         Math.Clamp((int)((plot.Bottom - y) / Math.Max(1d, plot.Height) * (HeatRows - 1)), 0, HeatRows - 1);

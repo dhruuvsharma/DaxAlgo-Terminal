@@ -53,29 +53,166 @@ public sealed class RenderSurfaceView : FrameworkElement
     /// <summary>True when the last frame hit <see cref="MaximumOperationsPerFrame"/>.</summary>
     public bool LastFrameWasTruncated { get; private set; }
 
+    /// <summary>How far one wheel notch zooms. Compounding, so three notches is 1.2³.</summary>
+    private const double ZoomPerNotch = 1.2d;
+
+    /// <summary>Zoom bounds. Unbounded zoom lets a viewer reach a range of 1e-300 and then a NaN, in
+    /// a unit that did nothing wrong.</summary>
+    private const double MinimumZoom = 0.25d;
+    private const double MaximumZoom = 32d;
+
+    /// <summary>How far the pointer may travel between press and release and still be a click rather
+    /// than a drag. A book is clicked with a mouse that moves a pixel or two on the way down.</summary>
+    private const double ClickSlop = 4d;
+
     public RenderSurfaceView()
     {
         ClipToBounds = true;
-        // Pointer state is a read on the surface rather than an event, so the control only has to
-        // keep the latest position and invalidate — visualizers that ignore the cursor cost nothing.
-        MouseMove += (_, e) => UpdateCursor(e.GetPosition(this), pressed: e.LeftButton == MouseButtonState.Pressed);
+
+        // Pointer state is a read on the surface rather than an event, so the control only has to keep
+        // the latest position and invalidate — visualizers that ignore the cursor cost nothing.
+        //
+        // Every gesture below is accumulated into STATE rather than dispatched as an event, and that
+        // is forced by the contract rather than chosen: OnRender invokes the draw callback twice (a
+        // discovery pass, then the real one) so Draw must be pure, and a pure Draw cannot consume a
+        // click, a notch or a delta. Sticky state is the only shape a unit can read safely.
+        MouseMove += OnMouseMove;
         MouseLeave += (_, _) => ClearCursor();
+
+        // IsPressed used to be sampled on MouseMove ALONE, so a press that did not move was invisible
+        // and a release that did not move never cleared. Reporting the button state wrongly until the
+        // pointer next moves is worse than not reporting it, because a unit cannot tell the two apart.
+        MouseDown += OnMouseDown;
+        MouseUp += OnMouseUp;
+        MouseWheel += OnMouseWheel;
     }
 
     private Point _cursor;
     private bool _cursorInside;
     private bool _cursorPressed;
 
-    private void UpdateCursor(Point position, bool pressed)
+    private Point _pressOrigin;
+    private Point _dragAnchor;
+    private bool _dragged;
+
+    private Point _selection;
+    private bool _hasSelection;
+
+    private double _zoom = 1d;
+    private Vector _pan;
+
+    /// <summary>The pointer state a frame is drawn with — the raw, control-space values that
+    /// <c>DrawingContextSurface</c> maps into whichever panel is open.</summary>
+    internal RenderCursor CurrentCursor => new(_cursor.X, _cursor.Y, _cursorInside, _cursorPressed)
     {
+        HasSelection = _hasSelection,
+        SelectionX = _selection.X,
+        SelectionY = _selection.Y,
+    };
+
+    /// <summary>The accumulated view transform a frame is drawn with.</summary>
+    internal (double Zoom, double PanX, double PanY) CurrentTransform => (_zoom, _pan.X, _pan.Y);
+
+    /// <summary>Puts the view back where it started. The host offers this because a unit cannot: it
+    /// reads the transform and never writes it.</summary>
+    public void ResetView()
+    {
+        _zoom = 1d;
+        _pan = default;
+        _hasSelection = false;
+        InvalidateVisual();
+    }
+
+    private void OnMouseMove(object sender, MouseEventArgs e) => MoveTo(e.GetPosition(this));
+
+    private void OnMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+
+        PressAt(e.GetPosition(this));
+
+        // Without capture a drag that leaves the control never gets its MouseUp, and the surface stays
+        // pressed forever — the same class of bug as the one this replaced.
+        CaptureMouse();
+    }
+
+    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+
+        ReleaseAt(e.GetPosition(this));
+        if (IsMouseCaptured) ReleaseMouseCapture();
+    }
+
+    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Delta == 0) return;
+
+        Wheel(e.Delta);
+
+        // Handled, or an ancestor ScrollViewer scrolls the whole pane out from under the chart the
+        // viewer was trying to zoom.
+        e.Handled = true;
+    }
+
+    // The four below carry every rule; the handlers above only turn an event into a position. Split
+    // that way because a routed mouse event cannot be given a position from a test — GetPosition reads
+    // the real device — so the rules would otherwise be assertable only by hand.
+
+    internal void MoveTo(Point position)
+    {
+        if (_cursorPressed)
+        {
+            // Held and moved: a pan. Tracked from the last position rather than from the origin, so
+            // the picture follows the pointer instead of accelerating away from it.
+            _pan += position - _dragAnchor;
+            _dragAnchor = position;
+            if ((position - _pressOrigin).Length > ClickSlop) _dragged = true;
+        }
+
         _cursor = position;
         _cursorInside = true;
-        _cursorPressed = pressed;
+        InvalidateVisual();
+    }
+
+    internal void PressAt(Point position)
+    {
+        _cursor = _pressOrigin = _dragAnchor = position;
+        _cursorInside = true;
+        _cursorPressed = true;
+        _dragged = false;
+        InvalidateVisual();
+    }
+
+    internal void ReleaseAt(Point position)
+    {
+        _cursorPressed = false;
+
+        // A press and release that did not travel is a click, and a click is what pins a level. A drag
+        // is not: pinning a level every time someone panned the chart would make the highlight noise.
+        if (!_dragged)
+        {
+            _selection = position;
+            _hasSelection = true;
+        }
+
+        InvalidateVisual();
+    }
+
+    internal void Wheel(int delta)
+    {
+        var notches = delta / 120d;
+        _zoom = Math.Clamp(_zoom * Math.Pow(ZoomPerNotch, notches), MinimumZoom, MaximumZoom);
         InvalidateVisual();
     }
 
     private void ClearCursor()
     {
+        // The pointer leaving does not release the button — a captured drag is still a drag — and it
+        // does not clear the selection either. A pinned level that vanished when you moved away to
+        // read it would be useless.
+        if (IsMouseCaptured) return;
+
         _cursorInside = false;
         _cursorPressed = false;
         InvalidateVisual();
@@ -93,16 +230,34 @@ public sealed class RenderSurfaceView : FrameworkElement
 
         var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
         var size = new Size(ActualWidth, ActualHeight);
-        var cursor = new RenderCursor(_cursor.X, _cursor.Y, _cursorInside, _cursorPressed);
+        var cursor = CurrentCursor;
         var theme = ThemeResolver ?? DefaultTheme;
+
+        // A transparent ground over the whole control, so the pointer is over SOMETHING everywhere.
+        // A FrameworkElement is hit-tested against what it drew, so without this a click that landed
+        // between two strokes reached nothing and no gesture was ever recorded there — the picture
+        // would appear to ignore clicks in its empty regions, which is most of it.
+        drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(size));
 
         // Two passes. The first draws nothing and only counts panels, so the second can give every
         // panel its correct share of the height — otherwise the first panel opened is laid out
         // before the frame knows how many follow it, and is always drawn wrong.
         //
         // This is why Draw MUST BE PURE: it is invoked more than once per frame. Computation belongs
-        // in the visualizer's data callbacks; Draw only describes the picture.
-        var discovery = new DrawingContextSurface(drawingContext, size, scale, cursor, theme, discovering: true);
+        // in the visualizer's data callbacks; Draw only describes the picture. It is also why every
+        // gesture arrives as accumulated state rather than as an event.
+        // The discovery pass is pointer-BLIND, deliberately.
+        //
+        // Its only job is to count panels, and a count that varies with the pointer is a layout that
+        // rearranges as the mouse moves: a unit branching on Cursor.IsInside or HasSelection would
+        // open a different number of panels on the two passes of the same frame, and every panel would
+        // get the wrong share of the height. Panel structure must not depend on pointer state, and
+        // handing discovery a blank cursor is what makes that true rather than merely advised.
+        //
+        // It also removes an answer that was wrong anyway: during discovery no panel has its final
+        // bounds, so every panel contains every point and each would have reported the same click.
+        var discovery = new DrawingContextSurface(
+            drawingContext, size, scale, default, theme, discovering: true, transform: CurrentTransform);
         try
         {
             draw(discovery);
@@ -119,7 +274,8 @@ public sealed class RenderSurfaceView : FrameworkElement
             scale,
             cursor,
             theme,
-            expectedPanels: discovery.PanelCount);
+            expectedPanels: discovery.PanelCount,
+            transform: CurrentTransform);
 
         try
         {

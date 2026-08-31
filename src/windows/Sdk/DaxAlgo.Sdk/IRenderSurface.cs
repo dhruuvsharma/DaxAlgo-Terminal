@@ -83,18 +83,64 @@ public readonly record struct RenderStyle(
 /// <param name="Width">Panel width.</param>
 /// <param name="Height">Panel height.</param>
 /// <param name="Scale">Device pixel ratio, for hairline-accurate strokes.</param>
-public readonly record struct RenderViewport(double Width, double Height, double Scale);
+public readonly record struct RenderViewport(double Width, double Height, double Scale)
+{
+    /// <summary>
+    /// How far the viewer has zoomed in, accumulated from the wheel. 1 is unzoomed; 2 means show half
+    /// as much; 0.5 means show twice as much.
+    ///
+    /// <para><b>Apply it to your data range, not to your coordinates.</b> A unit deciding what slice
+    /// of its history to draw divides its window by this — 240 columns at zoom 2 becomes 120. Scaling
+    /// the drawing instead would magnify the text and the line widths with it.</para>
+    ///
+    /// <para>The host owns the number and it is per surface, so a body of several panels built from
+    /// one <c>UnitLayout</c> zooms each panel independently (each is its own surface) while several
+    /// <c>Panel</c> scopes opened on ONE surface share a zoom.</para>
+    /// </summary>
+    public double Zoom { get; init; } = 1d;
+
+    /// <summary>Horizontal pan, in panel pixels, accumulated from dragging. Positive means the viewer
+    /// dragged right, so a unit showing history should move further back.</summary>
+    public double PanX { get; init; }
+
+    /// <summary>Vertical pan, in panel pixels, accumulated from dragging.</summary>
+    public double PanY { get; init; }
+}
 
 /// <summary>
 /// Pointer state for the current panel. Present so a visualizer can draw a crosshair or a hover
 /// readout — the volume footprint's tooltip is exactly this — without the host needing to know what
 /// the visualizer considers hoverable.
+///
+/// <para><b>Why every member here is a state and none is an event.</b> A click, a wheel notch and a
+/// drag are transitions, and <c>Draw</c> is invoked more than once per frame and must be pure — so a
+/// unit cannot consume a transition without firing twice. The host therefore accumulates each gesture
+/// into a value that stays put, and the unit reads it. That is the whole reason
+/// <see cref="HasSelection"/> is a sticky point rather than an <c>OnClick</c>.</para>
 /// </summary>
 /// <param name="X">Pointer X in panel coordinates.</param>
 /// <param name="Y">Pointer Y in panel coordinates.</param>
 /// <param name="IsInside">Whether the pointer is over the panel at all.</param>
 /// <param name="IsPressed">Whether the primary button is down.</param>
-public readonly record struct RenderCursor(double X, double Y, bool IsInside, bool IsPressed);
+public readonly record struct RenderCursor(double X, double Y, bool IsInside, bool IsPressed)
+{
+    /// <summary>
+    /// Whether the viewer has clicked somewhere in this panel and that click still stands.
+    ///
+    /// <para>This is how a price level gets pinned. Read <see cref="SelectionX"/> /
+    /// <see cref="SelectionY"/>, invert your own axis mapping to get the value under them, and draw
+    /// the highlight. Clicking again moves it; clicking in another panel clears it here.</para>
+    /// </summary>
+    public bool HasSelection { get; init; }
+
+    /// <summary>The X of the standing click, in panel coordinates. Meaningless unless
+    /// <see cref="HasSelection"/>.</summary>
+    public double SelectionX { get; init; }
+
+    /// <summary>The Y of the standing click, in panel coordinates. Meaningless unless
+    /// <see cref="HasSelection"/>.</summary>
+    public double SelectionY { get; init; }
+}
 
 /// <summary>
 /// The visualizer's drawing output.
