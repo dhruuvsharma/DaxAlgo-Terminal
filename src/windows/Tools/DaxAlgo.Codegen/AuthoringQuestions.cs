@@ -52,8 +52,15 @@ public sealed record AuthoringQuestion(
 /// </summary>
 public static class AuthoringQuestions
 {
-    /// <summary>The most questions one turn may ask. The context pack already says two to four; this is
-    /// the ceiling that keeps a runaway answer from filling the pane.</summary>
+    /// <summary>
+    /// The most questions one TURN may ask — not one session.
+    ///
+    /// <para>The distinction became load-bearing when the pack stopped capping the interview. It now
+    /// says to ask as many questions as the job needs, in as many rounds as it needs, because four
+    /// asked once will not settle a window with a book, a heatmap and a strip. That is a licence to
+    /// ask again, not a licence to fill the pane in one go: six at a time is already more than anyone
+    /// answers carefully, and the round after this one is free.</para>
+    /// </summary>
     public const int MaximumQuestions = 6;
 
     /// <summary>The most options one question may offer, past which a list stops being scannable.</summary>

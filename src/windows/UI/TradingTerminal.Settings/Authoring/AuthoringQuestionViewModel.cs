@@ -137,7 +137,7 @@ public sealed partial class AuthoringQuestionViewModel : ObservableObject
 /// <param name="IsPrimary">True for the accept action, which is styled as the default.</param>
 public readonly record struct AuthoringAction(string Label, string Reply, bool IsPrimary = false)
 {
-    /// <summary>The replies offered whenever a turn ends waiting on the user.</summary>
+    /// <summary>The replies offered when a turn ends with a specification rather than a question.</summary>
     public static IReadOnlyList<AuthoringAction> Default { get; } =
     [
         new("Looks right — build it",
@@ -151,4 +151,32 @@ public readonly record struct AuthoringAction(string Label, string Reply, bool I
         // No reply text: this one hands the composer back rather than answering for the user.
         new("I want changes", string.Empty),
     ];
+
+    /// <summary>
+    /// The replies offered when the model asked something with options — the interview shape.
+    ///
+    /// <para><b>"Looks right — build it" does not belong here.</b> Beside "which instrument?" it sends
+    /// "that specification is right", which answers a question nobody asked. The buttons a turn offers
+    /// have to match the shape of the turn, or they are noise the user has to read past.</para>
+    ///
+    /// <para>What this shape needs instead is a way OUT. The pack now tells the model to ask as many
+    /// questions as the job needs, in as many rounds as it needs — which is right for a window with a
+    /// book, a heatmap and a strip, and intolerable without a one-click end to it. The escape is the
+    /// other half of that instruction, and the model is told to honour it.</para>
+    /// </summary>
+    public static IReadOnlyList<AuthoringAction> WhenAsked { get; } =
+    [
+        // Deliberately asks for the assumptions back. "Just build it" without them leaves the user
+        // holding a unit whose open questions were settled invisibly.
+        new("Just build it",
+            "Stop asking and build it now. Choose sensible defaults for anything still open, and list "
+            + "what you assumed so I can correct it after I have seen it run.",
+            IsPrimary: true),
+
+        new("I want changes", string.Empty),
+    ];
+
+    /// <summary>The replies for a turn, chosen by its shape.</summary>
+    /// <param name="asked">Whether the model offered structured questions this turn.</param>
+    public static IReadOnlyList<AuthoringAction> For(bool asked) => asked ? WhenAsked : Default;
 }

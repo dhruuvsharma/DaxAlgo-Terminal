@@ -1178,7 +1178,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // approval rather than a question with options, and that case has nothing to enumerate.
             // Without this the user is left with a paragraph and an empty composer, which is exactly
             // what they were before any of the question work.
-            SetActions(AwaitingAnswer ? AuthoringAction.Default : []);
+            //
+            // Shaped by whether the model asked, though. Offering "looks right, build it" beside
+            // "which instrument?" answers a question nobody asked; an interview needs a way out
+            // instead, which is the other half of telling the model to ask as many as the job needs.
+            SetActions(AwaitingAnswer ? AuthoringAction.For(asked.Count > 0) : []);
 
             if (turn.Files.Count > 0)
             {
@@ -1912,8 +1916,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (AwaitingAnswer)
         {
             var lastReply = run.Turns.Count > 0 ? run.Turns[^1].Reply : string.Empty;
-            SetQuestions(AuthoringQuestions.Parse(lastReply));
-            SetActions(AuthoringAction.Default);
+            var asked = AuthoringQuestions.Parse(lastReply);
+            SetQuestions(asked);
+            SetActions(AuthoringAction.For(asked.Count > 0));
         }
         else
         {
