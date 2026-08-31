@@ -58,6 +58,36 @@ public sealed class BookPressureVisualizer : IVisualizer
     public StrategyDataRequirement DataRequirement =>
         StrategyDataRequirement.L1 | StrategyDataRequirement.Depth | StrategyDataRequirement.TradeTape;
 
+    /// <summary>
+    /// One verb. Flow statistics accumulate from the moment the unit starts, so after a news print or
+    /// a session roll the reading describes a market that is no longer there — and there is no value
+    /// to set that means "forget it". That is what an action is for.
+    /// </summary>
+    public IReadOnlyList<UnitAction> Actions =>
+        [new(ResetFlowAction, "Reset flow", "Forgets the accumulated imbalance, toxicity and history.")];
+
+    public const string ResetFlowAction = "reset-flow";
+
+    /// <summary>
+    /// Runs the verb. The runtime calls this under the same gate as the data callbacks, so touching
+    /// the same fields they touch needs no lock of its own.
+    /// </summary>
+    public Task OnActionAsync(string id, IVisualizerContext context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (id == ResetFlowAction)
+        {
+            _flow?.Reset();
+            _vpin?.Reset();
+            _spread.Reset();
+            _history.Clear();
+        }
+
+        // An id you do not recognise is not an error.
+        return Task.CompletedTask;
+    }
+
     /// <summary>Three panels: the pressure history, the live ladder beside it, and the numbers under
     /// both. A book is read as a column, so the ladder gets a fixed width and the history takes the
     /// rest.</summary>
@@ -185,18 +215,42 @@ public sealed class BookPressureVisualizer : IVisualizer
         // microprice rather than the mid.
         var (queue, price) = area.SplitBottom(area.Height * 0.35d);
 
+        // The wheel chooses how much history is on screen. Zoom divides the DATA RANGE, never the
+        // coordinates: scaling what is drawn would magnify the text and the line widths with it.
+        var shown = Math.Clamp((int)(HistoryCapacity / surface.Viewport.Zoom), 8, _history.Count);
+
         Series.Chart(
             surface,
             [
-                SeriesData.Dashed("Mid", Column(static s => s.Mid), RenderThemeColor.Neutral),
-                SeriesData.Line("Microprice", Column(static s => s.Microprice), RenderThemeColor.Accent),
+                SeriesData.Dashed("Mid", Column(static s => s.Mid, shown), RenderThemeColor.Neutral),
+                SeriesData.Line("Microprice", Column(static s => s.Microprice, shown), RenderThemeColor.Accent),
             ],
             area: price);
+
+        // A clicked row stays clicked, so the viewer can read it after moving the pointer away. The
+        // cursor is a READ — the host accumulates the gesture and this only looks at the result, which
+        // is what lets Draw stay pure.
+        var cursor = surface.Cursor;
+        if (cursor.HasSelection && price.Contains(cursor.SelectionX, cursor.SelectionY))
+        {
+            var index = _history.Count - shown
+                + (int)((cursor.SelectionX - price.X) / Math.Max(1d, price.Width) * shown);
+
+            if (index >= 0 && index < _history.Count)
+            {
+                var pinned = _history[index];
+                surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Accent)));
+                surface.Line(cursor.SelectionX, price.Y, cursor.SelectionX, price.Bottom);
+                surface.Text(
+                    cursor.SelectionX + 5d, price.Y + 12d,
+                    $"micro {pinned.Microprice:F2}  queue {pinned.Queue:F2}");
+            }
+        }
 
         // Queue imbalance is already in [-1, 1], so it is a signed histogram about zero rather than a
         // line needing a scale of its own.
         Plot.Caption(surface, queue, "Queue imbalance");
-        Histogram.Draw(surface, Column(static s => s.Queue), area: queue);
+        Histogram.Draw(surface, Column(static s => s.Queue, shown), area: queue);
     }
 
     private void DrawLadder(IRenderSurface surface) => DrawLadder(surface, PlotArea.Of(surface));
@@ -252,10 +306,13 @@ public sealed class BookPressureVisualizer : IVisualizer
             area: area);
     }
 
-    private double[] Column(Func<Sample, double> select)
+    /// <summary>The last <paramref name="count"/> samples of one field, oldest first.</summary>
+    private double[] Column(Func<Sample, double> select, int count)
     {
-        var values = new double[_history.Count];
-        for (var index = 0; index < _history.Count; index++) values[index] = select(_history[index]);
+        var take = Math.Clamp(count, 0, _history.Count);
+        var first = _history.Count - take;
+        var values = new double[take];
+        for (var index = 0; index < take; index++) values[index] = select(_history[first + index]);
         return values;
     }
 }

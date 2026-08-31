@@ -151,6 +151,22 @@ a warm start from stored depth, rolling Brier and MAE against a baseline) is a r
 a window feature. An authored unit could compute the same thing in its callbacks; nothing in the
 contract stops it. It is listed here only so the line-count comparison is not read as a gap.
 
+## What closing gaps costs the prompt
+
+The brief predicted this and it is worth keeping measured: *"the generated SDK surface is generated
+from the SDK, so it grows as you do the rest of this work."* It does. Every capability added to close
+a gap here appears in the surface, and the contract sections are never rationed.
+
+| | Deep prompt, order-book brief |
+|---|---:|
+| before the surface cut | 112,219 |
+| after the surface cut | 94,435 |
+| after verbs + the exemplar demonstrating them | **99,070** |
+
+So two iterations of capability have spent 4,635 of the 17,784 the cut bought. Sustainable for now,
+and worth watching: the **worked exemplar is 13,306 characters and is not rationed at all**. It is
+already chosen by brief; the next lever is a shorter one for briefs that do not need the long form.
+
 ## What has actually been run
 
 Everything except the model. On 2026-08-31 the control was driven the whole way down the pipeline a

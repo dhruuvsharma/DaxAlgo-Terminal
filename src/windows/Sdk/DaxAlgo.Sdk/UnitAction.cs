@@ -10,16 +10,12 @@ namespace DaxAlgo.Sdk;
 /// Bending them into one produces a toggle the user has to flip twice to mean "now", which reads as a
 /// setting and behaves as a command.</para>
 ///
-/// <para><b>It is data, and the running of it is a callback.</b> The action carries an id and a label
-/// and nothing executable; the host calls <c>OnActionAsync</c> with the id when the button is pressed.
-/// That is deliberate. A delegate handed to the host would run wherever the host happened to call it,
-/// which is the render thread — so an action that touched the same fields as a data callback would
-/// race with the pump. Going through the lifecycle instead means the runtime invokes it under the same
-/// gate as every other callback, and the author has one threading rule rather than two.</para>
+/// <para><b>It is data; the running of it is <c>OnActionAsync</c>.</b> Nothing here is executable —
+/// see that method for why, and for the threading rule that follows from it.</para>
 ///
-/// <para><b>What an action cannot do.</b> Reach outside the unit. The sandbox denies file and network
-/// access to authored code, so "export this as CSV" is not writable as an action — a unit can compute
-/// what to export and cannot save it. That gap is real and is not closed by this type.</para>
+/// <para><b>An action cannot reach outside the unit.</b> The sandbox denies file and network access to
+/// authored code, so "export this as CSV" is not writable as one: a unit can compute what to export
+/// and cannot save it.</para>
 /// </summary>
 /// <param name="Id">
 /// Stable identifier passed back to <c>OnActionAsync</c>. Not shown. Keep it constant across versions:

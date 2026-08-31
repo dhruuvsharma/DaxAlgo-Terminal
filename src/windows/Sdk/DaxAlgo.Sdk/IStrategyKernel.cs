@@ -72,8 +72,8 @@ public interface IStrategyKernel
     /// which is right for most units.
     ///
     /// <para>Declare one when something the viewer needs is an act rather than a value — reset the
-    /// profile, clear the tape, re-centre. Pressing it calls <see cref="OnActionAsync"/> with the id.
-    /// Bounded at <see cref="UnitAction.Maximum"/>, and a malformed list is refused whole.</para>
+    /// profile, clear the tape, re-centre. Bounded at <see cref="UnitAction.Maximum"/>; a malformed
+    /// list is refused whole.</para>
     /// </summary>
     IReadOnlyList<UnitAction> Actions => [];
 

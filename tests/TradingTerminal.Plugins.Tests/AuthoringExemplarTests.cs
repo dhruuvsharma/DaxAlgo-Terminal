@@ -26,6 +26,26 @@ public sealed class AuthoringExemplarTests
             "a missing embedded resource degrades silently — the prompt simply loses its example");
     }
 
+    [Fact]
+    public void The_order_flow_exemplar_demonstrates_the_interaction_model()
+    {
+        // A model imitates the exemplar far more strongly than it reads the reference. Gestures and
+        // verbs were added to the SDK, documented in the generated surface and taught in the drawing
+        // pack — and demonstrated in NO exemplar, which is the same "built and never reached" shape
+        // this area keeps producing, one level further out: reached by the documentation and not by
+        // the thing the model actually copies.
+        //
+        // The order-flow exemplar is the one chosen for a book, footprint or imbalance brief, which is
+        // exactly where a pinned price level and a "forget the accumulated flow" button belong.
+        var source = AuthoringExemplar.For(AuthoringKind.Visualizer, "an order book depth ladder");
+
+        source.Should().Contain("Cursor", "the exemplar must show how a pinned level is read");
+        source.Should().Contain("HasSelection");
+        source.Should().Contain("Viewport.Zoom", "and how zoom is applied to the data range");
+        source.Should().Contain("UnitAction", "and that a unit may declare a verb");
+        source.Should().Contain("OnActionAsync");
+    }
+
     [Theory]
     [MemberData(nameof(EverySample))]
     public void An_exemplar_obeys_the_rules_it_is_teaching(AuthoringKind kind, string? brief)

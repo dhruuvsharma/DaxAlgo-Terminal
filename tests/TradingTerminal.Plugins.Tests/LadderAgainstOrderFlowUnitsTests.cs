@@ -89,6 +89,47 @@ public sealed class LadderAgainstOrderFlowUnitsTests
     }
 
     [Fact]
+    public void TheExemplarsOwnVerbActuallyWorks()
+    {
+        // The exemplar teaches the pattern, so every unit generated from an order-flow brief copies
+        // it. A verb that compiles and does nothing would be copied just as faithfully.
+        var exemplar = new BookPressureVisualizer();
+        SyntheticDrive.Run(exemplar);
+
+        var before = new RecordingRenderSurface();
+        exemplar.Draw(before);
+        before.Texts.Should().NotContain(
+            t => t.Text.Contains("Waiting for depth", StringComparison.Ordinal),
+            "the drive supplies depth, so there is something to forget");
+
+        exemplar.OnActionAsync(
+                BookPressureVisualizer.ResetFlowAction, context: null!, CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        var after = new RecordingRenderSurface();
+        exemplar.Draw(after);
+        after.Texts.Should().Contain(
+            t => t.Text.Contains("Waiting for depth", StringComparison.Ordinal),
+            "resetting the flow forgets the history, so the picture is back to its empty state");
+    }
+
+    [Fact]
+    public void TheExemplarIgnoresAnIdItNeverDeclared()
+    {
+        // What it teaches about unknown ids has to be true of it too.
+        var exemplar = new BookPressureVisualizer();
+        SyntheticDrive.Run(exemplar);
+
+        exemplar.OnActionAsync("never-declared", context: null!, CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        var surface = new RecordingRenderSurface();
+        exemplar.Draw(surface);
+        surface.Texts.Should().NotContain(
+            t => t.Text.Contains("Waiting for depth", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TheExemplarDrawsItsRealPictureRatherThanItsWaitingMessage()
     {
         // The sharper version of the rung-7 point. "Waiting for depth…" is a picture, so rung 7 passed

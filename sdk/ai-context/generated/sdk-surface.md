@@ -28,7 +28,7 @@ Task OnTradeAsync(TradePrint trade, IStrategyRuntimeContext context, Cancellatio
 StrategyParameterSchema Schema { get; }
 ```
 
-- `Actions` — Verbs this unit offers, shown by the host as buttons beside the parameters. Empty by default, which is right for most units. Declare one when something the viewer needs is an act rather than a value — reset the profile, clear the tape, re-centre. Pressing it calls `OnActionAsync` with the id. Bounded at `Maximum`, and a malformed list is refused whole.
+- `Actions` — Verbs this unit offers, shown by the host as buttons beside the parameters. Empty by default, which is right for most units. Declare one when something the viewer needs is an act rather than a value — reset the profile, clear the tape, re-centre. Bounded at `Maximum`; a malformed list is refused whole.
 - `DataRequirement` — The market-data streams required by this kernel.
 - `Draw` — Describes the current frame. Called by the host when it renders — not when data arrives. The data callbacks run on a pump thread and may fire far faster than the display; this runs on the render thread with a live surface. So compute in the data callbacks, keep what the picture needs, and draw from it here. Must be pure and fast: the host may invoke it more than once per frame, and it blocks the UI while it runs. Default is to draw nothing, which is a perfectly good strategy - plenty of strategies are pure signal logic.
 - `Layout` — How this unit's window body is divided into panels. Default is `Single`: one panel filling the body, drawn by `Draw`. Most units want exactly that and should not override this. Override it when the unit genuinely needs several panels — a chart beside an order book, two books with an arbitrage strip between them — and give each panel its own draw callback. `Draw` is then unused, because the panels do the drawing. The host owns everything around the body: the parameter expander above and the activity log below are chrome, identical for every unit, and not something a layout can move or omit.
@@ -61,7 +61,7 @@ Task OnTradeAsync(TradePrint trade, IVisualizerContext context, CancellationToke
 StrategyParameterSchema Schema { get; }
 ```
 
-- `Actions` — Verbs this unit offers, shown by the host as buttons beside the parameters. Empty by default, which is right for most units. Declare one when something the viewer needs is an act rather than a value — reset the profile, clear the tape, re-centre. Pressing it calls `OnActionAsync` with the id. Bounded at `Maximum`, and a malformed list is refused whole.
+- `Actions` — Verbs this unit offers, shown by the host as buttons beside the parameters. Empty by default, which is right for most units. Declare one when something the viewer needs is an act rather than a value — reset the profile, clear the tape, re-centre. Bounded at `Maximum`; a malformed list is refused whole.
 - `DataRequirement` — The market-data streams required by this visualizer.
 - `Draw` — Describes the current frame. Called by the host when it renders — not when data arrives. The data callbacks run on a pump thread and may fire far faster than the display; this runs on the render thread with a live surface. So compute in the data callbacks, keep what the picture needs, and draw from it here. Must be pure and fast: the host may invoke it more than once per frame, and it blocks the UI while it runs. Default is to draw nothing, which is a perfectly good headless visualizer.
 - `Layout` — How this unit's window body is divided into panels. Default is `Single`: one panel filling the body, drawn by `Draw`. Most units want exactly that and should not override this. Override it when the unit genuinely needs several panels — a chart beside an order book, two books with an arbitrage strip between them — and give each panel its own draw callback. `Draw` is then unused, because the panels do the drawing. The host owns everything around the body: the parameter expander above and the activity log below are chrome, identical for every unit, and not something a layout can move or omit.
@@ -1677,9 +1677,9 @@ A verb a unit offers: a named thing the viewer can ask it to do, rendered by the
 
 Why this exists. A unit could declare a parameter and nothing else, so everything the hand-written windows do on a button — reset the profile, clear the tape, re-centre, snapshot the levels — had no expression at all. A parameter is a value you set; some things are not values. Bending them into one produces a toggle the user has to flip twice to mean "now", which reads as a setting and behaves as a command.
 
-It is data, and the running of it is a callback. The action carries an id and a label and nothing executable; the host calls `OnActionAsync` with the id when the button is pressed. That is deliberate. A delegate handed to the host would run wherever the host happened to call it, which is the render thread — so an action that touched the same fields as a data callback would race with the pump. Going through the lifecycle instead means the runtime invokes it under the same gate as every other callback, and the author has one threading rule rather than two.
+It is data; the running of it is `OnActionAsync`. Nothing here is executable — see that method for why, and for the threading rule that follows from it.
 
-What an action cannot do. Reach outside the unit. The sandbox denies file and network access to authored code, so "export this as CSV" is not writable as an action — a unit can compute what to export and cannot save it. That gap is real and is not closed by this type.
+An action cannot reach outside the unit. The sandbox denies file and network access to authored code, so "export this as CSV" is not writable as one: a unit can compute what to export and cannot save it.
 
 ```csharp
 string Detail { get; }
