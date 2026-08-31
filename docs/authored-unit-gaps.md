@@ -180,6 +180,30 @@ XML docs are 15.6% and inline comments 12.0%. Stripping every comment would save
 prompt and cost the model the commenting style the exemplar exists to teach. There is no cheap win
 there; the remaining lever is the surface budget, whose curve is in `SdkSurfaceSelector`.
 
+## Three things the contract promised and did not do
+
+Found 2026-08-31 by checking what `surface.Panel(title, kind)` and `AxisX(min, max, format)` actually
+carry. All three were stored on the panel slot and read by nothing:
+
+| Promised | Actually |
+|---|---|
+| `RenderPanelKind` — "the host picks chrome, gutters and default axes from this" | read by nothing |
+| `AxisX`/`AxisY` `format` — "optional numeric/date format" | stored, never rendered; labels belong to the widget |
+| `Panel(title, …)` — the title | stored, never drawn |
+
+The drawing pack repeated the first one to every model that asked for a picture: *"kinds tell the host
+what chrome and default axes to supply."*
+
+**The title is now drawn** — it is the one worth making true, because a `UnitLayout` body gets a real
+header per panel while a unit dividing ONE surface with several `Panel` scopes (which is what both
+exemplars do, and therefore what a generated unit copies) got unlabelled regions. It is not charged to
+the frame budget: that budget bounds what untrusted code emits, and charging a unit for host chrome
+would let a decoration change push a well-behaved visualizer over the limit.
+
+**The other two are now documented as what they are.** Axis labels genuinely belong to the widget —
+having the host draw them too would double every label on every chart — so the honest fix there was the
+sentence, not the feature.
+
 ## What has actually been run
 
 Everything except the model. On 2026-08-31 the control was driven the whole way down the pipeline a

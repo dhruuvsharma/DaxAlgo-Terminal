@@ -103,8 +103,8 @@ RenderColor Theme(RenderThemeColor token)
 RenderViewport Viewport { get; }
 ```
 
-- `AxisX` — Declares the X range and optional numeric/date format for the current panel.
-- `AxisY` — Declares the Y range and optional numeric format for the current panel.
+- `AxisX` — Declares the X range your coordinates are in, so you can draw in data units — prices and times — rather than pixels. The host draws no axis. Labels come from the widget that drew the picture (`Plot.HorizontalGrid`, `Series.Chart`, `Candles`), each taking its own format; `format` here changes nothing on its own.
+- `AxisY` — Declares the Y range your coordinates are in. As with `AxisX`, labels belong to the widget, not the host.
 - `Cursor` — Pointer state for the current panel.
 - `Line` — Strokes a line between two points.
 - `Marker` — Draws a single marker glyph.
@@ -1563,7 +1563,7 @@ Marker glyph for a single point.
 <!-- @type RenderPanelKind | Vocabulary -->
 ### `RenderPanelKind`
 
-What a panel is for. The host picks chrome, gutters and default axes from this.
+What a panel is for. Advisory: it says what the region holds and does not change what the host draws.
 
 - `Chart` — Time on X, price or value on Y.
 - `Ladder` — Price rows stacked vertically — an order-book ladder.

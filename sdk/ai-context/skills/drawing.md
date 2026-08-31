@@ -117,8 +117,9 @@ public void Draw(IRenderSurface surface)
 }
 ```
 
-**Panels stack** — open several in sequence for a chart with a histogram beneath it. Kinds `Chart`,
-`Ladder`, `Matrix`, `Canvas` tell the host what chrome and default axes to supply. **Series kinds**:
+**Panels stack** — open several in sequence for a chart with a histogram beneath it, and each gets its
+title written into its corner. The host supplies no axes: `AxisX`/`AxisY` declare the range your
+coordinates are in, and the LABELS come from whichever widget you hand a format to. **Series kinds**:
 `Line` for a continuous value, `Steps` for what holds until it changes (position, regime), `Bars` for
 per-interval quantities, `Area` for cumulative, `Scatter` for events.
 

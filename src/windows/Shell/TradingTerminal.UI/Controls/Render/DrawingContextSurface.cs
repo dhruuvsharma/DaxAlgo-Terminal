@@ -185,7 +185,46 @@ internal sealed class DrawingContextSurface : IRenderSurface
         _context.PushClip(new RectangleGeometry(_panel.Bounds));
         _clipDepth++;
         Count();
+        DrawPanelTitle(_panel);
         return new PanelScope(this, index);
+    }
+
+    /// <summary>Height reserved above a titled panel, matching the header an
+    /// <see cref="AuthoredUnitLayoutHost"/> panel gets.</summary>
+    private const double TitleExtent = 14d;
+
+    /// <summary>
+    /// Writes the panel's own title into its top-left corner.
+    ///
+    /// <para><b>It was passed, stored, and drawn by nothing.</b> A body declared as a
+    /// <c>UnitLayout</c> gets a real header per panel from the layout host, but a unit that divides one
+    /// surface with several <c>Panel</c> scopes — which is what both exemplars do — got unlabelled
+    /// regions, and the title argument it had dutifully supplied went nowhere.</para>
+    ///
+    /// <para><b>Not counted against the frame budget.</b> That budget bounds what UNTRUSTED code may
+    /// emit; charging a unit for the host's own decoration would let a chrome change push a
+    /// well-behaved visualizer over the limit.</para>
+    /// </summary>
+    private void DrawPanelTitle(PanelSlot panel)
+    {
+        if (string.IsNullOrWhiteSpace(panel.Title) || panel.Bounds.Height < TitleExtent * 2d)
+            return;
+
+        var formatted = new FormattedText(
+            panel.Title,
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            Typeface,
+            9.5d,
+            new SolidColorBrush(_theme(RenderThemeColor.TextSecondary)),
+            _scale)
+        {
+            MaxTextWidth = Math.Max(1d, panel.Bounds.Width - 8d),
+            MaxLineCount = 1,
+            Trimming = TextTrimming.CharacterEllipsis,
+        };
+
+        _context.DrawText(formatted, new Point(panel.Bounds.X + 4d, panel.Bounds.Y + 1d));
     }
 
     private void LayoutPanels()

@@ -1,6 +1,7 @@
 namespace DaxAlgo.Sdk;
 
-/// <summary>What a panel is for. The host picks chrome, gutters and default axes from this.</summary>
+/// <summary>What a panel is for. Advisory: it says what the region holds and does not change what the
+/// host draws.</summary>
 public enum RenderPanelKind
 {
     /// <summary>Time on X, price or value on Y.</summary>
@@ -176,13 +177,22 @@ public interface IRenderSurface
     /// Opens a panel and returns a scope that closes it. Panels may be opened in sequence to stack
     /// several regions in one visualizer — a ladder beside a chart, say.
     /// </summary>
+    /// <para>The title is written into the panel's top-left corner; the kind is advisory.</para>
     /// <example><code>using (surface.Panel("Depth", RenderPanelKind.Ladder)) { ... }</code></example>
     IDisposable Panel(string title, RenderPanelKind kind);
 
-    /// <summary>Declares the X range and optional numeric/date format for the current panel.</summary>
+    /// <summary>
+    /// Declares the X range your coordinates are in, so you can draw in data units — prices and times —
+    /// rather than pixels.
+    ///
+    /// <para><b>The host draws no axis.</b> Labels come from the widget that drew the picture
+    /// (<c>Plot.HorizontalGrid</c>, <c>Series.Chart</c>, <c>Candles</c>), each taking its own format;
+    /// <paramref name="format"/> here changes nothing on its own.</para>
+    /// </summary>
     void AxisX(double minimum, double maximum, string? format = null);
 
-    /// <summary>Declares the Y range and optional numeric format for the current panel.</summary>
+    /// <summary>Declares the Y range your coordinates are in. As with <see cref="AxisX"/>, labels belong
+    /// to the widget, not the host.</summary>
     void AxisY(double minimum, double maximum, string? format = null);
 
     /// <summary>
