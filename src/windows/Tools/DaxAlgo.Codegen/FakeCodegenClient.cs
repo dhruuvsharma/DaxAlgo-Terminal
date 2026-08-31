@@ -13,12 +13,18 @@ public sealed class FakeCodegenClient : IStrategyCodegenClient
     private readonly Queue<string> _replies;
     private string _last = string.Empty;
 
-    /// <param name="replies">Model replies to return in order (may include ```csharp fences — the
-    /// orchestrator extracts them). Empty ⇒ a single always-compiles EMA kernel.</param>
+    /// <param name="replies">Model replies to return in order (may include csharp fences — the
+    /// orchestrator extracts them). Empty ⇒ a single always-compiles kernel.</param>
     public FakeCodegenClient(params string[] replies)
     {
         _replies = new Queue<string>(replies.Length > 0 ? replies : [DefaultKernel]);
     }
+
+    /// <summary>A fake that answers with a unit of the requested kind. <c>--provider fake</c> uses this,
+    /// so the offline path exercises the same session, compiler and ladder as a real provider — the only
+    /// thing stubbed is the model.</summary>
+    public static FakeCodegenClient ForKind(AuthoringKind kind) =>
+        new(kind == AuthoringKind.Visualizer ? DefaultVisualizer : DefaultKernel);
 
     public string ProviderId => "fake";
     public string DisplayName => "Fake (deterministic)";
@@ -47,29 +53,146 @@ public sealed class FakeCodegenClient : IStrategyCodegenClient
             : StrategyCodegenResponse.Ok(files, _last, Usage));
     }
 
-    /// <summary>A minimal always-compiling kernel that matches output contract (a): single class, no
-    /// namespace/usings (ambient), flattens at end.</summary>
+    /// <summary>
+    /// A minimal always-compiling strategy: one class, no usings (they are ambient), declared parameters
+    /// it actually reads, a target on its own book, and a picture.
+    ///
+    /// <para><b>It was an <c>IOrderRoutedStrategy</c> until 2026-09-01</b>, and its doc comment claimed
+    /// it matched the output contract. That contract was archived; <c>AuthoredUnitVerifier</c> refuses a
+    /// unit written against it before instantiating anything. Nothing referenced this constant, so
+    /// nothing noticed — the CLI's <c>--provider fake</c> printed a message and used the scaffold rather
+    /// than ever asking for it. Every rung it now has to clear is a rung the offline path checks for
+    /// real.</para>
+    /// </summary>
     public const string DefaultKernel = """
         ```csharp
-        public sealed class GeneratedStrategy(Contract contract) : IOrderRoutedStrategy
+        // file: GeneratedStrategy.cs
+        public sealed class GeneratedStrategy : IStrategyKernel
         {
-            private readonly Contract _contract = contract;
-            private int _ticks;
-            private int _seq;
+            public const string InstrumentParameter = "instrument";
+            public const string PeriodParameter = "period";
 
-            public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            private const int HistoryCapacity = 240;
+            private readonly List<double> _closes = new(HistoryCapacity);
+            private readonly List<double> _averages = new(HistoryCapacity);
 
-            public async Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
+            public StrategyParameterSchema Schema { get; } = new(
+                StrategyParameter.Instrument(InstrumentParameter, "Instrument", new InstrumentId(1), group: "Market"),
+                StrategyParameter.Int(PeriodParameter, "Average period", 10, min: 2, max: 200, group: "Signal", unit: "bars"));
+
+            public StrategyDataRequirement DataRequirement => StrategyDataRequirement.Bars;
+
+            public Task OnStartAsync(IStrategyRuntimeContext context, CancellationToken ct)
             {
-                var mid = (tick.Bid + tick.Ask) / 2.0;
-                if (mid <= 0 || ++_ticks != 10) return;
-                await router.PlaceOrderAsync(new OrderRequest(
-                    ClientOrderId: $"gen-{clock.UtcNow:HHmmssfff}-{_seq++}",
-                    Contract: _contract, Side: OrderSide.Buy, Type: OrderType.Market, Quantity: 1), ct);
+                ArgumentNullException.ThrowIfNull(context);
+                _closes.Clear();
+                _averages.Clear();
+                return Task.CompletedTask;
             }
 
-            public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
-            public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct) => Task.CompletedTask;
+            public Task OnBarAsync(OhlcvBar bar, IStrategyRuntimeContext context, CancellationToken ct)
+            {
+                ArgumentNullException.ThrowIfNull(bar);
+                ArgumentNullException.ThrowIfNull(context);
+
+                var instrument = context.Parameters.GetInstrument(InstrumentParameter);
+                var period = context.Parameters.GetInt(PeriodParameter);
+                if (bar.InstrumentId != instrument) return Task.CompletedTask;
+
+                if (_closes.Count == HistoryCapacity) _closes.RemoveAt(0);
+                _closes.Add(bar.Close);
+
+                var average = new Sma(period);
+                foreach (var close in _closes) average.Update(close);
+
+                if (_averages.Count == HistoryCapacity) _averages.RemoveAt(0);
+                _averages.Add(average.IsReady ? average.Value : bar.Close);
+
+                if (average.IsReady)
+                    context.Book.SetTargetPosition(instrument, bar.Close > average.Value ? 1d : 0d);
+
+                return Task.CompletedTask;
+            }
+
+            public void Draw(IRenderSurface surface)
+            {
+                ArgumentNullException.ThrowIfNull(surface);
+
+                using var panel = surface.Panel("Average", RenderPanelKind.Chart);
+                if (_closes.Count == 0) { Plot.Waiting(surface, "Waiting for bars…"); return; }
+
+                Series.Chart(surface, [
+                    SeriesData.Line("Close", _closes.ToArray(), RenderThemeColor.Neutral),
+                    SeriesData.Line("Average", _averages.ToArray(), RenderThemeColor.Accent),
+                ]);
+            }
+        }
+        ```
+        """;
+
+    /// <summary>The visualizer half of the same idea — a unit with no book, which is the one structural
+    /// difference between the contracts and the one a model gets wrong.</summary>
+    public const string DefaultVisualizer = """
+        ```csharp
+        // file: GeneratedVisualizer.cs
+        public sealed class GeneratedVisualizer : IVisualizer
+        {
+            public const string InstrumentParameter = "instrument";
+            public const string PeriodParameter = "period";
+
+            private const int HistoryCapacity = 240;
+            private readonly List<double> _mids = new(HistoryCapacity);
+            private readonly List<double> _averages = new(HistoryCapacity);
+
+            public StrategyParameterSchema Schema { get; } = new(
+                StrategyParameter.Instrument(InstrumentParameter, "Instrument", new InstrumentId(1), group: "Market"),
+                StrategyParameter.Int(PeriodParameter, "Average period", 10, min: 2, max: 200, group: "Display", unit: "quotes"));
+
+            public StrategyDataRequirement DataRequirement => StrategyDataRequirement.L1;
+
+            public Task OnStartAsync(IVisualizerContext context, CancellationToken ct)
+            {
+                ArgumentNullException.ThrowIfNull(context);
+                _mids.Clear();
+                _averages.Clear();
+                return Task.CompletedTask;
+            }
+
+            public Task OnQuoteAsync(Quote quote, IVisualizerContext context, CancellationToken ct)
+            {
+                ArgumentNullException.ThrowIfNull(context);
+
+                var instrument = context.Parameters.GetInstrument(InstrumentParameter);
+                var period = context.Parameters.GetInt(PeriodParameter);
+                if (quote.InstrumentId != instrument) return Task.CompletedTask;
+
+                var mid = (quote.Bid + quote.Ask) / 2d;
+                if (mid <= 0d) return Task.CompletedTask;
+
+                if (_mids.Count == HistoryCapacity) _mids.RemoveAt(0);
+                _mids.Add(mid);
+
+                var average = new Sma(period);
+                foreach (var value in _mids) average.Update(value);
+
+                if (_averages.Count == HistoryCapacity) _averages.RemoveAt(0);
+                _averages.Add(average.IsReady ? average.Value : mid);
+
+                return Task.CompletedTask;
+            }
+
+            public void Draw(IRenderSurface surface)
+            {
+                ArgumentNullException.ThrowIfNull(surface);
+
+                using var panel = surface.Panel("Mid", RenderPanelKind.Chart);
+                if (_mids.Count == 0) { Plot.Waiting(surface, "Waiting for quotes…"); return; }
+
+                Series.Chart(surface, [
+                    SeriesData.Line("Mid", _mids.ToArray(), RenderThemeColor.Neutral),
+                    SeriesData.Line("Average", _averages.ToArray(), RenderThemeColor.Accent),
+                ]);
+            }
         }
         ```
         """;
