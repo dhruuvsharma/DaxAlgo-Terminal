@@ -19,8 +19,9 @@ public static class AiModelCatalog
     /// provider and the installed CLI offer the same list (the CLI also takes the short aliases).</summary>
     private static readonly string[] AnthropicModels =
     [
-        "claude-opus-4-8",    // most capable Opus tier — the default for hard strategy work
+        "claude-opus-5",      // current Opus flagship — the default for hard strategy work
         "claude-sonnet-5",    // near-Opus quality on coding, cheaper
+        "claude-opus-4-8",    // the previous Opus tier, kept for anyone pinned to it
         "claude-opus-4-7",
         "claude-haiku-4-5",   // fastest / cheapest; no effort or thinking support
         "claude-fable-5",     // most capable overall; premium pricing

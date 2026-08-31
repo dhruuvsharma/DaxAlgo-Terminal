@@ -110,6 +110,57 @@ public sealed class AgentCliAdapterTests
         argv.Should().NotContain(string.Empty);
     }
 
+    // -- the fourth table: the curated model lists ------------------------------------------------
+
+    [Fact]
+    public void The_configured_model_is_always_offered_and_offered_first()
+    {
+        // The contract the picker depends on. A configured model missing from its own dropdown reads as
+        // "that setting is invalid" -- and the ids most at risk are exactly the ones not on any curated
+        // list, because those are the new ones somebody typed in deliberately.
+        var offered = AiModelCatalog.Offer("anthropic", "claude-something-unreleased");
+
+        offered.Should().HaveElementAt(0, "claude-something-unreleased");
+        offered.Should().Contain(AiModelCatalog.For("anthropic"),
+            "the curated list is added to, not replaced");
+
+        // Already-listed ids are promoted rather than duplicated.
+        var promoted = AiModelCatalog.Offer("anthropic", "claude-sonnet-5");
+        promoted.Should().HaveElementAt(0, "claude-sonnet-5");
+        promoted.Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public void The_curated_anthropic_list_still_names_the_current_flagship()
+    {
+        // It went stale once. The list called claude-opus-4-8 the "most capable Opus tier" while
+        // appsettings.json was already shipping a provider configured for claude-opus-5, so the picker
+        // omitted the very model the app itself pointed at. Free text meant nobody was blocked, which
+        // is precisely why it could sit there unnoticed.
+        var models = AiModelCatalog.For("anthropic");
+
+        models.Should().Contain("claude-opus-5");
+        models.Should().OnlyHaveUniqueItems();
+        models.Should().NotContain(string.Empty);
+
+        // The CLI provider shares the list, so the API and the installed CLI never offer different
+        // menus for the same vendor.
+        AiModelCatalog.For("claude-cli").Should().BeEquivalentTo(models);
+    }
+
+    [Fact]
+    public void Providers_without_a_curated_list_offer_nothing_rather_than_a_guess()
+    {
+        // Deliberate: these all expose a models endpoint, and the picker has a "refresh from provider"
+        // that asks. A shipped guess would be stale within weeks -- the appsettings notes record one
+        // stealth id that was free for exactly a week.
+        foreach (var id in (string[])["openai", "deepseek", "xai", "openrouter", "ollama", "codex-cli"])
+        {
+            AiModelCatalog.For(id).Should().BeEmpty(
+                "{0} should be asked rather than guessed at", id);
+        }
+    }
+
     [Fact]
     public void Every_adapter_names_a_bare_executable_rather_than_a_path()
     {
