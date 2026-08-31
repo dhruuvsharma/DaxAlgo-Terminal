@@ -95,6 +95,7 @@ public sealed class StrategyBuildSession
         Kind = kind;
         // The kind block joins the base pack, so it survives the skill recomposition below and is part
         // of the prompt from the first turn — a session cannot change which of the two it is writing.
+        _systemContext = systemContext;
         BasePack = AuthoringKindBrief.Compose(systemContext, kind);
         SystemContext = BasePack;
         StrategyId = strategyId;
@@ -112,6 +113,10 @@ public sealed class StrategyBuildSession
 
     private readonly StrategySkillLibrary? _skills;
 
+    /// <summary>The shared pack as handed in, kept so the base pack can be recomposed once the brief
+    /// names which exemplar to show.</summary>
+    private readonly string _systemContext;
+
     public IStrategyCodegenClient Provider { get; }
 
     /// <summary>The SDK contract, before any domain packs are added.</summary>
@@ -120,7 +125,7 @@ public sealed class StrategyBuildSession
     /// disagreeing with its instructions.</summary>
     public AuthoringKind Kind { get; }
 
-    public string BasePack { get; }
+    public string BasePack { get; private set; }
 
     /// <summary>The system prompt actually sent: the base pack plus the domain packs this strategy needs.
     /// Fixed for the life of the session — it is the cached prefix of every request in the thread, so
@@ -484,6 +489,13 @@ public sealed class StrategyBuildSession
         // an API it does not have.
         LoadedSkills = _skills.SelectFor(
             brief, Profile?.MaxSkills ?? StrategySkillLibrary.MaxSkillsPerSession, Kind);
+
+        // The exemplar is chosen from the same brief, at the same moment, for the same reason: it is
+        // reference material aimed at the question. Recomposing the base pack here rather than in the
+        // constructor is what lets it be — the brief does not exist yet when a session is built.
+        //
+        // Once per session, like the skills. The prefix a provider caches must not move between turns.
+        BasePack = AuthoringKindBrief.Compose(_systemContext, Kind, brief);
         SystemContext = StrategySkillLibrary.Compose(BasePack, LoadedSkills);
 
         if (LoadedSkills.Count > 0)

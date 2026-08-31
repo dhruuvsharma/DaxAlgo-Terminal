@@ -146,4 +146,66 @@ public sealed class AuthoringExemplarTests
         AuthoringExemplar.Normalise(string.Empty).Should().BeEmpty();
         AuthoringExemplar.Normalise("   \n  ").Should().BeEmpty();
     }
+
+    [Fact]
+    public void AnOrderFlowBriefGetsTheOrderFlowExemplar()
+    {
+        // Skills were matched to the brief and the exemplar was not, so the one combination people
+        // actually ask for was mismatched: "show me a footprint chart" loaded the order-flow skill and
+        // a spread-band exemplar that never touches depth or the tape. The strongest teaching signal in
+        // the pack was the one piece not aimed at the question.
+        var block = AuthoringExemplar.Block(
+            AuthoringKind.Visualizer, "show me a footprint chart with the order book beside it");
+
+        block.Should().Contain("BookPressureVisualizer");
+        block.Should().Contain("TradeClassifier", "an order-flow exemplar has to demonstrate signing");
+        block.Should().Contain("Book.Microprice");
+    }
+
+    [Fact]
+    public void APriceBriefKeepsTheDefaultExemplar()
+    {
+        // The other half: a brief about a price series must not be handed a book. "Band" and "bollinger"
+        // carry none of the order-flow words, so this stays the spread band.
+        var block = AuthoringExemplar.Block(
+            AuthoringKind.Visualizer, "plot a bollinger band around the close");
+
+        block.Should().Contain("SpreadBandVisualizer");
+    }
+
+    [Fact]
+    public void NoBriefKeepsTheDefaultExemplar()
+    {
+        // A resumed session with no user text yet, and every existing caller that passes nothing.
+        AuthoringExemplar.Block(AuthoringKind.Visualizer).Should().Contain("SpreadBandVisualizer");
+        AuthoringExemplar.Block(AuthoringKind.Visualizer, "   ").Should().Contain("SpreadBandVisualizer");
+    }
+
+    [Theory]
+    [InlineData("build me an order book graph", true)]
+    [InlineData("a DOM ladder for ES", true)]
+    [InlineData("volume footprint chart", true)]
+    [InlineData("show queue imbalance at the touch", true)]
+    [InlineData("a moving average cross", false)]
+    [InlineData("rsi divergence on the daily", false)]
+    public void TheOrderFlowWordsAreTheOnesThatImplyABookOrATape(string brief, bool expected)
+    {
+        // "Delta" and "flow" are deliberately absent from the trigger list: a brief that says delta is
+        // not necessarily asking for a book, and showing it one would spend the exemplar budget on the
+        // wrong example.
+        AuthoringExemplar.WantsOrderFlow(brief).Should().Be(expected);
+    }
+
+    [Fact]
+    public void TheOrderFlowExemplarIsARealCompiledSample()
+    {
+        // The exemplars' whole claim is that they compile and are covered by tests in this repository.
+        // A third one embedded but not built would quietly break that promise.
+        typeof(DaxAlgo.Sandbox.Samples.BookPressureVisualizer)
+            .Should().Implement<DaxAlgo.Sdk.IVisualizer>();
+
+        var block = AuthoringExemplar.Block(AuthoringKind.Visualizer, "order book");
+        block.Should().NotContain("namespace ", "an authored unit declares none");
+        block.Should().NotContain("using DaxAlgo", "the ambient usings are not written by the author");
+    }
 }

@@ -65,6 +65,10 @@
     <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\SpreadBandVisualizer.cs">
       <LogicalName>DaxAlgo.Codegen.Exemplars.SpreadBandVisualizer.cs</LogicalName>
     </EmbeddedResource>
+    <!-- The order-flow visualizer, shown when the brief is about the book or the tape. -->
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\BookPressureVisualizer.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.BookPressureVisualizer.cs</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

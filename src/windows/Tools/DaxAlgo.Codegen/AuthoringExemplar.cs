@@ -37,14 +37,41 @@ public static class AuthoringExemplar
     private static readonly Regex UsingLine = new(
         @"^\s*using\s+[^;]+;\s*$", RegexOptions.Compiled | RegexOptions.Multiline);
 
-    /// <summary>The exemplar for one kind, already normalised, or empty when none is embedded.</summary>
-    public static string For(AuthoringKind kind)
+    /// <summary>
+    /// Words that make an order-flow exemplar the right one to show.
+    ///
+    /// <para>Deliberately the order-flow skill's own triggers, narrowed to the ones that imply DEPTH or
+    /// THE TAPE rather than order flow as a topic. A brief that merely says "delta" is not asking for a
+    /// book.</para>
+    /// </summary>
+    private static readonly string[] OrderFlowWords =
+    [
+        "order flow", "orderflow", "order book", "orderbook", "book", "depth", "dom", "ladder",
+        "footprint", "tape", "imbalance", "microprice", "vpin", "toxicity", "liquidity", "sweep",
+        "absorption", "iceberg", "queue", "bid ask", "microstructure",
+    ];
+
+    /// <summary>
+    /// The exemplar for one kind and brief, already normalised, or empty when none is embedded.
+    /// </summary>
+    /// <param name="kind">What is being authored.</param>
+    /// <param name="brief">
+    /// The user's own words, when they are known.
+    ///
+    /// <para><b>Skills are matched to the brief and the exemplar was not</b>, which left the one
+    /// combination people actually ask for mismatched: "show me a footprint chart" loaded the
+    /// order-flow skill and a spread-band exemplar that never touches depth or the tape. The strongest
+    /// teaching signal in the pack was the one piece not aimed at the question.</para>
+    ///
+    /// <para>Null or empty keeps the default, which is what a resumed session with no user text gets.</para>
+    /// </param>
+    public static string For(AuthoringKind kind, string? brief = null)
     {
         // Matched explicitly rather than with a ternary. A ternary makes every unrecognised kind the
         // strategy exemplar, so a kind added later would silently be taught the wrong contract — the
         // one failure here that nothing downstream could catch, because a plausible exemplar for the
         // wrong kind reads exactly like a correct one.
-        var file = Source(kind);
+        var file = Source(kind, brief);
         if (file is null) return string.Empty;
 
         var name = ResourcePrefix + file;
@@ -61,10 +88,10 @@ public static class AuthoringExemplar
     /// brief. Empty when there is no exemplar, so a missing resource degrades to the prompt as it was
     /// rather than to a heading with nothing under it.
     /// </summary>
-    public static string Block(AuthoringKind kind)
+    public static string Block(AuthoringKind kind, string? brief = null)
     {
-        var source = For(kind);
-        var file = Source(kind);
+        var source = For(kind, brief);
+        var file = Source(kind, brief);
         if (string.IsNullOrWhiteSpace(source) || file is null) return string.Empty;
 
         return new StringBuilder()
@@ -82,13 +109,34 @@ public static class AuthoringExemplar
             .ToString();
     }
 
-    /// <summary>The sample file backing a kind, or null when that kind has no exemplar.</summary>
-    private static string? Source(AuthoringKind kind) => kind switch
+    /// <summary>
+    /// The sample file backing a kind and brief, or null when that kind has no exemplar.
+    ///
+    /// <para>Only the visualizer side has a second exemplar so far, because the book and the tape are
+    /// what a generated unit has no other worked example of. An order-flow STRATEGY still gets the
+    /// cross, which teaches the kernel shape correctly and simply says less about depth.</para>
+    /// </summary>
+    private static string? Source(AuthoringKind kind, string? brief) => kind switch
     {
         AuthoringKind.Strategy => "MovingAverageCrossKernel.cs",
-        AuthoringKind.Visualizer => "SpreadBandVisualizer.cs",
+        AuthoringKind.Visualizer => WantsOrderFlow(brief)
+            ? "BookPressureVisualizer.cs"
+            : "SpreadBandVisualizer.cs",
         _ => null,
     };
+
+    /// <summary>True when the brief is about the book or the tape rather than a price series.</summary>
+    internal static bool WantsOrderFlow(string? brief)
+    {
+        if (string.IsNullOrWhiteSpace(brief)) return false;
+
+        foreach (var word in OrderFlowWords)
+        {
+            if (brief.Contains(word, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Turns library source into the shape an authored unit takes: no <c>using</c> directives, no

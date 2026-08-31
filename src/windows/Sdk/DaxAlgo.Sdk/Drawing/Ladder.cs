@@ -41,7 +41,15 @@ public readonly record struct LadderOptions(
 public static class Ladder
 {
     /// <summary>Draws the ladder into the current panel, in panel pixel space.</summary>
-    public static void Draw(IRenderSurface surface, DepthSnapshot? depth, LadderOptions options = default)
+    /// <param name="area">Where to draw it. Omitted, the ladder fills the panel — which is right for a
+    /// book that owns its own panel and wrong the moment it sits beside a chart. Until this parameter
+    /// existed a ladder could not be PLACED at all: it read the viewport directly, so composing a book
+    /// next to a price chart drew it across both.</param>
+    public static void Draw(
+        IRenderSurface surface,
+        DepthSnapshot? depth,
+        LadderOptions options = default,
+        PlotArea area = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         if (depth is null)
@@ -50,14 +58,14 @@ public static class Ladder
         if (options.Levels <= 0)
             options = LadderOptions.Default;
 
-        var viewport = surface.Viewport;
-        if (viewport.Width <= 0d || viewport.Height <= 0d)
+        if (!area.IsValid) area = PlotArea.Of(surface);
+        if (!area.IsValid)
             return;
 
         var levels = options.Levels;
         var rowHeight = options.RowHeight > 0d ? options.RowHeight : LadderOptions.Default.RowHeight;
-        var priceWidth = Math.Min(options.PriceWidth, viewport.Width * 0.5d);
-        var barWidth = viewport.Width - priceWidth;
+        var priceWidth = Math.Min(options.PriceWidth, area.Width * 0.5d);
+        var barWidth = area.Width - priceWidth;
         if (barWidth <= 0d)
             return;
 
@@ -69,7 +77,7 @@ public static class Ladder
 
         // Asks descend to the touch, bids continue downward, so the spread sits mid-panel and the
         // ladder reads the way a trader expects: sell side on top.
-        var middle = viewport.Height / 2d;
+        var middle = area.Y + (area.Height / 2d);
         var bearish = surface.Theme(RenderThemeColor.Bearish);
         var bullish = surface.Theme(RenderThemeColor.Bullish);
         var label = surface.Theme(RenderThemeColor.TextSecondary);
@@ -77,24 +85,24 @@ public static class Ladder
         for (var index = 0; index < asks.Count; index++)
         {
             var top = middle - ((index + 1) * rowHeight);
-            if (top + rowHeight < 0d)
+            if (top + rowHeight < area.Y)
                 break;
 
-            Row(surface, asks[index], top, rowHeight, priceWidth, barWidth, peak, bearish, label, options);
+            Row(surface, asks[index], top, rowHeight, area.X, priceWidth, barWidth, peak, bearish, label, options);
         }
 
         for (var index = 0; index < bids.Count; index++)
         {
             var top = middle + (index * rowHeight);
-            if (top > viewport.Height)
+            if (top > area.Bottom)
                 break;
 
-            Row(surface, bids[index], top, rowHeight, priceWidth, barWidth, peak, bullish, label, options);
+            Row(surface, bids[index], top, rowHeight, area.X, priceWidth, barWidth, peak, bullish, label, options);
         }
 
         // The touch itself, so the eye lands on the spread first.
         surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Border), Thickness: 1d));
-        surface.Line(0d, middle, viewport.Width, middle);
+        surface.Line(area.X, middle, area.Right, middle);
     }
 
     private static void Row(
@@ -102,6 +110,7 @@ public static class Ladder
         DepthLevel level,
         double top,
         double rowHeight,
+        double left,
         double priceWidth,
         double barWidth,
         double peak,
@@ -115,16 +124,16 @@ public static class Ladder
             // Bars grow from the price gutter outward, so their left edges align and the eye can
             // compare lengths without re-anchoring on every row.
             surface.SetStyle(new RenderStyle(fill, Alpha: 0.32d));
-            surface.Rect(priceWidth, top + 1d, barWidth * fraction, Math.Max(rowHeight - 2d, 1d));
+            surface.Rect(left + priceWidth, top + 1d, barWidth * fraction, Math.Max(rowHeight - 2d, 1d));
         }
 
         surface.SetStyle(new RenderStyle(label, FontSize: 10d));
-        surface.Text(2d, top + rowHeight - 5d, level.Price.ToString(options.PriceFormat ?? "0.####", CultureInfo.InvariantCulture));
+        surface.Text(left + 2d, top + rowHeight - 5d, level.Price.ToString(options.PriceFormat ?? "0.####", CultureInfo.InvariantCulture));
 
         if (options.ShowSize && level.Size > 0L)
         {
             surface.Text(
-                priceWidth + 4d,
+                left + priceWidth + 4d,
                 top + rowHeight - 5d,
                 level.Size.ToString("N0", CultureInfo.InvariantCulture));
         }

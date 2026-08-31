@@ -888,7 +888,7 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<T> items, Func<T, double> s
 A depth ladder: price rows with a size bar per side, asks above bids, best prices meeting in the middle.
 
 ```csharp
-void Draw(IRenderSurface surface, DepthSnapshot depth, LadderOptions options = null)
+void Draw(IRenderSurface surface, DepthSnapshot depth, LadderOptions options = null, PlotArea area = null)
 ```
 
 - `Draw` — Draws the ladder into the current panel, in panel pixel space.

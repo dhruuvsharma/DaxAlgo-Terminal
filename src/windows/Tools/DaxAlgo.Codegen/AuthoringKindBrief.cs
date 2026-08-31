@@ -51,7 +51,9 @@ public static class AuthoringKindBrief
         """;
 
     /// <summary>Folds the kind block, the reminder, and the exemplar into a system prompt.</summary>
-    public static string Compose(string systemContext, AuthoringKind kind)
+    /// <param name="brief">The user's own words, when known, so the exemplar can match the question the
+    /// way the skills already do. Null keeps the default exemplar.</param>
+    public static string Compose(string systemContext, AuthoringKind kind, string? brief = null)
     {
         var block = For(kind);
         if (string.IsNullOrEmpty(block)) return systemContext;
@@ -67,7 +69,7 @@ public static class AuthoringKindBrief
             .Append("\n\n").Append(block.TrimEnd())
             .Append('\n').Append(OfferAnswers.TrimEnd());
 
-        var exemplar = AuthoringExemplar.Block(kind);
+        var exemplar = AuthoringExemplar.Block(kind, brief);
         if (!string.IsNullOrWhiteSpace(exemplar))
             composed.Append("\n\n").Append(exemplar.TrimEnd());
 
