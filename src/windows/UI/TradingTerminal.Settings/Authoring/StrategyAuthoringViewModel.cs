@@ -1115,7 +1115,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // which is cheaper and right for a brief that does not need a committee.
             if (profile.UseAgents)
             {
-                await RunAgentsAsync(choice.Client, prompt, profile, _generateCts.Token);
+                await RunAgentsAsync(choice, prompt, profile, _generateCts.Token);
                 return;
             }
 
@@ -1814,7 +1814,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// the wait legible, and what justifies its cost to the person paying for it.</para>
     /// </summary>
     private async Task RunAgentsAsync(
-        IStrategyCodegenClient client,
+        AiProviderChoice choice,
         string brief,
         StrategyBuildProfile profile,
         CancellationToken ct)
@@ -1831,7 +1831,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             string.IsNullOrWhiteSpace(DisplayName) ? StrategyId ?? "Authored" : DisplayName!,
             new RoutingState());
 
-        var loop = new AgentLoop(client, judge.Judge, _reliability, _trajectory);
+        // The session composes this run's system prompt AND owns the provider bound to the picked model
+        // and reasoning effort. Both used to be taken raw here: the shared context was the uncomposed
+        // pack, and the client was `choice.Client` rather than the one `ResolveClient` rebinds — so the
+        // model and the effort the user chose were dropped on exactly the two settings that mean
+        // "correctness over cost".
+        var session = EnsureSession(choice, profile);
+
+        var loop = new AgentLoop(session.Provider, judge.Judge, _reliability, _trajectory);
 
         var report = new Progress<AgentTurn>(turn =>
         {
@@ -1858,9 +1865,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             if (judge.Latest?.Unit is { } unit) ShowPreview(unit);
         });
 
+        // The SAME composition the single-conversation path uses, from the same object.
+        //
+        // This used to be `StrategyContextPack.Load().SystemPrompt` — the generated surface and the
+        // conventions, raw. Deep and Max are the two efforts that route here, so the two efforts that
+        // buy the largest skill budget (5 packs and 8) were loading none; the model was never told
+        // whether it was writing a strategy or a visualizer, making that switch decoration again at
+        // the top two settings; it never saw a worked exemplar; and it was never taught the
+        // `questions` block that the very next lines of this method parse and render as buttons.
+        // The reader had been wired onto this path and the writer had not.
         var run = await loop.RunAsync(
             brief,
-            StrategyContextPack.Load().SystemPrompt,
+            session.PrepareFor(brief),
             judge.State,
             profile.MaxAgentTurns,
             report,

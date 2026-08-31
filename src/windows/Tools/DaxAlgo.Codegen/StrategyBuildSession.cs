@@ -113,6 +113,11 @@ public sealed class StrategyBuildSession
 
     private readonly StrategySkillLibrary? _skills;
 
+    /// <summary>Whether the brief has already shaped the prompt. Separate from
+    /// <see cref="LoadedSkills"/> being non-empty: a brief that warrants no pack still fixes the
+    /// exemplar, and re-running that on a later turn would move the cached prefix.</summary>
+    private bool _resolved;
+
     /// <summary>The shared pack as handed in, kept so the base pack can be recomposed once the brief
     /// names which exemplar to show.</summary>
     private readonly string _systemContext;
@@ -479,16 +484,37 @@ public sealed class StrategyBuildSession
         return wire;
     }
 
+    /// <summary>
+    /// The system prompt this session sends for <paramref name="brief"/>: the shared pack, the kind
+    /// block, the questions instruction, the brief-matched exemplar, and the domain packs the brief
+    /// warrants.
+    ///
+    /// <para>Public because the <b>multi-agent path is a second driver of the same conversation</b> and
+    /// used to compose nothing at all — it sent <c>StrategyContextPack.SystemPrompt</c> raw. Deep and
+    /// Max effort are exactly the two that route through the agents, so the two efforts that buy the
+    /// largest skill budget (5 and 8) were loading zero packs, were never told which of the two
+    /// contracts they were writing, and were never taught the <c>questions</c> block whose replies that
+    /// same path parses and renders as buttons. One method both drivers call is what keeps them from
+    /// drifting apart again; <c>AgentSharedContextTests</c> asserts the agent path reaches it.</para>
+    /// </summary>
+    public string PrepareFor(string brief)
+    {
+        ResolveSkills(brief);
+        return SystemContext;
+    }
+
     /// <summary>Picks the domain packs for this strategy and folds them into the system prompt. Idempotent
     /// and stable: the same brief always yields the same prompt, which is what keeps it cacheable.</summary>
     private IReadOnlyList<StrategySkill> ResolveSkills(string brief)
     {
-        if (_skills is null || LoadedSkills.Count > 0) return LoadedSkills;
+        if (_resolved) return LoadedSkills;
+        _resolved = true;
 
         // Narrowed to the kind being authored: a visualizer session must not be handed guidance for
-        // an API it does not have.
-        LoadedSkills = _skills.SelectFor(
-            brief, Profile?.MaxSkills ?? StrategySkillLibrary.MaxSkillsPerSession, Kind);
+        // an API it does not have. A session built without a library still falls through to the
+        // recomposition below — the brief-matched exemplar is not the skills' to withhold.
+        LoadedSkills = _skills?.SelectFor(
+            brief, Profile?.MaxSkills ?? StrategySkillLibrary.MaxSkillsPerSession, Kind) ?? [];
 
         // The exemplar is chosen from the same brief, at the same moment, for the same reason: it is
         // reference material aimed at the question. Recomposing the base pack here rather than in the
