@@ -111,9 +111,9 @@ public sealed class SpreadBandVisualizer : IVisualizer
     /// <para>A fixed height for the strip and a star for the chart, because the tiles need exactly as
     /// much room as they need and everything left belongs to the price.</para>
     /// </summary>
-    public UnitLayout Layout => UnitLayout.Of(DaxAlgo.Sdk.Layout.Layout.Rows(
-        DaxAlgo.Sdk.Layout.Layout.Panel("Band", DrawChart).Star(4),
-        DaxAlgo.Sdk.Layout.Layout.Panel("Statistics", DrawStats).Pixels(64)));
+    public UnitLayout Layout => UnitLayout.Rows(
+        UnitLayout.Panel("Band", DrawChart).Star(4),
+        UnitLayout.Panel("Statistics", DrawStats).Pixels(64));
 
     /// <summary>Bounded on purpose. A visualizer lives as long as its window, and an unbounded history
     /// is a memory leak with a tidy name.</summary>

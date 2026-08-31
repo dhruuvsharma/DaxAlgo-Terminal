@@ -39,30 +39,38 @@ context.Book.SetTargetPosition(instrument, 1d, protectiveStopPrice: entry - 2d *
 3. **Trailing stops ratchet in one direction only.**
    `_stop = Math.Max(_stop, mid - k * atr)` for a long — never `Math.Min`, or it walks toward you.
 4. **Volatility-scaled distances.** A stop in "3 ticks" is meaningless across instruments; express it in
-   ATR, in stdev of returns, or in ticks *of that contract* read from the `Contract`.
+   `Atr`, in `RealizedVolatility`, or in ticks *of that contract* — and snap the level to the grid with
+   `Num.RoundToTick`, because a price off the instrument's tick size is rejected by the venue.
 5. **Time stops.** If the edge is a burst (order-flow ignition, a sweep), it decays: exit after N seconds
-   of `clock.UtcNow` if the thesis has not paid. An HFT signal held for an hour is a different strategy.
-6. **Microstructure exits.** Spread blowout (`spread > mean + 2*stdev`), delta flipping hard against the
-   position, the book refilling on the side you were fading — these are exits, and they fire before a
-   price stop does.
+   of `context.Clock.UtcNow` if the thesis has not paid. An HFT signal held for an hour is a different
+   strategy.
+6. **Microstructure exits.** Spread blowout (`SpreadStats.IsWide()`), delta flipping hard against the
+   position (`OrderFlowImbalance`), flow turning toxic (`Vpin`), the book refilling on the side you were
+   fading (`Book.Imbalance`) — these are exits, and they fire before a price stop does.
 
 ## Sizing
 
 Keep it explicit and boring:
 
 ```csharp
-public static StrategyParameterSchema Schema { get; } = new(
+public StrategyParameterSchema Schema { get; } = new(
     StrategyParameter.Int("quantity", "Order size", 1, min: 1, max: 100),
     StrategyParameter.Number("stopAtr", "Stop (ATR multiples)", 2.0, min: 0.25, max: 10, step: 0.25),
     StrategyParameter.Int("maxPositions", "Max concurrent entries", 1, min: 1, max: 10));
 ```
+
+An **instance** property. `IStrategyKernel.Schema` is an instance member, so a `static` one does not
+implement it and the class will not compile.
 
 Expose the risk knobs as parameters. That is what makes them tunable from the strategy window instead of
 being buried as magic numbers in the kernel.
 
 ## Guards that belong in every strategy
 
-- Reject zero/negative or crossed quotes (`bid <= 0 || ask <= 0 || ask < bid`) before doing any maths.
-- Do not enter without a warm-up (estimators are meaningless on their first samples).
+- Reject zero/negative or crossed quotes (`bid <= 0 || ask <= 0 || ask < bid`) before doing any maths,
+  and guard every division with `Num.SafeDiv` — an infinity compares false against every threshold, so
+  a strategy holding one stops trading and never says why.
+- Do not enter without a warm-up: gate on `IsReady`, because an estimator's first samples are not a
+  small version of its converged value.
 - Do not stack entries unless the strategy is explicitly a scaling one — check `_position` first.
 - One signal per condition transition, not one per tick while the condition remains true. Latch it.

@@ -85,9 +85,9 @@ public sealed class MovingAverageCrossKernel : IStrategyKernel
     /// because the exemplar has to show that it is possible — a generated unit that never saw a
     /// two-panel window will never build one.</para>
     /// </summary>
-    public UnitLayout Layout => UnitLayout.Of(DaxAlgo.Sdk.Layout.Layout.Rows(
-        DaxAlgo.Sdk.Layout.Layout.Panel("Moving average cross", DrawChart).Star(4),
-        DaxAlgo.Sdk.Layout.Layout.Panel("Signal", DrawStats).Pixels(64)));
+    public UnitLayout Layout => UnitLayout.Rows(
+        UnitLayout.Panel("Moving average cross", DrawChart).Star(4),
+        UnitLayout.Panel("Signal", DrawStats).Pixels(64));
 
     public Task OnStartAsync(IStrategyRuntimeContext context, CancellationToken ct)
     {

@@ -6,12 +6,25 @@ triggers: instrument, contract, tick size, ticksize, symbol, futures, equities, 
 
 # Instruments, brokers, and what data you can actually get
 
-## The contract
+## Which instrument you are on
 
-`Contract` names the instrument the strategy is running on; it is handed to the kernel's constructor and
-to `BuildStrategy`. **Never hard-code a symbol, a tick size, or a multiplier.** A strategy that assumes
-0.25-tick ES will do something quietly wrong on BTC. Derive levels from the contract and from the data:
-bucket prices by the instrument's tick size, express distances in ATR or in stdev of returns.
+**A unit takes no constructor arguments.** It has a public parameterless constructor — the host builds a
+fresh one per window — and learns its instrument from its own declared parameter:
+
+```csharp
+public StrategyParameterSchema Schema { get; } = new(
+    StrategyParameter.Instrument("instrument", "Instrument", new InstrumentId(1), group: "Market"));
+
+// then, in a callback:
+var instrument = context.Parameters.GetInstrument("instrument");
+```
+
+A unit that takes a `Contract` in its constructor is following a retired contract: it has no
+parameterless constructor, so the host cannot build it and the card never appears.
+
+**Never hard-code a symbol, a tick size, or a multiplier.** A strategy that assumes 0.25-tick ES does
+something quietly wrong on BTC. Derive levels from the data: bucket prices with `Num.RoundToTick`, and
+express distances in `Atr` or `RealizedVolatility` rather than in a constant.
 
 ## Declaring what you need
 
@@ -42,8 +55,9 @@ strategy that will never be offered that broker.
 
 ## Time
 
-`IClock` is the only clock. In a backtest it is historical time moving at replay speed; `DateTime.UtcNow`
-is wall-clock and is simply wrong there. Every window, timeout, cooldown and time-stop reads `clock.UtcNow`.
+`context.Clock` is the only clock. On a replay it is historical time moving at replay speed;
+`DateTime.UtcNow` is wall-clock and simply wrong there. Every window, timeout, cooldown and time-stop
+reads `context.Clock.UtcNow`.
 
 Bar boundaries, session opens and holidays are not handed to you — if a strategy is session-sensitive
 (an opening-range break, say), it must derive the session from the timestamps it sees, and you should say

@@ -13,9 +13,9 @@ When the request genuinely needs several panels — a chart beside an order book
 spread strip between them — describe them with `UnitLayout`:
 
 ```csharp
-public UnitLayout Layout => Layout.Columns(
-    Layout.Panel("Price", DrawChart).Star(3),
-    Layout.Panel("Book",  DrawBook).Pixels(260));
+public UnitLayout Layout => UnitLayout.Columns(
+    UnitLayout.Panel("Price", DrawChart).Star(3),
+    UnitLayout.Panel("Book",  DrawBook).Pixels(260));
 
 private void DrawChart(IRenderSurface s) { /* this panel only */ }
 private void DrawBook(IRenderSurface s)  { /* this panel only */ }
@@ -24,11 +24,15 @@ private void DrawBook(IRenderSurface s)  { /* this panel only */ }
 Each panel gets its **own surface**: its own viewport, its own cursor, a header, and a separator the
 user can drag. Your `Draw` is then unused — the panels do the drawing.
 
+**Write `UnitLayout.` and not `Layout.`** The property is called `Layout`, so inside the class that
+identifier binds to the property rather than to the static class, and `Layout.Rows(...)` does not
+compile. `UnitLayout` is never a member name, so it never shadows.
+
 ## The vocabulary
 
-- `Layout.Panel(title, draw)` — one panel. Pass no title for a full-bleed panel with no header.
-- `Layout.Rows(...)` — stacked top to bottom.
-- `Layout.Columns(...)` — placed left to right.
+- `UnitLayout.Panel(title, draw)` — one panel. Pass no title for a full-bleed panel with no header.
+- `UnitLayout.Rows(...)` — stacked top to bottom.
+- `UnitLayout.Columns(...)` — placed left to right.
 - `.Star(n)` — takes `n` shares of the space left over. The default is one share.
 - `.Pixels(n)` — an exact height (in rows) or width (in columns). What a ladder or a status strip wants.
 
@@ -36,11 +40,11 @@ Rows and columns nest, so any arrangement is reachable:
 
 ```csharp
 // Chart on top; book and tape sharing the space beneath it.
-public UnitLayout Layout => Layout.Rows(
-    Layout.Panel("Price", DrawChart).Star(2),
-    Layout.Columns(
-        Layout.Panel("Book", DrawBook),
-        Layout.Panel("Tape", DrawTape)));
+public UnitLayout Layout => UnitLayout.Rows(
+    UnitLayout.Panel("Price", DrawChart).Star(2),
+    UnitLayout.Columns(
+        UnitLayout.Panel("Book", DrawBook),
+        UnitLayout.Panel("Tape", DrawTape)));
 ```
 
 ## What you do not build

@@ -1554,16 +1554,22 @@ The host owns the chrome around this and the author owns what is inside it. That
 Bounded on purpose. An authored unit is untrusted input, and a layout is a tree it supplies; `MaximumPanels` and `MaximumDepth` stop a pathological or generated one from building a visual tree deep enough to take the window down. Over either limit the layout is refused whole rather than truncated — half a dashboard is a worse answer than a clear one.
 
 ```csharp
+SplitNode Columns(LayoutNode[] children)
 bool IsSingle { get; }
 UnitLayout Of(LayoutNode root)
+PanelNode Panel(string title, Action<IRenderSurface> draw)
+PanelNode Panel(Action<IRenderSurface> draw)
 IReadOnlyList<PanelNode> Panels()
 LayoutNode Root { get; }
+SplitNode Rows(LayoutNode[] children)
 UnitLayout Single { get; }
 ```
 
+- `Columns` — Panels placed left to right.
 - `IsSingle` — True when this is the plain single-panel default.
 - `Of` — Wraps a tree, or falls back to `Single` when it is missing, empty, or past the bounds above. Never throws: a bad layout costs the author their panel arrangement, not their window.
 - `Root` — The layout tree, or null for the default single panel.
+- `Rows` — Panels stacked top to bottom.
 - `Single` — One panel filling the body, drawn by the unit's own `Draw`. What a unit gets when it describes no layout at all — which is most of them, and remains a perfectly good window.
 
 ### `VirtualEntryKind`

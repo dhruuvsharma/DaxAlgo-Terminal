@@ -179,6 +179,45 @@ public sealed record UnitLayout
         return new UnitLayout(root);
     }
 
+    // ── Building one ────────────────────────────────────────────────────────────────────────────
+    //
+    // The same three verbs as `Layout`, mirrored here for one reason: a unit declares its arrangement
+    // in a property called `Layout`, and inside that class the identifier `Layout` binds to the
+    // PROPERTY, not to the static class. So the natural spelling —
+    //
+    //     public UnitLayout Layout => Layout.Rows(Layout.Panel("Price", DrawChart));
+    //
+    // does not compile, and the working form is `DaxAlgo.Sdk.Layout.Layout.Rows(...)`, which nobody
+    // writes on purpose. Both shipped exemplars carried that mouthful, and the layout skill taught the
+    // spelling that fails. `UnitLayout` is not a member name, so it never shadows.
+    //
+    // These also wrap the result, which removes the second error in the same line: `Layout.Rows(...)`
+    // returns a `SplitNode` and the property is a `UnitLayout`, with no conversion between them.
+
+    /// <summary>
+    /// Turns a tree into a layout wherever one is expected.
+    ///
+    /// <para>This is what lets <see cref="Rows"/> and <see cref="Columns"/> return a NODE — nestable,
+    /// and <c>.Star()</c>/<c>.Pixels()</c>-able like any other child — while still satisfying a
+    /// property typed <see cref="UnitLayout"/>. Returning a wrapped layout instead would make the
+    /// outermost call the only one that compiles, which is the trap this whole block exists to
+    /// remove.</para>
+    /// </summary>
+    public static implicit operator UnitLayout(LayoutNode? root) => Of(root);
+
+    /// <summary>Panels stacked top to bottom.</summary>
+    public static SplitNode Rows(params LayoutNode[] children) => Layout.Rows(children);
+
+    /// <summary>Panels placed left to right.</summary>
+    public static SplitNode Columns(params LayoutNode[] children) => Layout.Columns(children);
+
+    /// <summary>One drawable panel with a header — the same node <see cref="Layout.Panel(string, Action{IRenderSurface})"/>
+    /// builds, re-exposed so a whole layout can be written without naming the shadowed class.</summary>
+    public static PanelNode Panel(string title, Action<IRenderSurface> draw) => Layout.Panel(title, draw);
+
+    /// <summary>One drawable panel with no header.</summary>
+    public static PanelNode Panel(Action<IRenderSurface> draw) => Layout.Panel(draw);
+
     /// <summary>Every panel in the tree, in visual order.</summary>
     public IReadOnlyList<PanelNode> Panels()
     {

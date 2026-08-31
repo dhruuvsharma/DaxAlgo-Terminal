@@ -266,4 +266,63 @@ public sealed class AuthoringKnowledgeTests
 
         body.Should().Contain("Every widget takes an `area`");
     }
+
+    [Fact]
+    public void TheLayoutSkillTeachesTheSpellingThatCompiles()
+    {
+        // Its every example read `Layout.Columns(...)` inside a class whose property is called
+        // `Layout`, so the identifier bound to the PROPERTY and nothing compiled — and separately, the
+        // result was a `SplitNode` being returned from a `UnitLayout` property with no conversion
+        // between them. Two errors in one line, in every example in the file.
+        //
+        // Fixed in the library rather than documented around: `UnitLayout` mirrors the three verbs and
+        // converts implicitly, so the natural spelling is now the working one.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "layout").Body;
+
+        body.Should().Contain("UnitLayout.Rows(").And.Contain("UnitLayout.Panel(");
+        body.Should().NotContain("=> Layout.", "the property shadows the class inside the unit");
+    }
+
+    [Fact]
+    public void TheRiskSkillDeclaresTheSchemaTheWayTheContractRequires()
+    {
+        // It showed `public static StrategyParameterSchema Schema`. `IStrategyKernel.Schema` is an
+        // INSTANCE member, so a static one does not implement the interface and the class does not
+        // compile — while the base pack, three exemplars and the contract itself all say instance.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "risk-and-exits").Body;
+
+        body.Should().NotContain("public static StrategyParameterSchema Schema");
+        body.Should().Contain("public StrategyParameterSchema Schema");
+    }
+
+    [Fact]
+    public void NoSkillTeachesTheRetiredConstructionModel()
+    {
+        // `instruments-and-data` opened by saying a Contract "is handed to the kernel's constructor and
+        // to BuildStrategy". Both belong to the retired IOrderRoutedStrategy path — `BuildStrategy`
+        // exists only on `LiveSignalStrategyViewModelBase` and returns that contract — and a class
+        // written from it has no parameterless constructor, so the host cannot host it at all.
+        //
+        // Same drift class as the retired `Tick` in the order-flow skill: a name that still exists, so
+        // following the guidance compiles into something that binds nothing.
+        var knowledge = string.Join(
+            Environment.NewLine,
+            StrategySkillLibrary.Load().All.Select(skill => skill.Body));
+
+        knowledge.Should().NotContain("BuildStrategy");
+        knowledge.Should().NotContain("kernel's constructor");
+    }
+
+    [Fact]
+    public void NoSkillReadsTheClockOffAValueThatIsNotInScope()
+    {
+        // `clock.UtcNow` is left over from the retired contract, where an IClock was a callback
+        // parameter. A kernel reaches it through its context, and the base pack says so.
+        var knowledge = string.Join(
+            Environment.NewLine,
+            StrategySkillLibrary.Load().All.Select(skill => skill.Body));
+
+        knowledge.Should().NotContain("`clock.UtcNow`");
+        knowledge.Should().NotContain(" clock.UtcNow");
+    }
 }

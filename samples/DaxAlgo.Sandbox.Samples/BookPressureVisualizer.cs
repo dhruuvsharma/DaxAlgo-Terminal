@@ -61,11 +61,11 @@ public sealed class BookPressureVisualizer : IVisualizer
     /// <summary>Three panels: the pressure history, the live ladder beside it, and the numbers under
     /// both. A book is read as a column, so the ladder gets a fixed width and the history takes the
     /// rest.</summary>
-    public UnitLayout Layout => UnitLayout.Of(DaxAlgo.Sdk.Layout.Layout.Rows(
-        DaxAlgo.Sdk.Layout.Layout.Columns(
-            DaxAlgo.Sdk.Layout.Layout.Panel("Pressure", DrawPressure).Star(3),
-            DaxAlgo.Sdk.Layout.Layout.Panel("Book", DrawLadder).Pixels(230)).Star(4),
-        DaxAlgo.Sdk.Layout.Layout.Panel("Flow", DrawStats).Pixels(64)));
+    public UnitLayout Layout => UnitLayout.Rows(
+        UnitLayout.Columns(
+            UnitLayout.Panel("Pressure", DrawPressure).Star(3),
+            UnitLayout.Panel("Book", DrawLadder).Pixels(230)).Star(4),
+        UnitLayout.Panel("Flow", DrawStats).Pixels(64));
 
     private const int HistoryCapacity = 240;
 
