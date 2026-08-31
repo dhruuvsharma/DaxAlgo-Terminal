@@ -27,14 +27,13 @@ public sealed class AuthoringExemplarTests
     }
 
     [Theory]
-    [InlineData(AuthoringKind.Strategy)]
-    [InlineData(AuthoringKind.Visualizer)]
-    public void An_exemplar_obeys_the_rules_it_is_teaching(AuthoringKind kind)
+    [MemberData(nameof(EverySample))]
+    public void An_exemplar_obeys_the_rules_it_is_teaching(AuthoringKind kind, string? brief)
     {
         // The samples are library code: they carry `using` directives and a namespace, and an authored
         // unit must have neither. Shipped raw they would demonstrate exactly what the rules a few
         // paragraphs above them forbid, and a model resolves that contradiction by guessing.
-        var source = AuthoringExemplar.For(kind);
+        var source = AuthoringExemplar.For(kind, brief);
 
         source.Should().NotContain("namespace ");
         source.Should().NotStartWith("using ");
@@ -88,10 +87,53 @@ public sealed class AuthoringExemplarTests
 
     // ── the check that earns the word "verified" ────────────────────────────────────────────────
 
+    /// <summary>
+    /// Every embedded sample, with a brief that selects it.
+    ///
+    /// <para>Parameterising by KIND was right when a kind had one exemplar. It stopped being right the
+    /// moment the brief started choosing between them: the order-flow sample is reachable only through
+    /// a brief, so a theory over kinds compiled two of the three and left the newest -- the one with no
+    /// track record -- ungated.</para>
+    /// </summary>
+    public static TheoryData<AuthoringKind, string?> EverySample => new()
+    {
+        { AuthoringKind.Strategy, null },
+        { AuthoringKind.Visualizer, null },
+        { AuthoringKind.Visualizer, "an order book depth ladder with footprint imbalance" },
+    };
+
+    [Fact]
+    public void The_compile_gate_covers_every_exemplar_that_ships()
+    {
+        // EverySample is hand-written, so it rots the moment a fourth sample is embedded -- and it rots
+        // SILENTLY: an uncovered exemplar just never gets compiled, and the theory above stays green
+        // while the newest, least-proven sample is the one nobody is checking. This counts the embedded
+        // resources instead, so adding one without a row here fails immediately.
+        var embedded = typeof(AuthoringExemplar).Assembly
+            .GetManifestResourceNames()
+            .Where(name => name.StartsWith("DaxAlgo.Codegen.Exemplars.", StringComparison.Ordinal))
+            .ToArray();
+
+        embedded.Should().NotBeEmpty("the exemplars are embedded resources -- none found means the "
+            + "prefix moved and every check in this file is reading nothing");
+
+        // What the theory rows actually select, by identity rather than by assumption: a row whose
+        // brief fails to match its intended sample silently falls back to the default, and counting
+        // DISTINCT sources is what catches that.
+        var covered = EverySample
+            .Select(row => AuthoringExemplar.For((AuthoringKind)row[0]!, (string?)row[1]))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        covered.Should().Be(
+            embedded.Length,
+            "every embedded exemplar must be reachable from a row in EverySample -- {0} shipped, {1} "
+            + "distinct sources selected", embedded.Length, covered);
+    }
+
     [Theory]
-    [InlineData(AuthoringKind.Strategy)]
-    [InlineData(AuthoringKind.Visualizer)]
-    public void An_exemplar_still_compiles_after_normalisation(AuthoringKind kind)
+    [MemberData(nameof(EverySample))]
+    public void An_exemplar_still_compiles_after_normalisation(AuthoringKind kind, string? brief)
     {
         // The whole point. The samples compile as a library — CI proves that — but what the model is
         // shown is the NORMALISED form, stripped of its usings and namespace. If that transformation
@@ -102,9 +144,11 @@ public sealed class AuthoringExemplarTests
         // is the real gate rather than a lookalike. No usings are supplied: the compiler injects its
         // own GlobalUsings tree, and adding them here is a duplicate-directive error — which is itself
         // the check that the exemplar relies on exactly the ambient set the model is promised.
-        var source = AuthoringExemplar.For(kind);
+        var source = AuthoringExemplar.For(kind, brief);
+        source.Should().NotBeNullOrWhiteSpace();
+
         var script = new StrategyScript(
-            $"exemplar.{kind}".ToLowerInvariant(),
+            $"exemplar.{kind}.{brief?.Length ?? 0}".ToLowerInvariant(),
             $"{kind} exemplar",
             [new StrategyFile("Unit.cs", source)]);
 

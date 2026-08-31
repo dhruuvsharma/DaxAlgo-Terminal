@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -324,5 +327,71 @@ public sealed class AuthoringKnowledgeTests
 
         knowledge.Should().NotContain("`clock.UtcNow`");
         knowledge.Should().NotContain(" clock.UtcNow");
+    }
+
+    // ── the promise the compiler has to keep ────────────────────────────────────────────────────
+
+    [Fact]
+    public void TheAmbientNamespacesThePackPromisesAreTheOnesTheCompilerInjects()
+    {
+        // The pack tells the model to write no usings because a fixed set is ambient. That is a PROMISE
+        // about another file, and RoslynStrategyCompiler's own remarks record it being broken: the two
+        // lists disagreed until 2026-08-28, so a unit that obeyed the instruction failed its first
+        // compile on a namespace the pack had said was already there.
+        //
+        // Nothing pinned them afterwards. The exemplar compile gate catches the reverse direction --
+        // a namespace the compiler DROPS that a sample needs -- and a bogus entry in the injected list
+        // fails every compile outright. Neither notices the case that actually shipped: the pack
+        // naming one the compiler never injects. No sample has to use it for the promise to be false.
+        var promised = AmbientNamespacesInThePack();
+        var injected = AmbientNamespacesInTheCompiler();
+
+        promised.Should().NotBeEmpty("the bullet is parsed out of the pack -- an empty set means the "
+            + "wording moved and this guard is no longer reading anything");
+
+        promised.Should().BeEquivalentTo(
+            injected,
+            "every namespace the pack calls ambient must be one RoslynStrategyCompiler actually "
+            + "injects, and every namespace it injects should be one the model is told it has");
+    }
+
+    /// <summary>The namespaces the base pack promises are ambient, read out of its own bullet.</summary>
+    private static string[] AmbientNamespacesInThePack()
+    {
+        const string marker = "These are ambient:";
+        var start = Pack.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0) return [];
+
+        // The bullet wraps over several lines and ends where the next one begins.
+        var bullet = new StringBuilder();
+        foreach (var line in Pack[(start + marker.Length)..].Split('\n'))
+        {
+            if (line.TrimStart().StartsWith("- ", StringComparison.Ordinal)) break;
+            bullet.Append(line).Append(' ');
+        }
+
+        return [.. Regex.Matches(bullet.ToString(), "`([^`]+)`").Select(match => match.Groups[1].Value)];
+    }
+
+    /// <summary>The namespaces the compiler injects, read off the constant it injects them from.</summary>
+    private static string[] AmbientNamespacesInTheCompiler()
+    {
+        // Reflected rather than duplicated. A copy of the list in this file would be a third place to
+        // forget, which is the failure being guarded against.
+        var field = typeof(RoslynStrategyCompiler).GetField(
+            "KernelUsings", BindingFlags.NonPublic | BindingFlags.Static);
+
+        field.Should().NotBeNull("the guard reads the compiler's own list -- if the constant was "
+            + "renamed this test is silently checking nothing");
+
+        var source = (string)field!.GetRawConstantValue()!;
+
+        return
+        [
+            .. source
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(line => line.StartsWith("global using ", StringComparison.Ordinal))
+                .Select(line => line["global using ".Length..].TrimEnd(';')),
+        ];
     }
 }
