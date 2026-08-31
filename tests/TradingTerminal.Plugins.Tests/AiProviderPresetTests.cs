@@ -1,3 +1,6 @@
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using FluentAssertions;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -120,6 +123,95 @@ public sealed class AiProviderPresetTests
         CodegenBaseUrl.IsUnedited("https://api.foryour-company.com/v1").Should().BeFalse();
         CodegenBaseUrl.IsUnedited("https://your-resource.openai.azure.com").Should().BeTrue(
             "case should not rescue an unedited template");
+    }
+
+    // -- the OTHER table of the same facts ------------------------------------------------------
+
+    [Fact]
+    public void Every_shipped_provider_obeys_the_rules_the_presets_do()
+    {
+        // appsettings.json carries a SECOND provider table, and it is the one most users meet: these
+        // are shipped and only editable, while the presets are what "Add a provider" offers. Checking
+        // the presets and not these would leave the default path -- DefaultProvider is one of them --
+        // as the unverified half.
+        foreach (var (id, baseUrl) in ShippedConfiguration().Providers)
+        {
+
+            CodegenBaseUrl.Normalise(baseUrl).Should().Be(
+                baseUrl, "the shipped base URL for {0} should need no repair", id);
+
+            var uri = CodegenBaseUrl.TryAbsolute(baseUrl);
+            uri.Should().NotBeNull("{0} ships a base URL no request can be built from", id);
+
+            CodegenBaseUrl.IsUnedited(baseUrl).Should().BeFalse(
+                "{0} ships a template rather than an address", id);
+
+            (uri!.Scheme == Uri.UriSchemeHttps || uri.IsLoopback).Should().BeTrue(
+                "{0} is a hosted provider reached over plain http, which puts the key on the wire in "
+                + "clear text", id);
+        }
+    }
+
+    [Fact]
+    public void The_default_provider_is_one_that_actually_ships()
+    {
+        // A DefaultProvider naming a key that is not in the table resolves to nothing, and the app
+        // falls back to "first available" -- which is not wrong, but means the setting silently does
+        // nothing and the edition ships pointing somewhere nobody chose.
+        var (dflt, providers) = ShippedConfiguration();
+
+        if (string.IsNullOrWhiteSpace(dflt)) return;
+
+        providers.Select(p => p.Id).Should().Contain(
+            key => key.Equals(dflt, StringComparison.OrdinalIgnoreCase),
+            "DefaultProvider is '{0}', which is not one of the shipped providers", dflt);
+    }
+
+    /// <summary>
+    /// The shipped table, read straight out of the file.
+    ///
+    /// <para>Deliberately not deserialised into <see cref="AiCodegenOptions"/>: the app binds this
+    /// through Microsoft.Extensions.Configuration, and going through System.Text.Json instead would
+    /// test a binder nothing uses -- it does not even accept the string enum values the file holds.
+    /// What is being checked here is the FILE, so the file is what gets read.</para>
+    /// </summary>
+    private static (string? Default, IReadOnlyList<(string Id, string BaseUrl)> Providers) ShippedConfiguration()
+    {
+        var path = Path.Combine(RepositoryRoot(), "appsettings.json");
+        File.Exists(path).Should().BeTrue("the shipped configuration should be at the repository root");
+
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(path),
+            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+
+        var section = document.RootElement.GetProperty("AiCodegen");
+
+        var dflt = section.TryGetProperty("DefaultProvider", out var d) ? d.GetString() : null;
+
+        var providers = new List<(string, string)>();
+        foreach (var entry in section.GetProperty("Providers").EnumerateObject())
+        {
+            // The section carries "_comment" style notes alongside the real entries.
+            if (entry.Value.ValueKind != JsonValueKind.Object) continue;
+
+            providers.Add((
+                entry.Name,
+                entry.Value.TryGetProperty("BaseUrl", out var b) ? b.GetString() ?? string.Empty : string.Empty));
+        }
+
+        providers.Should().NotBeEmpty("an empty table would pass every check above without testing "
+            + "anything -- if this trips, the section moved or was renamed");
+
+        return (dflt, providers);
+    }
+
+    private static string RepositoryRoot([CallerFilePath] string thisFile = "")
+    {
+        // <root>/tests/TradingTerminal.Plugins.Tests/AiProviderPresetTests.cs
+        var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(thisFile)!, "..", ".."));
+        File.Exists(Path.Combine(root, "TradingTerminal.Windows.slnx")).Should().BeTrue(
+            $"'{root}' should be the repository root");
+        return root;
     }
 
     [Fact]
