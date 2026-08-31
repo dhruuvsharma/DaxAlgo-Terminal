@@ -242,6 +242,31 @@ public sealed class StrategyBuildSession
             lastFiles = response.FileList;
             Files = lastFiles;
 
+            // Prose in a code fence is not a compile error, and telling the model it is makes things
+            // worse: it reads CS1003 and tries to FIX THE PROSE. Seen live — three generations spent
+            // that way, the last of them a paragraph explaining that the file contained no program.
+            // Named for what it is instead, like the wrong-kind mismatch beside it.
+            if (lastFiles.FirstOrDefault(f => !CodegenCodeExtractor.LooksLikeCode(f.Content)) is { } prose)
+            {
+                var complaint =
+                    $"'{prose.Name}' contains prose, not C#. Do not explain and do not apologise: return "
+                    + "the COMPLETE file, C# only, in a ```csharp fence with its `// file:` header.";
+
+                _logger?.LogInformation(
+                    "AI-authored unit {Id} returned prose instead of code on generation {Generation}.",
+                    StrategyId, generation);
+                activity?.Report($"{Provider.DisplayName} returned prose, not code.");
+
+                if (generation < totalGenerations)
+                {
+                    _messages.Add(new CodegenMessage(CodegenRole.User, complaint));
+                    continue;
+                }
+
+                return new StrategyBuildTurn(
+                    BuildTurnKind.CompileFailed, lastText, lastFiles, lastCompile, complaint, generation, usage);
+            }
+
             activity?.Report($"Compiling {lastFiles.Count} file(s)…");
             var compile = _compiler.Compile(new StrategyScript(StrategyId, DisplayName, lastFiles));
             lastCompile = compile;

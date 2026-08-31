@@ -145,4 +145,44 @@ public static partial class CodegenCodeExtractor
         text.Contains("struct ", StringComparison.Ordinal) ||
         text.Contains("record ", StringComparison.Ordinal) ||
         text.Contains("namespace ", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether an extracted file plausibly contains C# at all.
+    ///
+    /// <para><b>Found by running it.</b> A model answered a fix prompt with PROSE wrapped in a
+    /// <c>// file:</c> fence — a diagnosis of the previous failure rather than a corrected file. The
+    /// extractor did exactly what the contract says and handed the prose to the compiler, which
+    /// reported CS1003, CS1002 and "unexpected character '`'" from line 1. The fix loop then fed those
+    /// back, so the next turn tried to FIX THE PROSE, and the turn after that wrote a paragraph
+    /// explaining that the file contained no program. Three generations, all spent on text nobody
+    /// meant as code.</para>
+    ///
+    /// <para>Deliberately a shape test rather than a parse: every real unit's first meaningful line is
+    /// a using, a namespace, an attribute, a preprocessor directive or a type declaration, and prose is
+    /// none of those. Cheap, and it cannot fail a file that would have compiled.</para>
+    /// </summary>
+    public static bool LooksLikeCode(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return false;
+
+        foreach (var raw in content.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith("//", StringComparison.Ordinal)) continue;
+            if (line.StartsWith("/*", StringComparison.Ordinal)) continue;
+
+            return CodeStarts.Any(start => line.StartsWith(start, StringComparison.Ordinal));
+        }
+
+        // Comments only. Not a program, but not prose either — let the compiler have the last word.
+        return true;
+    }
+
+    private static readonly string[] CodeStarts =
+    [
+        "using ", "namespace ", "#", "[",
+        "public ", "internal ", "private ", "protected ",
+        "sealed ", "abstract ", "static ", "partial ", "file ", "unsafe ",
+        "class ", "record ", "struct ", "enum ", "interface ", "delegate ",
+    ];
 }
