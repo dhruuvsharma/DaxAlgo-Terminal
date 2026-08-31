@@ -9,12 +9,24 @@ namespace DaxAlgo.Sdk.Drawing;
 /// <param name="PriceWidth">Width of the price gutter, in pixels.</param>
 /// <param name="ShowSize">Whether to print the resting size on each row.</param>
 /// <param name="PriceFormat">Numeric format for prices.</param>
+/// <param name="FirstLevel">
+/// How many levels in from the touch to start, per side — how far the book is scrolled.
+///
+/// <para><b>Here so that scrolling a deep book does not mean allocating in <c>Draw</c>.</b> A ladder
+/// showing ten of forty levels could only be scrolled by handing this routine a sliced
+/// <c>DepthSnapshot</c>, which means building two lists on the render thread every frame — the one
+/// thing the drawing rules tell an author never to do. An index costs nothing and says the same.</para>
+///
+/// <para>Pair it with <c>Viewport.PanY</c> to make dragging scroll the book. Past the end of the book
+/// the ladder simply runs out of rows, so a value nobody can reach is harmless.</para>
+/// </param>
 public readonly record struct LadderOptions(
     int Levels = 10,
     double RowHeight = 18d,
     double PriceWidth = 64d,
     bool ShowSize = true,
-    string? PriceFormat = null)
+    string? PriceFormat = null,
+    int FirstLevel = 0)
 {
     /// <summary>
     /// The intended defaults.
@@ -69,8 +81,9 @@ public static class Ladder
         if (barWidth <= 0d)
             return;
 
-        var asks = Take(depth.Asks, levels);
-        var bids = Take(depth.Bids, levels);
+        var first = Math.Max(0, options.FirstLevel);
+        var asks = Take(depth.Asks, first, levels);
+        var bids = Take(depth.Bids, first, levels);
         var peak = Peak(asks, bids);
         if (peak <= 0d)
             return;
@@ -139,16 +152,23 @@ public static class Ladder
         }
     }
 
-    private static IReadOnlyList<DepthLevel> Take(IReadOnlyList<DepthLevel>? side, int levels)
+    /// <summary><paramref name="levels"/> rows starting <paramref name="first"/> in from the touch.
+    /// Allocates nothing when the whole side already fits and nothing is scrolled, which is the common
+    /// case and the one that runs every frame.</summary>
+    private static IReadOnlyList<DepthLevel> Take(
+        IReadOnlyList<DepthLevel>? side, int first, int levels)
     {
         if (side is null || side.Count == 0)
             return [];
-        if (side.Count <= levels)
+        if (first == 0 && side.Count <= levels)
             return side;
+        if (first >= side.Count)
+            return [];
 
-        var taken = new DepthLevel[levels];
-        for (var index = 0; index < levels; index++)
-            taken[index] = side[index];
+        var count = Math.Min(levels, side.Count - first);
+        var taken = new DepthLevel[count];
+        for (var index = 0; index < count; index++)
+            taken[index] = side[first + index];
         return taken;
     }
 

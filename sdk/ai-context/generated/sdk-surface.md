@@ -954,7 +954,7 @@ void Draw(IRenderSurface surface, DepthSnapshot depth, LadderOptions options = n
 - `Draw` — Draws the ladder into the current panel, in panel pixel space.
 
 <!-- @type LadderOptions | Drawing helpers -->
-- `LadderOptions` — How a depth ladder is drawn. Fields: Levels, PriceFormat, PriceWidth, RowHeight, ShowSize. Use `LadderOptions.Default`, never `new()`.
+- `LadderOptions` — How a depth ladder is drawn. Fields: FirstLevel, Levels, PriceFormat, PriceWidth, RowHeight, ShowSize. Use `LadderOptions.Default`, never `new()`.
 
 <!-- @type Legend | Drawing helpers -->
 ### `Legend`

@@ -117,6 +117,42 @@ public sealed class DrawingRoutineTests
     }
 
     [Fact]
+    public void TheLadderCanBeScrolledThroughADeepBook()
+    {
+        // Scrolling a book used to mean handing this routine a SLICED DepthSnapshot, which is two new
+        // lists built on the render thread every frame — the one thing the drawing rules tell an author
+        // never to do. An index says the same and costs nothing.
+        var depth = Depth(
+            bids: [(99d, 10L), (98d, 10L), (97d, 10L)],
+            asks: [(100d, 10L), (101d, 10L), (102d, 10L)]);
+
+        var top = Surface(200d, 200d);
+        Ladder.Draw(top, depth, new LadderOptions(Levels: 1, RowHeight: 20d));
+        Assert.Contains(top.Texts, t => t.Text == "100");
+        Assert.DoesNotContain(top.Texts, t => t.Text == "101");
+
+        var scrolled = Surface(200d, 200d);
+        Ladder.Draw(scrolled, depth, new LadderOptions(Levels: 1, RowHeight: 20d, FirstLevel: 1));
+        Assert.Contains(scrolled.Texts, t => t.Text == "101");
+        Assert.DoesNotContain(scrolled.Texts, t => t.Text == "100");
+
+        // And the bid side scrolls with it, so the two halves stay the same distance from the touch.
+        Assert.Contains(scrolled.Texts, t => t.Text == "98");
+    }
+
+    [Fact]
+    public void ScrollingPastTheEndOfTheBookRunsOutOfRowsRatherThanThrowing()
+    {
+        // A drag has no idea how deep the book is, so a value nobody can reach has to be harmless.
+        var surface = Surface(200d, 200d);
+        var depth = Depth(bids: [(99d, 10L)], asks: [(100d, 10L)]);
+
+        Ladder.Draw(surface, depth, new LadderOptions(Levels: 4, RowHeight: 20d, FirstLevel: 50));
+
+        Assert.DoesNotContain(surface.Texts, t => t.Text is "99" or "100");
+    }
+
+    [Fact]
     public void ALadderWithNoDepthDrawsNothing()
     {
         var surface = Surface(200d, 200d);

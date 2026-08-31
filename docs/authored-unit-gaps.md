@@ -34,12 +34,12 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 | Selection (pin a level) | impossible | **closed** |
 | Zoom | missing | **closed** |
 | Scrub / pan | missing | **closed** |
-| Scrolling | missing | **missing** |
+| Scrolling | missing | **closed for a ladder; no scrollbar** |
 | Time axis on a captured series | missing | **missing** |
 | Presets | missing | **missing** |
 | Minimum size for a star panel beside a fixed one | — | **missing** (found 2026-08-31, second pass) |
 
-Four of eight closed, one of them partly. The control now pins a price row on click and chooses its visible window from
+Five of eight closed, two of them partly. The control now pins a price row on click and chooses its visible window from
 the wheel and the drag, and the `heatWindow` parameter it needed for want of a gesture is gone.
 
 **How, without handing the host a WPF type.** A click, a wheel notch and a drag are *transitions*, and
@@ -106,11 +106,20 @@ makes that true rather than merely advised.
 **Apply zoom to the data range, not to the coordinates** — the control divides its column window by
 it. Scaling the drawing would magnify the text and line widths with it.
 
-### 4. No scrolling
+### ~~4. Scrolling~~ — closed for a ladder 2026-08-31, and the diagnosis was wrong the first time
 
-The hand-written ladder is a `ScrollViewer` over every level in the book. An immediate-mode panel
-draws what fits. `LevelsParameter` is the workaround, and it is not the same thing: a 30-level cap is
-a different product from a scrollable book.
+Recorded as "an immediate-mode panel draws what fits". That was too broad. Once `Viewport.PanY`
+existed a unit could already scroll by drag; what it could not do was scroll **a widget**, because
+`LadderOptions` had `Levels` and no offset. Scrolling one meant handing `Ladder.Draw` a sliced
+`DepthSnapshot` — two new lists built on the render thread every frame, which is the one thing the
+drawing rules tell an author never to do.
+
+`LadderOptions.FirstLevel` closes it: an index costs nothing and says the same. The control now
+scrolls its book by drag, and running past the end of the book runs out of rows rather than throwing,
+because a drag has no idea how deep the book is.
+
+**Still missing: a scrollbar.** There is no affordance telling the viewer the book is scrollable or
+how far down they are, and no widget but the ladder takes an offset.
 
 ### 5. No time axis on a captured series
 
@@ -163,9 +172,13 @@ a gap here appears in the surface, and the contract sections are never rationed.
 | after the surface cut | 94,435 |
 | after verbs + the exemplar demonstrating them | **99,070** |
 
-So two iterations of capability have spent 4,635 of the 17,784 the cut bought. Sustainable for now,
-and worth watching: the **worked exemplar is 13,306 characters and is not rationed at all**. It is
-already chosen by brief; the next lever is a shorter one for briefs that do not need the long form.
+So two iterations of capability have spent 4,635 of the 17,784 the cut bought.
+
+**The exemplar is not the next lever, which was measured rather than assumed.** It is 13,306
+characters and unrationed, and that looked like the obvious place to squeeze — but it is **72% code**:
+XML docs are 15.6% and inline comments 12.0%. Stripping every comment would save 3.7 KB on a 99 KB
+prompt and cost the model the commenting style the exemplar exists to teach. There is no cheap win
+there; the remaining lever is the surface budget, whose curve is in `SdkSurfaceSelector`.
 
 ## What has actually been run
 

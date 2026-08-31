@@ -388,9 +388,13 @@ public sealed class LiquidityBookVisualizer : IVisualizer
             return;
         }
 
-        // Levels is a parameter because the panel cannot scroll: an immediate-mode panel draws what
-        // fits, and the hand-written window puts the same ladder in a ScrollViewer.
-        Ladder.Draw(surface, _depth, LadderOptions.Default with { Levels = _levels }, area);
+        // Dragging this panel scrolls the book. PanY is in pixels and a row is RowHeight, so the drag
+        // becomes a level offset — and FirstLevel is what makes that free: without it a scrolled ladder
+        // means slicing the snapshot into two new lists on the render thread, every frame.
+        var options = LadderOptions.Default with { Levels = _levels };
+        var scrolled = (int)Math.Max(0d, surface.Viewport.PanY / options.RowHeight);
+
+        Ladder.Draw(surface, _depth, options with { FirstLevel = scrolled }, area);
     }
 
     private void DrawStrip(IRenderSurface surface) => DrawStrip(surface, PlotArea.Of(surface));

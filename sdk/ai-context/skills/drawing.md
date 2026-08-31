@@ -150,7 +150,7 @@ All four are panel-local.
 | hovers | `Cursor.IsInside`, `.X`, `.Y` | crosshair + readout (`Plot.Crosshair`) |
 | clicks | `Cursor.HasSelection`, `.SelectionX/Y` | invert your axis mapping, highlight that row |
 | wheel | `Viewport.Zoom` (1 = unzoomed) | `visible = window / Zoom` |
-| drags | `Viewport.PanX`, `.PanY` (pixels) | offset which slice of history you show |
+| drags | `Viewport.PanX`, `.PanY` (pixels) | offset which slice you show — a ladder takes `FirstLevel` |
 
 **Apply `Zoom` to your data range, never your coordinates** — scaling the drawing magnifies the text
 with it. A pin survives the pointer leaving, which is when someone is reading it. And do not add a
