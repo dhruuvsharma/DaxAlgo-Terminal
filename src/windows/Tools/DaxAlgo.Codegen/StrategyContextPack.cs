@@ -32,8 +32,20 @@ public sealed class StrategyContextPack
     /// <summary>The pack text — the codegen system prompt.</summary>
     public string SystemPrompt { get; }
 
-    /// <summary>The generated SDK surface on its own, for callers that compose their own prompt.</summary>
+    /// <summary>The generated SDK surface on its own, for callers that compose their own prompt.
+    /// Marker-free: what a model is actually sent.</summary>
     public string SdkSurface { get; }
+
+    /// <summary>
+    /// The surface as generated, boundary markers and all — the input <see cref="SdkSurfaceSelector"/>
+    /// parses.
+    ///
+    /// <para>Separate from <see cref="SdkSurface"/> so that every existing caller is safe by default.
+    /// The markers are for the selector to read; a caller that composes its own prompt from the pack —
+    /// the CLI workspace, the artifact tool — would otherwise ship them to a model, and a caller who
+    /// has to remember not to is a caller who will forget.</para>
+    /// </summary>
+    public string SdkSurfaceSource { get; }
 
     /// <summary>The hand-written conventions on their own.</summary>
     public string Conventions { get; }
@@ -41,11 +53,23 @@ public sealed class StrategyContextPack
     private StrategyContextPack(string conventions, string surface)
     {
         Conventions = conventions;
-        SdkSurface = surface;
-        // Surface first: it is the larger, wholly stable half, and a stable prefix is what the
-        // providers' prompt caches key on. Conventions change more often, so they go last.
-        SystemPrompt = surface + "\n\n---\n\n" + conventions;
+        SdkSurfaceSource = surface;
+        SdkSurface = SdkSurfaceSelector.For(surface, brief: null);
+        SystemPrompt = Join(SdkSurface, conventions);
     }
+
+    /// <summary>
+    /// The two halves in the order they are sent.
+    ///
+    /// <para>Surface first: it is the larger half, and a stable prefix is what the providers' prompt
+    /// caches key on. Conventions change more often, so they go last.</para>
+    ///
+    /// <para>Public because <see cref="StrategyBuildSession"/> re-joins the halves after cutting the
+    /// surface to a brief, and it must produce a byte-identical layout to this one — a filter that
+    /// also changed the separator would move the prefix for a second, unrelated reason.</para>
+    /// </summary>
+    public static string Join(string surface, string conventions) =>
+        surface + "\n\n---\n\n" + conventions;
 
     /// <summary>Loads the embedded pack. Throws if a resource is missing (a build wiring error, not a
     /// runtime condition) so it surfaces in tests rather than as an empty prompt in production.</summary>

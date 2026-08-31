@@ -32,11 +32,21 @@ public sealed record StrategyBuildLoopResult(
 public sealed class StrategyCodegenOrchestrator(
     IStrategyCompiler compiler,
     ILogger<StrategyCodegenOrchestrator>? logger = null,
-    StrategySkillLibrary? skills = null)
+    StrategySkillLibrary? skills = null,
+    StrategyContextPack? pack = null)
 {
     private readonly IStrategyCompiler _compiler = compiler;
     private readonly ILogger? _logger = logger;
     private readonly StrategySkillLibrary? _skills = skills;
+
+    /// <summary>
+    /// The pack in halves, so a session can cut the generated SDK surface to its brief.
+    ///
+    /// <para>Optional, and null in every test that hands a session a literal system context. A session
+    /// without it behaves exactly as before, which is what keeps the cut a change to the application
+    /// rather than to every caller.</para>
+    /// </summary>
+    private readonly StrategyContextPack? _pack = pack;
 
     /// <summary>Opens a conversation — or resumes one, when <paramref name="history"/> carries a thread
     /// restored from disk. The caller drives it turn by turn with
@@ -54,7 +64,7 @@ public sealed class StrategyCodegenOrchestrator(
         StrategyBuildProfile? profile = null,
         AuthoringKind kind = AuthoringKind.Strategy) =>
         new(_compiler, client, systemContext, strategyId, displayName, maxFixAttempts, _logger, history,
-            priorUsage, _skills, profile, kind);
+            priorUsage, _skills, profile, kind, _pack);
 
     /// <summary>One-shot: a single instruction taken as far as the auto-fix bound allows.</summary>
     public async Task<StrategyBuildLoopResult> BuildAsync(

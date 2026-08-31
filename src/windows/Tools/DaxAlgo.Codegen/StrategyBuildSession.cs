@@ -86,11 +86,13 @@ public sealed class StrategyBuildSession
         CodegenUsage? priorUsage = null,
         StrategySkillLibrary? skills = null,
         StrategyBuildProfile? profile = null,
-        AuthoringKind kind = AuthoringKind.Strategy)
+        AuthoringKind kind = AuthoringKind.Strategy,
+        StrategyContextPack? pack = null)
     {
         _compiler = compiler;
         _logger = logger;
         _skills = skills;
+        _pack = pack;
         Provider = provider;
         Kind = kind;
         // The kind block joins the base pack, so it survives the skill recomposition below and is part
@@ -121,6 +123,21 @@ public sealed class StrategyBuildSession
     /// <summary>The shared pack as handed in, kept so the base pack can be recomposed once the brief
     /// names which exemplar to show.</summary>
     private readonly string _systemContext;
+
+    /// <summary>
+    /// The two halves of the shared pack, when the caller supplied them, so the generated SDK surface
+    /// can be cut to the brief once there is one.
+    ///
+    /// <para>Optional because a caller that hands over a pre-joined string — the CLI, and every test
+    /// that passes a literal — keeps exactly today's behaviour. Without the halves there is no way to
+    /// tell where the surface ends and the conventions begin, and guessing at a separator inside a
+    /// string is how a filter starts cutting the wrong document.</para>
+    /// </summary>
+    private readonly StrategyContextPack? _pack;
+
+    /// <summary>The characters of SDK-surface library detail this session kept. Zero when nothing was
+    /// cut. Recorded so a caller can report the saving rather than assert it in the abstract.</summary>
+    public int SurfaceCharactersSaved { get; private set; }
 
     public IStrategyCodegenClient Provider { get; }
 
@@ -503,6 +520,37 @@ public sealed class StrategyBuildSession
         return SystemContext;
     }
 
+    /// <summary>
+    /// The shared pack with its SDK surface cut to <paramref name="brief"/>, when the caller supplied
+    /// the pack in halves; otherwise exactly what it handed over.
+    ///
+    /// <para>The surface is the bulk of the prompt and grows with the SDK, so this is where the
+    /// prompt-size problem is actually addressed. The contract sections go through whole and only the
+    /// two libraries are rationed — and even a rationed type keeps a one-line entry, so nothing the
+    /// model might want becomes invisible to it.</para>
+    /// </summary>
+    private string SharedContextFor(string brief)
+    {
+        // The halves are only usable when they are the halves of the string actually handed over. A
+        // caller that passed a different context — a test with a literal, a CLI with its own text —
+        // gets its own text back; cutting the injected pack instead would silently substitute one
+        // document for another, which is a worse failure than not cutting at all.
+        if (_pack is null || !string.Equals(_systemContext, _pack.SystemPrompt, StringComparison.Ordinal))
+            return _systemContext;
+
+        var cut = SdkSurfaceSelector.For(_pack.SdkSurfaceSource, brief);
+        SurfaceCharactersSaved = _pack.SdkSurface.Length - cut.Length;
+
+        if (SurfaceCharactersSaved > 0)
+        {
+            _logger?.LogInformation(
+                "AI builder cut the SDK surface for {Id} by {Saved} characters ({Before} to {After}).",
+                StrategyId, SurfaceCharactersSaved, _pack.SdkSurface.Length, cut.Length);
+        }
+
+        return StrategyContextPack.Join(cut, _pack.Conventions);
+    }
+
     /// <summary>Picks the domain packs for this strategy and folds them into the system prompt. Idempotent
     /// and stable: the same brief always yields the same prompt, which is what keeps it cacheable.</summary>
     private IReadOnlyList<StrategySkill> ResolveSkills(string brief)
@@ -521,7 +569,7 @@ public sealed class StrategyBuildSession
         // constructor is what lets it be — the brief does not exist yet when a session is built.
         //
         // Once per session, like the skills. The prefix a provider caches must not move between turns.
-        BasePack = AuthoringKindBrief.Compose(_systemContext, Kind, brief);
+        BasePack = AuthoringKindBrief.Compose(SharedContextFor(brief), Kind, brief);
         SystemContext = StrategySkillLibrary.Compose(BasePack, LoadedSkills);
 
         if (LoadedSkills.Count > 0)

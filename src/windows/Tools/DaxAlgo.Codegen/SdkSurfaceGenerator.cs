@@ -32,14 +32,33 @@ public static class SdkSurfaceGenerator
     /// onto, then the helpers and the vocabulary. Types outside this list are host wiring an author
     /// never touches, and including them would spend a model's attention on noise.
     /// </summary>
+    public const string ImplementSection = "What you implement";
+    public const string DrawOntoSection = "What you draw onto";
+    public const string QuantSection = "Quant helpers";
+    public const string DrawingSection = "Drawing helpers";
+    public const string VocabularySection = "Vocabulary";
+
     private static readonly string[] Sections =
     [
-        "What you implement",
-        "What you draw onto",
-        "Quant helpers",
-        "Drawing helpers",
-        "Vocabulary",
+        ImplementSection,
+        DrawOntoSection,
+        QuantSection,
+        DrawingSection,
+        VocabularySection,
     ];
+
+    /// <summary>The sections in the order they are written.</summary>
+    public static IReadOnlyList<string> SectionOrder => Sections;
+
+    /// <summary>
+    /// The sections a brief may be given in part rather than whole — the two <i>libraries</i>.
+    ///
+    /// <para>The other three are contracts: what you implement, what you draw onto, and the vocabulary
+    /// those two are written in. A unit that is not shown its own interface cannot be written at all,
+    /// so those are never rationed however long the brief is. A unit not shown <c>KalmanHedgeRatio</c>
+    /// writes a slightly worse strategy, which is a cost worth paying to reach the model at all.</para>
+    /// </summary>
+    public static IReadOnlyList<string> HelperSections => [QuantSection, DrawingSection];
 
     /// <summary>
     /// Public types an author never names, and which are therefore left out entirely.
@@ -103,11 +122,41 @@ public static class SdkSurfaceGenerator
 
             markdown.AppendLine($"## {section}");
             markdown.AppendLine();
-            foreach (var type in members) AppendType(markdown, type, docs);
+            foreach (var type in members)
+            {
+                // A boundary marker before every type, so the document can be split back into its
+                // types at runtime without parsing markdown. SdkSurfaceSelector reads these to decide
+                // which types a brief gets in full and which it gets one line of; splitting on "### "
+                // instead would break the moment a summary contained a fenced heading, and would have
+                // no way to know a type's section or its search terms.
+                //
+                // A comment, so it costs the model nothing and cannot be mistaken for content.
+                markdown.AppendLine(Marker(type, section));
+                AppendType(markdown, type, docs);
+            }
         }
 
         return markdown.ToString();
     }
+
+    /// <summary>The prefix every type marker starts with.</summary>
+    public const string MarkerPrefix = "<!-- @type ";
+
+    /// <summary>
+    /// The boundary line before one type: its name and its section, and nothing else.
+    ///
+    /// <para><b>Deliberately just the boundary.</b> The first version carried the search terms too —
+    /// the name and members split on camel case plus the lead summary's words — which was 26 KB of
+    /// them across the library. That is a quarter of the document, embedded in the assembly, and sent
+    /// verbatim to the model on any path that does not cut. A mechanism built to shrink the prompt had
+    /// grown it. <see cref="SdkSurfaceSelector"/> derives the same terms from the block it is already
+    /// holding, so nothing is lost and nothing is duplicated.</para>
+    ///
+    /// <para>Markers never reach a model: the selector consumes them while parsing, and returns the
+    /// document without them however much of it a brief earns.</para>
+    /// </summary>
+    private static string Marker(Type type, string section) =>
+        $"{MarkerPrefix}{type.Name} | {section} -->";
 
     /// <summary>Writes the surface to <paramref name="repositoryRoot"/>, creating the folder. Returns
     /// true when the bytes changed, so a caller can tell "regenerated" from "already current".</summary>

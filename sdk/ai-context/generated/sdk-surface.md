@@ -8,6 +8,7 @@ Every public member below is available to an authored strategy or visualizer. SD
 
 ## What you implement
 
+<!-- @type IStrategyKernel | What you implement -->
 ### `IStrategyKernel`
 
 Data-only, event-driven strategy contract. The host supplies only `IStrategyRuntimeContext` capabilities; model-portfolio targets must be submitted through its virtual book.
@@ -36,6 +37,7 @@ StrategyParameterSchema Schema { get; }
 - `OnTradeAsync` — Processes an authorized trade-tape print.
 - `Schema` — The declarative launch-time parameter schema.
 
+<!-- @type IVisualizer | What you implement -->
 ### `IVisualizer`
 
 Data-only visualizer computation contract. Visualizers auto-run when hosted and receive no book; consequently this interface deliberately has no explicit Run method or trading output.
@@ -66,6 +68,7 @@ StrategyParameterSchema Schema { get; }
 
 ## What you draw onto
 
+<!-- @type IRenderSurface | What you draw onto -->
 ### `IRenderSurface`
 
 The visualizer's drawing output.
@@ -108,6 +111,7 @@ RenderViewport Viewport { get; }
 
 ## Quant helpers
 
+<!-- @type Atr | Quant helpers -->
 ### `Atr`
 
 True range and Wilder's Average True Range — the volatility unit stops and targets should be written in.
@@ -128,6 +132,7 @@ double Update(double high, double low, double close)
 - `Update` — Folds in one bar and returns the average true range.
 - `Update` — Folds in one bar's high, low and close.
 
+<!-- @type BollingerBands | Quant helpers -->
 ### `BollingerBands`
 
 Bollinger bands: a moving average with a volatility-scaled envelope.
@@ -150,6 +155,7 @@ double Width { get; }
 - `Upper` — The upper band.
 - `Width` — Band width as a fraction of the middle — the squeeze and expansion measure, comparable across instruments in a way an absolute width is not.
 
+<!-- @type Book | Quant helpers -->
 ### `Book`
 
 What the resting book says about where the next trade will happen — the statistics that turn a depth snapshot into a number a strategy can act on.
@@ -173,6 +179,7 @@ double SweepSlippage(IReadOnlyList<DepthLevel> side, double units, double refere
 - `Microprice` — The microprice of a quote.
 - `Microprice` — The microprice at the top of a depth snapshot.
 
+<!-- @type Dema | Quant helpers -->
 ### `Dema`
 
 A double exponential smoother, so a fast average can be de-lagged without shortening its period.
@@ -187,6 +194,7 @@ double Update(double sample)
 - `Period` — The span this smoother was constructed with.
 - `Update` — Folds in one sample and returns the de-lagged average.
 
+<!-- @type Ema | Quant helpers -->
 ### `Ema`
 
 Exponential moving average, seeded with its first sample.
@@ -203,6 +211,7 @@ double Update(double sample)
 - `Period` — The span this average was constructed with.
 - `Update` — Folds in one sample and returns the new average. Non-finite input is ignored rather than allowed to poison the recursion permanently.
 
+<!-- @type EquityStats | Quant helpers -->
 ### `EquityStats`
 
 Running statistics of an equity curve: drawdown as it happens, and the risk-adjusted return so far.
@@ -240,6 +249,7 @@ double Volatility { get; }
 - `Update` — Records one equity mark.
 - `Volatility` — Standard deviation of return per sample.
 
+<!-- @type EwmaVariance | Quant helpers -->
 ### `EwmaVariance`
 
 Exponentially weighted mean and variance — Welford's statistic for a series whose distribution moves.
@@ -262,6 +272,7 @@ double ZScoreOf(double value)
 - `Variance` — The exponentially weighted variance.
 - `ZScoreOf` — How many current standard deviations `value` sits from the current mean.
 
+<!-- @type IEstimator | Quant helpers -->
 ### `IEstimator`
 
 What every streaming estimator in this namespace has in common: a current value, and whether it means anything yet.
@@ -275,6 +286,7 @@ double Value { get; }
 - `IsReady` — True once enough samples have arrived for `Value` to mean something.
 - `Value` — The current estimate. Meaningless until `IsReady`.
 
+<!-- @type KalmanHedgeRatio | Quant helpers -->
 ### `KalmanHedgeRatio`
 
 A two-state Kalman filter that tracks a hedge ratio and an intercept as they drift — the pairs trading estimator.
@@ -298,6 +310,7 @@ double Update(double x, double y)
 - `Spread` — The last residual: `y − (ratio·x + intercept)`. The tradeable spread.
 - `Update` — Folds in one observed pair and returns the residual spread.
 
+<!-- @type KalmanLevel | Quant helpers -->
 ### `KalmanLevel`
 
 A one-dimensional Kalman filter over a level that drifts — the adaptive alternative to a moving average.
@@ -318,6 +331,7 @@ double Update(double measurement)
 - `ProcessNoise` — Expected movement of the true level between samples.
 - `Update` — Folds in one observation and returns the filtered level.
 
+<!-- @type KyleLambda | Quant helpers -->
 ### `KyleLambda`
 
 Kyle's lambda: how far price moves per unit of signed volume — the market's depth, measured rather than read off the book.
@@ -338,6 +352,7 @@ void Record(double volume, TradeSide side)
 - `RSquared` — How much of the price variation signed volume explains. A lambda with no fit behind it is a slope through a cloud.
 - `Record` — Accumulates signed volume inside the interval being measured.
 
+<!-- @type Macd | Quant helpers -->
 ### `Macd`
 
 Moving Average Convergence Divergence: a fast average minus a slow one, and an average over the difference.
@@ -356,6 +371,7 @@ double Update(double price)
 - `Signal` — The average of `Line`.
 - `Update` — Folds in one price and returns the histogram.
 
+<!-- @type Num | Quant helpers -->
 ### `Num`
 
 The arithmetic guards every estimator in this namespace uses, exposed because authored code needs them too.
@@ -378,6 +394,7 @@ double ZScore(double value, double mean, double standardDeviation)
 - `SafeDiv` — `numerator` ÷ `denominator`, returning `fallback` when the denominator is zero, sub-epsilon, or not finite.
 - `ZScore` — How many standard deviations `value` sits from the mean, with the denominator floored. Zero when the sample has no dispersion — which is the honest answer, not an infinite one.
 
+<!-- @type OnlineRegression | Quant helpers -->
 ### `OnlineRegression`
 
 Ordinary least squares over a rolling window: the slope, the intercept, and how much of the variation the fit actually explains.
@@ -413,6 +430,7 @@ void Update(double x, double y)
 - `StandardError` — The residual standard deviation — the natural unit for "how far from the fit is far", and what a pairs spread's z-score should be measured in.
 - `Update` — Adds one observation pair.
 
+<!-- @type OrderFlowImbalance | Quant helpers -->
 ### `OrderFlowImbalance`
 
 Signed traded volume over a rolling window, normalised to [-1, 1].
@@ -433,6 +451,7 @@ double WindowDelta { get; }
 - `Update` — Records one print, classifying it against a quote when the venue did not.
 - `WindowDelta` — Net signed volume inside the window, unnormalised.
 
+<!-- @type OrnsteinUhlenbeck | Quant helpers -->
 ### `OrnsteinUhlenbeck`
 
 An Ornstein-Uhlenbeck fit, reported as the number that decides whether the trade is worth taking: the half-life — and gated by a test that a random walk actually fails.
@@ -464,6 +483,7 @@ void Update(double level)
 - `UnitRootStatistic` — The Dickey-Fuller statistic. Compare against `CriticalValue`, not against two.
 - `Update` — Adds one observation of the spread or level being fitted.
 
+<!-- @type RealizedVolatility | Quant helpers -->
 ### `RealizedVolatility`
 
 Realised volatility: the root mean square of the log returns in a window.
@@ -482,6 +502,7 @@ double Update(double price)
 - `Period` — The window length in returns.
 - `Update` — Adds a price and returns the per-sample volatility.
 
+<!-- @type RollingCorrelation | Quant helpers -->
 ### `RollingCorrelation`
 
 Rolling correlation between two series, for the cases where the slope is not wanted and only the co-movement is.
@@ -498,6 +519,7 @@ double Update(double x, double y)
 - `Period` — The window length.
 - `Update` — Adds one observation pair and returns the correlation.
 
+<!-- @type RollingWindow | Quant helpers -->
 ### `RollingWindow`
 
 A fixed-capacity ring of the most recent samples, with its statistics computed on demand.
@@ -541,6 +563,7 @@ double ZScoreOf(double value)
 - `Variance` — The sample variance (Bessel-corrected), or zero with fewer than two samples.
 - `ZScoreOf` — How many standard deviations `value` is from the window mean.
 
+<!-- @type Rsi | Quant helpers -->
 ### `Rsi`
 
 Wilder's Relative Strength Index.
@@ -555,6 +578,7 @@ double Update(double price)
 - `Period` — The period this index was constructed with.
 - `Update` — Folds in one price and returns the index.
 
+<!-- @type Sma | Quant helpers -->
 ### `Sma`
 
 Simple moving average over a fixed window.
@@ -571,6 +595,7 @@ double Update(double sample)
 - `Period` — The window length.
 - `Update` — Adds one sample and returns the new mean.
 
+<!-- @type SpreadStats | Quant helpers -->
 ### `SpreadStats`
 
 Rolling statistics of the bid-ask spread, so "the spread blew out" can be said in the instrument's own terms.
@@ -597,6 +622,7 @@ double ZScore { get; }
 - `Update` — Records the spread of a quote.
 - `ZScore` — How many standard deviations the current spread sits above its recent mean.
 
+<!-- @type TradeClassifier | Quant helpers -->
 ### `TradeClassifier`
 
 Deciding who was the aggressor on a print, for feeds that do not say.
@@ -611,6 +637,7 @@ TradeSide TickRule(double price, double previousPrice, TradeSide previousSide)
 - `QuoteRule` — The Lee-Ready quote rule: at or through the offer is a buy, at or through the bid a sell, and anything strictly inside is decided against the mid.
 - `TickRule` — The tick rule: an uptick is a buy, a downtick a sell, and an unchanged price inherits the previous classification. Only for feeds with no quote.
 
+<!-- @type TradeSide | Quant helpers -->
 ### `TradeSide`
 
 Which side crossed the spread to make a trade happen.
@@ -619,6 +646,7 @@ Which side crossed the spread to make a trade happen.
 - `Buy` — A buyer lifted the offer.
 - `Sell` — A seller hit the bid.
 
+<!-- @type TradeStats | Quant helpers -->
 ### `TradeStats`
 
 Per-trade statistics: how often the strategy is right, and what it makes when it is.
@@ -658,6 +686,7 @@ int WorstLosingStreak { get; }
 - `Wins` — Trades that made money.
 - `WorstLosingStreak` — The longest run of losers seen.
 
+<!-- @type Vpin | Quant helpers -->
 ### `Vpin`
 
 Volume-Synchronised Probability of Informed Trading — how one-sided the flow has been, bucketed by volume rather than by time.
@@ -676,6 +705,7 @@ double Update(double volume, TradeSide side)
 - `BucketVolume` — Volume that fills one bucket.
 - `Update` — Records one classified print, closing buckets as they fill.
 
+<!-- @type Vwap | Quant helpers -->
 ### `Vwap`
 
 Volume-weighted average price, and the volume-weighted dispersion around it.
@@ -696,6 +726,7 @@ double Volume { get; }
 - `Update` — Adds a bar at its typical price — `(H + L + C) / 3`, the conventional single-price stand-in for a bar's traded distribution.
 - `Volume` — Volume accumulated since the last reset.
 
+<!-- @type Welford | Quant helpers -->
 ### `Welford`
 
 Welford's running mean and variance — the whole history, in constant space and one pass.
@@ -718,6 +749,7 @@ double ZScoreOf(double value)
 - `Variance` — The sample variance (Bessel-corrected), or zero below two samples.
 - `ZScoreOf` — How many standard deviations `value` sits from the running mean.
 
+<!-- @type Wilder | Quant helpers -->
 ### `Wilder`
 
 Wilder's smoothing — `α = 1/period`, not `2/(period+1)`.
@@ -734,6 +766,7 @@ double Update(double sample)
 - `Period` — The period this smoother was constructed with.
 - `Update` — Folds in one sample and returns the new average.
 
+<!-- @type ZScore | Quant helpers -->
 ### `ZScore`
 
 A windowed z-score with an explicit warm-up, because the number is worthless before it converges.
@@ -756,8 +789,10 @@ double Update(double sample)
 
 ## Drawing helpers
 
+<!-- @type BandOptions | Drawing helpers -->
 - `BandOptions` — How an envelope is drawn. Fields: Color, EdgeAlpha, FillAlpha, ShowEdges, ShowMiddle, Steps. Use `BandOptions.Default`, never `new()`.
 
+<!-- @type Bands | Drawing helpers -->
 ### `Bands`
 
 A shaded envelope between two series — Bollinger, Keltner, Donchian, a VWAP band, a spread's fair range.
@@ -767,8 +802,10 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<double> upper, IReadOnlyLis
 ```
 
 
+<!-- @type CandleOptions | Drawing helpers -->
 - `CandleOptions` — How a candle series is drawn. Fields: BodyFraction, GridLines, PriceFormat, ShowGrid. Use `CandleOptions.Default`, never `new()`.
 
+<!-- @type Candles | Drawing helpers -->
 ### `Candles`
 
 OHLC candles with an auto-scaled price axis.
@@ -778,6 +815,7 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, CandleOptio
 ```
 
 
+<!-- @type ColorScale | Drawing helpers -->
 ### `ColorScale`
 
 Value-to-colour ramps, anchored on the host's theme.
@@ -794,6 +832,7 @@ RenderColor Sequential(IRenderSurface surface, double t, RenderThemeColor color 
 - `Mix` — Linear interpolation between two colours.
 - `Sequential` — Sequential: a single hue fading from the surface colour to full strength. For a magnitude with no sign — volume, liquidity, trade count, dwell time.
 
+<!-- @type DepthCurve | Drawing helpers -->
 ### `DepthCurve`
 
 The depth chart: cumulative resting size on each side, price across, size up.
@@ -804,8 +843,10 @@ PlotRange Draw(IRenderSurface surface, DepthSnapshot depth, DepthCurveOptions op
 
 - `Draw` — Draws both sides and returns the price range used.
 
+<!-- @type DepthCurveOptions | Drawing helpers -->
 - `DepthCurveOptions` — How a cumulative depth chart is drawn. Fields: FillAlpha, Levels, ShowMid, ShowSpread. Use `DepthCurveOptions.Default`, never `new()`.
 
+<!-- @type Equity | Drawing helpers -->
 ### `Equity`
 
 The strategy's own money: equity over time, with the drawdown shaded underneath.
@@ -815,8 +856,10 @@ EquitySummary Draw(IRenderSurface surface, IReadOnlyList<double> equity, EquityO
 ```
 
 
+<!-- @type EquityOptions | Drawing helpers -->
 - `EquityOptions` — How an equity curve is drawn. Fields: Baseline, ShowDrawdown, ShowPeak, ValueFormat. Use `EquityOptions.Default`, never `new()`.
 
+<!-- @type EquitySummary | Drawing helpers -->
 ### `EquitySummary`
 
 What an equity curve told us.
@@ -833,6 +876,7 @@ PlotRange Range { get; }
 - `Peak` — Highest equity reached.
 - `Range` — The value range drawn, for plotting anything else on the same scale.
 
+<!-- @type Footprint | Drawing helpers -->
 ### `Footprint`
 
 A volume footprint: bars as columns, price as rows, and buy/sell volume split within each cell.
@@ -844,8 +888,10 @@ ValueTuple<double, double> ValueArea(FootprintBar bar, double share = 0.7)
 
 - `ValueArea` — The price band holding 70% of a bar's volume, expanded outward from the point of control.
 
+<!-- @type FootprintOptions | Drawing helpers -->
 - `FootprintOptions` — How a volume footprint is drawn. Fields: ColumnWidth, PriceFormat, PriceWidth, RowHeight, ShowCellVolumes, ShowImbalances, ShowPointOfControl, ShowValueArea. Use `FootprintOptions.Default`, never `new()`.
 
+<!-- @type Gauge | Drawing helpers -->
 ### `Gauge`
 
 A horizontal meter for one bounded number — order-book imbalance, VPIN, a regime score, a model's confidence, how much of a position is filled.
@@ -856,8 +902,10 @@ void Draw(IRenderSurface surface, double value, GaugeOptions options = null, Plo
 
 - `Draw` — Draws the meter into an area.
 
+<!-- @type GaugeOptions | Drawing helpers -->
 - `GaugeOptions` — How a bounded meter is drawn. Fields: Diverging, Format, Label, Maximum, Minimum, ShowScale. Use `GaugeOptions.Default`, never `new()`.
 
+<!-- @type Heatmap | Drawing helpers -->
 ### `Heatmap`
 
 A grid of shaded cells — a correlation matrix, liquidity over time and price, returns by hour-of-day, a regime transition table.
@@ -869,8 +917,10 @@ void Labels(IRenderSurface surface, IReadOnlyList<string> columns, IReadOnlyList
 ```
 
 
+<!-- @type HeatmapOptions | Drawing helpers -->
 - `HeatmapOptions` — How a matrix of values is shaded. Fields: Color, Diverging, Extent, Gap, ShowValues. Use `HeatmapOptions.Default`, never `new()`.
 
+<!-- @type Histogram | Drawing helpers -->
 ### `Histogram`
 
 Signed bars measured from a baseline — MACD histogram, cumulative delta, volume, net position.
@@ -881,8 +931,10 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<T> items, Func<T, double> s
 ```
 
 
+<!-- @type HistogramOptions | Drawing helpers -->
 - `HistogramOptions` — How a signed histogram is drawn. Fields: Alpha, BarFraction, Baseline, Negative, Positive, ShowBaseline. Use `HistogramOptions.Default`, never `new()`.
 
+<!-- @type Ladder | Drawing helpers -->
 ### `Ladder`
 
 A depth ladder: price rows with a size bar per side, asks above bids, best prices meeting in the middle.
@@ -893,8 +945,10 @@ void Draw(IRenderSurface surface, DepthSnapshot depth, LadderOptions options = n
 
 - `Draw` — Draws the ladder into the current panel, in panel pixel space.
 
+<!-- @type LadderOptions | Drawing helpers -->
 - `LadderOptions` — How a depth ladder is drawn. Fields: Levels, PriceFormat, PriceWidth, RowHeight, ShowSize. Use `LadderOptions.Default`, never `new()`.
 
+<!-- @type Legend | Drawing helpers -->
 ### `Legend`
 
 The series key: a swatch and a name per series, along the top of the panel.
@@ -905,6 +959,7 @@ void Draw(IRenderSurface surface, IReadOnlyList<ValueTuple<string, RenderThemeCo
 ```
 
 
+<!-- @type Level | Drawing helpers -->
 ### `Level`
 
 One horizontal reference line.
@@ -921,6 +976,7 @@ double Value { get; }
 - `Label` — Short text drawn at the left. Empty for an unlabelled line.
 - `Value` — Where it sits on the value axis.
 
+<!-- @type Levels | Drawing helpers -->
 ### `Levels`
 
 Labelled horizontal reference lines — VWAP, the session high and low, a point of control, an entry price, a stop, a take-profit.
@@ -932,6 +988,7 @@ void Draw(IRenderSurface surface, double value, string label, PlotRange range, R
 
 - `Draw` — One level, for the common case where a caller has exactly one to draw.
 
+<!-- @type Plot | Drawing helpers -->
 ### `Plot`
 
 The shared bits of plotting: ranges, gridlines, axis labels and a crosshair.
@@ -961,6 +1018,7 @@ bool Waiting(IRenderSurface surface, string message = Waiting for data…)
 - `VerticalGrid` — Vertical gridlines every `every` items, so a long series has something to read horizontal position against.
 - `Waiting` — The "nothing to show yet" frame, centred. The commonest way a picture fails verification is by emitting nothing at all, and a blank panel reads as a broken application rather than as a unit waiting for its first bar. One call, so there is no reason to skip it. Returns true so the guard is a single line: `if (_history.Count == 0) { Plot.Waiting(surface); return; }`
 
+<!-- @type PlotArea | Drawing helpers -->
 ### `PlotArea`
 
 A rectangle inside a panel, in panel pixels.
@@ -1011,6 +1069,7 @@ double Y { get; }
 - `X` — Left edge.
 - `Y` — Top edge.
 
+<!-- @type PlotRange | Drawing helpers -->
 ### `PlotRange`
 
 An inclusive numeric range, and the arithmetic every drawing routine repeats.
@@ -1032,8 +1091,10 @@ double Span { get; }
 - `Minimum` — Lower bound.
 - `Padded` — Pads by a fraction of the span so data does not sit flush against the panel edge, and gives a flat range a usable width — a series of identical prices would otherwise be a zero-height range that nothing can be plotted against.
 
+<!-- @type ProfileOptions | Drawing helpers -->
 - `ProfileOptions` — How a volume profile is drawn. Fields: Alpha, FromRight, ShowPoc, SplitSides, ValueAreaShare, Width. Use `ProfileOptions.Default`, never `new()`.
 
+<!-- @type ProfileRow | Drawing helpers -->
 ### `ProfileRow`
 
 Volume traded at one price bucket.
@@ -1051,6 +1112,7 @@ double Total { get; }
 - `Price` — The bucket's price.
 - `SellVolume` — Sell-initiated volume at that price.
 
+<!-- @type Series | Drawing helpers -->
 ### `Series`
 
 One value per index, plotted across the panel.
@@ -1062,6 +1124,7 @@ PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<T> items, Func
 ```
 
 
+<!-- @type SeriesData | Drawing helpers -->
 ### `SeriesData`
 
 One named series and how to draw it — the unit `Chart` composes.
@@ -1079,8 +1142,10 @@ IReadOnlyList<double> Values { get; }
 - `Options` — Kind, colour, stroke.
 - `Values` — One value per index.
 
+<!-- @type SeriesOptions | Drawing helpers -->
 - `SeriesOptions` — How one series is drawn. Fields: Alpha, Color, Dashed, Kind, Thickness. Use `SeriesOptions.Default`, never `new()`.
 
+<!-- @type Signal | Drawing helpers -->
 ### `Signal`
 
 One marked event.
@@ -1097,6 +1162,7 @@ double Value { get; }
 - `Label` — Optional short text drawn beside it.
 - `Value` — Where on the value axis it sits — usually the price it happened at.
 
+<!-- @type SignalKind | Drawing helpers -->
 ### `SignalKind`
 
 What a signal marker means. The direction, not the drawing.
@@ -1106,8 +1172,10 @@ What a signal marker means. The direction, not the drawing.
 - `Exit` — Closed a position, either way.
 - `Note` — Something worth marking that is neither a buy nor a sell — a regime change, a session boundary, a rejected setup.
 
+<!-- @type SignalOptions | Drawing helpers -->
 - `SignalOptions` — How signal markers are drawn. Fields: Alpha, ShowLabels, Size. Use `SignalOptions.Default`, never `new()`.
 
+<!-- @type Signals | Drawing helpers -->
 ### `Signals`
 
 Entry, exit and cross markers.
@@ -1121,6 +1189,7 @@ RenderMarkerShape ShapeOf(SignalKind kind)
 - `ColorOf` — The theme role for a signal kind.
 - `ShapeOf` — The convention, exposed so a caller drawing its own marker still gets the right glyph. Triangle up for a buy, diamond for a sell, cross for an exit, circle for a note. Distinct in silhouette, not merely in colour.
 
+<!-- @type Table | Drawing helpers -->
 ### `Table`
 
 Rows and columns of text — open positions, working orders, the top movers, a signal history, the last N fills.
@@ -1130,6 +1199,7 @@ int Draw(IRenderSurface surface, IReadOnlyList<TableColumn> columns, IReadOnlyLi
 ```
 
 
+<!-- @type TableColumn | Drawing helpers -->
 ### `TableColumn`
 
 How a column is laid out.
@@ -1146,8 +1216,10 @@ double Width { get; }
 - `Number` — A right-aligned column, for numbers.
 - `Width` — Share of the available width, relative to the other columns.
 
+<!-- @type TableOptions | Drawing helpers -->
 - `TableOptions` — How a table is drawn. Fields: MaxRows, RowHeight, ShowHeader, Stripe. Use `TableOptions.Default`, never `new()`.
 
+<!-- @type Tape | Drawing helpers -->
 ### `Tape`
 
 Time and sales: the printed trades, newest first, coloured by which side crossed the spread.
@@ -1157,8 +1229,10 @@ int Draw(IRenderSurface surface, IReadOnlyList<TradePrint> prints, TapeOptions o
 ```
 
 
+<!-- @type TapeOptions | Drawing helpers -->
 - `TapeOptions` — How the tape is drawn. Fields: HighlightFrom, Newest, PriceFormat, RowHeight, ShowTime. Use `TapeOptions.Default`, never `new()`.
 
+<!-- @type Tile | Drawing helpers -->
 ### `Tile`
 
 One readout: a caption, the number, and optionally how it is doing.
@@ -1177,8 +1251,10 @@ string Value { get; }
 - `Tone` — Bullish, Bearish, Warning or Neutral. Colours the value only, never the caption, so a screen of tiles does not turn into a traffic light.
 - `Value` — The number, already formatted. Formatting is the caller's because only the caller knows the instrument's tick size and currency.
 
+<!-- @type TileOptions | Drawing helpers -->
 - `TileOptions` — How a tile strip is drawn. Fields: Columns, Gap, ShowPlate, ValueSize. Use `TileOptions.Default`, never `new()`.
 
+<!-- @type Tiles | Drawing helpers -->
 ### `Tiles`
 
 The numbers a strategy wants stated rather than plotted — position, PnL, exposure, win rate, the current regime, time to the close.
@@ -1190,6 +1266,7 @@ void One(IRenderSurface surface, Tile tile, TileOptions options = null, PlotArea
 
 - `One` — Draws a single tile into an exact rectangle, for a caller composing its own layout.
 
+<!-- @type VolumeProfile | Drawing helpers -->
 ### `VolumeProfile`
 
 Volume at price: a horizontal histogram with the point of control and the value area.
@@ -1200,8 +1277,10 @@ ValueTuple<double, double, double> ValueArea(IReadOnlyList<ProfileRow> rows, dou
 ```
 
 
+<!-- @type ZoneOptions | Drawing helpers -->
 - `ZoneOptions` — How a shaded threshold zone is drawn. Fields: Alpha, Color, ShowEdges. Use `ZoneOptions.Default`, never `new()`.
 
+<!-- @type Zones | Drawing helpers -->
 ### `Zones`
 
 A shaded horizontal band across the whole panel — an oscillator's overbought and oversold zones, a tolerance around fair value, a regime threshold.
@@ -1214,6 +1293,7 @@ void Draw(IRenderSurface surface, double from, double to, PlotRange range, ZoneO
 
 ## Vocabulary
 
+<!-- @type AlertLevel | Vocabulary -->
 ### `AlertLevel`
 
 Host-rendered alert importance.
@@ -1223,10 +1303,12 @@ Host-rendered alert importance.
 - `Error` — An error in strategy or visualizer computation.
 - `Critical` — Urgent state requiring attention.
 
+<!-- @type AlertLimits | Vocabulary -->
 ### `AlertLimits`
 
 Wire limits enforced by every host alert sink.
 
+<!-- @type IAlertSink | Vocabulary -->
 ### `IAlertSink`
 
 Bounded user-alert capability. The host limits message size and rate, mediates every destination, and may throttle repeated alerts. A non-empty dedupe key expresses that equivalent alerts may be coalesced; it never selects a transport or recipient.
@@ -1239,6 +1321,7 @@ void AlertIf(bool condition, string message, AlertLevel level, string dedupeKey 
 - `Alert` — Offers one bounded alert to the host for throttled, mediated delivery. Messages and keys must not exceed `MaxMessageLength` and `MaxDedupeKeyLength`, respectively.
 - `AlertIf` — Offers an alert only when `condition` is true.
 
+<!-- @type IMarketDataView | Vocabulary -->
 ### `IMarketDataView`
 
 Read-only market-data projection for the strategy's declared instrument set and data requirement. Implementations reject instruments outside `Instruments` and clamp every recent-data request to a host-owned bound. This contract exposes neither a broker feed, the market-data hub/store, a source selector, nor another strategy's data.
@@ -1259,6 +1342,7 @@ IReadOnlyList<TradePrint> RecentTrades(InstrumentId instrument, int maxCount)
 - `RecentQuotes` — Returns at most `maxCount` recent quotes, oldest to newest.
 - `RecentTrades` — Returns at most `maxCount` recent trade prints, oldest to newest.
 
+<!-- @type IParameters | Vocabulary -->
 ### `IParameters`
 
 Read-only current values for the kernel's declared parameter schema.
@@ -1284,6 +1368,7 @@ StrategyParameterSchema Schema { get; }
 - `GetText` — Reads a free-text value.
 - `Schema` — The declaration governing these values.
 
+<!-- @type IStrategyRuntimeContext | Vocabulary -->
 ### `IStrategyRuntimeContext`
 
 The complete capability set supplied to a sandboxed strategy kernel.
@@ -1302,6 +1387,7 @@ IParameters Parameters { get; }
 - `Data` — The strategy-scoped market-data projection.
 - `Parameters` — The current read-only parameter values.
 
+<!-- @type IVirtualBook | Vocabulary -->
 ### `IVirtualBook`
 
 The strategy's only output capability. Submitted targets affect only its host-owned virtual book; this surface cannot place, amend, cancel, or inspect real orders.
@@ -1314,6 +1400,7 @@ void SubmitTarget(VirtualTargetIntent intent)
 
 - `SubmitTarget` — Submits one target to the strategy's model portfolio.
 
+<!-- @type IVisualizerContext | Vocabulary -->
 ### `IVisualizerContext`
 
 The complete capability set supplied to a sandboxed visualizer. It intentionally has no virtual book or other trading output — a visualizer draws, it does not trade.
@@ -1330,6 +1417,7 @@ IParameters Parameters { get; }
 - `Data` — The visualizer-scoped market-data projection.
 - `Parameters` — The current read-only parameter values.
 
+<!-- @type Layout | Vocabulary -->
 ### `Layout`
 
 Builds a unit's window layout.
@@ -1352,6 +1440,7 @@ TNode Star(TNode node, double weight = 1)
 - `Columns` — Children placed left to right, with a draggable separator between neighbours.
 - `Rows` — Children stacked top to bottom, with a draggable separator between neighbours.
 
+<!-- @type LayoutNode | Vocabulary -->
 ### `LayoutNode`
 
 One node in a unit's window layout: either a panel to draw, or a split holding more nodes.
@@ -1368,6 +1457,7 @@ PanelSize Size { get; }
 - `PanelCount` — How many panels this node contains, counting through every split beneath it.
 - `Size` — How this node is sized inside its parent. Ignored at the root.
 
+<!-- @type PanelNode | Vocabulary -->
 ### `PanelNode`
 
 One drawable panel. The host gives it its own surface, so it has its own viewport, its own cursor, and its own place in the window — which is the difference between this and subdividing a single surface with `PlotArea`.
@@ -1382,6 +1472,7 @@ string Title { get; }
 - `Draw` — The frame callback for this panel, with the same contract as `IVisualizer.Draw`: pure, fast, possibly called more than once per frame, and running on the render thread.
 - `Title` — The panel's header. Empty means no header — right for a single full-bleed chart, wrong for one of four panels a user has to tell apart.
 
+<!-- @type PanelSize | Vocabulary -->
 ### `PanelSize`
 
 A child's size within its parent.
@@ -1402,6 +1493,7 @@ double Value { get; }
 - `Unit` — Which of the two this is.
 - `Value` — Star weight, or a pixel count.
 
+<!-- @type PanelSizeUnit | Vocabulary -->
 ### `PanelSizeUnit`
 
 How a child is sized inside its parent split.
@@ -1409,6 +1501,7 @@ How a child is sized inside its parent split.
 - `Star` — A share of whatever space is left, after the fixed children have taken theirs.
 - `Pixels` — An exact height or width in device-independent pixels.
 
+<!-- @type RenderColor | Vocabulary -->
 ### `RenderColor`
 
 An exact colour. Prefer `RenderThemeColor`; this exists for data-driven scales.
@@ -1423,6 +1516,7 @@ byte R { get; }
 - `G` — Green channel.
 - `R` — Red channel.
 
+<!-- @type RenderCursor | Vocabulary -->
 ### `RenderCursor`
 
 Pointer state for the current panel. Present so a visualizer can draw a crosshair or a hover readout — the volume footprint's tooltip is exactly this — without the host needing to know what the visualizer considers hoverable.
@@ -1447,6 +1541,7 @@ double Y { get; }
 - `X` — Pointer X in panel coordinates.
 - `Y` — Pointer Y in panel coordinates.
 
+<!-- @type RenderMarkerShape | Vocabulary -->
 ### `RenderMarkerShape`
 
 Marker glyph for a single point.
@@ -1457,6 +1552,7 @@ Marker glyph for a single point.
 - `Cross`
 - `Diamond`
 
+<!-- @type RenderPanelKind | Vocabulary -->
 ### `RenderPanelKind`
 
 What a panel is for. The host picks chrome, gutters and default axes from this.
@@ -1466,6 +1562,7 @@ What a panel is for. The host picks chrome, gutters and default axes from this.
 - `Matrix` — Cells addressed by column and price row — a volume footprint.
 - `Canvas` — Free coordinates; the visualizer owns the whole space.
 
+<!-- @type RenderSeriesKind | Vocabulary -->
 ### `RenderSeriesKind`
 
 How a pushed point sequence is joined.
@@ -1476,6 +1573,7 @@ How a pushed point sequence is joined.
 - `Steps`
 - `Scatter`
 
+<!-- @type RenderStyle | Vocabulary -->
 ### `RenderStyle`
 
 Stroke and fill state applied to subsequent draw calls, in the immediate-mode sense: set it, then draw, then set it again. Nothing is retained between frames.
@@ -1494,6 +1592,7 @@ double Thickness { get; }
 - `FontSize` — Point size used by `Text`.
 - `Thickness` — Stroke width in device-independent pixels.
 
+<!-- @type RenderThemeColor | Vocabulary -->
 ### `RenderThemeColor`
 
 A colour from the host's theme rather than a literal.
@@ -1512,6 +1611,7 @@ Visualizers name roles, not RGB, so one visualizer looks right in every theme an
 - `Neutral`
 - `Warning`
 
+<!-- @type RenderViewport | Vocabulary -->
 ### `RenderViewport`
 
 The drawable area of the current panel, in device-independent pixels.
@@ -1532,12 +1632,14 @@ double Zoom { get; }
 - `Width` — Panel width.
 - `Zoom` — How far the viewer has zoomed in, accumulated from the wheel. 1 is unzoomed; 2 means show half as much; 0.5 means show twice as much. Apply it to your data range, not to your coordinates. A unit deciding what slice of its history to draw divides its window by this — 240 columns at zoom 2 becomes 120. Scaling the drawing instead would magnify the text and the line widths with it. The host owns the number and it is per surface, so a body of several panels built from one `UnitLayout` zooms each panel independently (each is its own surface) while several `Panel` scopes opened on ONE surface share a zoom.
 
+<!-- @type SdkInfo | Vocabulary -->
 ### `SdkInfo`
 
 Version marker for the DaxAlgo plugin SDK. A plugin can read `Version` to assert it was built against a compatible SDK; the host's plugin loader (Phase B) compares its own SDK version against the plugin's declared target to gate loading.
 
 The SDK is a curated façade over the host's contract assemblies (TradingTerminal.Core via this package, the WPF UI bases via DaxAlgo.Sdk.Wpf) and owns the stable `IStrategyEngineFactory` activation seam for packaged engines. As the surface is narrowed, more canonical plugin contracts will move behind this package's public API.
 
+<!-- @type SplitNode | Vocabulary -->
 ### `SplitNode`
 
 A row or column of child nodes, with a draggable separator between neighbours.
@@ -1552,6 +1654,7 @@ int PanelCount { get; }
 - `Children` — In visual order: top to bottom, or left to right.
 - `Orientation` — Rows or columns.
 
+<!-- @type SplitOrientation | Vocabulary -->
 ### `SplitOrientation`
 
 Which way a split lays its children out.
@@ -1559,6 +1662,7 @@ Which way a split lays its children out.
 - `Rows` — Children stacked top to bottom.
 - `Columns` — Children placed left to right.
 
+<!-- @type UnitLayout | Vocabulary -->
 ### `UnitLayout`
 
 A unit's window layout — the middle of its window, between the parameter expander and the activity log.
@@ -1586,6 +1690,7 @@ UnitLayout Single { get; }
 - `Rows` — Panels stacked top to bottom.
 - `Single` — One panel filling the body, drawn by the unit's own `Draw`. What a unit gets when it describes no layout at all — which is most of them, and remains a perfectly good window.
 
+<!-- @type VirtualEntryKind | Vocabulary -->
 ### `VirtualEntryKind`
 
 How a target position should be entered.
@@ -1594,6 +1699,7 @@ How a target position should be entered.
 - `Limit` — Wait for a better price than the current one: below to buy, above to sell.
 - `Stop` — Wait for a worse price than the current one: above to buy, below to sell. A breakout.
 
+<!-- @type VirtualTargetIntent | Vocabulary -->
 ### `VirtualTargetIntent`
 
 A desired position in the strategy's private model portfolio. It is an intent only: it cannot identify a broker, venue, account, or execution route.
