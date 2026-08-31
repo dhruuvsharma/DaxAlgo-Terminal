@@ -213,7 +213,15 @@ public sealed class AuthoredUnitHost : IDisposable
     /// same reason the layout is: an apply rebuilds the unit, and the old instance's actions belong
     /// to the instance that went with it.
     /// </summary>
-    private void RefreshActions()
+    /// <summary>
+    /// Re-reads the verbs the running unit declares.
+    ///
+    /// <para>Public because the answer changes when the unit does. At construction there is no unit
+    /// yet — the runtime builds one on start — so the set read then is always empty, which is the
+    /// second way the verb capability managed to show no buttons even once the seams were passed.
+    /// Whoever starts the runtime calls this after.</para>
+    /// </summary>
+    public void RefreshActions()
     {
         Presenter.Actions.Clear();
         if (_actions is null && _invokeAction is null) return;

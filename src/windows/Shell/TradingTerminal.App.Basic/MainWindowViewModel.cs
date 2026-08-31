@@ -539,50 +539,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         var capturedId = visualizerId!;
         _host.OpenWithOverlay($"Opening {name}…", "Starting the visualizer and warming its data feed…", () =>
         {
-            // Declared before the runtime so the take-away callback can reach it: the runtime is built
-            // first and the window second, and the offer has to land on the window.
-            AuthoredUnitHost? unit = null;
-
-            var runtime = new SandboxVisualizerRuntime(
+            // Every seam in one place, and testable: see AuthoredVisualizerComposition, which exists
+            // because this wiring sat inside a lambda inside a window and nothing could check it.
+            var (runtime, unit) = AuthoredVisualizerComposition.Create(
+                name,
                 registration.Create,
-                currentValues: null,
+                SafeSchema(registration),
                 _services.GetRequiredService<IMarketDataHub>(),
                 _services.GetRequiredService<IClock>(),
-                LogSink.Append,
-                alert => LogSink.Append(alert.Source, alert.Level.ToString(), alert.Message),
-                offerTakeAway: (label, text) => unit?.TakeAway(label, text));
-
-            // Read off a throwaway instance: the schema is declarative, and the runtime builds its own
-            // instance to run. Asking the one that is running would mean reaching through the gate.
-            var schema = SafeSchema(registration);
-
-            // The apply and pause seams. The runtime already supports the exact flow an editable
-            // parameter needs — pause, set, resume, which rebuilds the session from the new values —
-            // so this is a wiring job rather than a lifecycle of its own. Passing them is also what
-            // makes the rows editable at all: a host that supplies neither gets the read-only window.
-            unit = new AuthoredUnitHost(
-                name, runtime.TryDraw, schema, values: null, LogSink,
-                apply: async values =>
-                {
-                    if (runtime.IsRunning) await runtime.PauseAsync();
-                    foreach (var (key, value) in values) runtime.SetParameter(key, value);
-                    await runtime.ResumeAsync();
-                },
-                setPaused: async pause =>
-                {
-                    if (pause) await runtime.PauseAsync();
-                    else await runtime.ResumeAsync();
-                },
-                // Until this was passed, a unit could DECLARE a multi-panel window, have it validated,
-                // see it in the preview — and then open as one panel, because nothing ever asked the
-                // running unit for its layout.
-                layout: runtime.GetLayout,
-
-                // The verbs a unit declares, and the way to run one. Without BOTH of these the buttons
-                // are built, bound and never shown — which is what shipped when the capability was
-                // added and this call site was not updated with it.
-                actions: () => runtime.Actions,
-                invokeAction: id => runtime.InvokeActionAsync(id));
+                LogSink);
             var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
@@ -753,7 +718,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     {
         try
         {
-            await runtime.StartAsync();
+            // Through the composition, which starts AND re-reads the unit's verbs. Calling
+            // runtime.StartAsync directly here leaves the window with no buttons.
+            await AuthoredVisualizerComposition.StartAsync(runtime, unit);
         }
         catch (Exception ex)
         {

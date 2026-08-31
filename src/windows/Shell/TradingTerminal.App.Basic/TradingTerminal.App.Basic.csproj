@@ -17,6 +17,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The shell composition is internal and is exactly what needs testing: see
+         AuthoredVisualizerComposition. -->
+    <InternalsVisibleTo Include="TradingTerminal.App.Basic.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="Icon\DaxAlgoLogo.ico" />
     <Resource Include="Icon\DaxAlgoLogo.png" />
   </ItemGroup>

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <!-- The composition under test builds a WPF-hosted window presenter. -->
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The shell itself. It is a WinExe, which is referenceable exactly like a library, and referencing
+      it is the whole point: the shell is where every capability has to be wired, and until this
+      project existed nothing checked any of it. A capability shipped with the buttons built, bound
+      and never passed, and every unit test missed it by constructing the host directly rather than
+      the way the application does.
+    -->
+    <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.App.Basic\TradingTerminal.App.Basic.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.0" />
+    <!-- The presenter and its controls need an STA thread. -->
+    <PackageReference Include="Xunit.StaFact" Version="1.2.69" />
+  </ItemGroup>
+
+</Project>
