@@ -177,4 +177,58 @@ public sealed class AuthoringKnowledgeTests
 
         widgets.Should().BeEmpty("these widgets are not in the drawing skill, so a model cannot find them");
     }
+
+    [Fact]
+    public void EveryEstimatorTheLibraryShipsIsNamedInTheKnowledge()
+    {
+        // The mirror of the widget guard above, and its absence is why the order-flow skill went on
+        // teaching a hand-rolled quote rule, a hand-summed CVD and a hand-computed queue imbalance
+        // after `TradeClassifier`, `OrderFlowImbalance` and `Book` had shipped. The maths skill was
+        // rewritten and that one was not, because nothing checked.
+        //
+        // Reflected rather than listed, so adding an estimator and forgetting the knowledge fails here
+        // rather than showing up as forty lines of arithmetic in somebody's generated strategy.
+        var knowledge = string.Join(
+            Environment.NewLine,
+            StrategySkillLibrary.Load().All.Select(skill => skill.Body)
+                .Append(StrategyContextPack.Load().Conventions));
+
+        var estimators = typeof(DaxAlgo.Sdk.Quant.Num).Assembly.GetExportedTypes()
+            .Where(t => t.Namespace == "DaxAlgo.Sdk.Quant")
+            // Interfaces and enums are vocabulary the surface already carries; what has to be
+            // discoverable is the thing a model would otherwise write by hand.
+            .Where(t => !t.IsInterface && !t.IsEnum)
+            .Select(t => t.Name)
+            .Where(name => !knowledge.Contains(name, StringComparison.Ordinal))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        estimators.Should().BeEmpty(
+            "these estimators are in no skill, so a model will re-derive them — badly, and at the "
+            + "user's expense");
+    }
+
+    [Fact]
+    public void TheOrderFlowSkillPointsAtTheOrderFlowEstimators()
+    {
+        // Named directly as well as by the reflected sweep above: order flow is what people actually
+        // ask Hyperion for, and these four are the ones it cannot get right by hand. `Classify`
+        // matters most — signing a trade wrongly corrupts every statistic built on top of it.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "order-flow").Body;
+
+        foreach (var name in new[] { "TradeClassifier", "OrderFlowImbalance", "Vpin", "Book.Microprice" })
+            body.Should().Contain(name, $"an order-flow brief needs {name}");
+    }
+
+    [Fact]
+    public void TheOrderFlowSkillNamesTheCallbackArgumentsThatExist()
+    {
+        // It described the L1 event as `Tick`, which is the RETIRED broker-facing record. It still
+        // exists, so a model following the skill wrote a reference that compiled and bound nothing —
+        // the worst shape of wrong. The callback takes a `Quote`.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "order-flow").Body;
+
+        body.Should().Contain("OnQuoteAsync").And.Contain("Quote");
+        body.Should().NotContain("`Tick` (L1)", "the L1 callback receives a Quote, not the legacy Tick");
+    }
 }

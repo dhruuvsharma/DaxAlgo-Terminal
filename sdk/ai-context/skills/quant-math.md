@@ -42,8 +42,9 @@ sessions it anchors to yesterday's volume and drifts further from anything trade
 
 | You want | Use | Not |
 |---|---|---|
-| A smoothed level | `Ema`, `Sma`, `Dema` | a `List` and `.Average()` |
-| RSI / ATR / ADX smoothing | `Wilder` | `Ema` — different α, different crossings |
+| A smoothed level | `Ema`, `Sma`, `Dema`; `KalmanLevel` adapts | a `List` and `.Average()` |
+| A classic oscillator | `Rsi`, `Macd`, `BollingerBands` | your own loop |
+| RSI/ATR smoothing | `Wilder` | `Ema` — different α, different crossings |
 | Dispersion over a window | `RollingWindow.StandardDeviation` | a running sum of squares |
 | Dispersion over the session | `Welford` | the textbook variance formula |
 | Dispersion in a moving regime | `EwmaVariance` | a long window |
@@ -51,7 +52,7 @@ sessions it anchors to yesterday's volume and drifts further from anything trade
 | Position in a range | `RollingWindow.PositionOf` | hand-rolled stochastic |
 | A robust threshold | `RollingWindow.Quantile` | a tick count |
 | Volatility for sizing | `Atr` (bars) or `RealizedVolatility` (returns) | high − low |
-| A relationship | `OnlineRegression` — read `RSquared` too | `Correlation` alone |
+| A relationship | `OnlineRegression` (read `RSquared`), `RollingCorrelation` | correlation alone |
 | A drifting relationship | `KalmanHedgeRatio` | a rolling regression |
 | "Does this spread revert" | `OrnsteinUhlenbeck.IsMeanReverting` and `HalfLife` | eyeballing the chart |
 | Who traded | `TradeClassifier` | assuming the print side |
@@ -69,6 +70,8 @@ instrument. Divide by ATR, by the spread's own distribution, by a quantile — n
 chose while thinking about one symbol. This is the single most common reason a strategy that worked
 in a backtest stops working on the next ticker.
 
+**Read the normalised member.** `BollingerBands.PercentB` and `.Width` transfer between instruments; the raw band prices do not.
+
 **A slope is not evidence.** `OnlineRegression` fits a line through anything. `RSquared` and
 `SlopeTStatistic` are what separate a hedge ratio from a random number with two decimal places.
 
@@ -83,18 +86,9 @@ closed is not a strategy.
 **Compute in the callbacks, not in `Draw`.** `Draw` may run more than once per frame and blocks the
 UI. Keep what the picture needs in a bounded field.
 
-**Say what the numbers mean.** `Tiles.Draw` with `EquityStats` and `TradeStats` is four lines and
-turns a chart into something a trader will keep open:
-
-```csharp
-Tiles.Draw(surface,
-[
-    Tile.Signed("P&L", _trades.NetProfit, _trades.NetProfit.ToString("N0")),
-    new Tile("Sharpe", _equity.Sharpe.ToString("F2")),
-    new Tile("Max DD", _equity.MaximumDrawdown.ToString("P1")),
-    new Tile("Hit", _trades.HitRate.ToString("P0"), $"PF {_trades.ProfitFactor:F2}"),
-], area: header);
-```
+**Say what the numbers mean.** A strip of `Tiles.Draw` fed from `EquityStats` and `TradeStats` — P&L,
+Sharpe, max drawdown, hit rate — turns a chart into something a trader keeps open. Both exemplars show
+the shape.
 
 ## What is deliberately absent
 

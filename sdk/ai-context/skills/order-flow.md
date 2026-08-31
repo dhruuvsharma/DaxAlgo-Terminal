@@ -1,74 +1,82 @@
 ---
 id: order-flow
 name: Order flow, footprint and book microstructure
-triggers: order flow, orderflow, imbalance, footprint, vpoc, poc, volume profile, delta, cvd, cumulative delta, depth, order book, book, dom, liquidity, sweep, iceberg, absorption, tape, aggressive, passive, bid ask, spoof, vacuum, stacked, ladder, microstructure, hft, scalp
+triggers: order flow, orderflow, imbalance, footprint, vpoc, poc, volume profile, delta, cvd, cumulative delta, depth, order book, book, dom, liquidity, sweep, iceberg, absorption, tape, aggressive, passive, bid ask, spoof, vacuum, stacked, ladder, microstructure, hft, scalp, microprice, vpin, toxicity, kyle, lambda, queue
 ---
 
 # Order flow, footprint and book microstructure
 
-What the host actually gives you, and how to compute the usual constructs correctly on top of it.
+## The events
 
-## The raw events
+| Callback | You receive |
+|---|---|
+| `OnQuoteAsync` | `Quote` — `Bid`, `Ask`, `BidSize`, `AskSize`, `EventTimeUtc`, computed `Mid` and `Spread` |
+| `OnTradeAsync` | `TradePrint` — `Price`, `Size`, `Aggressor`, `EventTimeUtc` |
+| `OnDepthAsync` | `DepthSnapshot` — `Bids`/`Asks` best-first, plus `BestBid`/`BestAsk`/`BestBidSize`/`BestAskSize` |
 
-| Event | When | Fields you get |
-|---|---|---|
-| `Tick` (L1) | best bid/ask changed | `TimestampUtc, Bid, Ask, BidSize, AskSize` |
-| `TradePrint` (tape) | an aggressive fill printed | price, size, timestamp, and an **aggressor side if the broker supplies one** |
-| `DepthSnapshot` (L2) | book changed | the top N levels per side (price + size), newest snapshot wins |
+**It is `Quote`, not `Tick`.** `Tick` is the retired broker-facing record and still exists, so writing
+it compiles and binds nothing. Tape and depth fire only if `DataRequirement` declares them.
 
-`OnTradeAsync` and `OnDepthAsync` only fire if you declare `TradeTape` / `Depth` in `DataRequirement`.
-Declaring them costs nothing when the broker supplies them, and the host will not offer a broker that
-can't.
+## Do not hand-roll these
 
-## Signing trades (the single most common bug)
+All in `DaxAlgo.Sdk.Quant`: ambient, streaming, warm-up gated, tested.
 
-Not every feed labels the aggressor. When it doesn't, sign with the **tick rule against the prevailing
-quote**, and keep the last quote yourself:
+| Construct | Use |
+|---|---|
+| Signing a trade | `TradeClassifier.Classify(trade, quote)` |
+| Signed volume / CVD | `OrderFlowImbalance` — `Value` normalised, `Cumulative` for the line |
+| Flow toxicity | `Vpin` |
+| Price impact | `KyleLambda` |
+| Fair value in a book | `Book.Microprice` |
+| Queue imbalance | `Book.Imbalance(quote)` / `Book.Imbalance(depth, levels)` |
+| Depth over N levels | `Book.DepthTotal(side, levels)` |
+| Cost of taking size | `Book.SweepPrice` / `Book.SweepSlippage` |
+| Is the spread unusual | `SpreadStats.IsWide()` |
 
 ```csharp
-// _bid/_ask updated in OnQuoteAsync BEFORE the trade is signed.
-var mid = (_bid + _ask) / 2.0;
-var side = t.Price >= _ask ? +1        // lifted the offer  -> buy-side aggression
-         : t.Price <= _bid ? -1        // hit the bid       -> sell-side aggression
-         : t.Price > mid  ? +1 : -1;   // inside the spread -> lean on the mid
+var side = TradeClassifier.Classify(trade, _lastQuote);  // venue's flag first, quote rule after
+_flow.Update(trade.Size, side);                          // OrderFlowImbalance
+var micro = Book.Microprice(depth);
+var queue = Book.Imbalance(depth, levels: 5);
+var cost  = Book.SweepPrice(depth.Asks, 50d);            // 0 = CANNOT fill, not "cheap"
 ```
 
-Do NOT sign by comparing to the previous *trade* price: that is the classic tick test and it misclassifies
-badly in fast markets. If the feed does give you an aggressor flag, use it and skip all of this.
+Keep the last `Quote` in a field: classification needs the book as it stood when the print landed.
 
-## Footprint constructs
+**Quote rule ≠ tick rule.** The quote rule compares the print to the prevailing bid and ask; the tick
+rule compares it to the previous *trade* and misclassifies badly in fast markets.
+`TradeClassifier.TickRule` is for feeds with no quote at all, and nothing else.
 
-- **Volume delta at a price** `delta_p = buyVolume_p - sellVolume_p`, accumulated per price level in the
-  current bar/bucket. Bucket by `price / tickSize` rounded — never by raw double equality.
-- **Imbalance ratio** `IR_p = buy_p / max(sell_p, 1)` (and its mirror). Guard the denominator; a zero on
-  one side is not an infinite imbalance, it is a thin level. Require a **minimum volume** on the level
-  before the ratio means anything (e.g. `buy_p + sell_p >= minLevelVolume`), or noise at the extremes will
-  fire constantly.
-- **Stacked imbalance** = N consecutive price levels all imbalanced the same way. Walk levels in price
-  order; reset the run counter on any level that fails the ratio OR the minimum-volume floor.
-- **VPOC** = the price with the most volume in the session/window: `argmax_p volume_p`. Recompute
-  incrementally (keep a running max) — never re-scan the whole profile per tick.
-- **CVD** = running sum of signed trade volume. It is a *level*, not a rate; compare it to its own recent
-  history (a z-score or a slope), not to an absolute threshold.
+**Measure edge from the microprice, not the mid.** The mid reads the same whether ten lots are bid
+against a thousand offered or the reverse — exactly when the next print is predictable. And read
+imbalance deeper than the touch: one surviving five levels is closer to intent than one a single order
+creates and cancels.
 
-## Book constructs
+## What you still build
 
-- **Depth at N levels** = sum of sizes over the top N. Snapshots arrive whole, so recompute per snapshot;
-  don't try to diff them.
-- **Liquidity vacuum / stacking**: a *relative* change over a short window —
-  `(depth_now - depth_then) / max(depth_then, epsilon)`. Keep a small ring buffer of
-  `(timestamp, depth)` and find the entry nearest `now - window`. Guard `depth_then == 0`.
-- **Queue imbalance** `(bidDepth - askDepth) / (bidDepth + askDepth)` — bounded in [-1, 1], which is why
-  it is the one book feature that behaves like a signal out of the box.
+The footprint is per-price-level bookkeeping — a data structure, not an estimator.
 
-## Pitfalls that will silently ruin a strategy
+- **Delta at a price** — `buy_p − sell_p` per level in the bar. Bucket by `Num.RoundToTick`, never by
+  raw `double` equality.
+- **Imbalance ratio** — `buy_p / max(sell_p, 1)` and its mirror, gated on a **minimum volume for the
+  level**, or the thin extremes fire constantly. A zero on one side is a thin level, not infinity.
+- **Stacked imbalance** — N consecutive levels imbalanced the same way; reset the run on any level
+  failing the ratio or the volume floor.
+- **VPOC** — `argmax_p volume_p`, kept as a running max, never re-scanned per tick.
+- **Liquidity vacuum** — `(depth_now − depth_then) / max(depth_then, ε)` over a short window; a small
+  ring of `(timestamp, depth)` and `Num.SafeDiv`.
 
-- **Depth snapshots are not order lifecycles.** You cannot see individual orders being added or pulled,
-  so you cannot detect spoofing or true icebergs directly — only the aggregate size change. Say so in the
-  strategy's description rather than pretending otherwise.
-- **A 100 ms window is not 100 ms of ticks.** Drive every time window off `clock.UtcNow` (never
-  `DateTime.UtcNow`, never a tick count), because a backtest replays historical time.
-- **Sub-second windows need bounded buffers.** A ring buffer sized to the window, not a `List` you append
-  to forever — `OnQuoteAsync` and `OnTradeAsync` run per event.
-- **Not every broker signs the tape.** Check the strategy's `DataRequirement` and fail loudly at setup if
-  the feed can't supply what the math needs.
+`Footprint`, `VolumeProfile`, `Ladder`, `DepthCurve` and `Tape` draw all of it.
+
+## Pitfalls
+
+- **Depth snapshots are not order lifecycles.** Aggregate size per level, not orders added or pulled —
+  so spoofing and true icebergs are not detectable, only that size changed. Say so in the description.
+- **A 100 ms window is not 100 ms of ticks.** Drive windows off `context.Clock.UtcNow`, never
+  `DateTime.UtcNow` and never an event count; a replay moves time differently.
+- **Bound every sub-second buffer.** `RollingWindow`, or a ring sized to the window — these callbacks
+  run hundreds of times a second for as long as the window is open.
+- **CVD is a level, not a rate.** Compare it to its own history (`ZScore` over `Cumulative`), never to
+  an absolute threshold, which differs on every instrument.
+- **Not every broker signs the tape.** `Classify` copes, but if the edge depends on accurate signing,
+  say so: an unsigned feed degrades the strategy rather than breaking it, and the user should know.
