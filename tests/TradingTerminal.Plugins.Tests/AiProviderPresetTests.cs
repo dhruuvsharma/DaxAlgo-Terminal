@@ -125,6 +125,47 @@ public sealed class AiProviderPresetTests
             "case should not rescue an unedited template");
     }
 
+    [Theory]
+    [InlineData("localhost:1234/v1")]
+    [InlineData("127.0.0.1:8000/v1")]
+    [InlineData("http://localhost:11434/v1")]
+    public void A_local_server_is_recognised_as_one_even_typed_without_a_scheme(string typed)
+    {
+        // The keyless decision is made from what the USER TYPED, and "localhost:1234/v1" -- the form
+        // every local-runtime readme prints -- parses as an absolute URI whose SCHEME is "localhost".
+        // That is not loopback, so a local server was treated as one needing a key: the request went to
+        // the right place while the row insisted on a credential the server does not want.
+        //
+        // The client already repaired the same string before sending. Two places asking one question
+        // and getting different answers.
+        var repaired = CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(typed));
+
+        repaired.Should().NotBeNull();
+        repaired!.IsLoopback.Should().BeTrue("{0} names this machine", typed);
+    }
+
+    [Fact]
+    public void A_local_provider_needs_no_key_however_its_address_was_typed()
+    {
+        // End to end through the factory, which is where the decision actually lives.
+        var options = new AiCodegenOptions();
+        options.Providers["lmstudio-typed"] = new AiCodegenProvider
+        {
+            DisplayName = "LM Studio",
+            Kind = AiCodegenProviderKind.OpenAiCompatible,
+            BaseUrl = "localhost:1234/v1",
+            Model = "local-model",
+        };
+
+        var factory = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => null);
+        var client = factory.Build("lmstudio-typed", model: null);
+
+        client.Should().NotBeNull();
+        client!.IsAvailable.Should().BeTrue(
+            "a server on this machine wants no API key, so the absence of one must not make the "
+            + "provider unusable");
+    }
+
     // -- the OTHER table of the same facts ------------------------------------------------------
 
     [Fact]

@@ -150,7 +150,12 @@ public sealed class StrategyCodegenClientFactory
     /// want one.</para>
     /// </summary>
     private static bool IsLoopback(string? baseUrl) =>
-        Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) && uri.IsLoopback;
+        // Normalised first, because this is asked of what the USER TYPED. "localhost:1234/v1" -- the
+        // form every local-runtime readme prints -- parses as an absolute URI whose SCHEME is
+        // "localhost", and that is not loopback. The client repairs the same string before sending, so
+        // without this the request would go to the right place while the row insisted on a key the
+        // server does not want.
+        CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(baseUrl)) is { IsLoopback: true };
 
     /// <summary>An agent CLI can also be pinned to a model/effort in config
     /// (<c>AiCodegen:Providers:claude-cli:Model</c>) even though it needs no BaseUrl/key — that is the

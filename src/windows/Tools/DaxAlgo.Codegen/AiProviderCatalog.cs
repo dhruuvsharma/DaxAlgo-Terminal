@@ -21,7 +21,7 @@ public sealed record AiProviderPreset(
 {
     /// <summary>True for a server on the user's own machine — no key, nothing leaves the network.</summary>
     public bool IsLocal =>
-        Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri) && uri.IsLoopback;
+        CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(BaseUrl)) is { IsLoopback: true };
 
     /// <summary>True for the blank row, which the user fills in themselves.</summary>
     public bool IsBlank => string.IsNullOrWhiteSpace(BaseUrl);
