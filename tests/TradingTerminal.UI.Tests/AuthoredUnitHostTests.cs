@@ -10,6 +10,7 @@ namespace TradingTerminal.UI.Tests;
 /// The host that drives an open unit's window: it paces the frames, fills the parameter list, and
 /// shows the unit's own lines out of the app-wide activity log.
 /// </summary>
+[Collection(AuthoringCollection.Name)]
 public sealed class AuthoredUnitHostTests : IDisposable
 {
     private readonly Func<TimeSpan, Action, IDisposable> _realTimer = UiThread.CreateRenderTimer;

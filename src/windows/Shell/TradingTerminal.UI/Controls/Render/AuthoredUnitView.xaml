@@ -205,7 +205,7 @@
             them instead of having them silently swallowed.
         -->
         <Expander Grid.Row="1"
-                  Visibility="{Binding HasParameters, Converter={StaticResource B2V}, FallbackValue=Collapsed}"
+                  Visibility="{Binding HasSetup, Converter={StaticResource B2V}, FallbackValue=Collapsed}"
                   IsExpanded="{Binding IsSetupExpanded, Mode=TwoWay}"
                   Background="{DynamicResource Background.Elevated}"
                   BorderBrush="{DynamicResource Border.Brush}"
@@ -271,6 +271,34 @@
                                TextWrapping="Wrap" Foreground="{DynamicResource Text.Secondary}"
                                Text="Applying restarts the unit with these values. Its history starts again; the log does not." />
                 </DockPanel>
+
+                <!--
+                    The unit's own verbs. Separated from Apply/Reset by a rule because they are a
+                    different kind of thing: those two commit a value, these happen when pressed and
+                    have nothing to commit. Sitting them in the same row would make an action look
+                    like an edit waiting to be applied.
+                -->
+                <Border Margin="0,12,0,0" Padding="0,10,0,0" BorderThickness="0,1,0,0"
+                        BorderBrush="{DynamicResource Border.Brush}"
+                        Visibility="{Binding HasActions, Converter={StaticResource B2V}}">
+                    <ItemsControl ItemsSource="{Binding Actions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding Label}" Padding="12,4" FontSize="11"
+                                        Margin="0,0,7,6"
+                                        ToolTip="{Binding Detail}"
+                                        Command="{Binding DataContext.InvokeActionCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
             </StackPanel>
         </Expander>
 

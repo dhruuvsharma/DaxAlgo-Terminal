@@ -30,7 +30,7 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 
 | | 2026-08-31, first run | after the gesture work |
 |---|---|---|
-| Actions (verbs) | missing | **missing** |
+| Actions (verbs) | missing | **closed for unit state; export still missing** |
 | Selection (pin a level) | impossible | **closed** |
 | Zoom | missing | **closed** |
 | Scrub / pan | missing | **closed** |
@@ -39,7 +39,7 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 | Presets | missing | **missing** |
 | Minimum size for a star panel beside a fixed one | — | **missing** (found 2026-08-31, second pass) |
 
-Three of eight closed. The control now pins a price row on click and chooses its visible window from
+Four of eight closed, one of them partly. The control now pins a price row on click and chooses its visible window from
 the wheel and the drag, and the `heatWindow` parameter it needed for want of a gesture is gone.
 
 **How, without handing the host a WPF type.** A click, a wheel notch and a drag are *transitions*, and
@@ -51,16 +51,30 @@ does not reach.
 
 ## The gaps, most costly first
 
-### 1. A unit can declare a parameter; it cannot declare a verb
+### 1. Verbs — closed for unit state 2026-08-31, open for anything that leaves the unit
 
-The hand-written window has six actions: Export ladder CSV, Export series CSV, Save PNG, Save
-preset, Delete preset, and a help popup. There is no affordance anywhere in the SDK for *a button
-that does something*. `IParameters` is read-only values; the host chrome builds an expander of
-controls from `StrategyParameterSchema` and nothing else.
+The hand-written window has six: Export ladder CSV, Export series CSV, Save PNG, Save preset, Delete
+preset, and a help popup. A unit could declare a *value* and nothing else; the nearest an author could
+get was a bool parameter, which reads as a setting, behaves as a command, and has to be flipped twice
+to mean "now".
 
-This is the single largest difference by volume, and it is a contract gap rather than a rendering
-one: an action is data (a name, a group, an enablement) plus a callback, which is exactly the shape
-the layout tree already uses, so it does not require handing the host a WPF type.
+`UnitAction(Id, Label, Detail?)` closes the half that stays inside the unit — reset the profile, clear
+the tape, re-centre. Data, bounded at 8, malformed sets refused whole; the host renders buttons in the
+setup expander and pressing one calls `OnActionAsync(id, …)`.
+
+**An id and a callback, never a delegate the host holds.** A delegate would run wherever the host
+called it — the render thread — so an action touching the same fields as a data callback would race
+the pump. Going through the lifecycle lets the runtime invoke it under `_drawGate`, the same gate the
+pump holds across every callback, so an author has one threading rule rather than two.
+
+**What is still missing is everything that leaves the unit.** The sandbox denies file and network
+access to authored code, so a unit can compute a CSV and cannot save it, and cannot screenshot itself.
+Closing that needs the host to own the writing — an action that *returns* rows for the host to save,
+rather than one that writes them — which is a different feature and is not built. Save PNG and the
+presets are host features throughout and never needed the contract at all.
+
+**And a verb sits behind one click**, because the setup expander is collapsed once a unit is running.
+Right for parameters, which are reference material; arguable for a verb pressed often.
 
 ### ~~2. Selection~~ — closed 2026-08-31
 

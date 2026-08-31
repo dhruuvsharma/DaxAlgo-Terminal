@@ -14,6 +14,25 @@ namespace TradingTerminal.UI.Controls.Render;
 /// <param name="Message">The line itself.</param>
 public readonly record struct AuthoredUnitLogLine(DateTime TimestampUtc, string Source, string Message);
 
+/// <summary>
+/// One verb, as the window binds it: what the button says, what it says on hover, and the id sent
+/// back to the unit when it is pressed.
+///
+/// <para>A class rather than the SDK's <see cref="UnitAction"/> record struct, because WPF binds to
+/// reference types and a record struct in an <c>ObservableCollection</c> is a needless box on every
+/// command parameter. The SDK type stays the contract; this is its presentation.</para>
+/// </summary>
+public sealed class UnitActionButton(string id, string label, string? detail)
+{
+    public string Id { get; } = id;
+
+    public string Label { get; } = label;
+
+    public string? Detail { get; } = detail;
+
+    public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
+}
+
 /// <summary>The virtual book summary shown beneath a strategy's picture.</summary>
 /// <param name="PositionUnits">Signed position; zero means flat.</param>
 /// <param name="AverageEntryPrice">Average entry, or zero while flat.</param>
@@ -205,6 +224,45 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     /// <summary>Parameters the unit declared, as label/value pairs the expander renders.</summary>
     public ObservableCollection<AuthoredUnitParameter> Parameters { get; } = [];
 
+    // -- Actions ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Verbs the unit declared, rendered as buttons beside the parameters.
+    ///
+    /// <para>Separate from <see cref="Parameters"/> because they are a different kind of thing: a
+    /// parameter is a value you set and apply, an action is a thing that happens when you press it.
+    /// Folding a verb into the parameter list would give it Apply and Reset, which mean nothing for
+    /// it, and would make it look like a setting the user had to remember to commit.</para>
+    /// </summary>
+    public ObservableCollection<UnitActionButton> Actions { get; } = [];
+
+    /// <summary>True when the unit declared any verbs.</summary>
+    public bool HasActions => Actions.Count > 0;
+
+    /// <summary>
+    /// Whether the setup expander is shown at all: parameters OR verbs.
+    ///
+    /// <para>Was <c>HasParameters</c> alone, which was right while parameters were the only thing in
+    /// there. A visualizer that declares no parameters and one action — the ordinary shape for
+    /// "clear the tape" on a picture with nothing to tune — would have had its button built, bound and
+    /// never shown, which is the defect this whole area keeps producing.</para>
+    /// </summary>
+    public bool HasSetup => HasParameters || HasActions;
+
+    /// <summary>
+    /// Raised when the user presses one, carrying its id.
+    ///
+    /// <para>An event rather than a delegate the presenter holds, matching parameters and pause: the
+    /// presenter is what the window binds to, and it must not know what running an action means.</para>
+    /// </summary>
+    public event EventHandler<string>? ActionRequested;
+
+    [RelayCommand]
+    private void InvokeAction(UnitActionButton? action)
+    {
+        if (action is { Id.Length: > 0 }) ActionRequested?.Invoke(this, action.Id);
+    }
+
     /// <summary>
     /// Whether the parameter expander is shown at all.
     ///
@@ -216,7 +274,8 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     /// </summary>
     public bool HasParameters => Parameters.Count > 0;
 
-    public AuthoredUnitPresenter() =>
+    public AuthoredUnitPresenter()
+    {
         // A computed property over a collection notifies nobody on its own. Without this the expander
         // keeps whatever visibility it had when the window was built, so a unit whose parameters are
         // populated after construction — which is the ordinary order — would show an empty expander or
@@ -227,8 +286,19 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
                 added.Owner = this;
 
             OnPropertyChanged(nameof(HasParameters));
+            OnPropertyChanged(nameof(HasSetup));
             OnParameterEdited();
         };
+
+        // Same reason, and the same failure if it is missing: the actions are added after
+        // construction, so a strip that never re-evaluated its visibility would stay hidden and the
+        // buttons would be declared, built, bound and invisible.
+        Actions.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasActions));
+            OnPropertyChanged(nameof(HasSetup));
+        };
+    }
 
     /// <summary>
     /// Asks the view for a repaint.

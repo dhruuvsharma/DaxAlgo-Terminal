@@ -66,6 +66,31 @@ public interface IStrategyKernel
     /// </summary>
     DaxAlgo.Sdk.Layout.UnitLayout Layout => DaxAlgo.Sdk.Layout.UnitLayout.Single;
 
+
+    /// <summary>
+    /// Verbs this unit offers, shown by the host as buttons beside the parameters. Empty by default,
+    /// which is right for most units.
+    ///
+    /// <para>Declare one when something the viewer needs is an act rather than a value — reset the
+    /// profile, clear the tape, re-centre. Pressing it calls <see cref="OnActionAsync"/> with the id.
+    /// Bounded at <see cref="UnitAction.Maximum"/>, and a malformed list is refused whole.</para>
+    /// </summary>
+    IReadOnlyList<UnitAction> Actions => [];
+
+    /// <summary>
+    /// Runs the action the viewer pressed.
+    ///
+    /// <para>Invoked by the runtime under the same gate as the data callbacks, so it may touch the same
+    /// fields they do without a lock — which is the whole reason an action is an id and a callback here
+    /// rather than a delegate the host holds. Keep it short for the same reason a data callback is
+    /// short: it blocks the next event.</para>
+    ///
+    /// <para><paramref name="id"/> comes from the <see cref="UnitAction"/> that was pressed. An id you
+    /// do not recognise is not an error — ignore it.</para>
+    /// </summary>
+    Task OnActionAsync(string id, IStrategyRuntimeContext context, CancellationToken ct) =>
+        Task.CompletedTask;
+
     /// <summary>Stops this kernel instance.</summary>
     Task OnStopAsync(IStrategyRuntimeContext context, CancellationToken ct) => Task.CompletedTask;
 }

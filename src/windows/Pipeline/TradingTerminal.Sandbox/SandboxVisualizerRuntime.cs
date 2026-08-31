@@ -509,6 +509,60 @@ public sealed class SandboxVisualizerRuntime :
         }
     }
 
+    /// <summary>
+    /// The verbs the running unit declared, sanitised. Empty when nothing is running or the unit
+    /// declared a malformed list.
+    /// </summary>
+    public IReadOnlyList<UnitAction> Actions =>
+        Volatile.Read(ref _session) is { } session
+            ? UnitAction.Sanitise(InvokeCallback(() => session.Visualizer.Actions))
+            : [];
+
+    /// <summary>
+    /// Runs one declared action on the unit.
+    ///
+    /// <para><b>Under <c>_drawGate</c>, which is the whole point.</b> The pump holds that gate across
+    /// every data callback so a frame never sees half-mutated state; an action almost always touches
+    /// the same fields, and running it off the render thread without the gate would race the pump in
+    /// exactly the way the gate exists to prevent. Taking it here means an author has one threading
+    /// rule for every callback rather than a special case for buttons.</para>
+    ///
+    /// <para>Returns false when there is nothing running or the id was never declared — a stale button
+    /// press after a restart is an ordinary event, not a fault.</para>
+    /// </summary>
+    public async Task<bool> InvokeActionAsync(string id, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ThrowIfDisposed();
+
+        var session = Volatile.Read(ref _session);
+        if (session is null || !IsRunning) return false;
+        if (!Actions.Any(action => string.Equals(action.Id, id, StringComparison.Ordinal))) return false;
+
+        await _drawGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await InvokeCallbackAsync(() => session.Visualizer.OnActionAsync(id, session.Context, ct))
+                .ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // A button that throws must not take the window down, for the same reason a data callback
+            // that throws does not: the unit is untrusted and the user came for a picture.
+            ReportFault(session, $"Sandbox visualizer action '{id}' failed; the window is unaffected.");
+            return false;
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    }
+
     private async Task PumpAsync(RuntimeSession session)
     {
         try

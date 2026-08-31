@@ -74,7 +74,9 @@ public sealed class AuthoredUnitHost : IDisposable
         TimeSpan? frameInterval = null,
         Func<IReadOnlyDictionary<string, object?>, Task>? apply = null,
         Func<bool, Task>? setPaused = null,
-        Func<DaxAlgo.Sdk.Layout.UnitLayout>? layout = null)
+        Func<DaxAlgo.Sdk.Layout.UnitLayout>? layout = null,
+        Func<IReadOnlyList<UnitAction>>? actions = null,
+        Func<string, Task>? invokeAction = null)
     {
         ArgumentNullException.ThrowIfNull(tryDraw);
         _tryDraw = tryDraw;
@@ -83,6 +85,8 @@ public sealed class AuthoredUnitHost : IDisposable
         _apply = apply;
         _setPaused = setPaused;
         _layout = layout;
+        _actions = actions;
+        _invokeAction = invokeAction;
 
         Presenter = new AuthoredUnitPresenter
         {
@@ -100,8 +104,10 @@ public sealed class AuthoredUnitHost : IDisposable
 
         Presenter.ApplyRequested += OnApplyRequested;
         Presenter.PauseRequested += OnPauseRequested;
+        Presenter.ActionRequested += OnActionRequested;
 
         RefreshLayout();
+        RefreshActions();
 
         if (_log is not null)
         {
@@ -133,6 +139,7 @@ public sealed class AuthoredUnitHost : IDisposable
         Freeze();
         Presenter.ApplyRequested -= OnApplyRequested;
         Presenter.PauseRequested -= OnPauseRequested;
+        Presenter.ActionRequested -= OnActionRequested;
         if (_log is not null)
             _log.Entries.CollectionChanged -= OnLogEntryAdded;
     }
@@ -157,8 +164,10 @@ public sealed class AuthoredUnitHost : IDisposable
             Thaw();
 
             // The old session's panel callbacks went with it, so the shape is asked for again rather
-            // than kept. A unit whose layout depends on a parameter changes shape here.
+            // than kept. A unit whose layout depends on a parameter changes shape here — and so do its
+            // verbs, which belong to the instance just as the callbacks do.
             RefreshLayout();
+            RefreshActions();
 
             Presenter.ParametersApplied("Applied — running with the new values.");
         }
@@ -195,6 +204,52 @@ public sealed class AuthoredUnitHost : IDisposable
     /// <para>Never throws: describing a window runs author code, and a unit that fails at it keeps
     /// the single-panel default rather than losing its window.</para>
     /// </summary>
+    private readonly Func<IReadOnlyList<UnitAction>>? _actions;
+    private readonly Func<string, Task>? _invokeAction;
+
+    /// <summary>
+    /// Re-reads the verbs the unit declares. Called at construction and after every apply, for the
+    /// same reason the layout is: an apply rebuilds the unit, and the old instance's actions belong
+    /// to the instance that went with it.
+    /// </summary>
+    private void RefreshActions()
+    {
+        Presenter.Actions.Clear();
+        if (_actions is null || _invokeAction is null) return;
+
+        IReadOnlyList<UnitAction> declared;
+        try
+        {
+            declared = UnitAction.Sanitise(_actions());
+        }
+        catch (Exception)
+        {
+            // Reading the property is author code like any other. A unit whose Actions getter throws
+            // gets no buttons, not a window that fails to open.
+            return;
+        }
+
+        foreach (var action in declared)
+            Presenter.Actions.Add(new UnitActionButton(action.Id, action.Label, action.Detail));
+    }
+
+    private async void OnActionRequested(object? sender, string id)
+    {
+        if (_invokeAction is not { } invoke) return;
+
+        try
+        {
+            await invoke(id).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // async void, so nothing above catches this. A button that throws logs and leaves the
+            // window alone; the runtime already reports the unit's own faults.
+            Presenter.Append(new AuthoredUnitLogLine(
+                DateTime.UtcNow, _logSource, $"Action '{id}' failed: {ex.Message}"));
+        }
+    }
+
     private void RefreshLayout()
     {
         if (_layout is not { } read) return;
