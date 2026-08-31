@@ -150,8 +150,11 @@ public sealed class RenderSurfaceView : FrameworkElement
 
         Wheel(e.Delta);
 
-        // Handled, or an ancestor ScrollViewer scrolls the whole pane out from under the chart the
-        // viewer was trying to zoom.
+        // Marked handled so an ancestor ScrollViewer cannot scroll the pane out from under a chart
+        // the viewer is zooming. No such ancestor exists today — the authored-unit body and the
+        // authoring preview both sit in a plain Grid row, checked — so this is a guard rather than a
+        // fix for an observed bug. It costs nothing and the surface is the substrate every tool window
+        // draws on, which is exactly the kind of place a scrolling ancestor arrives later.
         e.Handled = true;
     }
 

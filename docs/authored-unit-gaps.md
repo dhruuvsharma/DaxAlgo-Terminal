@@ -37,8 +37,9 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 | Scrolling | missing | **missing** |
 | Time axis on a captured series | missing | **missing** |
 | Presets | missing | **missing** |
+| Minimum size for a star panel beside a fixed one | — | **missing** (found 2026-08-31, second pass) |
 
-Three of seven closed. The control now pins a price row on click and chooses its visible window from
+Three of eight closed. The control now pins a price row on click and chooses its visible window from
 the wheel and the drag, and the `heatWindow` parameter it needed for want of a gesture is gone.
 
 **How, without handing the host a WPF type.** A click, a wheel notch and a drag are *transitions*, and
@@ -104,11 +105,18 @@ than a clock interval. A unit has no way to ask the host how to place a column o
 trade dots are positioned by index and not by their own timestamp. The picture is right in shape and
 wrong in spacing whenever the book updates unevenly — which is always.
 
-### 6. No presets
+### 6. A fixed-pixel panel has no minimum for its star sibling
+
+Found by rendering the control at 320px wide: `Panel("Book", …).Pixels(240)` beside a `Star(3)` chart
+leaves the chart **76 pixels**, and it keeps shrinking. `UnitLayout` has `Star` and `Pixels` and no way
+to say "this panel needs at least N, drop me below that and stack instead". The hand-written window has
+the same shape and the same behaviour, so this is not a regression against the benchmark — but it is a
+thing an author cannot express, and the smallest of the gaps here.
+
+### 7. No presets
 
 Named snapshots of the parameter set, saved and reapplied. The host owns the parameter values, so
-this is a host feature that simply has not been built, rather than a contract gap. Cheapest of the
-six.
+this is a host feature that simply has not been built, rather than a contract gap.
 
 ## What is NOT a gap
 
@@ -129,7 +137,24 @@ a warm start from stored depth, rolling Brier and MAE against a baseline) is a r
 a window feature. An authored unit could compute the same thing in its callbacks; nothing in the
 contract stops it. It is listed here only so the line-count comparison is not read as a gap.
 
-## Next
+## What has actually been run
 
-The gaps above are the SDK half of the benchmark. The other half — what a model fails to produce
-even where the contract allows it — needs a live provider run and has not been done.
+Everything except the model. On 2026-08-31 the control was driven the whole way down the pipeline a
+generated unit takes, and it came through clean at every step:
+
+| Step | Result |
+|---|---|
+| Compile through `RoslynStrategyCompiler` (the sandbox path, policy scan included) | passes, as written — namespace and usings and all |
+| Verification ladder, all rungs | Lifecycle · SchemaCoherence · DrawProbe pass; Replay N/A for a visualizer |
+| Preview | builds |
+| The real three-panel window via `AuthoredUnitLayoutHost` | every panel paints after a full drive |
+| A click on the liquidity panel | changes what that panel paints — the pin reaches the picture, not just the flag |
+
+So the harness is sound from source text to painted window. The remaining risk is concentrated in the
+one part that cannot be run here: **what a model actually produces**. That needs a live provider and a
+key, and is still not done.
+
+One caution the run produced: the panel has to be a realistic size before any of this means anything.
+At 320px the control's chart panel is 76px wide and a click lands wherever geometry puts it — the
+first version of that assertion failed for exactly that reason and was measuring the test, not the
+window.
