@@ -30,7 +30,7 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 
 | | 2026-08-31, first run | after the gesture work |
 |---|---|---|
-| Actions (verbs) | missing | **closed for unit state; export still missing** |
+| Actions (verbs) | missing | **closed**, take-away included |
 | Selection (pin a level) | impossible | **closed** |
 | Zoom | missing | **closed** |
 | Scrub / pan | missing | **closed** |
@@ -39,7 +39,7 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 | Presets | missing | **missing** |
 | Minimum size for a star panel beside a fixed one | — | **missing** (found 2026-08-31, second pass) |
 
-Five of eight closed, two of them partly; a sixth turned out not to be a gap at all. The control now pins a price row on click and chooses its visible window from
+Six of eight closed, one partly; a seventh turned out not to be a gap at all. The control now pins a price row on click and chooses its visible window from
 the wheel and the drag, and the `heatWindow` parameter it needed for want of a gesture is gone.
 
 **How, without handing the host a WPF type.** A click, a wheel notch and a drag are *transitions*, and
@@ -67,11 +67,19 @@ called it — the render thread — so an action touching the same fields as a d
 the pump. Going through the lifecycle lets the runtime invoke it under `_drawGate`, the same gate the
 pump holds across every callback, so an author has one threading rule rather than two.
 
-**What is still missing is everything that leaves the unit.** The sandbox denies file and network
-access to authored code, so a unit can compute a CSV and cannot save it, and cannot screenshot itself.
-Closing that needs the host to own the writing — an action that *returns* rows for the host to save,
-rather than one that writes them — which is a different feature and is not built. Save PNG and the
-presets are host features throughout and never needed the contract at all.
+**Getting data OUT closed 2026-09-01.** `context.Export.Offer(label, text)` — the unit produces the
+content, the host decides where it goes, and the host puts it on the **clipboard**. Deliberately not a
+file: "export as CSV" means "get this data out of the window", and the clipboard satisfies that with
+the sandbox gaining no filesystem reach at all — no paths, no overwrite, no disk quota, nothing to get
+wrong about where untrusted code may write.
+
+**Offers are honoured only while an action is running.** That is the whole safety argument, and it is
+enforced in the runtime rather than advised: a unit cannot offer from a data callback, so nothing
+reaches the viewer that they did not ask for by pressing a button. Bounded at 256 Ki characters and
+rate-limited. `SandboxVisualizerActionTests` pins all of it, and removing the action gate fails the
+test that matters.
+
+Still host features, and never contract gaps: Save PNG, and the presets.
 
 **And a verb sits behind one click**, because the setup expander is collapsed once a unit is running.
 Right for parameters, which are reference material; arguable for a verb pressed often.

@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Globalization;
+using System.Windows;
 using DaxAlgo.Sdk;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -215,7 +216,20 @@ public sealed class AuthoredUnitHost : IDisposable
     private void RefreshActions()
     {
         Presenter.Actions.Clear();
-        if (_actions is null || _invokeAction is null) return;
+        if (_actions is null && _invokeAction is null) return;
+
+        // Half-wired is a composition mistake, not a unit that declares nothing, and it is silent
+        // otherwise: the buttons simply never appear. Said out loud in the log the user is already
+        // looking at. The both-missing case cannot be detected here — the host only learns what a unit
+        // declares through the very delegate that was not supplied — which is why the shell that
+        // composes this needs test coverage of its own.
+        if (_actions is null || _invokeAction is null)
+        {
+            Presenter.Append(new AuthoredUnitLogLine(
+                DateTime.UtcNow, _logSource,
+                "This window was wired for verbs on one side only, so none are shown."));
+            return;
+        }
 
         IReadOnlyList<UnitAction> declared;
         try
@@ -231,6 +245,35 @@ public sealed class AuthoredUnitHost : IDisposable
 
         foreach (var action in declared)
             Presenter.Actions.Add(new UnitActionButton(action.Id, action.Label, action.Detail));
+    }
+
+    /// <summary>
+    /// Where a unit's take-away goes: the clipboard, and a line in the activity log saying so.
+    ///
+    /// <para><b>The clipboard rather than a file, deliberately.</b> "Export as CSV" on the hand-written
+    /// windows means "get this data out of the window", and the clipboard satisfies that without the
+    /// sandbox gaining any filesystem reach at all — no path handling, no overwrite, no disk quota, and
+    /// nothing to get wrong about where an untrusted unit is allowed to write. The runtime has already
+    /// bounded the size and refused anything offered outside a pressed action.</para>
+    ///
+    /// <para>The log line is not decoration. A clipboard that changed silently is a clipboard the
+    /// viewer will paste from without knowing what they have.</para>
+    /// </summary>
+    public void TakeAway(string label, string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+            Presenter.Append(new AuthoredUnitLogLine(
+                DateTime.UtcNow, _logSource, $"{label} copied to the clipboard ({text.Length:N0} chars)."));
+        }
+        catch (Exception ex)
+        {
+            // The clipboard is a shared OS resource and another process can hold it. A failed copy is
+            // a message, not a fault in the unit.
+            Presenter.Append(new AuthoredUnitLogLine(
+                DateTime.UtcNow, _logSource, $"Could not copy {label}: {ex.Message}"));
+        }
     }
 
     private async void OnActionRequested(object? sender, string id)

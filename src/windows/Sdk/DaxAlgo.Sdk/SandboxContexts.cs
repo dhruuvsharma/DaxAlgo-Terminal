@@ -200,6 +200,45 @@ public interface IAlertSink
     }
 }
 
+/// <summary>Bounds on what a unit may hand back to the viewer.</summary>
+public static class ExportLimits
+{
+    /// <summary>Maximum characters one offer may carry — a few thousand ladder rows.</summary>
+    public const int MaxTextLength = 262_144;
+
+    /// <summary>Maximum characters in the label shown to the viewer.</summary>
+    public const int MaxLabelLength = 64;
+}
+
+/// <summary>
+/// Bounded take-away capability: a unit hands the host text, and the host gives it to the viewer.
+///
+/// <para><b>Honoured only while an action is running.</b> A unit cannot offer from a data callback,
+/// so nothing lands anywhere the viewer did not ask for by pressing a button. That is what makes this
+/// safe to have at all: the sandbox still denies files and the network, and the unit still learns
+/// nothing about the host.</para>
+///
+/// <para>The unit produces the CONTENT; where it goes is the host's decision, not the unit's.</para>
+/// </summary>
+public interface IUnitExport
+{
+    /// <summary>
+    /// Offers text for the viewer to take away. Returns false when the host declined — outside an
+    /// action, over <see cref="ExportLimits.MaxTextLength"/>, or offered too often.
+    /// </summary>
+    /// <param name="label">What it is, shown to the viewer. Ex: "Ladder (CSV)".</param>
+    /// <param name="text">The content itself.</param>
+    bool Offer(string label, string text);
+}
+
+/// <summary>An export that accepts nothing — the default for a context with no host behind it.</summary>
+internal sealed class NullUnitExport : IUnitExport
+{
+    internal static IUnitExport Instance { get; } = new NullUnitExport();
+
+    public bool Offer(string label, string text) => false;
+}
+
 /// <summary>The complete capability set supplied to a sandboxed strategy kernel.</summary>
 public interface IStrategyRuntimeContext
 {
@@ -217,6 +256,12 @@ public interface IStrategyRuntimeContext
 
     /// <summary>The host-mediated alert sink.</summary>
     IAlertSink Alerts { get; }
+
+    /// <summary>
+    /// Host-mediated take-away. Offers are honoured only while an action is running, so a unit cannot
+    /// put anything in front of the viewer that they did not ask for.
+    /// </summary>
+    IUnitExport Export => NullUnitExport.Instance;
 }
 
 /// <summary>
@@ -236,4 +281,10 @@ public interface IVisualizerContext
 
     /// <summary>The host-mediated alert sink.</summary>
     IAlertSink Alerts { get; }
+
+    /// <summary>
+    /// Host-mediated take-away. Offers are honoured only while an action is running, so a unit cannot
+    /// put anything in front of the viewer that they did not ask for.
+    /// </summary>
+    IUnitExport Export => NullUnitExport.Instance;
 }

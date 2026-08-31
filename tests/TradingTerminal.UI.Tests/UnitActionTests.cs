@@ -88,6 +88,21 @@ public sealed class UnitActionTests
     }
 
     [WpfFact]
+    public void A_half_wired_host_says_so_rather_than_showing_nothing()
+    {
+        // The shell composes this, and when the verb capability shipped the shell was not updated with
+        // it — so a unit could declare verbs and the real application showed none, silently. The host
+        // cannot detect the both-missing case (it learns what a unit declares through the very
+        // delegate that was not supplied), but it can refuse to be quiet about half of one.
+        var host = new AuthoredUnitHost("unit", _ => true, actions: () => Two);
+
+        Assert.False(host.Presenter.HasActions);
+        Assert.Contains(
+            host.Presenter.Log,
+            line => line.Message.Contains("wired for verbs on one side only", StringComparison.Ordinal));
+    }
+
+    [WpfFact]
     public void A_verb_that_throws_costs_the_press_and_not_the_window()
     {
         // The handler is async void on the UI thread, so an escaping exception is a process kill.

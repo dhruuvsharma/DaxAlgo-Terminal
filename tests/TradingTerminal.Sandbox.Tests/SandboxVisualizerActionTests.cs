@@ -1,4 +1,5 @@
 using DaxAlgo.Sdk;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Parameters;
@@ -116,6 +117,126 @@ public sealed class SandboxVisualizerActionTests
 
         Assert.Empty(runtime.Actions);
         Assert.False(await runtime.InvokeActionAsync("same"));
+    }
+
+    // ── take-away ───────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task An_offer_made_while_an_action_runs_reaches_the_host()
+    {
+        var taken = new List<(string Label, string Text)>();
+        await using var runtime = Runtime(
+            () => new ExportingVisualizer(Schema(new InstrumentId(4300))),
+            (label, text) => taken.Add((label, text)));
+
+        await runtime.StartAsync();
+        Assert.True(await runtime.InvokeActionAsync("copy"));
+
+        Assert.Single(taken);
+        Assert.Equal("Ladder (CSV)", taken[0].Label);
+        Assert.Contains("price,size", taken[0].Text);
+    }
+
+    [Fact]
+    public async Task An_offer_from_a_DATA_callback_is_refused()
+    {
+        // The whole safety argument. A unit that could offer from OnBarAsync could put anything in
+        // front of the viewer without them asking, at any rate it liked.
+        ExportingVisualizer? unit = null;
+        var taken = new List<(string, string)>();
+        await using var runtime = Runtime(
+            () => unit = new ExportingVisualizer(Schema(Instrument)) { OfferOnData = true },
+            (label, text) => taken.Add((label, text)));
+
+        await runtime.StartAsync();
+        Hub.PublishBar(BarFor(Instrument, sequence: 1, close: 100d));
+        await unit!.Delivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(taken);
+        Assert.False(unit.LastOfferAccepted, "an offer outside an action must be refused");
+    }
+
+    [Fact]
+    public async Task An_oversized_offer_is_refused()
+    {
+        var taken = new List<(string, string)>();
+        await using var runtime = Runtime(
+            () => new ExportingVisualizer(Schema(new InstrumentId(4302)))
+            {
+                Text = new string('x', ExportLimits.MaxTextLength + 1),
+            },
+            (label, text) => taken.Add((label, text)));
+
+        await runtime.StartAsync();
+        await runtime.InvokeActionAsync("copy");
+
+        Assert.Empty(taken);
+    }
+
+    [Fact]
+    public async Task A_host_that_offers_no_take_away_accepts_nothing()
+    {
+        // A capability nobody wired must be inert rather than half-present.
+        ExportingVisualizer? unit = null;
+        await using var runtime = Runtime(
+            () => unit = new ExportingVisualizer(Schema(new InstrumentId(4303))), offer: null);
+
+        await runtime.StartAsync();
+        await runtime.InvokeActionAsync("copy");
+
+        Assert.False(unit!.LastOfferAccepted);
+    }
+
+    private static readonly InstrumentId Instrument = new(4301);
+
+    private static FakeMarketDataHub Hub { get; } = new();
+
+    private static OhlcvBar BarFor(InstrumentId instrument, int sequence, double close) =>
+        new(instrument, BarSize.OneMinute, Epoch.AddMinutes(sequence),
+            close, close, close, close, sequence, BrokerKind.Simulated, IsFinal: true);
+
+    private static SandboxVisualizerRuntime Runtime(
+        Func<IVisualizer> factory, Action<string, string>? offer) =>
+        new(factory, currentValues: null, Hub, new MutableClock(Epoch),
+            (_, _, _) => { }, _ => { }, offerTakeAway: offer);
+
+    private sealed class ExportingVisualizer(StrategyParameterSchema schema) : IVisualizer
+    {
+        public bool OfferOnData { get; init; }
+
+        public string Text { get; init; } = "price,size" + Environment.NewLine + "100.5,20";
+
+        public bool LastOfferAccepted { get; private set; }
+
+        public TaskCompletionSource Delivered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public StrategyParameterSchema Schema { get; } = schema;
+
+        public StrategyDataRequirement DataRequirement => StrategyDataRequirement.Bars;
+
+        public IReadOnlyList<UnitAction> Actions => [new("copy", "Copy ladder")];
+
+        public Task OnStartAsync(IVisualizerContext context, CancellationToken ct) => Task.CompletedTask;
+
+        public Task OnBarAsync(OhlcvBar bar, IVisualizerContext context, CancellationToken ct)
+        {
+            if (OfferOnData)
+            {
+                LastOfferAccepted = context.Export.Offer("Sneaky", Text);
+                Delivered.TrySetResult();
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task OnActionAsync(string id, IVisualizerContext context, CancellationToken ct)
+        {
+            LastOfferAccepted = context.Export.Offer("Ladder (CSV)", Text);
+            return Task.CompletedTask;
+        }
+
+        public void Draw(IRenderSurface surface) => surface.Text(2d, 10d, "x");
     }
 
     private static StrategyParameterSchema Schema(InstrumentId instrument) =>

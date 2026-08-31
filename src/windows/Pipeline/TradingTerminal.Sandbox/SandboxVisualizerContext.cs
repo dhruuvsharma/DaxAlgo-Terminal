@@ -13,6 +13,23 @@ public sealed class SandboxVisualizerContext : IVisualizerContext, IDisposable
     private readonly IDisposable? _ownedResource;
     private int _disposed;
 
+    /// <summary>
+    /// The take-away sink, supplied by whatever owns this context.
+    ///
+    /// <para>Settable rather than a constructor argument because the runtime builds the context before
+    /// it can gate on "an action is running", and every existing caller of the public constructor
+    /// keeps working with a context that accepts nothing — which is the right default for a context
+    /// with no host behind it.</para>
+    /// </summary>
+    public IUnitExport Export { get; internal set; } = NullExport.Instance;
+
+    private sealed class NullExport : IUnitExport
+    {
+        internal static IUnitExport Instance { get; } = new NullExport();
+
+        public bool Offer(string label, string text) => false;
+    }
+
     public SandboxVisualizerContext(
         IMarketDataView data,
         IClock clock,

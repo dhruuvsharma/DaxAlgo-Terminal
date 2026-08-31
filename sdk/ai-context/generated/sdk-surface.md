@@ -1316,6 +1316,11 @@ Host-rendered alert importance.
 
 Wire limits enforced by every host alert sink.
 
+<!-- @type ExportLimits | Vocabulary -->
+### `ExportLimits`
+
+Bounds on what a unit may hand back to the viewer.
+
 <!-- @type IAlertSink | Vocabulary -->
 ### `IAlertSink`
 
@@ -1386,6 +1391,7 @@ IAlertSink Alerts { get; }
 IVirtualBook Book { get; }
 IClock Clock { get; }
 IMarketDataView Data { get; }
+IUnitExport Export { get; }
 IParameters Parameters { get; }
 ```
 
@@ -1393,7 +1399,23 @@ IParameters Parameters { get; }
 - `Book` — The strategy's private model-portfolio output.
 - `Clock` — The deterministic host clock.
 - `Data` — The strategy-scoped market-data projection.
+- `Export` — Host-mediated take-away. Offers are honoured only while an action is running, so a unit cannot put anything in front of the viewer that they did not ask for.
 - `Parameters` — The current read-only parameter values.
+
+<!-- @type IUnitExport | Vocabulary -->
+### `IUnitExport`
+
+Bounded take-away capability: a unit hands the host text, and the host gives it to the viewer.
+
+Honoured only while an action is running. A unit cannot offer from a data callback, so nothing lands anywhere the viewer did not ask for by pressing a button. That is what makes this safe to have at all: the sandbox still denies files and the network, and the unit still learns nothing about the host.
+
+The unit produces the CONTENT; where it goes is the host's decision, not the unit's.
+
+```csharp
+bool Offer(string label, string text)
+```
+
+- `Offer` — Offers text for the viewer to take away. Returns false when the host declined — outside an action, over `MaxTextLength`, or offered too often.
 
 <!-- @type IVirtualBook | Vocabulary -->
 ### `IVirtualBook`
@@ -1417,12 +1439,14 @@ The complete capability set supplied to a sandboxed visualizer. It intentionally
 IAlertSink Alerts { get; }
 IClock Clock { get; }
 IMarketDataView Data { get; }
+IUnitExport Export { get; }
 IParameters Parameters { get; }
 ```
 
 - `Alerts` — The host-mediated alert sink.
 - `Clock` — The deterministic host clock.
 - `Data` — The visualizer-scoped market-data projection.
+- `Export` — Host-mediated take-away. Offers are honoured only while an action is running, so a unit cannot put anything in front of the viewer that they did not ask for.
 - `Parameters` — The current read-only parameter values.
 
 <!-- @type Layout | Vocabulary -->

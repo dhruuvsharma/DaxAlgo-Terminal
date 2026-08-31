@@ -70,7 +70,8 @@ public sealed class SandboxVisualizerRuntime :
         IClock clock,
         Action<string, string, string> appendActivityLog,
         Action<AlertRecord> showBanner,
-        int retentionBound = DefaultRetentionBound)
+        int retentionBound = DefaultRetentionBound,
+        Action<string, string>? offerTakeAway = null)
     {
         ArgumentNullException.ThrowIfNull(visualizerFactory);
         ArgumentNullException.ThrowIfNull(hub);
@@ -84,6 +85,7 @@ public sealed class SandboxVisualizerRuntime :
                 "The market-data retention and event-channel bound must be positive.");
         }
 
+        _offerTakeAway = offerTakeAway;
         _visualizerFactory = visualizerFactory;
         _initialParameterValues = currentValues is null
             ? null
@@ -456,6 +458,10 @@ public sealed class SandboxVisualizerRuntime :
                 _showBanner,
                 _retentionBound);
 
+            // Attached after construction: the sink has to be able to ask this runtime whether an
+            // action is in flight, which it cannot do before the runtime has a context to give it.
+            context.Export = new MediatedExport(this);
+
             var queue = Channel.CreateBounded<MarketEventEnvelope>(
                 new BoundedChannelOptions(_retentionBound)
                 {
@@ -542,7 +548,10 @@ public sealed class SandboxVisualizerRuntime :
         await _drawGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            await InvokeCallbackAsync(() => session.Visualizer.OnActionAsync(id, session.Context, ct))
+            // isAction: the export sink accepts an offer only inside this scope, which is what ties a
+            // take-away to the button the viewer pressed.
+            await InvokeCallbackAsync(
+                    () => session.Visualizer.OnActionAsync(id, session.Context, ct), isAction: true)
                 .ConfigureAwait(false);
             return true;
         }
@@ -560,6 +569,56 @@ public sealed class SandboxVisualizerRuntime :
         finally
         {
             _drawGate.Release();
+        }
+    }
+
+    /// <summary>Where an accepted offer goes, or null when the host offers no take-away at all.</summary>
+    private readonly Action<string, string>? _offerTakeAway;
+
+    /// <summary>The last offer accepted, so a unit cannot thrash the destination.</summary>
+    private DateTime _lastOfferUtc = DateTime.MinValue;
+
+    /// <summary>How close together two accepted offers may be.</summary>
+    private static readonly TimeSpan OfferInterval = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// Mediates a unit's take-away offer.
+    ///
+    /// <para><b>Only while an action is running.</b> That is the whole safety argument: a unit cannot
+    /// offer from a data callback, so nothing reaches the viewer that they did not ask for by pressing
+    /// a button. The sandbox still denies files and the network — the unit produces content and never
+    /// learns where it goes.</para>
+    /// </summary>
+    private sealed class MediatedExport(SandboxVisualizerRuntime runtime) : IUnitExport
+    {
+        public bool Offer(string label, string text)
+        {
+            if (runtime._offerTakeAway is not { } deliver) return false;
+            if (CurrentCallback.Value is not { } scope || !scope.IsActiveFor(runtime) || !scope.IsAction)
+                return false;
+
+            if (string.IsNullOrEmpty(text) || text.Length > ExportLimits.MaxTextLength) return false;
+
+            var now = DateTime.UtcNow;
+            if (now - runtime._lastOfferUtc < OfferInterval) return false;
+            runtime._lastOfferUtc = now;
+
+            var trimmed = string.IsNullOrWhiteSpace(label)
+                ? "Take-away"
+                : label.Length > ExportLimits.MaxLabelLength
+                    ? label[..ExportLimits.MaxLabelLength]
+                    : label;
+
+            try
+            {
+                deliver(trimmed, text);
+                return true;
+            }
+            catch
+            {
+                // The destination failing is the host's problem, not a fault in the unit.
+                return false;
+            }
         }
     }
 
@@ -949,10 +1008,10 @@ public sealed class SandboxVisualizerRuntime :
         }
     }
 
-    private async Task InvokeCallbackAsync(Func<Task> callback)
+    private async Task InvokeCallbackAsync(Func<Task> callback, bool isAction = false)
     {
         var previous = CurrentCallback.Value;
-        var current = new CallbackScope(this);
+        var current = new CallbackScope(this, isAction);
         CurrentCallback.Value = current;
         try
         {
@@ -1041,9 +1100,13 @@ public sealed class SandboxVisualizerRuntime :
         }
     }
 
-    private sealed class CallbackScope(SandboxVisualizerRuntime runtime)
+    private sealed class CallbackScope(SandboxVisualizerRuntime runtime, bool isAction = false)
     {
         private SandboxVisualizerRuntime? _runtime = runtime;
+
+        /// <summary>True when this callback is a user-pressed action rather than a data event. Read by
+        /// the export sink, which is the one capability that needs a gesture behind it.</summary>
+        public bool IsAction { get; } = isAction;
 
         public bool IsActiveFor(SandboxVisualizerRuntime candidate) =>
             ReferenceEquals(Volatile.Read(ref _runtime), candidate);

@@ -64,9 +64,13 @@ public sealed class BookPressureVisualizer : IVisualizer
     /// to set that means "forget it". That is what an action is for.
     /// </summary>
     public IReadOnlyList<UnitAction> Actions =>
-        [new(ResetFlowAction, "Reset flow", "Forgets the accumulated imbalance, toxicity and history.")];
+    [
+        new(ResetFlowAction, "Reset flow", "Forgets the accumulated imbalance, toxicity and history."),
+        new(CopyBookAction, "Copy book", "Puts the visible ladder on the clipboard as CSV."),
+    ];
 
     public const string ResetFlowAction = "reset-flow";
+    public const string CopyBookAction = "copy-book";
 
     /// <summary>
     /// Runs the verb. The runtime calls this under the same gate as the data callbacks, so touching
@@ -82,6 +86,12 @@ public sealed class BookPressureVisualizer : IVisualizer
             _vpin?.Reset();
             _spread.Reset();
             _history.Clear();
+        }
+        else if (id == CopyBookAction && _depth is { } depth)
+        {
+            // The unit produces the CONTENT; where it goes is the host's business. Offers are honoured
+            // only inside an action, which is what ties a take-away to the button that was pressed.
+            context.Export.Offer("Book (CSV)", Csv(depth));
         }
 
         // An id you do not recognise is not an error.
@@ -169,6 +179,22 @@ public sealed class BookPressureVisualizer : IVisualizer
             _flow.Value));
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>The visible ladder as CSV. Built here rather than in <c>Draw</c>: this runs once, when
+    /// the button is pressed, and Draw runs on the render thread every frame.</summary>
+    private string Csv(DepthSnapshot depth)
+    {
+        var rows = new System.Text.StringBuilder();
+        rows.AppendLine("side,price,size");
+
+        foreach (var level in depth.Asks.Take(_levels))
+            rows.AppendLine($"ask,{level.Price},{level.Size}");
+
+        foreach (var level in depth.Bids.Take(_levels))
+            rows.AppendLine($"bid,{level.Price},{level.Size}");
+
+        return rows.ToString();
     }
 
     private void Record(Sample sample)
