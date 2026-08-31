@@ -194,6 +194,42 @@ public sealed class AiProviderPresetTests
     }
 
     [Fact]
+    public void Every_shipped_provider_has_a_name_a_person_would_recognise()
+    {
+        // None of the shipped providers sets a DisplayName in appsettings, so the name shown in the
+        // picker comes from code for every one of them -- and from two different places. The seven
+        // OpenAI-compatible ones get it from the factory's fallback map; `anthropic` never reaches that
+        // map at all, because its branch constructs AnthropicCodegenClient, which carries its own.
+        //
+        // That second path is why the map having seven rows for eight providers is NOT a bug, which is
+        // not obvious from reading the map: I took it for one, "fixed" it, and the mutation check
+        // showed the added row changed nothing. What is worth guarding is the property itself -- every
+        // shipped provider ends up with a name a person would recognise, wherever it comes from.
+        var options = new AiCodegenOptions();
+        foreach (var (id, baseUrl) in ShippedConfiguration().Providers)
+        {
+            options.Providers[id] = new AiCodegenProvider
+            {
+                Kind = id == "anthropic" ? AiCodegenProviderKind.Anthropic : AiCodegenProviderKind.OpenAiCompatible,
+                BaseUrl = baseUrl,
+                Model = "m",
+            };
+        }
+
+        var factory = new StrategyCodegenClientFactory(() => new HttpClient(), options, _ => "sk-x");
+
+        foreach (var (id, _) in ShippedConfiguration().Providers)
+        {
+            var client = factory.Build(id, model: null);
+            client.Should().NotBeNull("{0} is a shipped provider and should be buildable", id);
+
+            client!.DisplayName.Should().NotBe(
+                $"{id} (API key)",
+                "{0} falls through to the generic fallback -- give it a row in the display-name map", id);
+        }
+    }
+
+    [Fact]
     public void The_default_provider_is_one_that_actually_ships()
     {
         // A DefaultProvider naming a key that is not in the table resolves to nothing, and the app
