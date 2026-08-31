@@ -34,11 +34,16 @@ public readonly record struct CandleOptions(
 /// </summary>
 public static class Candles
 {
-    /// <summary>Draws candles into the current panel and returns the price range that was used.</summary>
+    /// <summary>Draws candles and returns the price range that was used.</summary>
+    /// <param name="area">Where to draw them. Omitted, they fill the panel — right for a chart that
+    /// owns one, wrong the moment anything sits beside it. Until this existed a candle chart could not
+    /// be PLACED: it read the viewport directly, so composing it with a book or a delta strip drew it
+    /// across both.</param>
     public static PlotRange Draw(
         IRenderSurface surface,
         IReadOnlyList<OhlcvBar>? bars,
-        CandleOptions options = default)
+        CandleOptions options = default,
+        PlotArea area = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         if (bars is null || bars.Count == 0)
@@ -47,8 +52,8 @@ public static class Candles
         if (options.BodyFraction <= 0d)
             options = CandleOptions.Default;
 
-        var viewport = surface.Viewport;
-        if (viewport.Width <= 0d || viewport.Height <= 0d)
+        if (!area.IsValid) area = PlotArea.Of(surface);
+        if (!area.IsValid)
             return PlotRange.Empty;
 
         var range = PlotRange.Empty;
@@ -63,9 +68,9 @@ public static class Candles
             return PlotRange.Empty;
 
         if (options.ShowGrid)
-            Plot.HorizontalGrid(surface, range, options.GridLines, options.PriceFormat);
+            Plot.HorizontalGrid(surface, range, options.GridLines, options.PriceFormat, area: area);
 
-        var column = viewport.Width / bars.Count;
+        var column = area.Width / bars.Count;
         var body = Math.Max(column * Math.Clamp(options.BodyFraction, 0.1d, 1d), 1d);
         var bullish = surface.Theme(RenderThemeColor.Bullish);
         var bearish = surface.Theme(RenderThemeColor.Bearish);
@@ -73,16 +78,18 @@ public static class Candles
         for (var index = 0; index < bars.Count; index++)
         {
             var bar = bars[index];
-            var centre = (index + 0.5d) * column;
+            var centre = area.X + ((index + 0.5d) * column);
             var colour = bar.Close >= bar.Open ? bullish : bearish;
             surface.SetStyle(new RenderStyle(colour, Thickness: 1d));
 
-            var high = Plot.ToY(bar.High, range, viewport.Height);
-            var low = Plot.ToY(bar.Low, range, viewport.Height);
+            // area.ToY offsets by the region's own top, which is the whole difference between a
+            // placed chart and one drawn at the panel's origin regardless of where it was put.
+            var high = area.ToY(bar.High, range);
+            var low = area.ToY(bar.Low, range);
             surface.Line(centre, high, centre, low);
 
-            var open = Plot.ToY(bar.Open, range, viewport.Height);
-            var close = Plot.ToY(bar.Close, range, viewport.Height);
+            var open = area.ToY(bar.Open, range);
+            var close = area.ToY(bar.Close, range);
             var top = Math.Min(open, close);
             // A doji has no body height at all; give it a hairline so the bar does not vanish.
             var height = Math.Max(Math.Abs(close - open), 1d);

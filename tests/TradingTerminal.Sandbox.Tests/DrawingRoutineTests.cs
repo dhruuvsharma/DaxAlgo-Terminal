@@ -1,3 +1,4 @@
+using System.Reflection;
 using DaxAlgo.Sdk;
 using DaxAlgo.Sdk.Drawing;
 using TradingTerminal.Core.Brokers;
@@ -218,4 +219,72 @@ public sealed class DrawingRoutineTests
     /// there were three private copies of this idea before it moved into the SDK.</summary>
     private static RecordingRenderSurface Surface(double width, double height, RenderCursor? cursor = null) =>
         new(new RenderViewport(width, height, 1d), cursor);
+
+    [Fact]
+    public void EveryWidgetCanBePlaced()
+    {
+        // The library's whole claim for composition is that a widget can be PUT somewhere. Three could
+        // not: `Ladder`, `Candles` and `Footprint` read `surface.Viewport` directly, so a book beside a
+        // chart, or a footprint above a delta strip, drew across everything else in the panel. Each was
+        // found by composing a real picture, never by reading a signature — which is exactly why this is
+        // reflected rather than remembered.
+        var missing = typeof(Plot).Assembly.GetExportedTypes()
+            .Where(t => t.Namespace == "DaxAlgo.Sdk.Drawing" && t.IsAbstract && t.IsSealed)
+            .Select(t => new
+            {
+                t.Name,
+                Draws = t.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .Where(m => m.Name == "Draw")
+                    .ToArray(),
+            })
+            .Where(x => x.Draws.Length > 0)
+            .Where(x => x.Draws.All(m => m.GetParameters().All(p => p.ParameterType != typeof(PlotArea))))
+            .Select(x => x.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0,
+            $"these widgets cannot be placed in a composed window: {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void APlacedWidgetStaysInsideItsArea()
+    {
+        // The reflected guard above proves the parameter exists; this proves it is honoured. A widget
+        // that accepts an area and ignores it is the same bug wearing a signature that says otherwise.
+        var surface = new RecordingRenderSurface(new RenderViewport(400d, 400d, 1d));
+        var area = new PlotArea(200d, 200d, 200d, 200d);
+
+        Candles.Draw(surface, [Bar(10d, 12d, 9d, 11d), Bar(11d, 13d, 10d, 12d)], area: area);
+
+        Assert.NotEmpty(surface.Lines);
+        Assert.All(surface.Lines, line =>
+        {
+            Assert.InRange(line.X1, area.X - 1d, area.Right + 1d);
+            Assert.InRange(line.Y1, area.Y - 1d, area.Bottom + 1d);
+        });
+    }
+
+    [Fact]
+    public void APlacedLadderStaysInsideItsArea()
+    {
+        // The book is the widget an order-book brief needs most, and the one whose absent area was
+        // found by an exemplar that could not place it.
+        var surface = new RecordingRenderSurface(new RenderViewport(400d, 400d, 1d));
+        var area = new PlotArea(150d, 100d, 250d, 300d);
+        var depth = new DepthSnapshot(
+            DateTime.UnixEpoch,
+            [new DepthLevel(99d, 10L), new DepthLevel(98d, 20L)],
+            [new DepthLevel(101d, 15L), new DepthLevel(102d, 5L)]);
+
+        Ladder.Draw(surface, depth, LadderOptions.Default, area);
+
+        Assert.NotEmpty(surface.Rectangles);
+        Assert.All(surface.Rectangles, rect =>
+        {
+            Assert.InRange(rect.X, area.X - 1d, area.Right + 1d);
+            Assert.InRange(rect.Y, area.Y - 1d, area.Bottom + 1d);
+        });
+    }
 }

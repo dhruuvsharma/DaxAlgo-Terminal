@@ -47,10 +47,15 @@ public readonly record struct FootprintOptions(
 public static class Footprint
 {
     /// <summary>Draws the footprint into the current panel, in panel pixel space.</summary>
+    /// <param name="area">Where to draw it. Omitted, the footprint fills the panel — right when it owns
+    /// one, wrong the moment a delta strip or a book sits beside it. Until this existed a footprint
+    /// could not be PLACED: it and its two helpers read the viewport directly, so a composed window
+    /// drew the columns across everything else in it.</param>
     public static void Draw(
         IRenderSurface surface,
         IReadOnlyList<FootprintBar>? bars,
-        FootprintOptions options = default)
+        FootprintOptions options = default,
+        PlotArea area = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         if (bars is null || bars.Count == 0)
@@ -59,21 +64,21 @@ public static class Footprint
         if (options.ColumnWidth <= 0d || options.RowHeight <= 0d)
             options = FootprintOptions.Default;
 
-        var viewport = surface.Viewport;
-        if (viewport.Width <= 0d || viewport.Height <= 0d)
+        if (!area.IsValid) area = PlotArea.Of(surface);
+        if (!area.IsValid)
             return;
 
-        var priceWidth = Math.Min(options.PriceWidth, viewport.Width * 0.4d);
+        var priceWidth = Math.Min(options.PriceWidth, area.Width * 0.4d);
         var range = PriceRange(bars);
         if (!range.IsValid)
             return;
 
-        var rows = Math.Max((int)Math.Floor(viewport.Height / options.RowHeight), 1);
+        var rows = Math.Max((int)Math.Floor(area.Height / options.RowHeight), 1);
         var tick = range.Span / rows;
         if (!double.IsFinite(tick) || tick <= 0d)
             return;
 
-        DrawPriceGutter(surface, range, rows, options, priceWidth);
+        DrawPriceGutter(surface, range, rows, options, priceWidth, area);
 
         var buy = surface.Theme(RenderThemeColor.Bullish);
         var sell = surface.Theme(RenderThemeColor.Bearish);
@@ -83,8 +88,8 @@ public static class Footprint
 
         for (var index = 0; index < bars.Count; index++)
         {
-            var left = priceWidth + (index * options.ColumnWidth);
-            if (left > viewport.Width)
+            var left = area.X + priceWidth + (index * options.ColumnWidth);
+            if (left > area.Right)
                 break;
 
             var bar = bars[index];
@@ -95,12 +100,12 @@ public static class Footprint
                 continue;
 
             if (options.ShowValueArea)
-                DrawValueArea(surface, bar, range, viewport, left, options, accent);
+                DrawValueArea(surface, bar, range, area, left, options, accent);
 
             foreach (var row in bar.Rows)
             {
-                var y = Plot.ToY(row.Price, range, viewport.Height) - (options.RowHeight / 2d);
-                if (y + options.RowHeight < 0d || y > viewport.Height)
+                var y = area.ToY(row.Price, range) - (options.RowHeight / 2d);
+                if (y + options.RowHeight < area.Y || y > area.Bottom)
                     continue;
 
                 DrawCell(surface, row, y, left, peak, options, buy, sell, text, border);
@@ -109,7 +114,7 @@ public static class Footprint
             if (options.ShowPointOfControl)
             {
                 surface.SetStyle(new RenderStyle(accent, Thickness: 1.5d));
-                var pocY = Plot.ToY(bar.PocPrice, range, viewport.Height);
+                var pocY = area.ToY(bar.PocPrice, range);
                 surface.Line(left, pocY, left + options.ColumnWidth, pocY);
             }
         }
@@ -165,7 +170,7 @@ public static class Footprint
         IRenderSurface surface,
         FootprintBar bar,
         PlotRange range,
-        RenderViewport viewport,
+        PlotArea area,
         double left,
         FootprintOptions options,
         RenderColor accent)
@@ -176,8 +181,8 @@ public static class Footprint
         if (!double.IsFinite(low) || !double.IsFinite(high) || high <= low)
             return;
 
-        var top = Plot.ToY(high, range, viewport.Height);
-        var bottom = Plot.ToY(low, range, viewport.Height);
+        var top = area.ToY(high, range);
+        var bottom = area.ToY(low, range);
         surface.SetStyle(new RenderStyle(accent, Alpha: 0.08d));
         surface.Rect(left, top, options.ColumnWidth, Math.Max(bottom - top, 1d));
     }
@@ -214,7 +219,8 @@ public static class Footprint
         PlotRange range,
         int rows,
         FootprintOptions options,
-        double priceWidth)
+        double priceWidth,
+        PlotArea area)
     {
         var label = surface.Theme(RenderThemeColor.TextSecondary);
         surface.SetStyle(new RenderStyle(label, FontSize: 9d));
@@ -223,15 +229,14 @@ public static class Footprint
         if (step <= 0d)
             return;
 
-        var viewport = surface.Viewport;
         for (var price = Math.Ceiling(range.Minimum / step) * step; price <= range.Maximum; price += step)
         {
-            var y = Plot.ToY(price, range, viewport.Height);
-            surface.Text(2d, y + 3d, price.ToString(options.PriceFormat ?? "0.####", CultureInfo.InvariantCulture));
+            var y = area.ToY(price, range);
+            surface.Text(area.X + 2d, y + 3d, price.ToString(options.PriceFormat ?? "0.####", CultureInfo.InvariantCulture));
         }
 
         surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Border), Thickness: 1d, Alpha: 0.6d));
-        surface.Line(priceWidth, 0d, priceWidth, viewport.Height);
+        surface.Line(area.X + priceWidth, area.Y, area.X + priceWidth, area.Bottom);
     }
 
     private static PlotRange PriceRange(IReadOnlyList<FootprintBar> bars)

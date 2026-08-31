@@ -774,7 +774,7 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<double> upper, IReadOnlyLis
 OHLC candles with an auto-scaled price axis.
 
 ```csharp
-PlotRange Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, CandleOptions options = null)
+PlotRange Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, CandleOptions options = null, PlotArea area = null)
 ```
 
 
@@ -838,7 +838,7 @@ PlotRange Range { get; }
 A volume footprint: bars as columns, price as rows, and buy/sell volume split within each cell.
 
 ```csharp
-void Draw(IRenderSurface surface, IReadOnlyList<FootprintBar> bars, FootprintOptions options = null)
+void Draw(IRenderSurface surface, IReadOnlyList<FootprintBar> bars, FootprintOptions options = null, PlotArea area = null)
 ValueTuple<double, double> ValueArea(FootprintBar bar, double share = 0.7)
 ```
 
