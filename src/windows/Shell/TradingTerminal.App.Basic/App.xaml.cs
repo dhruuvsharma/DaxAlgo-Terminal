@@ -196,11 +196,19 @@ public partial class App : Application
         var boundUnits = TradingTerminal.UI.Strategies.PluginUnitBinder.Bind(
             pluginHost.LoadedPlugins
                 .Where(p => p.Image is not null)
-                .Select(p => (
-                    PluginId: Infrastructure.Plugins.PluginManifest.TryRead(
-                        System.IO.Path.GetDirectoryName(p.AssemblyPath)!)?.Id
-                        ?? System.IO.Path.GetFileNameWithoutExtension(p.AssemblyPath),
-                    Image: p.Image!)),
+                .Select(p =>
+                {
+                    // Read once: the manifest carries both halves of the unit's identity, and taking
+                    // only the id is what left an installed strategy titled after its type name.
+                    var manifest = Infrastructure.Plugins.PluginManifest.TryRead(
+                        System.IO.Path.GetDirectoryName(p.AssemblyPath)!);
+
+                    return (
+                        PluginId: manifest?.Id
+                            ?? System.IO.Path.GetFileNameWithoutExtension(p.AssemblyPath),
+                        DisplayName: manifest?.Name,
+                        Image: p.Image!);
+                }),
             _host.Services.GetService<TradingTerminal.UI.Strategies.IStrategyKernelRegistry>(),
             _host.Services.GetService<TradingTerminal.UI.Strategies.IVisualizerRegistry>());
 

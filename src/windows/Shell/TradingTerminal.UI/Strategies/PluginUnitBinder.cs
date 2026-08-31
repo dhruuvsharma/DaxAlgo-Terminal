@@ -29,11 +29,17 @@ public sealed record PluginUnitBindResult(
 /// different layers on purpose, because a plugin loader that could reach into the catalog would be a
 /// plugin loader with an opinion about presentation, and the catalog lives above it.</para>
 ///
-/// <para><b>Ids come from the plugin manifest, not from the type.</b> The obvious default —
+/// <para><b>Identity comes from the plugin manifest, not from the type.</b> The obvious default —
 /// <c>type.FullName</c> — collides the moment two authored strategies are both called
 /// <c>MomentumKernel</c> in no namespace, which is exactly what a model writing single-file units
 /// produces; registering by id replaces, so the second install would silently take the first one's
 /// place in the catalog. The manifest id is the thing that is actually unique per package.</para>
+///
+/// <para><b>The display name comes from there too</b>, and until this took one it did not: only the id
+/// was passed on, so <c>StrategyKernelDescriptors.FromType</c> fell back to humanising the type name
+/// and a strategy the user had called "Shelf momentum" appeared in their catalog as "Restart". The id
+/// was right, which is why it went unnoticed — the existing test asserted the id and was named as
+/// though it asserted the name.</para>
 /// </summary>
 public static class PluginUnitBinder
 {
@@ -42,11 +48,13 @@ public static class PluginUnitBinder
     /// from. Never throws: a unit whose constructor fails is reported and skipped, because one bad
     /// plugin must not cost the user the rest of their catalog.
     /// </summary>
-    /// <param name="assemblies">Plugin id → the loaded assembly, from the load report.</param>
+    /// <param name="assemblies">Plugin id, the name from its manifest, and the loaded assembly — all
+    /// three from the load report. A null or blank name falls back to the humanised type name, which
+    /// is what a package with no manifest gets.</param>
     /// <param name="strategies">Where kernels go.</param>
     /// <param name="visualizers">Where visualizers go.</param>
     public static PluginUnitBindResult Bind(
-        IEnumerable<(string PluginId, Assembly Image)> assemblies,
+        IEnumerable<(string PluginId, string? DisplayName, Assembly Image)> assemblies,
         IStrategyKernelRegistry? strategies,
         IVisualizerRegistry? visualizers)
     {
@@ -56,7 +64,7 @@ public static class PluginUnitBinder
         var kernelCount = 0;
         var visualizerCount = 0;
 
-        foreach (var (pluginId, image) in assemblies)
+        foreach (var (pluginId, displayName, image) in assemblies)
         {
             if (image is null) continue;
 
@@ -73,18 +81,23 @@ public static class PluginUnitBinder
                 if (type.GetConstructor(Type.EmptyTypes) is null) continue;
 
                 var id = seen == 0 ? pluginId : $"{pluginId}.{type.Name}";
+
+                // The manifest names the PACKAGE, so it belongs to the first unit in it. A second unit
+                // in the same package is a different thing and keeps its own humanised type name
+                // rather than borrowing a title that is now wrong for it.
+                var name = seen == 0 && !string.IsNullOrWhiteSpace(displayName) ? displayName : null;
                 seen++;
 
                 try
                 {
                     if (isVisualizer && visualizers is not null)
                     {
-                        visualizers.Register(VisualizerDescriptors.FromType(type, id));
+                        visualizers.Register(VisualizerDescriptors.FromType(type, id, name));
                         visualizerCount++;
                     }
                     else if (isKernel && strategies is not null)
                     {
-                        strategies.Register(StrategyKernelDescriptors.FromType(type, id));
+                        strategies.Register(StrategyKernelDescriptors.FromType(type, id, name));
                         kernelCount++;
                     }
                 }

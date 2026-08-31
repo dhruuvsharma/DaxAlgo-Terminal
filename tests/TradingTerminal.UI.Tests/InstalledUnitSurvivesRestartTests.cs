@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using TradingTerminal.Core.Configuration;
@@ -112,16 +113,24 @@ public sealed class InstalledUnitSurvivesRestartTests : IDisposable
         PluginUnitBinder.Bind(
             report.Loaded
                 .Where(p => p.Image is not null)
-                .Select(p => (PluginId: IdOf(p), Image: p.Image!)),
+                .Select(p =>
+                {
+                    var manifest = ManifestOf(p);
+                    return (
+                        PluginId: manifest?.Id ?? Path.GetFileNameWithoutExtension(p.AssemblyPath),
+                        DisplayName: manifest?.Name,
+                        Image: p.Image!);
+                }),
             kernels,
             visualizers);
 
         return (report, kernels, visualizers);
     }
 
-    private static string IdOf(LoadedPlugin plugin) =>
-        PluginManifest.TryRead(Path.GetDirectoryName(plugin.AssemblyPath)!)?.Id
-        ?? Path.GetFileNameWithoutExtension(plugin.AssemblyPath);
+    /// <summary>The manifest that travelled inside the package — both halves of the unit's identity,
+    /// read exactly as the shell reads them.</summary>
+    private static PluginManifest? ManifestOf(LoadedPlugin plugin) =>
+        PluginManifest.TryRead(Path.GetDirectoryName(plugin.AssemblyPath)!);
 
     // ── the point of the whole thing ────────────────────────────────────────────────────────────
 
@@ -134,6 +143,65 @@ public sealed class InstalledUnitSurvivesRestartTests : IDisposable
 
         Assert.Single(kernels.All);
         Assert.NotNull(kernels.Find("restart.unit"));
+    }
+
+    [Fact]
+    public void TheReloadedStrategyBecomesACatalogCard()
+    {
+        // The LAST hop, and the one that was missing for months on the authored side: a registration
+        // is not a card. Nothing in the tree read IStrategyKernelRegistry — the sink wrote to it, this
+        // binder wrote to it, DI built it, and no reader existed — so an installed strategy reached
+        // the registry and stopped there.
+        //
+        // The card construction is also where an authored kernel crashed with a NullReferenceException
+        // (`Strategy?.DisplayName ?? Visualizer!.DisplayName`, safe with two backings and not with
+        // three). An installed package produces the same kind of registration, so it would have
+        // crashed identically — and this route had no test to catch it.
+        InstallAuthoredUnit(id: "shelf.momentum", displayName: "Shelf momentum");
+
+        var (_, kernels, _) = Restart();
+        var card = new StrategyCatalogItemViewModel(kernels.Find("shelf.momentum")!);
+
+        Assert.Equal(CatalogItemKind.Strategy, card.Kind);
+        Assert.Equal("shelf.momentum", card.Id);
+        Assert.Equal("Shelf momentum", card.Name);
+        Assert.NotNull(card.Kernel);
+        Assert.Equal("Open", card.PrimaryActionLabel);
+
+        // Quick backtest is a plugin-strategy affordance and the engine was archived, so an authored
+        // kernel — installed or not — must not offer it.
+        Assert.False(card.HasQuickBacktest);
+    }
+
+    [Fact]
+    public void EveryInstalledUnitBuildsACardWithoutThrowing()
+    {
+        // Two packages whose types share a name, which is what single-file generated units look like.
+        // Building every row is the assertion: the catalog constructs all of them at start-up, so one
+        // that throws takes the whole window down rather than losing a card.
+        InstallAuthoredUnit(id: "shelf.one", displayName: "Shelf one");
+        InstallAuthoredUnit(id: "shelf.two", displayName: "Shelf two");
+
+        var (_, kernels, _) = Restart();
+
+        var cards = kernels.All.Select(r => new StrategyCatalogItemViewModel(r)).ToList();
+
+        Assert.Equal(2, cards.Count);
+        Assert.Equal(["Shelf one", "Shelf two"], cards.Select(c => c.Name).OrderBy(n => n, StringComparer.Ordinal));
+        Assert.All(cards, c => Assert.False(string.IsNullOrWhiteSpace(c.Id)));
+    }
+
+    [Fact]
+    public void TheCardCarriesTheDataTheInstalledUnitDeclared()
+    {
+        // The pills on a card are how a user knows which brokers can feed a strategy before opening
+        // it. They have to survive the package, the staging folder and a fresh load context.
+        InstallAuthoredUnit(id: "shelf.bars", displayName: "Shelf bars");
+
+        var (_, kernels, _) = Restart();
+        var card = new StrategyCatalogItemViewModel(kernels.Find("shelf.bars")!);
+
+        Assert.Contains(card.DataRequirementTags, tag => tag.Contains("Bars", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -153,14 +221,21 @@ public sealed class InstalledUnitSurvivesRestartTests : IDisposable
     [Fact]
     public void TheCardKeepsTheNameTheAuthorGaveItRatherThanTheTypeName()
     {
-        // The id survives because the plugin manifest travels inside the package. Without it the host
-        // would fall back to the type name, and a user who named their strategy would find something
-        // else in the catalog.
+        // Both halves of the identity survive because the plugin manifest travels inside the package.
+        //
+        // This test asserted only the ID and was named as though it asserted the NAME — and the name
+        // was in fact wrong the whole time: the binder passed the id on and nothing else, so
+        // `FromType` humanised the type name and a strategy the author called "My momentum" appeared
+        // in the catalog as "Restart". A test that checks the cheap half under the name of the
+        // expensive half is worse than no test, because it reads as covered.
         InstallAuthoredUnit(id: "my.momentum", displayName: "My momentum");
 
         var (_, kernels, _) = Restart();
+        var registration = kernels.Find("my.momentum");
 
-        Assert.NotNull(kernels.Find("my.momentum"));
+        Assert.NotNull(registration);
+        Assert.Equal("My momentum", registration!.Descriptor.DisplayName);
+        Assert.DoesNotContain("Restart", registration.Descriptor.DisplayName, StringComparison.Ordinal);
     }
 
     [Fact]

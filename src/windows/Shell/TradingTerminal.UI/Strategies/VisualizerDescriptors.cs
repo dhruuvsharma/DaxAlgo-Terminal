@@ -30,8 +30,11 @@ public static class VisualizerDescriptors
     /// </summary>
     /// <param name="type">A concrete class implementing <see cref="IVisualizer"/> with a public parameterless constructor.</param>
     /// <param name="id">Overrides the discovered id — used when the installer already assigned one.</param>
+    /// <param name="displayName">Overrides the discovered name — the title from the plugin manifest,
+    /// which is what the author called the package. Null keeps the type's own
+    /// <c>public static string DisplayName</c>, then the humanised type name.</param>
     /// <exception cref="ArgumentException">The type cannot be hosted as a visualizer.</exception>
-    public static VisualizerRegistration FromType(Type type, string? id = null)
+    public static VisualizerRegistration FromType(Type type, string? id = null, string? displayName = null)
     {
         ArgumentNullException.ThrowIfNull(type);
         if (!CanHost(type))
@@ -47,7 +50,11 @@ public static class VisualizerDescriptors
         return new VisualizerRegistration(
             new VisualizerDescriptor(
                 id ?? ReadStatic(type, IdProperty) ?? type.FullName ?? type.Name,
-                ReadStatic(type, DisplayNameProperty) ?? Humanise(type.Name),
+                // The installer's name wins over the type's own, for the same reason its id does: the
+                // manifest is what the AUTHOR wrote, and the type name is what their code happened to
+                // be called. A unit that declares its own DisplayName still beats the humanised
+                // fallback when no manifest name travelled with it.
+                displayName ?? ReadStatic(type, DisplayNameProperty) ?? Humanise(type.Name),
                 ReadStatic(type, DescriptionProperty) ?? string.Empty,
                 DataRequirementTags: ReadRequirementTags(factory)),
             factory);
