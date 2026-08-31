@@ -32,6 +32,7 @@ namespace TradingTerminal.UI.Tests;
 /// they tested the composer rather than the path. These drive the real view-model at Deep effort and
 /// assert on the bytes the agent loop was actually given.</para>
 /// </summary>
+[Collection(AuthoringCollection.Name)]
 public sealed class AgentSharedContextTests : IDisposable
 {
     private readonly string _sessionDir = Path.Combine(

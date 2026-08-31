@@ -24,6 +24,7 @@ namespace TradingTerminal.UI.Tests;
 /// <para>These drive the real view-model down both paths — the single conversation and the agents —
 /// because a button that renders on one of them is a button half the users never see.</para>
 /// </summary>
+[Collection(AuthoringCollection.Name)]
 public sealed class AuthoringActionTests : IDisposable
 {
     private readonly string _sessionDir = Path.Combine(

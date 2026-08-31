@@ -27,6 +27,7 @@ namespace TradingTerminal.UI.Tests;
 /// <para>So these use the real builder, the real client and a real socket. The only thing missing
 /// versus a vendor is the vendor.</para>
 /// </summary>
+[Collection(AuthoringCollection.Name)]
 public sealed class StrategyAuthoringProviderFailureTests : IDisposable
 {
     private readonly string _sessionDir = Path.Combine(

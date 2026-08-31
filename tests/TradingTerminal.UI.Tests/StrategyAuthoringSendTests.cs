@@ -22,6 +22,7 @@ namespace TradingTerminal.UI.Tests;
 ///
 /// <para>These drive the real view-model against a builder that fails the way a real one can.</para>
 /// </summary>
+[Collection(AuthoringCollection.Name)]
 public sealed class StrategyAuthoringSendTests : IDisposable
 {
     /// <summary>
