@@ -64,7 +64,7 @@ public static class SyntheticDrive
     {
         ArgumentNullException.ThrowIfNull(kernel);
 
-        var (context, data) = Build(kernel.Schema, closes);
+        var (context, data) = Build(kernel.Schema, closes, kernel.DataRequirement);
         kernel.OnStartAsync(context, CancellationToken.None).GetAwaiter().GetResult();
         foreach (var bar in data.Series)
         {
@@ -72,6 +72,10 @@ public static class SyntheticDrive
             kernel.OnBarAsync(bar, context, CancellationToken.None).GetAwaiter().GetResult();
             foreach (var quote in data.QuotesFor(bar))
                 kernel.OnQuoteAsync(quote, context, CancellationToken.None).GetAwaiter().GetResult();
+            if (data.DepthFor(bar) is { } depth)
+                kernel.OnDepthAsync(Instrument, depth, context, CancellationToken.None).GetAwaiter().GetResult();
+            foreach (var print in data.TradesFor(bar))
+                kernel.OnTradeAsync(print, context, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         kernel.OnStopAsync(context, CancellationToken.None).GetAwaiter().GetResult();
@@ -83,7 +87,7 @@ public static class SyntheticDrive
     {
         ArgumentNullException.ThrowIfNull(visualizer);
 
-        var (context, data) = Build(visualizer.Schema, closes);
+        var (context, data) = Build(visualizer.Schema, closes, visualizer.DataRequirement);
         visualizer.OnStartAsync(context, CancellationToken.None).GetAwaiter().GetResult();
         foreach (var bar in data.Series)
         {
@@ -91,13 +95,36 @@ public static class SyntheticDrive
             visualizer.OnBarAsync(bar, context, CancellationToken.None).GetAwaiter().GetResult();
             foreach (var quote in data.QuotesFor(bar))
                 visualizer.OnQuoteAsync(quote, context, CancellationToken.None).GetAwaiter().GetResult();
+            if (data.DepthFor(bar) is { } depth)
+                visualizer.OnDepthAsync(Instrument, depth, context, CancellationToken.None).GetAwaiter().GetResult();
+            foreach (var print in data.TradesFor(bar))
+                visualizer.OnTradeAsync(print, context, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         visualizer.OnStopAsync(context, CancellationToken.None).GetAwaiter().GetResult();
         return Finish(context, data);
     }
 
-    private static (DriveContext Context, Feed Data) Build(StrategyParameterSchema schema, double[]? closes)
+    /// <param name="requirement">
+    /// What the unit declared it consumes, and therefore what the drive supplies.
+    ///
+    /// <para>The drive fed bars and quotes and nothing else until 2026-08-31, which meant an order
+    /// book, a footprint or an imbalance monitor — the whole class that lives on depth and the tape —
+    /// was judged without ever entering the callbacks it is written in. Rung 6 passed by not looking;
+    /// rung 7 passed on the unit's own "waiting for depth" message, which is the same frame a
+    /// completely broken one draws; and rung 5 <b>failed</b> a correct unit whose parameters are read
+    /// where its data arrives. That last one is the expensive direction — it sends a repair agent to
+    /// rewrite working code and teaches the router that the agent who wrote it is unreliable.</para>
+    ///
+    /// <para>It was found by driving the order-flow exemplar, <c>BookPressureVisualizer</c>, through
+    /// the ladder for the first time: the worked example a model is shown for every order-flow brief
+    /// did not clear rung 7, because the drive gave it nothing to draw.</para>
+    ///
+    /// <para>Shaped by the declaration rather than always on, so a bar strategy is not handed a stream
+    /// it never asked for — which would be a different way of testing something other than the unit.</para>
+    /// </param>
+    private static (DriveContext Context, Feed Data) Build(
+        StrategyParameterSchema schema, double[]? closes, StrategyDataRequirement requirement)
     {
         // Only the instrument is overridden; everything else takes its declared default, converted by
         // the host's own SandboxParameters rather than by a second set of rules that would drift.
@@ -107,7 +134,7 @@ public static class SyntheticDrive
 
         // One feed, shared. Two would leave the context reading a series the caller never advanced —
         // the unit would see an empty history for every bar and every warm-up guard would hold forever.
-        var feed = new Feed(closes ?? DefaultCloses);
+        var feed = new Feed(closes ?? DefaultCloses, requirement);
         return (new DriveContext(feed, new TradingTerminal.Sandbox.SandboxParameters(schema, values)), feed);
     }
 
@@ -116,9 +143,20 @@ public static class SyntheticDrive
 
     /// <summary>Bars revealed one at a time, so "recent" history means what had actually arrived. Handing
     /// a unit the whole series up front hides every warm-up bug there is.</summary>
-    private sealed class Feed(double[] closes) : IMarketDataView
+    private sealed class Feed(double[] closes, StrategyDataRequirement requirement) : IMarketDataView
     {
+        /// <summary>Levels per side. Deep enough that a sweep of a few hundred lots walks the book
+        /// rather than exhausting it, which is the case a slippage calculation gets wrong.</summary>
+        private const int BookLevels = 10;
+
+        private const int PrintsPerBar = 3;
+
         private readonly List<OhlcvBar> _seen = [];
+        private readonly List<TradePrint> _prints = [];
+        private DepthSnapshot? _depth;
+
+        private readonly bool _wantsDepth = requirement.HasFlag(StrategyDataRequirement.Depth);
+        private readonly bool _wantsTape = requirement.HasFlag(StrategyDataRequirement.TradeTape);
 
         public IReadOnlyList<OhlcvBar> Series { get; } =
             [.. closes.Select((close, index) => new OhlcvBar(
@@ -134,8 +172,72 @@ public static class SyntheticDrive
                 BrokerKind.Simulated, bar.Volume, EventTimeApproximate: false),
         ];
 
+        /// <summary>
+        /// A book around the bar close, or null when the unit never asked for depth.
+        ///
+        /// <para><b>Deliberately lopsided, and lopsided the other way on alternate bars.</b> A
+        /// symmetric book makes every imbalance exactly zero and every microprice exactly the mid, so
+        /// a unit computing them wrongly — or not at all — draws the same picture as one computing
+        /// them correctly. A drive has to be hostile in the ways the data is.</para>
+        /// </summary>
+        public DepthSnapshot? DepthFor(OhlcvBar bar)
+        {
+            if (!_wantsDepth) return null;
+
+            var heavyBid = _seen.Count % 2 == 0;
+            var bids = new List<DepthLevel>(BookLevels);
+            var asks = new List<DepthLevel>(BookLevels);
+
+            for (var level = 0; level < BookLevels; level++)
+            {
+                // Size decays away from the touch, which is what a real book does and what makes a
+                // sweep price a walk rather than one multiplication.
+                var decay = 1d - level / (double)(BookLevels + 2);
+                bids.Add(new DepthLevel(
+                    bar.Close - 0.5d - level, (long)(100d * decay * (heavyBid ? 1.8d : 0.6d))));
+                asks.Add(new DepthLevel(
+                    bar.Close + 0.5d + level, (long)(100d * decay * (heavyBid ? 0.6d : 1.8d))));
+            }
+
+            _depth = new DepthSnapshot(bar.OpenTimeUtc, bids, asks);
+            return _depth;
+        }
+
+        /// <summary>
+        /// Prints for one bar, or none when the unit never asked for the tape. Both aggressor sides
+        /// appear, because a tape that only ever lifts the offer makes signed flow indistinguishable
+        /// from gross volume and hides a sign error completely.
+        /// </summary>
+        public IEnumerable<TradePrint> TradesFor(OhlcvBar bar)
+        {
+            if (!_wantsTape) yield break;
+
+            for (var i = 0; i < PrintsPerBar; i++)
+            {
+                var buy = (bar.Volume + i) % 2 == 0;
+                var print = new TradePrint(
+                    Instrument,
+                    bar.OpenTimeUtc.AddSeconds(i * 15),
+                    bar.OpenTimeUtc.AddSeconds(i * 15),
+                    buy ? bar.Close + 0.5d : bar.Close - 0.5d,
+                    10 + i * 5,
+                    buy ? AggressorSide.Buy : AggressorSide.Sell,
+                    BrokerKind.Simulated,
+                    bar.Volume * PrintsPerBar + i,
+                    EventTimeApproximate: false);
+
+                _prints.Add(print);
+                yield return print;
+            }
+        }
+
+        /// <summary>What the drive actually supplies. A view claiming more than it serves would leave
+        /// a unit waiting forever on a stream that never arrives.</summary>
         public StrategyDataRequirement DataRequirement =>
-            StrategyDataRequirement.L1 | StrategyDataRequirement.Bars;
+            StrategyDataRequirement.L1
+            | StrategyDataRequirement.Bars
+            | (_wantsDepth ? StrategyDataRequirement.Depth : 0)
+            | (_wantsTape ? StrategyDataRequirement.TradeTape : 0);
 
         public IReadOnlySet<InstrumentId> Instruments { get; } = new HashSet<InstrumentId> { Instrument };
 
@@ -145,9 +247,11 @@ public static class SyntheticDrive
         public IReadOnlyList<Quote> RecentQuotes(InstrumentId instrument, int maxCount) =>
             _seen.Count == 0 ? [] : [.. QuotesFor(_seen[^1])];
 
-        public IReadOnlyList<TradePrint> RecentTrades(InstrumentId instrument, int maxCount) => [];
+        public IReadOnlyList<TradePrint> RecentTrades(InstrumentId instrument, int maxCount) =>
+            instrument == Instrument ? [.. _prints.TakeLast(maxCount)] : [];
 
-        public DepthSnapshot? LatestDepth(InstrumentId instrument) => null;
+        public DepthSnapshot? LatestDepth(InstrumentId instrument) =>
+            instrument == Instrument ? _depth : null;
     }
 
     private sealed class DriveContext : IStrategyRuntimeContext, IVisualizerContext
