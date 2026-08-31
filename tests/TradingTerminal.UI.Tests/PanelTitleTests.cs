@@ -18,6 +18,11 @@ namespace TradingTerminal.UI.Tests;
 /// All three were stored on the panel slot and read by no one, while the drawing pack told every model
 /// that kinds "tell the host what chrome and default axes to supply". The title is the one worth
 /// making true — the other two are now documented as what they are.</para>
+///
+/// <para>The last test here corrects a fourth claim, this one in the benchmark backlog: that a unit
+/// had no way to place a column on a time axis. It has. The declared RANGE is what the coordinate
+/// transform maps through, so a unit that declares ticks and draws at a timestamp is placed by clock.
+/// What is index-based is the widget LIBRARY, which takes arrays.</para>
 /// </summary>
 public sealed class PanelTitleTests
 {
@@ -77,6 +82,62 @@ public sealed class PanelTitleTests
 
         // The panel itself plus the two primitives, and nothing for the title.
         Assert.Equal(3, view.LastFrameOperationCount);
+    }
+
+    [WpfFact]
+    public void A_declared_axis_places_drawing_in_data_units_including_time()
+    {
+        // The backlog said "a unit has no way to ask the host how to place a column on a time axis".
+        // Wrong: AxisX declares the range ToPixels maps through, so a unit that declares ticks and
+        // draws at a timestamp is placed by CLOCK, not by index. What is actually index-based is the
+        // widget LIBRARY, which takes arrays.
+        var open = new DateTime(2026, 1, 1, 9, 30, 0, DateTimeKind.Utc);
+        var close = open.AddHours(1);
+        var quarter = open.AddMinutes(15);
+
+        var view = Arrange(surface =>
+        {
+            using var panel = surface.Panel(string.Empty, RenderPanelKind.Chart);
+            surface.AxisX(open.Ticks, close.Ticks);
+            surface.Marker(quarter.Ticks, 0d, RenderMarkerShape.Circle);
+        });
+
+        Render(view);
+
+        // A quarter of the way through the hour lands a quarter of the way across the panel. Read off
+        // the drawing instructions, because the claim is about where the pixel ended up.
+        var centres = MarkerCentres(view);
+        Assert.Single(centres);
+        Assert.Equal(Width * 0.25d, centres[0], 1);
+    }
+
+    private static IReadOnlyList<double> MarkerCentres(RenderSurfaceView view)
+    {
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            typeof(RenderSurfaceView)
+                .GetMethod("OnRender", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(view, [context]);
+        }
+
+        var found = new List<double>();
+        CollectEllipses(visual.Drawing, found);
+        return found;
+    }
+
+    private static void CollectEllipses(Drawing? drawing, List<double> found)
+    {
+        switch (drawing)
+        {
+            case GeometryDrawing { Geometry: EllipseGeometry ellipse }:
+                found.Add(ellipse.Center.X);
+                break;
+
+            case DrawingGroup group:
+                foreach (var child in group.Children) CollectEllipses(child, found);
+                break;
+        }
     }
 
     // ── harness ─────────────────────────────────────────────────────────────────────────────────

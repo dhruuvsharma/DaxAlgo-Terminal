@@ -39,7 +39,7 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 | Presets | missing | **missing** |
 | Minimum size for a star panel beside a fixed one | — | **missing** (found 2026-08-31, second pass) |
 
-Five of eight closed, two of them partly. The control now pins a price row on click and chooses its visible window from
+Five of eight closed, two of them partly; a sixth turned out not to be a gap at all. The control now pins a price row on click and chooses its visible window from
 the wheel and the drag, and the `heatWindow` parameter it needed for want of a gesture is gone.
 
 **How, without handing the host a WPF type.** A click, a wheel notch and a drag are *transitions*, and
@@ -121,20 +121,47 @@ because a drag has no idea how deep the book is.
 **Still missing: a scrollbar.** There is no affordance telling the viewer the book is scrollable or
 how far down they are, and no widget but the ladder takes an offset.
 
-### 5. No time axis on a captured series
+### 5. The WIDGETS are index-based — and the first version of this entry was wrong
 
-The control captures one heatmap column per depth snapshot, so a column is a capture tick rather
-than a clock interval. A unit has no way to ask the host how to place a column on a time axis, so
-trade dots are positioned by index and not by their own timestamp. The picture is right in shape and
-wrong in spacing whenever the book updates unevenly — which is always.
+Recorded as "a unit has no way to ask the host how to place a column on a time axis". It has one.
+`AxisX(minimum, maximum)` declares the range the coordinate transform maps through, so a unit that
+declares ticks and draws at a timestamp is placed by **clock**, not by index. Pinned by
+`PanelTitleTests.A_declared_axis_places_drawing_in_data_units_including_time`.
 
-### 6. A fixed-pixel panel has no minimum for its star sibling
+What is index-based is the widget **library**: `Series.Draw(surface, name, values)` and
+`Heatmap.Draw(surface, columns, rows, …)` take arrays, so anything drawn through one is evenly spaced
+whatever the clock did. A unit can have a true time axis by drawing raw — a `Series` scope with
+`Push(x, y)`, or `Marker` — and cannot have one through a widget.
+
+**Deliberately not "fixed" by making the control's trade dots time-positioned.** Its heatmap columns
+come from a widget and are index-spaced; time-positioned dots over index-spaced columns would be
+misaligned, which is worse than evenly-spaced-and-consistent. The whole picture has to agree, so this
+is a widget-API question rather than a bug in the control.
+
+| Cost of closing it | |
+|---|---|
+| Give the array widgets an optional x-position array | more SDK surface on every prompt |
+| Leave it | a unit needing a true time axis hand-draws that panel |
+
+### 6. A fixed-pixel panel starves its star sibling — examined, and deliberately left
 
 Found by rendering the control at 320px wide: `Panel("Book", …).Pixels(240)` beside a `Star(3)` chart
-leaves the chart **76 pixels**, and it keeps shrinking. `UnitLayout` has `Star` and `Pixels` and no way
-to say "this panel needs at least N, drop me below that and stack instead". The hand-written window has
-the same shape and the same behaviour, so this is not a regression against the benchmark — but it is a
-thing an author cannot express, and the smallest of the gaps here.
+leaves the chart **76 pixels**, and it keeps shrinking.
+
+**Looked at properly, and there is no clean fix.** The obvious one — a `Minimum` on `PanelSize`,
+mapped to the grid definition's `MinWidth` — does not do what it looks like it does. A WPF grid gives
+an absolute column its size first and shares the remainder among the star columns; if that remainder
+is smaller than a star column's `MinWidth` the grid **overflows and clips** rather than shrinking the
+absolute one. So the star panel would go from "squeezed to 76px" to "200px and something cut off",
+which is worse and harder to explain.
+
+What would actually help is "fixed, but yield when there is no room", and a grid cannot express that
+without changing what `Pixels` means: a star column capped by `MaxWidth` takes the right size when
+space is tight and under-fills when it is not.
+
+Left as it is, with the trade-off written down. The hand-written window has the same shape and the
+same behaviour, so it is not a regression against the benchmark, and it only bites at window sizes
+nobody uses.
 
 ### 7. No presets
 
