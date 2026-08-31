@@ -81,20 +81,24 @@ zero-width fully-transparent widget looks exactly like a broken one. To change o
 
 ## Placing widgets: `PlotArea`
 
-Any widget can be given a rectangle instead of filling the panel. That is how a dashboard is built.
+Every widget takes an `area`. Omitted it fills the panel; given one it is confined to that rectangle.
+
+**A split returns `(strip, remainder)` — the strip FIRST.** Named the other way round the picture comes
+out inside out, and it compiles, draws and passes every test.
 
 ```csharp
-var area = PlotArea.Of(surface);
-var (header, body) = area.SplitTop(56d);          // strip, and what is left
-var (chart, side)  = body.SplitRight(140d);
+var (header, body)  = PlotArea.Of(surface).SplitTop(56d);
+var (book, chart)   = body.SplitRight(140d);   // book is the 140px strip
+var (delta, prices) = chart.SplitBottom(80d);  // delta is the 80px strip
 
 Tiles.Draw(surface, tiles, area: header);
-Series.Chart(surface, series, area: chart);
-VolumeProfile.Draw(surface, profile, area: side);
+Candles.Draw(surface, bars, area: prices);
+Histogram.Draw(surface, cumulativeDelta, area: delta);
+Ladder.Draw(surface, depth, area: book);
 ```
 
-`Row(i, n)`, `Column(i, n)`, `SplitTop/Bottom/Left/Right`, `Inset(pad)`. Splits return the strip **and
-the remainder**, so a layout reads top to bottom with no running offset to keep straight.
+`Row(i, n)`, `Column(i, n)`, `SplitTop/Bottom/Left/Right`, `Inset(pad)` — strip first every time, so a
+layout reads top to bottom with no running offset to keep straight.
 
 ## Where the work goes
 
@@ -102,18 +106,9 @@ the remainder**, so a layout reads top to bottom with no running offset to keep 
 callbacks run on a **pump thread** that may fire hundreds of times a second. So: compute in the
 callback, keep only what the picture needs in a **bounded** buffer, and read that field in `Draw`.
 
-```csharp
-private const int Capacity = 240;                       // a visualizer lives as long as its window
-private readonly List<Sample> _history = new(Capacity);
-
-private void Record(Sample s)
-{
-    if (_history.Count == Capacity) _history.RemoveAt(0);
-    _history.Add(s);
-}
-```
-
-Reaching for context, market data or the clock inside `Draw` means the work is in the wrong place.
+Bound the buffer to a fixed capacity and drop the oldest — a visualizer lives as long as its window,
+and both exemplars show the shape. Reaching for context, market data or the clock inside `Draw` means
+the work is in the wrong place.
 
 ## Composing your own
 

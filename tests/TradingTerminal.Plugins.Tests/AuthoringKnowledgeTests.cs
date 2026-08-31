@@ -231,4 +231,39 @@ public sealed class AuthoringKnowledgeTests
         body.Should().Contain("OnQuoteAsync").And.Contain("Quote");
         body.Should().NotContain("`Tick` (L1)", "the L1 callback receives a Quote, not the legacy Tick");
     }
+
+    [Fact]
+    public void TheDrawingSkillTeachesThatASplitReturnsTheStripFirst()
+    {
+        // The most expensive sentence in the pack. `SplitRight` returns (strip, remainder) — the strip
+        // FIRST — and the skill's worked example named them the other way round:
+        //
+        //     var (chart, side) = body.SplitRight(140d);
+        //
+        // which puts the chart in 140 pixels and the volume profile across everything else. It
+        // compiles, it draws, and every test passes.
+        //
+        // Both exemplars inherited exactly that inversion from here, and I made it a third time in the
+        // harness I wrote to look at the rendered window. Three call sites from one wrong example is
+        // the clearest evidence available that the knowledge is load-bearing.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "drawing").Body;
+
+        body.Should().Contain("(strip, remainder)", "the rule has to be stated, not implied");
+
+        // And demonstrated correctly: the name bound first must be the strip.
+        body.Should().Contain("var (book, chart)   = body.SplitRight(140d);");
+        body.Should().NotContain("var (chart, side)", "that names the strip 'chart' and inverts the picture");
+    }
+
+    [Fact]
+    public void TheDrawingSkillDoesNotClaimSomeWidgetsCannotBePlaced()
+    {
+        // It said "Any widget can be given a rectangle", which was aspirational rather than true:
+        // `Ladder`, `Candles` and `Footprint` read the viewport directly and ignored the area they were
+        // never given. The library has caught up, so the claim is now correct — and
+        // `EveryWidgetCanBePlaced` in the drawing suite is what keeps it that way.
+        var body = StrategySkillLibrary.Load().All.Single(skill => skill.Id == "drawing").Body;
+
+        body.Should().Contain("Every widget takes an `area`");
+    }
 }
