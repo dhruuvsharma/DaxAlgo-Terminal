@@ -1,4 +1,5 @@
 using DaxAlgo.Sdk;
+using DaxAlgo.Sdk.Layout;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 
@@ -42,8 +43,18 @@ public static class DrawProbe
     /// picture. After data has arrived, text alone means the unit is still explaining itself when it
     /// should be drawing.
     /// </param>
+    /// <param name="requirePanel">
+    /// Whether the callback owes the frame a panel scope.
+    ///
+    /// <para>True for <c>Draw</c>, which is handed the whole body: without a panel there is no clip and
+    /// no title, and both exemplars open one. <b>False for a panel callback in a
+    /// <see cref="UnitLayout"/></b> — <c>AuthoredUnitLayoutHost</c> has already given that callback its
+    /// own surface and drawn its header, so a scope opened there would title the region twice. Neither
+    /// exemplar opens one in its panel callbacks, which is the shape a generated unit copies, so
+    /// demanding it would fail every correct unit that declares a layout.</para>
+    /// </param>
     public static VerificationStep Run(
-        Action<IRenderSurface> draw, bool mustDraw, bool requirePicture = false)
+        Action<IRenderSurface> draw, bool mustDraw, bool requirePicture = false, bool requirePanel = true)
     {
         ArgumentNullException.ThrowIfNull(draw);
 
@@ -81,7 +92,7 @@ public static class DrawProbe
                 : VerificationStep.Skip(VerificationRung.DrawProbe);
         }
 
-        if (surface.Panels.Count == 0)
+        if (requirePanel && surface.Panels.Count == 0)
         {
             findings.Add(new VerificationFinding(
                 "draw.no-panel",
@@ -140,6 +151,78 @@ public static class DrawProbe
         return findings.Count == 0
             ? VerificationStep.Pass(VerificationRung.DrawProbe)
             : new VerificationStep(VerificationRung.DrawProbe, VerificationOutcome.Failed, findings);
+    }
+
+    /// <summary>
+    /// Rung 7 against the picture the HOST actually renders.
+    ///
+    /// <para>A unit that declares a <see cref="UnitLayout"/> is drawn by
+    /// <c>AuthoredUnitLayoutHost</c>, which builds one surface per panel and binds it to that panel's
+    /// own callback. <c>Draw</c> is not called at all — the contract says so in as many words: <i>"Draw
+    /// is then unused, because the panels do the drawing."</i></para>
+    ///
+    /// <para><b>The probe judged <c>Draw</c> regardless, and that was wrong in both directions.</b> A
+    /// unit that declared a layout and left <c>Draw</c> at its default — which the contract explicitly
+    /// permits — failed with <c>draw.blank</c> while rendering perfectly; and a unit whose visible panel
+    /// threw, emitted NaN or blew the frame budget passed, because the only thing examined was a
+    /// fallback nobody calls. The second direction is the expensive one: <c>AuthoringJudge</c> turns a
+    /// rung failure into a repair turn, so a false failure spends a generation rewriting working code,
+    /// and a false pass ships a broken window.</para>
+    ///
+    /// <para>Every panel is judged on its own and the findings are named by panel, because "something
+    /// in this window draws nothing" is not actionable and "the Book panel draws nothing" is.</para>
+    /// </summary>
+    /// <param name="layout">The unit's declared layout. Null or <see cref="UnitLayout.IsSingle"/> falls
+    /// through to <paramref name="draw"/>, which is the path almost every unit takes.</param>
+    /// <param name="draw">The unit's <c>Draw</c>, used when there is no layout to walk.</param>
+    public static VerificationStep RunLayout(
+        UnitLayout? layout, Action<IRenderSurface> draw, bool mustDraw, bool requirePicture = false)
+    {
+        ArgumentNullException.ThrowIfNull(draw);
+
+        if (layout is null || layout.IsSingle || layout.Root is null)
+            return Run(draw, mustDraw, requirePicture);
+
+        var panels = new List<PanelNode>();
+        Collect(layout.Root, panels);
+
+        // A layout with no panel in it cannot happen through the SDK's own factories, but a malformed
+        // tree falls back to a single panel elsewhere rather than throwing, so this does the same.
+        if (panels.Count == 0) return Run(draw, mustDraw, requirePicture);
+
+        var findings = new List<VerificationFinding>();
+        var anyPassed = false;
+
+        foreach (var panel in panels)
+        {
+            // requirePanel: false — the host already owns this panel's region and header.
+            var step = Run(panel.Draw, mustDraw, requirePicture, requirePanel: false);
+            if (step.Outcome == VerificationOutcome.Passed) anyPassed = true;
+
+            var name = string.IsNullOrWhiteSpace(panel.Title) ? "an untitled panel" : $"'{panel.Title}'";
+            foreach (var finding in step.Findings)
+                findings.Add(finding with { Message = $"Panel {name}: {finding.Message}" });
+        }
+
+        if (findings.Count > 0)
+            return new VerificationStep(VerificationRung.DrawProbe, VerificationOutcome.Failed, findings);
+
+        // Every panel skipped: a strategy that declares panels and paints nothing in any of them. Not a
+        // failure — a strategy is allowed to be pure signal logic — but nothing was checked either.
+        return anyPassed ? VerificationStep.Pass(VerificationRung.DrawProbe) : VerificationStep.Skip(VerificationRung.DrawProbe);
+    }
+
+    private static void Collect(LayoutNode node, List<PanelNode> into)
+    {
+        switch (node)
+        {
+            case PanelNode panel:
+                into.Add(panel);
+                break;
+            case SplitNode split:
+                foreach (var child in split.Children) Collect(child, into);
+                break;
+        }
     }
 
     /// <summary>

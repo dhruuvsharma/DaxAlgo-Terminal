@@ -97,8 +97,11 @@ public static class AuthoredUnitVerifier
             // A strategy may legitimately draw nothing, so mustDraw is false — but if it drew only a
             // warm-up message after fourteen bars, it is still explaining itself when it should be
             // showing something.
-            (VerificationRung.DrawProbe, () => DrawProbe.Run(
-                kernel.Draw, mustDraw: false, requirePicture: true)),
+            //
+            // Through the LAYOUT when it declares one, because that is the picture the host builds; the
+            // strategy exemplar declares a two-panel window, so this is not a rare shape.
+            (VerificationRung.DrawProbe, () => DrawProbe.RunLayout(
+                kernel.Layout, kernel.Draw, mustDraw: false, requirePicture: true)),
 
             (VerificationRung.Replay, () => ReplayProbe.Run(
                 drive?.Book.Intents ?? [],
@@ -119,9 +122,11 @@ public static class AuthoredUnitVerifier
                 drive?.Parameters.KeysRead ?? [],
                 drivenToCompletion: drive?.Completed == true)),
 
-            // A visualizer that draws nothing has no other purpose, so this one is not optional.
-            (VerificationRung.DrawProbe, () => DrawProbe.Run(
-                visualizer.Draw, mustDraw: true, requirePicture: true)),
+            // A visualizer that draws nothing has no other purpose, so this one is not optional — and it
+            // is asked of the PANELS when the unit declares a layout, since those are what the host
+            // renders and `Draw` is documented as unused once one exists.
+            (VerificationRung.DrawProbe, () => DrawProbe.RunLayout(
+                visualizer.Layout, visualizer.Draw, mustDraw: true, requirePicture: true)),
 
             // Nothing to replay: a visualizer has no book. Skipped rather than passed, so it earns
             // nothing for a rung it never faced.

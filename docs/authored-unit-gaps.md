@@ -8,6 +8,9 @@ hand-written authored answer to the same brief as `TradingTerminal.OrderBook`, w
 knowledge of the SDK and no model involved.
 
 Everything below is missing from the **contract**. A model cannot be marked down for any of it.
+**The other half — what a model actually produced on the same brief — is
+[`authored-unit-gaps-model-half.md`](authored-unit-gaps-model-half.md), and it is kept separate on
+purpose: a contract shortfall and a model shortfall need different work.**
 
 Measured 2026-08-31 against `TradingTerminal.OrderBook` (1,154-line view-model, 492-line XAML,
 448-line code-behind).
@@ -252,9 +255,17 @@ generated unit takes, and it came through clean at every step:
 | The real three-panel window via `AuthoredUnitLayoutHost` | every panel paints after a full drive |
 | A click on the liquidity panel | changes what that panel paints — the pin reaches the picture, not just the flag |
 
-So the harness is sound from source text to painted window. The remaining risk is concentrated in the
-one part that cannot be run here: **what a model actually produces**. That needs a live provider and a
-key, and is still not done.
+So the harness is sound from source text to painted window.
+
+**The model has now been run too, twice — 2026-08-31 and 2026-09-01.** The drive is committed as
+`HyperionBenchmark`, and what came out is in
+[`authored-unit-gaps-model-half.md`](authored-unit-gaps-model-half.md). Short version: on a free-tier
+model, one line of brief produced a 441-line three-panel order-book visualizer that compiles in two
+generations and clears the whole ladder, with the microstructure maths taken from the library and both
+verbs wired — and **no gestures whatsoever**, which is a teaching gap rather than a contract one.
+
+That run also found that the ladder had been judging the wrong method for every unit that declares a
+layout. See the same file.
 
 One caution the run produced: the panel has to be a realistic size before any of this means anything.
 At 320px the control's chart panel is 76px wide and a click lands wherever geometry puts it — the
