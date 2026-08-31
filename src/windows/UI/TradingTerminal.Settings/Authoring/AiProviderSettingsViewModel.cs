@@ -337,6 +337,15 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
         // become an absolute http(s) address never reaches the network, so reporting "returned no
         // models" would blame the provider for a typo -- and "localhost:1234/v1" with the scheme left
         // off is the commonest one there is.
+        // The more specific diagnosis first. An unedited template is syntactically a fine URL, so the
+        // check below would pass it and the user would get a DNS failure naming a host they never chose.
+        if (row.IsKeyed && CodegenBaseUrl.IsUnedited(row.BaseUrl))
+        {
+            Status = $"{row.DisplayName}: replace {CodegenBaseUrl.Placeholder} in the base URL with your "
+                + "own resource name first.";
+            return;
+        }
+
         if (row.IsKeyed && CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(row.BaseUrl)) is null)
         {
             Status = string.IsNullOrWhiteSpace(row.BaseUrl)

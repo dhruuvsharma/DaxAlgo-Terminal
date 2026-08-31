@@ -12,6 +12,23 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 /// </summary>
 public static class CodegenBaseUrl
 {
+    /// <summary>
+    /// The stand-in a preset puts where only the user can supply the value.
+    ///
+    /// <para>Azure is the one provider whose preset cannot work as shipped: the resource name is part of
+    /// the host, so the URL is a template rather than an address. It parses as a perfectly good absolute
+    /// https URL, which means every syntactic check passes and the first thing the user sees is a DNS
+    /// failure that says nothing about the placeholder they left in.</para>
+    ///
+    /// <para>Matched as the whole token rather than a "YOUR-" prefix, so a real host that happens to
+    /// contain those letters is not refused.</para>
+    /// </summary>
+    public const string Placeholder = "YOUR-RESOURCE";
+
+    /// <summary>True when a base URL is still the template it shipped as.</summary>
+    public static bool IsUnedited(string? baseUrl) =>
+        baseUrl is not null && baseUrl.Contains(Placeholder, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>True when the text names this machine, so the repaired scheme should be plain http.</summary>
     private static bool LooksLoopback(string text)
     {

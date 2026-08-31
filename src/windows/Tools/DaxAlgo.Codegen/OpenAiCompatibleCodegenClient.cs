@@ -84,7 +84,8 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     public string DisplayName { get; }
 
     public bool IsAvailable =>
-        _baseUri is not null && !string.IsNullOrWhiteSpace(_model) &&
+        _baseUri is not null && !CodegenBaseUrl.IsUnedited(_baseUrl) &&
+        !string.IsNullOrWhiteSpace(_model) &&
         (_keyless || !string.IsNullOrWhiteSpace(_apiKey));
 
     public string Model => _model;
