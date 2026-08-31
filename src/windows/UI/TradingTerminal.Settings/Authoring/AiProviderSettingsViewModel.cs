@@ -333,6 +333,18 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
             return;
         }
 
+        // Said before the request, because after it every failure looks the same. A base URL that cannot
+        // become an absolute http(s) address never reaches the network, so reporting "returned no
+        // models" would blame the provider for a typo -- and "localhost:1234/v1" with the scheme left
+        // off is the commonest one there is.
+        if (row.IsKeyed && CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(row.BaseUrl)) is null)
+        {
+            Status = string.IsNullOrWhiteSpace(row.BaseUrl)
+                ? $"{row.DisplayName} has no base URL yet."
+                : $"\"{row.BaseUrl}\" is not a usable base URL - it needs a host, over http or https.";
+            return;
+        }
+
         Status = $"Asking {row.DisplayName} what it serves...";
 
         // Never throws by contract - a failed lookup is an empty list - so the two outcomes are "some

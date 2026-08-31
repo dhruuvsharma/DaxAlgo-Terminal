@@ -25,6 +25,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
     private readonly HttpClient _http;
     private readonly string _baseUrl;
+    private readonly Uri? _baseUri;
     private readonly string _model;
     private readonly string? _apiKey;
 
@@ -43,6 +44,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         ProviderId = providerId;
         DisplayName = displayName;
         _baseUrl = NormaliseBaseUrl(baseUrl);
+        _baseUri = TryAbsolute(_baseUrl);
         _model = model;
         _apiKey = NormaliseApiKey(apiKey);
         _keyless = keyless;
@@ -82,7 +84,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     public string DisplayName { get; }
 
     public bool IsAvailable =>
-        !string.IsNullOrWhiteSpace(_baseUrl) && !string.IsNullOrWhiteSpace(_model) &&
+        _baseUri is not null && !string.IsNullOrWhiteSpace(_model) &&
         (_keyless || !string.IsNullOrWhiteSpace(_apiKey));
 
     public string Model => _model;
@@ -93,7 +95,9 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// picker can list what this key/server actually has. A failure is an empty list, never an error.</summary>
     public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_baseUrl)) return [];
+        // Not IsAvailable: listing models deliberately works before a model is chosen, which is the
+        // whole point of the button. It does need a usable URL.
+        if (_baseUri is null) return [];
 
         using var req = new HttpRequestMessage(HttpMethod.Get, ModelsUrl);
         Authorize(req);
@@ -295,33 +299,13 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         }
     }
 
-    /// <summary>
-    /// Takes what a user pasted and returns the base this client can append to.
-    ///
-    /// <para><b>The mistake this exists for is the natural one.</b> Every provider's quickstart shows
-    /// the <i>full</i> endpoint — NVIDIA calls it <c>invoke_url</c>, OpenAI shows the curl line — so a
-    /// user configuring a provider pastes
-    /// <c>https://integrate.api.nvidia.com/v1/chat/completions</c> into a field labelled "base URL".
-    /// This client then appends its own path and requests
-    /// <c>.../chat/completions/chat/completions</c>, which 404s with no body worth reading. It looks
-    /// like a broken provider or a rejected key, and it has already cost one setup.</para>
-    ///
-    /// <para>So a trailing well-known path is stripped rather than trusted. Being forgiving here is
-    /// cheap; the alternative is every user rediscovering the same 404.</para>
-    /// </summary>
-    internal static string NormaliseBaseUrl(string? baseUrl)
-    {
-        var text = (baseUrl ?? string.Empty).Trim().TrimEnd('/');
+    /// <summary>Kept as the client's own entry points because this is where the wire is built; the
+    /// logic moved to <see cref="CodegenBaseUrl"/> when it turned out Anthropic takes the same
+    /// user-typed base URL and had the same hole.</summary>
+    internal static string NormaliseBaseUrl(string? baseUrl) => CodegenBaseUrl.Normalise(baseUrl);
 
-        // Longest first: /v1/chat/completions must lose the whole tail, not just /completions.
-        foreach (var suffix in (string[])["/chat/completions", "/completions", "/responses"])
-        {
-            if (text.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                return text[..^suffix.Length].TrimEnd('/');
-        }
-
-        return text;
-    }
+    /// <inheritdoc cref="CodegenBaseUrl.TryAbsolute"/>
+    internal static Uri? TryAbsolute(string? baseUrl) => CodegenBaseUrl.TryAbsolute(baseUrl);
 
     /// <summary>
     /// Takes what a user pasted into an API-key field and returns the token.

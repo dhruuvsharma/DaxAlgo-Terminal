@@ -178,6 +178,30 @@ public sealed class ProviderRoundTripTests
     // ── the server ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>A loopback endpoint that answers the OpenAI-compatible shape.</summary>
+    [Fact]
+    public async Task A_loopback_address_typed_without_a_scheme_still_reaches_the_provider()
+    {
+        // The repair, proven against a real socket rather than as string equality. A user running LM
+        // Studio or vLLM copies "127.0.0.1:PORT/v1" out of its readme, and that has to WORK, not merely
+        // fail politely -- it is the single most likely bring-your-own-provider setup, and the one with
+        // no vendor support article to fall back on when it does not.
+        using var server = FakeProvider.Start(streaming: false);
+
+        var schemeless = server.BaseUrl.Replace("http://", string.Empty, StringComparison.Ordinal);
+        schemeless.Should().NotStartWith("http", "the point is that the scheme is missing");
+
+        var client = new OpenAiCompatibleCodegenClient(
+            new HttpClient(), "loopback", "Loopback", schemeless, "test-model", "sk-loopback");
+
+        client.IsAvailable.Should().BeTrue();
+
+        var response = await client.GenerateAsync(new StrategyCodegenRequest(
+            "You write strategies.", [new(CodegenRole.User, "write me an edge kernel")]));
+
+        response.Success.Should().BeTrue(response.Error);
+        response.FileList[0].Name.Should().Be("EdgeKernel.cs");
+    }
+
     private sealed class FakeProvider : IDisposable
     {
         private readonly HttpListener _listener = new();

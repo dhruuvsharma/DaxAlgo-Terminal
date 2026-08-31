@@ -18,6 +18,7 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
 
     private readonly HttpClient _http;
     private readonly string _baseUrl;
+    private readonly Uri? _baseUri;
     private readonly string _model;
     private readonly string? _apiKey;
     private readonly CodegenEffort _effort;
@@ -27,7 +28,14 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         CodegenEffort effort = CodegenEffort.Default)
     {
         _http = http;
-        _baseUrl = string.IsNullOrWhiteSpace(baseUrl) ? "https://api.anthropic.com" : baseUrl.TrimEnd('/');
+        // Blank means the real API. Anything else is a proxy the user typed, so it goes through the
+        // same repair the OpenAI-compatible field gets -- and is then held to being a real absolute
+        // http(s) URL. Falling back to api.anthropic.com on a bad proxy URL would be worse than
+        // refusing: it would send the key somewhere the user did not ask for.
+        _baseUrl = string.IsNullOrWhiteSpace(baseUrl)
+            ? "https://api.anthropic.com"
+            : CodegenBaseUrl.Normalise(baseUrl);
+        _baseUri = CodegenBaseUrl.TryAbsolute(_baseUrl);
         _model = model;
         _apiKey = apiKey;
         _effort = effort;
@@ -35,7 +43,8 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
 
     public string ProviderId => "anthropic";
     public string DisplayName => "Anthropic (API key)";
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(_model) && !string.IsNullOrWhiteSpace(_apiKey);
+    public bool IsAvailable =>
+        _baseUri is not null && !string.IsNullOrWhiteSpace(_model) && !string.IsNullOrWhiteSpace(_apiKey);
     public string Model => _model;
     public CodegenEffort Effort => _effort;
     public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
@@ -44,7 +53,7 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
     /// the picker just falls back to the curated shortlist.</summary>
     public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_apiKey)) return [];
+        if (string.IsNullOrWhiteSpace(_apiKey) || _baseUri is null) return [];
 
         using var req = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/v1/models?limit=100");
         req.Headers.TryAddWithoutValidation("x-api-key", _apiKey);

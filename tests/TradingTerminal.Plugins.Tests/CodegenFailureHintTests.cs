@@ -1,3 +1,4 @@
+using System.Net.Http;
 using FluentAssertions;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -126,6 +127,60 @@ public sealed class CodegenFailureHintTests
     public void A_correct_base_is_left_alone(string given, string expected)
     {
         OpenAiCompatibleCodegenClient.NormaliseBaseUrl(given).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("localhost:1234/v1", "http://localhost:1234/v1")]
+    [InlineData("127.0.0.1:8000/v1", "http://127.0.0.1:8000/v1")]
+    [InlineData("api.example.com/v1", "https://api.example.com/v1")]
+    public void A_base_url_with_no_scheme_gets_one(string given, string expected)
+    {
+        // Local-runtime quickstarts write the address without a scheme -- LM Studio's own page says
+        // localhost:1234/v1 -- and a field labelled "base URL" invites pasting exactly that. Uri reads
+        // "localhost" as the SCHEME, so it is not a malformed URL that fails cleanly: HttpClient throws
+        // NotSupportedException("The 'localhost' scheme is not supported") straight out of the lookup.
+        //
+        // http for loopback because that is what those runtimes serve. https for anything else, since a
+        // public endpoint reached over http would put the user's API key on the wire in clear text.
+        OpenAiCompatibleCodegenClient.NormaliseBaseUrl(given).Should().Be(expected);
+    }
+
+    // ── a typo must fail, not throw ──────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("not a url")]
+    [InlineData("http://")]
+    [InlineData("://bad")]
+    [InlineData("h ttp://x/v1")]
+    [InlineData("ftp://files.example.com/v1")]
+    public async Task A_typoed_base_url_returns_no_models_rather_than_throwing(string baseUrl)
+    {
+        // ListModelsAsync documents "never throws: a failed lookup is an empty list", and the provider
+        // settings page takes that literally -- its refresh command has no catch, on the stated grounds
+        // that the two outcomes are "some models" and "none".
+        //
+        // The catch inside the client filtered on HttpRequestException, TaskCanceledException and
+        // JsonException. A relative or odd-scheme URL raises neither: HttpClient throws
+        // InvalidOperationException or NotSupportedException, which went straight past the filter and
+        // out of a method promising it could not. Every string here threw before the URL was validated
+        // up front, on the one action a user performs first with a freshly pasted key.
+        var client = new OpenAiCompatibleCodegenClient(
+            new HttpClient(), "typo", "Typo", baseUrl, "m", "sk-x");
+
+        (await client.ListModelsAsync()).Should().BeEmpty();
+        client.IsAvailable.Should().BeFalse("a URL that cannot be requested is not a usable provider");
+    }
+
+    [Fact]
+    public async Task A_typoed_anthropic_proxy_url_returns_no_models_rather_than_throwing()
+    {
+        // Anthropic's base URL is settable for a proxy and had the identical hole. Note it must not
+        // quietly fall back to api.anthropic.com either: that would send the key to a host the user
+        // did not name.
+        var client = new AnthropicCodegenClient(new HttpClient(), "not a url", "claude-x", "sk-ant-x");
+
+        (await client.ListModelsAsync()).Should().BeEmpty();
+        client.IsAvailable.Should().BeFalse();
     }
 
     // ── API key normalisation ───────────────────────────────────────────────────────────────────
