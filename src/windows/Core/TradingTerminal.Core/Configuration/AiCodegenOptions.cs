@@ -108,9 +108,18 @@ public sealed class AiCodegenOptions
     /// and the guess loses either way. Too low and a hard brief at high effort is killed halfway,
     /// billing the user for tokens they never receive. Too high and it is not a safety net anyway.</para>
     ///
-    /// <para>Cancellation is the control that actually belongs here: the pane's Stop button already
-    /// cancels the request, and that is a decision by the person paying for it rather than by a number
-    /// in a config file.</para>
+    /// <para>Cancellation is the control that actually belongs here: the pane's Stop button cancels the
+    /// request, and that is a decision by the person paying for it rather than by a number in a config
+    /// file. <b>That only became true on 2026-09-01</b> — the streamed body was read through
+    /// <c>StreamReader.EndOfStream</c>, a synchronous read that ignores the token, so a provider which
+    /// went quiet could not be stopped by anything at all.</para>
+    ///
+    /// <para><b>On a streaming provider this is an IDLE bound, not a total one</b>, and it is the only
+    /// bound there is: the clients send with <c>ResponseHeadersRead</c>, so <c>HttpClient.Timeout</c>
+    /// covers the header phase and nothing after it. The clock resets on every line received. Silence
+    /// is the signal, because a reasoning model legitimately spends minutes producing nothing — 278
+    /// seconds before its first byte, measured — and a total wall clock would abandon exactly the
+    /// generations worth waiting for.</para>
     /// </summary>
     public int TimeoutSeconds { get; set; }
 

@@ -74,21 +74,62 @@ internal sealed class AnthropicEventAccumulator
             : 0;
 }
 
-/// <summary>Reads <c>text/event-stream</c> lines into their <c>data:</c> payloads. Stops at
-/// <c>[DONE]</c> (the OpenAI terminator; Anthropic just ends the stream).</summary>
+/// <summary>
+/// Reads <c>text/event-stream</c> lines into their <c>data:</c> payloads. Stops at <c>[DONE]</c> (the
+/// OpenAI terminator; Anthropic just ends the stream).
+///
+/// <para><b>This is where a generation's time is actually spent</b>, and until 2026-09-01 it was
+/// neither cancellable nor bounded. The loop was <c>while (!reader.EndOfStream)</c>, and
+/// <see cref="StreamReader.EndOfStream"/> is a synchronous, uncancellable read: on a quiet socket it
+/// parks the calling thread and ignores the token entirely. So the Stop button did not stop a stalled
+/// provider — pinned by <c>StalledStreamTests</c>, which fails against the old loop.</para>
+///
+/// <para><c>HttpClient.Timeout</c> does not help either. The clients send with
+/// <c>ResponseHeadersRead</c>, so it covers the header phase and nothing after it. That is why the
+/// bound here is an <b>idle</b> timeout rather than a total one: a reasoning model legitimately emits
+/// nothing for minutes — 278 seconds before the first byte, measured — so a total wall clock would
+/// abandon exactly the generations worth waiting for, while silence is a real signal that a provider
+/// has stopped answering.</para>
+/// </summary>
 internal static class ServerSentEvents
 {
+    /// <param name="idleTimeout">How long to wait for the NEXT line before giving up. The clock resets
+    /// on every line, keep-alives included, so a slow answer is fine and a silent one is not.
+    /// <see cref="Timeout.InfiniteTimeSpan"/> or a non-positive value waits forever, which is what a
+    /// configured timeout of zero means: the user's Stop button is the control.</param>
+    /// <exception cref="TimeoutException">The provider sent nothing for <paramref name="idleTimeout"/>.
+    /// Thrown rather than ended quietly, because a truncated stream returned as a normal end looks to
+    /// every caller like a model that chose to stop early.</exception>
     public static async IAsyncEnumerable<JsonElement> ReadAsync(
         Stream stream,
+        TimeSpan idleTimeout,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         using var reader = new StreamReader(stream);
+        var bounded = idleTimeout > TimeSpan.Zero && idleTimeout != Timeout.InfiniteTimeSpan;
 
-        while (!reader.EndOfStream)
+        while (true)
         {
             ct.ThrowIfCancellationRequested();
 
-            var line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
+            string? line;
+            using (var idle = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            {
+                if (bounded) idle.CancelAfter(idleTimeout);
+
+                try
+                {
+                    line = await reader.ReadLineAsync(idle.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    // Ours, not the caller's: the linked source fired on silence. Distinguished on the
+                    // caller's token rather than on the exception, because both arrive as the same type.
+                    throw new TimeoutException(
+                        $"The provider sent nothing for {idleTimeout.TotalSeconds:0}s.");
+                }
+            }
+
             if (line is null) break;
             if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
 

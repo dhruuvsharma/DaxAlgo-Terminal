@@ -117,7 +117,10 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     [LiveProviderFact]
     public async Task A_model_answers_the_order_book_brief()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
+        // This number now MEANS something: since 2026-09-01 it is the idle bound on the stream, not
+        // just the header phase. Generous on purpose — the slowest run recorded took 1,017 s end to end
+        // — because the expensive direction is abandoning a generation that was going to work.
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         var client = new OpenAiCompatibleCodegenClient(
             http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
             effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);

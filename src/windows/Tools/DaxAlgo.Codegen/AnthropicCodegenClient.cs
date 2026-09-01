@@ -110,9 +110,29 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
             var accumulator = new AnthropicEventAccumulator();
             await using var body = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
-            await foreach (var evt in ServerSentEvents.ReadAsync(body, ct).ConfigureAwait(false))
+            // By hand rather than `await foreach`, for the reason TrySendAsync exists below: an iterator
+            // may not yield from a catch, and a provider that opens a stream and then goes quiet has to
+            // be reported rather than thrown past the caller.
+            await using var events = ServerSentEvents
+                .ReadAsync(body, _http.Timeout, ct)
+                .GetAsyncEnumerator(ct);
+
+            while (true)
             {
-                foreach (var streamed in accumulator.Consume(evt))
+                var (moved, stalled) = await OpenAiCompatibleCodegenClient
+                    .TryMoveAsync(events).ConfigureAwait(false);
+
+                if (stalled is not null)
+                {
+                    yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
+                        $"{DisplayName} opened a stream and then stopped sending. {stalled} "
+                        + "Raise AiCodegen:TimeoutSeconds if the model needs longer to think."));
+                    yield break;
+                }
+
+                if (!moved) break;
+
+                foreach (var streamed in accumulator.Consume(events.Current))
                     yield return streamed;
             }
 

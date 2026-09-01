@@ -177,8 +177,29 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             var usage = CodegenUsage.None;
             await using var body = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
-            await foreach (var chunk in ServerSentEvents.ReadAsync(body, ct).ConfigureAwait(false))
+            // Driven by hand rather than with `await foreach`, for the reason TrySendAsync exists: an
+            // iterator may not yield from a catch, and a stalled provider has to be REPORTED rather
+            // than thrown past the caller.
+            await using var chunks = ServerSentEvents
+                .ReadAsync(body, _http.Timeout, ct)
+                .GetAsyncEnumerator(ct);
+
+            while (true)
             {
+                var (moved, stalled) = await TryMoveAsync(chunks).ConfigureAwait(false);
+
+                if (stalled is not null)
+                {
+                    yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
+                        $"{DisplayName} opened a stream and then stopped sending. {stalled} "
+                        + "Raise AiCodegen:TimeoutSeconds if the model needs longer to think, or try "
+                        + "another provider."));
+                    yield break;
+                }
+
+                if (!moved) break;
+                var chunk = chunks.Current;
+
                 if (chunk.TryGetProperty("choices", out var choices) &&
                     choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0 &&
                     choices[0].TryGetProperty("delta", out var delta) &&
@@ -207,6 +228,21 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
             ? value.GetInt32()
             : 0;
+
+    /// <summary>Advances the stream and classifies the stall, for the same reason as
+    /// <see cref="TrySendAsync"/>: an iterator may not yield from a catch.</summary>
+    internal static async Task<(bool Moved, string? Stalled)> TryMoveAsync(
+        IAsyncEnumerator<JsonElement> chunks)
+    {
+        try
+        {
+            return (await chunks.MoveNextAsync().ConfigureAwait(false), null);
+        }
+        catch (TimeoutException stalled)
+        {
+            return (false, stalled.Message);
+        }
+    }
 
     /// <summary>Sends and classifies the failure, because an iterator may not yield from a catch.</summary>
     private async Task<(HttpResponseMessage? Response, string? Failure)> TrySendAsync(
