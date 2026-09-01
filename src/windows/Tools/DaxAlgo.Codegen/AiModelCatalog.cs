@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Strategies.Authoring;
+﻿using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -56,6 +56,13 @@ public static class AiModelCatalog
     public static bool SupportsEffort(string providerId) => providerId.ToLowerInvariant() switch
     {
         "anthropic" or "claude-cli" or "openai" or "xai" or "openrouter" => true,
+
+        // TokenRouter is in this list and the two gateways below are not, because it was MEASURED
+        // rather than reasoned about: reasoning_effort=low and =high were both accepted by
+        // z-ai/glm-5.3-free, the one model the endpoint serves. It also matters more here than
+        // elsewhere -- GLM 5.3 emits nothing but reasoning_content until it has finished thinking, so
+        // the effort dial is the difference between a generation and a long silence.
+        "tokenrouter" => true,
 
         // OpenCode Zen fronts models from several vendors behind one OpenAI-compatible endpoint, and
         // which of them read a reasoning-effort parameter depends on the model chosen rather than on

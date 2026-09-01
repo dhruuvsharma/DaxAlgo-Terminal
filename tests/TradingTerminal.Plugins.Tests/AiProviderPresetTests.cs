@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentAssertions;
@@ -164,6 +164,33 @@ public sealed class AiProviderPresetTests
         client!.IsAvailable.Should().BeTrue(
             "a server on this machine wants no API key, so the absence of one must not make the "
             + "provider unusable");
+    }
+
+    [Fact]
+    public void TokenRouter_is_shipped_named_and_offers_the_effort_dial()
+    {
+        // Pinned by name, because the sweeps above check the SHAPE of whatever is in the table and
+        // would stay green if this row were deleted. What is asserted here is that it is there.
+        //
+        // Every fact was measured against the live endpoint rather than read off a page. GET /v1/models
+        // returns exactly one model, z-ai/glm-5.3-free. reasoning_effort=low and =high were both
+        // accepted. That last one is why it is in SupportsEffort while the other multi-vendor gateways
+        // are not -- and it matters more here than elsewhere, because GLM 5.3 emits nothing but
+        // reasoning_content until it has finished thinking.
+        var shipped = ShippedConfiguration().Providers;
+
+        var row = shipped.Should().ContainSingle(p => p.Id == "tokenrouter").Subject;
+        row.BaseUrl.Should().Be("https://api.tokenrouter.com/v1");
+
+        AiModelCatalog.SupportsEffort("tokenrouter").Should().BeTrue(
+            "GLM 5.3 accepted both low and high, and the dial is what keeps a reasoning model from "
+            + "thinking silently for minutes");
+
+        // The picker ships no guessed list for it: the endpoint serves /models, and one free model id
+        // on a gateway is exactly the kind of fact that goes stale in a fortnight.
+        AiModelCatalog.For("tokenrouter").Should().BeEmpty();
+        AiModelCatalog.Offer("tokenrouter", "z-ai/glm-5.3-free").Should().ContainSingle()
+            .Which.Should().Be("z-ai/glm-5.3-free");
     }
 
     // -- the OTHER table of the same facts ------------------------------------------------------
