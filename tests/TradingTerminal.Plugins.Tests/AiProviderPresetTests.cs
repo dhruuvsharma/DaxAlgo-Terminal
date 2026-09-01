@@ -309,12 +309,25 @@ public sealed class AiProviderPresetTests
         return (dflt, providers);
     }
 
+    /// <summary>
+    /// The repository this file was compiled from.
+    ///
+    /// <para><b>Recognised by appsettings.json, not by a solution name.</b> It looked for
+    /// <c>TradingTerminal.Windows.slnx</c>, which exists only in the authoring repo -- so every test
+    /// here that reads the shipped configuration failed in BOTH installer repos, and had been failing
+    /// long enough to be written down as expected. Three of them, and the promotion of a fourth is
+    /// what made it worth fixing rather than inheriting.</para>
+    ///
+    /// <para>The file being looked for is the right marker anyway: these tests are about
+    /// <c>appsettings.json</c>, so a root without one is no use to them whatever it is called, and a
+    /// root with one can be checked in every edition.</para>
+    /// </summary>
     private static string RepositoryRoot([CallerFilePath] string thisFile = "")
     {
         // <root>/tests/TradingTerminal.Plugins.Tests/AiProviderPresetTests.cs
         var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(thisFile)!, "..", ".."));
-        File.Exists(Path.Combine(root, "TradingTerminal.Windows.slnx")).Should().BeTrue(
-            $"'{root}' should be the repository root");
+        File.Exists(Path.Combine(root, "appsettings.json")).Should().BeTrue(
+            $"'{root}' should be the repository root, holding the shipped appsettings.json");
         return root;
     }
 
