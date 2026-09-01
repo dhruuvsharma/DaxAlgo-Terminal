@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.Http;
 using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
@@ -56,6 +56,21 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     private static string LiveModel => Env("HYPERION_LIVE_MODEL") ?? "minimax/minimax-m3:free";
 
     private static string LiveProvider => Env("HYPERION_LIVE_PROVIDER") ?? "openrouter";
+
+    /// <summary>
+    /// The pipeline effort, from <c>HYPERION_EFFORT</c> (quick / standard / deep / max).
+    ///
+    /// <para>It was pinned to Standard at every call site, so the two settings that buy the most --
+    /// Deep and Max, which route through the six-agent path and load eight skill packs -- had never
+    /// once been driven against a real provider. The benchmark measured the cheapest configuration
+    /// and the reports said "effort | Standard" without anyone choosing it.</para>
+    ///
+    /// <para>Selecting the effort also selects the reasoning effort sent to the model:
+    /// <c>StrategyBuildProfile.For(Max).Reasoning</c> is <c>CodegenEffort.Max</c>. One knob, both
+    /// halves -- which is why this must not be read in two places with two defaults.</para>
+    /// </summary>
+    internal static StrategyBuildEffort LiveEffort =>
+        StrategyBuildEfforts.Parse(Env("HYPERION_EFFORT") ?? "standard");
 
     private static string? Env(string name) =>
         Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
@@ -123,7 +138,7 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         var client = new OpenAiCompatibleCodegenClient(
             http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
 
         output.WriteLine($"{LiveProvider} · {LiveModel} · {LiveBaseUrl}");
         var directory = RunDirectory("live");
@@ -185,7 +200,7 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         var client = new OpenAiCompatibleCodegenClient(
             http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
 
         output.WriteLine($"{LiveProvider} · {LiveModel} · {LiveBaseUrl}");
         var directory = RunDirectory("live-3d");
@@ -219,10 +234,10 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         var client = new OpenAiCompatibleCodegenClient(
             http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
 
         var pack = StrategyContextPack.Load();
-        var profile = StrategyBuildProfile.For(StrategyBuildEffort.Standard);
+        var profile = StrategyBuildProfile.For(LiveEffort);
         var session = new StrategyCodegenOrchestrator(
                 new RoslynStrategyCompiler(), logger: null,
                 skills: StrategySkillLibrary.Load(), pack: pack)
@@ -265,13 +280,13 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         var client = new OpenAiCompatibleCodegenClient(
             http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
 
         var directory = RunDirectory(Env("HYPERION_LABEL") ?? name.ToLowerInvariant());
-        output.WriteLine($"{LiveProvider} · {LiveModel} · {kind} · {brief}");
+        output.WriteLine($"{LiveProvider} · {LiveModel} · {kind} · {LiveEffort} · {brief}");
 
         var result = await HyperionBenchmark.RunAsync(
-            client, new RoslynStrategyCompiler(), kind, StrategyBuildEffort.Standard, brief, directory,
+            client, new RoslynStrategyCompiler(), kind, LiveEffort, brief, directory,
             new TestWriter(output));
 
         output.WriteLine(File.ReadAllText(Path.Combine(directory, "summary.md")));
