@@ -172,6 +172,36 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
             output.WriteLine($"    {finding}");
     }
 
+    /// <summary>
+    /// The harder brief: a picture the widget library has never seen.
+    ///
+    /// <para>The order-book brief measures whether a model uses the library well. This one measures
+    /// whether it can build something the library does not contain — 3D, a mark per order, and motion
+    /// — which is the capability the goal is actually about and the one nothing has yet tested.</para>
+    /// </summary>
+    [LiveProviderFact]
+    public async Task A_model_answers_the_battlefield_brief()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        var client = new OpenAiCompatibleCodegenClient(
+            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
+            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+
+        output.WriteLine($"{LiveProvider} · {LiveModel} · {LiveBaseUrl}");
+        var directory = RunDirectory("live-3d");
+        var result = await HyperionBenchmark.RunAsync(
+            client, new RoslynStrategyCompiler(), AuthoringKind.Visualizer,
+            StrategyBuildEffort.Standard, HyperionBenchmark.BattlefieldBrief, directory,
+            new TestWriter(output));
+
+        output.WriteLine(File.ReadAllText(Path.Combine(directory, "summary.md")));
+
+        result.Turns.Should().NotBeEmpty();
+        result.Turns.Should().NotContain(
+            t => t.Kind == BuildTurnKind.ProviderError,
+            because: string.Join(" | ", result.Turns.Select(t => t.Error)));
+    }
+
     private static string Errors(StrategyCompileResult? compile) => compile is null
         ? "nothing compiled"
         : string.Join(" | ", compile.Errors.Select(d => $"{d.Id} {d.Location} {d.Message}"));

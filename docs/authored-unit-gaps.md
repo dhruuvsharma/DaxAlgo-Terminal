@@ -179,7 +179,7 @@ nobody uses.
 Named snapshots of the parameter set, saved and reapplied. The host owns the parameter values, so
 this is a host feature that simply has not been built, rather than a contract gap.
 
-## ~~8. A picture could not move~~ — closed 2026-09-01
+### ~~8. A picture could not move~~ — closed 2026-09-01
 
 Not found against the order-book control, which is a still picture and correct as one. It came from the
 restated goal: an order book drawn as a battlefield needs soldiers that move, and **a unit had no way
@@ -234,7 +234,7 @@ Demonstrated in `BookPressureVisualizer`, in the same change, per the rule that
 **an exemplar is what a model copies**: a sweep print marks the right edge and the mark fades over 1.5
 seconds. Still open: nothing yet measures whether a model picks it up.
 
-## ~~9. 3D was not expressible at all~~ — closed 2026-09-01
+### ~~9. 3D was not expressible at all~~ — closed 2026-09-01
 
 The hand-written 3D windows used HelixToolkit. An authored unit gets 2D primitives, and the hard
 constraint stands: no `FrameworkElement`, no WPF type, data and callbacks only.
@@ -245,7 +245,7 @@ to near. Painter's algorithm, four types, no scene, no mesh, no light, no z-buff
 reaches the host** — `RenderSurfaceView`, the frame budget and the two-pass discovery are untouched,
 which is the whole reason this is affordable at all.
 
-### The cost, and placement is the entire answer
+#### The cost, and placement is the entire answer
 
 `SdkSurfaceGenerator.Section()` sorts a type by namespace and `SdkSurfaceSelector` may only ration two
 of the five sections. So:
@@ -264,7 +264,7 @@ Two estimates in the design were wrong and are recorded in
 is *compacted* to a line and therefore **never rationed**, so shaping `Camera3` that way to "make it
 free" in fact made it the most expensive of the four — 268 of the 516.
 
-### The half that is not the SDK's
+#### The half that is not the SDK's
 
 `DepthLandscapeVisualizer` is the worked exemplar, embedded and selected by a 3D brief, and it clears
 the whole ladder including the zero-sized frame. It exists because **gestures and verbs both shipped
@@ -278,7 +278,7 @@ test pins the expensive direction, that an ordinary book brief still gets the or
 those wrongly and no ordering fixes it. Exact for scattered markers and for a height field walked back
 to front, which is what these pictures are. Said in the doc comment rather than left to be discovered.
 
-### And the drawing pack was telling the model not to animate
+#### And the drawing pack was telling the model not to animate
 
 Found while making room for the 3D teaching. *"Reaching for context, market data or **the clock**
 inside `Draw` means the work is in the wrong place."* — true when it was written, and flatly wrong
@@ -288,7 +288,7 @@ The same shape as every other defect in this file: a capability added, and a doc
 the reader not to use it. The sentence now names the three reads that are *designed* for `Draw` —
 `Viewport`, `Cursor`, `Now` — and says why they are reads.
 
-### What the whole iteration cost the prompt
+#### What the whole iteration cost the prompt
 
 | | order-book brief |
 |---:|---:|
@@ -333,15 +333,23 @@ a gap here appears in the surface, and the contract sections are never rationed.
 |---|---:|
 | before the surface cut | 112,219 |
 | after the surface cut | 94,435 |
-| after verbs + the exemplar demonstrating them | **99,070** |
+| after verbs + the exemplar demonstrating them | 99,070 |
 
-So two iterations of capability have spent 4,635 of the 17,784 the cut bought.
+The current figures are in entry 9 above (Standard effort, so not directly comparable to these Deep
+ones — but the *shape* is what matters and it has not changed): capability keeps spending what the cut
+bought.
 
-**The exemplar is not the next lever, which was measured rather than assumed.** It is 13,306
-characters and unrationed, and that looked like the obvious place to squeeze — but it is **72% code**:
-XML docs are 15.6% and inline comments 12.0%. Stripping every comment would save 3.7 KB on a 99 KB
-prompt and cost the model the commenting style the exemplar exists to teach. There is no cheap win
-there; the remaining lever is the surface budget, whose curve is in `SdkSurfaceSelector`.
+**The exemplar cannot usefully be SHRUNK — measured — and that is not the same as it being cheap to
+GROW.** It is unrationed and 72% code: XML docs are 15.6% and inline comments 12.0%, so stripping every
+comment would save 3.7 KB and cost the commenting style the exemplar exists to teach. No cheap win
+there.
+
+But the 2026-09-01 measurement put the other half of that on the record. Adding **one** demonstration
+to the order-flow exemplar — the sweep fade, about forty lines — cost **2,883 characters**, more than
+`surface.Now` and the entire 3D library together. An exemplar is sent verbatim and never rationed, so
+it is simultaneously the most effective place to teach something and the most expensive. **Demonstrate
+in the exemplar the brief will actually select**, and put a capability that needs its own worked
+example in its own exemplar, where only a brief that asks pays for it.
 
 ## Three things the contract promised and did not do
 

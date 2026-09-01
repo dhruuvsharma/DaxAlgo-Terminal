@@ -36,6 +36,18 @@ public static class HyperionBenchmark
         "An order book window: the depth ladder, a liquidity heatmap over time, and the microstructure "
         + "statistics.";
 
+    /// <summary>
+    /// The second brief, and the harder one: a picture the widget library has never seen.
+    ///
+    /// <para>Deliberately the goal's own reference case rather than something tamer. It asks for
+    /// three things at once that nothing in the tables provides — a scene in 3D, one mark per resting
+    /// order, and motion — so it cannot be answered by reaching for a widget, which is exactly what
+    /// makes it worth measuring.</para>
+    /// </summary>
+    public const string BattlefieldBrief =
+        "The order book as a 3D battlefield: each resting order is a soldier standing on the price it "
+        + "rests at, and the armies move as the book changes.";
+
     /// <summary>What one drive measured. Every field is read off the run rather than estimated.</summary>
     /// <param name="Turns">One entry per user turn — the brief, then the escape if the model asked.</param>
     /// <param name="SystemPromptCharacters">The composed system prompt actually sent.</param>
