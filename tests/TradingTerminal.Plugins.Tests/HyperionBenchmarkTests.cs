@@ -241,6 +241,46 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
         turn.Kind.Should().NotBe(BuildTurnKind.ProviderError, turn.Error ?? string.Empty);
     }
 
+    /// <summary>
+    /// Drives whatever brief the environment names, so the six windows the goal calls "the bar" can be
+    /// run one at a time without a fact apiece.
+    ///
+    /// <para><c>HYPERION_BRIEF</c> is either a field name on <see cref="HyperionBenchmark.TheBar"/> —
+    /// <c>SigmaIcFlow</c>, <c>ImbalanceHeatFront</c>, <c>IndexRegimeGraph</c>, <c>VolumeFootprint</c>,
+    /// <c>SurfaceGraph</c> — or a literal brief. <c>HYPERION_KIND=strategy|visualizer</c> and
+    /// <c>HYPERION_LABEL</c> name the artifact folder.</para>
+    /// </summary>
+    [LiveProviderFact]
+    public async Task A_model_answers_the_named_brief()
+    {
+        var name = Env("HYPERION_BRIEF") ?? nameof(HyperionBenchmark.TheBar.VolumeFootprint);
+        var brief = typeof(HyperionBenchmark.TheBar)
+            .GetField(name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            ?.GetValue(null) as string ?? name;
+
+        var kind = string.Equals(Env("HYPERION_KIND"), "strategy", StringComparison.OrdinalIgnoreCase)
+            ? AuthoringKind.Strategy
+            : AuthoringKind.Visualizer;
+
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        var client = new OpenAiCompatibleCodegenClient(
+            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
+            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+
+        var directory = RunDirectory(Env("HYPERION_LABEL") ?? name.ToLowerInvariant());
+        output.WriteLine($"{LiveProvider} · {LiveModel} · {kind} · {brief}");
+
+        var result = await HyperionBenchmark.RunAsync(
+            client, new RoslynStrategyCompiler(), kind, StrategyBuildEffort.Standard, brief, directory,
+            new TestWriter(output));
+
+        output.WriteLine(File.ReadAllText(Path.Combine(directory, "summary.md")));
+
+        result.Turns.Should().NotContain(
+            t => t.Kind == BuildTurnKind.ProviderError,
+            because: string.Join(" | ", result.Turns.Select(t => t.Error)));
+    }
+
     private static string Errors(StrategyCompileResult? compile) => compile is null
         ? "nothing compiled"
         : string.Join(" | ", compile.Errors.Select(d => $"{d.Id} {d.Location} {d.Message}"));

@@ -45,6 +45,48 @@ public static class HyperionBenchmark
     /// makes it worth measuring.</para>
     /// </summary>
     /// <summary>
+    /// One-line briefs for the six hand-written windows the goal names as the bar — three strategies
+    /// and three visualizers. Each says what the window IS and nothing about how to build it, because
+    /// the claim under test is that a short brief is enough.
+    ///
+    /// <para>Kept here beside the others so a run is reproducible from a name rather than from a
+    /// sentence somebody retyped.</para>
+    /// </summary>
+    public static class TheBar
+    {
+        // ── strategies ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>SigmaIcFlow: the Σ⁻¹·IC order-flow optimizer.</summary>
+        public const string SigmaIcFlow =
+            "A scalping strategy that blends several order-flow estimators from the trade tape into one "
+            + "signal, weighting them by inverse covariance times each estimator's information "
+            + "coefficient, and shows the weights it chose.";
+
+        /// <summary>ImbalanceHeatFront: a 3D heat front of book imbalance.</summary>
+        public const string ImbalanceHeatFront =
+            "A strategy that watches order-book imbalance build across price and time and draws it as a "
+            + "3D heat front, taking a position when the front advances toward the mid.";
+
+        /// <summary>IndexRegimeGraph: constituents scored across timeframes, drawn as a graph.</summary>
+        public const string IndexRegimeGraph =
+            "A strategy that scores the market regime of each constituent of an index across several "
+            + "timeframes and draws them as a node graph you can pan and zoom, trading the index when "
+            + "the regimes agree.";
+
+        // ── visualizers ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>The VolumeFootprint window.</summary>
+        public const string VolumeFootprint =
+            "A volume footprint chart: bid and ask volume clustered by price inside each time bar, with "
+            + "the point of control and the value area marked.";
+
+        /// <summary>The 3D surface graph.</summary>
+        public const string SurfaceGraph =
+            "A 3D surface of order-flow imbalance over price and time, coloured from blue through grey "
+            + "to red, with the largest spike highlighted.";
+    }
+
+    /// <summary>
     /// The vague brief, and it exists to settle one question rather than to measure a window.
     ///
     /// <para>Four live runs have produced zero questions, on briefs that named what they wanted. The

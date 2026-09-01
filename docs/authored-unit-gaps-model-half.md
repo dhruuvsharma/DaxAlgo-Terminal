@@ -126,8 +126,24 @@ inverse projection, which the SDK deliberately does not provide.
 and rejects `HasSelection` on its own — a click is not a hover, and it was the click that made the old
 exemplar look like it read the pointer.
 
-**Prediction, to be confirmed or refuted by the next run:** an order-book brief should now produce a
-crosshair. If it does not, the exemplar-shape explanation is weaker than three instances suggest.
+**Prediction, and it was REFUTED on the next run.** I predicted an order-book brief would now produce a
+crosshair. Run 5, same brief, same model, with `Crosshair` appearing **four times** in the composed
+prompt — the exemplar and the drawing pack's gesture table both: **zero** `Cursor` or `Viewport` in the
+generated unit. Again.
+
+So the lesson was over-read, and the correction is worth more than the original claim:
+
+> **"Whatever an exemplar omits is omitted downstream" is true. Its converse is not.** Putting a
+> capability *into* the exemplar does not make a weak model reproduce it.
+
+What the model copies reliably is the **skeleton** — schema, callbacks, layout, panels, widget calls —
+and it drops the embellishments whether or not the exemplar has them. Three omissions looked like a
+rule about exemplars; adding the thing back shows it is a rule about what a model has budget for.
+
+The panel-scope fix worked because it changed the skeleton (`Draw` opening its own scope). The
+crosshair fix did not, because a crosshair is a leaf. **The next thing to try is therefore not another
+exemplar edit** — that has now been measured — but making the readout structural, or accepting that
+gestures are a Deep-effort feature and measuring them there.
 
 ### 3. No signed-imbalance lane
 
