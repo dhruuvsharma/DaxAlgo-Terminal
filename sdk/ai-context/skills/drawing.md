@@ -95,12 +95,13 @@ layout reads top to bottom with no running offset to keep straight.
 `Draw` runs on the **render thread** and blocks the UI while it runs. Your data callbacks run on a
 **pump thread** that may fire hundreds of times a second. So: compute in the callback, keep only what
 the picture needs in a **bounded** buffer (fixed capacity, drop the oldest), and read that field in
-`Draw`. Reaching for context, market data or the clock inside `Draw` means the work is in the wrong
-place.
+`Draw`. Reaching for context or market data inside `Draw` means the work is in the wrong place.
 
-## Composing your own
+**`Draw` is invoked more than once per frame**, so it must be pure: never advance a counter, append to
+a list, or latch a state there. Everything the host offers it is a *read* for exactly that reason —
+`surface.Viewport`, `surface.Cursor`, and `surface.Now`.
 
-When nothing in the tables fits:
+## Putting a frame together
 
 ```csharp
 public void Draw(IRenderSurface surface)
@@ -111,21 +112,44 @@ public void Draw(IRenderSurface surface)
     var range = Plot.RangeOf(_history, s => s.Value).Padded();
     Plot.HorizontalGrid(surface, range);           // also declares the Y axis
     surface.AxisX(0d, Math.Max(1, _history.Count - 1));
-
     Series.Draw(surface, "Delta", _history, s => s.Value, range: range);
     Plot.Crosshair(surface, range);                // no-op when the pointer is elsewhere
 }
 ```
 
-**Panels stack** — open several in sequence for a chart with a histogram beneath it, and each gets its
-title written into its corner. The host supplies no axes: `AxisX`/`AxisY` declare the range your
-coordinates are in, and the LABELS come from whichever widget you hand a format to. **Series kinds**:
-`Line` for a continuous value, `Steps` for what holds until it changes (position, regime), `Bars` for
-per-interval quantities, `Area` for cumulative, `Scatter` for events.
+**Panels stack** — open several in sequence, each titled in its corner. The host supplies no axes:
+`AxisX`/`AxisY` declare the range your coordinates are in, and the LABELS come from whichever widget
+you hand a format to. **Series kinds**: `Line` for a continuous value, `Steps` for what holds until it
+changes, `Bars` for per-interval quantities, `Area` for cumulative, `Scatter` for events.
 
-**`PlotRange.Padded()` matters more than it looks** — it gives a *flat* range a usable width. A series
-of identical prices is otherwise a zero-height range nothing can plot against, and the panel comes out
-empty for a reason invisible in the code.
+**`PlotRange.Padded()` gives a *flat* range a usable width.** Identical prices are otherwise a
+zero-height range nothing can plot against, and the panel comes out empty for a reason invisible in
+the code.
+
+## No widget fits, including in three dimensions
+
+A brief can ask for a picture nothing above resembles. **Do not substitute the nearest widget and do
+not refuse** — `Line`, `Rect`, `Marker` and `Text` draw anything. Work out the geometry, map your data
+into panel coordinates, and emit primitives, one small method per shape.
+
+There is no 3D surface and there will not be one, because a unit never touches a control. **Project
+it yourself:**
+
+```csharp
+var view = Projection3.Of(Camera3.Default, area.Width, area.Height);  // .Orbit(seconds) to turn
+foreach (var row in rowsOldestFirst)                                  // FAR TO NEAR
+{
+    Projected p = view.Project(new Vec3(x, height, z));
+    if (!p.InFront) continue;                    // behind the camera projects to a plausible LIE
+    surface.Line(area.X + prev.X, area.Y + prev.Y, area.X + p.X, area.Y + p.Y);
+}
+```
+
+Sort by `Projected.Depth` **descending** so nearer things are drawn last and cover what is behind
+them; always test `InFront`; size the projection from `surface.Viewport` and return early when it has
+no area; and fade older rows with `Alpha` rather than inventing a lighting model. Exact for markers
+and for a height field walked back to front — it sorts *wrongly* for shapes that interpenetrate, and
+no ordering fixes that.
 
 ## Colour
 

@@ -189,6 +189,9 @@ double SweepSlippage(IReadOnlyList<DepthLevel> side, double units, double refere
 - `Microprice` — The microprice of a quote.
 - `Microprice` — The microprice at the top of a depth snapshot.
 
+<!-- @type Camera3 | Quant helpers -->
+- `Camera3` — Where the viewer stands and what they are looking at. Pass to `Of`. `Default` looks at the origin from in front and slightly above, which frames a unit cube sensibly. Fields: FieldOfViewDegrees, Position, Target, Up. Use `Camera3.Default`, never `new()`.
+
 <!-- @type Dema | Quant helpers -->
 ### `Dema`
 
@@ -493,6 +496,36 @@ void Update(double level)
 - `UnitRootStatistic` — The Dickey-Fuller statistic. Compare against `CriticalValue`, not against two.
 - `Update` — Adds one observation of the spread or level being fitted.
 
+<!-- @type Projected | Quant helpers -->
+### `Projected`
+
+One projected point, in panel pixels, with what a unit needs to draw it correctly.
+
+```csharp
+double Depth { get; }
+bool InFront { get; }
+double X { get; }
+double Y { get; }
+```
+
+- `Depth` — Distance from the camera. Sort DESCENDING and draw in that order: painter's algorithm, far things first, so near things cover them.
+- `InFront` — False when the point is behind the camera, and it must be checked. A point behind the camera projects to a perfectly plausible-looking position on the other side of the picture, so a unit that draws it puts geometry where none exists — and every naive implementation draws it. Skip a point, or a whole shape, when this is false.
+- `X` — Panel X.
+- `Y` — Panel Y, already flipped — screen Y grows downwards while world Y grows up.
+
+<!-- @type Projection3 | Quant helpers -->
+### `Projection3`
+
+Turns world coordinates into panel coordinates, so a unit can draw in three dimensions with the two-dimensional primitives.
+
+```csharp
+Projection3 Of(Camera3 camera, double width, double height)
+Projected Project(Vec3 world)
+```
+
+- `Of` — A projection for one panel. Take the size from `surface.Viewport` so the picture is framed correctly at whatever size the host gives the panel.
+- `Project` — One world point in panel pixels. Check `InFront` before drawing, and sort by `Depth` descending so nearer things are drawn last.
+
 <!-- @type RealizedVolatility | Quant helpers -->
 ### `RealizedVolatility`
 
@@ -695,6 +728,30 @@ int WorstLosingStreak { get; }
 - `Record` — Records one closed trade's profit and loss.
 - `Wins` — Trades that made money.
 - `WorstLosingStreak` — The longest run of losers seen.
+
+<!-- @type Vec3 | Quant helpers -->
+### `Vec3`
+
+A point or direction in three dimensions.
+
+```csharp
+Vec3 Cross(Vec3 a, Vec3 b)
+double Dot(Vec3 a, Vec3 b)
+double Length { get; }
+Vec3 Normalized()
+Vec3 Up { get; }
+double X { get; }
+double Y { get; }
+double Z { get; }
+Vec3 Zero { get; }
+```
+
+- `Cross` — The vector perpendicular to both, right-handed.
+- `Up` — Straight up. The conventional `Up` for a camera that is not rolled.
+- `X` — Rightwards.
+- `Y` — Upwards.
+- `Z` — Away from the viewer.
+- `Zero` — The origin.
 
 <!-- @type Vpin | Quant helpers -->
 ### `Vpin`

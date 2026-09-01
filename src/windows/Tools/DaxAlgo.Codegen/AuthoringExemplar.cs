@@ -52,6 +52,25 @@ public static class AuthoringExemplar
     ];
 
     /// <summary>
+    /// Words that make the THREE-DIMENSIONAL exemplar the right one to show, and it outranks the
+    /// order-flow one.
+    ///
+    /// <para>A brief asking for a book in space is asking for both, and the landscape teaches both:
+    /// it consumes depth snapshots exactly as the order-flow exemplar does, and it is the only worked
+    /// example of projection and of composing a picture out of primitives rather than calling a
+    /// widget. Depth handling shown twice costs nothing; projection shown nowhere is the gap.</para>
+    ///
+    /// <para>Kept narrow on purpose. Exactly one exemplar is ever sent, so a list that also caught
+    /// "surface" or "cube" would quietly take the order-flow example away from ordinary book
+    /// briefs — the expensive direction, and pinned as such in
+    /// <c>ThreeDimensionalUnitTests</c>.</para>
+    /// </summary>
+    private static readonly string[] SpatialWords =
+    [
+        "3d", "3-d", "three dimensional", "three-dimensional", "battlefield", "isometric", "perspective",
+    ];
+
+    /// <summary>
     /// The exemplar for one kind and brief, already normalised, or empty when none is embedded.
     /// </summary>
     /// <param name="kind">What is being authored.</param>
@@ -119,18 +138,25 @@ public static class AuthoringExemplar
     private static string? Source(AuthoringKind kind, string? brief) => kind switch
     {
         AuthoringKind.Strategy => "MovingAverageCrossKernel.cs",
-        AuthoringKind.Visualizer => WantsOrderFlow(brief)
-            ? "BookPressureVisualizer.cs"
-            : "SpreadBandVisualizer.cs",
+        AuthoringKind.Visualizer => WantsSpace(brief)
+            ? "DepthLandscapeVisualizer.cs"
+            : WantsOrderFlow(brief)
+                ? "BookPressureVisualizer.cs"
+                : "SpreadBandVisualizer.cs",
         _ => null,
     };
 
+    /// <summary>True when the brief asks for a picture in three dimensions.</summary>
+    internal static bool WantsSpace(string? brief) => Mentions(brief, SpatialWords);
+
     /// <summary>True when the brief is about the book or the tape rather than a price series.</summary>
-    internal static bool WantsOrderFlow(string? brief)
+    internal static bool WantsOrderFlow(string? brief) => Mentions(brief, OrderFlowWords);
+
+    private static bool Mentions(string? brief, string[] words)
     {
         if (string.IsNullOrWhiteSpace(brief)) return false;
 
-        foreach (var word in OrderFlowWords)
+        foreach (var word in words)
         {
             if (brief.Contains(word, StringComparison.OrdinalIgnoreCase)) return true;
         }

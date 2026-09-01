@@ -120,6 +120,7 @@ public sealed class AuthoringExemplarTests
         { AuthoringKind.Strategy, null },
         { AuthoringKind.Visualizer, null },
         { AuthoringKind.Visualizer, "an order book depth ladder with footprint imbalance" },
+        { AuthoringKind.Visualizer, "the order book as a 3D landscape" },
     };
 
     [Fact]

@@ -234,6 +234,76 @@ Demonstrated in `BookPressureVisualizer`, in the same change, per the rule that
 **an exemplar is what a model copies**: a sweep print marks the right edge and the mark fades over 1.5
 seconds. Still open: nothing yet measures whether a model picks it up.
 
+## ~~9. 3D was not expressible at all~~ — closed 2026-09-01
+
+The hand-written 3D windows used HelixToolkit. An authored unit gets 2D primitives, and the hard
+constraint stands: no `FrameworkElement`, no WPF type, data and callbacks only.
+
+**The answer is arithmetic, not a renderer.** `Projection3.Of(camera, width, height).Project(point)`
+turns a world point into a panel point; the unit sorts by `Projected.Depth` descending and draws far
+to near. Painter's algorithm, four types, no scene, no mesh, no light, no z-buffer. **Nothing new
+reaches the host** — `RenderSurfaceView`, the frame budget and the two-pass discovery are untouched,
+which is the whole reason this is affordable at all.
+
+### The cost, and placement is the entire answer
+
+`SdkSurfaceGenerator.Section()` sorts a type by namespace and `SdkSurfaceSelector` may only ration two
+of the five sections. So:
+
+| Where a type lives | Charged |
+|---|---|
+| `IRenderSurface` (a contract section) | every prompt, always — `surface.Now` costs 1,914 that way |
+| **anything outside `Quant`/`Drawing`** — including `DaxAlgo.Sdk` itself | every prompt, always. This is the trap |
+| `DaxAlgo.Sdk.Quant` or `DaxAlgo.Sdk.Drawing` | rationed: a capped index line unless the brief asks |
+
+All four types are in `DaxAlgo.Sdk.Quant`. Measured on the order-book brief, which does not mention
+3D: **516 characters, 0.45% of the prompt.** The blocks themselves total 2,300.
+
+Two estimates in the design were wrong and are recorded in
+`.claude/context/tasks/2026-09-01-1900-3d-projection-design.md`. The instructive one: an options record
+is *compacted* to a line and therefore **never rationed**, so shaping `Camera3` that way to "make it
+free" in fact made it the most expensive of the four — 268 of the 516.
+
+### The half that is not the SDK's
+
+`DepthLandscapeVisualizer` is the worked exemplar, embedded and selected by a 3D brief, and it clears
+the whole ladder including the zero-sized frame. It exists because **gestures and verbs both shipped
+documented and undemonstrated and did not transfer** — measured, twice. It is also the only exemplar
+that **composes a picture out of primitives** rather than calling a widget, which is brief item 4.
+
+Exactly one exemplar is ever sent, so it costs nothing on a brief that does not ask for it — and a
+test pins the expensive direction, that an ordinary book brief still gets the order-flow example.
+
+**What projection cannot do** is occlusion between interpenetrating shapes; painter's algorithm sorts
+those wrongly and no ordering fixes it. Exact for scattered markers and for a height field walked back
+to front, which is what these pictures are. Said in the doc comment rather than left to be discovered.
+
+### And the drawing pack was telling the model not to animate
+
+Found while making room for the 3D teaching. *"Reaching for context, market data or **the clock**
+inside `Draw` means the work is in the wrong place."* — true when it was written, and flatly wrong
+since `surface.Now` shipped the iteration before. A model reading it would decline to animate.
+
+The same shape as every other defect in this file: a capability added, and a document left telling
+the reader not to use it. The sentence now names the three reads that are *designed* for `Draw` —
+`Viewport`, `Cursor`, `Now` — and says why they are reads.
+
+### What the whole iteration cost the prompt
+
+| | order-book brief |
+|---:|---:|
+| before `surface.Now` | 109,247 |
+| after animation (`Now` 1,914 unconditional; the exemplar's fade demo 2,883) | 114,253 |
+| after 3D (types 516 on this brief; the drawing pack's 3D section, net of two paragraphs cut) | **115,655** |
+
+The skill ceiling moved 20,000 → 21,000 to keep the three heaviest packs fitting together, which is
+the second time it has moved for that reason and is recorded where the constant is.
+**The exemplar, not the SDK, was the biggest single line in that table** — 2,883 characters for one
+demonstration, more than `Now` and the whole 3D library put together.
+
+**Not yet measured: whether a model uses any of it.** That needs a live 3D run, and is the next
+benchmark.
+
 ## What is NOT a gap
 
 - **Instrument selection.** `StrategyParameter.Instrument` and the host picker cover it.

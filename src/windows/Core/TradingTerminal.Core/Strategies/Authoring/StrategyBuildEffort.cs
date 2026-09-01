@@ -58,8 +58,6 @@ public static class StrategyBuildEfforts
 /// <param name="MaxFixAttempts">How many compiler-error retries a turn gets after the first generation.</param>
 /// <param name="SelfReview">Run one extra generation after a clean compile asking the model to critique
 /// and improve its own strategy. A review that doesn't compile is discarded, never adopted.</param>
-/// <param name="BacktestSmoke">After a clean compile, run the strategy's lifecycle over a handful of
-/// synthetic ticks purely to catch runtime throws. Advisory — a failure is a diagnostic, not a block.</param>
 /// <param name="Verify">
 /// Run the verification ladder on what was produced. Called <c>BacktestSmoke</c> until 2026-08-25, after
 /// the pass it named had been replaced — the smoke drove fabricated ticks past a stub router; this

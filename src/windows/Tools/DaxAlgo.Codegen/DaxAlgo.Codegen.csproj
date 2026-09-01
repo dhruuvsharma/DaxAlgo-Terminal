@@ -69,6 +69,13 @@
     <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\BookPressureVisualizer.cs">
       <LogicalName>DaxAlgo.Codegen.Exemplars.BookPressureVisualizer.cs</LogicalName>
     </EmbeddedResource>
+    <!-- The three-dimensional one, shown when the brief asks for a picture in space. It is also the
+         only worked example that COMPOSES a picture out of primitives rather than calling a widget,
+         which is the other thing a model has nowhere else to learn. Exactly one exemplar is ever
+         sent, so this costs nothing on a brief that does not ask for it. -->
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\DepthLandscapeVisualizer.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.DepthLandscapeVisualizer.cs</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

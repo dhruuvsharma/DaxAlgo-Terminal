@@ -101,8 +101,22 @@ public sealed class StrategySkillLibrary
     /// asserting a margin as well makes the next pack edit fail at "this is getting tight" rather than
     /// at "a brief already lost its drawing catalogue". Cost is bounded and small — the packs are a few
     /// percent of a prompt whose bulk is the generated surface.</para>
+    ///
+    /// <para><b>Raised again to 21,000 on 2026-09-01, and the margin is what raised it.</b> Projection
+    /// arrived — a unit can now draw in three dimensions — and the drawing pack had to teach it, which
+    /// took the three heaviest to within 378 characters of the ceiling. That is the tripwire working:
+    /// it fired at "this is getting tight", which is the whole reason it exists.</para>
+    ///
+    /// <para>The alternative was cutting the widget catalogue, and this comment already argues against
+    /// that four paragraphs up: a widget the model cannot see is a widget it writes from scratch and
+    /// gets wrong. Two paragraphs of the drawing pack WERE cut first — a worked snippet that restated
+    /// the table above it — which bought about 500 of the 1,000. The rest is the ceiling moving.</para>
+    ///
+    /// <para><b>Deliberately no number for "the three heaviest" here.</b> The last time this comment
+    /// carried one it was stale, and read as a comfortable margin while the real figure was
+    /// forty-nine characters from dropping a pack. <c>SkillBudgetTests</c> computes it.</para>
     /// </remarks>
-    public const int MaxCharacters = 20_000;
+    public const int MaxCharacters = 21_000;
 
     /// <summary>
     /// How much of <see cref="MaxCharacters"/> must remain unused by the three heaviest packs.
