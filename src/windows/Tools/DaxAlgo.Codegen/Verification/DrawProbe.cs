@@ -194,14 +194,14 @@ public static class DrawProbe
         ArgumentNullException.ThrowIfNull(draw);
 
         if (layout is null || layout.IsSingle || layout.Root is null)
-            return Run(draw, mustDraw, requirePicture);
+            return Merge(Run(draw, mustDraw, requirePicture), RunDegenerate(draw));
 
         var panels = new List<PanelNode>();
         Collect(layout.Root, panels);
 
         // A layout with no panel in it cannot happen through the SDK's own factories, but a malformed
         // tree falls back to a single panel elsewhere rather than throwing, so this does the same.
-        if (panels.Count == 0) return Run(draw, mustDraw, requirePicture);
+        if (panels.Count == 0) return Merge(Run(draw, mustDraw, requirePicture), RunDegenerate(draw));
 
         var findings = new List<VerificationFinding>();
         var anyPassed = false;
@@ -215,6 +215,9 @@ public static class DrawProbe
             var name = string.IsNullOrWhiteSpace(panel.Title) ? "an untitled panel" : $"'{panel.Title}'";
             foreach (var finding in step.Findings)
                 findings.Add(finding with { Message = $"Panel {name}: {finding.Message}" });
+
+            foreach (var finding in RunDegenerate(panel.Draw).Findings)
+                findings.Add(finding with { Message = $"Panel {name}: {finding.Message}" });
         }
 
         if (findings.Count > 0)
@@ -223,6 +226,23 @@ public static class DrawProbe
         // Every panel skipped: a strategy that declares panels and paints nothing in any of them. Not a
         // failure — a strategy is allowed to be pure signal logic — but nothing was checked either.
         return anyPassed ? VerificationStep.Pass(VerificationRung.DrawProbe) : VerificationStep.Skip(VerificationRung.DrawProbe);
+    }
+
+    /// <summary>
+    /// One rung, two passes: the real frame and the zero-sized one.
+    ///
+    /// <para>They are the same rung because they answer the same question — is the picture sound — and
+    /// a report with two <c>DrawProbe</c> steps in it would make every consumer decide which one it
+    /// meant. The degenerate pass carries no verdict of its own, only findings.</para>
+    /// </summary>
+    private static VerificationStep Merge(VerificationStep frame, VerificationStep degenerate)
+    {
+        if (degenerate.Findings.Count == 0) return frame;
+
+        return new VerificationStep(
+            VerificationRung.DrawProbe,
+            VerificationOutcome.Failed,
+            [.. frame.Findings, .. degenerate.Findings]);
     }
 
     private static void Collect(LayoutNode node, List<PanelNode> into)

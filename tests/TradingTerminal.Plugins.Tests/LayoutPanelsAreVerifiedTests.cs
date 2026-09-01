@@ -60,6 +60,22 @@ public sealed class LayoutPanelsAreVerifiedTests
         report.Findings.Should().Contain(f => f.Code == "draw.blank");
     }
 
+    [Fact]
+    public void A_panel_that_divides_by_the_viewport_is_caught()
+    {
+        // DrawProbe.RunDegenerate was written for this, tested, and then called by NO verifier — only by
+        // its own unit tests. A collapsed panel, a window restored from minimised, a layout pass before
+        // measurement: all report zero size, and the crash lands on the render thread of a running
+        // application rather than here.
+        //
+        // Measured before wiring it in: it changes no verdict on either exemplar, the control, or the
+        // two units a live model produced. It costs nothing to be right about.
+        var report = AuthoredUnitVerifier.Verify(Unit(typeof(ViewportDividingVisualizer)));
+
+        Step(report, VerificationRung.DrawProbe).Outcome.Should().Be(VerificationOutcome.Failed);
+        report.Findings.Should().Contain(f => f.Code.StartsWith("draw.degenerate", StringComparison.Ordinal));
+    }
+
     private static VerificationStep Step(VerificationReport report, VerificationRung rung) =>
         report.Steps.Single(s => s.Rung == rung);
 
@@ -110,6 +126,30 @@ public sealed class LayoutPanelsAreVerifiedTests
 
         private static void DrawBroken(IRenderSurface surface) =>
             throw new InvalidOperationException("the panel the user looks at is broken");
+    }
+
+    /// <summary>Draws a good picture at a real size and scales by a width that can be zero. Fine on
+    /// every frame the probe used to run, and a division by zero on the one it did not.</summary>
+    private sealed class ViewportDividingVisualizer : IVisualizer
+    {
+        public StrategyParameterSchema Schema { get; } = StrategyParameterSchema.Empty;
+
+        public StrategyDataRequirement DataRequirement => StrategyDataRequirement.L1;
+
+        public UnitLayout Layout => UnitLayout.Rows(UnitLayout.Panel("Scaled", DrawScaled).Star(1));
+
+        public Task OnStartAsync(IVisualizerContext context, CancellationToken ct) => Task.CompletedTask;
+
+        private static void DrawScaled(IRenderSurface surface)
+        {
+            surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Accent)));
+
+            // The shape a first draft actually has: step across the panel in N slices. At zero width
+            // every coordinate is NaN, and the host paints a frame of nothing at all.
+            var step = surface.Viewport.Width / surface.Viewport.Width;
+            for (var i = 0; i < 8; i++)
+                surface.Line(i * step, 10d, i * step + step, 40d);
+        }
     }
 
     /// <summary>No layout, blank Draw — the case rung 7 has always caught.</summary>

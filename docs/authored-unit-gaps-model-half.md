@@ -158,14 +158,18 @@ This is the ninth defect in this area of the shape *built, unit-tested, never re
 runs* — and the first where the thing not reached was the **verifier's own subject**. `DrawProbe` has
 thirteen tests and every one of them hands it a callback directly.
 
-### Still unreached, found while fixing the above
+### ~~Still unreached~~ — measured and wired in, 2026-09-01
 
 `DrawProbe.RunDegenerate` — the second pass against a zero-sized viewport, which the file itself
 motivates with "a panel collapsed to nothing, a window restored minimised, a layout pass before
-measurement" — **is called by no verifier**. Only by tests. So a unit that divides by the viewport
-still reaches the render thread of a running application. Left open deliberately: adding it makes the
-ladder stricter, which changes which generated units pass, and that deserves its own measurement rather
-than being smuggled into this one.
+measurement" — **was called by no verifier**. Only by its own tests. So a unit that divides by the
+viewport reached the render thread of a running application.
+
+It was left open for one iteration on the grounds that a stricter ladder changes which generated units
+pass, and that deserved measuring rather than assuming. **Measured: it changes no verdict on either
+exemplar, the control, or either of the two units a live model produced.** It is free to be right
+about, so it now runs — per panel, alongside the normal frame, merged into the one rung so no consumer
+has to decide which of two `DrawProbe` steps it meant.
 
 ## Run 2 — 2026-09-01, a stronger model, and a worse window
 
@@ -241,14 +245,21 @@ rewrite working code. The clock now advances with the revealed bars, and stays d
 is the bar series rather than the machine's clock. Exactly the same omission as feeding no depth and no
 tape, one file over and one iteration later.
 
-**2. `AiCodegenOptions.TimeoutSeconds` does not bound a streaming generation.** Observed, not reasoned:
-`HttpClient.Timeout` was 15 minutes, the generation took 17, and nothing fired. The streaming path
-sends with `HttpCompletionOption.ResponseHeadersRead`, so the timeout covers the header phase only and
-the body is read under the caller's token alone. The factory's own doc calls it *"one generation's wall
-clock"*. In the app the Stop button supplies a token so a user can escape; a scripted caller passing
-`default` cannot, and a provider that opens a stream and goes quiet hangs forever. **Not fixed** — an
-idle timeout is the right shape (a reasoning model legitimately emits nothing for minutes, so a total
-wall clock is wrong), and it deserves its own change rather than being folded into this one.
+**2. `AiCodegenOptions.TimeoutSeconds` did not bound a streaming generation — fixed, and it was worse
+than it looked.** Observed, not reasoned: `HttpClient.Timeout` was 15 minutes, the generation took 17,
+and nothing fired. The streaming path sends with `ResponseHeadersRead`, so the timeout covers the
+header phase only.
+
+Chasing it found the thing underneath: **the reader could not be cancelled either.** The loop was
+`while (!reader.EndOfStream)`, and `StreamReader.EndOfStream` is a synchronous read that ignores the
+token — so the Stop button, which `TimeoutSeconds`' own documentation names as *"the control that
+actually belongs here"*, did not stop a provider that had gone quiet. The control the configuration
+defers to did not work.
+
+Both fixed. The bound is now an **idle** timeout, reset on every line, because a reasoning model
+legitimately emits nothing for minutes (278 s before its first byte, measured) and a total wall clock
+would abandon exactly the generations worth waiting for. `StalledStreamTests` covers all four cases,
+including the one that matters most: a stream that answers *slowly* is not cut off.
 
 Also worth recording: that provider rate-limits at 8 requests/minute, which the fix loop can exceed on
 its own; the first attempt died on a 429 at the first request. The benchmark reported it as a
