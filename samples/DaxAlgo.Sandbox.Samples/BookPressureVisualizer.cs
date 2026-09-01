@@ -264,13 +264,17 @@ public sealed class BookPressureVisualizer : IVisualizer
         // coordinates: scaling what is drawn would magnify the text and the line widths with it.
         var shown = Math.Clamp((int)(HistoryCapacity / surface.Viewport.Zoom), 8, _history.Count);
 
-        Series.Chart(
+        var range = Series.Chart(
             surface,
             [
                 SeriesData.Dashed("Mid", Column(static s => s.Mid, shown), RenderThemeColor.Neutral),
                 SeriesData.Line("Microprice", Column(static s => s.Microprice, shown), RenderThemeColor.Accent),
             ],
             area: price);
+
+        // One line, and it is the difference between a picture and something a trader can read a value
+        // off. A no-op when the pointer is elsewhere, so it costs nothing the rest of the time.
+        Plot.Crosshair(surface, range, area: price);
 
         // A clicked row stays clicked, so the viewer can read it after moving the pointer away. The
         // cursor is a READ — the host accumulates the gesture and this only looks at the result, which

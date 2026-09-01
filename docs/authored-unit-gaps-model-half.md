@@ -105,11 +105,29 @@ the *shape* of a unit — schema, callbacks, layout, draw — is the whole exemp
 faithfully. **A model imitates the exemplar far more strongly than it reads the reference**, which the
 loop brief already states as measured, and this is another instance of it.
 
-### 2. No crosshair and no hover readout
+### ~~2. No crosshair and no hover readout~~ — cause found 2026-09-01, third instance of one lesson
 
-Related to the above and worth listing separately, because it needs no gesture *state* — `RenderCursor`
-is a read and `RenderSurfaceView` invalidates on `MouseMove`, so a crosshair costs one call. The control
-draws price and size at the pointer over the heatmap.
+Not a teaching gap: the drawing pack names `Plot.Crosshair` in its gesture table, with a row for
+"hovers". **It was the exemplars.** `SpreadBandVisualizer` and `MovingAverageCrossKernel` each draw a
+crosshair — and neither has ever been selected by a benchmark brief. The two that *were* selected:
+
+| Exemplar | Selected by | Read the pointer? |
+|---|---|---|
+| `BookPressureVisualizer` | runs 1, 2 (order book) | only `HasSelection` — a **click**, never a hover |
+| `DepthLandscapeVisualizer` | runs 3, 4 (battlefield) | not at all |
+
+Four runs, four units, no readout. Fixed in both: one line of `Plot.Crosshair` in the order-flow
+exemplar, and — since a crosshair does not translate to a projected scene, there being no axis to drop
+a line onto — the 3D one now marks the **vertex nearest the pointer** and prints its price offset and
+size. Every vertex is already projected in order to draw it, so that is a comparison rather than an
+inverse projection, which the SDK deliberately does not provide.
+
+`Every_visualizer_exemplar_answers_what_am_I_pointing_at` asserts the property rather than the call,
+and rejects `HasSelection` on its own — a click is not a hover, and it was the click that made the old
+exemplar look like it read the pointer.
+
+**Prediction, to be confirmed or refuted by the next run:** an order-book brief should now produce a
+crosshair. If it does not, the exemplar-shape explanation is weaker than three instances suggest.
 
 ### 3. No signed-imbalance lane
 

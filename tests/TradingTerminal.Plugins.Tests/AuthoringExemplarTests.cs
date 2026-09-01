@@ -48,6 +48,32 @@ public sealed class AuthoringExemplarTests
 
     [Theory]
     [MemberData(nameof(EverySample))]
+    public void Every_visualizer_exemplar_answers_what_am_I_pointing_at(AuthoringKind kind, string? brief)
+    {
+        // Measured across four live runs: not one told the viewer what was under the pointer. The
+        // teaching is not the gap — the drawing pack names `Plot.Crosshair` in its gesture table. The
+        // EXEMPLARS were. The default visualizer and the strategy each drew a crosshair; the order-flow
+        // one read only `HasSelection` (a CLICK), and the 3D one read nothing at all — and those two
+        // are the only exemplars any benchmark brief has ever selected.
+        //
+        // Third instance of one lesson, so it is asserted rather than remembered: whatever an
+        // exemplar's shape omits is omitted downstream.
+        //
+        // The property, not the call. A crosshair does not translate to a projected scene — there is no
+        // axis to drop a line onto — so the 3D exemplar answers the same question by marking the vertex
+        // nearest the pointer. What both must do is respond to a HOVER, which is why neither
+        // `Cursor` nor `HasSelection` is enough to satisfy this.
+        if (kind != AuthoringKind.Visualizer) return;
+
+        var source = AuthoringExemplar.For(kind, brief);
+
+        (source.Contains("Crosshair", StringComparison.Ordinal)
+         || source.Contains("IsInside", StringComparison.Ordinal))
+            .Should().BeTrue("a picture a viewer cannot read a value off is half a window");
+    }
+
+    [Theory]
+    [MemberData(nameof(EverySample))]
     public void An_exemplar_obeys_the_rules_it_is_teaching(AuthoringKind kind, string? brief)
     {
         // The samples are library code: they carry `using` directives and a namespace, and an authored

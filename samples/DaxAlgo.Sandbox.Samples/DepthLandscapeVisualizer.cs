@@ -141,15 +141,31 @@ public sealed class DepthLandscapeVisualizer : IVisualizer
 
         var projection = Projection3.Of(camera, area.Width, area.Height);
 
+        // Reset per frame, because Draw is pure and runs more than once per frame — a nearest-point
+        // search that carried over would keep a stale pick from the discovery pass.
+        _hover = (double.MaxValue, 0d, 0d, 0, 0d);
+
         // Oldest first, so nearer rows are drawn last and cover what is behind them.
         for (var r = 0; r < _rows.Count; r++)
         {
             var z = 1d - (2d * r / (_rows.Count - 1));
             DrawRow(surface, area, projection, _rows[r], z, tallest);
         }
+
+        DrawHover(surface);
     }
 
     /// <summary>One slice of the book as a polyline across price, at its own distance into the past.</summary>
+    /// <summary>
+    /// The point nearest the pointer, in screen space, and what it holds. Reset each frame.
+    ///
+    /// <para><b>A crosshair does not translate to a projected scene</b> — there is no axis to drop a
+    /// line onto — but the thing a crosshair is FOR does: telling the viewer what they are looking at.
+    /// Since every vertex is already projected to draw it, the nearest one is a comparison rather than
+    /// an inverse projection, which the SDK deliberately does not provide.</para>
+    /// </summary>
+    private (double Distance, double X, double Y, int Step, double Size) _hover;
+
     private void DrawRow(
         IRenderSurface surface, PlotArea area, Projection3 projection, double[] row, double z, double tallest)
     {
@@ -173,9 +189,40 @@ public sealed class DepthLandscapeVisualizer : IVisualizer
             if (point.InFront && havePrevious)
                 surface.Line(area.X + previous.X, area.Y + previous.Y, area.X + point.X, area.Y + point.Y);
 
+            if (point.InFront) TrackHover(surface, area, point, i, row[i]);
+
             previous = point;
             havePrevious = point.InFront;
         }
+    }
+
+    /// <summary>Keeps the projected vertex closest to the pointer. A read of <c>Cursor</c>, never a
+    /// handler — the host accumulates the gesture and this only looks at where it ended up.</summary>
+    private void TrackHover(IRenderSurface surface, PlotArea area, Projected point, int step, double size)
+    {
+        var cursor = surface.Cursor;
+        if (!cursor.IsInside) return;
+
+        var dx = area.X + point.X - cursor.X;
+        var dy = area.Y + point.Y - cursor.Y;
+        var distance = (dx * dx) + (dy * dy);
+
+        if (distance < _hover.Distance)
+            _hover = (distance, area.X + point.X, area.Y + point.Y, step - _halfWidth, size);
+    }
+
+    /// <summary>Marks what the pointer is nearest and says what it holds.</summary>
+    private void DrawHover(IRenderSurface surface)
+    {
+        // 24 pixels: near enough to mean "that one", far enough to survive a hand that is not steady.
+        if (_hover.Distance > 24d * 24d) return;
+
+        surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Text), Thickness: 1.5d));
+        surface.Marker(_hover.X, _hover.Y, RenderMarkerShape.Circle);
+        surface.Text(
+            _hover.X + 8d,
+            _hover.Y - 6d,
+            $"{_hover.Step:+0;-0;0} ticks   {_hover.Size:N0}");
     }
 
     private double Tallest()
