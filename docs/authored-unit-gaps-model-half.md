@@ -214,6 +214,22 @@ real gap and it is fixed (below); the unit was then re-judged against the advanc
 **This is the case rung 7 exists for**, and it is only visible because the ladder now judges the
 panels the host renders rather than the unused `Draw` fallback. Judged the old way this unit passes.
 
+### And the check that catches it was not running
+
+Rung 7 catches this unit exactly. It was gated behind `StrategyBuildProfile.Verify`, which only **Deep
+and Max** set — and this unit was built at **Standard**, the default. So the app would have handed it
+over clean, and the only way to find the dead panel was to open the window.
+
+**The ladder spends nothing.** `SmokeAsync` is local: it drives the compiled unit through its own
+lifecycle and reads back what it drew. No provider call, no tokens, milliseconds. The effort dial is
+documented in its own summary as buying extra *generations* — more skill packs, more auto-fix retries,
+a self-review pass, the agent committee — so a free check sat on a dial that means "spend more", and
+the cheap settings bought less correctness for no saving at all.
+
+Fixed: `Verify` is true at every effort, and the dial's doc now states the rule that was broken —
+everything it carries costs a generation, which is the test for whether something belongs on it.
+Nothing blocks; a failed rung has always been a warning on the compile result.
+
 ### Two things the run found in the harness
 
 **1. `SyntheticDrive` supplied data but not time — fixed.** Its clock was frozen at the epoch while its
