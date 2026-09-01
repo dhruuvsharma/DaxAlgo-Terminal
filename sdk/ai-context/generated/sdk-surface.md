@@ -1462,6 +1462,7 @@ ValueTuple<PlotArea, PlotArea> SplitLeft(double width)
 ValueTuple<PlotArea, PlotArea> SplitRight(double width)
 ValueTuple<PlotArea, PlotArea> SplitTop(double height)
 double StepX(int count)
+double ToX(double value, PlotRange range)
 double ToX(int index, int count)
 double ToY(double value, PlotRange range)
 double Width { get; }
@@ -1544,8 +1545,8 @@ One value per index, plotted across the panel.
 
 ```csharp
 PlotRange Chart(IRenderSurface surface, IReadOnlyList<SeriesData> series, string valueFormat = null, bool legend = true, PlotArea area = null)
-PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<double> values, SeriesOptions options = null, PlotRange range = null, PlotArea area = null)
-PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<T> items, Func<T, double> select, SeriesOptions options = null, PlotRange range = null, PlotArea area = null)
+PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<double> values, SeriesOptions options = null, PlotRange range = null, PlotArea area = null, IReadOnlyList<double> at = null, PlotRange axis = null)
+PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<T> items, Func<T, double> select, SeriesOptions options = null, PlotRange range = null, PlotArea area = null, IReadOnlyList<double> at = null, PlotRange axis = null, Func<T, double> position = null)
 ```
 
 
@@ -1555,15 +1556,17 @@ PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<T> items, Func
 One named series and how to draw it — the unit `Chart` composes.
 
 ```csharp
-new SeriesData(string Name, IReadOnlyList<double> Values, SeriesOptions Options = null)
-SeriesData Dashed(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral)
-SeriesData Line(string name, IReadOnlyList<double> values, RenderThemeColor color = Accent)
+new SeriesData(string Name, IReadOnlyList<double> Values, SeriesOptions Options = null, IReadOnlyList<double> At = null)
+IReadOnlyList<double> At { get; }
+SeriesData Dashed(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral, IReadOnlyList<double> at = null)
+SeriesData Line(string name, IReadOnlyList<double> values, RenderThemeColor color = Accent, IReadOnlyList<double> at = null)
 string Name { get; }
 SeriesOptions Options { get; }
-SeriesData Steps(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral)
+SeriesData Steps(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral, IReadOnlyList<double> at = null)
 IReadOnlyList<double> Values { get; }
 ```
 
+- `At` — Where each value sits on the X axis, or null for even spacing. Anything monotonic: seconds since the session opened, a Unix timestamp, a bar index that skips a weekend. With it, a gap in the data is a gap in the picture; without it every point is one step from the last however long the market was shut.
 - `Name` — Legend label.
 - `Options` — Kind, colour, stroke.
 - `Values` — One value per index.

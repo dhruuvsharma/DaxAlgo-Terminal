@@ -1,4 +1,4 @@
-namespace DaxAlgo.Sdk.Drawing;
+﻿namespace DaxAlgo.Sdk.Drawing;
 
 /// <summary>How one series is drawn.</summary>
 /// <param name="Kind">Line, Area, Steps, Bars or Scatter.</param>
@@ -45,10 +45,18 @@ public static class Series
         IReadOnlyList<double>? values,
         SeriesOptions options = default,
         PlotRange range = default,
-        PlotArea area = default)
+        PlotArea area = default,
+        IReadOnlyList<double>? at = null,
+        PlotRange axis = default)
     {
         ArgumentNullException.ThrowIfNull(surface);
         if (values is null || values.Count == 0) return PlotRange.Empty;
+
+        // Positions are honoured only when there is one for every value. A short array would silently
+        // plot part of the series against the clock and the rest against nothing, which is worse than
+        // ignoring it — and the caller has a bug worth noticing rather than half-drawing.
+        if (at is not null && at.Count != values.Count) at = null;
+        if (at is not null && !axis.IsValid) axis = Plot.RangeOf(at, static v => v);
 
         if (options.Thickness <= 0d) options = SeriesOptions.Default;
         if (!area.IsValid) area = PlotArea.Of(surface);
@@ -75,7 +83,13 @@ public static class Series
             var value = values[index];
             if (!double.IsFinite(value)) continue;
 
-            surface.Push(area.ToX(index, values.Count), area.ToY(value, range));
+            // By clock when positions were given, by index otherwise. Index spacing stays the default
+            // because it is right for a bar series, where each column IS an interval.
+            var x = at is not null && axis.IsValid && double.IsFinite(at[index])
+                ? area.ToX(at[index], axis)
+                : area.ToX(index, values.Count);
+
+            surface.Push(x, area.ToY(value, range));
         }
 
         return range;
@@ -83,6 +97,16 @@ public static class Series
 
     /// <summary>Draws a series from a projection, so a caller need not materialise a
     /// <c>double[]</c> from its own sample record just to plot one field of it.</summary>
+    /// <param name="at">
+    /// Where each item sits on the X axis, or null for even spacing.
+    ///
+    /// <para>Here as well as on the array overload, because a capability on one of two paths is a
+    /// capability half the callers cannot reach — and this is the overload a unit plotting from its
+    /// own sample records uses, which is most of them. <paramref name="position"/> is usually the
+    /// easier way in: it reads the timestamp off the same record.</para>
+    /// </param>
+    /// <param name="position">The X position of an item, read from the item itself — the projection
+    /// equivalent of <paramref name="at"/>, and the one that cannot fall out of step with the values.</param>
     public static PlotRange Draw<T>(
         IRenderSurface surface,
         string name,
@@ -90,11 +114,26 @@ public static class Series
         Func<T, double> select,
         SeriesOptions options = default,
         PlotRange range = default,
-        PlotArea area = default)
+        PlotArea area = default,
+        IReadOnlyList<double>? at = null,
+        PlotRange axis = default,
+        Func<T, double>? position = null)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(select);
         if (items is null || items.Count == 0) return PlotRange.Empty;
+
+        // Read off the items when a selector was given, so the positions cannot drift out of step with
+        // the values the way a parallel array can.
+        if (position is not null)
+        {
+            var read = new double[items.Count];
+            for (var index = 0; index < items.Count; index++) read[index] = position(items[index]);
+            at = read;
+        }
+
+        if (at is not null && at.Count != items.Count) at = null;
+        if (at is not null && !axis.IsValid) axis = Plot.RangeOf(at, static v => v);
 
         if (options.Thickness <= 0d) options = SeriesOptions.Default;
         if (!area.IsValid) area = PlotArea.Of(surface);
@@ -107,7 +146,7 @@ public static class Series
         {
             var projected = new double[items.Count];
             for (var index = 0; index < items.Count; index++) projected[index] = select(items[index]);
-            return Draw(surface, name, projected, options, range, area);
+            return Draw(surface, name, projected, options, range, area, at, axis);
         }
 
         surface.SetStyle(new RenderStyle(
@@ -119,7 +158,11 @@ public static class Series
             var value = select(items[index]);
             if (!double.IsFinite(value)) continue;
 
-            surface.Push(area.ToX(index, items.Count), area.ToY(value, range));
+            var x = at is not null && axis.IsValid && double.IsFinite(at[index])
+                ? area.ToX(at[index], axis)
+                : area.ToX(index, items.Count);
+
+            surface.Push(x, area.ToY(value, range));
         }
 
         return range;
@@ -160,14 +203,35 @@ public static class Series
         range = range.Padded();
         if (!range.IsValid) return PlotRange.Empty;
 
+        // ONE x range across every series. Computed here rather than per series: two series covering
+        // different spans would each fill the panel and cross at a point that means nothing.
+        var axis = PlotRange.Empty;
+        var positioned = false;
+        for (var index = 0; index < series.Count; index++)
+        {
+            var at = series[index].At;
+            if (at is null || series[index].Values is null || at.Count != series[index].Values.Count) continue;
+
+            positioned = true;
+            for (var i = 0; i < at.Count; i++) axis = axis.Include(at[i]);
+        }
+
         // The area, threaded through. Chart already computed it for the series and the legend and then
         // drew its furniture without it, so the grid and the readout escaped the region the caller
         // asked for.
         Plot.HorizontalGrid(surface, range, format: valueFormat, area: area);
-        surface.AxisX(0d, Math.Max(1, count - 1));
+
+        // The declared axis is what the host maps a pointer back through, so it has to be the axis the
+        // points were actually placed on — declaring an index range under time-placed points is how a
+        // crosshair ends up reading the wrong value.
+        if (positioned && axis.IsValid) surface.AxisX(axis.Minimum, axis.Maximum);
+        else surface.AxisX(0d, Math.Max(1, count - 1));
 
         for (var index = 0; index < series.Count; index++)
-            Draw(surface, series[index].Name, series[index].Values, series[index].Options, range, area);
+        {
+            Draw(surface, series[index].Name, series[index].Values, series[index].Options, range, area,
+                positioned ? series[index].At : null, axis);
+        }
 
         if (legend) Legend.Draw(surface, series, area);
 
@@ -180,21 +244,35 @@ public static class Series
 /// <param name="Name">Legend label.</param>
 /// <param name="Values">One value per index.</param>
 /// <param name="Options">Kind, colour, stroke.</param>
+/// <param name="At">
+/// Where each value sits on the X axis, or null for even spacing.
+///
+/// <para>Anything monotonic: seconds since the session opened, a Unix timestamp, a bar index that
+/// skips a weekend. With it, a gap in the data is a gap in the picture; without it every point is one
+/// step from the last however long the market was shut.</para>
+/// </param>
 public readonly record struct SeriesData(
     string Name,
     IReadOnlyList<double> Values,
-    SeriesOptions Options = default)
+    SeriesOptions Options = default,
+    IReadOnlyList<double>? At = null)
 {
     /// <summary>A line in the accent colour — the common case.</summary>
-    public static SeriesData Line(string name, IReadOnlyList<double> values, RenderThemeColor color = RenderThemeColor.Accent) =>
-        new(name, values, SeriesOptions.Default.In(color));
+    public static SeriesData Line(
+        string name, IReadOnlyList<double> values, RenderThemeColor color = RenderThemeColor.Accent,
+        IReadOnlyList<double>? at = null) =>
+        new(name, values, SeriesOptions.Default.In(color), at);
 
     /// <summary>A step series, for something that holds until it changes: a position, a regime, a
     /// state. Interpolating between those is a lie about when the change happened.</summary>
-    public static SeriesData Steps(string name, IReadOnlyList<double> values, RenderThemeColor color = RenderThemeColor.Neutral) =>
-        new(name, values, SeriesOptions.Default with { Kind = RenderSeriesKind.Steps, Color = color });
+    public static SeriesData Steps(
+        string name, IReadOnlyList<double> values, RenderThemeColor color = RenderThemeColor.Neutral,
+        IReadOnlyList<double>? at = null) =>
+        new(name, values, SeriesOptions.Default with { Kind = RenderSeriesKind.Steps, Color = color }, at);
 
     /// <summary>A dashed line, for a projected or lagging series.</summary>
-    public static SeriesData Dashed(string name, IReadOnlyList<double> values, RenderThemeColor color = RenderThemeColor.Neutral) =>
-        new(name, values, SeriesOptions.Default with { Color = color, Dashed = true });
+    public static SeriesData Dashed(
+        string name, IReadOnlyList<double> values, RenderThemeColor color = RenderThemeColor.Neutral,
+        IReadOnlyList<double>? at = null) =>
+        new(name, values, SeriesOptions.Default with { Color = color, Dashed = true }, at);
 }

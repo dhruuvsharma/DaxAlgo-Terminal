@@ -1,4 +1,4 @@
-namespace DaxAlgo.Sdk.Drawing;
+﻿namespace DaxAlgo.Sdk.Drawing;
 
 /// <summary>
 /// A rectangle inside a panel, in panel pixels.
@@ -111,6 +111,19 @@ public readonly record struct PlotArea(double X, double Y, double Width, double 
 
     /// <summary>Pixel X for item <paramref name="index"/> of <paramref name="count"/>, spread across the
     /// area. A single item sits in the middle rather than on the left edge.</summary>
+    /// <summary>
+    /// A position on the X axis, mapped through a range exactly as <see cref="ToY"/> maps a value.
+    ///
+    /// <para><b>The asymmetry this removes was the whole of "the widgets are index-based".</b> A unit
+    /// could place a point by clock only by hand-drawing the panel, because every array widget spaced
+    /// its points evenly whatever the timestamps said. Pass seconds, or ticks, or a bar index that
+    /// skips a weekend — anything monotonic — and a gap in the data is a gap in the picture.</para>
+    /// </summary>
+    public double ToX(double value, PlotRange range) =>
+        range.IsValid && Width > 0d
+            ? X + ((value - range.Minimum) / range.Span * Width)
+            : CenterX;
+
     public double ToX(int index, int count) => count switch
     {
         <= 0 => X,

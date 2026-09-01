@@ -38,7 +38,7 @@ So the picture was never the gap. The gap is everything the user *does* to the p
 | Zoom | missing | **closed** |
 | Scrub / pan | missing | **closed** |
 | Scrolling | missing | **closed for a ladder; no scrollbar** |
-| Time axis on a captured series | missing | **missing** |
+| Time axis on a captured series | missing | **closed 2026-09-02** |
 | Presets | missing | **missing** |
 | Minimum size for a star panel beside a fixed one | — | **missing** (found 2026-08-31, second pass) |
 
@@ -132,7 +132,7 @@ because a drag has no idea how deep the book is.
 **Still missing: a scrollbar.** There is no affordance telling the viewer the book is scrollable or
 how far down they are, and no widget but the ladder takes an offset.
 
-### 5. The WIDGETS are index-based — and the first version of this entry was wrong
+### ~~5. The WIDGETS are index-based~~ — closed 2026-09-02
 
 Recorded as "a unit has no way to ask the host how to place a column on a time axis". It has one.
 `AxisX(minimum, maximum)` declares the range the coordinate transform maps through, so a unit that
@@ -149,10 +149,30 @@ come from a widget and are index-spaced; time-positioned dots over index-spaced 
 misaligned, which is worse than evenly-spaced-and-consistent. The whole picture has to agree, so this
 is a widget-API question rather than a bug in the control.
 
-| Cost of closing it | |
-|---|---|
-| Give the array widgets an optional x-position array | more SDK surface on every prompt |
-| Leave it | a unit needing a true time axis hand-draws that panel |
+**Closed by giving the series family an optional position array**, and the cost line above was wrong.
+It said "more SDK surface on every prompt"; `Series` and `PlotArea` are in `DaxAlgo.Sdk.Drawing`, which
+this document's own cost table records as RATIONED — so a brief that never asks for a picture pays
+nothing. Half the entries here have been wrong when measured, and this was one of them.
+
+`PlotArea.ToY` had mapped a value through a range all along; `ToX` only ever mapped an index, and that
+asymmetry WAS the gap. `ToX(value, range)` closes it, and `Series.Draw(..., at:)` /
+`SeriesData.Line(..., at:)` carry the positions through.
+
+Four properties, each asserted on the pushed COORDINATES rather than on the call returning:
+
+- a long gap between samples dominates the panel instead of being one step like any other;
+- with no positions, spacing is unchanged — the default stays right for a bar series, where a column
+  IS an interval, and every existing unit is on that path;
+- positions that do not cover the series are ignored outright, because half a series against the clock
+  and half against nothing is worse than none of it and hides a caller bug;
+- `Chart` computes ONE x range across every series and declares it through `AxisX`. Two series over
+  different spans would otherwise each fill the panel and cross at a point that means nothing, and the
+  host maps a pointer back through the declared axis — an index range under time-placed points is how
+  a crosshair reads the wrong value.
+
+Still index-spaced, correctly: `Heatmap` and `Footprint`, where a column is an interval rather than a
+sample. The doc's warning that "the whole picture has to agree" is why this stopped at the series
+family rather than being applied everywhere.
 
 ### 6. A fixed-pixel panel starves its star sibling — examined, and deliberately left
 
