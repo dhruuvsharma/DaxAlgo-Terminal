@@ -44,6 +44,17 @@ public static class HyperionBenchmark
     /// order, and motion — so it cannot be answered by reaching for a widget, which is exactly what
     /// makes it worth measuring.</para>
     /// </summary>
+    /// <summary>
+    /// The vague brief, and it exists to settle one question rather than to measure a window.
+    ///
+    /// <para>Four live runs have produced zero questions, on briefs that named what they wanted. The
+    /// one run that ever asked had a vaguer brief AND a different model, so specificity and model have
+    /// never been separated. This is what a user actually types when they have not thought about it
+    /// yet: it names no picture, no statistic, no instrument and no timeframe, so every answer would
+    /// change a line of code — which is the pack's own test for whether to ask.</para>
+    /// </summary>
+    public const string VagueBrief = "Show me what is happening in the order book.";
+
     public const string BattlefieldBrief =
         "The order book as a 3D battlefield: each resting order is a soldier standing on the price it "
         + "rests at, and the armies move as the book changes.";

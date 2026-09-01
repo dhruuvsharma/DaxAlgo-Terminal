@@ -202,6 +202,45 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
             because: string.Join(" | ", result.Turns.Select(t => t.Error)));
     }
 
+    /// <summary>
+    /// Does a vague brief make it ask? The controlled half of the questioning observation.
+    ///
+    /// <para>Same model and same effort as the runs that asked nothing; only the brief's specificity
+    /// differs. If this asks, the instruction works and the earlier briefs were simply specific enough
+    /// to build from. If it does not, the pack has a real problem and the fix is prompt design.</para>
+    ///
+    /// <para><b>It deliberately does not send the escape.</b> The driver answers a question with
+    /// "just build it", which is right when measuring the picture and wrong here — the measurement IS
+    /// whether turn one ends in a question.</para>
+    /// </summary>
+    [LiveProviderFact]
+    public async Task A_vague_brief_is_where_a_question_would_pay()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+        var client = new OpenAiCompatibleCodegenClient(
+            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
+            effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
+
+        var pack = StrategyContextPack.Load();
+        var profile = StrategyBuildProfile.For(StrategyBuildEffort.Standard);
+        var session = new StrategyCodegenOrchestrator(
+                new RoslynStrategyCompiler(), logger: null,
+                skills: StrategySkillLibrary.Load(), pack: pack)
+            .CreateSession(
+                client, pack.SystemPrompt, "vague", "Vague", profile.MaxFixAttempts,
+                profile: profile, kind: AuthoringKind.Visualizer);
+
+        var turn = await session.SendAsync(HyperionBenchmark.VagueBrief);
+        var asked = AuthoringQuestions.Parse(turn.AssistantText);
+
+        output.WriteLine($"kind={turn.Kind} generations={turn.Generations} questions={asked.Count}");
+        foreach (var question in asked)
+            output.WriteLine($"  Q: {question.Prompt} [{string.Join(" | ", question.Options.Select(o => o.Label))}]");
+        output.WriteLine(turn.AssistantText.Length > 4000 ? turn.AssistantText[..4000] : turn.AssistantText);
+
+        turn.Kind.Should().NotBe(BuildTurnKind.ProviderError, turn.Error ?? string.Empty);
+    }
+
     private static string Errors(StrategyCompileResult? compile) => compile is null
         ? "nothing compiled"
         : string.Join(" | ", compile.Errors.Select(d => $"{d.Id} {d.Location} {d.Message}"));
