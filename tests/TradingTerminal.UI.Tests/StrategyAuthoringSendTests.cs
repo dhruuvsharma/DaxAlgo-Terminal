@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Microsoft.Extensions.Logging.Abstractions;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Strategies;
@@ -39,7 +39,7 @@ public sealed class StrategyAuthoringSendTests : IDisposable
 
     public void Dispose()
     {
-        AuthoringSessionStore.Directory = AuthoringSessionStore.DefaultDirectory;
+        AuthoringSessionStore.Directory = TestAuthoringRoot.Directory;
         try { System.IO.Directory.Delete(_sessionDir, recursive: true); } catch { /* best effort */ }
     }
 
@@ -48,11 +48,23 @@ public sealed class StrategyAuthoringSendTests : IDisposable
     {
         // The un-redirected value is a real path — the same guard AiCodegenUserFile carries, for the
         // same reason: every test here reassigns it, so none of them would ever observe a broken one.
-        AuthoringSessionStore.Directory = null!;
+        // Restored in a finally, and that is the whole bug. Observing the fallback means
+        // assigning it, and leaving it assigned pointed every later save in this assembly at
+        // the real per-user folder -- which is how three fixtures ended up in somebody's
+        // Hyperion session rail.
+        var restore = AuthoringSessionStore.Directory;
+        try
+        {
+            AuthoringSessionStore.Directory = null!;
 
         Assert.False(string.IsNullOrWhiteSpace(AuthoringSessionStore.Directory));
-        Assert.Equal(AuthoringSessionStore.DefaultDirectory, AuthoringSessionStore.Directory);
-        Assert.True(Path.IsPathRooted(AuthoringSessionStore.Directory));
+            Assert.Equal(AuthoringSessionStore.DefaultDirectory, AuthoringSessionStore.Directory);
+            Assert.True(Path.IsPathRooted(AuthoringSessionStore.Directory));
+        }
+        finally
+        {
+            AuthoringSessionStore.Directory = restore;
+        }
     }
 
     [Fact]

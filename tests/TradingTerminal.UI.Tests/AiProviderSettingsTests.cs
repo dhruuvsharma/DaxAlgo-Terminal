@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Microsoft.Extensions.Options;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Configuration;
@@ -32,7 +32,7 @@ public sealed class AiProviderSettingsTests : IDisposable
 
     public void Dispose()
     {
-        AiCodegenUserFile.Path = AiCodegenUserFile.DefaultPath;
+        AiCodegenUserFile.Path = TestAuthoringRoot.ProviderFile;
         try { Directory.Delete(_configDir, recursive: true); } catch { /* best effort */ }
     }
 
@@ -51,12 +51,24 @@ public sealed class AiProviderSettingsTests : IDisposable
     [Fact]
     public void The_default_path_is_what_the_host_would_load()
     {
-        AiCodegenUserFile.Path = null!;
+        // Restored in a finally, and that is the whole bug. Observing the fallback means
+        // assigning it, and leaving it assigned pointed every later save in this assembly at
+        // the real per-user folder -- which is how three fixtures ended up in somebody's
+        // Hyperion session rail.
+        var restore = AiCodegenUserFile.Path;
+        try
+        {
+            AiCodegenUserFile.Path = null!;
 
         Assert.False(string.IsNullOrWhiteSpace(AiCodegenUserFile.Path));
-        Assert.Equal(AiCodegenUserFile.DefaultPath, AiCodegenUserFile.Path);
-        Assert.True(Path.IsPathRooted(AiCodegenUserFile.Path));
-        Assert.EndsWith("ai-codegen.json", AiCodegenUserFile.Path, StringComparison.Ordinal);
+            Assert.Equal(AiCodegenUserFile.DefaultPath, AiCodegenUserFile.Path);
+            Assert.True(Path.IsPathRooted(AiCodegenUserFile.Path));
+            Assert.EndsWith("ai-codegen.json", AiCodegenUserFile.Path, StringComparison.Ordinal);
+        }
+        finally
+        {
+            AiCodegenUserFile.Path = restore;
+        }
     }
 
     private static AiCodegenOptions Options() => new()

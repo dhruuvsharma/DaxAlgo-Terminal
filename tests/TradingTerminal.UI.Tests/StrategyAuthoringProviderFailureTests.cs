@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -37,7 +37,7 @@ public sealed class StrategyAuthoringProviderFailureTests : IDisposable
 
     public void Dispose()
     {
-        AuthoringSessionStore.Directory = AuthoringSessionStore.DefaultDirectory;
+        AuthoringSessionStore.Directory = TestAuthoringRoot.Directory;
         try { Directory.Delete(_sessionDir, recursive: true); } catch { /* best effort */ }
     }
 

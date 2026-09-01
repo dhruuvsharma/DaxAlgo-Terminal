@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Microsoft.Extensions.Logging.Abstractions;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Strategies;
@@ -42,7 +42,7 @@ public sealed class AgentSharedContextTests : IDisposable
 
     public void Dispose()
     {
-        AuthoringSessionStore.Directory = AuthoringSessionStore.DefaultDirectory;
+        AuthoringSessionStore.Directory = TestAuthoringRoot.Directory;
         try { System.IO.Directory.Delete(_sessionDir, recursive: true); } catch { /* best effort */ }
     }
 
