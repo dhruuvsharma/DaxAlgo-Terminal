@@ -1,3 +1,4 @@
+using DaxAlgo.Sdk.Quant;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
@@ -705,14 +706,14 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         (MlMaeText, MlHitRateText) = FormatAccuracy(ml);
         (RegMaeText, RegHitRateText) = FormatAccuracy(reg);
         MlEdgeDirection = ml.ScoredCount >= 10 && reg.ScoredCount >= 10
-            ? Math.Sign(reg.PocMaeTicks - ml.PocMaeTicks)
+            ? Math.Sign(reg.MeanAbsoluteError - ml.MeanAbsoluteError)
             : 0;
     }
 
     private static (string mae, string hit) FormatAccuracy(ForecastAccuracy accuracy) =>
         accuracy.ScoredCount == 0
             ? ("—", "—")
-            : (accuracy.PocMaeTicks.ToString("0.00", CultureInfo.InvariantCulture) + " t",
+            : (accuracy.MeanAbsoluteError.ToString("0.00", CultureInfo.InvariantCulture) + " t",
                (accuracy.DirectionalHitRate * 100).ToString("0", CultureInfo.InvariantCulture) + "%");
 
     /// <summary>Ingests a drained batch of trades on the UI thread: cheap per-trade accumulation

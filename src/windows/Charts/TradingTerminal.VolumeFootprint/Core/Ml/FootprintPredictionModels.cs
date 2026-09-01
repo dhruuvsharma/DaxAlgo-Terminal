@@ -1,3 +1,4 @@
+using DaxAlgo.Sdk.Quant;
 using TradingTerminal.Core.MarketData;
 
 namespace TradingTerminal.Core.Ml;
@@ -63,14 +64,6 @@ public sealed record FootprintForecastBar(
     double SellPoc,
     double TotalVolume,
     double Delta);
-
-/// <summary>Rolling accuracy read-out for one 1-step-ahead POC forecaster (ML or baseline).
-/// <paramref name="PocMaeTicks"/> and <paramref name="DirectionalHitRate"/> are over the rolling
-/// metrics window; <paramref name="ScoredCount"/> is the lifetime number of scored forecasts.</summary>
-public readonly record struct ForecastAccuracy(
-    double PocMaeTicks,
-    double DirectionalHitRate,
-    long ScoredCount);
 
 /// <summary>Tuning for <see cref="FootprintNextBarPredictor"/>.</summary>
 /// <param name="MaxHorizon">Hard cap on the ML forecast horizon in bars. Direct per-horizon

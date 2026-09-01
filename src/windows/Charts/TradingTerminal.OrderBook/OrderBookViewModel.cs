@@ -1,3 +1,4 @@
+using DaxAlgo.Sdk.Quant;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
@@ -898,7 +899,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     private static (string mae, string hit) FormatAccuracy(ForecastAccuracy accuracy) =>
         accuracy.ScoredCount == 0
             ? ("—", "—")
-            : (accuracy.PocMaeTicks.ToString("0.00", CultureInfo.InvariantCulture) + " t",
+            : (accuracy.MeanAbsoluteError.ToString("0.00", CultureInfo.InvariantCulture) + " t",
                (accuracy.DirectionalHitRate * 100).ToString("0", CultureInfo.InvariantCulture) + "%");
 
     /// <summary>Tier 3: OLS fit of cumulative imbalance vs column index over the ring buffer. Slope is

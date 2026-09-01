@@ -201,6 +201,15 @@ public sealed class AuthoringKnowledgeTests
             // Interfaces and enums are vocabulary the surface already carries; what has to be
             // discoverable is the thing a model would otherwise write by hand.
             .Where(t => !t.IsInterface && !t.IsEnum)
+            // And so is a pure-data read-out — a record whose only members are its own properties,
+            // returned BY something this list does require. `EventScore` is three doubles that come
+            // back from `RollingBrierScore.Snapshot()`; a model cannot re-derive it badly, it can only
+            // fail to find the thing that returns it. Naming those in a skill would spend the pack's
+            // budget on nouns instead of on the estimators the budget exists to teach.
+            //
+            // Judged on DECLARED METHODS rather than on being a record, so a value type that carries
+            // real maths still has to be taught: Vec3 declares Dot/Cross/Normalized and stays required.
+            .Where(t => DeclaresBehaviour(t))
             .Select(t => t.Name)
             .Where(name => !knowledge.Contains(name, StringComparison.Ordinal))
             .OrderBy(name => name, StringComparer.Ordinal)
@@ -209,6 +218,44 @@ public sealed class AuthoringKnowledgeTests
         estimators.Should().BeEmpty(
             "these estimators are in no skill, so a model will re-derive them — badly, and at the "
             + "user's expense");
+    }
+
+    /// <summary>
+    /// True when a type does something rather than merely holding values — it declares a method of its
+    /// own, beyond the members the compiler writes for a record and beyond property accessors.
+    /// </summary>
+    private static bool DeclaresBehaviour(Type type)
+    {
+        const System.Reflection.BindingFlags Declared =
+            System.Reflection.BindingFlags.Public
+            | System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.Static
+            | System.Reflection.BindingFlags.DeclaredOnly;
+
+        // Everything a positional record gets for free, plus the accessors behind its properties.
+        string[] generated =
+        [
+            "Equals", "GetHashCode", "ToString", "PrintMembers", "Deconstruct", "<Clone>$",
+        ];
+
+        return type.GetMethods(Declared).Any(m =>
+            !m.IsSpecialName                                    // property accessors and operators
+            && !generated.Contains(m.Name, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void The_behaviour_filter_still_demands_the_types_that_carry_maths()
+    {
+        // The guard above only means something if its exclusion is narrow. A value type with real
+        // arithmetic on it must still be required, or "pure data" becomes a way to smuggle anything
+        // past the pack.
+        DeclaresBehaviour(typeof(DaxAlgo.Sdk.Quant.Vec3)).Should().BeTrue("Vec3 declares Dot/Cross/Normalized");
+        DeclaresBehaviour(typeof(DaxAlgo.Sdk.Quant.Camera3)).Should().BeTrue("Camera3 declares Orbit");
+        DeclaresBehaviour(typeof(DaxAlgo.Sdk.Quant.Projection3)).Should().BeTrue("Projection3 declares Project");
+        DeclaresBehaviour(typeof(DaxAlgo.Sdk.Quant.Vpin)).Should().BeTrue("an estimator is never pure data");
+
+        DeclaresBehaviour(typeof(DaxAlgo.Sdk.Quant.EventScore)).Should().BeFalse("it is three doubles");
+        DeclaresBehaviour(typeof(DaxAlgo.Sdk.Quant.Projected)).Should().BeFalse("it is a projected point");
     }
 
     [Fact]

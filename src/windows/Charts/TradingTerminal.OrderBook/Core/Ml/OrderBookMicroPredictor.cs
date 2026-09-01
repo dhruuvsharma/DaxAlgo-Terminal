@@ -1,3 +1,4 @@
+using DaxAlgo.Sdk.Quant;
 using System.Text.Json;
 
 namespace TradingTerminal.Core.Ml;
@@ -265,7 +266,7 @@ public sealed class OrderBookMicroPredictor
         var ml = MlAccuracy;
         var baseline = BaselineAccuracy;
         var metrics = new ModelMetrics(
-            ml.PocMaeTicks, ml.DirectionalHitRate, baseline.PocMaeTicks, baseline.DirectionalHitRate, ml.ScoredCount);
+            ml.MeanAbsoluteError, ml.DirectionalHitRate, baseline.MeanAbsoluteError, baseline.DirectionalHitRate, ml.ScoredCount);
         var trainedThrough = _ring.Count > 0
             ? DateTime.SpecifyKind(_ring[^1].TimestampUtc, DateTimeKind.Utc)
             : DateTime.UtcNow;

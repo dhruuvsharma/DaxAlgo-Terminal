@@ -1,3 +1,4 @@
+using DaxAlgo.Sdk.Quant;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 
@@ -136,12 +137,6 @@ public sealed record OrderBookForecast(
     double PSpreadWidens,
     double PDepthDrains,
     double PSweepJumps);
-
-/// <summary>Rolling calibration read-out for one event forecaster: mean squared probability error
-/// (<paramref name="Brier"/>, lower is better; 0.25 = always saying 50%), the event's observed
-/// <paramref name="BaseRate"/> over the same window (the "climatology" comparison — a useful model
-/// beats Brier = baseRate·(1−baseRate)), and the lifetime scored count.</summary>
-public readonly record struct EventScore(double Brier, double BaseRate, long ScoredCount);
 
 /// <summary>Tuning for <see cref="OrderBookMicroPredictor"/>. Steps are the 250 ms capture cadence.</summary>
 /// <param name="FlagshipHorizon">The horizon (in steps) the ML-vs-baseline scoreboard is scored at.

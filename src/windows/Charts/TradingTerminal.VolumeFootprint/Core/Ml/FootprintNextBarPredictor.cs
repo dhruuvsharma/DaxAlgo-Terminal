@@ -1,3 +1,4 @@
+using DaxAlgo.Sdk.Quant;
 using System.Text.Json;
 
 namespace TradingTerminal.Core.Ml;
@@ -202,7 +203,7 @@ public sealed class FootprintNextBarPredictor
         var ml = MlAccuracy;
         var baseline = BaselineAccuracy;
         var metrics = new ModelMetrics(
-            ml.PocMaeTicks, ml.DirectionalHitRate, baseline.PocMaeTicks, baseline.DirectionalHitRate, ml.ScoredCount);
+            ml.MeanAbsoluteError, ml.DirectionalHitRate, baseline.MeanAbsoluteError, baseline.DirectionalHitRate, ml.ScoredCount);
         var trainedThrough = _history.Count > 0
             ? DateTime.SpecifyKind(_history[^1].StartUtc, DateTimeKind.Utc)
             : DateTime.UtcNow;

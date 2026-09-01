@@ -304,6 +304,47 @@ demonstration, more than `Now` and the whole 3D library put together.
 **Not yet measured: whether a model uses any of it.** That needs a live 3D run, and is the next
 benchmark.
 
+### ~~10. No online learners~~ — closed 2026-09-01
+
+The last named item in the brief's maths gap: *"missing from the maths library: online learners, which
+the OrderBook window needed 527 hand-written lines of."*
+
+They were not missing. They were **duplicated byte-for-byte across two tool projects**
+(`TradingTerminal.OrderBook` and `TradingTerminal.VolumeFootprint`), under the namespace
+`TradingTerminal.Core.Ml` — which is neither of the assemblies they compiled into — and reachable by
+nothing an author could write. Eight identical files, and **no tests at all**.
+
+Now in `DaxAlgo.Sdk.Quant`, once: `OnlineLinearRegression` (RLS with forgetting),
+`OnlineGradientDescent` (ridge SGD), `OnlineLogisticRegression`, `OnlineFeatureScaler` (Welford with
+decay), `RollingForecastMetrics` and `RollingBrierScore`. Both windows now use the one copy.
+
+`OnlineLearnerTests` is ten properties rather than a characterisation: RLS converges on a noiseless
+target, forgetting tracks a regime change *better than not forgetting*, logistic stays in [0, 1] and
+does not overflow its sigmoid at an extreme score, SGD and RLS agree, the scaler leaves the bias
+alone, state round-trips, a restore refuses another learner's state, a perfect Brier is 0 and a
+coin-flip is 0.25.
+
+One of them was written wrong first and is worth keeping in mind: the RLS test asserted a fixed
+tolerance, and failed. `initialDiagonal` is a finite prior covariance, so RLS is a very lightly ridged
+fit whose penalty decays with data — a real residual of about 1e-5 after 600 noiseless samples, and
+the algorithm behaving correctly. The test now asserts **convergence**, plus exactness under a diffuse
+prior, which is what that constructor argument is *for*.
+
+| Cost | |
+|---|---:|
+| generated surface | 89,830 → 96,109 (+6,279) |
+| composed prompt, order-book brief | 115,655 → **116,115 (+460)** |
+| the eight types on that brief | 1,638 |
+
+The rationing did the rest: the surface grew by 6,279 and the prompt by 460, because the cut absorbed
+it (18,981 → 24,214 saved).
+
+The teaching went into a **new pack** rather than into `quant-math`, which had grown to two topics.
+That was not tidiness — adding it to `quant-math` put the three heaviest packs over the ceiling, and
+the ceiling had already moved once this session for 3D. A pack that only loads for a brief about
+prediction is both better targeted and free to everyone else, and it put the three heaviest back under
+budget without raising anything.
+
 ## What is NOT a gap
 
 - **Instrument selection.** `StrategyParameter.Instrument` and the host picker cover it.

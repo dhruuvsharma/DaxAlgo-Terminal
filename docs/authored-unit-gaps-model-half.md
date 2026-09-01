@@ -337,6 +337,33 @@ now opens its panel in the same method as the drawing it guards, with a comment 
   Skill selection is keyword scoring, and the briefs that need the most help are the ones least likely
   to contain the keywords.
 
+## Run 4 — the same brief after the two fixes, and both held
+
+The brief asks for the delta after every change, so the battlefield was re-run against nothing but the
+two fixes above.
+
+| | run 3 (before) | run 4 (after) |
+|---|---|---|
+| skills selected | order-flow only | **drawing + order-flow** |
+| system prompt | 91,720 | 102,669 |
+| generations | 1 | 2 (a prose reply, recovered) |
+| output | 542 lines | 632 lines |
+| **ladder** | **DrawProbe ✗ `draw.no-panel`** | **✓ every rung** |
+
+- **The trigger fix works live.** The drawing pack now loads for a brief that is entirely about a
+  picture and contains none of the old trigger words.
+- **The exemplar-shape fix works live.** `using var panel = surface.Panel("Battlefield", …)` appears
+  at the top of `Draw` — the scope that three consecutive units had dropped when it lived alone in a
+  wrapper. `draw.no-panel` is gone and the unit clears the whole ladder.
+- Nineteen references to the projection types, so the 3D capability held with the extra pack rather
+  than being crowded out by it.
+- A third fix showed its work incidentally: the model opened with **prose in a code fence**, the guard
+  named it for what it was, and the next generation produced the unit. That path had only ever been
+  seen once, in the run that first motivated it.
+
+Still absent: gestures (one incidental `Cursor` reference, no crosshair or hover readout) and any
+question at all.
+
 ## Nothing has ever asked a question, and it is not a wiring fault
 
 The goal says Hyperion should **ask the user about the picture while it builds, iteratively**, because

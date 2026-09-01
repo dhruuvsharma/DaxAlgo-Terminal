@@ -262,6 +262,18 @@ double Volatility { get; }
 - `Update` — Records one equity mark.
 - `Volatility` — Standard deviation of return per sample.
 
+<!-- @type EventScore | Quant helpers -->
+### `EventScore`
+
+Rolling calibration read-out for one event forecaster: mean squared probability error (`Brier`, lower is better; 0.25 = always saying 50%), the event's observed `BaseRate` over the same window — the climatology comparison, since a useful model beats `baseRate·(1−baseRate)` — and the lifetime scored count.
+
+```csharp
+double BaseRate { get; }
+double Brier { get; }
+long ScoredCount { get; }
+```
+
+
 <!-- @type EwmaVariance | Quant helpers -->
 ### `EwmaVariance`
 
@@ -284,6 +296,18 @@ double ZScoreOf(double value)
 - `Update` — Folds in one sample and returns the current standard deviation.
 - `Variance` — The exponentially weighted variance.
 - `ZScoreOf` — How many current standard deviations `value` sits from the current mean.
+
+<!-- @type ForecastAccuracy | Quant helpers -->
+### `ForecastAccuracy`
+
+Rolling accuracy read-out for one one-step-ahead forecaster (a model, or the baseline it is being compared against). `MeanAbsoluteError` and `DirectionalHitRate` are over the rolling window; `ScoredCount` is the lifetime number of scored forecasts.
+
+```csharp
+double DirectionalHitRate { get; }
+double MeanAbsoluteError { get; }
+long ScoredCount { get; }
+```
+
 
 <!-- @type IEstimator | Quant helpers -->
 ### `IEstimator`
@@ -406,6 +430,74 @@ double ZScore(double value, double mean, double standardDeviation)
 - `RoundToTick` — `price` snapped to the nearest multiple of `tickSize`. A price that is not on the instrument's grid is rejected by the venue, so a level computed from a moving average has to be rounded before it can be a stop or a target. A non-positive tick size returns the price unchanged rather than throwing — an instrument whose tick is unknown is common, and losing the level would be worse than not snapping it.
 - `SafeDiv` — `numerator` ÷ `denominator`, returning `fallback` when the denominator is zero, sub-epsilon, or not finite.
 - `ZScore` — How many standard deviations `value` sits from the mean, with the denominator floored. Zero when the sample has no dispersion — which is the honest answer, not an infinite one.
+
+<!-- @type OnlineFeatureScaler | Quant helpers -->
+### `OnlineFeatureScaler`
+
+Per-dimension exponentially-weighted online standardizer (Welford with decay). RLS on raw, differently-scaled features is numerically fragile — one outlier bar can blow up the inverse covariance — so every feature is transformed to `(x − μ) / √(σ² + ε)` and clamped to ±`clip` before it reaches the learner. The first `passthroughDimensions` dimensions (the bias term) are copied through untouched, because standardizing a constant would zero it. Deterministic, single-threaded, pure C#.
+
+```csharp
+int Dimensions { get; }
+void LoadState(FeatureScalerState state)
+void Observe(IReadOnlyList<double> raw)
+void Reset()
+long Samples { get; }
+FeatureScalerState SaveState()
+void Transform(IReadOnlyList<double> raw, Double[] destination)
+```
+
+- `LoadState` — Restores state from `SaveState`; throws on a dimension mismatch.
+
+<!-- @type OnlineGradientDescent | Quant helpers -->
+### `OnlineGradientDescent`
+
+Online (ridge) gradient descent for `y = w·x`. Each `Update` takes one SGD step on the squared loss with an L2 penalty: `w ← w + η·(e·x − ρ·w)`, where `e = y − w·x`. First-order and O(d) per step — cheaper and higher-variance than the second-order `OnlineLinearRegression` (RLS), and a useful alternative bias/variance profile.
+
+```csharp
+int Dimensions { get; }
+string Kind { get; }
+void LoadState(ForecasterState state)
+double Predict(IReadOnlyList<double> features)
+long Samples { get; }
+ForecasterState SaveState()
+void Update(IReadOnlyList<double> features, double target)
+```
+
+
+<!-- @type OnlineLinearRegression | Quant helpers -->
+### `OnlineLinearRegression`
+
+Recursive least squares (RLS) with exponential forgetting. Fits a linear model `y = β·x` incrementally — each `Update` revises the coefficient vector in O(d²) time without storing past samples. The forgetting factor `Lambda` ∈ (0, 1] down-weights older observations; 1.0 = classical OLS, 0.99 = the canonical "slowly adapt" choice in HFT alpha papers (Aldridge 2013, "High-Frequency Trading"). Why RLS in HFT: market regimes shift on hourly-to-daily timescales. A model fit once on yesterday and frozen overfits to old structure; a model that retrains from scratch every tick wastes information. RLS with λ ≈ 0.99 occupies the middle ground that works in practice — fast adaptation, no full re-fit, bounded state. Pure C#, no NuGet adds. Stateful, single-threaded.
+
+```csharp
+IReadOnlyList<double> Coefficients { get; }
+int Dimensions { get; }
+string Kind { get; }
+double Lambda { get; }
+void LoadState(ForecasterState state)
+double Predict(IReadOnlyList<double> features)
+long Samples { get; }
+ForecasterState SaveState()
+void Update(IReadOnlyList<double> features, double y)
+```
+
+- `LoadState` — Restores state from `SaveState`. The snapshot must be an RLS state of matching dimension (β length d, covariance length d²); anything else throws so a corrupt or mismatched artifact fails loudly rather than training from a garbled prior.
+
+<!-- @type OnlineLogisticRegression | Quant helpers -->
+### `OnlineLogisticRegression`
+
+Online logistic regression for a binary target: `P(y=1) = σ(w·x)`, updated by one L2-penalized SGD step on the log-loss (`w ← w + η·(e·x − ρ·w)`, `e = y − σ(w·x)`). Unlike a linear probability model it cannot leave [0, 1] and calibrates better near the extremes — the right fit for the order book's spread-widen / depth-drain / sweep-jump event heads. Not meaningful for the unbounded direction heads (σ squashes the output to a probability).
+
+```csharp
+int Dimensions { get; }
+string Kind { get; }
+void LoadState(ForecasterState state)
+double Predict(IReadOnlyList<double> features)
+long Samples { get; }
+ForecasterState SaveState()
+void Update(IReadOnlyList<double> features, double target)
+```
+
 
 <!-- @type OnlineRegression | Quant helpers -->
 ### `OnlineRegression`
@@ -545,6 +637,19 @@ double Update(double price)
 - `Period` — The window length in returns.
 - `Update` — Adds a price and returns the per-sample volatility.
 
+<!-- @type RollingBrierScore | Quant helpers -->
+### `RollingBrierScore`
+
+Fixed-window rolling Brier score for a binary-event probability forecaster: mean of `(p − y)²` over the last N scored forecasts, alongside the event's observed base rate over the same window so the read-out can be compared against "climatology" (always predicting the base rate scores `r(1−r)`). Ring-buffered, O(1) memory, deterministic. The sibling of `RollingForecastMetrics` for probability targets.
+
+```csharp
+void Reset()
+void Score(double probability, bool occurred)
+EventScore Snapshot()
+```
+
+- `Score` — Scores one realized event forecast. Non-finite probabilities are ignored; finite ones are clamped to [0, 1] before scoring.
+
 <!-- @type RollingCorrelation | Quant helpers -->
 ### `RollingCorrelation`
 
@@ -561,6 +666,19 @@ double Update(double x, double y)
 - `Beta` — The slope of y on x over the same window — a beta, when x is the benchmark.
 - `Period` — The window length.
 - `Update` — Adds one observation pair and returns the correlation.
+
+<!-- @type RollingForecastMetrics | Quant helpers -->
+### `RollingForecastMetrics`
+
+Fixed-window rolling MAE (in ticks) and directional hit-rate for 1-step-ahead POC forecasts. A hit means the predicted and realized moves agree in sign; a zero realized move counts as a hit only when the prediction was smaller than half a tick (i.e. the model also called "flat"). Ring-buffered, O(1) memory, deterministic.
+
+```csharp
+void Reset()
+void Score(double predictedDeltaTicks, double realizedDeltaTicks)
+ForecastAccuracy Snapshot()
+```
+
+- `Score` — Scores one realized forecast, both in ticks relative to the reference bar's POC. Non-finite inputs are ignored (an unusable forecast is not evidence either way).
 
 <!-- @type RollingWindow | Quant helpers -->
 ### `RollingWindow`
