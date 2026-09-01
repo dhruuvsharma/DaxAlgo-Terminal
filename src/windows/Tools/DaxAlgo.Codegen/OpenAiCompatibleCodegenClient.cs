@@ -175,6 +175,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
             var text = new System.Text.StringBuilder();
             var usage = CodegenUsage.None;
+            var reasoningCharacters = 0;
             await using var body = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
             // Driven by hand rather than with `await foreach`, for the reason TrySendAsync exists: an
@@ -200,15 +201,37 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                 if (!moved) break;
                 var chunk = chunks.Current;
 
-                if (chunk.TryGetProperty("choices", out var choices) &&
+                var delta = default(JsonElement);
+                var hasDelta =
+                    chunk.TryGetProperty("choices", out var choices) &&
                     choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0 &&
-                    choices[0].TryGetProperty("delta", out var delta) &&
+                    choices[0].TryGetProperty("delta", out delta);
+
+                if (hasDelta &&
                     delta.TryGetProperty("content", out var content) &&
                     content.ValueKind == JsonValueKind.String &&
                     content.GetString() is { Length: > 0 } fragment)
                 {
                     text.Append(fragment);
                     yield return new CodegenEvent.TextDelta(fragment);
+                }
+
+                // A reasoning model on this wire format streams its thinking as `reasoning_content`,
+                // a SEPARATE field, and emits no `content` at all until it has finished. Counted
+                // rather than shown: the raw chain of thought is noise in a builder chat, and some
+                // providers ask that it not be displayed. But it is the difference between "the
+                // provider is working" and "the provider has gone quiet", and if a generation ends
+                // with nothing but this it is the only honest explanation of where the money went.
+                if (hasDelta &&
+                    delta.TryGetProperty("reasoning_content", out var reasoning) &&
+                    reasoning.ValueKind == JsonValueKind.String &&
+                    reasoning.GetString() is { Length: > 0 } thought)
+                {
+                    reasoningCharacters += thought.Length;
+
+                    // Empty, so nothing of the model's thinking reaches the transcript — it exists to
+                    // keep the turn visibly alive, exactly as the gateway retry above does.
+                    yield return new CodegenEvent.TextDelta(string.Empty);
                 }
 
                 if (chunk.TryGetProperty("usage", out var reported) && reported.ValueKind == JsonValueKind.Object)
@@ -220,7 +243,8 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                 }
             }
 
-            yield return new CodegenEvent.Completed(Assemble(text.ToString(), usage));
+            yield return new CodegenEvent.Completed(
+                Assemble(text.ToString(), usage, reasoningCharacters));
         }
     }
 
@@ -263,10 +287,27 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     }
 
     /// <summary>Prose with no code is the model asking a clarifying question — a normal turn.</summary>
-    private StrategyCodegenResponse Assemble(string text, CodegenUsage usage)
+    /// <param name="reasoningCharacters">How much the model streamed as <c>reasoning_content</c>. Only
+    /// read when nothing else arrived, and then it is the whole explanation.</param>
+    private StrategyCodegenResponse Assemble(string text, CodegenUsage usage, int reasoningCharacters = 0)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return StrategyCodegenResponse.Fail($"{DisplayName} returned no message content.");
+        {
+            // "Returned no message content" is true and tells the user nothing about a generation that
+            // may have taken twenty minutes and billed every output token. Measured: a vague brief on a
+            // reasoning model streamed 23.5 minutes of `reasoning_content` and never began an answer.
+            // Naming that is the difference between a bug they will report and a setting they can change.
+            var spent = usage.OutputTokens > 0
+                ? $" It billed {usage.OutputTokens:N0} output token(s)."
+                : string.Empty;
+
+            return StrategyCodegenResponse.Fail(reasoningCharacters > 0
+                ? $"{DisplayName} spent the whole generation reasoning and never started an answer."
+                  + spent
+                  + " Lower the reasoning effort, or give it a more specific brief — an open-ended one"
+                  + " can consume the entire budget before any code is written."
+                : $"{DisplayName} returned no message content.{spent}");
+        }
 
         var files = CodegenCodeExtractor.ExtractFiles(text);
         return files.Count == 0

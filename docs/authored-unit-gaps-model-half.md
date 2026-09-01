@@ -388,11 +388,27 @@ exactly wrong for a picture nobody has seen, where every answer changes a line a
 know which. The **"specification awaiting approval IS a question"** rule is the weakest lever in the
 pack: it asks a model to volunteer a checkpoint it has no incentive to add.
 
-**Not acted on, because one confounded comparison is not evidence.** The two variables that differ
-between the run that asked and the three that did not — brief specificity and model — have never been
-separated. The experiment that would settle it is one run of a deliberately vague brief on the model
-that did not ask. Until then this is an observation with a plausible story attached, which is the kind
-of thing this file exists to keep apart from a finding.
+**The experiment was run, and it did not answer the question — it found something else.** A
+deliberately vague brief (*"Show me what is happening in the order book."*), same model, same effort,
+only specificity varied: after **23.5 minutes** the provider returned `ProviderError`, no content at
+all, and therefore no answer about questioning either.
+
+The diagnosis is a real defect and is fixed:
+
+**A reasoning model streams its thinking as `reasoning_content`, a separate field from `content`, and
+the client read only `content`.** Verified against the provider directly — the first delta of an
+ordinary request is `"delta":{"reasoning_content":"The"}`. So a brief open-ended enough to consume the
+whole budget thinking came back as *"returned no message content"*: true, and no explanation of where
+twenty-three minutes and every output token went.
+
+Now counted rather than shown — the raw chain of thought is noise in a builder chat, and some
+providers ask that it not be displayed — and used for two things: an **empty text delta** so a long
+think does not read as a hang, and an honest failure that names reasoning as the cause and reports
+the tokens billed. `StalledStreamTests` pins both.
+
+**The questioning experiment is still open**, and now needs a model or effort that will actually reach
+an answer on a vague brief. That the vaguest brief tried so far could not be answered at all, at
+Standard effort on a free reasoning model, is itself worth knowing.
 
 ## The delta table
 

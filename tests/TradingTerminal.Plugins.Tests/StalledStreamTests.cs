@@ -113,7 +113,67 @@ public sealed class StalledStreamTests
         seen.Should().Equal(1, 2);
     }
 
+    [Fact]
+    public async Task A_generation_spent_entirely_on_reasoning_says_so()
+    {
+        // MEASURED, and it cost 23.5 minutes to find. A reasoning model on this wire format streams
+        // its thinking as `reasoning_content`, a SEPARATE field from `content`, and the client read
+        // only `content` — so an open-ended brief that consumed the whole budget thinking came back as
+        // "returned no message content", which is true and explains nothing about where twenty-odd
+        // minutes and every output token went.
+        var stream = new ScriptedStream(
+            """data: {"choices":[{"delta":{"reasoning_content":"Let me think about this at length."}}]}""",
+            """data: {"choices":[],"usage":{"prompt_tokens":900,"completion_tokens":64000}}""",
+            "data: [DONE]");
+
+        using var http = new HttpClient(new ScriptedHandler(stream));
+        var client = new OpenAiCompatibleCodegenClient(
+            http, "reasoner", "Reasoner", "https://example.invalid/v1", "m", "k");
+
+        StrategyCodegenResponse? completed = null;
+        await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest("ctx", [])))
+            if (evt is CodegenEvent.Completed done) completed = done.Response;
+
+        completed.Should().NotBeNull();
+        completed!.Success.Should().BeFalse();
+        completed.Error.Should().Contain("reasoning", "the user has to know where the budget went");
+        completed.Error.Should().Contain("64,000", "and how much of it was billed");
+    }
+
+    [Fact]
+    public async Task Reasoning_alone_still_keeps_the_turn_visibly_alive()
+    {
+        // The other half of why this is counted. A twenty-minute silence in the builder is
+        // indistinguishable from a hang, and the client already emits an empty delta for the same
+        // reason when it retries a gateway.
+        var stream = new ScriptedStream(
+            """data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}""",
+            """data: {"choices":[{"delta":{"content":"done"}}]}""",
+            "data: [DONE]");
+
+        using var http = new HttpClient(new ScriptedHandler(stream));
+        var client = new OpenAiCompatibleCodegenClient(
+            http, "reasoner", "Reasoner", "https://example.invalid/v1", "m", "k");
+
+        var deltas = 0;
+        await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest("ctx", [])))
+            if (evt is CodegenEvent.TextDelta) deltas++;
+
+        deltas.Should().Be(2, "one liveness ping for the thinking, one for the answer");
+    }
+
     // ── fixtures ────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Replays a fixed set of SSE lines and ends.</summary>
+    private sealed class ScriptedStream(params string[] lines)
+        : MemoryStream(System.Text.Encoding.UTF8.GetBytes(string.Join("\n\n", lines) + "\n\n"));
+
+    private sealed class ScriptedHandler(Stream body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(body) });
+    }
 
     /// <summary>A stream that never produces a byte and never ends, and blocks like a socket does.</summary>
     private sealed class StallingStream : Stream
