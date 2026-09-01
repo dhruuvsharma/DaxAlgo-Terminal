@@ -1,4 +1,4 @@
-using DaxAlgo.Sdk;
+﻿using DaxAlgo.Sdk;
 using DaxAlgo.Sdk.Layout;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
@@ -56,18 +56,22 @@ public static class DrawProbe
     /// picture. After data has arrived, text alone means the unit is still explaining itself when it
     /// should be drawing.
     /// </param>
-    /// <param name="requirePanel">
-    /// Whether the callback owes the frame a panel scope.
+    /// <param name="hostOwnsPanel">
+    /// Who owes the frame its panel scope — and it decides BOTH directions, which is why it is stated
+    /// as ownership rather than as a requirement.
     ///
-    /// <para>True for <c>Draw</c>, which is handed the whole body: without a panel there is no clip and
-    /// no title, and both exemplars open one. <b>False for a panel callback in a
+    /// <para>False for <c>Draw</c>, which is handed the whole body: without a panel there is no clip and
+    /// no title, so not opening one is <c>draw.no-panel</c>. <b>True for a panel callback in a
     /// <see cref="UnitLayout"/></b> — <c>AuthoredUnitLayoutHost</c> has already given that callback its
-    /// own surface and drawn its header, so a scope opened there would title the region twice. Neither
-    /// exemplar opens one in its panel callbacks, which is the shape a generated unit copies, so
-    /// demanding it would fail every correct unit that declares a layout.</para>
+    /// own surface and drawn its header, so opening one there is <c>draw.double-panel</c> and the title
+    /// appears twice.</para>
+    ///
+    /// <para>It was a one-directional <c>requirePanel</c> until the doubled titles turned up in a
+    /// screenshot. Every rung passed on those units — the primitives were inside a panel, finite and
+    /// theme-coloured — because the probe had been told only what a missing panel looks like.</para>
     /// </param>
     public static VerificationStep Run(
-        Action<IRenderSurface> draw, bool mustDraw, bool requirePicture = false, bool requirePanel = true)
+        Action<IRenderSurface> draw, bool mustDraw, bool requirePicture = false, bool hostOwnsPanel = false)
     {
         ArgumentNullException.ThrowIfNull(draw);
 
@@ -105,12 +109,23 @@ public static class DrawProbe
                 : VerificationStep.Skip(VerificationRung.DrawProbe);
         }
 
-        if (requirePanel && surface.Panels.Count == 0)
+        if (!hostOwnsPanel && surface.Panels.Count == 0)
         {
             findings.Add(new VerificationFinding(
                 "draw.no-panel",
                 "Primitives were emitted outside any panel.",
                 "Open a panel first: using var panel = surface.Panel(\"Title\", RenderPanelKind.Chart);"));
+        }
+
+        if (hostOwnsPanel && surface.Panels.Count > 0)
+        {
+            findings.Add(new VerificationFinding(
+                "draw.double-panel",
+                "A panel was opened inside a callback the host has already framed, so its title is "
+                + "drawn twice.",
+                "Drop the surface.Panel(...) scope from this callback and draw straight onto the "
+                + "surface. Declaring the panel in the layout is what names it; the host draws the "
+                + "header and clips the region before your callback is called."));
         }
 
         if (surface.HasNonFiniteCoordinate)
@@ -208,8 +223,7 @@ public static class DrawProbe
 
         foreach (var panel in panels)
         {
-            // requirePanel: false — the host already owns this panel's region and header.
-            var step = Run(panel.Draw, mustDraw, requirePicture, requirePanel: false);
+            var step = Run(panel.Draw, mustDraw, requirePicture, hostOwnsPanel: true);
             if (step.Outcome == VerificationOutcome.Passed) anyPassed = true;
 
             var name = string.IsNullOrWhiteSpace(panel.Title) ? "an untitled panel" : $"'{panel.Title}'";

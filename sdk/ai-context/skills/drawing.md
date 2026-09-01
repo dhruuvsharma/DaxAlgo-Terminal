@@ -117,6 +117,9 @@ public void Draw(IRenderSurface surface)
 }
 ```
 
+**Open a panel in `Draw` only.** A `UnitLayout` callback is already framed and titled by the host, so a
+scope opened there draws the title twice; draw straight onto the surface instead.
+
 **Panels stack** — open several in sequence, each titled in its corner. The host supplies no axes:
 `AxisX`/`AxisY` declare the range your coordinates are in, and the LABELS come from whichever widget
 you hand a format to. **Series kinds**: `Line` for a continuous value, `Steps` for what holds until it

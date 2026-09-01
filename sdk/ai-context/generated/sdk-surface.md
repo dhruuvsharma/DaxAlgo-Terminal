@@ -129,6 +129,7 @@ True range and Wilder's Average True Range — the volatility unit stops and tar
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Atr(int period = 14)
 double LastTrueRange { get; }
 int Period { get; }
 double TrueRange(double high, double low, double previousClose)
@@ -150,6 +151,7 @@ Bollinger bands: a moving average with a volatility-scaled envelope.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new BollingerBands(int period = 20, double deviations = 2)
 double Lower { get; }
 double Middle { get; }
 double PercentB { get; }
@@ -200,6 +202,7 @@ A double exponential smoother, so a fast average can be de-lagged without shorte
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Dema(int period)
 int Period { get; }
 double Update(double sample)
 ```
@@ -215,6 +218,7 @@ Exponential moving average, seeded with its first sample.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Ema(int period)
 int Count { get; }
 int Period { get; }
 double Update(double sample)
@@ -230,6 +234,7 @@ double Update(double sample)
 Running statistics of an equity curve: drawdown as it happens, and the risk-adjusted return so far.
 
 ```csharp
+new EquityStats()
 double AnnualizedSharpe(double samplesPerYear)
 double Calmar { get; }
 long Count { get; }
@@ -268,11 +273,13 @@ double Volatility { get; }
 Rolling calibration read-out for one event forecaster: mean squared probability error (`Brier`, lower is better; 0.25 = always saying 50%), the event's observed `BaseRate` over the same window — the climatology comparison, since a useful model beats `baseRate·(1−baseRate)` — and the lifetime scored count.
 
 ```csharp
+new EventScore(double Brier, double BaseRate, long ScoredCount)
 double BaseRate { get; }
 double Brier { get; }
 long ScoredCount { get; }
 ```
 
+- `.ctor` — Rolling calibration read-out for one event forecaster: mean squared probability error (`Brier`, lower is better; 0.25 = always saying 50%), the event's observed `BaseRate` over the same window — the climatology comparison, since a useful model beats `baseRate·(1−baseRate)` — and the lifetime scored count.
 
 <!-- @type EwmaVariance | Quant helpers -->
 ### `EwmaVariance`
@@ -282,6 +289,7 @@ Exponentially weighted mean and variance — Welford's statistic for a series wh
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new EwmaVariance(double lambda = 0.94)
 double Lambda { get; }
 double Mean { get; }
 double StandardDeviation { get; }
@@ -297,17 +305,55 @@ double ZScoreOf(double value)
 - `Variance` — The exponentially weighted variance.
 - `ZScoreOf` — How many current standard deviations `value` sits from the current mean.
 
+<!-- @type FeatureScalerState | Quant helpers -->
+### `FeatureScalerState`
+
+Serializable per-dimension feature-standardizer state stored with a model artifact: the running mean and variance plus the sample count.
+
+```csharp
+new FeatureScalerState(int Dimensions, long Samples, Double[] Mean, Double[] Variance)
+int Dimensions { get; }
+Double[] Mean { get; }
+long Samples { get; }
+Double[] Variance { get; }
+```
+
+- `.ctor` — Serializable per-dimension feature-standardizer state stored with a model artifact: the running mean and variance plus the sample count.
+
 <!-- @type ForecastAccuracy | Quant helpers -->
 ### `ForecastAccuracy`
 
 Rolling accuracy read-out for one one-step-ahead forecaster (a model, or the baseline it is being compared against). `MeanAbsoluteError` and `DirectionalHitRate` are over the rolling window; `ScoredCount` is the lifetime number of scored forecasts.
 
 ```csharp
+new ForecastAccuracy(double MeanAbsoluteError, double DirectionalHitRate, long ScoredCount)
 double DirectionalHitRate { get; }
 double MeanAbsoluteError { get; }
 long ScoredCount { get; }
 ```
 
+- `.ctor` — Rolling accuracy read-out for one one-step-ahead forecaster (a model, or the baseline it is being compared against). `MeanAbsoluteError` and `DirectionalHitRate` are over the rolling window; `ScoredCount` is the lifetime number of scored forecasts.
+
+<!-- @type ForecasterState | Quant helpers -->
+### `ForecasterState`
+
+The serializable learned state of one `IOnlineForecaster`. Deliberately shaped for linear online learners: a coefficient vector every such learner has, plus an optional flattened covariance/second-moment matrix (RLS keeps one; plain gradient learners leave it empty). Numeric buffers are plain arrays so System.Text.Json round-trips them unambiguously.
+
+```csharp
+new ForecasterState(string Kind, int Dimensions, long Samples, Double[] Coefficients, Double[] Covariance)
+Double[] Coefficients { get; }
+Double[] Covariance { get; }
+int Dimensions { get; }
+string Kind { get; }
+long Samples { get; }
+```
+
+- `.ctor` — The serializable learned state of one `IOnlineForecaster`. Deliberately shaped for linear online learners: a coefficient vector every such learner has, plus an optional flattened covariance/second-moment matrix (RLS keeps one; plain gradient learners leave it empty). Numeric buffers are plain arrays so System.Text.Json round-trips them unambiguously.
+- `Coefficients` — The weight vector β (length = Dimensions).
+- `Covariance` — Row-major flattened d×d auxiliary matrix (RLS inverse-covariance proxy); empty for learners that keep none.
+- `Dimensions` — Feature-vector length the state was captured at.
+- `Kind` — Algorithm discriminator (must match the target learner's `Kind`).
+- `Samples` — Observations folded in when captured.
 
 <!-- @type IEstimator | Quant helpers -->
 ### `IEstimator`
@@ -329,6 +375,7 @@ double Value { get; }
 A two-state Kalman filter that tracks a hedge ratio and an intercept as they drift — the pairs trading estimator.
 
 ```csharp
+new KalmanHedgeRatio(double processNoise = 1E-05, double measurementNoise = 0.001)
 double HedgeRatio { get; }
 double Intercept { get; }
 bool IsReady { get; }
@@ -355,6 +402,7 @@ A one-dimensional Kalman filter over a level that drifts — the adaptive altern
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new KalmanLevel(double processNoise = 1E-05, double measurementNoise = 0.01)
 double Gain { get; }
 double Innovation { get; }
 double MeasurementNoise { get; }
@@ -376,6 +424,7 @@ Kyle's lambda: how far price moves per unit of signed volume — the market's de
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new KyleLambda(int period = 60)
 double Close(double price)
 double ImpactOf(double signedUnits)
 int Period { get; }
@@ -397,6 +446,7 @@ Moving Average Convergence Divergence: a fast average minus a slow one, and an a
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Macd(int fastPeriod = 12, int slowPeriod = 26, int signalPeriod = 9)
 double Histogram { get; }
 double Line { get; }
 double Signal { get; }
@@ -437,6 +487,7 @@ double ZScore(double value, double mean, double standardDeviation)
 Per-dimension exponentially-weighted online standardizer (Welford with decay). RLS on raw, differently-scaled features is numerically fragile — one outlier bar can blow up the inverse covariance — so every feature is transformed to `(x − μ) / √(σ² + ε)` and clamped to ±`clip` before it reaches the learner. The first `passthroughDimensions` dimensions (the bias term) are copied through untouched, because standardizing a constant would zero it. Deterministic, single-threaded, pure C#.
 
 ```csharp
+new OnlineFeatureScaler(int dimensions, double halfLifeSamples = 64, double clip = 5, int passthroughDimensions = 1)
 int Dimensions { get; }
 void LoadState(FeatureScalerState state)
 void Observe(IReadOnlyList<double> raw)
@@ -454,6 +505,7 @@ void Transform(IReadOnlyList<double> raw, Double[] destination)
 Online (ridge) gradient descent for `y = w·x`. Each `Update` takes one SGD step on the squared loss with an L2 penalty: `w ← w + η·(e·x − ρ·w)`, where `e = y − w·x`. First-order and O(d) per step — cheaper and higher-variance than the second-order `OnlineLinearRegression` (RLS), and a useful alternative bias/variance profile.
 
 ```csharp
+new OnlineGradientDescent(int dimensions, double learningRate = 0.05, double l2 = 0.0001)
 int Dimensions { get; }
 string Kind { get; }
 void LoadState(ForecasterState state)
@@ -470,6 +522,7 @@ void Update(IReadOnlyList<double> features, double target)
 Recursive least squares (RLS) with exponential forgetting. Fits a linear model `y = β·x` incrementally — each `Update` revises the coefficient vector in O(d²) time without storing past samples. The forgetting factor `Lambda` ∈ (0, 1] down-weights older observations; 1.0 = classical OLS, 0.99 = the canonical "slowly adapt" choice in HFT alpha papers (Aldridge 2013, "High-Frequency Trading"). Why RLS in HFT: market regimes shift on hourly-to-daily timescales. A model fit once on yesterday and frozen overfits to old structure; a model that retrains from scratch every tick wastes information. RLS with λ ≈ 0.99 occupies the middle ground that works in practice — fast adaptation, no full re-fit, bounded state. Pure C#, no NuGet adds. Stateful, single-threaded.
 
 ```csharp
+new OnlineLinearRegression(int dimensions, double lambda = 0.99, double initialDiagonal = 1000)
 IReadOnlyList<double> Coefficients { get; }
 int Dimensions { get; }
 string Kind { get; }
@@ -489,6 +542,7 @@ void Update(IReadOnlyList<double> features, double y)
 Online logistic regression for a binary target: `P(y=1) = σ(w·x)`, updated by one L2-penalized SGD step on the log-loss (`w ← w + η·(e·x − ρ·w)`, `e = y − σ(w·x)`). Unlike a linear probability model it cannot leave [0, 1] and calibrates better near the extremes — the right fit for the order book's spread-widen / depth-drain / sweep-jump event heads. Not meaningful for the unbounded direction heads (σ squashes the output to a probability).
 
 ```csharp
+new OnlineLogisticRegression(int dimensions, double learningRate = 0.1, double l2 = 0.0001)
 int Dimensions { get; }
 string Kind { get; }
 void LoadState(ForecasterState state)
@@ -505,6 +559,7 @@ void Update(IReadOnlyList<double> features, double target)
 Ordinary least squares over a rolling window: the slope, the intercept, and how much of the variation the fit actually explains.
 
 ```csharp
+new OnlineRegression(int period = 60)
 double Correlation { get; }
 int Count { get; }
 double Intercept { get; }
@@ -543,6 +598,7 @@ Signed traded volume over a rolling window, normalised to [-1, 1].
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new OrderFlowImbalance(int period = 100)
 double Cumulative { get; }
 int Period { get; }
 double Update(double volume, TradeSide side)
@@ -562,6 +618,7 @@ double WindowDelta { get; }
 An Ornstein-Uhlenbeck fit, reported as the number that decides whether the trade is worth taking: the half-life — and gated by a test that a random walk actually fails.
 
 ```csharp
+new OrnsteinUhlenbeck(int period = 120)
 double Deviation { get; }
 double HalfLife { get; }
 bool IsMeanReverting { get; }
@@ -594,12 +651,14 @@ void Update(double level)
 One projected point, in panel pixels, with what a unit needs to draw it correctly.
 
 ```csharp
+new Projected(double X, double Y, double Depth, bool InFront)
 double Depth { get; }
 bool InFront { get; }
 double X { get; }
 double Y { get; }
 ```
 
+- `.ctor` — One projected point, in panel pixels, with what a unit needs to draw it correctly.
 - `Depth` — Distance from the camera. Sort DESCENDING and draw in that order: painter's algorithm, far things first, so near things cover them.
 - `InFront` — False when the point is behind the camera, and it must be checked. A point behind the camera projects to a perfectly plausible-looking position on the other side of the picture, so a unit that draws it puts geometry where none exists — and every naive implementation draws it. Skip a point, or a whole shape, when this is false.
 - `X` — Panel X.
@@ -626,6 +685,7 @@ Realised volatility: the root mean square of the log returns in a window.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new RealizedVolatility(int period = 60)
 double Annualized(double samplesPerPeriod)
 double LastReturn { get; }
 int Period { get; }
@@ -643,6 +703,7 @@ double Update(double price)
 Fixed-window rolling Brier score for a binary-event probability forecaster: mean of `(p − y)²` over the last N scored forecasts, alongside the event's observed base rate over the same window so the read-out can be compared against "climatology" (always predicting the base rate scores `r(1−r)`). Ring-buffered, O(1) memory, deterministic. The sibling of `RollingForecastMetrics` for probability targets.
 
 ```csharp
+new RollingBrierScore(int window = 200)
 void Reset()
 void Score(double probability, bool occurred)
 EventScore Snapshot()
@@ -658,6 +719,7 @@ Rolling correlation between two series, for the cases where the slope is not wan
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new RollingCorrelation(int period = 60)
 double Beta { get; }
 int Period { get; }
 double Update(double x, double y)
@@ -673,6 +735,7 @@ double Update(double x, double y)
 Fixed-window rolling MAE (in ticks) and directional hit-rate for 1-step-ahead POC forecasts. A hit means the predicted and realized moves agree in sign; a zero realized move counts as a hit only when the prediction was smaller than half a tick (i.e. the model also called "flat"). Ring-buffered, O(1) memory, deterministic.
 
 ```csharp
+new RollingForecastMetrics(int window = 100)
 void Reset()
 void Score(double predictedDeltaTicks, double realizedDeltaTicks)
 ForecastAccuracy Snapshot()
@@ -686,6 +749,7 @@ ForecastAccuracy Snapshot()
 A fixed-capacity ring of the most recent samples, with its statistics computed on demand.
 
 ```csharp
+new RollingWindow(int capacity)
 int Capacity { get; }
 int Count { get; }
 bool IsFull { get; }
@@ -732,6 +796,7 @@ Wilder's Relative Strength Index.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Rsi(int period = 14)
 int Period { get; }
 double Update(double price)
 ```
@@ -747,6 +812,7 @@ Simple moving average over a fixed window.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Sma(int period)
 int Count { get; }
 int Period { get; }
 double Update(double sample)
@@ -764,6 +830,7 @@ Rolling statistics of the bid-ask spread, so "the spread blew out" can be said i
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new SpreadStats(int period = 200)
 bool IsWide(double deviations = 2)
 double Mean { get; }
 double Median { get; }
@@ -813,6 +880,7 @@ Which side crossed the spread to make a trade happen.
 Per-trade statistics: how often the strategy is right, and what it makes when it is.
 
 ```csharp
+new TradeStats()
 double AverageLoss { get; }
 double AverageWin { get; }
 int Count { get; }
@@ -853,6 +921,7 @@ int WorstLosingStreak { get; }
 A point or direction in three dimensions.
 
 ```csharp
+new Vec3(double X, double Y, double Z)
 Vec3 Cross(Vec3 a, Vec3 b)
 double Dot(Vec3 a, Vec3 b)
 double Length { get; }
@@ -864,6 +933,7 @@ double Z { get; }
 Vec3 Zero { get; }
 ```
 
+- `.ctor` — A point or direction in three dimensions. Here so a unit can draw a three-dimensional picture with the two-dimensional primitives it already has: it places its data in space, projects each point itself through `Projection3`, and draws lines, rectangles and markers at the results. Nothing new reaches the host — a unit still never touches a control, which is the whole reason it can be sandboxed.
 - `Cross` — The vector perpendicular to both, right-handed.
 - `Up` — Straight up. The conventional `Up` for a camera that is not rolled.
 - `X` — Rightwards.
@@ -879,6 +949,7 @@ Volume-Synchronised Probability of Informed Trading — how one-sided the flow h
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Vpin(double bucketVolume, int buckets = 50)
 int BucketCount { get; }
 double BucketProgress { get; }
 double BucketVolume { get; }
@@ -898,6 +969,7 @@ Volume-weighted average price, and the volume-weighted dispersion around it.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Vwap()
 double Band(double deviations)
 double Deviation { get; }
 double Update(double price, double volume)
@@ -919,6 +991,7 @@ Welford's running mean and variance — the whole history, in constant space and
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Welford()
 long Count { get; }
 double Mean { get; }
 double StandardDeviation { get; }
@@ -942,6 +1015,7 @@ Wilder's smoothing — `α = 1/period`, not `2/(period+1)`.
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new Wilder(int period)
 int Count { get; }
 int Period { get; }
 double Update(double sample)
@@ -959,6 +1033,7 @@ A windowed z-score with an explicit warm-up, because the number is worthless bef
 Implements `IEstimator`: `Value`, `IsReady`, `Reset()`.
 
 ```csharp
+new ZScore(int period, int minimumSamples = 0)
 double Mean { get; }
 int MinimumSamples { get; }
 int Period { get; }
@@ -1050,16 +1125,27 @@ EquitySummary Draw(IRenderSurface surface, IReadOnlyList<double> equity, EquityO
 What an equity curve told us.
 
 ```csharp
+new EquitySummary(PlotRange Range, double Peak, double MaxDrawdown, double MaxDrawdownShare)
 double MaxDrawdown { get; }
 double MaxDrawdownShare { get; }
 double Peak { get; }
 PlotRange Range { get; }
 ```
 
+- `.ctor` — What an equity curve told us.
 - `MaxDrawdown` — Largest peak-to-trough fall, as a positive number.
 - `MaxDrawdownShare` — The same fall as a share of the peak it fell from, or NaN.
 - `Peak` — Highest equity reached.
 - `Range` — The value range drawn, for plotting anything else on the same scale.
+
+<!-- @type FeedQuality | Drawing helpers -->
+### `FeedQuality`
+
+Provenance / trust tag for a footprint feature set. Real exchange-classified trade tape (initiator side known, or inferred from a true last-price + quote pair) carries full diagnostic weight (q = 1.0). When no trade tape is available the extractor can synthesize pseudo-prints from L1 quote/last updates via `SyntheticPrints`; those carry reduced weight (q ≈ 0.4) so downstream composites can discount the fallback path instead of silently trusting it.
+
+- `None` — No usable feed.
+- `RealTape` — Real trade tape (time and sales). Quality multiplier q = 1.0.
+- `SyntheticL1` — Pseudo-prints synthesized from L1 quotes via the tick rule. Quality q ≈ 0.4.
 
 <!-- @type Footprint | Drawing helpers -->
 ### `Footprint`
@@ -1072,6 +1158,60 @@ ValueTuple<double, double> ValueArea(FootprintBar bar, double share = 0.7)
 ```
 
 - `ValueArea` — The price band holding 70% of a bar's volume, expanded outward from the point of control.
+
+<!-- @type FootprintBar | Drawing helpers -->
+### `FootprintBar`
+
+A completed footprint bar: per-price rows plus the bar-level aggregates that the v2 Apex estimators consume — POC, total-volume centroid, the NEW buy- and sell-volume centroids (volume-weighted price means per side, not argmax rows), the bar delta and the running cumulative delta, plus stacked-imbalance run counts. Tagged with the `FeedQuality` of the trade stream it was built from.
+
+```csharp
+new FootprintBar(DateTime StartUtc, DateTime EndUtc, IReadOnlyList<FootprintFeatureRow> Rows, double PocPrice, double VolumeCentroid, double BuyCentroid, double SellCentroid, long BuyVolume, long SellVolume, long Delta, long CumulativeDelta, int StackedBuy, int StackedSell, FeedQuality Quality)
+double BuyCentroid { get; }
+long BuyVolume { get; }
+long CumulativeDelta { get; }
+long Delta { get; }
+DateTime EndUtc { get; }
+double PocPrice { get; }
+FeedQuality Quality { get; }
+IReadOnlyList<FootprintFeatureRow> Rows { get; }
+double SellCentroid { get; }
+long SellVolume { get; }
+int StackedBuy { get; }
+int StackedSell { get; }
+DateTime StartUtc { get; }
+long TotalVolume { get; }
+double VolumeCentroid { get; }
+```
+
+
+<!-- @type FootprintFeatureRow | Drawing helpers -->
+### `FootprintFeatureRow`
+
+One price row of a footprint bar: buy- and sell-initiated volume that printed inside the row's price bucket, plus the diagonal-imbalance flags computed against neighbouring rows.
+
+```csharp
+new FootprintFeatureRow(double Price, long BuyVolume, long SellVolume, bool BidImbalance, bool AskImbalance, bool ZeroBid, bool ZeroAsk)
+bool AskImbalance { get; }
+bool BidImbalance { get; }
+long BuyVolume { get; }
+long Delta { get; }
+double Price { get; }
+long SellVolume { get; }
+long TotalVolume { get; }
+bool ZeroAsk { get; }
+bool ZeroBid { get; }
+```
+
+- `.ctor` — One price row of a footprint bar: buy- and sell-initiated volume that printed inside the row's price bucket, plus the diagonal-imbalance flags computed against neighbouring rows.
+- `AskImbalance` — Diagonal ask imbalance: this row's buy volume dominates the sell volume of the row one tick below by at least the configured ratio. Flags absorption / resistance on the ask.
+- `BidImbalance` — Diagonal bid imbalance: this row's sell volume dominates the buy volume of the row one tick above by at least the configured ratio. Flags absorption / support on the bid.
+- `BuyVolume` — Buy-initiated (ask-lifting) volume in this bucket.
+- `Delta` — Row delta: buy-initiated minus sell-initiated volume.
+- `Price` — Bucket reference price (the row's snapped price level).
+- `SellVolume` — Sell-initiated (bid-hitting) volume in this bucket.
+- `TotalVolume` — Total volume that printed in this bucket.
+- `ZeroAsk` — No buy-initiated volume printed in this bucket.
+- `ZeroBid` — No sell-initiated volume printed in this bucket.
 
 <!-- @type FootprintOptions | Drawing helpers -->
 - `FootprintOptions` — How a volume footprint is drawn. Fields: ColumnWidth, PriceFormat, PriceWidth, RowHeight, ShowCellVolumes, ShowImbalances, ShowPointOfControl, ShowValueArea. Use `FootprintOptions.Default`, never `new()`.
@@ -1150,12 +1290,14 @@ void Draw(IRenderSurface surface, IReadOnlyList<ValueTuple<string, RenderThemeCo
 One horizontal reference line.
 
 ```csharp
+new Level(double Value, string Label = null, RenderThemeColor Color = Neutral, bool Dashed = true)
 RenderThemeColor Color { get; }
 bool Dashed { get; }
 string Label { get; }
 double Value { get; }
 ```
 
+- `.ctor` — One horizontal reference line.
 - `Color` — Theme role.
 - `Dashed` — Dashed by default: a reference is context, and a solid line at the same weight as the data competes with it.
 - `Label` — Short text drawn at the left. Empty for an unlabelled line.
@@ -1209,6 +1351,7 @@ bool Waiting(IRenderSurface surface, string message = Waiting for data…)
 A rectangle inside a panel, in panel pixels.
 
 ```csharp
+new PlotArea(double X, double Y, double Width, double Height)
 double Bottom { get; }
 double CenterX { get; }
 double CenterY { get; }
@@ -1234,6 +1377,7 @@ double X { get; }
 double Y { get; }
 ```
 
+- `.ctor` — A rectangle inside a panel, in panel pixels. The composition primitive. Every widget that can be placed rather than filling the panel takes one of these, so a dashboard is a handful of `Row` and `Column` calls rather than arithmetic repeated at every call site — and getting that arithmetic subtly wrong is how panels end up with widgets drawn on top of each other. Splits return the strip and what is left, so a layout reads top to bottom without any running offset to keep straight: `var (header, body) = area.SplitTop(20d);`
 - `Column` — One of `count` equal vertical strips, left to right.
 - `Contains` — True when a point is inside — for hit-testing the cursor against a placed widget.
 - `Height` — Height.
@@ -1260,6 +1404,7 @@ double Y { get; }
 An inclusive numeric range, and the arithmetic every drawing routine repeats.
 
 ```csharp
+new PlotRange(double Minimum, double Maximum)
 PlotRange Empty { get; }
 PlotRange Include(double value)
 bool IsValid { get; }
@@ -1269,6 +1414,7 @@ PlotRange Padded(double fraction = 0.05)
 double Span { get; }
 ```
 
+- `.ctor` — An inclusive numeric range, and the arithmetic every drawing routine repeats.
 - `Empty` — A range that has not been given any values yet.
 - `Include` — Widens to include a value, ignoring non-finite input rather than poisoning the range.
 - `IsValid` — True once at least one finite value has been folded in and the bounds are usable.
@@ -1285,6 +1431,7 @@ double Span { get; }
 Volume traded at one price bucket.
 
 ```csharp
+new ProfileRow(double Price, double BuyVolume, double SellVolume)
 ProfileRow At(double price, double volume)
 double BuyVolume { get; }
 double Price { get; }
@@ -1292,6 +1439,7 @@ double SellVolume { get; }
 double Total { get; }
 ```
 
+- `.ctor` — Volume traded at one price bucket.
 - `At` — A row with no side breakdown, for a profile built from bar volume rather than tape.
 - `BuyVolume` — Buy-initiated volume at that price.
 - `Price` — The bucket's price.
@@ -1315,6 +1463,7 @@ PlotRange Draw(IRenderSurface surface, string name, IReadOnlyList<T> items, Func
 One named series and how to draw it — the unit `Chart` composes.
 
 ```csharp
+new SeriesData(string Name, IReadOnlyList<double> Values, SeriesOptions Options = null)
 SeriesData Dashed(string name, IReadOnlyList<double> values, RenderThemeColor color = Neutral)
 SeriesData Line(string name, IReadOnlyList<double> values, RenderThemeColor color = Accent)
 string Name { get; }
@@ -1336,12 +1485,14 @@ IReadOnlyList<double> Values { get; }
 One marked event.
 
 ```csharp
+new Signal(int Index, double Value, SignalKind Kind, string Label = null)
 int Index { get; }
 SignalKind Kind { get; }
 string Label { get; }
 double Value { get; }
 ```
 
+- `.ctor` — One marked event.
 - `Index` — Position along the series.
 - `Kind` — Which direction it was.
 - `Label` — Optional short text drawn beside it.
@@ -1390,12 +1541,14 @@ int Draw(IRenderSurface surface, IReadOnlyList<TableColumn> columns, IReadOnlyLi
 How a column is laid out.
 
 ```csharp
+new TableColumn(string Header, double Width = 1, bool AlignRight = false)
 bool AlignRight { get; }
 string Header { get; }
 TableColumn Number(string header, double width = 1)
 double Width { get; }
 ```
 
+- `.ctor` — How a column is laid out.
 - `AlignRight` — Whether cells are right-aligned. True for numbers: a column of prices that does not line up on the decimal point cannot be compared down the column, which is the only reason to put numbers in a column.
 - `Header` — Column heading.
 - `Number` — A right-aligned column, for numbers.
@@ -1423,6 +1576,7 @@ int Draw(IRenderSurface surface, IReadOnlyList<TradePrint> prints, TapeOptions o
 One readout: a caption, the number, and optionally how it is doing.
 
 ```csharp
+new Tile(string Label, string Value, string Detail = null, RenderThemeColor Tone = Text)
 string Detail { get; }
 string Label { get; }
 Tile Signed(string label, double amount, string value, string detail = null)
@@ -1430,6 +1584,7 @@ RenderThemeColor Tone { get; }
 string Value { get; }
 ```
 
+- `.ctor` — One readout: a caption, the number, and optionally how it is doing.
 - `Detail` — Optional second line — a change, a denominator, a timestamp.
 - `Label` — What it is. Short — a tile is read at a glance or not at all.
 - `Signed` — A tile toned by the sign of a number — the usual case for PnL, delta or a spread.
@@ -1478,6 +1633,15 @@ void Draw(IRenderSurface surface, double from, double to, PlotRange range, ZoneO
 
 ## Vocabulary
 
+<!-- @type AggressorSide | Vocabulary -->
+### `AggressorSide`
+
+Which side initiated a trade print, when the broker reports it.
+
+- `Unknown`
+- `Buy`
+- `Sell`
+
 <!-- @type AlertLevel | Vocabulary -->
 ### `AlertLevel`
 
@@ -1492,6 +1656,88 @@ Host-rendered alert importance.
 ### `AlertLimits`
 
 Wire limits enforced by every host alert sink.
+
+<!-- @type Bar | Vocabulary -->
+### `Bar`
+
+An OHLCV bar at a specific UTC timestamp (the bar's open time).
+
+```csharp
+new Bar(DateTime TimestampUtc, double Open, double High, double Low, double Close, long Volume)
+double Close { get; }
+double High { get; }
+double Low { get; }
+double Open { get; }
+DateTime TimestampUtc { get; }
+long Volume { get; }
+```
+
+- `.ctor` — An OHLCV bar at a specific UTC timestamp (the bar's open time).
+
+<!-- @type BarSize | Vocabulary -->
+### `BarSize`
+
+- `OneMinute`
+- `ThreeMinutes`
+- `FiveMinutes`
+- `FifteenMinutes`
+- `OneHour`
+- `OneDay`
+
+<!-- @type BrokerKind | Vocabulary -->
+### `BrokerKind`
+
+- `InteractiveBrokers`
+- `NinjaTrader`
+- `CTrader`
+- `Alpaca`
+- `Simulated`
+- `Binance`
+- `IronBeam`
+- `LondonStrategicEdge`
+- `Upstox`
+- `Coinbase`
+- `Bybit`
+- `Kraken`
+- `Okx`
+- `Oanda`
+- `Deribit`
+- `Hyperliquid`
+- `Tradier`
+
+<!-- @type DepthLevel | Vocabulary -->
+### `DepthLevel`
+
+A single price level on one side of the order book. Sizes are in contracts / shares / units depending on the instrument's convention; brokers report integers, so we keep it long to avoid float-precision drift on aggregations.
+
+```csharp
+new DepthLevel(double Price, long Size)
+double Price { get; }
+long Size { get; }
+```
+
+- `.ctor` — A single price level on one side of the order book. Sizes are in contracts / shares / units depending on the instrument's convention; brokers report integers, so we keep it long to avoid float-precision drift on aggregations.
+
+<!-- @type DepthSnapshot | Vocabulary -->
+### `DepthSnapshot`
+
+Aggregated L2 order book snapshot at a point in time. `Bids` are sorted **descending** by price (best bid first); `Asks` are sorted **ascending** (best ask first). Empty lists indicate a one-sided book (extreme illiquidity / opening auction). Snapshots are produced by an order-book reconstruction layer on top of incremental broker depth events (e.g. cTrader's `ProtoOADepthEvent` add/delete quotes, or IB's `updateMktDepth` row-level updates). Consumers see only consistent snapshots, never partial diffs.
+
+```csharp
+new DepthSnapshot(DateTime TimestampUtc, IReadOnlyList<DepthLevel> Bids, IReadOnlyList<DepthLevel> Asks)
+IReadOnlyList<DepthLevel> Asks { get; }
+double BestAsk { get; }
+long BestAskSize { get; }
+double BestBid { get; }
+long BestBidSize { get; }
+IReadOnlyList<DepthLevel> Bids { get; }
+DateTime TimestampUtc { get; }
+```
+
+- `BestAsk` — Best (lowest) ask, or 0 when the ask side is empty.
+- `BestAskSize` — Best-ask size, 0 when empty.
+- `BestBid` — Best (highest) bid, or 0 when the bid side is empty.
+- `BestBidSize` — Best-bid size, 0 when empty.
 
 <!-- @type ExportLimits | Vocabulary -->
 ### `ExportLimits`
@@ -1510,6 +1756,16 @@ void AlertIf(bool condition, string message, AlertLevel level, string dedupeKey 
 
 - `Alert` — Offers one bounded alert to the host for throttled, mediated delivery. Messages and keys must not exceed `MaxMessageLength` and `MaxDedupeKeyLength`, respectively.
 - `AlertIf` — Offers an alert only when `condition` is true.
+
+<!-- @type IClock | Vocabulary -->
+### `IClock`
+
+Wall-clock abstraction. Real code uses `SystemClock` (`UtcNow`); the backtest engine substitutes a `SimulatedClock` that advances as historical ticks are replayed. Any code that conditions on time and needs to be deterministic under backtests should take `IClock` rather than calling `DateTime.UtcNow` directly.
+
+```csharp
+DateTime UtcNow { get; }
+```
+
 
 <!-- @type IMarketDataView | Vocabulary -->
 ### `IMarketDataView`
@@ -1626,6 +1882,21 @@ IParameters Parameters { get; }
 - `Export` — Host-mediated take-away. Offers are honoured only while an action is running, so a unit cannot put anything in front of the viewer that they did not ask for.
 - `Parameters` — The current read-only parameter values.
 
+<!-- @type InstrumentId | Vocabulary -->
+### `InstrumentId`
+
+A surrogate, broker-neutral identifier for a tradable instrument. Strategies and the market-data store key on this — never on a broker's symbology — so the same instrument is one identity no matter which broker streamed it. Wraps an `Int32` (the row id in the instruments table) in a struct so the type system stops you passing a raw symbol or a broker conId where a canonical id is expected.
+
+```csharp
+new InstrumentId(int Value)
+bool IsNone { get; }
+InstrumentId None { get; }
+int Value { get; }
+```
+
+- `.ctor` — A surrogate, broker-neutral identifier for a tradable instrument. Strategies and the market-data store key on this — never on a broker's symbology — so the same instrument is one identity no matter which broker streamed it. Wraps an `Int32` (the row id in the instruments table) in a struct so the type system stops you passing a raw symbol or a broker conId where a canonical id is expected.
+- `None` — The unset / unresolved id. Ingest treats a record carrying this as "needs resolution".
+
 <!-- @type Layout | Vocabulary -->
 ### `Layout`
 
@@ -1666,12 +1937,37 @@ PanelSize Size { get; }
 - `PanelCount` — How many panels this node contains, counting through every split beneath it.
 - `Size` — How this node is sized inside its parent. Ignored at the root.
 
+<!-- @type OhlcvBar | Vocabulary -->
+### `OhlcvBar`
+
+A normalized OHLCV bar carrying canonical identity and provenance. `IsFinal` is false for an in-progress streaming bar (so the store can upsert the same `(InstrumentId, Size, OpenTimeUtc)` row as it updates) and true once the bar closes.
+
+```csharp
+new OhlcvBar(InstrumentId InstrumentId, BarSize Size, DateTime OpenTimeUtc, double Open, double High, double Low, double Close, long Volume, BrokerKind Source, bool IsFinal)
+double Close { get; }
+OhlcvBar FromBar(Bar bar, InstrumentId id, BarSize size, BrokerKind source, bool isFinal)
+double High { get; }
+InstrumentId InstrumentId { get; }
+bool IsFinal { get; }
+double Low { get; }
+double Open { get; }
+DateTime OpenTimeUtc { get; }
+BarSize Size { get; }
+BrokerKind Source { get; }
+Bar ToBar()
+long Volume { get; }
+```
+
+- `.ctor` — A normalized OHLCV bar carrying canonical identity and provenance. `IsFinal` is false for an in-progress streaming bar (so the store can upsert the same `(InstrumentId, Size, OpenTimeUtc)` row as it updates) and true once the bar closes.
+- `FromBar` — Adapts a legacy broker-facing `Bar` into a canonical bar.
+
 <!-- @type PanelNode | Vocabulary -->
 ### `PanelNode`
 
 One drawable panel. The host gives it its own surface, so it has its own viewport, its own cursor, and its own place in the window — which is the difference between this and subdividing a single surface with `PlotArea`.
 
 ```csharp
+new PanelNode(string Title, Action<IRenderSurface> Draw)
 int Depth { get; }
 Action<IRenderSurface> Draw { get; }
 int PanelCount { get; }
@@ -1689,6 +1985,7 @@ A child's size within its parent.
 There is deliberately no "Auto". A drawn panel has no intrinsic size — it paints whatever rectangle it is given — so Auto would measure to zero and the panel would vanish. Star and Pixels are the only two that mean anything here, and refusing to offer a third that silently collapses is better than documenting a trap.
 
 ```csharp
+new PanelSize(double Value, PanelSizeUnit Unit)
 PanelSize Fill { get; }
 PanelSize Pixels(double extent)
 PanelSize Star(double weight)
@@ -1696,6 +1993,7 @@ PanelSizeUnit Unit { get; }
 double Value { get; }
 ```
 
+- `.ctor` — A child's size within its parent. There is deliberately no "Auto". A drawn panel has no intrinsic size — it paints whatever rectangle it is given — so Auto would measure to zero and the panel would vanish. Star and Pixels are the only two that mean anything here, and refusing to offer a third that silently collapses is better than documenting a trap.
 - `Fill` — One share of the remaining space — the default for every child.
 - `Pixels` — An exact extent. Values below one pixel are treated as one share instead, because a zero-height panel is never what an author meant.
 - `Star` — `weight` shares of the remaining space.
@@ -1710,17 +2008,54 @@ How a child is sized inside its parent split.
 - `Star` — A share of whatever space is left, after the fixed children have taken theirs.
 - `Pixels` — An exact height or width in device-independent pixels.
 
+<!-- @type ParameterKind | Vocabulary -->
+### `ParameterKind`
+
+The editable type of a `StrategyParameter`. Drives both runtime value coercion in `StrategyParameters` and the editor control the UI renders (a slider/spinner for numbers, a checkbox for booleans, a combo box for choices, a text box for free text). Keep this enum broker- and UI-neutral: it lives in Core.
+
+- `Integer` — Whole number. Backed by `Int64`; exposed via `GetInt`.
+- `Number` — Real number. Backed by `Double`; exposed via `GetDouble`.
+- `Boolean` — True/false toggle. Backed by `Boolean`; exposed via `GetBool`.
+- `Choice` — One of a fixed set of `Choices`. Backed by `String`.
+- `Enum` — Compatibility name for an enum-valued `Choice`. It intentionally shares the same wire value so existing choice parameters and persisted schemas remain compatible.
+- `Text` — Free-form text. Backed by `String`.
+- `Instrument` — A canonical instrument selection. Backed by `InstrumentId`.
+
+<!-- @type Quote | Vocabulary -->
+### `Quote`
+
+A normalized L1 quote. Unlike the legacy broker-facing `Tick` (which conflates arrival time with event time and zero-fills sizes), every canonical record carries both timestamps and its provenance: `EventTimeUtc` — the exchange/broker event time when available. `IngestTimeUtc` — our clock at ingest. For brokers that only report arrival time, the ingest layer sets `EventTimeApproximate` = true and copies the ingest time into the event time, so consumers know the timestamp is not authoritative. `Source` — which broker produced it. `Sequence` — a per-instrument monotonic counter assigned at ingest, for deterministic ordering and replay.
+
+```csharp
+new Quote(InstrumentId InstrumentId, DateTime EventTimeUtc, DateTime IngestTimeUtc, double Bid, double Ask, long BidSize, long AskSize, BrokerKind Source, long Sequence, bool EventTimeApproximate)
+double Ask { get; }
+long AskSize { get; }
+double Bid { get; }
+long BidSize { get; }
+bool EventTimeApproximate { get; }
+DateTime EventTimeUtc { get; }
+DateTime IngestTimeUtc { get; }
+InstrumentId InstrumentId { get; }
+double Mid { get; }
+long Sequence { get; }
+BrokerKind Source { get; }
+double Spread { get; }
+```
+
+
 <!-- @type RenderColor | Vocabulary -->
 ### `RenderColor`
 
 An exact colour. Prefer `RenderThemeColor`; this exists for data-driven scales.
 
 ```csharp
+new RenderColor(byte R, byte G, byte B)
 byte B { get; }
 byte G { get; }
 byte R { get; }
 ```
 
+- `.ctor` — An exact colour. Prefer `RenderThemeColor`; this exists for data-driven scales.
 - `B` — Blue channel.
 - `G` — Green channel.
 - `R` — Red channel.
@@ -1733,6 +2068,7 @@ Pointer state for the current panel. Present so a visualizer can draw a crosshai
 Why every member here is a state and none is an event. A click, a wheel notch and a drag are transitions, and `Draw` is invoked more than once per frame and must be pure — so a unit cannot consume a transition without firing twice. The host therefore accumulates each gesture into a value that stays put, and the unit reads it. That is the whole reason `HasSelection` is a sticky point rather than an `OnClick`.
 
 ```csharp
+new RenderCursor(double X, double Y, bool IsInside, bool IsPressed)
 bool HasSelection { get; }
 bool IsInside { get; }
 bool IsPressed { get; }
@@ -1742,6 +2078,7 @@ double X { get; }
 double Y { get; }
 ```
 
+- `.ctor` — Pointer state for the current panel. Present so a visualizer can draw a crosshair or a hover readout — the volume footprint's tooltip is exactly this — without the host needing to know what the visualizer considers hoverable. Why every member here is a state and none is an event. A click, a wheel notch and a drag are transitions, and `Draw` is invoked more than once per frame and must be pure — so a unit cannot consume a transition without firing twice. The host therefore accumulates each gesture into a value that stays put, and the unit reads it. That is the whole reason `HasSelection` is a sticky point rather than an `OnClick`.
 - `HasSelection` — Whether the viewer has clicked somewhere in this panel and that click still stands. This is how a price level gets pinned. Read `SelectionX` / `SelectionY`, invert your own axis mapping to get the value under them, and draw the highlight. Clicking again moves it; clicking in another panel clears it here.
 - `IsInside` — Whether the pointer is over the panel at all.
 - `IsPressed` — Whether the primary button is down.
@@ -1788,6 +2125,7 @@ How a pushed point sequence is joined.
 Stroke and fill state applied to subsequent draw calls, in the immediate-mode sense: set it, then draw, then set it again. Nothing is retained between frames.
 
 ```csharp
+new RenderStyle(RenderColor Color, double Thickness = 1, double Alpha = 1, bool Dashed = false, double FontSize = 11)
 double Alpha { get; }
 RenderColor Color { get; }
 bool Dashed { get; }
@@ -1795,6 +2133,7 @@ double FontSize { get; }
 double Thickness { get; }
 ```
 
+- `.ctor` — Stroke and fill state applied to subsequent draw calls, in the immediate-mode sense: set it, then draw, then set it again. Nothing is retained between frames.
 - `Alpha` — 0 transparent to 1 opaque.
 - `Color` — Stroke and fill colour.
 - `Dashed` — Whether strokes are dashed.
@@ -1826,6 +2165,7 @@ Visualizers name roles, not RGB, so one visualizer looks right in every theme an
 The drawable area of the current panel, in device-independent pixels.
 
 ```csharp
+new RenderViewport(double Width, double Height, double Scale)
 double Height { get; }
 double PanX { get; }
 double PanY { get; }
@@ -1834,6 +2174,7 @@ double Width { get; }
 double Zoom { get; }
 ```
 
+- `.ctor` — The drawable area of the current panel, in device-independent pixels.
 - `Height` — Panel height.
 - `PanX` — Horizontal pan, in panel pixels, accumulated from dragging. Positive means the viewer dragged right, so a unit showing history should move further back.
 - `PanY` — Vertical pan, in panel pixels, accumulated from dragging.
@@ -1854,6 +2195,7 @@ The SDK is a curated façade over the host's contract assemblies (TradingTermina
 A row or column of child nodes, with a draggable separator between neighbours.
 
 ```csharp
+new SplitNode(SplitOrientation Orientation, IReadOnlyList<LayoutNode> Children)
 IReadOnlyList<LayoutNode> Children { get; }
 int Depth { get; }
 SplitOrientation Orientation { get; }
@@ -1871,6 +2213,110 @@ Which way a split lays its children out.
 - `Rows` — Children stacked top to bottom.
 - `Columns` — Children placed left to right.
 
+<!-- @type StrategyDataRequirement | Vocabulary -->
+### `StrategyDataRequirement`
+
+What market data a strategy consumes — its appetite, declared by the strategy itself. This is orthogonal to broker data- capability (what a broker can actually serve): a strategy states what it needs; the wiring then gates that need against the connected broker's capability matrix.
+
+- `None` — No declared requirement.
+- `L1` — Level-1 top-of-book quotes (best bid/ask). Part of the universal baseline.
+- `Bars` — OHLCV bars, aggregated downstream from the L1 quote stream. Part of the universal baseline.
+- `Depth` — Level-2 market depth (order book). Informative extra; gates on broker capability.
+- `TradeTape` — The trade tape (time and sales). Informative extra; gates on broker capability.
+
+<!-- @type StrategyParameter | Vocabulary -->
+### `StrategyParameter`
+
+Declarative description of a single tunable a strategy exposes. A strategy author builds a list of these (via the static factory helpers) to advertise everything the UI and engine need — without writing a line of XAML or a constructor overload: the editor control, its label, valid range, default, grouping, and help text. This is pure metadata. Runtime values live in `StrategyParameters`, validated and clamped against the matching parameter. The pair together replaces the old "hardcoded ctor arg + hand-written view" pattern and is the foundation for author-anything custom strategies.
+
+```csharp
+new StrategyParameter()
+StrategyParameter Bool(string key, string displayName, bool default, string group = null, string description = null)
+StrategyParameter Choice(string key, string displayName, string default, IReadOnlyList<string> choices, string group = null, string description = null)
+IReadOnlyList<string> Choices { get; }
+object Default { get; }
+string Description { get; }
+string DisplayName { get; }
+StrategyParameter Enum(string key, string displayName, TEnum default, IReadOnlyList<TEnum> choices = null, string group = null, string description = null)
+string Group { get; }
+StrategyParameter Instrument(string key, string displayName, InstrumentId default, string group = null, string description = null)
+StrategyParameter Int(string key, string displayName, int default, int? min = null, int? max = null, double step = 1, string group = null, string unit = null, string description = null)
+string Key { get; }
+ParameterKind Kind { get; }
+double? Max { get; }
+double? Min { get; }
+string Name { get; }
+StrategyParameter Number(string key, string displayName, double default, double? min = null, double? max = null, double? step = null, string group = null, string unit = null, string description = null)
+double? Step { get; }
+StrategyParameter Text(string key, string displayName, string default = , string group = null, string description = null)
+string Unit { get; }
+```
+
+
+<!-- @type StrategyParameterSchema | Vocabulary -->
+### `StrategyParameterSchema`
+
+An ordered, immutable set of `StrategyParameter` declarations — the full "spec sheet" of tunables a strategy exposes. A strategy advertises one of these; the backtest catalog and the live host build editors and runtime values from it. Keys must be unique. Use `CreateDefaults` to materialise a runtime value bag seeded with each parameter's default.
+
+```csharp
+new StrategyParameterSchema(IEnumerable<StrategyParameter> parameters)
+new StrategyParameterSchema(StrategyParameter[] parameters)
+StrategyParameters CreateDefaults()
+StrategyParameterSchema Empty { get; }
+StrategyParameter Find(string key)
+bool IsEmpty { get; }
+IReadOnlyList<StrategyParameter> Parameters { get; }
+```
+
+- `Empty` — A schema with no tunables — the default for strategies that take no parameters.
+
+<!-- @type StrategyParameters | Vocabulary -->
+### `StrategyParameters`
+
+Runtime values for a `StrategyParameterSchema`. Coerces, validates, and clamps each value against its declaration so strategy code can read strongly-typed settings with `GetInt`/`GetDouble`/`GetBool`/`GetString` and never see an out-of-range or wrong-typed value. Values arrive from three places — defaults, the UI editor, and persisted JSON — so every setter funnels through `Coerce`, which is tolerant of the boxed type (an int set as `double`, a bool set as the string "true", a JSON number, etc.).
+
+```csharp
+new StrategyParameters(StrategyParameterSchema schema, IReadOnlyDictionary<string, object> values = null)
+bool GetBool(string key)
+double GetDouble(string key)
+TEnum GetEnum(string key)
+InstrumentId GetInstrument(string key)
+int GetInt(string key)
+long GetLong(string key)
+object GetRaw(string key)
+string GetString(string key)
+string GetText(string key)
+StrategyParameterSchema Schema { get; }
+void Set(string key, object value)
+IReadOnlyDictionary<string, object> ToDictionary()
+IReadOnlyList<string> Validate()
+```
+
+- `GetInstrument` — Reads a canonical instrument parameter.
+- `GetRaw` — Raw boxed value, of the natural CLR type for the parameter's kind.
+- `GetText` — Reads a free-text parameter. Alias for `GetString`.
+- `Set` — Sets a value, coercing and clamping it against the parameter declaration.
+
+<!-- @type TradePrint | Vocabulary -->
+### `TradePrint`
+
+A normalized trade print (last). Fills the gap the quote-only `Tick` left — a broker that publishes trades (Alpaca) populates this; quote-only feeds simply never emit it.
+
+```csharp
+new TradePrint(InstrumentId InstrumentId, DateTime EventTimeUtc, DateTime IngestTimeUtc, double Price, long Size, AggressorSide Aggressor, BrokerKind Source, long Sequence, bool EventTimeApproximate)
+AggressorSide Aggressor { get; }
+bool EventTimeApproximate { get; }
+DateTime EventTimeUtc { get; }
+DateTime IngestTimeUtc { get; }
+InstrumentId InstrumentId { get; }
+double Price { get; }
+long Sequence { get; }
+long Size { get; }
+BrokerKind Source { get; }
+```
+
+- `.ctor` — A normalized trade print (last). Fills the gap the quote-only `Tick` left — a broker that publishes trades (Alpaca) populates this; quote-only feeds simply never emit it.
+
 <!-- @type UnitAction | Vocabulary -->
 ### `UnitAction`
 
@@ -1883,6 +2329,7 @@ It is data; the running of it is `OnActionAsync`. Nothing here is executable —
 An action cannot reach outside the unit. The sandbox denies file and network access to authored code, so "export this as CSV" is not writable as one: a unit can compute what to export and cannot save it.
 
 ```csharp
+new UnitAction(string Id, string Label, string Detail = null)
 string Detail { get; }
 string Id { get; }
 bool IsValid { get; }
@@ -1890,6 +2337,7 @@ string Label { get; }
 IReadOnlyList<UnitAction> Sanitise(IReadOnlyList<UnitAction> declared)
 ```
 
+- `.ctor` — A verb a unit offers: a named thing the viewer can ask it to do, rendered by the host as a button beside the parameters. Why this exists. A unit could declare a parameter and nothing else, so everything the hand-written windows do on a button — reset the profile, clear the tape, re-centre, snapshot the levels — had no expression at all. A parameter is a value you set; some things are not values. Bending them into one produces a toggle the user has to flip twice to mean "now", which reads as a setting and behaves as a command. It is data; the running of it is `OnActionAsync`. Nothing here is executable — see that method for why, and for the threading rule that follows from it. An action cannot reach outside the unit. The sandbox denies file and network access to authored code, so "export this as CSV" is not writable as one: a unit can compute what to export and cannot save it.
 - `Detail` — One line of tooltip, or null. Say what will happen, not what the button is.
 - `Id` — Stable identifier passed back to `OnActionAsync`. Not shown. Keep it constant across versions: it is what the unit switches on, and renaming it silently stops the button working.
 - `IsValid` — True when this action is well-formed enough to render.
@@ -1940,6 +2388,7 @@ A desired position in the strategy's private model portfolio. It is an intent on
 It may state an entry price condition, because that is an economic decision the strategy owns - the same way it already states a protective stop and a profit target. It still names nothing about where or how the order is routed.
 
 ```csharp
+new VirtualTargetIntent(InstrumentId Instrument, double TargetUnits, double? ProtectiveStopPrice = null, double? ProfitTargetPrice = null, VirtualEntryKind EntryKind = Market, double? EntryTriggerPrice = null)
 VirtualEntryKind EntryKind { get; }
 double? EntryTriggerPrice { get; }
 InstrumentId Instrument { get; }

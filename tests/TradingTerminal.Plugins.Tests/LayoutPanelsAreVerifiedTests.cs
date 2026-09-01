@@ -1,4 +1,4 @@
-using DaxAlgo.Sdk;
+﻿using DaxAlgo.Sdk;
 using DaxAlgo.Sdk.Drawing;
 using DaxAlgo.Sdk.Layout;
 using FluentAssertions;
@@ -76,6 +76,39 @@ public sealed class LayoutPanelsAreVerifiedTests
         report.Findings.Should().Contain(f => f.Code.StartsWith("draw.degenerate", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void A_panel_callback_that_opens_its_own_panel_is_caught()
+    {
+        // Found by looking at a screenshot rather than at a report: ImbalanceHeatFront came back with
+        // "Order book heat front" printed twice, once by the host and once by the unit.
+        //
+        // Every rung passed on it, which is the point — the primitives ARE inside a panel, finite and
+        // theme-coloured. requirePanel only knew what a MISSING panel looked like.
+        //
+        // Not an exemplar defect: all three layout-declaring exemplars split each panel in two, so that
+        // `Draw` opens the scope and delegates to DrawChart(surface, area) while the layout binds the
+        // DrawChart(surface) overload. A model that collapses the two overloads moves the scope into the
+        // callback, and no wording of an exemplar prevents that. Ownership of the region is a fact, so
+        // it is checked rather than taught.
+        var report = AuthoredUnitVerifier.Verify(Unit(typeof(DoubledPanelVisualizer)));
+
+        Step(report, VerificationRung.DrawProbe).Outcome.Should().Be(VerificationOutcome.Failed);
+        report.Findings.Should().Contain(f => f.Code == "draw.double-panel");
+    }
+
+    [Fact]
+    public void A_unit_with_no_layout_may_still_open_its_own_panel()
+    {
+        // The other direction, and the reason this is not simply "never open a panel". With no layout
+        // there is no host-drawn header, so Draw owes the frame its own — which is what draw.no-panel
+        // demands. The new finding must not turn round and punish that.
+        var report = AuthoredUnitVerifier.Verify(Unit(typeof(SinglePanelVisualizer)));
+
+        Step(report, VerificationRung.DrawProbe).Outcome.Should().Be(
+            VerificationOutcome.Passed,
+            because: string.Join(" | ", report.Findings.Select(f => f.ToString())));
+    }
+
     private static VerificationStep Step(VerificationReport report, VerificationRung rung) =>
         report.Steps.Single(s => s.Rung == rung);
 
@@ -149,6 +182,46 @@ public sealed class LayoutPanelsAreVerifiedTests
             var step = surface.Viewport.Width / surface.Viewport.Width;
             for (var i = 0; i < 8; i++)
                 surface.Line(i * step, 10d, i * step + step, 40d);
+        }
+    }
+
+    /// <summary>Opens a panel inside a layout callback, so the host's header and the unit's are both
+    /// drawn and every title comes out twice.</summary>
+    private sealed class DoubledPanelVisualizer : IVisualizer
+    {
+        public StrategyParameterSchema Schema { get; } = StrategyParameterSchema.Empty;
+
+        public StrategyDataRequirement DataRequirement => StrategyDataRequirement.L1;
+
+        public UnitLayout Layout => UnitLayout.Rows(
+            UnitLayout.Panel("Price", DrawPrice).Star(3),
+            UnitLayout.Panel("Volume", DrawVolume).Pixels(60));
+
+        public Task OnStartAsync(IVisualizerContext context, CancellationToken ct) => Task.CompletedTask;
+
+        private static void DrawPrice(IRenderSurface surface)
+        {
+            using var panel = surface.Panel("Price", RenderPanelKind.Chart);
+            Line(surface);
+        }
+
+        private static void DrawVolume(IRenderSurface surface) => Line(surface);
+    }
+
+    /// <summary>No layout, and a panel opened in <c>Draw</c> — the correct shape for a single-panel
+    /// unit, and the one the exemplars show.</summary>
+    private sealed class SinglePanelVisualizer : IVisualizer
+    {
+        public StrategyParameterSchema Schema { get; } = StrategyParameterSchema.Empty;
+
+        public StrategyDataRequirement DataRequirement => StrategyDataRequirement.L1;
+
+        public Task OnStartAsync(IVisualizerContext context, CancellationToken ct) => Task.CompletedTask;
+
+        public void Draw(IRenderSurface surface)
+        {
+            using var panel = surface.Panel("Book", RenderPanelKind.Chart);
+            Line(surface);
         }
     }
 
