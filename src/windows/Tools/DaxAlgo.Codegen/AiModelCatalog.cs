@@ -57,12 +57,16 @@ public static class AiModelCatalog
     {
         "anthropic" or "claude-cli" or "openai" or "xai" or "openrouter" => true,
 
-        // TokenRouter is in this list and the two gateways below are not, because it was MEASURED
-        // rather than reasoned about: reasoning_effort=low and =high were both accepted by
-        // z-ai/glm-5.3-free, the one model the endpoint serves. It also matters more here than
-        // elsewhere -- GLM 5.3 emits nothing but reasoning_content until it has finished thinking, so
-        // the effort dial is the difference between a generation and a long silence.
-        "tokenrouter" => true,
+        // TOKENROUTER IS DELIBERATELY NOT HERE, and the reason corrects my own earlier claim.
+        //
+        // I added it after measuring that reasoning_effort=low and =high were both ACCEPTED -- no
+        // error, valid reply. That is the wrong test. Accepted is not usable: at "high",
+        // z-ai/glm-5.3-free reasons until the budget is gone and never begins an answer. Measured on
+        // a real brief at Max effort -- 1,088 seconds, 95,763 output tokens, no code -- against the
+        // same brief at the provider's own default, which compiled in 374 seconds on one generation.
+        //
+        // So the model is left on its default, which works. The lesson generalises to every row here:
+        // the question is not whether the parameter is refused, it is whether the model still answers.
 
         // OpenCode Zen fronts models from several vendors behind one OpenAI-compatible endpoint, and
         // which of them read a reasoning-effort parameter depends on the model chosen rather than on

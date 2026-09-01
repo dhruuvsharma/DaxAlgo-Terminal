@@ -182,9 +182,12 @@ public sealed class AiProviderPresetTests
         var row = shipped.Should().ContainSingle(p => p.Id == "tokenrouter").Subject;
         row.BaseUrl.Should().Be("https://api.tokenrouter.com/v1");
 
-        AiModelCatalog.SupportsEffort("tokenrouter").Should().BeTrue(
-            "GLM 5.3 accepted both low and high, and the dial is what keeps a reasoning model from "
-            + "thinking silently for minutes");
+        // NOT offered, and the correction is the point. It was added on the strength of both
+        // efforts being ACCEPTED, then measured on a real brief: at "high" this model reasons until
+        // the budget is gone and never answers -- 1,088 seconds and 95,763 output tokens for no code,
+        // against 374 seconds and a compiling unit on the provider's own default.
+        AiModelCatalog.SupportsEffort("tokenrouter").Should().BeFalse(
+            "accepted is not the same as usable, and this model does not answer at high effort");
 
         // The picker ships no guessed list for it: the endpoint serves /models, and one free model id
         // on a gateway is exactly the kind of fact that goes stale in a fortnight.
