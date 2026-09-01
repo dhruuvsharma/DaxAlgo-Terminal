@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -147,6 +147,11 @@ public sealed class AuthoringExemplarTests
         { AuthoringKind.Visualizer, null },
         { AuthoringKind.Visualizer, "an order book depth ladder with footprint imbalance" },
         { AuthoringKind.Visualizer, "the order book as a 3D landscape" },
+        // No book word in it, so this is the row that reaches the composed-scene exemplar. With one
+        // ("...beside the order book") it would fall to the order-flow sample and this row would
+        // silently cover nothing -- which is the rot The_compile_gate_covers_every_exemplar_that_ships
+        // exists to catch.
+        { AuthoringKind.Visualizer, "a volume footprint cluster with the point of control marked" },
     };
 
     [Fact]

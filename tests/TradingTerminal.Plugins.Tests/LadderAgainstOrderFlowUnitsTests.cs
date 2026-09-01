@@ -1,4 +1,4 @@
-using DaxAlgo.Sandbox.Samples;
+﻿using DaxAlgo.Sandbox.Samples;
 using DaxAlgo.Sdk;
 using FluentAssertions;
 using TradingTerminal.Core.Domain;
@@ -86,6 +86,37 @@ public sealed class LadderAgainstOrderFlowUnitsTests
 
         DrawProbe.Run(exemplar.Draw, mustDraw: true, requirePicture: true)
             .Outcome.Should().Be(VerificationOutcome.Passed);
+    }
+
+    [Fact]
+    public void TheComposedSceneExemplarClearsTheLadderToo()
+    {
+        // FootprintClusterVisualizer is the exemplar for BUILDING a picture rather than calling one,
+        // and that makes it the one most likely to fail here: every other sample delegates its drawing
+        // to a widget that is already tested, while this one lays down its own cells, its own axis and
+        // its own overlay. If hand-composed drawing cannot clear the ladder, teaching it is teaching a
+        // shape the verifier rejects.
+        //
+        // Through RunLayout, not Draw: this unit declares a UnitLayout, so Draw is the method the host
+        // never calls and judging it would judge nothing.
+        // Through the interface, because Draw is a DEFAULT interface method: a unit that declares a
+        // layout is not obliged to override it, and this one does not.
+        IVisualizer exemplar = new FootprintClusterVisualizer();
+        var drive = SyntheticDrive.Run(exemplar);
+
+        LifecycleProbe.Run(() => SyntheticDrive.Run(new FootprintClusterVisualizer()), phase: "the exemplar")
+            .Outcome.Should().Be(VerificationOutcome.Passed);
+
+        SchemaCoherenceProbe.Run(
+                exemplar.Schema, drive.Parameters.KeysRead, drivenToCompletion: drive.Completed)
+            .Outcome.Should().Be(VerificationOutcome.Passed);
+
+        var picture = DrawProbe.RunLayout(
+            exemplar.Layout, exemplar.Draw, mustDraw: true, requirePicture: true);
+
+        picture.Outcome.Should().Be(
+            VerificationOutcome.Passed,
+            because: string.Join(" | ", picture.Findings.Select(f => f.ToString())));
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Lean AI-codegen assembly: the strategy-codegen contract impls, provider clients, build-loop
        orchestrator, provider factory, the embedded context pack, and the DI wiring. Split out of
@@ -64,6 +64,13 @@
     </EmbeddedResource>
     <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\SpreadBandVisualizer.cs">
       <LogicalName>DaxAlgo.Codegen.Exemplars.SpreadBandVisualizer.cs</LogicalName>
+    </EmbeddedResource>
+    <!-- The composed-scene visualizer, shown when the brief asks for a grid of values against a
+         shared axis - a footprint, a cluster, a matrix. It is the exemplar for BUILDING a picture
+         rather than calling one: every other sample delegates its drawing to a widget, which is what
+         produced generated windows that looked like the widget library instead of a trading screen. -->
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\FootprintClusterVisualizer.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.FootprintClusterVisualizer.cs</LogicalName>
     </EmbeddedResource>
     <!-- The order-flow visualizer, shown when the brief is about the book or the tape. -->
     <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\BookPressureVisualizer.cs">

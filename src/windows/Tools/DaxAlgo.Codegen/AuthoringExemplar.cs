@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using TradingTerminal.Core.Strategies.Authoring;
@@ -65,6 +65,29 @@ public static class AuthoringExemplar
     /// briefs — the expensive direction, and pinned as such in
     /// <c>ThreeDimensionalUnitTests</c>.</para>
     /// </summary>
+    /// <summary>
+    /// Words for a picture built CELL BY CELL — a grid of values with a shared axis, which no widget
+    /// in the library draws and which is the shape most of the hand-written windows actually are.
+    ///
+    /// <para>It outranks the order-flow list, and deliberately overlaps it: "footprint" is in both.
+    /// A footprint brief answered with the order-flow exemplar gets a worked example that delegates
+    /// every picture to a widget call, and produces one — which is the whole reason generated windows
+    /// came out looking like the widget library rather than like a trading screen.</para>
+    /// </summary>
+    private static readonly string[] CellGridWords =
+    [
+        "footprint", "cluster", "cell", "grid", "matrix", "heatmap", "heat map", "profile",
+        "volume at price", "histogram by price", "regime graph", "per price", "by price",
+    ];
+
+    /// <summary>Words that mean the unit needs DEPTH, which the composed-scene exemplar does not
+    /// consume — so they send the brief to the order-flow one however cell-shaped it also is.</summary>
+    private static readonly string[] BookWords =
+    [
+        "order book", "orderbook", "book", "depth", "dom", "ladder", "microprice", "sweep", "queue",
+        "bid ask", "resting", "absorption", "iceberg",
+    ];
+
     private static readonly string[] SpatialWords =
     [
         "3d", "3-d", "three dimensional", "three-dimensional", "battlefield", "isometric", "perspective",
@@ -140,14 +163,29 @@ public static class AuthoringExemplar
         AuthoringKind.Strategy => "MovingAverageCrossKernel.cs",
         AuthoringKind.Visualizer => WantsSpace(brief)
             ? "DepthLandscapeVisualizer.cs"
-            : WantsOrderFlow(brief)
-                ? "BookPressureVisualizer.cs"
-                : "SpreadBandVisualizer.cs",
+            : WantsCells(brief)
+                ? "FootprintClusterVisualizer.cs"
+                : WantsOrderFlow(brief)
+                    ? "BookPressureVisualizer.cs"
+                    : "SpreadBandVisualizer.cs",
         _ => null,
     };
 
     /// <summary>True when the brief asks for a picture in three dimensions.</summary>
     internal static bool WantsSpace(string? brief) => Mentions(brief, SpatialWords);
+
+    /// <summary>
+    /// True when the brief asks for a grid of values against a shared axis — the shape that has to be
+    /// composed from primitives because no widget draws it.
+    ///
+    /// <para><b>And not when it also asks for the book.</b> The exemplar has to cover the DATA the
+    /// brief needs before it covers the shape: "a footprint chart with the order book beside it" needs
+    /// depth, and the composed-scene sample consumes only bars and the tape, so answering it here
+    /// would teach a better picture drawn from a stream the unit never subscribed to. Among exemplars
+    /// that carry the right data, prefer the one that composes.</para>
+    /// </summary>
+    internal static bool WantsCells(string? brief) =>
+        Mentions(brief, CellGridWords) && !Mentions(brief, BookWords);
 
     /// <summary>True when the brief is about the book or the tape rather than a price series.</summary>
     internal static bool WantsOrderFlow(string? brief) => Mentions(brief, OrderFlowWords);
