@@ -165,6 +165,20 @@ public static class SyntheticDrive
 
         public void Reveal(OhlcvBar bar) => _seen.Add(bar);
 
+        /// <summary>
+        /// The instant the drive has reached — the open time of the newest revealed bar.
+        ///
+        /// <para><b>The drive supplied data and not time until 2026-09-01.</b> Its clock was frozen at
+        /// the epoch while its bars marched a minute apart, so a hundred and twenty bars of market data
+        /// arrived in zero seconds. A unit that buckets by wall clock — a liquidity heatmap slicing
+        /// every second, which is the ordinary way to build one — closed no bucket in the whole drive
+        /// and drew its warm-up message forever. Rung 7 then reported a blank panel for a unit that
+        /// would paint perfectly against a real feed, which is the expensive direction: it sends a
+        /// repair agent to rewrite working code. Exactly the same omission as feeding no depth and no
+        /// tape, one file over.</para>
+        /// </summary>
+        public DateTime Now => _seen.Count == 0 ? Epoch : _seen[^1].OpenTimeUtc;
+
         public IEnumerable<Quote> QuotesFor(OhlcvBar bar) =>
         [
             new(Instrument, bar.OpenTimeUtc, bar.OpenTimeUtc,
@@ -256,9 +270,10 @@ public static class SyntheticDrive
 
     private sealed class DriveContext : IStrategyRuntimeContext, IVisualizerContext
     {
-        internal DriveContext(IMarketDataView data, IParameters parameters)
+        internal DriveContext(Feed data, IParameters parameters)
         {
             Data = data;
+            Clock = new DriveClock(data);
             Recorded = new RecordingParameters(parameters);
             Recorder = new RecordingVirtualBook();
         }
@@ -269,7 +284,7 @@ public static class SyntheticDrive
 
         public IMarketDataView Data { get; }
 
-        public IClock Clock { get; } = new FrozenClock();
+        public IClock Clock { get; }
 
         public IParameters Parameters => Recorded;
 
@@ -278,9 +293,13 @@ public static class SyntheticDrive
         public IAlertSink Alerts { get; } = new DiscardingAlerts();
     }
 
-    private sealed class FrozenClock : IClock
+    /// <summary>The drive's own clock: it advances with the bars, so a unit that buckets by wall
+    /// clock closes buckets here the way it would against a feed. Deterministic — it is the bar
+    /// series, not the machine's clock — so two runs of the same unit still produce the same
+    /// verdict.</summary>
+    private sealed class DriveClock(Feed feed) : IClock
     {
-        public DateTime UtcNow => Epoch;
+        public DateTime UtcNow => feed.Now;
     }
 
     private sealed class DiscardingAlerts : IAlertSink
