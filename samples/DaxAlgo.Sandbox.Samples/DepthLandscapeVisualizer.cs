@@ -1,4 +1,4 @@
-using DaxAlgo.Sdk;
+﻿using DaxAlgo.Sdk;
 using DaxAlgo.Sdk.Drawing;
 using DaxAlgo.Sdk.Quant;
 using TradingTerminal.Core.Domain;
@@ -132,7 +132,12 @@ public sealed class DepthLandscapeVisualizer : IVisualizer
         // The animation, and all of it: an angle derived from the clock. Nothing is incremented here,
         // because Draw runs more than once per frame and an incremented angle would turn at double
         // speed and stutter.
-        var camera = Camera3.Default;
+        // FITTED to the data, never hard-coded. This scene normalises its own coordinates, so a fixed
+        // camera would frame it perfectly — which is exactly the trap: copy the fixed camera into a
+        // unit that keeps real prices, and the picture projects correctly and lands half outside the
+        // panel. Correct and off-screen reads the same as broken. Framing costs one pass over the
+        // corners and works either way.
+        var camera = Camera3.Framing(Corners);
         if (_spin)
         {
             var seconds = (surface.Now - _startedAt).TotalSeconds;
@@ -154,6 +159,19 @@ public sealed class DepthLandscapeVisualizer : IVisualizer
 
         DrawHover(surface);
     }
+
+    /// <summary>The eight corners of the box this scene draws into — the same expressions the vertices
+    /// use, so the frame cannot drift from the drawing. A box rather than every vertex because
+    /// <see cref="Camera3.Framing"/> fits a sphere around what it is given, and the corners already
+    /// bound it.</summary>
+    /// <para>No <c>tallest</c> parameter: every height is divided by it before it becomes a Y, so the
+    /// box is the same whatever the book is holding. A parameter accepted and ignored is the same
+    /// defect as a component nothing calls, and harder to see.</para>
+    private static Vec3[] Corners { get; } =
+    [
+        new(-1d, 0d, -1d), new(1d, 0d, -1d), new(-1d, 0d, 1d), new(1d, 0d, 1d),
+        new(-1d, 0.55d, -1d), new(1d, 0.55d, -1d), new(-1d, 0.55d, 1d), new(1d, 0.55d, 1d),
+    ];
 
     /// <summary>One slice of the book as a polyline across price, at its own distance into the past.</summary>
     /// <summary>

@@ -167,6 +167,8 @@ public static class DrawProbe
                 "Draw the data the unit computed, not a placeholder."));
         }
 
+        if (Collision(surface) is { } collision) findings.Add(collision);
+
         if (surface.ThemeTokens.Count == 0)
         {
             findings.Add(new VerificationFinding(
@@ -180,6 +182,105 @@ public static class DrawProbe
             ? VerificationStep.Pass(VerificationRung.DrawProbe)
             : new VerificationStep(VerificationRung.DrawProbe, VerificationOutcome.Failed, findings);
     }
+
+    /// <summary>
+    /// How much two labels must overlap before it counts. Half of the smaller one, which is well past
+    /// "they touch" and comfortably short of "one is on top of the other".
+    /// </summary>
+    public const double CollisionShare = 0.5d;
+
+    /// <summary>Beyond this many labels the check is skipped rather than run at n². A frame with
+    /// hundreds of labels is a heatmap's axis, and its labels are placed by arithmetic that either
+    /// works everywhere or nowhere.</summary>
+    private const int CollisionCeiling = 240;
+
+    /// <summary>
+    /// Two labels written on top of each other.
+    ///
+    /// <para><b>The most visible defect in the first benchmark batch, and the one I wrote off.</b> A
+    /// generated strategy gave its tile strip <c>SplitTop(40)</c> when a tile needs about fifty for a
+    /// label above a value, so the values collided with the table beneath and the window read as
+    /// corrupt. Every rung passed — the primitives were inside a panel, finite and theme-coloured —
+    /// and the comparison note said "nothing automated can see this". That was wrong: the recording
+    /// surface holds every label's position and size, and overlap is arithmetic.</para>
+    ///
+    /// <para><b>Deliberately hard to trip</b>, because a false finding here costs a whole repair
+    /// generation. Widths are approximated from the font size, so the test demands a SUBSTANTIAL
+    /// overlap rather than any; identical text at the same spot is a redraw and not a collision; and
+    /// the check gives up entirely on frames dense enough that the estimate would be doing more
+    /// guessing than measuring.</para>
+    /// </summary>
+    private static VerificationFinding? Collision(RecordingRenderSurface surface)
+    {
+        var texts = surface.Texts;
+        if (texts.Count < 2 || texts.Count > CollisionCeiling) return null;
+
+        for (var i = 0; i < texts.Count; i++)
+        {
+            for (var j = i + 1; j < texts.Count; j++)
+            {
+                var a = texts[i];
+                var b = texts[j];
+
+                // The same words in the same place is a unit drawing its frame twice, which Draw is
+                // explicitly allowed to do — it is invoked more than once per frame.
+                if (string.Equals(a.Text, b.Text, StringComparison.Ordinal)
+                    && Math.Abs(a.X - b.X) < 0.5d && Math.Abs(a.Y - b.Y) < 0.5d) continue;
+
+                if (!Overlaps(a, b, out var share) || share < CollisionShare) continue;
+
+                return new VerificationFinding(
+                    "draw.text-collision",
+                    $"'{Trim(a.Text)}' and '{Trim(b.Text)}' are drawn on top of each other "
+                    + $"near ({a.X:F0}, {a.Y:F0}).",
+                    "Give the region the height its content needs, or draw fewer labels in it. A tile "
+                    + "wants about 50 pixels for a label above a value, and a table row about 18.");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Do the two labels' boxes intersect, and by how much of the smaller one?</summary>
+    private static bool Overlaps(RecordedText a, RecordedText b, out double share)
+    {
+        share = 0d;
+
+        var (aw, ah) = Box(a);
+        var (bw, bh) = Box(b);
+
+        var wide = Math.Min(a.X + aw, b.X + bw) - Math.Max(a.X, b.X);
+        var tall = Math.Min(a.Y + ah, b.Y + bh) - Math.Max(a.Y, b.Y);
+        if (wide <= 0d || tall <= 0d) return false;
+
+        var smaller = Math.Min(aw * ah, bw * bh);
+        if (smaller <= 0d) return false;
+
+        share = wide * tall / smaller;
+        return true;
+    }
+
+    /// <summary>
+    /// A label's size, estimated from its font.
+    ///
+    /// <para>The surface records no metrics — it is a recorder, not a renderer — so this is the
+    /// average advance of a proportional UI face, which runs a little under 0.55 em. Approximate on
+    /// purpose: the alternative is measuring text, which would drag a font stack into a verifier that
+    /// deliberately has none.</para>
+    /// </summary>
+    private static (double Width, double Height) Box(RecordedText text)
+    {
+        var size = text.Style.FontSize <= 0d ? 11d : text.Style.FontSize;
+
+        // 0.7 em tall, not a full line box. A line box includes the leading above the cap and below
+        // the descender, and that space is MEANT to be shared -- a value stacked over its caption is
+        // how every tile in the library is drawn, and measuring line boxes called all of them
+        // collisions. Ink, not layout: cap height to baseline is about seven tenths of the size.
+        return (Math.Max(1d, text.Text.Length * size * 0.52d), size * 0.7d);
+    }
+
+    private static string Trim(string text) =>
+        text.Length <= 24 ? text : text[..24] + "…";
 
     /// <summary>
     /// Rung 7 against the picture the HOST actually renders.

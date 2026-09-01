@@ -1,4 +1,4 @@
-namespace DaxAlgo.Sdk.Quant;
+﻿namespace DaxAlgo.Sdk.Quant;
 
 /// <summary>
 /// A point or direction in three dimensions.
@@ -60,6 +60,74 @@ public readonly record struct Camera3(
 {
     public static Camera3 Default { get; } =
         new(new Vec3(2.2d, 1.6d, -2.6d), Vec3.Zero, Vec3.Up, 50d);
+
+    /// <summary>
+    /// A camera placed so <paramref name="points"/> fill the panel.
+    ///
+    /// <para><b>Because framing by hand is the thing every generated 3D scene got wrong.</b> Both
+    /// scenes in the first benchmark batch projected correctly — right maths, right depth ordering —
+    /// and then drifted half out of the panel, because the camera was a hard-coded position from the
+    /// exemplar and the data was nowhere near a unit cube. A picture that is correct and off-screen
+    /// reads exactly like a broken one.</para>
+    ///
+    /// <para>The distance is derived from the bounding sphere and the vertical field of view:
+    /// <c>d = r / sin(fov/2)</c> is where a sphere of radius <c>r</c> exactly fills the height, and
+    /// the margin backs off from there. Vertical because <see cref="Projection3"/> scales by half the
+    /// HEIGHT, so a wide panel has room to spare and a tall one does not.</para>
+    ///
+    /// <para>Recompute it when the data changes rather than once: a height field that grows a spike
+    /// needs backing away from, and this is cheap — one pass to find the box.</para>
+    /// </summary>
+    /// <param name="points">Everything that must be visible. Empty leaves <see cref="Default"/>.</param>
+    /// <param name="azimuthRadians">Angle around the target. Zero looks along −Z.</param>
+    /// <param name="elevationRadians">How far above the target to stand.</param>
+    /// <param name="margin">Slack around the data. 1 fills the panel exactly and clips the corners.</param>
+    /// <param name="fieldOfViewDegrees">Vertical field of view, matching the camera that will be used.</param>
+    public static Camera3 Framing(
+        IEnumerable<Vec3> points,
+        double azimuthRadians = 0.85d,
+        double elevationRadians = 0.55d,
+        double margin = 1.25d,
+        double fieldOfViewDegrees = 50d)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+
+        double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+        var seen = 0;
+
+        foreach (var p in points)
+        {
+            // A single non-finite vertex would otherwise poison the whole frame, and a height field
+            // built from a ratio produces one the moment its denominator is zero.
+            if (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || !double.IsFinite(p.Z)) continue;
+
+            seen++;
+            minX = Math.Min(minX, p.X); maxX = Math.Max(maxX, p.X);
+            minY = Math.Min(minY, p.Y); maxY = Math.Max(maxY, p.Y);
+            minZ = Math.Min(minZ, p.Z); maxZ = Math.Max(maxZ, p.Z);
+        }
+
+        if (seen == 0) return Default;
+
+        var centre = new Vec3((minX + maxX) / 2d, (minY + maxY) / 2d, (minZ + maxZ) / 2d);
+
+        // Half the diagonal: the radius of a sphere containing the box whatever angle it is seen
+        // from, so an orbit cannot swing the corners out of frame.
+        var radius = 0.5d * new Vec3(maxX - minX, maxY - minY, maxZ - minZ).Length;
+        if (radius < Num.Epsilon) radius = 1d;   // one point, or a plane with no depth
+
+        var fov = Math.Clamp(fieldOfViewDegrees, 1d, 179d) * Math.PI / 180d;
+        var distance = Math.Max(radius, radius * Math.Max(1d, margin) / Math.Sin(fov / 2d));
+
+        var cosElevation = Math.Cos(elevationRadians);
+        var offset = new Vec3(
+            Math.Sin(azimuthRadians) * cosElevation,
+            Math.Sin(elevationRadians),
+            -Math.Cos(azimuthRadians) * cosElevation) * distance;
+
+        return new Camera3(centre + offset, centre, Vec3.Up, fieldOfViewDegrees);
+    }
 
     /// <summary>The same camera moved around the target on a circle, at a fixed height and distance —
     /// what a unit spins from <c>surface.Now</c> when it wants the scene to turn.</summary>

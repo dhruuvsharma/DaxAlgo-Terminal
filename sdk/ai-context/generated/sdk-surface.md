@@ -192,7 +192,27 @@ double SweepSlippage(IReadOnlyList<DepthLevel> side, double units, double refere
 - `Microprice` — The microprice at the top of a depth snapshot.
 
 <!-- @type Camera3 | Quant helpers -->
-- `Camera3` — Where the viewer stands and what they are looking at. Pass to `Of`. `Default` looks at the origin from in front and slightly above, which frames a unit cube sensibly. Fields: FieldOfViewDegrees, Position, Target, Up. Use `Camera3.Default`, never `new()`.
+### `Camera3`
+
+Where the viewer stands and what they are looking at. Pass to `Of`. `Default` looks at the origin from in front and slightly above, which frames a unit cube sensibly.
+
+```csharp
+new Camera3(Vec3 Position, Vec3 Target, Vec3 Up, double FieldOfViewDegrees)
+Camera3 Default { get; }
+double FieldOfViewDegrees { get; }
+Camera3 Framing(IEnumerable<Vec3> points, double azimuthRadians = 0.85, double elevationRadians = 0.55, double margin = 1.25, double fieldOfViewDegrees = 50)
+Camera3 Orbit(double radians)
+Vec3 Position { get; }
+Vec3 Target { get; }
+Vec3 Up { get; }
+```
+
+- `.ctor` — Where the viewer stands and what they are looking at. Pass to `Of`. `Default` looks at the origin from in front and slightly above, which frames a unit cube sensibly.
+- `FieldOfViewDegrees` — Vertical field of view. Clamped to a sane range when projecting.
+- `Orbit` — The same camera moved around the target on a circle, at a fixed height and distance — what a unit spins from `surface.Now` when it wants the scene to turn.
+- `Position` — Where the viewer is.
+- `Target` — What they are looking at.
+- `Up` — Which way is up; `Up` unless the camera is rolled.
 
 <!-- @type Dema | Quant helpers -->
 ### `Dema`
@@ -1228,7 +1248,33 @@ void Draw(IRenderSurface surface, double value, GaugeOptions options = null, Plo
 - `Draw` — Draws the meter into an area.
 
 <!-- @type GaugeOptions | Drawing helpers -->
-- `GaugeOptions` — How a bounded meter is drawn. Fields: Diverging, Format, Label, Maximum, Minimum, ShowScale. Use `GaugeOptions.Default`, never `new()`.
+### `GaugeOptions`
+
+How a bounded meter is drawn.
+
+```csharp
+new GaugeOptions(double Minimum = -1, double Maximum = 1, bool Diverging = true, string Label = null, string Format = null, bool ShowScale = true)
+GaugeOptions Default { get; }
+bool Diverging { get; }
+string Format { get; }
+string Label { get; }
+double Maximum { get; }
+double Minimum { get; }
+GaugeOptions Percent(string label = null)
+GaugeOptions Ratio(string label = null)
+bool ShowScale { get; }
+```
+
+- `.ctor` — How a bounded meter is drawn.
+- `Default` — The intended defaults: a signed meter from −1 to 1.
+- `Diverging` — Whether the bar grows from the centre rather than the left. True for a signed quantity — an imbalance at −0.4 and one at +0.4 should not look alike.
+- `Format` — Numeric format for the readout.
+- `Label` — Caption above the bar.
+- `Maximum` — Right end.
+- `Minimum` — Left end of the scale.
+- `Percent` — A 0…100 meter, for an oscillator reading.
+- `Ratio` — A 0…1 meter that grows from the left — for a confidence, a fill ratio, a share.
+- `ShowScale` — Whether to print the end values.
 
 <!-- @type Heatmap | Drawing helpers -->
 ### `Heatmap`
@@ -1243,7 +1289,29 @@ void Labels(IRenderSurface surface, IReadOnlyList<string> columns, IReadOnlyList
 
 
 <!-- @type HeatmapOptions | Drawing helpers -->
-- `HeatmapOptions` — How a matrix of values is shaded. Fields: Color, Diverging, Extent, Gap, ShowValues. Use `HeatmapOptions.Default`, never `new()`.
+### `HeatmapOptions`
+
+How a matrix of values is shaded.
+
+```csharp
+new HeatmapOptions(bool Diverging = true, RenderThemeColor Color = Accent, double Extent = 0, bool ShowValues = false, double Gap = 1)
+RenderThemeColor Color { get; }
+HeatmapOptions Default { get; }
+bool Diverging { get; }
+double Extent { get; }
+double Gap { get; }
+HeatmapOptions Magnitude(RenderThemeColor color = Accent)
+bool ShowValues { get; }
+```
+
+- `.ctor` — How a matrix of values is shaded.
+- `Color` — The role a sequential ramp runs towards. Ignored when diverging.
+- `Default` — The intended defaults.
+- `Diverging` — Whether the scale runs bearish→neutral→bullish around zero. False uses a single-hue sequential ramp. A signed quantity on a sequential ramp hides which side of zero it is on, which is normally the only thing worth knowing.
+- `Extent` — The magnitude that counts as full strength. Zero derives it from the data in view — which is what makes one cell's colour comparable with its neighbours but not with another frame's.
+- `Gap` — Pixels left between cells.
+- `Magnitude` — A single-hue ramp, for a magnitude with no sign — volume, dwell time, trade count.
+- `ShowValues` — Whether to print the number in each cell. Only legible on a coarse grid; the routine drops the text automatically when cells get small.
 
 <!-- @type Histogram | Drawing helpers -->
 ### `Histogram`
@@ -1257,7 +1325,31 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<T> items, Func<T, double> s
 
 
 <!-- @type HistogramOptions | Drawing helpers -->
-- `HistogramOptions` — How a signed histogram is drawn. Fields: Alpha, BarFraction, Baseline, Negative, Positive, ShowBaseline. Use `HistogramOptions.Default`, never `new()`.
+### `HistogramOptions`
+
+How a signed histogram is drawn.
+
+```csharp
+new HistogramOptions(RenderThemeColor Positive = Bullish, RenderThemeColor Negative = Bearish, double Baseline = 0, double BarFraction = 0.72, double Alpha = 0.9, bool ShowBaseline = true)
+double Alpha { get; }
+double BarFraction { get; }
+double Baseline { get; }
+HistogramOptions Default { get; }
+RenderThemeColor Negative { get; }
+RenderThemeColor Positive { get; }
+bool ShowBaseline { get; }
+HistogramOptions Single(RenderThemeColor color)
+```
+
+- `.ctor` — How a signed histogram is drawn.
+- `Alpha` — 0 transparent to 1 opaque.
+- `BarFraction` — Bar width as a fraction of the column, leaving the rest as a gap.
+- `Baseline` — The value bars are measured from — zero for delta or MACD, and something else only rarely.
+- `Default` — The intended defaults. Explicit arguments because `new()` on a record struct skips the primary constructor's defaults and would leave zero-width, fully transparent bars.
+- `Negative` — Colour for bars below it.
+- `Positive` — Colour for bars above the baseline.
+- `ShowBaseline` — Whether to stroke the baseline itself.
+- `Single` — One colour for every bar — for a quantity with no sign to it, like volume.
 
 <!-- @type Ladder | Drawing helpers -->
 ### `Ladder`
@@ -1477,7 +1569,29 @@ IReadOnlyList<double> Values { get; }
 - `Values` — One value per index.
 
 <!-- @type SeriesOptions | Drawing helpers -->
-- `SeriesOptions` — How one series is drawn. Fields: Alpha, Color, Dashed, Kind, Thickness. Use `SeriesOptions.Default`, never `new()`.
+### `SeriesOptions`
+
+How one series is drawn.
+
+```csharp
+new SeriesOptions(RenderSeriesKind Kind = Line, RenderThemeColor Color = Accent, double Thickness = 1.5, double Alpha = 1, bool Dashed = false)
+double Alpha { get; }
+RenderThemeColor Color { get; }
+bool Dashed { get; }
+SeriesOptions Default { get; }
+SeriesOptions In(RenderThemeColor color)
+RenderSeriesKind Kind { get; }
+double Thickness { get; }
+```
+
+- `.ctor` — How one series is drawn.
+- `Alpha` — 0 transparent to 1 opaque.
+- `Color` — Theme role. Never a literal — a literal that reads well on a dark background is invisible on a light one.
+- `Dashed` — Whether the stroke is dashed — the usual way to mark a projected or lagging series without spending a second colour on it.
+- `Default` — The intended defaults. Written with an explicit argument because `new()` on a record struct binds to the implicit parameterless constructor and lands every field on zero — which would make this a zero-thickness, fully transparent line.
+- `In` — The same options in another colour — the usual way to draw a second series.
+- `Kind` — Line, Area, Steps, Bars or Scatter.
+- `Thickness` — Stroke width.
 
 <!-- @type Signal | Drawing helpers -->
 ### `Signal`

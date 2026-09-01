@@ -326,7 +326,18 @@ public static class SdkSurfaceGenerator
     private static bool IsOptionsRecord(Type type) =>
         type.IsValueType
         && type.GetProperty("Default", BindingFlags.Public | BindingFlags.Static) is { } d
-        && d.PropertyType == type;
+        && d.PropertyType == type
+        // AND it must have no behaviour, which the first version did not check.
+        //
+        // Camera3 matched: a struct with a static Default. So it was compacted to one line of field
+        // names and BOTH its methods were dropped -- Orbit, which is how a scene animates, and
+        // Framing, which is how a scene is aimed at its data. Neither has ever appeared in the prompt.
+        // That is a plain answer to why no generated 3D unit has ever spun or fitted its camera: it
+        // was never shown either call, while the drawing pack talked about animation.
+        //
+        // An options record is DATA -- fields and a sane Default. A type with methods is a tool, and a
+        // tool has to show them.
+        && !Members(type).OfType<MethodInfo>().Any();
 
     /// <summary>
     /// The prose budget for a type reflected out of <c>TradingTerminal.Core</c>.
