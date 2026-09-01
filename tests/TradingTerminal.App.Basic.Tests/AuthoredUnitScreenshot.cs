@@ -57,10 +57,26 @@ public sealed class AuthoredUnitScreenshot(ITestOutputHelper output)
 
         // Driven before drawing, and this is the whole reason the picture is worth looking at: a unit
         // that has seen no data draws "waiting for depth", which is the same frame a broken one draws.
+        //
+        // REAL data by default. The synthetic drive is the right input for the ladder — hostile,
+        // deterministic, fast — and the wrong input for a picture somebody is asked to judge: a
+        // footprint of invented prints shows that the code runs and nothing about whether the window
+        // is any good. Binance is public, so this needs no account. Set HYPERION_SHOT_SYNTHETIC=1 to
+        // go back to generated data when the network is unavailable.
+        var capture = Environment.GetEnvironmentVariable("HYPERION_SHOT_SYNTHETIC") == "1"
+            ? null
+            : Capture(output);
+
         switch (instance)
         {
-            case IVisualizer visualizer: SyntheticDrive.Run(visualizer); break;
-            case IStrategyKernel kernel: SyntheticDrive.Run(kernel); break;
+            case IVisualizer visualizer:
+                if (capture is null) SyntheticDrive.Run(visualizer);
+                else SyntheticDrive.Run(visualizer, capture);
+                break;
+            case IStrategyKernel kernel:
+                if (capture is null) SyntheticDrive.Run(kernel);
+                else SyntheticDrive.Run(kernel, capture);
+                break;
             default: Assert.Fail($"{compiled.Unit.Type.Name} is neither a visualizer nor a kernel.");
                 break;
         }
@@ -97,6 +113,34 @@ public sealed class AuthoredUnitScreenshot(ITestOutputHelper output)
 
         output.WriteLine($"{compiled.Unit.Type.Name} -> {destination}");
         Assert.True(new FileInfo(destination).Length > 0);
+    }
+
+    /// <summary>
+    /// A window of real Binance book and tape, or null when it cannot be had.
+    ///
+    /// <para>Falling back rather than failing, because the point of this harness is to produce a
+    /// picture. A machine with no network should still get one — clearly worse, and clearly labelled
+    /// in the output — rather than no screenshot at all.</para>
+    /// </summary>
+    private static SyntheticDrive.CapturedMarket? Capture(ITestOutputHelper output)
+    {
+        var symbol = Environment.GetEnvironmentVariable("HYPERION_SHOT_SYMBOL") ?? "BTCUSDT";
+        try
+        {
+            var capture = BinanceCapture.TakeAsync(symbol).GetAwaiter().GetResult();
+            output.WriteLine(
+                $"Real {symbol}: {capture.Bars.Count} bars, {capture.Quotes.Count} quotes, "
+                + $"{capture.Trades.Count} prints, {capture.Depth.Count} books.");
+
+            // A capture with no bars would drive the unit through zero callbacks and produce the same
+            // blank frame as a broken unit, which is exactly the confusion this harness exists to end.
+            return capture.Bars.Count > 0 ? capture : null;
+        }
+        catch (Exception ex)
+        {
+            output.WriteLine($"SYNTHETIC DATA — the live capture failed: {ex.GetType().Name} {ex.Message}");
+            return null;
+        }
     }
 
     private static DaxAlgo.Sdk.Layout.UnitLayout? Layout(object unit) => unit switch

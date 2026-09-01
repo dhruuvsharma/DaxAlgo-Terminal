@@ -1,4 +1,4 @@
-using DaxAlgo.Sdk;
+﻿using DaxAlgo.Sdk;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -59,12 +59,38 @@ public static class SyntheticDrive
         IReadOnlySet<InstrumentId> Instruments,
         bool Completed);
 
+    /// <summary>
+    /// Real market data, captured from a venue and replayed through this drive.
+    ///
+    /// <para><b>Why replay rather than stream.</b> A live socket makes the lifecycle
+    /// non-deterministic and the picture unrepeatable, and it puts a network dependency inside the
+    /// verification ladder. Capturing once and replaying gives the unit genuine prices, a genuine
+    /// book and a genuine tape - the thing synthetic data cannot be judged for - while every rung
+    /// stays reproducible.</para>
+    ///
+    /// <para>Everything must carry <see cref="Instrument"/> as its id: the view answers
+    /// <c>RecentBars</c> and <c>LatestDepth</c> for that one instrument, and a capture stamped with
+    /// anything else would drive the unit with data its own queries cannot see.</para>
+    /// </summary>
+    public sealed record CapturedMarket(
+        IReadOnlyList<OhlcvBar> Bars,
+        IReadOnlyList<Quote> Quotes,
+        IReadOnlyList<TradePrint> Trades,
+        IReadOnlyList<DepthSnapshot> Depth);
+
     /// <summary>Drives a strategy kernel through its full lifecycle.</summary>
-    public static Result Run(IStrategyKernel kernel, double[]? closes = null)
+    public static Result Run(IStrategyKernel kernel, double[]? closes = null) =>
+        Run(kernel, closes, capture: null);
+
+    /// <summary>Drives a kernel against real captured market data.</summary>
+    public static Result Run(IStrategyKernel kernel, CapturedMarket capture) =>
+        Run(kernel, closes: null, capture);
+
+    private static Result Run(IStrategyKernel kernel, double[]? closes, CapturedMarket? capture)
     {
         ArgumentNullException.ThrowIfNull(kernel);
 
-        var (context, data) = Build(kernel.Schema, closes, kernel.DataRequirement);
+        var (context, data) = Build(kernel.Schema, closes, kernel.DataRequirement, capture);
         kernel.OnStartAsync(context, CancellationToken.None).GetAwaiter().GetResult();
         foreach (var bar in data.Series)
         {
@@ -83,11 +109,18 @@ public static class SyntheticDrive
     }
 
     /// <summary>Drives a visualizer through its full lifecycle.</summary>
-    public static Result Run(IVisualizer visualizer, double[]? closes = null)
+    public static Result Run(IVisualizer visualizer, double[]? closes = null) =>
+        Run(visualizer, closes, capture: null);
+
+    /// <summary>Drives a visualizer against real captured market data.</summary>
+    public static Result Run(IVisualizer visualizer, CapturedMarket capture) =>
+        Run(visualizer, closes: null, capture);
+
+    private static Result Run(IVisualizer visualizer, double[]? closes, CapturedMarket? capture)
     {
         ArgumentNullException.ThrowIfNull(visualizer);
 
-        var (context, data) = Build(visualizer.Schema, closes, visualizer.DataRequirement);
+        var (context, data) = Build(visualizer.Schema, closes, visualizer.DataRequirement, capture);
         visualizer.OnStartAsync(context, CancellationToken.None).GetAwaiter().GetResult();
         foreach (var bar in data.Series)
         {
@@ -124,7 +157,8 @@ public static class SyntheticDrive
     /// it never asked for — which would be a different way of testing something other than the unit.</para>
     /// </param>
     private static (DriveContext Context, Feed Data) Build(
-        StrategyParameterSchema schema, double[]? closes, StrategyDataRequirement requirement)
+        StrategyParameterSchema schema, double[]? closes, StrategyDataRequirement requirement,
+        CapturedMarket? capture = null)
     {
         // Only the instrument is overridden; everything else takes its declared default, converted by
         // the host's own SandboxParameters rather than by a second set of rules that would drift.
@@ -134,7 +168,7 @@ public static class SyntheticDrive
 
         // One feed, shared. Two would leave the context reading a series the caller never advanced —
         // the unit would see an empty history for every bar and every warm-up guard would hold forever.
-        var feed = new Feed(closes ?? DefaultCloses, requirement);
+        var feed = new Feed(closes ?? DefaultCloses, requirement, capture);
         return (new DriveContext(feed, new TradingTerminal.Sandbox.SandboxParameters(schema, values)), feed);
     }
 
@@ -143,7 +177,8 @@ public static class SyntheticDrive
 
     /// <summary>Bars revealed one at a time, so "recent" history means what had actually arrived. Handing
     /// a unit the whole series up front hides every warm-up bug there is.</summary>
-    private sealed class Feed(double[] closes, StrategyDataRequirement requirement) : IMarketDataView
+    private sealed class Feed(double[] closes, StrategyDataRequirement requirement, CapturedMarket? capture)
+        : IMarketDataView
     {
         /// <summary>Levels per side. Deep enough that a sweep of a few hundred lots walks the book
         /// rather than exhausting it, which is the case a slippage calculation gets wrong.</summary>
@@ -158,10 +193,40 @@ public static class SyntheticDrive
         private readonly bool _wantsDepth = requirement.HasFlag(StrategyDataRequirement.Depth);
         private readonly bool _wantsTape = requirement.HasFlag(StrategyDataRequirement.TradeTape);
 
-        public IReadOnlyList<OhlcvBar> Series { get; } =
-            [.. closes.Select((close, index) => new OhlcvBar(
+        public IReadOnlyList<OhlcvBar> Series { get; } = capture is not null
+            ? capture.Bars
+            : [.. closes.Select((close, index) => new OhlcvBar(
                 Instrument, BarSize.OneMinute, Epoch.AddMinutes(index),
                 close, close, close, close, index + 1, BrokerKind.Simulated, IsFinal: true))];
+
+        /// <summary>
+        /// The window a bar owns: from its open to the next open, and open-ended for the last one so
+        /// nothing captured after the final bar closed is silently dropped.
+        /// </summary>
+        private (DateTime From, DateTime To) Window(OhlcvBar bar)
+        {
+            // By time rather than by position, so it does not depend on the caller handing back the
+            // very instance from Series — and so a duplicate open time cannot pick the wrong window.
+            var to = DateTime.MaxValue;
+            foreach (var candidate in Series)
+            {
+                if (candidate.OpenTimeUtc <= bar.OpenTimeUtc) continue;
+                to = candidate.OpenTimeUtc;
+                break;
+            }
+
+            return (bar.OpenTimeUtc, to);
+        }
+
+        private IEnumerable<T> Within<T>(OhlcvBar bar, IReadOnlyList<T> events, Func<T, DateTime> at)
+        {
+            var (from, to) = Window(bar);
+            foreach (var item in events)
+            {
+                var when = at(item);
+                if (when >= from && when < to) yield return item;
+            }
+        }
 
         public void Reveal(OhlcvBar bar) => _seen.Add(bar);
 
@@ -179,7 +244,9 @@ public static class SyntheticDrive
         /// </summary>
         public DateTime Now => _seen.Count == 0 ? Epoch : _seen[^1].OpenTimeUtc;
 
-        public IEnumerable<Quote> QuotesFor(OhlcvBar bar) =>
+        public IEnumerable<Quote> QuotesFor(OhlcvBar bar) => capture is not null
+            ? Within(bar, capture.Quotes, q => q.EventTimeUtc)
+            :
         [
             new(Instrument, bar.OpenTimeUtc, bar.OpenTimeUtc,
                 bar.Close - 0.5d, bar.Close + 0.5d, 10, 10,
@@ -197,6 +264,14 @@ public static class SyntheticDrive
         public DepthSnapshot? DepthFor(OhlcvBar bar)
         {
             if (!_wantsDepth) return null;
+
+            if (capture is not null)
+            {
+                // The newest book inside the bar, because that is the one still standing when the bar
+                // closed. Keeping an older one would show a book the market had already moved past.
+                foreach (var snapshot in Within(bar, capture.Depth, d => d.TimestampUtc)) _depth = snapshot;
+                return _depth;
+            }
 
             var heavyBid = _seen.Count % 2 == 0;
             var bids = new List<DepthLevel>(BookLevels);
@@ -225,6 +300,17 @@ public static class SyntheticDrive
         public IEnumerable<TradePrint> TradesFor(OhlcvBar bar)
         {
             if (!_wantsTape) yield break;
+
+            if (capture is not null)
+            {
+                foreach (var print in Within(bar, capture.Trades, t => t.EventTimeUtc))
+                {
+                    _prints.Add(print);
+                    yield return print;
+                }
+
+                yield break;
+            }
 
             for (var i = 0; i < PrintsPerBar; i++)
             {
@@ -259,7 +345,7 @@ public static class SyntheticDrive
             instrument == Instrument && size == BarSize.OneMinute ? [.. _seen.TakeLast(maxCount)] : [];
 
         public IReadOnlyList<Quote> RecentQuotes(InstrumentId instrument, int maxCount) =>
-            _seen.Count == 0 ? [] : [.. QuotesFor(_seen[^1])];
+            _seen.Count == 0 ? [] : [.. QuotesFor(_seen[^1]).TakeLast(maxCount)];
 
         public IReadOnlyList<TradePrint> RecentTrades(InstrumentId instrument, int maxCount) =>
             instrument == Instrument ? [.. _prints.TakeLast(maxCount)] : [];

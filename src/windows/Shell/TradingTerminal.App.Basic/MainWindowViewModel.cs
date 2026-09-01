@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Windows;
@@ -547,7 +547,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 SafeSchema(registration),
                 _services.GetRequiredService<IMarketDataHub>(),
                 _services.GetRequiredService<IClock>(),
-                LogSink);
+                LogSink,
+                SelectableInstruments());
             var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
@@ -634,7 +635,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                     else await runtime.ResumeAsync();
                 },
                 layout: runtime.GetLayout,
-                clock: () => clock.UtcNow);
+                clock: () => clock.UtcNow,
+
+                // A STRATEGY cannot start without this. SandboxStrategyRuntime.ResolveInstruments
+                // requires exactly one resolved Instrument parameter and throws otherwise, so an
+                // instrument the user had no way to set was a window that opened and then failed.
+                instruments: SelectableInstruments());
 
             // The book row, live. Without this it renders zeroes for the life of the window, which
             // reads as a strategy that never trades rather than one nobody is reporting.
@@ -738,6 +744,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     }
 
     /// <summary>The visualizer's declared parameters, or none when it cannot even be constructed.</summary>
+    /// <summary>
+    /// The instruments an authored unit may be pointed at — the same list, resolved the same way, as
+    /// the picker in Charts / OrderBook / VolumeFootprint.
+    ///
+    /// <para>Asked per window rather than cached, because a broker connects while the terminal is
+    /// running and a list captured at start-up would be empty for the whole session.</para>
+    /// </summary>
+    private IReadOnlyList<AuthoredUnitInstrument> SelectableInstruments() =>
+        AuthoredUnitInstruments.Selectable(
+            _services.GetRequiredService<IBrokerSelector>(),
+            _services.GetRequiredService<IMarketDataIngest>());
+
     private StrategyParameterSchema? SafeSchema(VisualizerRegistration registration)
     {
         try

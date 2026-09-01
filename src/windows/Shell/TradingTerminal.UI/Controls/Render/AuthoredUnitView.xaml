@@ -1,4 +1,4 @@
-<UserControl x:Class="TradingTerminal.UI.Controls.Render.AuthoredUnitView"
+﻿<UserControl x:Class="TradingTerminal.UI.Controls.Render.AuthoredUnitView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:render="clr-namespace:TradingTerminal.UI.Controls.Render"
@@ -81,6 +81,19 @@
                     <ComboBox ItemsSource="{Binding Choices}" Padding="5,2" FontSize="11"
                               SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                               Visibility="{Binding IsChoice, Converter={StaticResource B2V}}" />
+
+                    <!-- The instrument picker. Editable so it filters as the user types, which is how
+                         the shared InstrumentPicker behaves in Charts / OrderBook / Footprint; the
+                         list is short enough here that the view-model side of that filter is not
+                         worth carrying. SelectedValuePath is the id text the editor already stores,
+                         so choosing a row is the same as typing its id and TryParse stays the single
+                         place a value is validated. -->
+                    <ComboBox ItemsSource="{Binding Instruments}" Padding="5,2" FontSize="11"
+                              IsEditable="False"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="IdText"
+                              SelectedValue="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                              Visibility="{Binding IsInstrument, Converter={StaticResource B2V}}" />
 
                     <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                              Padding="5,2" FontSize="11"

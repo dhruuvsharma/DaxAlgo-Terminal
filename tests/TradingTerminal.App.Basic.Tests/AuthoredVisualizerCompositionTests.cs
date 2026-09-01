@@ -1,4 +1,4 @@
-using DaxAlgo.Sdk;
+﻿using DaxAlgo.Sdk;
 using TradingTerminal.App;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
@@ -117,17 +117,60 @@ public sealed class AuthoredVisualizerCompositionTests
         }
     }
 
+    [WpfFact]
+    public void The_instrument_parameter_reaches_the_window_as_a_picker()
+    {
+        // Reported by a user looking at a generated window: "there is no instrument selector". The
+        // unit declared StrategyParameter.Instrument correctly; the chrome had three editor shapes
+        // and an instrument fell through to free text, whose validator then asked for a canonical
+        // surrogate id — "Must be an instrument id." Those are registry numbers nobody knows.
+        //
+        // Asserted through the real composition, because the presenter being CAPABLE of a picker
+        // says nothing about whether the application passes it one. That is the exact shape of every
+        // defect this project was created to catch.
+        var (runtime, unit) = Compose(
+        [
+            new TradingTerminal.UI.Controls.Render.AuthoredUnitInstrument(new InstrumentId(4), "BTCUSDT"),
+        ]);
+
+        using (runtime)
+        using (unit)
+        {
+            var row = Assert.Single(unit.Presenter.Parameters, p => p.Key == "instrument");
+            Assert.True(row.IsInstrument, "the instrument row did not render as a picker");
+            Assert.False(row.IsFreeText);
+        }
+    }
+
+    [WpfFact]
+    public void With_no_broker_connected_the_instrument_row_stays_editable_by_hand()
+    {
+        // A terminal opened before any broker is connected must still show a usable window rather
+        // than an empty dropdown that cannot be set.
+        var (runtime, unit) = Compose();
+
+        using (runtime)
+        using (unit)
+        {
+            var row = Assert.Single(unit.Presenter.Parameters, p => p.Key == "instrument");
+            Assert.False(row.IsInstrument);
+            Assert.True(row.IsFreeText);
+        }
+    }
+
     // ── harness ─────────────────────────────────────────────────────────────────────────────────
 
     private static (TradingTerminal.Sandbox.SandboxVisualizerRuntime Runtime,
-        TradingTerminal.UI.Controls.Render.AuthoredUnitHost Unit) Compose() =>
+        TradingTerminal.UI.Controls.Render.AuthoredUnitHost Unit) Compose(
+        IReadOnlyList<TradingTerminal.UI.Controls.Render.AuthoredUnitInstrument>? instruments = null) =>
         AuthoredVisualizerComposition.Create(
             "Probe",
             () => new Probe(),
             Probe.Declared,
             new StubHub(),
             new StubClock(),
-            new InMemoryLogSink());
+            new InMemoryLogSink(),
+            instruments);
 
     private static async Task<bool> WaitFor(Func<bool> condition)
     {

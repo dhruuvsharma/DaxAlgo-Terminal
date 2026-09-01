@@ -1,4 +1,4 @@
-using DaxAlgo.Sdk;
+﻿using DaxAlgo.Sdk;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Strategies.Parameters;
 using TradingTerminal.Core.Time;
@@ -36,7 +36,8 @@ internal static class AuthoredVisualizerComposition
         StrategyParameterSchema schema,
         IMarketDataHub hub,
         IClock clock,
-        InMemoryLogSink log)
+        InMemoryLogSink log,
+        IReadOnlyList<AuthoredUnitInstrument>? instruments = null)
     {
         ArgumentNullException.ThrowIfNull(createVisualizer);
         ArgumentNullException.ThrowIfNull(log);
@@ -85,7 +86,11 @@ internal static class AuthoredVisualizerComposition
             // THE SAME clock the runtime hands the unit as context.Clock. That is the whole point: a
             // unit stamps an event when it arrives and reads its age from surface.Now while drawing,
             // and two clocks would make that subtraction plausible and wrong.
-            clock: () => clock.UtcNow);
+            clock: () => clock.UtcNow,
+
+            // What the Instrument parameter offers. Empty means no broker is connected, and the row
+            // falls back to the text editor rather than to an unsettable dropdown.
+            instruments: instruments);
 
         return (runtime, unit);
     }

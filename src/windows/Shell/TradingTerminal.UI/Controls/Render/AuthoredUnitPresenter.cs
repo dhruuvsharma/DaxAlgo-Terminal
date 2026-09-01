@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -374,11 +374,29 @@ public sealed partial class AuthoredUnitParameter : ObservableObject
     /// <summary>True when this row is a fixed set rather than free text.</summary>
     public bool IsChoice => Kind == ParameterKind.Choice && Choices.Count > 0;
 
+    /// <summary>
+    /// The instruments this parameter may be set to. Empty when the window has no registry to ask —
+    /// a preview pane, the verification harness — in which case the row stays a text box rather than
+    /// rendering a dropdown that cannot be set.
+    /// </summary>
+    public IReadOnlyList<AuthoredUnitInstrument> Instruments { get; init; } = [];
+
+    /// <summary>
+    /// True when this parameter should render the instrument picker.
+    ///
+    /// <para><b>The gap a user found by looking at a generated window:</b> the unit declared
+    /// <c>StrategyParameter.Instrument(…)</c> correctly and the chrome had three editor shapes —
+    /// checkbox, combo, text box — so an instrument fell through to free text, whose validator then
+    /// demanded a canonical surrogate id and said "Must be an instrument id." Those ids are registry
+    /// surrogates; nobody knows their own.</para>
+    /// </summary>
+    public bool IsInstrument => Kind == ParameterKind.Instrument && Instruments.Count > 0;
+
     /// <summary>True for a toggle.</summary>
     public bool IsBoolean => Kind == ParameterKind.Boolean;
 
     /// <summary>True when the row is an ordinary text box — everything that is neither.</summary>
-    public bool IsFreeText => !IsChoice && !IsBoolean;
+    public bool IsFreeText => !IsChoice && !IsBoolean && !IsInstrument;
 
     /// <summary>Declared lower bound, or null.</summary>
     public double? Minimum { get; init; }

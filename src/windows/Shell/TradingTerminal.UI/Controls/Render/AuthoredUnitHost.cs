@@ -1,4 +1,4 @@
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.Globalization;
 using System.Windows;
 using DaxAlgo.Sdk;
@@ -78,7 +78,8 @@ public sealed class AuthoredUnitHost : IDisposable
         Func<DaxAlgo.Sdk.Layout.UnitLayout>? layout = null,
         Func<IReadOnlyList<UnitAction>>? actions = null,
         Func<string, Task>? invokeAction = null,
-        Func<DateTime>? clock = null)
+        Func<DateTime>? clock = null,
+        IReadOnlyList<AuthoredUnitInstrument>? instruments = null)
     {
         ArgumentNullException.ThrowIfNull(tryDraw);
         _tryDraw = tryDraw;
@@ -106,7 +107,7 @@ public sealed class AuthoredUnitHost : IDisposable
         };
 
         foreach (var parameter in schema?.Parameters ?? [])
-            Presenter.Parameters.Add(Describe(parameter, values));
+            Presenter.Parameters.Add(Describe(parameter, values, instruments ?? []));
 
         Presenter.ApplyRequested += OnApplyRequested;
         Presenter.PauseRequested += OnPauseRequested;
@@ -361,7 +362,8 @@ public sealed class AuthoredUnitHost : IDisposable
 
     private static AuthoredUnitParameter Describe(
         StrategyParameter parameter,
-        IReadOnlyDictionary<string, object?>? values)
+        IReadOnlyDictionary<string, object?>? values,
+        IReadOnlyList<AuthoredUnitInstrument> instruments)
     {
         var value = values is not null && values.TryGetValue(parameter.Key, out var supplied)
             ? supplied
@@ -372,6 +374,9 @@ public sealed class AuthoredUnitHost : IDisposable
             Key = parameter.Key,
             Kind = parameter.Kind,
             Choices = parameter.Choices ?? [],
+            // Only on the rows that are instruments, so an unrelated parameter does not carry the
+            // whole registry around with it.
+            Instruments = parameter.Kind == ParameterKind.Instrument ? instruments : [],
             Minimum = parameter.Min,
             Maximum = parameter.Max,
             Unit = parameter.Unit ?? string.Empty,
