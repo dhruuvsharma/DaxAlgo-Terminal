@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 
@@ -190,6 +190,7 @@ public sealed class StrategyCodegenClientFactory
         "deepseek" => "DeepSeek (API key)",
         "xai" => "xAI / Grok (API key)",
         "openrouter" => "OpenRouter (API key)",
+        "tokenrouter" => "TokenRouter (API key)",
         "ollama" => "Ollama (local)",
         _ => $"{id} (API key)",
     };
